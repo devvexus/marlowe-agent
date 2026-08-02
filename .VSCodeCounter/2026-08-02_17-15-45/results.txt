@@ -1,0 +1,41 @@
+Date : 2026-08-02 17:15:45
+Directory : c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness
+Total : 11 files,  2965 codes, 0 comments, 1054 blanks, all 4019 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| Markdown |         10 |      2,956 |          0 |      1,053 |      4,009 |
+| JSON     |          1 |          9 |          0 |          1 |         10 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                   |         11 |      2,965 |          0 |      1,054 |      4,019 |
+| . (Files)                                                                                           |          2 |        113 |          0 |         37 |        150 |
+| .claude                                                                                             |          1 |          9 |          0 |          1 |         10 |
+| docs                                                                                                |          8 |      2,843 |          0 |      1,016 |      3,859 |
+| docs\design                                                                                         |          5 |      2,010 |          0 |        640 |      2,650 |
+| docs\requirements                                                                                   |          3 |        833 |          0 |        376 |      1,209 |
++-----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                                                            | language | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\.claude\settings.local.json                | JSON     |          9 |          0 |          1 |         10 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\CLAUDE.md                                  | Markdown |         49 |          0 |         15 |         64 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\STATE.md                                   | Markdown |         64 |          0 |         22 |         86 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\design\ARCHITECTURE.md                | Markdown |        424 |          0 |        139 |        563 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\design\CONTRACTS.md                   | Markdown |        690 |          0 |        163 |        853 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\design\DECISIONS.md                   | Markdown |        505 |          0 |        193 |        698 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\design\ROADMAP.md                     | Markdown |        297 |          0 |        112 |        409 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\design\spike-2026-08-01.md            | Markdown |         94 |          0 |         33 |        127 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\requirements\01-brief.md              | Markdown |        348 |          0 |        169 |        517 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\requirements\02-addendum-secretary.md | Markdown |        281 |          0 |        135 |        416 |
+| c:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\docs\requirements\03-addendum-terminal.md  | Markdown |        204 |          0 |         72 |        276 |
+| Total                                                                                               |          |      2,965 |          0 |      1,054 |      4,019 |
++-----------------------------------------------------------------------------------------------------+----------+------------+------------+------------+------------+

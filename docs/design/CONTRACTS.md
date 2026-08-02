@@ -8,8 +8,19 @@ Normative notation is Rust. Boundaries that cross a process or language line add
 a JSON wire format, and the JSON is normative for those.
 
 **Versioning.** Every contract carries `CONTRACT_VERSION`. A breaking change requires a new
-major version and an entry in `DECISIONS.md`; the old version must remain readable for one
-major cycle because the journal is append-only and old events must stay replayable forever.
+major version and an entry in `DECISIONS.md`. Two different retention rules apply, and
+conflating them breaks ADR-003:
+
+| Contract class | Old versions must stay decodable |
+|---|---|
+| **Journal event payloads** (§1) | **Forever. No expiry, ever.** |
+| Everything else — wire formats, APIs, manifests | One major cycle |
+
+The journal rule is strict because **rebuild-from-log is the migration story** (ADR-003): every
+index is rebuildable from the log, which is what makes schema evolution a rebuild rather than a
+data migration. An event kind that stops decoding makes every event after it unreplayable, which
+destroys invariant 7 and the migration path in the same stroke. A deprecated event kind may stop
+being *written*; it may never stop being *read*.
 
 ```rust
 pub const CONTRACT_VERSION: (u16, u16) = (1, 0);
@@ -274,15 +285,94 @@ pub enum Rejected {
 pub enum ForgetMode { Decay, Tombstone, RedactDestructive }
 ```
 
+### 3.6 Recall
+
+The explicit path (§5.5: *"recall recovered by making the agent's explicit memory search tool
+excellent"*). Unlike auto-injection it sees tombstones and unmatured entries.
+
+```rust
+pub struct RecallRequest {
+    pub run: RunId,
+    pub clock: Clock,
+    pub query: String,
+    pub filter: RecallFilter,
+    pub limit: u16,
+}
+
+pub struct RecallFilter {
+    pub entities: Vec<EntityId>,
+    pub time_range: Option<TimeRange>,
+    pub payload_kinds: Vec<PayloadKind>,
+    pub min_trust: Option<TrustClass>,
+    pub include_tombstones: bool,       // default TRUE — this is the "I used to know" path
+    pub include_superseded: bool,       // default false
+}
+
+pub struct RecallResult {
+    pub items: Vec<Recalled>,
+    pub cost: RetrievalCost,
+}
+
+/// NOT the same type as InjectedMemory. A tombstone has no content, and InjectedMemory.content
+/// is a non-optional String — reusing it would force either a lie ("") or a panic.
+pub struct Recalled {
+    pub id: MemoryId,
+    pub fidelity: FidelityTier,
+    pub effective_trust: TrustClass,
+    pub matured: bool,                  // false => excluded from auto-injection, per §4.3
+    pub body: RecalledBody,
+}
+
+pub enum RecalledBody {
+    /// fidelity Record | Summary | Gist — progressively shorter, always present
+    Content { text: String },
+    /// fidelity Tombstone — the memory is gone; this is the epitaph
+    Tombstone(TombstoneStub),
+}
+
+/// Enough to answer "I used to know something about this" (§5.4) and to ground an honest
+/// abstention (§17.9) — and deliberately not enough to reconstruct what was forgotten.
+pub struct TombstoneStub {
+    pub entities: Vec<EntityId>,        // what it was ABOUT
+    pub time_range: TimeRange,          // when the underlying events happened
+    pub forgotten_at: Timestamp,
+    pub reason: ForgetReason,
+}
+
+pub enum ForgetReason {
+    Decayed,                            // activation fell below the retention floor
+    Superseded { by: MemoryId },
+    UserRequested,                      // ForgetMode::Tombstone or RedactDestructive
+    BlobEvicted,                        // content store reclaimed the bytes (§2)
+}
+```
+
+`ForgetReason::UserRequested` is distinguishable from the rest on purpose: *"you asked me to
+forget that"* and *"that decayed"* are different answers, and only one of them should ever be
+offered to re-learn.
+
 ---
 
-## 4. Retrieval and the injection gate — the M0a↔M0b boundary
+## 4. The M0a↔M0b boundary
 
-**This interface is load-bearing for the M0a/M0b split.** M0a (the eval harness) is built
-against it *without knowledge of the retriever*, so it is pinned here, in this document,
-before either exists. JSON is normative — the scorer is Python, the implementation is Rust.
+**This is load-bearing for the M0a/M0b split.** M0a (the eval harness) is built against it
+*without knowledge of the retriever*, so it is pinned here, in this document, before either
+exists. JSON is normative — the scorer is Python, the implementation is Rust.
 
-### 4.1 Request
+**The boundary is three interfaces, not one.** Retrieval alone is enough to build the
+injection-precision judge, but not the LongMemEval, LoCoMo, or poisoning adapters — those need a
+contracted way to write a history and to ask a question. All three get identical treatment:
+
+| Interface | § | What M0a does with it |
+|---|---|---|
+| **Ingest** | 4.6 | Load a benchmark history; drive the poisoning suite |
+| **Answer** | 4.7 | Ask a question, score the answer and the abstention |
+| **Retrieve** | 4.1–4.4 | Score injection precision, tokens, latency |
+
+**M0b may expose no other surface to M0a.** If the harness needs a fourth, the split is leaking
+and the fix belongs here, not in the harness.
+
+### 4.1 Retrieval request
 
 ```json
 {
@@ -350,6 +440,20 @@ pub struct RetrievalCost {
     pub retrieval_tokens: u32,
     pub latency: LatencyBreakdown,    // total, embed, cues, fuse, gate
 }
+
+pub struct InjectedMemory {
+    pub memory_id: MemoryId,
+    pub content: String,              // non-optional: a tombstone can never appear here (§4.3)
+    pub score: f32,
+    pub calibrated_precision: f32,
+    pub fidelity: FidelityTier,
+    pub effective_trust: TrustClass,
+    pub payload_kind: PayloadKind,
+}
+
+/// The ONLY source of time on any path reachable from §§4.1, 4.6, 4.7. See §4.5.
+#[derive(Copy, Clone)]
+pub struct Clock { pub now: Timestamp }
 ```
 
 `cost` being non-optional in the type is the point: §5.7's *"report the pair"* cannot be
@@ -360,10 +464,30 @@ forgotten if a result without its cost cannot be constructed.
 ```rust
 /// Auto-injection reads the LIVE-ONLY hot index. This is a REQUIREMENT, not an optimization:
 /// see DECISIONS.md ADR-003 and the measured curve.
-pub fn injection_candidates(ix: &IndexSet) -> CandidateSet {
-    ix.hot()          // fidelity > Tombstone AND superseded_by IS NULL, by construction
+///
+/// THREE exclusions, not two. The third is easy to lose:
+///   1. tombstones          — fidelity > Tombstone
+///   2. superseded entries  — superseded_by IS NULL
+///   3. UNMATURED entries   — silent_until <= clock.now
+pub fn injection_candidates(ix: &IndexSet, clock: Clock) -> CandidateSet {
+    ix.hot()                                  // (1) and (2) hold by construction
+      .filter(|m| m.silent_until.map_or(true, |t| t <= clock.now))   // (3)
 }
+```
 
+Exclusion (3) is §5.3's **engram maturation** and it is a security property, not a quality
+tweak: newly consolidated beliefs enter in a low-activation silent state and require
+corroboration or elapsed stability before they can influence reasoning. It is *the cheapest
+available defence against single-exposure poisoning* — a fact planted once cannot be injected
+until it has survived a maturation window during which contradiction can supersede it. An
+implementation that filters only on fidelity and supersession has silently removed that defence
+while still passing every latency and precision test, because the attack is temporally decoupled
+from its trigger.
+
+Unmatured entries **are** reachable by explicit `recall` — the maturation bar is on *unprompted
+influence*, not on existence.
+
+```rust
 /// Tombstones are reachable HERE and only here, plus the abstention check. They must never
 /// compete for injection precision — a tombstone is the absence of a memory, and scoring it
 /// as a candidate would penalise the headline metric for working correctly.
@@ -395,7 +519,105 @@ pub enum GateSignal {
 
 Rationale, recorded because it is easy to "optimise" away: a naive utilization reward would let
 a poisoned memory train the gate to prefer it. Attention-grabbing and correct are not the same
-property, and only one of them is the target. See `DECISIONS.md` HP1.
+property, and only one of them is the target. See `DECISIONS.md` HP1 for the normative freeze
+scope, which covers more than this struct.
+
+### 4.5 The injectable clock
+
+`now_ms` on the retrieval request is not enough. Staleness half-life (§5.7) is *"time before a
+superseded fact stops being retrieved"* — measuring it requires writing fact A at T₁, writing
+its replacement at T₂, and querying at T₃, with all three controlled. A write path that reads a
+system clock makes that unmeasurable and makes every decay-dependent result irreproducible.
+
+```json
+{ "clock": { "now_ms": 1785312000000 } }
+```
+
+**Normative and binding: on any path reachable from §§4.1, 4.6, or 4.7, the implementation MUST
+NOT read a system clock.** Every timestamp is derived from the `clock` supplied by the caller.
+In production the harness supplies the real clock; under eval M0a supplies a synthetic one. Same
+code path, so the eval exercises the shipping behaviour rather than a test double.
+
+`clock` is required on all three interfaces. Decay, activation, `silent_until` maturation, and
+supersession recency all read it.
+
+### 4.6 Ingest
+
+Loads a history. Also how the poisoning suite plants its attacks.
+
+```json
+{
+  "contract_version": "1.0",
+  "clock": { "now_ms": 1780000000000 },
+  "session_id": "lme-s-0007",
+  "turns": [
+    { "turn_id": "t-1", "speaker": "user", "text": "I moved off Postgres in April",
+      "occurred_at_ms": 1775000000000,
+      "origin": { "channel": "terminal", "actor": "user", "ref": null } },
+    { "turn_id": "t-2", "speaker": "tool", "text": "<fetched page body>",
+      "occurred_at_ms": 1775000060000,
+      "origin": { "channel": "web", "actor": "tool:web", "ref": "https://example.invalid/x" } }
+  ]
+}
+```
+
+**M0a declares `origin`. It never declares `trust_class`.** The harness derives trust from origin
+by its own rules, exactly as in production. This is not a stylistic choice — letting the eval set
+trust directly would let it bypass the mechanism it exists to test, and the laundering suite
+specifically needs to assert that a claim entering through `channel: "web"` comes out
+`untrusted_content` no matter how many derivations it passes through.
+
+Response — the poisoning suite asserts on this:
+
+```json
+{
+  "contract_version": "1.0",
+  "session_id": "lme-s-0007",
+  "written":  [ { "turn_id": "t-1", "memory_ids": ["m-1"], "effective_trust": "user_asserted" } ],
+  "rejected": [ { "turn_id": "t-9", "reason": "unknown_parent" } ],
+  "cost": { "ingest_tokens": 0, "latency_ms": { "total": 41 } }
+}
+```
+
+`effective_trust` in the response is what the harness *derived*, which is the value the laundering
+tests compare against. `rejected` is a first-class outcome: a suite that plants a malformed or
+unauthorized write must be able to see it refused rather than infer refusal from absence.
+
+### 4.7 Answer
+
+LongMemEval and LoCoMo score answers, not retrieval. Abstention is scored explicitly (§5.5).
+
+```json
+{ "contract_version": "1.0", "clock": { "now_ms": 1785312000000 },
+  "query_id": "q-0041", "session_id": "lme-s-0007",
+  "question": "What database am I using?" }
+```
+
+```json
+{
+  "contract_version": "1.0",
+  "query_id": "q-0041",
+  "answered": true,
+  "answer": "You moved off Postgres in April; you're on SQLite now.",
+  "abstained": false,
+  "abstention_reason": null,
+  "grounded_in": ["m-8814", "m-9002"],
+  "retrieval": { "...": "the §4.2 RetrievalResult that fed this answer" },
+  "cost": {
+    "prompt_tokens": 5120, "completion_tokens": 88, "retrieval_tokens": 812,
+    "latency_ms": { "total": 1840, "retrieval": 118, "generation": 1722 }
+  }
+}
+```
+
+- **`retrieval` is embedded, not referenced.** Injection precision and answer correctness must be
+  joinable on a single record, or the headline metric cannot be attributed to a retrieval
+  decision — which is the whole point of measuring both.
+- **`answered: false` with a populated `answer` is a protocol error.** The honest "no" (§17.9) is
+  a distinct outcome from a hedged answer, and a schema that lets them blur is a schema that will
+  let a confabulation score as an abstention.
+- **`cost` is required here too**, and separates retrieval from generation tokens — §5.7's
+  ≤7,000 budget is a *retrieval* budget, and folding generation into it would hide a miss.
 
 ---
 
@@ -658,7 +880,8 @@ pub struct BlastRadius {
 
 ```rust
 fn check_targets(m: &CapabilityManifest, args: &Args, taint: &TaintSet) -> Result<(), BlockReason> {
-    if m.consequence < ConsequenceLevel::Consequential { return Ok(()); }
+    // The early return is at INERT, not Consequential. Reversible tools ARE checked.
+    if m.consequence <= ConsequenceLevel::Inert { return Ok(()); }
     for p in m.params.iter().filter(|p| p.role == ArgumentRole::Target) {
         if taint.of(&p.name) <= TrustClass::UntrustedContent {
             return Err(BlockReason::UntrustedTarget { param: p.name.clone(), origin: .. });
@@ -667,6 +890,28 @@ fn check_targets(m: &CapabilityManifest, args: &Args, taint: &TaintSet) -> Resul
     Ok(())   // Payload fields are unchecked BY DESIGN. Untrusted prose may fill them.
 }
 ```
+
+**Why Reversible is checked.** "Reversible" describes recoverability of the *action*, not of its
+*influence*. A file you can delete has already been read by the time you delete it — a workspace
+write is a durable channel into a later run's context, whether through a skill that loads it, an
+`AGENTS.md`, or a config a tool reads. That is precisely the sandbox-boundary-redefinition class
+in §8.3's red-team list, where the agent's own output redefined its boundary. Exempting
+Reversible would leave the cheapest version of that attack unguarded.
+
+**Why Inert is not checked, and why that is safe.** Inert is pure reads, and a read target
+derived from untrusted content is how research works — following a citation found on a page. The
+containment for reads comes from elsewhere and is already structural: the fetched result returns
+as `UntrustedContent` (so it can never become a Target downstream), it returns by reference
+rather than inlined, and egress allowlisting independently closes the exfiltration leg. Target
+checking at Inert would buy nothing those three do not already cover, and would cost the agent
+the ability to follow a link.
+
+**False-positive cost is low**, which is what makes the stricter line affordable: the check fires
+only when a target is *literally* traceable to untrusted content. A path the user typed is
+`UserAsserted`; one the agent inferred from repo convention is `AgentInferred`; both pass. The
+case it blocks is a fetched page that names the path — `~/.bashrc` — which is the case worth
+blocking. Blocked Reversible writes route to a batched approval showing the provenance chain,
+not to a hard failure.
 
 ### 9.1 Trust ledger
 

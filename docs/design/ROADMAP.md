@@ -69,13 +69,30 @@ its agreement rate against the human set must be published alongside any number 
 
 ### Contracts it must satisfy
 
-`CONTRACTS.md` §4 in full — request, response, candidate-set contract, gate struct. This is the
-only contract M0a may depend on; depending on anything else means the split is not real.
+`CONTRACTS.md` §4 in full — **all three interfaces**, not just retrieval:
+
+| § | Interface | Without it, M0a cannot build |
+|---|---|---|
+| 4.6 | **Ingest** | LongMemEval/LoCoMo history loading; the poisoning suite |
+| 4.7 | **Answer** | Any accuracy or abstention score |
+| 4.1–4.4 | **Retrieve** | Injection precision, tokens, latency |
+| 4.5 | **Clock** | Staleness half-life, and reproducibility of anything decay-dependent |
+
+This is the only contract M0a may depend on; depending on anything else means the split is not
+real. If the harness finds it needs a fourth interface, the fix belongs in `CONTRACTS.md`, not in
+the harness.
 
 ### Acceptance
 
 - Scores the reference stub end to end and produces the full report.
-- **Rejects a response missing `cost`.**
+- **Rejects a response missing `cost`** — on all three interfaces.
+- **Rejects `answered: false` with a populated `answer`.** The honest "no" and a hedged answer
+  are distinct outcomes; a harness that blurs them will score a confabulation as an abstention.
+- **Drives the implementation entirely through a synthetic clock**, and a run at a fixed seed and
+  clock reproduces bit-identically. If it does not, something is reading a system clock and
+  staleness half-life is not measurable.
+- **Asserts derived trust rather than declared trust**: a claim ingested with `channel: "web"`
+  reports `untrusted_content` no matter how many derivations it passes through.
 - Judge agreement against the human label set is published.
 - Methodology is reproducible by a third party from the repo alone.
 
