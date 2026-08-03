@@ -26,6 +26,15 @@ being *written*; it may never stop being *read*.
 pub const CONTRACT_VERSION: (u16, u16) = (1, 0);
 ```
 
+**Pin record, 2026-08-02 — §4.0 added; §4.1's clock normalized; §§4.2/4.6/4.7 tightened.**
+Normalizing the retrieval request's bare `now_ms` into `clock: { now_ms }` is a breaking change
+to the wire format, which the rule above would ordinarily answer with a major bump. **No bump
+was taken**, on the grounds that no implementation has ever consumed this contract — M0b does
+not exist, and the only reader is the M0a harness, which was updated in the same change. A
+major version exists to give implementers a migration signal, and there is nobody to signal.
+Recorded here rather than assumed: if you would rather this were `(2, 0)`, it is a one-line
+change plus a `DECISIONS.md` entry, and the harness follows.
+
 ---
 
 ## 1. Journal
@@ -372,19 +381,159 @@ contracted way to write a history and to ask a question. All three get identical
 **M0b may expose no other surface to M0a.** If the harness needs a fourth, the split is leaking
 and the fix belongs here, not in the harness.
 
+### 4.0 Transport
+
+§§4.1–4.7 pin *what* crosses this boundary. This section pins *how*. It is framing and nothing
+else: it adds no field that carries meaning, and it is not a fourth interface.
+
+#### 4.0.1 Channel
+
+The implementation exposes an **eval adapter**: a process that reads request frames on stdin
+and writes response frames on stdout. `stderr` is diagnostic only and is never parsed.
+
+The harness spawns the process, owns its lifetime, and closes stdin to end the run. It never
+attaches to a process it did not start — a run whose outcome depends on state the harness did
+not establish is not reproducible, and fails quietly rather than loudly.
+
+This does not conflict with ADR-002. The daemon still owns the journal, the indexes, and the
+socket; an implementation satisfies §4.0 with a thin forwarding mode (`marlowe --eval-adapter`)
+that reads a frame, hands `body` to the daemon, and writes the response back. That bridge
+belongs to the implementation, not to the harness — connection policy, socket paths and daemon
+lifecycle are each a source of run-to-run variance, and none of them should live inside the
+thing doing the measuring.
+
+#### 4.0.2 Encoding and framing
+
+**Newline-delimited JSON.** One JSON value per line.
+
+- UTF-8, no BOM.
+- Each frame is terminated by a single `\n` (U+000A). A `\r\n` terminator is a protocol error.
+  Implementations on Windows must set stdout to binary/raw mode.
+- A frame contains no literal newline. RFC 8259 requires control characters inside strings to
+  be escaped, so a correctly serialized JSON value satisfies this without extra discipline.
+  **Pretty-printed output is a protocol error**, not a tolerated variation.
+- The implementation **must flush stdout after each response frame.** A response sitting in a
+  buffer is indistinguishable from a hang.
+- Maximum frame size is 64 MiB. An overlong line is `malformed_frame`.
+
+Chosen over length-prefixing because the wire log *is* the reproducibility artifact: a third
+party can read, diff and replay it with ordinary tools, where length-prefixed frames require
+writing a decoder before you can look at your own data.
+
+#### 4.0.3 Frames
+
+Request:
+
+```json
+{"op": "ingest", "body": { "...": "the §4.6 request, verbatim" }}
+```
+
+`op` ∈ `ingest` | `retrieve` | `answer`, selecting §4.6, §§4.1–4.4, and §4.7 respectively.
+
+Response, when a §4 response exists:
+
+```json
+{"op": "ingest", "body": { "...": "the §4.6 response, verbatim" }}
+```
+
+Response, when no §4 response exists:
+
+```json
+{"op": "ingest", "error": {"kind": "internal_error", "detail": "index not loaded"}}
+```
+
+**Frame rules.** `op` must echo the request's. Exactly one of `body` and `error` is present.
+Any additional key at frame level is a protocol error. `body` is the §4 JSON **verbatim,
+byte-for-byte** — no compression, no batching, no envelope metadata.
+
+#### 4.0.4 `error` is the absence of a §4 response, not a variant of one
+
+§4.6's `rejected` is a **successful** response: the implementation understood the request and
+refused a write, and the poisoning suite asserts on exactly that. It travels in `body`.
+
+`error` means the request produced no §4 response at all. `kind` is a closed set in two
+classes, handled differently because they mean different things:
+
+| Class | `kind` | Meaning | Harness behaviour |
+|---|---|---|---|
+| **A — the request was bad** | `malformed_frame`, `unknown_op`, `malformed_body`, `contract_version_unsupported` | The harness or the version pairing is at fault | Abort the run. A defect, not a measurement. |
+| **B — the implementation failed** | `internal_error` | The system under test failed on a well-formed request | Record a failed unit and continue. A **result**, and it appears in the report. |
+
+`error` is a frame-level key that is not a §4 message, and that tension is deliberate rather
+than overlooked: an implementation needs a way to say *"no §4 response exists for this
+request"* without dying. The alternatives are worse — an error shape inside a §4 payload would
+genuinely change §4, and process death for every internal failure would make a recoverable bug
+indistinguishable from a crash and throw away the rest of the run.
+
+#### 4.0.5 Ordering and correlation
+
+**Strictly serial.** The harness writes one request and reads exactly one response before
+writing the next. There is never more than one outstanding request, so **there are no
+correlation ids** — correlation is positional.
+
+It is additionally checked, so a desynchronized stream fails loudly rather than silently
+misattributing a result: the response `body` must echo the request's `query_id` (`retrieve`,
+`answer`) or `session_id` (`ingest`). A mismatch is a protocol error and aborts the run.
+
+#### 4.0.6 Startup and shutdown
+
+**No handshake.** `contract_version` is present in every §4 body, so version disagreement is
+detectable per-message and needs no negotiation round. The first frame on the wire is a
+request. The harness signals end of run by closing stdin; the implementation flushes and exits
+0. Anything an implementation wishes to announce at startup goes to stderr.
+
+#### 4.0.7 Failure semantics
+
+| Condition | Classification | Effect on the report |
+|---|---|---|
+| Class B `error` frame | Failed unit | Scored and reported |
+| EOF or process exit mid-request | `implementation_crashed`. **No retry** — a retry makes the outcome depend on timing | Run marked crashed; remaining units not attempted; the report is emitted, because a crash is a result |
+| Class A `error`, frame-rule violation, `op` mismatch, id mismatch | Protocol error | Run aborts; no report |
+| **Harness-imposed deadline exceeded** | A wall-clock decision by the harness | Run marked `timing_tainted`: **no headline report, hash not comparable** |
+| **Implementation exceeds `budget.max_latency_ms`** | **Not a transport event.** A valid §4 response was returned; the miss is in `cost.latency_ms` | **Scored and reported normally** |
+
+The last two rows are distinct and must not be conflated. An implementation missing the 300 ms
+P95 is a *result the eval exists to produce*; it is never a reason a run cannot report. The
+harness deadline exists only to bound a hung process, and is therefore set far above any
+budget: **no lower than 100× the request's `max_latency_ms`, floored at 30 s.**
+
+#### 4.0.8 Determinism
+
+The transport contributes nothing to a run's identity: no ids, no timestamps, no sequence
+numbers, no retries, no concurrency, no buffering-dependent ordering. For a given §4 body the
+frame bytes are a pure function of that body.
+
+`cost.latency_ms` is self-reported and varies between runs by nature. It is therefore excluded
+from any bit-identity claim — recorded and scored rather than hashed.
+
+#### 4.0.9 Language-agnosticism
+
+A conforming implementation needs a UTF-8 line reader on stdin, a JSON parser, a JSON writer,
+and a flush. Nothing else — no shared library, no generated bindings, no runtime schema
+negotiation, nothing from the harness's side but the bytes. The harness's Python types are a
+*binding* of this contract; the wire format is the contract.
+
+The harness spawns the target's argv unmodified, with a declared minimal environment, so a run
+does not inherit ambient state a third party cannot reproduce.
+
 ### 4.1 Retrieval request
 
 ```json
 {
   "contract_version": "1.0",
+  "clock":      { "now_ms": 1785312000000 },
   "query_id":   "q-0041",
   "session_id": "s-7",
   "turn_index": 3,
   "query_text": "why is the ingest job timing out again",
-  "now_ms":     1785312000000,
   "budget":     { "max_tokens": 7000, "max_latency_ms": 300 }
 }
 ```
+
+**The clock has one shape on all three interfaces: `clock: { now_ms }`.** An earlier draft put
+a bare `now_ms` at the top level of this request only. That was a wart — §4.5 already said
+"required on all three interfaces", and a third-party implementer hit the inconsistency on
+their first request.
 
 ### 4.2 Response
 
@@ -415,6 +564,21 @@ does not ship"* becomes structural instead of remembered.
 `abstention_reason` ∈ `no_candidate_above_threshold | no_candidates | budget_exhausted |
 degraded_path`. Abstention is a first-class outcome, not an empty list (§5.5).
 
+**Abstention and injection are mutually exclusive, in both directions.** All three of these
+are protocol errors, not hedges:
+
+| Response | Why it is an error |
+|---|---|
+| `abstained: true` with a non-empty `injected` | An implementation with something to inject has not abstained |
+| `abstained: false` with a non-null `abstention_reason` | A reason without the outcome it explains |
+| `abstained: false` with an empty `injected` | Injecting nothing *is* the abstention outcome (`no_candidates`); reporting it as a non-abstention makes the same event scoreable two ways |
+
+This is the same distinction §4.7 draws for `answered: false` with a populated `answer`, and it
+exists for the same reason: **a schema that lets two outcomes blur is a schema that will let a
+confabulation score as an abstention.** All four `abstention_reason` values describe having
+nothing to inject, so the mapping is total — every response either injects something or
+abstains, and never both or neither.
+
 ### 4.2b Rust binding
 
 The JSON above is **normative** for this boundary — M0a is Python and M0b is Rust, so the wire
@@ -422,8 +586,9 @@ format is the contract and these types are its binding, not the other way round.
 
 ```rust
 pub struct RetrievalRequest {
+    pub clock: Clock,                 // §4.5 — same shape on all three interfaces
     pub query_id: QueryId, pub session_id: SessionId, pub turn_index: u32,
-    pub query_text: String, pub now: Timestamp, pub budget: RetrievalBudget,
+    pub query_text: String, pub budget: RetrievalBudget,
 }
 
 pub struct RetrievalResult {
@@ -524,10 +689,11 @@ scope, which covers more than this struct.
 
 ### 4.5 The injectable clock
 
-`now_ms` on the retrieval request is not enough. Staleness half-life (§5.7) is *"time before a
-superseded fact stops being retrieved"* — measuring it requires writing fact A at T₁, writing
-its replacement at T₂, and querying at T₃, with all three controlled. A write path that reads a
-system clock makes that unmeasurable and makes every decay-dependent result irreproducible.
+A clock on the retrieval request alone is not enough. Staleness half-life (§5.7) is *"time
+before a superseded fact stops being retrieved"* — measuring it requires writing fact A at T₁,
+writing its replacement at T₂, and querying at T₃, with all three controlled. A write path that
+reads a system clock makes that unmeasurable and makes every decay-dependent result
+irreproducible.
 
 ```json
 { "clock": { "now_ms": 1785312000000 } }
@@ -566,6 +732,26 @@ by its own rules, exactly as in production. This is not a stylistic choice — l
 trust directly would let it bypass the mechanism it exists to test, and the laundering suite
 specifically needs to assert that a claim entering through `channel: "web"` comes out
 `untrusted_content` no matter how many derivations it passes through.
+
+#### `channel` and `speaker` are closed sets
+
+```rust
+pub enum Channel {
+    Terminal, Voice, Messaging, Email, Web, Mcp, ToolOutput, File,
+}
+pub enum Speaker { User, Assistant, Tool }
+```
+
+Wire values are snake_case: `terminal · voice · messaging · email · web · mcp · tool_output ·
+file`, and `user · assistant · tool`.
+
+**An unrecognized value is a load-time error on both sides. It is never mapped to a default.**
+This is load-bearing, not tidiness. The laundering suite's entire assertion is that a claim
+entering as `channel: "web"` comes out `untrusted_content` — which requires both sides to agree
+on that string. An implementation that quietly mapped an unknown channel to some default would
+make the suite pass while measuring nothing, and if that default were trusted it would do so
+while actively hiding the failure. Same failure class as any silent fallback: the test goes
+green because the code path it exercises no longer exists.
 
 Response — the poisoning suite asserts on this:
 
@@ -616,6 +802,12 @@ LongMemEval and LoCoMo score answers, not retrieval. Abstention is scored explic
 - **`answered: false` with a populated `answer` is a protocol error.** The honest "no" (§17.9) is
   a distinct outcome from a hedged answer, and a schema that lets them blur is a schema that will
   let a confabulation score as an abstention.
+- **`abstained: true` requires an empty `grounded_in`, and `answered: false` requires
+  `abstained: true`.** By symmetry with §4.2, and for the same reason. A refusal that cites
+  grounding is claiming to have answered from evidence while reporting that it declined, and an
+  unanswered question that is not an abstention is an outcome the scorer has no bin for — it
+  would be counted as neither a correct refusal nor an incorrect answer, which is how a
+  systematic failure disappears from a report.
 - **`cost` is required here too**, and separates retrieval from generation tokens — §5.7's
   ≤7,000 budget is a *retrieval* budget, and folding generation into it would hide a miss.
 

@@ -1,0 +1,126 @@
+# marlowe-eval — M0a
+
+A benchmark harness that scores **any** memory implementation behind the interface pinned in
+`docs/design/CONTRACTS.md` §4. Built before and without the retriever it will score: the
+measurement cannot be authored by the thing being measured.
+
+Contains no retriever, no storage, no gate, and no embedding model — enforced by a test, not
+by intent.
+
+**Read `METHODOLOGY.md` before trusting any number this produces.** It states what each
+metric licenses you to say and, in §12, what the harness cannot tell you.
+
+---
+
+## Install
+
+```bash
+cd eval
+pip install -e .            # add '[dev]' for pytest, '[judge]' for the API judge
+```
+
+`pytest` also works from a plain clone with no install — `conftest.py` puts `src/` on the
+path so a third party's first command succeeds.
+
+---
+
+## Quick start
+
+```bash
+marlowe-eval targets                                  # what you can point it at
+marlowe-eval run --target stub://oracle --out runs/a  # score the reference stub
+marlowe-eval conformance --target stub://oracle       # does it obey section 4?
+marlowe-eval repro --runs 2                           # is it reproducible?
+```
+
+---
+
+## Every acceptance criterion, as a command
+
+| ROADMAP.md acceptance | Command | Result |
+|---|---|---|
+| Scores the reference stub end to end | `marlowe-eval run --target stub://oracle --out runs/a` | full report + `run.jsonl` |
+| **Rejects a response missing `cost` — on all three interfaces** | `marlowe-eval conformance --target stub://broken.missing_cost` | 3 findings (ingest, retrieve, answer), exit 1 |
+| **Rejects `answered: false` with a populated `answer`** | `marlowe-eval conformance --target stub://broken.hedged_abstention` | `hedged_abstention`, exit 1 |
+| **Fixed seed and clock reproduces bit-identically** | `marlowe-eval repro --runs 2` | two identical sha256, exit 0 |
+| **Asserts derived trust, not declared trust** | `marlowe-eval run --target stub://broken.trust_launderer --suite poisoning` | laundering assertions fail, naming `web → user_asserted` |
+| Judge agreement is published | `marlowe-eval labels agreement --labels L --verdicts V --draws D` | κ, raw agreement, per-decile |
+| Blinded sample for human judging | `marlowe-eval labels draw --out packets.json` | packets with no score, no decile, no injected flag |
+| Corpus integrity | `marlowe-eval verify-corpus --dataset longmemeval-s --path <file>` | structural check; fails loudly on drift |
+| Third-party reproducible | `marlowe-eval schema-export --out schemas` | JSON Schema for all three interfaces |
+| The whole suite | `pytest` | 62 passing |
+
+Two commands are worth running for the answer rather than the exit code:
+
+```bash
+# The clock probe has teeth: this one FAILS, and should.
+marlowe-eval conformance --target stub://broken.clock_reader
+
+# The instrument recovers a known input: set the stub's precision knob, read it back.
+pytest -k recovers
+```
+
+---
+
+## Targets
+
+```
+stub://oracle                      reference implementation; reads the answer key
+stub://oracle?precision=0.7        with knobs (precision, abstention_rate,
+                                   answer_accuracy, maturation_ms, k, seed)
+stub://broken.<name>               a conformance fixture; see `marlowe-eval targets`
+```
+
+`exec://` — spawning a real implementation over the wire — is the one component still
+unwritten. `CONTRACTS.md` §4.0 pins the transport (NDJSON over stdio, strictly serial), but
+there is no M0b yet to spawn, so the harness drives the in-process `MemorySystem` ABC.
+`run.jsonl` is written in §4.0.3 frame shape regardless.
+
+---
+
+## Layout
+
+```
+src/marlowe_eval/
+  contract/     section 4 as executable schema. Imports nothing else — enforced by a test
+  adapter/      MemorySystem ABC + the validating Client
+  datasets/     LongMemEval / LoCoMo adapters, fixtures, checksummed fetch, verify-corpus
+  metrics/      precision (three of them), accuracy, cost, staleness, security
+  suites/       benchmark, conformance, clock probe, staleness sweep, poisoning
+  judge/        offline judge (HP1 tier 2), cache, agreement — gated
+  labels/       blinded stratified sampler; the human label-set schema
+  runner.py canonical.py determinism.py cli.py
+src/marlowe_eval_stubs/
+  oracle.py     the reference stub. A sibling package, not a submodule: the measurement
+                must not contain the thing measured, and the import graph should show it
+  broken.py     one deliberately non-conforming fixture per acceptance criterion
+```
+
+---
+
+## Three things that will surprise you
+
+**1. There is no field called `injection_precision`.** There are three differently-named
+precisions — human-judged (the K1 headline), judge-derived, and evidence-based — so nobody
+can fill the headline in with whichever proxy they happened to have. A run without human
+labels reports `null` and says so in words rather than falling back.
+
+**2. Several types refuse to be constructed.** An accuracy figure without its cost, an
+attack-success rate without utility retention, a judge number without its agreement against
+the human set — none of these can be built, so the corresponding rules survive someone who
+has not read §5.7 or HP1.
+
+**3. The reference stub is not a retriever and cannot become one.** Its selection function
+takes `(query_id, rng)` and never receives the query text, so there is nowhere for a
+similarity search to live. A test asserts the signature.
+
+---
+
+## What is not verified
+
+- **The dataset adapters have never seen a real corpus.** They are written from published
+  schema descriptions, and the committed fixtures were authored from the same reading by
+  the same hand — so a green fixture suite proves self-consistency, not correctness. Run
+  `verify-corpus` against a real download before trusting a benchmark number.
+- **The stub's latencies are synthetic.** A stub run's P95 measures nothing.
+- **No human label set exists yet**, so the headline metric has never been produced.
