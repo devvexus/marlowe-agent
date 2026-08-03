@@ -299,7 +299,24 @@ The threat is not theoretical. Google's April 2026 Common Crawl analysis found i
 
 ### 8.2 Required controls
 
-- **Sandboxing on by default, not opt-in.** Kernel-enforced filesystem and network isolation. Multiple backends (local, container, microVM, remote). Claude Code's sandbox is good and gated behind a flag; ours is the default and the flag turns it *off*, loudly.
+- **Containment by permission layer, with the kernel sandbox scoped to the quarantined reader.** *(Amended 2026-08-02. This replaces the original requirement — "sandboxing on by default, not opt-in… ours is the default and the flag turns it off, loudly." See ADR-002.)*
+
+  §8.1 is unchanged and remains the premise: the trifecta is real, filtering does not work, containment does. What changed is **where containment lives**, not whether it exists.
+
+  **Primary containment is the permission layer**, and it is required to be exhaustive: capability manifests with declared paths and hosts and load-time default-deny, the `(action, target)` split, worst-case trust propagation over full lineage, egress allowlisting, and risk-tiered approval. Every one of these is platform-independent — they hold identically on Windows, Linux, and macOS, which kernel sandboxing does not.
+
+  **Kernel-enforced sandboxing is retained for the quarantined reader** — the component of §8.2's next bullet that reads untrusted content with no tool access. That is a small, isolated, non-interactive component, so a container backend covers it everywhere without the erosion problem below.
+
+  **This is a deliberate divergence from the original differentiator, and the reasons are these two:**
+
+  1. **A secretary that cannot reach the user's files is not a secretary.** The product is an assistant that knows your work. An assistant that sees only a copied-in subset is one you have to feed, and feeding it is the work it was supposed to remove. Sandbox-by-default made the harness safer and the product not exist.
+  2. **A default that must be overridden daily is not a default.** On Windows, sandbox-by-default degrades to *refuse to run without a container* — which for this product means refuse to run. The escape hatch then gets used every day, stops reading as a warning inside a week, and "sandboxed by default" becomes a claim about a code path nobody exercises. A default nobody keeps is worse than an honest absence, because it is believed.
+
+  **The cost, recorded here and not only in the ADR: a permission-layer bug has no kernel backstop.** It was a second wall behind a first; on the ordinary path it is now the only wall. Three consequences bind:
+
+  - The permission layer is **the highest-value target in the system** for review, testing, and red-teaming. §8.3's AgentDojo numbers stop measuring defence-in-depth and start measuring whether containment works at all.
+  - **Path scoping is a security boundary, not a convenience.** A path check defeated by string manipulation is the whole protection gone — there is nothing behind it. Canonicalize before checking, never after, and operate on handles rather than re-resolved strings.
+  - **`Inert` reads remain unchecked on targets only because three non-kernel mechanisms cover them** — untrusted-content classing, return-by-reference, and egress allowlisting. If any one weakens, that exemption must be revisited rather than inherited.
 - **Structural trifecta-breaking.** The component that reads untrusted content has no tool access and returns structured analysis only. The component with tool access receives sanitized structured input, never raw untrusted text. A trusted orchestrator moves data across that boundary with validation and, where warranted, human approval. Collapsing reader and doer into one agent is what makes current deployments exploitable.
 - **Egress allowlisting by default.** Outbound network is deny-by-default per run. Data leaves only to declared destinations. Rendered content cannot fetch external resources — that closes the image-beacon exfiltration channel.
 - **Approval gates that scale.** Not a yes/no prompt on every action (users click through those within a day). Risk-tiered: silent for reversible reads, batched for routine writes, blocking for irreversible or high-consequence actions. Approvals are enforced by the harness, not requested by the model.
@@ -311,7 +328,8 @@ The threat is not theoretical. Google's April 2026 Common Crawl analysis found i
 ### 8.3 Security acceptance criteria
 
 - 0% attack success rate against unsigned memory writes.
-- Measured resistance on an AgentDojo-style prompt-injection suite, reported as attack success rate *and* utility retention — a defense that blocks everything by breaking the agent is not a defense.
+- Measured resistance on an AgentDojo-style prompt-injection suite, reported as attack success rate *and* utility retention — a defense that blocks everything by breaking the agent is not a defense. **Since the §8.2 amendment this is a first-order result, not a defence-in-depth check**: with no kernel backstop on the ordinary path, it is the primary evidence that containment works.
+- **Path-traversal resistance, tested adversarially.** Symlinks and Windows junctions, `..` sequences, UNC and `\\?\` forms, 8.3 short names, case-insensitivity collisions, Win32 name munging, alternate data streams, Unicode normalization. **Inseparable from handle-based access**: canonicalize-then-open leaves a check-then-use race, so a traversal suite passing against a check-then-open implementation reports a boundary that is not there. The suite and the handle discipline are one requirement and ship together.
 - Red-team suite includes: memory laundering through LLM-mediated derivation, delayed-trigger poisoning, tool-description poisoning, skill supply-chain compromise, and sandbox-boundary redefinition via agent output.
 
 ---

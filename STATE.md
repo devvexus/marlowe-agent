@@ -112,10 +112,10 @@ Nothing half-done. One component deliberately unwritten: the subprocess transpor
   defence-in-depth check, and **path scoping becomes a security boundary** — M2 gains an
   adversarial path-traversal suite plus a TOCTOU requirement (operate on handles, not
   re-resolved strings).
-- **This departs from brief §8.2**, which requires sandboxing on by default and names the
-  opt-in posture as the weaker alternative. Knowingly overridden. **The brief should be amended
-  or this recorded as a standing deviation** — flagged rather than absorbed, because §8.2 was
-  written as a differentiator.
+- **Brief §8.2 was amended to match (2026-08-02), not left as a deviation.** §8.1's premise is
+  untouched — trifecta real, filtering fails, containment answers — and only the location of
+  containment changed. The divergence from the original differentiator and its cost are stated
+  in the requirement itself, so a future reader meets them where they meet the claim.
 - **M1's §B9 suite must run on both native Windows Terminal and a Linux terminal emulator.**
   The requirement is unchanged but its direction inverted: development is now on Windows, so
   Linux is the surface at risk of being verified only in CI.

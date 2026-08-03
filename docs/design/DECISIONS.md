@@ -505,10 +505,10 @@ buys the 150 ms first frame, since the client has almost nothing to initialize.
 ### Execution model — revised 2026-08-02
 
 > **This revision supersedes the original sandbox-by-default position and the WSL2 development
-> rule.** It also **departs from brief §8.2**, which requires *"sandboxing on by default, not
-> opt-in"* and names Claude Code's opt-in sandbox as the weaker alternative. That requirement is
-> knowingly overridden here; the brief should be amended to match, or this recorded as a standing
-> deviation. It is flagged rather than absorbed because §8.2 was written as a differentiator.
+> rule.** Brief **§8.2 was amended in the same change** rather than left to contradict this ADR —
+> a requirement and an ADR that disagree get reconciled by whoever reads them next, and that is
+> not a decision to leave to a default six months out. The brief now carries the divergence and
+> its cost at the point where it states the claim; this ADR carries the engineering detail.
 
 **Decision. Marlowe runs on the user's real filesystem by default.** No kernel sandbox on the
 ordinary path.

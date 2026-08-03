@@ -229,11 +229,20 @@ happen.
 - **First-run onboarding states plainly what Marlowe can reach** — which directories, which
   hosts, what it asks before doing versus does silently. ADR-002 (revised) makes this a
   requirement, not a nicety: a zero-config first run must not become a zero-disclosure one.
-- **Path-traversal suite passes** — symlinks and junctions, `..` sequences, UNC and `\\?\`
-  forms, 8.3 short names, case-insensitivity collisions, Win32 name munging, alternate data
-  streams, Unicode normalization. Canonicalize before checking, never after. Plus the
-  check-then-use race: operate on handles, not re-resolved strings. See ADR-002 — with no
-  kernel backstop, a path check defeated by string manipulation is the whole protection gone.
+- **Path-traversal suite passes AND access is handle-based. One requirement, not two.**
+  The suite covers symlinks and Windows junctions, `..` sequences, UNC and `\\?\` forms, 8.3
+  short names, case-insensitivity collisions, Win32 name munging, alternate data streams, and
+  Unicode normalization, with canonicalization before the check and never after. The handle
+  discipline is `openat`/`O_NOFOLLOW` on POSIX and explicit reparse semantics plus
+  final-handle identity verification on Windows.
+
+  **They ship together or neither ships.** Canonicalize-then-open leaves a check-then-use
+  race: a symlink planted between the check and the open means the check was correct and the
+  open still landed outside scope. A traversal suite passing against a check-then-open
+  implementation therefore certifies a boundary that does not exist — which is worse than no
+  suite, because it is believed. Splitting these into separate acceptance items is how that
+  happens, so they are one item. See ADR-002 and brief §8.2 (amended): with no kernel
+  backstop, a path check defeated by string manipulation is the whole protection gone.
 - SWE-bench Verified and Terminal-Bench 2.0: competitive on the same model.
 - τ-bench / BFCL: competitive on the same model.
 - Compaction preserves governance constraints across the boundary — tested explicitly.
