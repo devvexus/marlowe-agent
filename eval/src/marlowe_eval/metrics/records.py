@@ -54,6 +54,7 @@ class QueryRecord:
     session_id: str
     category: str
     is_abstention: bool
+    temporally_clean: bool
     injected: tuple[InjectedRecord, ...]
     considered: int
     retrieval_abstained: bool
@@ -77,6 +78,7 @@ class QueryRecord:
             "session_id": self.session_id,
             "category": self.category,
             "is_abstention": self.is_abstention,
+            "temporally_clean": self.temporally_clean,
             "injected": [i.as_dict() for i in self.injected],
             "considered": self.considered,
             "retrieval_abstained": self.retrieval_abstained,

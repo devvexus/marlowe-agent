@@ -155,6 +155,12 @@ def load(path: Path, *, dataset: str = DATASET) -> Corpus:
                 ingest_at_ms=min((t.occurred_at_ms for t in merged_turns), default=ask_at_ms),
             )
         )
+        # Reproduce the source faithfully; do not correct it. The released corpus dates some
+        # haystack sessions after their question -- verified against the real release, where
+        # 76 of 500 cases are affected and 43 have gold evidence postdating the question.
+        # Flagged per case rather than repaired, so the headline stays comparable and the
+        # clean subset can be reported beside it.
+        temporally_clean = all(t.occurred_at_ms <= ask_at_ms for t in merged_turns)
         cases.append(
             Case(
                 query_id=qid,
@@ -165,6 +171,7 @@ def load(path: Path, *, dataset: str = DATASET) -> Corpus:
                 gold_turn_ids=tuple(gold_turn_ids),
                 ask_at_ms=ask_at_ms,
                 is_abstention=is_abstention,
+                temporally_clean=temporally_clean,
             )
         )
 

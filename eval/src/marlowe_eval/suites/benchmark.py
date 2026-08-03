@@ -121,6 +121,7 @@ def run_benchmark(
                 session_id=case.session_id,
                 category=case.category,
                 is_abstention=case.is_abstention,
+                temporally_clean=case.temporally_clean,
                 injected=tuple(injected),
                 considered=retrieval.considered,
                 retrieval_abstained=retrieval.abstained,

@@ -107,6 +107,14 @@ def accuracy(
         hits = sum(1 for r in subset if graded[r.query_id])
         per_cat[category] = {"accuracy": hits / len(subset), "n": float(len(subset))}
 
+    # The temporally-clean subset, reported beside the headline and never instead of it.
+    # A case whose history contains turns dated after its own question penalises a system
+    # that honours the clock relative to one that ignores it, so a large gap between these
+    # two numbers is a signal about clock handling rather than about recall. The headline
+    # stays the full set, because that is what a published LongMemEval number means.
+    clean = [r for r in answerable if r.temporally_clean]
+    clean_correct = sum(1 for r in clean if graded[r.query_id])
+
     return Scored(
         name="answer_accuracy",
         value=(correct / len(answerable)) if answerable else 0.0,
@@ -114,6 +122,17 @@ def accuracy(
         cost=cost,
         detail={
             "grader": grader.name,
+            "temporally_clean_subset": {
+                "accuracy": round((clean_correct / len(clean)) if clean else 0.0, 6),
+                "n": len(clean),
+                "excluded": len(answerable) - len(clean),
+                "note": (
+                    "diagnostic, not the headline. Excluded cases hold memories dated "
+                    "after their own question, so a clock-honouring system is penalised "
+                    "relative to one that ignores the clock. A large gap between this and "
+                    "the headline is a signal about clock handling"
+                ),
+            },
             "comparable_to_published": grader.comparable_to_published,
             "comparability_note": (
                 "graded deterministically; LongMemEval's published protocol uses an LLM "

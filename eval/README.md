@@ -118,9 +118,13 @@ similarity search to live. A test asserts the signature.
 
 ## What is not verified
 
-- **The dataset adapters have never seen a real corpus.** They are written from published
-  schema descriptions, and the committed fixtures were authored from the same reading by
-  the same hand — so a green fixture suite proves self-consistency, not correctness. Run
-  `verify-corpus` against a real download before trusting a benchmark number.
+- **LongMemEval-S is verified** against the real release (500 q / 246,750 turns, 2026-08-02).
+  **LoCoMo is not** — its adapter is still written from the published schema only, and the
+  fixtures cannot catch a misreading because the same hand wrote both. Run `verify-corpus`
+  against a real download before trusting a LoCoMo number.
+- **LongMemEval-S penalises correct clock handling on 76 of 500 cases** — questions dated
+  before their own history, 43 with gold evidence postdating the question. Reproduced
+  faithfully, not corrected. The headline covers all 500; a temporally-clean subset is
+  reported beside it. See METHODOLOGY.md §11 before comparing our number to anyone's.
 - **The stub's latencies are synthetic.** A stub run's P95 measures nothing.
 - **No human label set exists yet**, so the headline metric has never been produced.

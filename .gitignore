@@ -1,1 +1,8 @@
 .VSCodeCounter/
+
+# Benchmark corpora are never vendored: large, separately licensed, and pinned by digest in
+# eval/src/marlowe_eval/datasets/fetch.py instead. LongMemEval-S alone is ~277 MB and is one
+# `git add -A` away from entering the history permanently, where it cannot be removed without
+# rewriting every commit after it.
+data/
+corpora/

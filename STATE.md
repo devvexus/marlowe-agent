@@ -85,13 +85,21 @@ Nothing half-done. One component deliberately unwritten: the subprocess transpor
 
 ## Known issues
 
-- **The dataset adapters have never seen a real corpus.** LongMemEval and LoCoMo adapters are
-  written from published schema descriptions, and the committed fixtures were authored from
-  the same reading by the same hand — so a green fixture suite proves self-consistency and
-  nothing about whether it matches the release. `marlowe-eval verify-corpus` is the check that
-  closes this and **has not been run**. Do not read a passing test suite as adapter
-  correctness. Dataset versions and sha256 digests in `datasets/fetch.py` are likewise
-  **UNPINNED**; the fetcher refuses to verify rather than accepting an unverifiable file.
+- **LongMemEval-S adapter verified 2026-08-02; LoCoMo still unverified.** `verify-corpus`
+  passed against the real release — 500 questions, 500 sessions, 246,750 turns, 30 abstention,
+  all seven categories, no dangling gold ids — and its digest is now pinned in
+  `datasets/fetch.py`. **Provenance caveat:** the file is `longmemeval_s_cleaned.json`; the
+  `_cleaned` suffix means a derived variant, unchecked against the authors' pristine release.
+  The LoCoMo adapter is still written from the published schema alone, and its fixtures cannot
+  catch a misreading — same hand wrote both.
+- **LongMemEval-S penalises correct clock handling on 76 of 500 cases.** Questions dated before
+  their own history (up to 0.99 d), **43 with gold evidence postdating the question**;
+  concentrated in temporal-reasoning (54), knowledge-update (15), abstention (7). A property of
+  the corpus, reproduced faithfully and not corrected. **A system honouring §4.5 is penalised
+  relative to one ignoring the clock**, so the headline understates correct behaviour. Reported
+  as a `verify-corpus` statistic, and the harness reports accuracy over the 424 clean cases
+  beside the 500-case headline as a clock-handling diagnostic. See METHODOLOGY.md §11 before
+  comparing this number to a vendor's.
 - **The bit-identical claim excludes timing, by a declared one-key allowlist** (`latency_ms`).
   Latency is self-reported by the implementation and varies by nature; it is recorded, scored,
   and not hashed. No tolerance windows anywhere else — any other off-allowlist variance is a

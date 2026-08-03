@@ -102,29 +102,84 @@ def test_fixtures_load_and_cover_their_categories():
 
 
 def test_verify_corpus_rejects_a_drifted_release(tmp_path):
-    """The whole point of verify-corpus: a renamed field is a loud failure, not a bisect."""
+    """The whole point of verify-corpus: a renamed field is a loud failure, not a bisect.
+
+    Uses `longmemeval-m`, which shares the adapter and carries no pinned digest, so this
+    exercises schema drift rather than the integrity guard tested separately below.
+    """
     drifted = tmp_path / "drifted.json"
     drifted.write_text('[{"question_id": "x", "question": "y"}]', encoding="utf-8")
     with pytest.raises((verify.VerificationFailed, CorpusFormatError)):
-        verify.verify("longmemeval-s", drifted)
+        verify.verify("longmemeval-m", drifted)
+
+
+def test_verify_corpus_rejects_a_file_that_is_not_the_pinned_release(tmp_path):
+    """LongMemEval-S has a pinned digest since 2026-08-02, so the integrity guard fires
+    before anything else. Handing it the fixture -- a different file -- must be refused."""
+    from marlowe_eval.datasets import FIXTURE_DIR
+    from marlowe_eval.datasets.fetch import IntegrityError
+
+    with pytest.raises(IntegrityError, match="digest mismatch"):
+        verify.verify("longmemeval-s", FIXTURE_DIR / "longmemeval_s.sample.json")
 
 
 def test_verify_corpus_flags_a_count_mismatch(tmp_path):
-    """The fixtures are 8 questions; the real release is 500. Counts must be enforced."""
+    """The fixtures are 8 questions; a real release is 500. Counts must be enforced.
+
+    Checked through `longmemeval-m`, which shares the adapter and is still unpinned, so the
+    count check is reached rather than short-circuited by the digest guard above.
+    """
     from marlowe_eval.datasets import FIXTURE_DIR
 
     with pytest.raises(verify.VerificationFailed) as exc:
-        verify.verify("longmemeval-s", FIXTURE_DIR / "longmemeval_s.sample.json")
+        verify.verify("longmemeval-m", FIXTURE_DIR / "longmemeval_s.sample.json")
     assert any("expected 500" in f for f in exc.value.findings)
 
 
-def test_fetch_refuses_an_unpinned_corpus(tmp_path):
-    """Fails on mismatch, never warns -- and an unpinned digest is a mismatch."""
-    from marlowe_eval.datasets.fetch import MANIFEST, IntegrityError, verify_file
+def test_fetch_refuses_a_corpus_with_no_pinned_digest(tmp_path):
+    """Fails on mismatch, never warns -- and an unpinned digest is unverifiable, not fine.
+    LoCoMo is still unpinned, so it is the live example."""
     from marlowe_eval.datasets import FIXTURE_DIR
+    from marlowe_eval.datasets.fetch import MANIFEST, IntegrityError, verify_file
 
+    assert MANIFEST["locomo"].sha256 is None
     with pytest.raises(IntegrityError, match="no pinned sha256"):
-        verify_file(FIXTURE_DIR / "longmemeval_s.sample.json", MANIFEST["longmemeval-s"])
+        verify_file(FIXTURE_DIR / "locomo.sample.json", MANIFEST["locomo"])
+
+
+def test_fetch_rejects_a_digest_mismatch(tmp_path):
+    """The pinned case: a file that is not the release is refused, loudly."""
+    from marlowe_eval.datasets import FIXTURE_DIR
+    from marlowe_eval.datasets.fetch import MANIFEST, IntegrityError, verify_file
+
+    spec = MANIFEST["longmemeval-s"]
+    assert spec.sha256 is not None, "LongMemEval-S digest was pinned on 2026-08-02"
+    with pytest.raises(IntegrityError, match="digest mismatch"):
+        verify_file(FIXTURE_DIR / "longmemeval_s.sample.json", spec)
+
+
+def test_temporal_coherence_is_reported_not_failed():
+    """The real release dates 76/500 questions before their own history. That is a corpus
+    property, so it is a statistic -- failing on it would reject the real data."""
+    from marlowe_eval.datasets.verify import _temporal_coherence
+
+    corpus = fixture_longmemeval()
+    block = _temporal_coherence(corpus)
+    assert set(block) >= {
+        "questions_dated_before_their_own_history",
+        "of_which_gold_evidence_is_after_the_question",
+        "max_overshoot_days",
+    }
+
+
+def test_answer_accuracy_reports_the_temporally_clean_subset():
+    """Reported beside the headline, never instead of it: a gap between the two is a signal
+    about clock handling rather than recall."""
+    report = _run().report
+    detail = report["benchmarks"]["longmemeval-s"]["answer_accuracy"]["detail"]
+    subset = detail["temporally_clean_subset"]
+    assert set(subset) >= {"accuracy", "n", "excluded"}
+    assert "diagnostic, not the headline" in subset["note"]
 
 
 # -- the contract package's isolation --------------------------------------------------

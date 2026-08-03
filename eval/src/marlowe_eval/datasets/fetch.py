@@ -34,14 +34,20 @@ class DatasetSpec:
 MANIFEST: dict[str, DatasetSpec] = {
     "longmemeval-s": DatasetSpec(
         name="longmemeval-s",
-        version="UNPINNED",
-        filename="longmemeval_s.json",
-        sha256=None,
+        version="local-cleaned-2026-08-02",
+        filename="longmemeval_s_cleaned.json",
+        sha256="d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
         url=None,
         source_note=(
-            "LongMemEval is released by its authors via their public repository and dataset "
-            "host. Download longmemeval_s.json manually, then pin its sha256 and release "
-            "version in this manifest before scoring anything with it."
+            "Verified 2026-08-02 by `marlowe-eval verify-corpus`: 500 questions, 500 "
+            "sessions, 246,750 turns, 30 abstention, all seven categories populated.\n"
+            "PROVENANCE CAVEAT: this digest is of a local file named "
+            "`longmemeval_s_cleaned.json`. The `_cleaned` suffix indicates a derived or "
+            "preprocessed variant, and it has NOT been checked against the authors' "
+            "pristine release. The digest therefore pins reproducibility against THIS "
+            "artifact, which is what a comparison needs, but it is not evidence that the "
+            "artifact is the canonical upstream one. Anyone reproducing our numbers needs "
+            "this exact file; anyone comparing to a vendor should know which variant we ran."
         ),
         expected_cases=500,
     ),

@@ -259,13 +259,48 @@ it was not run. The failure mode is not lying; it is **omission** — a benchmar
 absent because nobody had the corpus that week reads identically to one that was never meant
 to be there.
 
-**The adapters are written from published schema descriptions and are unverified against a
-real release.** The committed fixtures were authored from the same reading by the same hand,
-so a green fixture suite proves self-consistency and nothing more. `marlowe-eval
-verify-corpus` against a real download is the check that closes that gap — it validates
-required fields, types, category coverage and exact counts (LongMemEval-S 500, LoCoMo 1,540)
-and fails loudly on drift. **It has not been run.** Until it has, treat the adapters as
-unverified.
+**LongMemEval-S: verified against the real release, 2026-08-02.** `marlowe-eval
+verify-corpus` was run against `longmemeval_s_cleaned.json`
+(sha256 `d6f21ea9…78c3a442`) and passed: **500 questions, 500 sessions, 246,750 turns, 30
+abstention**, all seven categories populated, no dangling gold-evidence ids, no answerable
+question missing evidence. Dates parse to a 2021-05 → 2024-02 range with no epoch-zero
+fallbacks, and spot-checked gold turns contain the answer text.
+
+**LoCoMo remains unverified** — no real download has been checked, so its adapter is still
+in the state described below.
+
+**Why this check exists at all:** the committed fixtures were authored from the published
+schema descriptions by the same hand that wrote the adapters, so a green fixture suite proves
+self-consistency and nothing more. `verify-corpus` validates required fields, types, category
+coverage and exact counts against a real download, and fails loudly on drift.
+
+### The LongMemEval-S temporal limitation
+
+First contact with the real release surfaced something the fixtures could not: **76 of 500
+questions are dated before content in their own haystack**, by up to 0.99 days — and **43 of
+those have gold evidence postdating the question.** Concentrated in `temporal-reasoning` (54),
+`knowledge-update` (15) and `abstention` (7).
+
+This is a property of the released corpus, not a parse error. The adapter **reproduces the
+source faithfully and does not correct it**; `verify-corpus` reports it as a statistic rather
+than failing, because failing would mean rejecting the real data.
+
+**The consequence, stated plainly, because it inverts the thing being measured.** The harness
+ingests a history and then asks at the question's timestamp. For an affected case the
+implementation is holding memories dated *after* the query clock. **A system that honours the
+clock is therefore penalised relative to one that ignores it** — it may correctly withhold
+evidence that the grader expects it to have used. Clock-dependent scoring over those cases
+measures something other than what it names.
+
+**Anyone comparing our LongMemEval-S number to a vendor's needs this context.** A system with
+no temporal reasoning at all is not disadvantaged here; one that implements §4.5 correctly is.
+
+**So two numbers are reported.** The headline covers all 500 cases and stays the headline,
+because that is what a published LongMemEval-S number means and comparability is the point.
+Beside it, `answer_accuracy.detail.temporally_clean_subset` reports accuracy over the 424
+unaffected cases. That is a **diagnostic, not a competing headline**: a large gap between the
+two is a signal about clock handling rather than about recall, and if M0b ever scores well on
+500 and badly on 424, that is worth knowing early.
 
 Corpora are never vendored. `datasets/fetch.py` holds a manifest with pinned versions and
 sha256 digests and **fails on mismatch rather than warning** — including the case where no
@@ -281,7 +316,10 @@ Stated because a methodology that lists only its strengths is not a methodology.
   as though it does fails a probe (§7).
 - **It cannot produce the K1 headline on its own.** That requires human labels, by design.
 - **Its default answer grading is not comparable to published LongMemEval numbers** (§6).
-- **Its dataset adapters are unverified against real releases** (§11).
+- **Its LoCoMo adapter is unverified against a real release** (§11). LongMemEval-S is verified.
+- **LongMemEval-S penalises correct clock handling on 76 of 500 cases** (§11), so the headline
+  number understates a system that implements §4.5 properly. Read it with the
+  temporally-clean subset beside it.
 - **The reference stub's latencies are synthetic**, so a stub run's P95 is not a
   measurement of anything. It has no clock to time itself with, and inventing a wall-clock
   reading is the one thing §4.5 forbids.

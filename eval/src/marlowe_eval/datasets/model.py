@@ -39,6 +39,17 @@ class Case:
     """LongMemEval's abstention subset: the correct behaviour is a refusal, so a confident
     answer is wrong no matter how fluent it is."""
 
+    temporally_clean: bool = True
+    """False when the case's own history contains turns dated after `ask_at_ms`.
+
+    Set by the adapter from the released data, not inferred at scoring time. An affected
+    case asks a question while the implementation holds memories from the future of the
+    query, so **a system that honours the clock is penalised relative to one that ignores
+    it** -- exactly backwards. Scored both ways: the headline covers every case for
+    comparability, and the clean subset is reported beside it as the number that says
+    whether clock handling works.
+    """
+
     notes: str = ""
 
 

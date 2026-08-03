@@ -115,6 +115,17 @@ def verify(dataset: str, path: Path, *, strict_counts: bool = True) -> dict[str,
             "it cannot be scored"
         )
 
+    # -- temporal coherence: reported, not failed --------------------------------
+    # Added after first contact with the real LongMemEval-S release, which has questions
+    # dated before some of their own haystack content. That is a property of the corpus,
+    # not a parse error, so failing on it would make verify-corpus reject the real data.
+    # But it is not nothing either: the runner ingests a history and then asks at the
+    # question's timestamp, so an affected case asks a question while the implementation
+    # holds memories dated after it -- which is incoherent for decay, maturation and
+    # anything else that reads the clock. Surfaced here so the next reader meets it before
+    # they meet a temporal-reasoning score.
+    temporal = _temporal_coherence(corpus)
+
     if findings:
         raise VerificationFailed(dataset, findings)
 
@@ -129,5 +140,56 @@ def verify(dataset: str, path: Path, *, strict_counts: bool = True) -> dict[str,
         "turns": sum(len(s.turns) for s in corpus.sessions),
         "abstention_questions": n_abstention,
         "by_category": dict(sorted(by_category.items())),
+        "temporal_coherence": temporal,
         "verdict": "ok",
+    }
+
+
+def _temporal_coherence(corpus: Corpus) -> dict[str, Any]:
+    """How many questions are dated before content they are asked against.
+
+    A question asked at T while its own history contains turns dated after T cannot be
+    scored coherently on anything clock-dependent: the runner ingests the history and then
+    asks at T, so the implementation is holding memories from the future of the query.
+    Worse when the *gold evidence* is one of them -- the answer is then only reachable by
+    ignoring the clock.
+
+    Reported rather than failed, because it is a property of the released corpus. Reported
+    at all, because a temporal-reasoning score computed over affected cases is measuring
+    something other than temporal reasoning.
+    """
+    affected: list[tuple[str, str, int, int]] = []
+    gold_after = 0
+    for case in corpus.cases:
+        try:
+            session = corpus.session(case.session_id)
+        except KeyError:  # pragma: no cover - guarded by the dangling-id check above
+            continue
+        late = [t for t in session.turns if t.occurred_at_ms > case.ask_at_ms]
+        if not late:
+            continue
+        overshoot = max(t.occurred_at_ms for t in late) - case.ask_at_ms
+        affected.append((case.query_id, case.category, len(late), overshoot))
+        gold = set(case.gold_turn_ids)
+        if any(t.turn_id in gold for t in late):
+            gold_after += 1
+
+    by_category: dict[str, int] = {}
+    for _, category, _, _ in affected:
+        by_category[category] = by_category.get(category, 0) + 1
+
+    return {
+        "questions_dated_before_their_own_history": len(affected),
+        "of_which_gold_evidence_is_after_the_question": gold_after,
+        "max_overshoot_days": (
+            round(max(a[3] for a in affected) / 86_400_000, 4) if affected else 0.0
+        ),
+        "by_category": dict(sorted(by_category.items())),
+        "note": (
+            "a property of the released corpus, not a parse error -- reported rather than "
+            "failed. Affected cases hold memories dated after the query clock, so any "
+            "clock-dependent scoring over them measures something other than what it names"
+        )
+        if affected
+        else "",
     }
