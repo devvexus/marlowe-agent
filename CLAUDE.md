@@ -3,9 +3,7 @@
 An agent harness: the runtime around a language model that gives it memory, tools, durable
 execution, and earned autonomy. Terminal-native. Not a chat wrapper, not a framework.
 
-**Core abstraction:** Everything Marlowe knows, is doing, or has done is a materialized view
-over one append-only, provenance-signed event log — and the agent loop is a transaction that
-reads a view, acts, and appends.
+**Core abstraction:** _(fill in from docs/design/ARCHITECTURE.md after the design session)_
 
 ## Two things that are already decided
 
