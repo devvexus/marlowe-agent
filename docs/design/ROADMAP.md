@@ -330,6 +330,33 @@ list. Noticing: deterministic classes on, judgment classes in shadow (HP11).
 
 **Non-goals:** no autonomous sending. Everything stays at tier ≤2 until M6.
 
+## M5.5 — Project knowledge
+
+**Ships:** documents and reference material as memory, scoped to a project.
+
+Not a new subsystem — §5's memory pointed at documents instead of conversations. Ingest is
+`remember()` with a document source; persistence and retrieval are unchanged. The only new
+mechanism is **scoping**: a project's knowledge surfaces inside that project and stays quiet
+outside it, as a filter on the candidate set.
+
+The value is that a research or engineering project stops being re-explained every session.
+Papers, specs, decisions, and prior results accumulate and surface when relevant.
+
+**What this is not.** Injection is a *knowledge* channel, not a *capability* channel. Where the
+model can reason but lacks a specific fact, convention, or worked technique, injected memory
+closes that gap. Where the model cannot do the reasoning, injecting examples produces confident
+mimicry, which scores worse than abstention. Nothing here substitutes for fine-tuning, and the
+distinction must be stated wherever the capability is described — the failure mode looks like
+success in testing.
+
+**Acceptance:** cross-project leakage zero — a project's knowledge never surfaces outside its
+scope; injection precision on document-sourced memory measured separately from conversational
+memory and held to the same ≥0.95; ingest of a 500-page corpus stays inside the §5.7 token and
+latency budgets at query time.
+
+**Non-goals.** No bulk context loading at session start — that is what §6 argues against, and
+the ≤7,000-token budget forecloses it. The right three surface; the other four hundred do not.
+No analogical or structural retrieval — see M9.
 ---
 
 ## M6 — The trust ledger and dashboard
@@ -416,6 +443,15 @@ grants are appendable only by the permission component, this is structural.
 **Acceptance:** a self-proposed change that regresses the held-out split is rolled back
 automatically; every self-modification is a reviewable diff.
 
+**Candidate direction: research memory.** Analogical retrieval — matching on structure rather
+than surface, "this looks like a relation I remember." All five cues match on surface features,
+so two problems with the same shape and different vocabulary are invisible to every one of them.
+This is a known-hard problem and the honest technical content of the idea. Gated on M0b: if
+basic retrieval misses K1, a sixth cue is irrelevant; if it clears comfortably, the M0b data
+shows what the cue set actually misses, which is a better basis than reasoning about it now.
+The capability-vs-knowledge distinction in M5.5 applies with more force here — a derived
+technique entering procedural memory needs a **verifiable** outcome (proof holds, tests pass,
+numbers reconcile), never utilization, or a wrong technique compounds each time it is reused.
 ---
 
 ## M10 — Gate adaptivity

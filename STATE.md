@@ -24,7 +24,7 @@ version constant and adding a `DECISIONS.md` entry; the harness follows.
 ## Built
 
 `eval/` — the M0a harness. Python, separate artifact per ADR-001, depends on `CONTRACTS.md`
-§4 and nothing else (enforced by a test). **62 tests passing.**
+§4 and nothing else (enforced by a test). **72 tests passing.**
 
 - **`contract/`** — §4 as executable schema. `cost` required on all three interfaces; hedged
   abstention, injected tombstones, both directions of §4.2's abstention exclusivity and
@@ -54,8 +54,7 @@ version constant and adding a `DECISIONS.md` entry; the harness follows.
 | Clock probe discriminates | `oracle` passes; `broken.clock_reader` fails `no_time_dependence` |
 | Laundering suite discriminates | `oracle` 0 failures; `broken.trust_launderer` 9/16, naming `web → user_asserted` |
 | Bit-identical reproduction at fixed seed + clock | two runs, identical sha256 |
-
-68 tests passing.
+| LongMemEval-S adapter against the real release | 500 q / 246,750 turns / 30 abstention, no findings |
 
 ## Previously built
 
@@ -139,13 +138,6 @@ Two former entries here are now M0b scope with acceptance tests, not notes: **gr
 
 ## Open questions for the human
 
-0. **Contract version after the §4.0 pin — flagged, not asked.** Normalizing the retrieval
-   clock is breaking to the wire, and the versioning rule answers a breaking change with a
-   major bump plus a `DECISIONS.md` entry. **No bump was taken**, because no implementation
-   has ever consumed the contract — a major version signals a migration, and there is nobody
-   to signal. If you would rather this were `(2, 0)`, say so; it is a one-line change plus an
-   ADR, and the harness follows.
-
 1. **The M0a human label set is your deliverable, not the agent's.** ≥400 judged injections,
    ≥50 per LongMemEval category, stratified by gate-score decile, judge blinded to score.
    Injection precision may not be validated against agent-generated relevance labels — that
@@ -154,14 +146,37 @@ Two former entries here are now M0b scope with acceptance tests, not notes: **gr
 2. **HP14 has an experiment attached, not an answer** — deliberately, and confirmed. The
    falsification condition and its replacement (hard periodic re-consent on tier ≥4) are now
    pinned in the ADR. Needs a consenting cohort at M6.
+3. **Decide at M0b: does `MemoryEntry` carry an optional structural-signature field alongside
+   `embedding_ref`?** (`CONTRACTS.md` §3.1.)
+
+   **Decide it on schema-cost grounds, not on whether analogical retrieval is wanted.** Those
+   are different questions and only the first one is time-sensitive. Adding the field at M0b
+   is **one nullable column**. Adding it at M9 is a **contract major version bump, a journal
+   migration, and re-deriving signatures across everything already stored** — and ADR-003's
+   rebuild-from-log story makes the last part the expensive one, because the derivation has to
+   run over the full history, not just live entries.
+
+   So the choice is: **preserve the option or foreclose it deliberately.** Both are fine
+   answers. Leaving it undecided is the one that is not — it does not stay neutral, it decays
+   into "foreclosed, discovered late, at the worst possible price."
+
+   Context: ROADMAP M9's research-memory candidate direction. Nothing before M9 needs the
+   field to *work*; M0b is only where it is cheap to *reserve*.
 
 *Resolved 2026-08-01:* the §A10/§B10 web-UI tension. B10 stands — terminal-native is the
 deliberate position, and A10's channel list was written against cloud-only competitors.
 
 *Resolved 2026-08-02:* `CONTRACTS.md` §4.0 pinned, with all five open cases decided — see
-`docs/design/pinned-4.0-transport-record.md`. And **ADR-002 revised**: real filesystem by
-default, sandbox scoped to the quarantined reader, development stays native Windows, no WSL2
-move. The one open item it leaves is the brief §8.2 conflict above.
+`docs/design/pinned-4.0-transport-record.md`. **ADR-002 revised**: real filesystem by default,
+sandbox scoped to the quarantined reader, development stays native Windows, no WSL2 move; brief
+§8.2 amended to match rather than left as a deviation.
+
+*Resolved 2026-08-02:* **`CONTRACT_VERSION` stays `(1, 0)`** after the §4.0 pin. The retrieval
+clock normalization is breaking to the wire, and the rule answers a breaking change with a major
+bump — but a major version exists to signal a migration to implementers, and there are none. M0b
+does not exist; the only reader was the M0a harness, updated in the same commit. Recorded as
+settled rather than left in the queue, because an open item gets re-raised by every fresh
+session until someone closes it, and the answer will not have changed.
 
 ---
 
