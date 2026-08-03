@@ -194,8 +194,10 @@ Modal approval overlay — the only bordered element.
 | Usable over SSH at 80×24 | Yes |
 | **Full §B9 suite re-run against native Windows Terminal** | **Pass** |
 
-The last row exists because ADR-002 puts development inside WSL2. The Windows client is a real
-target surface, and a TUI verified only under a Linux terminal emulator is not verified.
+The last row is symmetric and unchanged, but its direction has inverted: ADR-002 (revised) puts
+development on native Windows, so **Linux is now the surface at risk of being verified only in
+CI**. Both must be run on a real terminal emulator — a TUI verified on one platform is not
+verified.
 
 ### Non-goals
 
@@ -213,9 +215,10 @@ has no injection variant and must not gain one.
 The loop from `ARCHITECTURE.md` §3. Eleven model-visible tools. `SKILL.md` loading with
 progressive disclosure and `find_skill` semantic discovery. MCP transport. Registration ≠
 exposure. Capability manifests with **load-time default-deny** on consequence. The
-`(action, target)` argument-provenance check. Risk-tiered approvals. Sandbox on by default.
-Egress deny-by-default. Spend caps. Context assembler: per-source budgets, tool-result clearing,
-70% compaction with lineage and cache invalidation, structural governance re-assertion.
+`(action, target)` argument-provenance check. Risk-tiered approvals. **Real filesystem by
+default, sandbox scoped to the quarantined reader** (ADR-002, revised). Egress deny-by-default.
+Spend caps. Context assembler: per-source budgets, tool-result clearing, 70% compaction with
+lineage and cache invalidation, structural governance re-assertion.
 
 M0b's memory is wired in here — this is the first milestone where the eleven-week callback can
 happen.
@@ -223,6 +226,14 @@ happen.
 ### Acceptance
 
 - Install → first useful output **<5 min, zero config**, in a clean container.
+- **First-run onboarding states plainly what Marlowe can reach** — which directories, which
+  hosts, what it asks before doing versus does silently. ADR-002 (revised) makes this a
+  requirement, not a nicety: a zero-config first run must not become a zero-disclosure one.
+- **Path-traversal suite passes** — symlinks and junctions, `..` sequences, UNC and `\\?\`
+  forms, 8.3 short names, case-insensitivity collisions, Win32 name munging, alternate data
+  streams, Unicode normalization. Canonicalize before checking, never after. Plus the
+  check-then-use race: operate on handles, not re-resolved strings. See ADR-002 — with no
+  kernel backstop, a path check defeated by string manipulation is the whole protection gone.
 - SWE-bench Verified and Terminal-Bench 2.0: competitive on the same model.
 - τ-bench / BFCL: competitive on the same model.
 - Compaction preserves governance constraints across the boundary — tested explicitly.

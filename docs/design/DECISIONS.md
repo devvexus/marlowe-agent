@@ -502,35 +502,115 @@ daemon. One daemon per profile. Local socket transport.
 Forced by invariant 6 — if the client owned the run, closing the terminal would end it. It also
 buys the 150 ms first frame, since the client has almost nothing to initialize.
 
-**Cost accepted, and a known gap.** Windows has no clean equivalent to namespaces/seccomp or
-`sandbox-exec`. **Linux and macOS get kernel-enforced sandboxing by default. On Windows the
-default backend is a container (WSL2/Docker); if none is available, Marlowe refuses to run
-rather than running unsandboxed, and the override is an explicit, loud flag.**
+### Execution model — revised 2026-08-02
 
-### The development environment is a decision, not a consequence
+> **This revision supersedes the original sandbox-by-default position and the WSL2 development
+> rule.** It also **departs from brief §8.2**, which requires *"sandboxing on by default, not
+> opt-in"* and names Claude Code's opt-in sandbox as the weaker alternative. That requirement is
+> knowingly overridden here; the brief should be amended to match, or this recorded as a standing
+> deviation. It is flagged rather than absorbed because §8.2 was written as a differentiator.
 
-The primary development machine is Windows, so the deployment decision above forces a
-development decision. Leaving it implicit is how it goes wrong.
+**Decision. Marlowe runs on the user's real filesystem by default.** No kernel sandbox on the
+ordinary path.
 
-**Decision: development happens inside WSL2 entirely.** The repository lives on the WSL2
-filesystem — **not** under `/mnt/c`, whose I/O cost would corrupt exactly the frame-budget work
-M1 depends on. The toolchain is Linux; Windows hosts the editor and nothing else.
+The reason is the product, not the platform: Marlowe is a secretary. A secretary that cannot
+reach your files is useless. An assistant that can only see a copied-in subset of your work is
+one you have to feed, and feeding it is the work. Claude Code reaches the real filesystem for
+the same reason, and it is the right call.
 
-**Why, and this is the load-bearing part:** if development runs on native Windows, the sandbox
-override becomes a daily convenience. **A loud override used routinely is how a default erodes**
-— it stops reading as a warning within a week, and then "sandboxed by default" is a claim about
-a code path nobody exercises. Developing on the same substrate we ship to means the default path
-is the one under constant test, and the override stays genuinely exceptional. Requiring the
-override to be re-passed per invocation (never persisted to config) is a supporting measure, not
-the mechanism; the mechanism is not needing it.
+**What replaces kernel sandboxing is not nothing.** It is the layer this design already
+specifies, and every part of it is platform-independent and native on Windows:
 
-Secondary benefit: the $5 VPS target is Linux, so development and deployment stop diverging.
+| Mechanism | Where it is pinned | What it stops |
+|---|---|---|
+| Declared paths and hosts in the capability manifest, default-deny at load time | `CONTRACTS.md` §7.3 | A tool touching anything it did not declare |
+| The `(action, target)` split | §9, HP6 | Untrusted content choosing a recipient, path, host, amount, or identifier |
+| Worst-case trust propagation over full lineage | §3.3, HP6 | Laundering — untrusted content acquiring authority through derivation |
+| Egress allowlisting, deny-by-default | §5 `CapabilityProfile` | Exfiltration, the third leg of the trifecta |
+| Risk-tiered approval with blast radius | §9, HP8 | Consequential actions happening unseen |
 
-**Cost accepted.** VS Code remote-WSL indirection, and a real testing gap: the Windows client is
-a target surface, and a TUI verified only under a Linux terminal emulator is not verified. **M1's
-§B9 acceptance must additionally be run against native Windows Terminal**, where a Windows user
-would actually run the thin client. That is an explicit extra test, recorded here so it is not
-discovered at M1.
+**Sandboxing is retained, scoped to one profile.** The quarantined reader —
+`reads_untrusted: true`, `exposed_tools` empty — keeps a sandbox backend. That is §8.2's
+structural trifecta break, and `CONTRACTS.md` §5 already makes
+`reads_untrusted && !exposed_tools.is_empty()` a load-time error. It is a small, isolated
+component with no interactive path, so a container backend covers it on Windows without the
+override-erosion problem that killed the general case.
+
+**Development happens on native Windows.** No WSL2 move. The original argument for WSL2 was that
+a sandbox default erodes when its override becomes a daily convenience — with no sandbox default
+on the ordinary path, there is no override, and the argument no longer applies. Linux and macOS
+remain first-class deployment targets and the $5 VPS target is unchanged; CI is where
+cross-platform divergence gets caught, not the developer's desk.
+
+**Cost accepted, and it is the real one: a permission-layer bug has no kernel backstop.** Under
+the original design, a defect in path handling or argument provenance was contained by the
+kernel — the sandbox was a second wall behind a first. It is now the only wall on the ordinary
+path. **The permission layer therefore carries materially more weight than it was designed to
+carry**, and three things follow that are not optional:
+
+1. **It is the highest-value target in the system for review and testing.** §8.3's AgentDojo-style
+   suite stops being a check on defence-in-depth and becomes the primary evidence that
+   containment works at all. ASR there is now a first-order number.
+2. **The red-team classes in §8.3 gain weight** — particularly sandbox-boundary redefinition via
+   agent output, which is why §9 checks `Reversible` tools and not only `Consequential` ones. A
+   workspace write is a durable channel into a later run's context, and there is no longer a
+   kernel boundary underneath that check.
+3. **`Inert` reads stay unchecked on targets, and that is now a narrower call than it was.** The
+   containment for reads is that fetched content returns `UntrustedContent`, returns by
+   reference, and cannot reach a Target downstream — three mechanisms, none of them the kernel.
+   If any one of them weakens, this exemption must be revisited.
+
+#### Path scoping is a security boundary, not a convenience
+
+Under the original design, `paths: ["./out/**"]` in a capability manifest was a declaration the
+kernel would have enforced anyway. It is now the enforcement. **A path check that can be defeated
+by string manipulation is the whole protection gone** — there is nothing behind it.
+
+**Canonicalize first, then check. Never check, then canonicalize.** Every comparison happens on
+the fully resolved path: symlinks and reparse points followed, relative segments collapsed, case
+folded on case-insensitive volumes, extended-length and UNC forms normalized. A check performed
+against the string the model supplied is a check against an attacker-chosen encoding of a path,
+not against the path.
+
+**M2 acceptance gains a path-traversal suite.** Not a smoke test — an adversarial one, covering
+at minimum:
+
+| Class | Examples |
+|---|---|
+| Relative traversal | `../`, `..\`, doubled and interleaved separators, over-long `../` chains |
+| Symlinks and junctions | POSIX symlinks, Windows directory junctions and reparse points, links planted *inside* a declared path that resolve outside it |
+| Windows path forms | `\\?\` extended-length, `\\.\` device, UNC `\\server\share`, drive-relative `C:foo` |
+| 8.3 short names | `PROGRA~1` and generated short names aliasing a long-named directory |
+| Case collisions | `C:\Users\X` vs `c:\users\x`; case-sensitive checks on a case-insensitive volume |
+| Win32 name munging | Trailing dots and spaces silently stripped, reserved device names (`CON`, `NUL`, `COM1`) |
+| Alternate data streams | `allowed.txt:hidden`, `dir::$INDEX_ALLOCATION` |
+| Unicode | Normalization forms, homoglyphs, and overlong UTF-8 encodings of separators |
+
+**One addition to that list, because canonicalization alone does not close it: the check-then-use
+race.** Canonicalizing and then opening by path leaves a window in which the resolved path can be
+swapped — a symlink planted between the check and the open. The check is correct and the open
+still lands outside the scope. Closing it means operating on a handle rather than re-resolving a
+string: `openat`/`O_NOFOLLOW` on POSIX, and on Windows opening with reparse-point semantics made
+explicit and verifying the final handle's identity. Worth pinning at M2 alongside the suite,
+because a traversal suite that passes against a TOCTOU-vulnerable implementation reports a
+boundary that is not there.
+
+**Requirement, not a nicety: first-run onboarding states plainly what Marlowe can reach.** In
+plain language, before the first action — which directories, which hosts, what it will ask before
+doing versus do silently. A user who does not know the blast radius cannot consent to it, and
+"it runs on your real filesystem" is exactly the fact that must not be discovered later. This is
+an M2 acceptance item (the zero-config first run must not become a zero-disclosure first run).
+
+**Rejected.** Sandbox-on-by-default with a loud override (the original position): on Windows it
+degrades to "refuse to run without a container", which for a secretary means refuse to run. And
+the override, used daily, stops reading as a warning inside a week — the erosion argument was
+right, which is why the answer is to remove the default rather than to keep a default nobody
+exercises.
+
+**Consequence for M1.** The §B9 suite must still run on native Windows Terminal *and* on a Linux
+terminal emulator. The direction of the gap has inverted — development is now on Windows, so
+**Linux is the surface at risk of being verified only in CI** — but the requirement is symmetric
+and unchanged.
 
 ## ADR-003 · Storage substrate: one journal, one live-only hot index
 

@@ -5,10 +5,10 @@
 
 ## Next action
 
-**Start M0b, in WSL2.** Per ADR-002 the repo moves to the WSL2 filesystem (not `/mnt/c`)
-**before M0b starts, not during** — the Rust daemon is what the sandbox decision is about.
-M0a stays as-is; it is a separate Python artifact that starts no sandbox, and Windows was
-explicitly accepted for it.
+**Start M0b, on native Windows.** ADR-002 was revised 2026-08-02: no WSL2 move. Marlowe runs on
+the user's real filesystem by default — it is a secretary, and a secretary that cannot reach
+your files is useless — so there is no sandbox default to erode, and the argument that forced
+WSL2 no longer applies.
 
 One piece of M0a is deliberately unwritten: `adapter/subprocess_ndjson.py` and the `exec://`
 target. §4.0 is pinned, so it is buildable now, but there is no M0b process to spawn yet —
@@ -103,16 +103,22 @@ Nothing half-done. One component deliberately unwritten: the subprocess transpor
 - **The clock probe cannot prove absence.** It catches an implementation whose behaviour moves
   with a system clock; it cannot prove one never reads it. An implementation with no
   observable time-dependence fails — correctly, since §4.3 maturation is a requirement.
-- **`eval/` was built and runs on native Windows — accepted, not a breach.** ADR-002's WSL2
-  rule is about the sandbox default eroding through daily convenience; M0a is a separate
-  Python artifact that starts no sandbox. Confirmed 2026-08-02. **M0b moves to WSL2 with the
-  repo on the WSL2 filesystem before it starts, not during.** The harness is OS-agnostic and
-  its reproduction claim is asserted within a platform, not across one.
-- **Windows sandboxing gap (ADR-002).** No clean equivalent to namespaces/seccomp or
-  `sandbox-exec`; Windows defaults to a container backend and refuses to run without one.
-  Development therefore happens **inside WSL2 entirely**, repo on the WSL2 filesystem, not
-  `/mnt/c` — because a loud override used routinely for convenience is how the default erodes.
-  Consequence: M1 must re-run the full §B9 suite against native Windows Terminal.
+- **The permission layer has no kernel backstop (ADR-002, revised 2026-08-02).** Marlowe runs
+  on the real filesystem by default; kernel sandboxing is retained only for the quarantined
+  reader (`reads_untrusted: true`, empty tool set). Declared paths, the `(action, target)`
+  split, trust propagation and egress allowlisting are now the only wall on the ordinary path,
+  **so the permission layer carries materially more weight than it was designed to carry.**
+  Consequences: §8.3's AgentDojo ASR becomes a first-order number rather than a
+  defence-in-depth check, and **path scoping becomes a security boundary** — M2 gains an
+  adversarial path-traversal suite plus a TOCTOU requirement (operate on handles, not
+  re-resolved strings).
+- **This departs from brief §8.2**, which requires sandboxing on by default and names the
+  opt-in posture as the weaker alternative. Knowingly overridden. **The brief should be amended
+  or this recorded as a standing deviation** — flagged rather than absorbed, because §8.2 was
+  written as a differentiator.
+- **M1's §B9 suite must run on both native Windows Terminal and a Linux terminal emulator.**
+  The requirement is unchanged but its direction inverted: development is now on Windows, so
+  Linux is the surface at risk of being verified only in CI.
 - The spike's aged shape is statistical, not a real workload. The tombstone curve gives the
   forgetting policy a budget; it does not predict where a real user lands on it.
 - Retrieval *quality* is entirely unmeasured. The spike settled cost only.
@@ -143,8 +149,9 @@ Two former entries here are now M0b scope with acceptance tests, not notes: **gr
 deliberate position, and A10's channel list was written against cloud-only competitors.
 
 *Resolved 2026-08-02:* `CONTRACTS.md` §4.0 pinned, with all five open cases decided — see
-`docs/design/pinned-4.0-transport-record.md`. And: native Windows is accepted for M0a; M0b
-moves to WSL2 before it starts.
+`docs/design/pinned-4.0-transport-record.md`. And **ADR-002 revised**: real filesystem by
+default, sandbox scoped to the quarantined reader, development stays native Windows, no WSL2
+move. The one open item it leaves is the brief §8.2 conflict above.
 
 ---
 
