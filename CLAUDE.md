@@ -62,8 +62,7 @@ requirements only when the design docs do not answer the question.
 
 ## Do not touch
 
-Per brief §13. **These are also enforced by PreToolUse hooks** — the hooks are the real boundary;
-this list is here so you know why a call was blocked.
+Per brief §13.
 
 - The permission and approval layer
 - Path scoping and egress rules
@@ -72,10 +71,66 @@ this list is here so you know why a call was blocked.
 - The trust ledger's promotion logic
 - The persona artifact (`persona/vN.md`)
 
+**Enforcement status, stated accurately (2026-08-03).** An earlier version of this file claimed
+these were "enforced by PreToolUse hooks — the hooks are the real boundary" when **no hooks
+existed at all**. The claim was also unimplementable as written: a matcher needs concrete paths,
+and five of the six entries named components that did not exist yet.
+
+**A hook now exists, and here is exactly what it covers.** `.claude/settings.json` runs
+`.claude/hooks/protect-boundaries.py` on `Edit|Write|NotebookEdit`. It is **partial by
+construction** and the gap is the point:
+
+| Entry | Guarded path | Status |
+|---|---|---|
+| Memory provenance and trust-class propagation | `crates/marlowe-memory/src/trust.rs` | **Enforced** |
+| Audit logging — the signed write path | `crates/marlowe-journal/src/{signature,journal}.rs` | **Enforced** |
+| The persona artifact | any `persona/` directory | **Enforced** (pre-emptively) |
+| The permission and approval layer | — | **Not enforced; does not exist yet** |
+| Path scoping and egress rules | — | **Not enforced; does not exist yet** |
+| The trust ledger's promotion logic | — | **Not enforced; does not exist yet** |
+
+**As each component lands, add its path to the hook.** A component with no entry is unguarded
+regardless of what this list says — the entry is the enforcement, and the list is only a map of it.
+
+The hook returns `ask`, not `deny`. The boundary is against the agent changing safety machinery on
+its own initiative, not against the project evolving it; a human who reads the reason and approves
+has made the decision the boundary exists to require. A change here should arrive with a
+`DECISIONS.md` entry.
+
+Verified live on 2026-08-03: the blocking logic was pipe-tested against each protected path, and
+the hook was shown to fire on a real `Edit`.
+
+**Building a listed component in its assigned milestone is not "touching" it.** The boundary is
+against a later session — or the agent's own self-improvement at M9 — modifying safety machinery
+that already exists. M0b Session A writes trust-class propagation for the first time; that is the
+milestone's scope, not a violation. Once it exists, changes to it need an explicit decision.
+
 ## Build and test
 
-_(fill in once M0b exists)_
+Two artifacts, deliberately separate (ADR-001): the harness is Python, the implementation is Rust.
 
+```bash
+# The scoreboard. Never modified to accommodate an implementation.
+cd eval && python -m pytest                  # 72 passing
+
+# The implementation.
+cargo test --workspace                       # 49 passing
+cargo build --release                        # -> target/release/marlowe.exe
 ```
-cd eval && PYTHONPATH=src python -m pytest
+
+**Scoring M0b against M0a** — this is the only number that counts. `{profile_root}` is a literal
+token the harness replaces with a fresh empty directory on every spawn; it is required, because
+each spawn must start from empty state.
+
+```bash
+cd eval
+TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root}"
+
+PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # section 4 + clock probe
+PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
+PYTHONPATH=src python -m marlowe_eval.cli repro --runs 2 --target "$TARGET"
 ```
+
+Toolchain on Windows: MSVC (`rustup default stable-x86_64-pc-windows-msvc`) plus the VS C++
+workload and Windows SDK — `rusqlite`'s bundled SQLite compiles C, and ADR-004's ONNX runtime
+will want MSVC too.

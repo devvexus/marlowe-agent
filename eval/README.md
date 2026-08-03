@@ -48,7 +48,7 @@ marlowe-eval repro --runs 2                           # is it reproducible?
 | Blinded sample for human judging | `marlowe-eval labels draw --out packets.json` | packets with no score, no decile, no injected flag |
 | Corpus integrity | `marlowe-eval verify-corpus --dataset longmemeval-s --path <file>` | structural check; fails loudly on drift |
 | Third-party reproducible | `marlowe-eval schema-export --out schemas` | JSON Schema for all three interfaces |
-| The whole suite | `pytest` | 62 passing |
+| The whole suite | `pytest` | 72 passing |
 
 Two commands are worth running for the answer rather than the exit code:
 
@@ -69,12 +69,27 @@ stub://oracle                      reference implementation; reads the answer ke
 stub://oracle?precision=0.7        with knobs (precision, abstention_rate,
                                    answer_accuracy, maturation_ms, k, seed)
 stub://broken.<name>               a conformance fixture; see `marlowe-eval targets`
+exec://<cmd> --profile-root {profile_root}
+                                   a real implementation, spawned over the §4.0 transport
 ```
 
-`exec://` — spawning a real implementation over the wire — is the one component still
-unwritten. `CONTRACTS.md` §4.0 pins the transport (NDJSON over stdio, strictly serial), but
-there is no M0b yet to spawn, so the harness drives the in-process `MemorySystem` ABC.
-`run.jsonl` is written in §4.0.3 frame shape regardless.
+`exec://` takes a **command line**, not a URL — a URL cannot carry one without mangling
+Windows paths — and it must contain the literal token `{profile_root}`, which is replaced
+with a freshly created empty directory on **every** spawn:
+
+```bash
+marlowe-eval conformance \
+  --target "exec://./target/release/marlowe --eval-adapter --profile-root {profile_root}"
+```
+
+The placeholder is required rather than optional. The harness spawns a target once per
+corpus and four more times in the clock probe alone, and each spawn must start from empty
+state — the probe compares a run at epoch against the same run shifted ten years, so state
+surviving between them would silently corrupt the comparison. A missing placeholder is an
+error at target-construction time, not a default that quietly shares one directory.
+
+`run.jsonl` is written in §4.0.3 frame shape for every target, so a stub run and a real run
+produce diffable transcripts.
 
 ---
 

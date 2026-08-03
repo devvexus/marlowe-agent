@@ -55,8 +55,47 @@ pub struct JournalEvent {
     pub actor:      Actor,              // who caused this. NEVER `Model`.
     pub kind:       EventKind,
     pub payload:    EventPayload,       // small, structured; large content goes by ContentRef
-    pub signature:  Signature,          // HMAC over (seq, ts, trace, actor, kind, payload)
+
+    // ── tamper-evidence over the SEQUENCE, not just over each event ──────
+    pub prev_signature: Signature,      // the predecessor's signature; GENESIS for seq 1
+    pub signature:      Signature,      // HMAC over (seq, ts, trace, actor, kind,
+                                        //            payload, prev_signature)
 }
+```
+
+**The log is a hash chain, and that is stronger than per-event signing on purpose.**
+
+A signature covering only its own event stops **forgery**: an event cannot be inserted or
+rewritten without the key. It does not stop **deletion or reordering** — a well-formed event
+removed from the middle leaves every remaining signature valid.
+
+That gap matters more here than it would in most logs, because of what §5.4 asks of
+forgetting. Forgetting must remove *accessibility* while the log preserves *availability*;
+if a row can be deleted undetectably, then `DELETE` becomes an alternative implementation of
+forgetting that destroys availability instead — and it is the one implementation that leaves
+no trace of having run. Invariant 7 (*every autonomous action is reconstructable*) and
+§5.4's worst-failure clause (*a memory the user can no longer surface but the system
+silently acted on*) both rest on that not being possible.
+
+Chaining closes it: removing or reordering any event invalidates every signature after it,
+so `verify_chain` on open localizes the break to the row where it happened.
+
+**Pin record, 2026-08-03 — §1 amended to specify the chain.** Adding `prev_signature` and
+extending the signed tuple is a breaking change to the event schema, which §0's rule would
+ordinarily answer with a major version bump. **No bump was taken**, on the same grounds as
+the §4.0 pin: no journal has ever been written outside the M0b test suite that landed in the
+same change, so there is no data to migrate and no implementer to signal. The rule exists to
+give implementers a migration path, and there are none.
+
+Recorded here rather than in a source comment, deliberately. The implementation reached this
+design first; leaving §1 describing the weaker scheme would have left a pinned contract and
+its implementation in contradiction, to be resolved by whoever read them next — and that is
+not a decision to leave to a default. Same handling as brief §8.2, which was amended to match
+ADR-002 rather than left as a deviation.
+
+```rust
+// The chain's base case. A profile's first event chains from this constant.
+pub const GENESIS: Signature = "genesis";
 
 /// The model is not in this enum. That is the point: the model requests, the harness appends.
 pub enum Actor {

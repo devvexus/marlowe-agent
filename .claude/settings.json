@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/protect-boundaries.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking the brief §13 boundary"
+          }
+        ]
+      }
+    ]
+  }
+}

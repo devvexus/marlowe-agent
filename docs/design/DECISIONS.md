@@ -775,3 +775,84 @@ task role, declared in `CapabilityProfile`, not by user preference.
 
 This is the single largest cost lever in the system (§12), and it is what makes continuous
 offline consolidation affordable enough to be the default rather than a paid feature.
+
+## ADR-009 · No structural signature on the memory envelope
+
+**Context.** `CONTRACTS.md` §3.1 pins `MemoryEntry` with `embedding_ref: Option<VectorId>`. M9's
+candidate direction — analogical retrieval, matching on structure rather than surface — would want
+a second derived key beside it, so that two problems with the same shape and different vocabulary
+can match. All five cues match on surface features, so today they cannot.
+
+`STATE.md` carried this as an open question for the human, framed on **schema cost**: adding the
+field at M0b is one nullable column; adding it at M9 was priced as a contract major version bump, a
+journal migration, and re-deriving signatures across the full history. On that framing the choice
+is "preserve the option cheaply or foreclose it deliberately," and leaving it undecided decays into
+foreclosed-at-the-worst-price.
+
+That framing is answered below, but it is **not** the load-bearing reason. The order matters,
+because a later session will reuse whichever argument is stated first.
+
+**Decision. `MemoryEntry` does not carry a structural-signature field — not at M0b, and not in this
+shape later.** The option is preserved by the rebuild path instead.
+
+### The primary reason is correctness: a write-time structural signature is a forgetting leak
+
+A signature computed at write time and stored on the envelope is a derivative of the entry's
+content **that does not demote when the entry's fidelity does.** §5.4's ladder (record → summary →
+gist → tombstone) and `ARCHITECTURE.md`'s availability/accessibility split are what let real
+forgetting and an append-only log coexist: the log keeps the record **available**, and demotion
+removes its **accessibility**. A signature derived from the Record survives at full strength on the
+Gist and keeps matching at full strength — accessibility restored through a side channel. That is
+§5.4's worst-failure clause exactly: *a memory the user can no longer surface but the system
+silently acted on.*
+
+Under §3.4 it is worse than a leak. Redaction is crypto-shredding — per-record DEKs, wrapped once
+per subject, destroyed on `Redacted`. A plaintext signature on the envelope, outside the encrypted
+record, is **residue of a redacted record**: it survives the shred and still matches. That is an
+invariant 5 hole (*see, edit, delete* — a real delete, not a logical tombstone), not a schema-cost
+question.
+
+Making a signature demote with fidelity and shred with its subject is possible, and is specified
+nowhere. It is a second lifecycle running beside the entry's, with its own correctness burden, and
+nobody has costed it. A field that must not be populated until that machinery exists is not an
+option being preserved; it is a hazard being parked.
+
+### The cost model in the original framing was also wrong
+
+Recorded so the prices are not reused as precedent:
+
+| Priced as | What the pinned documents say |
+|---|---|
+| A contract **major** bump | `MemoryEntry` is §3. It crosses no process or language line — §4 is the only contract that does, which is why §4 alone pins a JSON wire format. An **optional** field is additive, and this document's own precedents make additive changes minor: §1.1 *"Adding a kind is a minor version bump; changing one is major"*; §3.2 *"Adding a variant is a minor bump."* |
+| A **journal migration** | The belief store is a materialized view over the log (`ARCHITECTURE.md` §1, §2.3 *"fully rebuildable from the log"*). Adding a field to a derived view changes no journal event payload, so §1's forever-decodable rule is not engaged at all. ADR-003's stated purpose is that this class of change *"makes migration a rebuild rather than a data migration."* |
+| **Re-deriving across full history** | Invariant 9: the index *"rebuilds to current state, not full fidelity"*, and *"a rebuild that resurrects forgotten memories is a correctness failure."* A derivation at rebuild time may run only over live entries at their then-current fidelity. Deriving over the forgotten tail is not expensive — it is **forbidden**, and it is the leak above wearing a different hat. |
+
+The real late-adoption price is a minor bump plus one rebuild — the rebuild ADR-003 already commits
+to and measured at 11.7 s — not a three-part migration.
+
+### What preserves the option, since it is not a column
+
+Journal payloads stay decodable forever (§1), and the belief store is a *derivation* over them. One
+M0b requirement therefore carries the whole option:
+
+> The belief-store rebuild is expressed as a **versioned derivation** over the event stream, with
+> `derivation_version` recorded in the profile. Adding a derived per-entry field is a version bump
+> and a rebuild, never a migration.
+
+That is a testable property. A nullable column with no producer and no consumer is not — and an
+untested nullable field is the same shape as every other unobservable-mismatch defect this project
+has logged.
+
+**Rejected.** Reserving one nullable `structural_signature` at M0b. It buys a minor bump and a
+rebuild we would pay anyway, parks the demotion/shred hazard where a later session meets it as an
+existing field rather than as a decision, and adds a field nothing writes and nothing reads — so
+nothing observes it being wrong until something starts filling it.
+
+**Cost accepted, and it is real.** If M9's analogical retrieval needs signatures derived from
+**pre-demotion** content, that content is legitimately less accessible by then, and signatures
+derived at M9 will be weaker than write-time ones would have been. We are choosing weaker
+analogical matching over a forgetting leak. Brief §5.4 makes forgetting mandatory and names silent
+influence as the worst failure, so the direction is right — but it is a loss, not a free choice.
+
+Gated as M9 always was: nothing before M9 needs the field to work, and if M0b misses K1 a sixth cue
+is irrelevant.

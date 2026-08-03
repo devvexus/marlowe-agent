@@ -1,5 +1,14 @@
 .VSCodeCounter/
 
+# Cargo build output. Gigabytes, fully derived, and one `git add -A` from the history.
+# Cargo.lock IS tracked: this workspace produces a binary, and a reproducible build needs
+# pinned transitive versions.
+/target/
+
+# Personal permission allowlists. `.claude/settings.json` IS tracked -- it carries the
+# brief §13 boundary hook, which is a project-wide rule, not a preference.
+.claude/settings.local.json
+
 # Benchmark corpora are never vendored: large, separately licensed, and pinned by digest in
 # eval/src/marlowe_eval/datasets/fetch.py instead. LongMemEval-S alone is ~277 MB and is one
 # `git add -A` away from entering the history permanently, where it cannot be removed without

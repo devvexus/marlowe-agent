@@ -57,6 +57,54 @@ class ProtocolErrorKind(str, enum.Enum):
     CONTRACT_VERSION_MISMATCH = "contract_version_mismatch"
     CORRELATION_MISMATCH = "correlation_mismatch"
 
+    # -- section 4.0.4 / 4.0.7: the transport ----------------------------------------
+    # These name failures of the WIRE, not of a section 4 payload. They are spelled
+    # exactly as section 4.0.4 spells them, so a report can be read against the contract
+    # without a translation table.
+    #
+    # Class A -- "the request was bad": the harness or the version pairing is at fault, and
+    # the run aborts. A defect, not a measurement.
+    MALFORMED_FRAME = "malformed_frame"
+    UNKNOWN_OP = "unknown_op"
+    MALFORMED_BODY = "malformed_body"
+    CONTRACT_VERSION_UNSUPPORTED = "contract_version_unsupported"
+
+    # Section 4.0.7 -- no section 4 response exists and none is coming.
+    IMPLEMENTATION_CRASHED = "implementation_crashed"
+    DEADLINE_EXCEEDED = "deadline_exceeded"
+    SPAWN_FAILED = "spawn_failed"
+
+    # NOTE: section 4.0.4's class B kind, `internal_error`, is deliberately NOT a member.
+    # It is a *successful* outcome of the transport -- the implementation understood a
+    # well-formed request and failed on it -- so it is a scored result and travels as
+    # `ImplementationFailure`, never as a ProtocolError. Giving it a member here would
+    # invite raising it as one, which is precisely the class A/class B blur that makes a
+    # recoverable bug indistinguishable from a defect in the harness.
+
+
+# Section 4.0.4's class A, keyed by the wire spelling an implementation sends in
+# `error.kind`. Kept as data rather than as an `if` chain so the taxonomy is checkable:
+# a test can assert this covers class A exactly, which a scatter of comparisons cannot.
+CLASS_A_BY_WIRE_KIND: dict[str, ProtocolErrorKind] = {
+    "malformed_frame": ProtocolErrorKind.MALFORMED_FRAME,
+    "unknown_op": ProtocolErrorKind.UNKNOWN_OP,
+    "malformed_body": ProtocolErrorKind.MALFORMED_BODY,
+    "contract_version_unsupported": ProtocolErrorKind.CONTRACT_VERSION_UNSUPPORTED,
+}
+
+CLASS_B_WIRE_KINDS: frozenset[str] = frozenset({"internal_error"})
+
+#: Every kind the transport may raise. Section 4 payload violations are not in here, and
+#: transport failures are not in the payload set -- the two vocabularies stay disjoint.
+TRANSPORT_KINDS: frozenset[ProtocolErrorKind] = frozenset(
+    {
+        *CLASS_A_BY_WIRE_KIND.values(),
+        ProtocolErrorKind.IMPLEMENTATION_CRASHED,
+        ProtocolErrorKind.DEADLINE_EXCEEDED,
+        ProtocolErrorKind.SPAWN_FAILED,
+    }
+)
+
 
 class ProtocolError(Exception):
     """Raised when a payload violates section 4. Carries enough to report per interface."""

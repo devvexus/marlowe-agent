@@ -1,0 +1,30 @@
+//! CONTRACTS.md sections 2–3 — the belief store and its provenance machinery.
+//!
+//! Memory is the spine, not a subsystem. Concretely, that means: **one envelope for every
+//! belief** ([`entry::MemoryEntry`]), **trust derived at write time and never declared**
+//! ([`trust`]), and a store that is **rebuildable from the log** ([`store::BeliefStore`])
+//! rather than an authority of its own.
+//!
+//! The three things a reader should check first, because each is a place where a plausible
+//! default would delete a requirement while every test stayed green:
+//!
+//! | Where | The default that would hide a failure |
+//! |---|---|
+//! | [`trust::trust_for_channel`] | a `_ =>` arm — the laundering suite would pass while measuring nothing |
+//! | [`entry::MemoryEntry::is_injection_candidate`] | two exclusions instead of three — maturation is the one that can be dropped while every latency and precision test still passes |
+//! | [`store::BeliefStore::derive`] | assuming `Fidelity::Record` on replay — the rebuild would resurrect forgotten memories (invariant 9) |
+
+#![forbid(unsafe_code)]
+
+pub mod entry;
+pub mod error;
+pub mod ingest;
+pub mod retrieve;
+pub mod store;
+pub mod trust;
+
+pub use entry::{memory_id, MemoryEntry, MemoryId, MATURATION_WINDOW_MS};
+pub use error::MemoryError;
+pub use ingest::{ingest, IngestOutcome};
+pub use store::{BeliefStore, DERIVATION_VERSION};
+pub use trust::{check_actor, effective_trust, trust_for_channel, RejectionReason};
