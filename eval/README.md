@@ -118,10 +118,12 @@ similarity search to live. A test asserts the signature.
 
 ## What is not verified
 
-- **LongMemEval-S is verified** against the real release (500 q / 246,750 turns, 2026-08-02).
-  **LoCoMo is not** — its adapter is still written from the published schema only, and the
-  fixtures cannot catch a misreading because the same hand wrote both. Run `verify-corpus`
-  against a real download before trusting a LoCoMo number.
+- **LongMemEval-S is verified** against the real release (500 q / 246,750 turns, 2026-08-02),
+  `cleaned` variant — the maintainer's own published replacement. **Variants differ ~0.5–2 pp,
+  so our number is not comparable to a published one that doesn't state its variant, and many
+  don't.** Ours always states `cleaned`. **LoCoMo is not verified** — its adapter is still
+  written from the published schema only, and the fixtures cannot catch a misreading because
+  the same hand wrote both.
 - **LongMemEval-S penalises correct clock handling on 76 of 500 cases** — questions dated
   before their own history, 43 with gold evidence postdating the question. Reproduced
   faithfully, not corrected. The headline covers all 500; a temporally-clean subset is

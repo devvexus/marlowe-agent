@@ -34,20 +34,22 @@ class DatasetSpec:
 MANIFEST: dict[str, DatasetSpec] = {
     "longmemeval-s": DatasetSpec(
         name="longmemeval-s",
-        version="local-cleaned-2026-08-02",
+        version="cleaned",
         filename="longmemeval_s_cleaned.json",
         sha256="d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
         url=None,
         source_note=(
+            "LongMemEval-S, **cleaned** variant. This is the maintainer's own published "
+            "replacement, not a third-party fork: xiaowu0162/longmemeval carries a "
+            "deprecation notice pointing to it, and the change removes noisy history "
+            "sessions that interfered with answer correctness. Same author, upgrade not "
+            "fork.\n"
             "Verified 2026-08-02 by `marlowe-eval verify-corpus`: 500 questions, 500 "
             "sessions, 246,750 turns, 30 abstention, all seven categories populated.\n"
-            "PROVENANCE CAVEAT: this digest is of a local file named "
-            "`longmemeval_s_cleaned.json`. The `_cleaned` suffix indicates a derived or "
-            "preprocessed variant, and it has NOT been checked against the authors' "
-            "pristine release. The digest therefore pins reproducibility against THIS "
-            "artifact, which is what a comparison needs, but it is not evidence that the "
-            "artifact is the canonical upstream one. Anyone reproducing our numbers needs "
-            "this exact file; anyone comparing to a vendor should know which variant we ran."
+            "COMPARABILITY: results differ by roughly 0.5-2 pp between the original and "
+            "cleaned variants, so a comparison against any published LongMemEval-S number "
+            "is invalid unless that number's variant is known -- and many vendor reports "
+            "do not state it. Ours always states `cleaned`."
         ),
         expected_cases=500,
     ),

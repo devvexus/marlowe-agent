@@ -266,6 +266,22 @@ abstention**, all seven categories populated, no dangling gold-evidence ids, no 
 question missing evidence. Dates parse to a 2021-05 → 2024-02 range with no epoch-zero
 fallbacks, and spot-checked gold turns contain the answer text.
 
+**We run the `cleaned` variant, and that fact travels with every number we publish.** It is
+the maintainer's own published replacement — `xiaowu0162/longmemeval` carries a deprecation
+notice pointing to it, and the change removes noisy history sessions that interfered with
+answer correctness. Same author, upgrade not fork.
+
+**This makes most cross-vendor comparison invalid by default.** Results differ by roughly
+**0.5–2 pp** between the original and cleaned variants. A published LongMemEval-S number is
+therefore not comparable to ours unless its variant is known — and **many vendor reports do
+not state which they ran.** A 1 pp gap between two systems means nothing if one was measured
+on each variant; it is inside the variant delta.
+
+The rule this repo follows: **our LongMemEval-S number always states `cleaned`.** Not in a
+footnote — beside the number. A benchmark result whose variant is unstated is not a result
+anyone can use, and §5.7's *"vendor-reported memory numbers in this space are not comparable
+across systems; ours must be reproducible with a published harness"* is exactly this problem.
+
 **LoCoMo remains unverified** — no real download has been checked, so its adapter is still
 in the state described below.
 

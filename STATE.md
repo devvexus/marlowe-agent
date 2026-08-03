@@ -88,10 +88,12 @@ Nothing half-done. One component deliberately unwritten: the subprocess transpor
 - **LongMemEval-S adapter verified 2026-08-02; LoCoMo still unverified.** `verify-corpus`
   passed against the real release — 500 questions, 500 sessions, 246,750 turns, 30 abstention,
   all seven categories, no dangling gold ids — and its digest is now pinned in
-  `datasets/fetch.py`. **Provenance caveat:** the file is `longmemeval_s_cleaned.json`; the
-  `_cleaned` suffix means a derived variant, unchecked against the authors' pristine release.
-  The LoCoMo adapter is still written from the published schema alone, and its fixtures cannot
-  catch a misreading — same hand wrote both.
+  `datasets/fetch.py`. We run the **`cleaned`** variant: the maintainer's own published
+  replacement (`xiaowu0162/longmemeval` is deprecated in its favour), which removes noisy
+  history sessions that interfered with answer correctness. **Variants differ by ~0.5–2 pp, so
+  comparison against a published number is invalid unless that number states its variant —
+  many do not. Ours always states `cleaned`.** The LoCoMo adapter is still written from the
+  published schema alone, and its fixtures cannot catch a misreading — same hand wrote both.
 - **LongMemEval-S penalises correct clock handling on 76 of 500 cases.** Questions dated before
   their own history (up to 0.99 d), **43 with gold evidence postdating the question**;
   concentrated in temporal-reasoning (54), knowledge-update (15), abstention (7). A property of

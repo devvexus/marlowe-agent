@@ -19,7 +19,7 @@ from typing import Any, Callable
 from . import canonical
 from .adapter.base import Client, MemorySystem
 from .contract import CONTRACT_VERSION, ProtocolError
-from .datasets import reporting
+from .datasets import fetch, reporting
 from .datasets.model import Corpus
 from .judge.agreement import NoOverlap, judged_precision
 from .judge.protocol import Judge
@@ -107,7 +107,23 @@ def run(
             grader = ContainmentGrader()
             cost = result.cost
             assert cost is not None
+            # The corpus variant travels with the number, not in a footnote. LongMemEval-S
+            # results differ ~0.5-2 pp between the original and `cleaned` variants, so a
+            # score whose variant is unstated is not comparable to anyone's -- including a
+            # later run of our own. Emitted structurally so it cannot be forgotten.
+            spec = fetch.MANIFEST.get(name)
             scored[name] = {
+                "corpus_variant": {
+                    "variant": spec.version if spec else "unknown",
+                    "sha256_pinned": bool(spec and spec.sha256),
+                    "note": (
+                        "LongMemEval-S variants differ by roughly 0.5-2 pp; a published "
+                        "number that does not state its variant is not comparable to this "
+                        "one"
+                    )
+                    if name.startswith("longmemeval")
+                    else "",
+                },
                 "answer_accuracy": accuracy(result.records, grader, cost).as_dict(),
                 "abstention_accuracy": abstention_accuracy(result.records, cost).as_dict(),
                 "evidence_precision": evidence_precision(result.records).as_dict(),
