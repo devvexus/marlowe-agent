@@ -1,0 +1,671 @@
+"""Pre-registration for M0b Session D — the fusion. **Run this before fitting anything.**
+
+Writes one file:
+
+  runs/session-d/PREREGISTRATION.json
+
+`tools/fit_gate.py` refuses to run without it, and refuses if it was registered against a
+different split. Pre-registration is a file, not an intention.
+
+**What this session changes is the COMBINER, not the cue set.** Session C measured the bottleneck
+directly (`runs/session-c/cue-overlap.json`): the two cues are complementary (Spearman 0.233), the
+either-cue oracle reaches 0.652 at top-1, and the fitted linear gate reaches 0.4957 -- *below*
+lexical alone at 0.5478. Cue 3 is deferred because feeding a third cue to a combiner that degrades
+its best input would reproduce that result.
+
+**Every band below is derived from a number Session C already published**, read out of its own
+files rather than retyped, so the boundary between "the fusion improved" and "the fusion looks
+improved" is a computed property of the previous measurement.
+
+Two conditions were pre-committed in STATE.md *before this session existed* and are copied here
+verbatim in substance -- the floor and the oracle read. They are maximally credible precisely
+because they were fixed while the number they judge could not be known.
+
+    python tools/preregister_session_d.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+
+SPLIT_PATH = REPO / "tools" / "split.json"
+SESSION_C_SUMMARY = REPO / "runs" / "session-c" / "summary.json"
+SESSION_C_OVERLAP = REPO / "runs" / "session-c" / "cue-overlap.json"
+PREREG_PATH = REPO / "runs" / "session-d" / "PREREGISTRATION.json"
+
+# Session B's digest, unchanged through C and D. A redrawn split is a loud refusal.
+EXPECTED_SPLIT_DIGEST = "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d"
+
+
+def canonical(obj: object) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+def session_c_baseline() -> dict:
+    """Session C's read points, from its own files rather than retyped."""
+    for path in (SESSION_C_SUMMARY, SESSION_C_OVERLAP):
+        if not path.exists():
+            raise SystemExit(
+                f"{path} does not exist. Session D's bands are derived from Session C's "
+                "recorded numbers; refusing to invent a baseline."
+            )
+    summary = json.loads(SESSION_C_SUMMARY.read_text(encoding="utf-8"))
+    overlap = json.loads(SESSION_C_OVERLAP.read_text(encoding="utf-8"))
+
+    top1 = overlap["gold_in_top_k"]["1"]
+    n3 = summary["number_3_per_cue"]
+    return {
+        "overlap_cases": overlap["cases"],
+        "spearman_mean": overlap["rank_correlation"]["mean"],
+        "top1": {
+            "lexical": top1["lexical"],
+            "dense": top1["dense"],
+            "best_single": max(top1["lexical"], top1["dense"]),
+            "either_oracle": top1["either_oracle"],
+            "fitted_gate": top1["fitted_gate"],
+            "rank_fusion_rrf": top1["rank_fusion_rrf"],
+            "neither": top1["neither"],
+            "headroom": round(top1["either_oracle"] - max(top1["lexical"], top1["dense"]), 4),
+        },
+        "number_2": {
+            "value": summary["number_2_cue_capability"]["value"],
+            "read_at_cut": summary["number_2_cue_capability"]["read_at_cut"],
+            "coverage_there": summary["number_2_cue_capability"]["coverage_there"],
+        },
+        "max_calibrated_precision": summary["gate"]["max_calibrated_precision_on_the_curve"],
+        "number_3_lexical_alone": n3["lexical_bm25_alone"],
+        "number_3_dense_alone": n3["dense_cosine_alone"],
+        "retrieval_p95_ms_cold": 36.0,
+        "_note": (
+            "Read from runs/session-c/summary.json and runs/session-c/cue-overlap.json, not "
+            "retyped. The P95 is the COLD figure from RESULT.md; the warm 24 ms is "
+            "unrepresentative because a cache hit removes the query's forward pass from the "
+            "timed span."
+        ),
+    }
+
+
+def build(base: dict, split: dict) -> dict:
+    floor = base["top1"]["best_single"]
+    oracle = base["top1"]["either_oracle"]
+    headroom = base["top1"]["headroom"]
+    # The PRE-COMMITTED denominator: STATE.md's "+0.157 at top-1 is the ceiling on this work"
+    # is measured from the v2 fitted gate, not from the better single cue.
+    gap_from_v2 = round(oracle - base["top1"]["fitted_gate"], 4)
+    lex_alone = base["number_3_lexical_alone"]["precision"]
+    lex_cov = base["number_3_lexical_alone"]["coverage"]
+
+    return {
+        "session": "M0b Session D",
+        "what_ships": (
+            "The FUSION, not cue 3. The combiner changes from a single fitted logistic over raw "
+            "cue scores to MAX OVER PER-CUE CALIBRATED PRECISIONS. The cue set is unchanged -- "
+            "still two of five, still no entity-graph, temporal or causal cue -- so a number "
+            "here remains a statement about an incomplete cue set combined differently, not "
+            "about the design."
+        ),
+        "scored_population": (
+            "The held-out split, answerable cases only (is_abstention == false). Unchanged from "
+            "Sessions B and C so the three numbers are comparable."
+        ),
+        "session_c_baseline": base,
+        # ------------------------------------------------------------------ the fusion shape
+        "fusion_shape": {
+            "chosen": "max over per-cue calibrated precisions",
+            "definition": (
+                "One isotonic curve is fit PER CUE SCORE against gold labels on the fit split. A "
+                "candidate's fused calibrated precision is the max over cues. Ranking is on that. "
+                "There is no weight vector and no logistic."
+            ),
+            "the_measured_defect_it_addresses": (
+                "The v2 combiner is broken ONLY at k=1. It beats its best input at k=5 (+0.0174) "
+                "and k=10 (+0.0087) and loses at k=1 (-0.0522). The fitted weights are "
+                "lexical 4.539 / dense 26.468 with bias -26.314, so dense can move the logit by "
+                "26.5 and lexical by at most 4.5. IRLS minimises log-loss over all 119,340 rows "
+                "and dense is the better cue in aggregate (R@5 0.830 vs 0.787, R@10 0.917 vs "
+                "0.835) while lexical is the better cue AT RANK 1 (0.548 vs 0.444). The loss "
+                "function is averaged over a population the operating point does not read, and "
+                "one global weight vector cannot be dense-shaped in the middle and "
+                "lexical-shaped at the top."
+            ),
+            "why_this_shape": (
+                "There is no global weight left to trade. Each curve is fit on its own cue's "
+                "score distribution, so lexical's top-end separation is not averaged against "
+                "dense's mid-range separation. Calibration is also the only thing that makes the "
+                "two cues comparable at all: a BM25 score whose empirical gold rate is 0.6 "
+                "should outrank a cosine whose empirical gold rate is 0.3, and raw-score linear "
+                "fusion cannot express that at any weighting."
+            ),
+            "its_exact_bound_at_top_1": (
+                "max_i max(a_i, b_i) = max(max_i a_i, max_i b_i), so at top-1 this shape always "
+                "selects one of the two cues' own top-1 candidates -- exactly the oracle's pair. "
+                f"Its reachable range at top-1 is therefore bounded above by {oracle}, and its "
+                "entire shortfall is one measurable quantity: how often calibration picks the "
+                "wrong cue. The pre-registered headroom is not an approximation for this shape; "
+                "it is the shape's exact ceiling."
+            ),
+            "it_is_NOT_structurally_floor_safe": (
+                "Stated explicitly because the opposite is easy to assume. Per-candidate "
+                "max(p_lex, p_dense) >= p_lex, so COVERAGE at a fixed threshold is structurally "
+                "monotone -- but ranking is relative and max reorders. On a query where "
+                "lexical's top-1 is gold, dense's is not, and p_dense(best dense) > p_lex(best "
+                "lexical), this shape loses a hit that lexical alone would have had. The floor "
+                "below is therefore a real empirical test, not a property the shape guarantees."
+            ),
+            "no_new_constant_enters_the_frozen_path": (
+                "THRESHOLD stays 0.95 and stays in calibrated-precision units; `passes` remains "
+                "'predicted precision >= 0.95'. This is the same objection that pinned "
+                "cue_agreement_2cue -- any cosine firing floor would be an unmeasured constant "
+                "on the frozen path -- and it is why the cascade below is rejected."
+            ),
+            "rejected_rank_features": (
+                "Already measured null: RRF scores 0.4957 at top-1, IDENTICAL to the fitted gate "
+                "to four decimals. A fitted rank combiner differs from RRF only by weights -- "
+                "the same global weight vector and the same aggregate loss, applied to strictly "
+                "less information, since ranks discard the magnitude calibration reads. It "
+                "cannot exceed the pair-selection bound either."
+            ),
+            "rejected_cascade": (
+                "Dense filters top-N, lexical reranks. The strongest rejected option: its "
+                "ceiling is dense's R@N (0.917 at N=10) rather than the top-1 oracle, so it is "
+                "the only named shape that could exceed the pre-registered bound. Rejected for "
+                "three reasons in order: N is an unmeasured constant on the frozen path, which "
+                "is verbatim the objection that killed the cosine firing floor; it privileges "
+                "one cue as filter asymmetrically and which cue is a fit-time choice easy to "
+                "make post-hoc; and it would change the read mid-experiment, since the "
+                "pre-registered oracle bound would no longer be its ceiling."
+            ),
+        },
+        # ------------------------------------------------------------------ 1. the floor
+        "floor_condition": {
+            "_status": "PRE-COMMITTED IN STATE.md BEFORE THIS SESSION EXISTED",
+            "name": "any fusion must score at or above its best single input at the operating point",
+            "condition": f"top-1 gold-hit rate on the held-out split >= {floor}",
+            "read_by": (
+                "tools/analyze_cue_overlap.py, over the same "
+                f"{base['overlap_cases']} answerable-with-gold held-out cases that produced "
+                f"{floor}. The hit() definition and the case-selection filter in that script are "
+                "NOT modified -- a number computed a second way is not comparable to the one it "
+                "is judged against."
+            ),
+            "if_violated": (
+                "The session FAILS OUTRIGHT. No partial credit and no re-tuning. The finding is "
+                "that CALIBRATED PRECISION IS NOT A VALID CROSS-CUE ARBITRATION SIGNAL at the "
+                "top of the ranking -- a finding about calibration, not about linear-vs-max, and "
+                "not a statement that the parameters need adjusting."
+            ),
+            "why_a_hard_condition_and_not_a_band": (
+                "A combiner that can fall below max(cues) is broken regardless of what it does "
+                "elsewhere. The v2 gate scores 0.4957 against lexical's 0.5478 and fails this "
+                "floor today."
+            ),
+            "next_shape_if_it_fails": (
+                "The cascade, with N pre-registered from dense's held-out recall curve BEFORE "
+                "any reranker exists. Named here so the response to a failure cannot be chosen "
+                "with the failure in view."
+            ),
+        },
+        # ------------------------------------------------------------------ 2. the oracle read
+        "oracle_read": {
+            "_status": "PRE-COMMITTED IN STATE.md BEFORE THIS SESSION EXISTED",
+            "_headline_denominator_is_the_pre_committed_one": (
+                "STATE.md fixed the ceiling on this work at +0.157 at top-1, which is "
+                f"either_oracle - the V2 FITTED GATE ({oracle} - {base['top1']['fitted_gate']} = "
+                f"{gap_from_v2}). That is the denominator of the reported headline, because it "
+                "is the one that was committed while the number it judges could not be known. "
+                "The best-single-relative figure below is reported beside it, not instead of it "
+                "-- the two answer different questions and quoting only the larger fraction "
+                "would be denominator-shopping."
+            ),
+            "primary": {
+                "name": "fraction_of_gap_closed",
+                "definition": (
+                    "(fusion - v2_fitted_gate) / (either_oracle - v2_fitted_gate)"
+                ),
+                "at_top_1": f"(fusion - {base['top1']['fitted_gate']}) / {gap_from_v2}",
+                "denominator": gap_from_v2,
+                "question_it_answers": (
+                    "how much of the improvement available to the fusion work was captured, "
+                    "measured from the status quo this session set out to fix."
+                ),
+            },
+            "secondary": {
+                "name": "fraction_of_headroom_over_best_single",
+                "definition": "(fusion - best_single) / (either_oracle - best_single)",
+                "at_top_1": f"(fusion - {floor}) / {headroom}",
+                "denominator": headroom,
+                "question_it_answers": (
+                    "how much of the improvement available over simply using the better cue "
+                    "alone was captured. Reported because the FLOOR is defined against "
+                    "best_single, so this is the fraction that shares the floor's baseline."
+                ),
+            },
+            "reported_at": [1, 5, 10],
+            "why": (
+                "The absolute number alone cannot distinguish 'the fusion improved' from 'the "
+                "fusion is now doing what it can'. An absolute gain of +0.05 means very "
+                "different things at 30% and at 90% of the reachable headroom."
+            ),
+            "note_on_the_two_denominators": (
+                "A fusion landing exactly on the floor (0.5478) closes 33.3% of the primary gap "
+                "and 0.0% of the secondary. Both readings are true and neither is the whole "
+                "story, which is why both are reported."
+            ),
+        },
+        # ------------------------------------------------------------------ 3. the ceiling
+        "ceiling_trajectory": {
+            "_this_is_the_headline": True,
+            "definition": (
+                "max_calibrated_precision = the max over the two per-cue curves' top blocks. "
+                "Under v3 this is a per-cue quantity: the fusion does not enter it, which is "
+                "what makes it a clean read on how precise the best cue's most confident region "
+                "is, undiluted by a joint logistic."
+            ),
+            "trajectory": {
+                "session_b_one_cue": 0.309013,
+                "session_c_two_cues": base["max_calibrated_precision"],
+                "session_c_delta_for_a_whole_new_cue": round(
+                    base["max_calibrated_precision"] - 0.309013, 6
+                ),
+                "session_d": "to be measured",
+            },
+            "band_derivation": (
+                f"Session C's Number 3 measured LEXICAL ALONE at {lex_alone} precision at "
+                f"{lex_cov} coverage on held-out. A per-cue curve's top block is far more "
+                f"selective than {lex_cov} coverage, so if precision rises as coverage falls, "
+                f"lexical's top block should sit ABOVE {lex_alone}. The band boundaries are "
+                "drawn from that measured number, not chosen as round figures."
+            ),
+            "prediction_before_the_fit": (
+                f"The ceiling lands at or above 0.42 (from the {lex_alone} anchor), and 0.95 is "
+                "NOT reached. Falsifiable in both directions."
+            ),
+            "bands": [
+                {
+                    "condition": "max_calibrated_precision >= 0.45",
+                    "verdict": "the combiner was a real constraint, and it is now removed",
+                    "reading": (
+                        "The ceiling exceeds what one cue alone reaches at loose coverage, so "
+                        "the v2 curve was discarding separation the cues already had."
+                    ),
+                    "implication_for_cues_3_to_5": (
+                        "WORTH BUILDING. The machinery now converts information into ceiling "
+                        "movement, which it demonstrably did not before. State plainly anyway: "
+                        "a gain of this size per structural fix, times three more cues, does NOT "
+                        "extrapolate to 0.95. The case becomes 'the trajectory is readable', not "
+                        "'0.95 is in sight'."
+                    ),
+                },
+                {
+                    "condition": "0.35 <= max_calibrated_precision < 0.45",
+                    "verdict": "the fusion did what fusion can do; the ceiling is set elsewhere",
+                    "reading": (
+                        "Real movement, but the ceiling still sits at or below what one cue "
+                        "alone achieves at loose coverage."
+                    ),
+                    "implication_for_cues_3_to_5": (
+                        "CUE 3 ONLY, AND IT MUST BE STRUCTURALLY DIFFERENT -- entity-graph or "
+                        f"temporal, scoring on relations rather than content. {base['top1']['neither']:.1%} "
+                        "of held-out cases have gold at rank 1 from NEITHER content cue, and a "
+                        "third content-similarity cue cannot reach that population."
+                    ),
+                },
+                {
+                    "condition": "max_calibrated_precision < 0.35",
+                    "verdict": "the combiner was not the binding constraint either",
+                    "reading": (
+                        "Two independent structural fixes -- a whole new cue in Session C, then "
+                        "the combiner in Session D -- each moved the ceiling by under 0.05."
+                    ),
+                    "implication_for_cues_3_to_5": (
+                        "STOP ADDING CUES AND ESCALATE TO THE HUMAN. The binding constraint is "
+                        "the information available to content-similarity retrieval, not the "
+                        "combiner and not the cue count. K1 at 0.95 is not on this trajectory, "
+                        "and K1's stated verdict is project-level: 'Marlowe is a well-built "
+                        "harness with nothing distinguishing it. Reconsider rather than "
+                        "continue.' That is a decision for the human, not for the next session."
+                    ),
+                },
+            ],
+        },
+        # ------------------------------------------------------------------ 4. the ranking key
+        "ranking_key": {
+            "_why_declared_here": (
+                "Isotonic output is a step function, so ties at the top block are pervasive and "
+                "the tiebreak decides top-1 outright. Choosing a tiebreak after seeing top-1 "
+                "would be tuning the operating point through the back door."
+            ),
+            "key": (
+                "(max calibrated precision DESC, min calibrated precision DESC, percentile DESC, "
+                "entry.id ASC)"
+            ),
+            "second_key_rationale": (
+                "min calibrated precision is the agreement signal done correctly: among "
+                "candidates the winning cue rates equally, prefer the one the OTHER cue also "
+                "rates highly. It is continuous, calibrated, and needs NO FIRING PREDICATE -- "
+                "which is exactly what blocked cue_agreement_2cue."
+            ),
+            "cue_agreement_2cue_stays_pinned": (
+                "The tiebreak is a different mechanism, not the missing predicate. The unpin "
+                "condition is unchanged: cue 3, with the predicate pre-registered first."
+            ),
+            "third_key_rationale": (
+                "percentile = block index / (blocks - 1) within the winning cue's own curve. "
+                "Blocks are equal-count by construction so this is a genuine percentile of the "
+                "fit population, and it orders candidates inside a tied block."
+            ),
+        },
+        # ------------------------------------------------------------------ 5. numbers 2 and 2b
+        "number_1": {
+            "name": "operating-point result",
+            "definition": (
+                "evidence_precision and coverage on the held-out split at the frozen threshold "
+                "of 0.95 calibrated precision."
+            ),
+            "band": None,
+            "note": (
+                "Deliberately no band, exactly as Sessions B and C. Reported whatever it is, "
+                "including 'the gate abstained on every case' for a third session. The threshold "
+                "does not move."
+            ),
+        },
+        "number_2": {
+            "name": "cue capability",
+            "definition": (
+                "held-out evidence_precision read off the precision/coverage curve at the most "
+                "selective cut where coverage reaches 0.25. UNCHANGED from Sessions B and C, so "
+                "all three are directly comparable."
+            ),
+            "session_c_value": base["number_2"]["value"],
+            "read_rule_unchanged": True,
+            "note": (
+                "No bands this session. Number 2's rule fixes a coverage FLOOR, and Session C "
+                "recorded that this cannot express a simultaneous rise in precision and "
+                "coverage. That limitation is addressed by Number 2b below rather than by "
+                "reinterpreting Number 2."
+            ),
+        },
+        "number_2b": {
+            "name": "cue capability at matched coverage",
+            "_status": (
+                "NEWLY REGISTERED THIS SESSION, before the fit. STATE.md required that a "
+                "matched-coverage statistic be pre-registered before a future fit and never "
+                "substituted after one. This is that registration."
+            ),
+            "definition": (
+                "held-out evidence_precision read at the most selective cut whose coverage is at "
+                f"least {base['number_2']['coverage_there']} -- Session C's REALISED coverage, "
+                "not its floor."
+            ),
+            "why_it_exists": (
+                "Session C moved from 0.334 precision at 0.453 coverage to 0.371 at 0.504. Both "
+                "rose. Number 2's coverage-floor rule cannot express that, so it returned the "
+                "verdict 'dense adds nothing measurable' for a change that improved both terms. "
+                "Comparing at matched coverage is the only way to separate 'more precise' from "
+                "'more selective'."
+            ),
+            "session_c_reference_at_this_coverage": base["number_2"]["value"],
+            "band": None,
+            "note": (
+                "Reported as a companion, never as a replacement. Number 2's verdict stands on "
+                "Number 2's own rule."
+            ),
+        },
+        "number_3": {
+            "name": "per-cue diagnostic",
+            "definition": (
+                "held-out precision at matched coverage 0.25, sweeping each RAW cue score alone. "
+                "Unchanged from Session C. Re-run because it is the anchor the ceiling bands are "
+                "derived from, and a materially moved anchor would mean the held-out population "
+                "changed rather than the fusion."
+            ),
+            "session_c_lexical": base["number_3_lexical_alone"],
+            "session_c_dense": base["number_3_dense_alone"],
+        },
+        # ------------------------------------------------------------------ conditions
+        "independent_conditions": {
+            "determinism": {
+                "condition": "`repro --runs 2` produces two identical sha256",
+                "checked": "BEFORE the quality numbers are read.",
+                "if_violated": "EVERY number in this session is VOID, not caveated.",
+            },
+            "budget": {
+                "condition": "P95 retrieval latency <= 300 ms AND no case above 7,000 retrieval tokens",
+                "read_from": (
+                    "a CACHE-COLD run. Session C measured 36 ms cold against 24 ms warm, because "
+                    "a cache hit removes the query's forward pass from the timed span. The cold "
+                    "number is the one a user pays on a fresh profile."
+                ),
+                "may_not_be_fixed_by": (
+                    "excluding the embedding from the timed span. It is a real per-query cost."
+                ),
+                "if_violated": "the precision numbers are VOID, not caveated.",
+            },
+            "false_evidence_on_abstention_cases": {
+                "condition": "injections_on_abstention_cases / abstention_cases <= 0.20",
+            },
+            "degenerate_pass_guard": {
+                "condition": "coverage < 0.05",
+                "if_triggered": "precision is reported as NOT a quality signal.",
+            },
+            "eval_unchanged": {
+                "condition": "`cd eval && python -m pytest` prints 72, and `git status -- eval/` is clean",
+                "why": "a changed count means the scoreboard was modified to accommodate the implementation.",
+            },
+        },
+        "ordered_gates": [
+            {
+                "order": 1,
+                "action": "run `conformance` and the clock probe BEFORE reading any quality number",
+                "why": (
+                    "Section 4.3 maturation becomes verifiable through the contract again only "
+                    "when the gate begins injecting. A silent failure there means the defence "
+                    "was lost during the fusion work with nothing observing it."
+                ),
+                "if_it_fails_for_a_NEW_reason": "stop and fix. Do not score.",
+            },
+            {
+                "order": 2,
+                "action": "record the calibration generalization pair -- now TWO pairs, one per cue",
+                "definition": (
+                    "each cue curve's top block predicted precision (fit split) against the "
+                    "held-out measurement."
+                ),
+                "session_b_reference": "0.309 predicted -> 0.334 measured",
+                "session_c_reference": "0.3176 predicted -> 0.371 measured",
+                "rule": (
+                    "held-out below the fit-split prediction by MORE THAN 0.05 absolute is a "
+                    "signal about the CALIBRATION, not about the cue: investigate the fit before "
+                    "anything else."
+                ),
+            },
+        ],
+        # ------------------------------------------------------------------ predicted outcomes
+        "predicted_before_the_run": {
+            "_why": (
+                "A green suite with no record of what was expected reads as a suite that "
+                "measured something. Each of these is a VACUITY that persists, not a result."
+            ),
+            "if_the_ceiling_stays_below_0_95": [
+                "the gate still abstains on all 249 held-out cases",
+                "conformance stays REJECTED with 0 section 4 findings",
+                "the clock probe still fails no_time_dependence",
+                "MINJA / MemoryGraft / delayed-trigger ASR stay 0.000 and remain VACUOUS",
+                "the laundering trust assertion stays vacuous (checked, 0 failed, nothing observed)",
+                "evidence_precision on the wire stays 0.0 with an empty denominator",
+                "utility_retention stays 0.0",
+                "section 4.3 maturation stays uncovered at contract level",
+                "the degenerate-pass guard triggers",
+            ],
+            "none_of_these_is_a_session_d_regression": True,
+            "what_would_be_a_regression": (
+                "conformance failing for a reason OTHER than the empty injected set, or the "
+                "clock probe failing a check other than no_time_dependence. Either means "
+                "something broke in the fusion work."
+            ),
+        },
+        # ------------------------------------------------------------------ carried decisions
+        "wire_score_semantics_change": {
+            "what_changed": (
+                "injected[].score stops being a squashed linear logistic and becomes the winning "
+                "cue's percentile within its own calibration curve. The FIELD NAME does not "
+                "move, which is exactly what a future session would read as 'unchanged'."
+            ),
+            "contract_check_done_before_building": (
+                "CONTRACTS.md section 4 does not constrain `score` semantically: section 4.2b "
+                "types it `pub score: f32`, the Python binding types it `score: float`, there is "
+                "no prose definition, no range rule, no monotonicity requirement, and "
+                "validate.py never inspects it. Section 4.4 mentions it only to say the "
+                "THRESHOLD is in calibrated-precision units 'not score'. No contract question is "
+                "raised and no version bump is required."
+            ),
+            "a_false_rationale_was_found_and_corrected": (
+                "gate/mod.rs:322-326 justified the logistic by claiming the harness stratifies "
+                "its human-label sample by gate-SCORE decile. It does not. Both and only these "
+                "two call sites stratify, and both pass calibrated_precision: "
+                "eval/src/marlowe_eval/metrics/precision.py:96 and "
+                "eval/src/marlowe_eval/labels/sampler.py:73. sampler.py:80 carries `score` onto "
+                "SampleDraw and nothing reads it. The harness's PARAMETER is named `score`, "
+                "which is how the claim survived -- the name matched the wire field so the "
+                "dependency was inferred rather than checked. The comment is corrected rather "
+                "than deleted, naming both verified call sites, on the same discipline "
+                "fit_gate.py applies to a pin whose stated reason stopped being true."
+            ),
+            "the_percentile_choice_stands_on_a_different_reason": (
+                "It is the third key of the ranking tiebreak and must be on the wire so a "
+                "driver-side reader can reproduce the gate's ordering without re-implementing "
+                "the curves in Python."
+            ),
+        },
+        "gate_artifact_version": {
+            "bump": "frozen-v2 -> frozen-v3",
+            "why_structural": (
+                "The artifact drops weights/bias/isotonic_breakpoints and gains "
+                "fusion/cue_features/cue_curves. With serde deny_unknown_fields already in "
+                "place this refuses IN BOTH DIRECTIONS: a v2 artifact hits unknown `weights` "
+                "under a v3 binary, and a v3 artifact hits unknown `cue_curves` under a v2 one. "
+                "The refusal set GROWS and never shrinks."
+            ),
+            "dropping_weights_is_not_a_contract_change": (
+                "Section 4.4's Gate struct shows weights: FrozenWeights, but that is the "
+                "internal design type. The wire stamp is GateStamp {version, threshold, "
+                "adaptive} on both sides (wire.rs:153-159, contract/retrieval.py:50-55) and "
+                "carries no weights."
+            ),
+        },
+        "calibration_resolution": {
+            "decision": "CALIBRATION_BLOCKS = 256, unchanged",
+            "why_this_is_not_a_re_tune": (
+                "The same constant is applied per cue rather than once to a joint score. "
+                "STATE.md forbids re-tuning the calibration resolution and this does not touch "
+                "it. Finer buckets at the top of a score range would raise the maximum reachable "
+                "calibrated precision, so changing it here would be tuning the headline."
+            ),
+        },
+        "duplicate_breakpoint_hazard": {
+            "_identified_before_the_fit": True,
+            "what": (
+                "lexical_bm25 has a large atom at exactly 0 (candidates with no term overlap) "
+                "and dense_cosine floors at 0. Quantile bucketing puts many blocks at the same "
+                "score_upper. The existing dedup merges blocks on equal PRECISION, not equal "
+                "score, and CurveNotSorted checks `<` strictly so it would not fire. The "
+                "partition_point lookup would then resolve ambiguously."
+            ),
+            "fixed_at_both_ends": (
+                "the fitter pools buckets sharing a score_upper before PAVA, AND a new load-time "
+                "refusal CurveDuplicateBreakpoint rejects any curve that still has one, so a "
+                "fitter regression cannot ship silently."
+            ),
+        },
+        "split": {
+            "redrawn": False,
+            "rule": split["rule"],
+            "digest": split["digest"],
+            "fit_cases": split["fit_cases"],
+            "heldout_cases": split["heldout_cases"],
+            "corpus_sha256": split["corpus_sha256"],
+            "note": (
+                "Session B's split, unchanged through C and D and asserted by digest. Redrawing "
+                "it would invalidate every number fit under it, including B's and C's published "
+                "ones."
+            ),
+        },
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing pre-registration. Refused by default.",
+    )
+    args = parser.parse_args()
+
+    if not SPLIT_PATH.exists():
+        raise SystemExit(f"{SPLIT_PATH} does not exist. Session D does not redraw it; it reads it.")
+    split = json.loads(SPLIT_PATH.read_text(encoding="utf-8"))
+
+    if split["digest"] != EXPECTED_SPLIT_DIGEST:
+        raise SystemExit(
+            f"{SPLIT_PATH} has digest {split['digest']}, but the pre-registered split is "
+            f"{EXPECTED_SPLIT_DIGEST}. The split was redrawn. Every number fit under the old "
+            "split -- including Sessions B and C -- is now unreproducible. Refusing."
+        )
+    recomputed = hashlib.sha256(
+        canonical({"rule": split["rule"], "fit": split["fit"], "heldout": split["heldout"]}).encode()
+    ).hexdigest()
+    if recomputed != split["digest"]:
+        raise SystemExit(
+            f"{SPLIT_PATH} has been edited since it was written: declares {split['digest']}, "
+            f"contents hash to {recomputed}."
+        )
+
+    if PREREG_PATH.exists() and not args.force:
+        print(
+            f"{PREREG_PATH} already exists. Refusing to rewrite a pre-registration; pass "
+            "--force only if you intend to invalidate every number registered under it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    base = session_c_baseline()
+    prereg = build(base, split)
+
+    PREREG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PREREG_PATH.write_text(json.dumps(prereg, indent=2) + "\n", encoding="utf-8")
+
+    top1 = base["top1"]
+    print(f"pre-registration: {PREREG_PATH}")
+    print(f"  split digest (unchanged):  {split['digest']}")
+    print()
+    print("  THE FLOOR (hard, no partial credit)")
+    print(f"    lexical top-1              {top1['lexical']}")
+    print(f"    dense   top-1              {top1['dense']}")
+    print(f"    v2 fitted gate top-1       {top1['fitted_gate']}  <- fails the floor today")
+    print(f"    => fusion must reach       >= {top1['best_single']}")
+    print()
+    gap_v2 = prereg["oracle_read"]["primary"]["denominator"]
+    print("  THE ORACLE READ")
+    print(f"    either-cue oracle top-1    {top1['either_oracle']}")
+    print(f"    PRIMARY denominator        +{gap_v2}  (oracle - v2 gate; the pre-committed +0.157)")
+    print(f"    secondary denominator      +{top1['headroom']}  (oracle - best single; the floor's baseline)")
+    print()
+    print("  THE CEILING (the headline)")
+    print(f"    trajectory                 0.309013 -> {base['max_calibrated_precision']} -> ?")
+    print(f"    anchor (lexical alone)     {base['number_3_lexical_alone']['precision']} "
+          f"@ {base['number_3_lexical_alone']['coverage']} coverage")
+    for band in prereg["ceiling_trajectory"]["bands"]:
+        print(f"    {band['condition']:44s} -> {band['verdict']}")
+    print(f"    predicted: >= 0.42, and 0.95 NOT reached")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
