@@ -19,3 +19,20 @@ corpora/
 # Python bytecode from the tools/ drivers.
 __pycache__/
 *.pyc
+
+# ADR-004 embedding model. ~90 MB, never vendored, pinned by sha256 in tools/fetch_model.py.
+models/
+
+# Content-addressed embedding cache. Derived, deletable, and load-bearing only for wall-clock:
+# ADR-004's model choice depends on the SECOND fit-and-score cycle being cheap.
+.embedding-cache/
+
+# Corpus-derived artifacts under runs/. These carry LongMemEval turns VERBATIM, and the corpus is
+# separately licensed and never vendored -- a 1,000-turn slice is still a slice. All of them are
+# deterministically regenerable from the pinned corpus by the committed tools, so nothing is lost:
+#   spike-sample.json        <- tools/make_spike_sample.py
+#   run.jsonl                <- the harness transport log (full ingested history)
+#   scored-candidates.ndjson <- --dump-gate-features
+runs/**/spike-sample.json
+runs/**/run.jsonl
+runs/**/scored-candidates.ndjson

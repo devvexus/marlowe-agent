@@ -18,6 +18,7 @@
 
 use marlowe_contract::{Fidelity, InjectedMemory};
 
+use crate::cue::dense::{self, vectors::VectorStore};
 use crate::cue::lexical;
 use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
@@ -91,6 +92,38 @@ pub struct Selection<'a> {
     pub budget_exhausted: bool,
 }
 
+/// Dense cosine for every candidate, in the candidate set's order.
+///
+/// **A missing vector or a missing query vector scores 0.0 — never a skip.** Two reasons, and
+/// the second is the one that matters:
+///
+/// * 0.0 is the honest value. The dense cue found no evidence for this candidate; that is what
+///   "no evidence" is worth, and `dense::cosine` already floors at zero for the same reason.
+/// * Skipping would remove the candidate from `scored`, which is what the feature dump and the
+///   swept curve are built from. The candidate would vanish from the calibration with nothing
+///   recording that it had been there — this project's unobservable-mismatch pattern, applied to
+///   the population a number is computed over.
+///
+/// A run where vectors are systematically missing therefore reports a dense feature that is
+/// constant zero, which the fitter's own variance check catches and pins. That is a loud
+/// failure; a silently shrinking candidate set is not.
+fn dense_for(
+    candidates: &[&MemoryEntry],
+    query_vector: Option<&[f32]>,
+    vectors: &VectorStore,
+) -> Vec<f32> {
+    let Some(query) = query_vector else {
+        return vec![0.0; candidates.len()];
+    };
+    candidates
+        .iter()
+        .map(|entry| match vectors.get(&entry.id) {
+            Some(vector) => dense::cosine(query, vector),
+            None => 0.0,
+        })
+        .collect()
+}
+
 /// Select what to inject.
 ///
 /// Ranking under [`Scoring::Gated`] is `(calibrated_precision desc, score desc, id asc)`; under
@@ -105,6 +138,8 @@ pub fn select_for_injection<'a>(
     now_ms: i64,
     max_tokens: u32,
     scoring: &Scoring<'_>,
+    vectors: &VectorStore,
+    query_vector: Option<&[f32]>,
 ) -> Selection<'a> {
     let candidates = beliefs.injection_candidates(now_ms);
     let considered = candidates.len() as u32;
@@ -117,12 +152,14 @@ pub fn select_for_injection<'a>(
         .collect();
 
     let raw_scores = lexical::score_all(&scoped, query_text);
+    let dense_scores = dense_for(&scoped, query_vector, vectors);
 
     let mut scored: Vec<ScoredCandidate<'a>> = scoped
         .iter()
         .zip(raw_scores.iter())
-        .map(|(entry, raw)| {
-            let f = features::extract(entry, *raw);
+        .zip(dense_scores.iter())
+        .map(|((entry, raw), dense)| {
+            let f = features::extract(entry, *raw, *dense);
             match scoring {
                 Scoring::Gated(gate) => {
                     let v = gate.judge(&f);
@@ -270,9 +307,9 @@ mod tests {
         FrozenGate::from_json(
             r#"{
               "state": "fitted", "note": "test", "version": "frozen-v1", "threshold": 0.95,
-              "feature_names": ["lexical_bm25","effective_trust","fidelity","cue_agreement"],
-              "weights": [8.0, 0.0, 0.0, 0.0], "bias": -1.0,
-              "pinned_zero_weights": {"cue_agreement": "constant until cue 2"},
+              "feature_names": ["lexical_bm25","dense_cosine","effective_trust","fidelity","cue_agreement_2cue"],
+              "weights": [8.0, 0.0, 0.0, 0.0, 0.0], "bias": -1.0,
+              "pinned_zero_weights": {"cue_agreement_2cue": "a coarsening of two continuous features"},
               "isotonic_breakpoints": [[0.4, 0.10], [0.7, 0.99]],
               "corpus": "test", "corpus_variant": "cleaned", "corpus_sha256": "x",
               "split_rule": "test", "split_digest": "y",
@@ -290,7 +327,7 @@ mod tests {
     #[test]
     fn nothing_is_injected_before_maturation() {
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump());
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump(), &VectorStore::default(), None);
         assert!(sel.injected.is_empty());
         assert_eq!(sel.considered, 0, "and nothing was even a candidate");
     }
@@ -299,7 +336,7 @@ mod tests {
     fn only_the_requested_session_is_scoped() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump());
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None);
         assert_eq!(sel.injected.len(), 2);
         assert!(sel.injected.iter().all(|i| i.memory_id != "m-c"));
         assert_eq!(sel.considered, 3, "considered counts the whole candidate set");
@@ -318,6 +355,8 @@ mod tests {
             now,
             7000,
             &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
         );
         assert_eq!(sel.scoped, 2, "both were scored");
         assert_eq!(sel.above_threshold, 1, "only one cleared the threshold");
@@ -341,6 +380,8 @@ mod tests {
             now,
             7000,
             &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
         );
         assert_eq!(sel.scoped, 2);
         assert_eq!(sel.above_threshold, 0);
@@ -362,6 +403,8 @@ mod tests {
             now,
             7000,
             &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
         );
         assert_eq!(sel.scored.len(), 2, "both, not just the one that passed");
         assert!(sel.scored.iter().any(|c| !c.passes));
@@ -371,7 +414,7 @@ mod tests {
     fn the_dump_order_is_stable() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump());
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None);
         let ids: Vec<&str> = sel.scored.iter().map(|c| c.entry.id.as_str()).collect();
         assert_eq!(ids, vec!["m-a", "m-b"], "sorted by id, so two runs write the same bytes");
     }
@@ -382,8 +425,8 @@ mod tests {
         let gate = test_gate();
         let beliefs = store();
         let ids = |s: &Selection| s.injected.iter().map(|i| i.memory_id.clone()).collect::<Vec<_>>();
-        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate));
-        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate));
+        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None);
+        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None);
         assert_eq!(ids(&a), ids(&b));
     }
 
@@ -407,6 +450,8 @@ mod tests {
             now,
             1,
             &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
         );
         assert_eq!(sel.above_threshold, 1, "the gate still passed it");
         assert!(sel.budget_exhausted, "and the budget is what cut it");

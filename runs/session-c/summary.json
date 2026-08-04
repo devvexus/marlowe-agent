@@ -1,0 +1,836 @@
+{
+  "session": "M0b Session C",
+  "what_this_is": "Two cues -- lexical BM25 and the dense ONNX embedder -- and the frozen gate. NOT the five-cue system K1 measures; entity-graph, temporal and causal are still absent, so a low number remains a statement about an incomplete cue set.",
+  "gate": {
+    "version": "frozen-v2",
+    "threshold": 0.95,
+    "max_calibrated_precision_on_the_curve": 0.317597,
+    "weights": {
+      "lexical_bm25": 4.53926168,
+      "dense_cosine": 26.46788556,
+      "effective_trust": 0.0,
+      "fidelity": 0.0,
+      "cue_agreement_2cue": 0.0
+    },
+    "bias": -26.31439339,
+    "pinned_zero_weights": {
+      "effective_trust": "zero variance across the fit split (constant 1.0000); a weight fit on it would be noise, and would become load-bearing the moment the feature starts varying",
+      "fidelity": "zero variance across the fit split (constant 1.0000); a weight fit on it would be noise, and would become load-bearing the moment the feature starts varying",
+      "cue_agreement_2cue": "declared pin, and the reason CHANGED with the cue count -- it is no longer the collinearity argument that pinned the one-cue version. With two cues this is a genuine 0 / 0.5 / 1 count and is not collinear with either cue score. It stays pinned because making it informative requires a FIRING PREDICATE for the dense cue, and unlike BM25's `raw > 0` any cosine floor is an unmeasured constant entering the frozen path. A 2-bit coarsening of two continuous features already in the vector does not earn that. Unpin at cue 3, where agreement stops being a coarsening -- and pre-register the predicate before doing so."
+    },
+    "fit_cases": 251,
+    "fit_rows": 119340,
+    "fit_positives": 452
+  },
+  "evidence_precision": {
+    "headline": {
+      "value": 0.0,
+      "split": "heldout",
+      "n": 249,
+      "corpus_variant": "cleaned",
+      "metric": "evidence_precision",
+      "gold": 0,
+      "distractor": 0,
+      "attributed_injections": 0,
+      "note": "precision against benchmark gold evidence. NOT the K1 headline, which is human-judged and needs a label set that does not exist yet.",
+      "value_is_vacuous": true,
+      "vacuity": "0.0 here means NOTHING WAS INJECTED, not that the injections were wrong. The ratio has an empty denominator and the metric cannot distinguish the two. Read number_1_operating_point and number_2_cue_capability instead."
+    },
+    "all_cases": {
+      "value": 0.0,
+      "split": "all",
+      "n": 500,
+      "corpus_variant": "cleaned",
+      "metric": "evidence_precision",
+      "gold": 0,
+      "distractor": 0,
+      "attributed_injections": 0,
+      "note": "precision against benchmark gold evidence. NOT the K1 headline, which is human-judged and needs a label set that does not exist yet.",
+      "value_is_vacuous": true,
+      "vacuity": "0.0 here means NOTHING WAS INJECTED, not that the injections were wrong. The ratio has an empty denominator and the metric cannot distinguish the two. Read number_1_operating_point and number_2_cue_capability instead.",
+      "contaminated": true,
+      "contamination": "the frozen gate's weights and isotonic calibration were fit on the 251 cases of the pre-registered fit split, which are a subset of these 500. This value is optimistically biased and is NOT the headline. The headline is the held-out figure."
+    }
+  },
+  "number_1_operating_point": {
+    "precision": null,
+    "coverage": 0.0,
+    "cases_with_any_injection": 0,
+    "gate_abstained_everywhere": true,
+    "band": null,
+    "note": "No band by pre-registration. Reported whatever it is, including a gate that abstained everywhere. Read from the WIRE -- what the implementation actually injected at the frozen 0.95 threshold."
+  },
+  "number_2_cue_capability": {
+    "value": 0.371429,
+    "read_at_cut": 0.317597,
+    "coverage_there": 0.504274,
+    "verdict": "dense adds nothing measurable",
+    "bands_applied": [
+      "precision >= 0.50 -> dense cue working",
+      "0.39 <= precision < 0.50 -> dense contributing, cue set still incomplete",
+      "0.29 <= precision < 0.39 -> dense adds nothing measurable",
+      "precision < 0.29 -> regression -- the dense cue is hurting"
+    ],
+    "band_source": "runs/session-c/PREREGISTRATION.json, written before the fit"
+  },
+  "number_3_per_cue": {
+    "_what": "Each cue swept ALONE at the same read rule as Number 2. Driver-side; no second fit and no second artifact.",
+    "lexical_bm25_alone": {
+      "cut": 0.7535,
+      "precision": 0.418182,
+      "coverage": 0.260684,
+      "gold": 69,
+      "distractor": 96
+    },
+    "dense_cosine_alone": {
+      "cut": 0.846,
+      "precision": 0.298387,
+      "coverage": 0.282051,
+      "gold": 74,
+      "distractor": 174
+    },
+    "reading": "dense is WEAKER than lexical alone. If Number 2 also failed to improve, the embedder is suspect -- check pooling and normalization against the committed reference vectors first, then the truncation rate.",
+    "band_source": "runs/session-c/PREREGISTRATION.json number_3, written before the fit"
+  },
+  "conditions": {
+    "budget": {
+      "passes": true,
+      "retrieval_p95_ms": 24.0,
+      "p95_budget_ms": 300,
+      "retrieval_tokens_max": 0,
+      "cases_over_token_budget": 0,
+      "token_budget": 7000,
+      "source": "harness report.json cost block, not recomputed",
+      "if_violated": "the precision numbers are VOID, not caveated: K1 is defined at these budgets."
+    },
+    "false_evidence_on_abstention_cases": {
+      "value": 0.0,
+      "ceiling": 0.2,
+      "passes": true,
+      "injections": 0,
+      "cases": 15
+    },
+    "degenerate_pass_guard": {
+      "coverage": 0.0,
+      "floor": 0.05,
+      "triggered": true,
+      "if_triggered": "the operating-point precision is NOT a quality signal: a gate that abstains its way to a ratio has not retrieved anything."
+    }
+  },
+  "diagnostics": {
+    "heldout": {
+      "_note": "DRIVER-SIDE DIAGNOSTICS, not harness metrics. `coverage` is reported beside every precision because precision alone is gameable by injecting almost nothing.",
+      "_curve_caveat": "The swept curve applies the GATE only. The section 5.7 token budget is not re-applied at each cut, so at permissive cuts the curve's coverage is an UPPER BOUND on what would actually be injected. `mean_candidates_passing_per_case` is reported at every point so a reader can see where the budget would start to bite (roughly 15-40 LongMemEval turns fit in 7,000 estimated tokens).",
+      "_curve_source": "the implementation's own score and calibrated_precision for every scored candidate, read from --dump-gate-features. Not recomputed in Python: a second implementation of the gate's arithmetic with nothing comparing the two is the mismatch pattern this project keeps paying for.",
+      "answerable_cases": 234,
+      "abstention_cases": 15,
+      "injections_on_abstention_cases": 0,
+      "scored_candidates": 120998,
+      "on_the_wire_at_frozen_threshold": {
+        "precision": null,
+        "coverage": 0.0,
+        "gold": 0,
+        "attributed": 0,
+        "cases_with_any_injection": 0
+      },
+      "curve": [
+        {
+          "cut": 0.0,
+          "precision": 0.003627,
+          "coverage": 0.982906,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 484.265,
+          "gold": 411,
+          "distractor": 112907
+        },
+        {
+          "cut": 0.000219,
+          "precision": 0.015274,
+          "coverage": 0.978632,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 113.316,
+          "gold": 405,
+          "distractor": 26111
+        },
+        {
+          "cut": 0.000536,
+          "precision": 0.015274,
+          "coverage": 0.978632,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 113.316,
+          "gold": 405,
+          "distractor": 26111
+        },
+        {
+          "cut": 0.002452,
+          "precision": 0.025403,
+          "coverage": 0.974359,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 67.291,
+          "gold": 400,
+          "distractor": 15346
+        },
+        {
+          "cut": 0.003214,
+          "precision": 0.031117,
+          "coverage": 0.970085,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 54.248,
+          "gold": 395,
+          "distractor": 12299
+        },
+        {
+          "cut": 0.003338,
+          "precision": 0.033477,
+          "coverage": 0.970085,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 50.423,
+          "gold": 395,
+          "distractor": 11404
+        },
+        {
+          "cut": 0.003575,
+          "precision": 0.056607,
+          "coverage": 0.948718,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 28.688,
+          "gold": 380,
+          "distractor": 6333
+        },
+        {
+          "cut": 0.010014,
+          "precision": 0.056607,
+          "coverage": 0.948718,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 28.688,
+          "gold": 380,
+          "distractor": 6333
+        },
+        {
+          "cut": 0.010718,
+          "precision": 0.067984,
+          "coverage": 0.92735,
+          "cases_with_any_injection": 230,
+          "mean_candidates_passing_per_case": 23.132,
+          "gold": 368,
+          "distractor": 5045
+        },
+        {
+          "cut": 0.013412,
+          "precision": 0.116343,
+          "coverage": 0.888889,
+          "cases_with_any_injection": 227,
+          "mean_candidates_passing_per_case": 12.526,
+          "gold": 341,
+          "distractor": 2590
+        },
+        {
+          "cut": 0.027897,
+          "precision": 0.116343,
+          "coverage": 0.888889,
+          "cases_with_any_injection": 227,
+          "mean_candidates_passing_per_case": 12.526,
+          "gold": 341,
+          "distractor": 2590
+        },
+        {
+          "cut": 0.03212,
+          "precision": 0.1323,
+          "coverage": 0.880342,
+          "cases_with_any_injection": 226,
+          "mean_candidates_passing_per_case": 10.756,
+          "gold": 333,
+          "distractor": 2184
+        },
+        {
+          "cut": 0.05,
+          "precision": 0.14936,
+          "coverage": 0.867521,
+          "cases_with_any_injection": 221,
+          "mean_candidates_passing_per_case": 9.013,
+          "gold": 315,
+          "distractor": 1794
+        },
+        {
+          "cut": 0.053648,
+          "precision": 0.176576,
+          "coverage": 0.811966,
+          "cases_with_any_injection": 214,
+          "mean_candidates_passing_per_case": 7.188,
+          "gold": 297,
+          "distractor": 1385
+        },
+        {
+          "cut": 0.064378,
+          "precision": 0.176576,
+          "coverage": 0.811966,
+          "cases_with_any_injection": 214,
+          "mean_candidates_passing_per_case": 7.188,
+          "gold": 297,
+          "distractor": 1385
+        },
+        {
+          "cut": 0.096567,
+          "precision": 0.272503,
+          "coverage": 0.688034,
+          "cases_with_any_injection": 187,
+          "mean_candidates_passing_per_case": 3.466,
+          "gold": 221,
+          "distractor": 590
+        },
+        {
+          "cut": 0.1,
+          "precision": 0.272503,
+          "coverage": 0.688034,
+          "cases_with_any_injection": 187,
+          "mean_candidates_passing_per_case": 3.466,
+          "gold": 221,
+          "distractor": 590
+        },
+        {
+          "cut": 0.15,
+          "precision": 0.272503,
+          "coverage": 0.688034,
+          "cases_with_any_injection": 187,
+          "mean_candidates_passing_per_case": 3.466,
+          "gold": 221,
+          "distractor": 590
+        },
+        {
+          "cut": 0.184549,
+          "precision": 0.272503,
+          "coverage": 0.688034,
+          "cases_with_any_injection": 187,
+          "mean_candidates_passing_per_case": 3.466,
+          "gold": 221,
+          "distractor": 590
+        },
+        {
+          "cut": 0.2,
+          "precision": 0.371429,
+          "coverage": 0.504274,
+          "cases_with_any_injection": 140,
+          "mean_candidates_passing_per_case": 1.645,
+          "gold": 143,
+          "distractor": 242
+        },
+        {
+          "cut": 0.25,
+          "precision": 0.371429,
+          "coverage": 0.504274,
+          "cases_with_any_injection": 140,
+          "mean_candidates_passing_per_case": 1.645,
+          "gold": 143,
+          "distractor": 242
+        },
+        {
+          "cut": 0.3,
+          "precision": 0.371429,
+          "coverage": 0.504274,
+          "cases_with_any_injection": 140,
+          "mean_candidates_passing_per_case": 1.645,
+          "gold": 143,
+          "distractor": 242
+        },
+        {
+          "cut": 0.317597,
+          "precision": 0.371429,
+          "coverage": 0.504274,
+          "cases_with_any_injection": 140,
+          "mean_candidates_passing_per_case": 1.645,
+          "gold": 143,
+          "distractor": 242
+        },
+        {
+          "cut": 0.35,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.4,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.45,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.5,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.55,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.6,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.65,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.7,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.75,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.8,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.85,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.9,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.95,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 1.0,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        }
+      ]
+    },
+    "all_cases": {
+      "_note": "DRIVER-SIDE DIAGNOSTICS, not harness metrics. `coverage` is reported beside every precision because precision alone is gameable by injecting almost nothing.",
+      "_curve_caveat": "The swept curve applies the GATE only. The section 5.7 token budget is not re-applied at each cut, so at permissive cuts the curve's coverage is an UPPER BOUND on what would actually be injected. `mean_candidates_passing_per_case` is reported at every point so a reader can see where the budget would start to bite (roughly 15-40 LongMemEval turns fit in 7,000 estimated tokens).",
+      "_curve_source": "the implementation's own score and calibrated_precision for every scored candidate, read from --dump-gate-features. Not recomputed in Python: a second implementation of the gate's arithmetic with nothing comparing the two is the mismatch pattern this project keeps paying for.",
+      "answerable_cases": 470,
+      "abstention_cases": 30,
+      "injections_on_abstention_cases": 0,
+      "scored_candidates": 240338,
+      "on_the_wire_at_frozen_threshold": {
+        "precision": null,
+        "coverage": 0.0,
+        "gold": 0,
+        "attributed": 0,
+        "cases_with_any_injection": 0
+      },
+      "curve": [
+        {
+          "cut": 0.0,
+          "precision": 0.003793,
+          "coverage": 0.976596,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 481.26,
+          "gold": 858,
+          "distractor": 225334
+        },
+        {
+          "cut": 0.000219,
+          "precision": 0.015675,
+          "coverage": 0.970213,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 114.966,
+          "gold": 847,
+          "distractor": 53187
+        },
+        {
+          "cut": 0.000536,
+          "precision": 0.015675,
+          "coverage": 0.970213,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 114.966,
+          "gold": 847,
+          "distractor": 53187
+        },
+        {
+          "cut": 0.002452,
+          "precision": 0.025676,
+          "coverage": 0.968085,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 69.277,
+          "gold": 836,
+          "distractor": 31724
+        },
+        {
+          "cut": 0.003214,
+          "precision": 0.031242,
+          "coverage": 0.965957,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 56.049,
+          "gold": 823,
+          "distractor": 25520
+        },
+        {
+          "cut": 0.003338,
+          "precision": 0.033422,
+          "coverage": 0.96383,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 52.202,
+          "gold": 820,
+          "distractor": 23715
+        },
+        {
+          "cut": 0.003575,
+          "precision": 0.056167,
+          "coverage": 0.944681,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 29.774,
+          "gold": 786,
+          "distractor": 13208
+        },
+        {
+          "cut": 0.010014,
+          "precision": 0.056167,
+          "coverage": 0.944681,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 29.774,
+          "gold": 786,
+          "distractor": 13208
+        },
+        {
+          "cut": 0.010718,
+          "precision": 0.067114,
+          "coverage": 0.931915,
+          "cases_with_any_injection": 459,
+          "mean_candidates_passing_per_case": 24.094,
+          "gold": 760,
+          "distractor": 10564
+        },
+        {
+          "cut": 0.013412,
+          "precision": 0.114478,
+          "coverage": 0.897872,
+          "cases_with_any_injection": 455,
+          "mean_candidates_passing_per_case": 12.991,
+          "gold": 699,
+          "distractor": 5407
+        },
+        {
+          "cut": 0.027897,
+          "precision": 0.114478,
+          "coverage": 0.897872,
+          "cases_with_any_injection": 455,
+          "mean_candidates_passing_per_case": 12.991,
+          "gold": 699,
+          "distractor": 5407
+        },
+        {
+          "cut": 0.03212,
+          "precision": 0.129654,
+          "coverage": 0.887234,
+          "cases_with_any_injection": 453,
+          "mean_candidates_passing_per_case": 11.143,
+          "gold": 679,
+          "distractor": 4558
+        },
+        {
+          "cut": 0.05,
+          "precision": 0.147987,
+          "coverage": 0.87234,
+          "cases_with_any_injection": 446,
+          "mean_candidates_passing_per_case": 9.302,
+          "gold": 647,
+          "distractor": 3725
+        },
+        {
+          "cut": 0.053648,
+          "precision": 0.172532,
+          "coverage": 0.829787,
+          "cases_with_any_injection": 435,
+          "mean_candidates_passing_per_case": 7.436,
+          "gold": 603,
+          "distractor": 2892
+        },
+        {
+          "cut": 0.064378,
+          "precision": 0.172532,
+          "coverage": 0.829787,
+          "cases_with_any_injection": 435,
+          "mean_candidates_passing_per_case": 7.436,
+          "gold": 603,
+          "distractor": 2892
+        },
+        {
+          "cut": 0.096567,
+          "precision": 0.262457,
+          "coverage": 0.693617,
+          "cases_with_any_injection": 381,
+          "mean_candidates_passing_per_case": 3.672,
+          "gold": 453,
+          "distractor": 1273
+        },
+        {
+          "cut": 0.1,
+          "precision": 0.262457,
+          "coverage": 0.693617,
+          "cases_with_any_injection": 381,
+          "mean_candidates_passing_per_case": 3.672,
+          "gold": 453,
+          "distractor": 1273
+        },
+        {
+          "cut": 0.15,
+          "precision": 0.262457,
+          "coverage": 0.693617,
+          "cases_with_any_injection": 381,
+          "mean_candidates_passing_per_case": 3.672,
+          "gold": 453,
+          "distractor": 1273
+        },
+        {
+          "cut": 0.184549,
+          "precision": 0.262457,
+          "coverage": 0.693617,
+          "cases_with_any_injection": 381,
+          "mean_candidates_passing_per_case": 3.672,
+          "gold": 453,
+          "distractor": 1273
+        },
+        {
+          "cut": 0.2,
+          "precision": 0.343972,
+          "coverage": 0.497872,
+          "cases_with_any_injection": 276,
+          "mean_candidates_passing_per_case": 1.8,
+          "gold": 291,
+          "distractor": 555
+        },
+        {
+          "cut": 0.25,
+          "precision": 0.343972,
+          "coverage": 0.497872,
+          "cases_with_any_injection": 276,
+          "mean_candidates_passing_per_case": 1.8,
+          "gold": 291,
+          "distractor": 555
+        },
+        {
+          "cut": 0.3,
+          "precision": 0.343972,
+          "coverage": 0.497872,
+          "cases_with_any_injection": 276,
+          "mean_candidates_passing_per_case": 1.8,
+          "gold": 291,
+          "distractor": 555
+        },
+        {
+          "cut": 0.317597,
+          "precision": 0.343972,
+          "coverage": 0.497872,
+          "cases_with_any_injection": 276,
+          "mean_candidates_passing_per_case": 1.8,
+          "gold": 291,
+          "distractor": 555
+        },
+        {
+          "cut": 0.35,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.4,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.45,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.5,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.55,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.6,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.65,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.7,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.75,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.8,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.85,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.9,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 0.95,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        },
+        {
+          "cut": 1.0,
+          "precision": null,
+          "coverage": 0.0,
+          "cases_with_any_injection": 0,
+          "mean_candidates_passing_per_case": 0.0,
+          "gold": 0,
+          "distractor": 0
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "corpus_variant": "cleaned",
+    "split_digest": "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d",
+    "split_rule": "Within each harness category (Case.category -- question_type, or 'abstention' for the _abs subset), sort query_ids by (sha256(query_id).hexdigest(), query_id) and assign even indices to `fit` and odd indices to `heldout`. Deterministic, and stratified rather than merely random: every category is split within one case of even, so both halves have support in all seven.",
+    "preregistration": [
+      "runs/session-c/PREREGISTRATION.json",
+      "runs/session-c/PREREGISTRATION-model.json"
+    ],
+    "eval_unchanged": "no file under eval/ is modified by this driver",
+    "reading_the_sub_reports": "heldout/report.json is scored under the corpus name 'longmemeval-s-heldout' so that nothing in it claims the full 500 cases were run -- its benchmark_coverage row correctly shows longmemeval-s as not_run. The cost of that naming is that the harness's corpus_variant block in THAT file reads 'unknown', because the manifest is keyed on the full corpus name. The variant is `cleaned` for both runs; it is stated here and beside every value in this file. all/report.json is the genuine full-corpus report and its variant block is correct."
+  }
+}

@@ -1,0 +1,663 @@
+"""Pre-registration for M0b Session C — the dense cue. **Run this before fitting anything.**
+
+Writes one file:
+
+  runs/session-c/PREREGISTRATION.json
+
+`tools/fit_gate.py` refuses to run without it, the same way it already refuses without
+`tools/split.json`. Pre-registration is a file, not an intention: a band that can be written
+after the fact is not a band, and a green suite with no record of what was expected reads as a
+suite that measured something.
+
+**The split is NOT redrawn.** `tools/split.json` stays exactly as Session B wrote it, and this
+script asserts its digest is unchanged. Redrawing it would invalidate every number fit under it,
+including Session B's published ones. `preregister_split.py --force` must not be run.
+
+Why the temptation is stronger this session, stated plainly: dense is the cue most likely to move
+the number. Number 2's bands are therefore derived here from **Session B's own recorded counts**
+(gold 141 / attributed 422 at the read point) via a Wilson interval, so the boundary between
+"improved" and "looks improved" is a computed property of the previous measurement rather than a
+number chosen with the new one in view.
+
+Two parameters are frozen here under HP1 **with their falsification rules attached**, because a
+frozen parameter whose revision rule is written after the measurement is not frozen:
+
+  * `MAX_SEQ_LEN = 128` — with the truncation rate that would falsify the principle it was
+    chosen on, and the single pre-committed adjustment permitted if it does.
+  * the inference engine — with the throughput and latency gate, the decision rule, and the
+    escalation ladder for the day cues 3-5 exhaust the remaining budget.
+
+    python tools/preregister_session_c.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+
+SPLIT_PATH = REPO / "tools" / "split.json"
+SESSION_B_SUMMARY = REPO / "runs" / "session-b" / "summary.json"
+PREREG_PATH = REPO / "runs" / "session-c" / "PREREGISTRATION.json"
+
+# Session B's digest, recorded here so a redrawn split is a loud refusal rather than a quietly
+# different experiment. This is the value in tools/split.json as committed by Session B.
+EXPECTED_SPLIT_DIGEST = "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d"
+
+
+def canonical(obj: object) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+
+
+def wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval. Used rather than the normal approximation because the counts are
+    modest and the normal interval misbehaves away from p=0.5."""
+    if total == 0:
+        return (0.0, 0.0)
+    p = successes / total
+    denominator = 1.0 + z * z / total
+    center = (p + z * z / (2 * total)) / denominator
+    half = (z / denominator) * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total))
+    return (center - half, center + half)
+
+
+def session_b_baseline() -> dict:
+    """Session B's Number 2 read point, read from its own summary rather than retyped."""
+    if not SESSION_B_SUMMARY.exists():
+        raise SystemExit(
+            f"{SESSION_B_SUMMARY} does not exist. Session C's bands are derived from Session "
+            "B's recorded counts; refusing to invent a baseline."
+        )
+    summary = json.loads(SESSION_B_SUMMARY.read_text(encoding="utf-8"))
+    n2 = summary["number_2_cue_capability"]
+    curve = summary["diagnostics"]["heldout"]["curve"]
+    point = next(p for p in curve if p["cut"] == n2["read_at_cut"])
+    gold, distractor = point["gold"], point["distractor"]
+    attributed = gold + distractor
+    low, high = wilson(gold, attributed)
+    return {
+        "value": n2["value"],
+        "read_at_cut": n2["read_at_cut"],
+        "coverage_there": n2["coverage_there"],
+        "gold": gold,
+        "distractor": distractor,
+        "attributed": attributed,
+        "wilson_95_low": round(low, 6),
+        "wilson_95_high": round(high, 6),
+        "max_calibrated_precision": summary["gate"]["max_calibrated_precision_on_the_curve"],
+        "max_coverage_on_curve": max(p["coverage"] for p in curve),
+        "retrieval_p95_ms": summary["conditions"]["budget"]["retrieval_p95_ms"],
+    }
+
+
+def build(baseline: dict, split: dict) -> dict:
+    low = baseline["wilson_95_low"]
+    high = baseline["wilson_95_high"]
+    # Rounded outward to two decimals so the published boundaries are readable, and outward
+    # rather than inward so neither band is made easier to reach by the rounding.
+    band_floor = math.floor(low * 100) / 100
+    band_ceiling = math.ceil(high * 100) / 100
+
+    return {
+        "session": "M0b Session C",
+        "what_ships": (
+            "The dense cue -- ADR-004's local ONNX embedder -- beside Session B's lexical cue, "
+            "plus the mandatory re-fit and re-scoring. TWO of five cues. Entity-graph, temporal "
+            "and causal are still absent, so a number here remains a statement about an "
+            "incomplete cue set, not about the design."
+        ),
+        "scored_population": (
+            "The held-out split, answerable cases only (is_abstention == false). Unchanged from "
+            "Session B so the two numbers are comparable. Abstention cases are scored separately "
+            "by the condition below."
+        ),
+        "definitions": {
+            "evidence_precision": (
+                "the harness's own metric: gold / (gold + distractor) over injected memories, "
+                "attributed via the section 4.6 written[].turn_id mapping. NOT the K1 headline, "
+                "which is human-judged and needs a label set that does not exist yet."
+            ),
+            "coverage": (
+                "driver-side diagnostic, not a harness metric: the fraction of answerable cases "
+                "with at least one GOLD memory injected. Reported because precision alone is "
+                "gameable by injecting almost nothing."
+            ),
+            "truncation_rate": (
+                "the fraction of ingested turns whose wordpiece tokenization exceeds "
+                "MAX_SEQ_LEN and is therefore truncated before embedding. A property of the "
+                "corpus and the tokenizer alone -- computable with no gate, no fit and no "
+                "quality number in existence."
+            ),
+        },
+        "session_b_baseline": {
+            **baseline,
+            "_note": (
+                "Read from runs/session-b/summary.json, not retyped. Session C's bands are "
+                "derived from these counts so the boundary between 'improved' and 'looks "
+                "improved' is a computed property of the previous measurement."
+            ),
+        },
+        # ------------------------------------------------------------------ frozen parameters
+        "frozen_parameters": {
+            "_rule": (
+                "HP1: everything on the measured path is frozen in M0. Each parameter below is "
+                "declared BEFORE the fit, with the principle it was chosen on. A parameter "
+                "chosen on a stated principle and then revised after seeing a quality number is "
+                "not frozen, which is what these entries exist to prevent."
+            ),
+            "model": "sentence-transformers/all-MiniLM-L6-v2, ONNX, pinned by sha256",
+            "dimensions": 384,
+            "max_seq_len": 128,
+            "pooling": "mean over the attention mask, then L2 normalize (the model's own recipe)",
+            "dense_cosine_mapping": (
+                "cos.max(0.0) -- ABSOLUTE, not min-max over the candidate set. Same property "
+                "the lexical cue's `saturate` has and for the same reason: min-max forces the "
+                "best candidate of every query to 1.0 including queries where nothing matches, "
+                "and a gate whose top feature is 1.0 by construction cannot abstain."
+            ),
+            "worker_discipline": (
+                "Parallelism is at the TEXT level, never inside the model: each text's forward "
+                "pass runs single-threaded on one worker and results are collected by index. "
+                "Worker count is therefore the one performance knob that is provably not a "
+                "quality knob, and the invariance is asserted by test at 1 / 2 / 8 workers "
+                "rather than assumed."
+            ),
+        },
+        "max_seq_len_falsification": {
+            "parameter": "MAX_SEQ_LEN = 128 wordpiece tokens",
+            "principle_it_was_chosen_on": (
+                "LongMemEval turns are chat messages, and 128 wordpiece tokens covers the large "
+                "majority of them. Chosen on that ground alone, not on any resulting number."
+            ),
+            "what_would_falsify_it": (
+                "A truncation rate above 25%. That would mean 128 does NOT cover the large "
+                "majority of this corpus -- the premise of the choice, not the choice's "
+                "outcome, would be wrong."
+            ),
+            "when_it_is_measured": (
+                "Phase 1, before the fit and before any quality number exists. The truncation "
+                "rate is a property of the corpus and the tokenizer; nothing about it depends "
+                "on precision, coverage, or the gate."
+            ),
+            "bands": [
+                {
+                    "condition": "truncation_rate <= 0.10",
+                    "verdict": "principle confirmed",
+                    "action": "128 stands. Reported as a statistic.",
+                },
+                {
+                    "condition": "0.10 < truncation_rate <= 0.25",
+                    "verdict": "principle weakened but directionally intact",
+                    "action": (
+                        "128 stands for this session and the rate is reported beside every "
+                        "number as a caveat. Changing it here would be changing a frozen "
+                        "parameter mid-session on a statistic that was anticipated."
+                    ),
+                },
+                {
+                    "condition": "truncation_rate > 0.25",
+                    "verdict": "principle falsified",
+                    "action": (
+                        "ONE pre-committed adjustment, taken before the fit and on the corpus "
+                        "statistic alone: raise to the smallest length in [192, 256] whose "
+                        "truncation rate is <= 0.10, or to 256 if neither reaches it. 256 is "
+                        "the model's own trained maximum, so there is nowhere further to go. "
+                        "The rule is stated HERE, before the measurement, so the adjustment "
+                        "cannot be chosen after seeing the rate; and it is taken before any "
+                        "quality number exists, so it cannot be tuned against one. Whatever is "
+                        "chosen is then frozen for the session and the original 128 with its "
+                        "measured rate is reported beside it."
+                    ),
+                },
+            ],
+            "interaction_with_the_engine_gate": (
+                "Raising the sequence length raises per-text cost. If the adjustment pushes the "
+                "chosen engine below its throughput gate, the ENGINE decision is re-taken under "
+                "the same pre-committed rule below -- the sequence length is not lowered back "
+                "to rescue the engine, because that would be choosing a corpus parameter to "
+                "protect an implementation choice."
+            ),
+        },
+        # ------------------------------------------------------------------ the engine
+        "engine_gate": {
+            "_why_a_gate": (
+                "ADR-004 says 'local ONNX' and does not name a runtime. Session B's own "
+                "argument against SQLite FTS5 applies verbatim to ONNX Runtime: bm25() ranking "
+                "is a property of the bundled SQLite version, so a dependency bump could move a "
+                "published number with nothing in this repo changing. The engine is therefore "
+                "chosen by measurement against gates written down first, not by argument."
+            ),
+            "measured_before_either_engine_is_wired_into_the_retrieval_path": True,
+            "gates": {
+                "throughput": {
+                    "condition": ">= 25 texts/s per core, single-threaded, at MAX_SEQ_LEN",
+                    "measured_on": (
+                        "a 1,000-text sample drawn deterministically from the real corpus, so "
+                        "the length distribution is the corpus's own rather than a synthetic "
+                        "short string."
+                    ),
+                    "why_25": (
+                        "~494k turn-embeddings across this session's three real-corpus passes "
+                        "(fit split ~124k, held-out ~123k, all-500 ~247k). At 25/s/core with 8 "
+                        "workers that is ~41 min for a full fit-and-score cycle. A cue whose "
+                        "re-fit cannot be run twice in a session cannot be iterated on, and "
+                        "this session must run it at least twice."
+                    ),
+                },
+                "latency": {
+                    "condition": "end-to-end retrieval P95 <= 120 ms on the held-out run",
+                    "headroom_margin_stated_before_measuring": (
+                        "120 ms is 40% of section 5.7's 300 ms budget, leaving 180 ms for cues "
+                        "3-5, fusion and ADR-003's hot index. Two of five cues may not consume "
+                        "more than 40% of the budget. Session B measured 24 ms with one cue."
+                    ),
+                    "not_the_void_condition": (
+                        "This is the ENGINE-CHOICE gate, deliberately stricter than the "
+                        "contract's 300 ms. The 300 ms void condition below is separate and "
+                        "does not move."
+                    ),
+                },
+                "op_coverage": (
+                    "loads and runs the exact pinned ONNX file, and reproduces the committed "
+                    "Python reference embeddings within the cross-implementation tolerance "
+                    "(max per-dim abs diff <= 1e-4 AND cosine >= 0.9999). Failing to load is a "
+                    "fail regardless of speed."
+                ),
+                "determinism": (
+                    "byte-identical output across (a) two calls in one process, (b) two process "
+                    "spawns, (c) worker counts 1 / 2 / 8."
+                ),
+            },
+            "decision_rule": {
+                "tract_clears_all_four": (
+                    "tract. Deterministic-by-construction is recorded as the reason, citing the "
+                    "FTS5 precedent: no published number should depend on a runtime version."
+                ),
+                "tract_fails_any": (
+                    "ort, with intra_op_num_threads=1, inter_op_num_threads=1, sequential "
+                    "execution mode, and a pinned graph-optimization level. The ORT version AND "
+                    "the model digest go into the gate artifact as load-time checks, so a bump "
+                    "is a refusal rather than silent drift."
+                ),
+                "why_ort_is_an_acceptable_fallback_and_fts5_was_not": (
+                    "FTS5's ranking is opaque and unrecordable; ORT's numerics are a property "
+                    "of a version that can be pinned into the artifact and checked at load. "
+                    "That is a real difference, and it is still weaker than "
+                    "deterministic-by-construction rather than equivalent to it."
+                ),
+                "outcome_either_way": (
+                    "an ADR-004 amendment naming the runtime and pinning the frozen embedder "
+                    "parameters. ADR-004 currently names neither."
+                ),
+            },
+            "if_cues_3_to_5_exhaust_the_remaining_180_ms": {
+                "_why_this_is_decided_now": (
+                    "It is a decision made cheaply in advance and expensively under pressure "
+                    "later. Written here so the response to a latency miss cannot be chosen "
+                    "with the miss in view."
+                ),
+                "the_budget_does_not_move": (
+                    "300 ms is K1's definition. A cue set that cannot fit inside it is a "
+                    "finding about the cue set, not a reason to widen the budget."
+                ),
+                "escalation_ladder_in_order": [
+                    "1. ADR-003's live-only hot index and the ANN index -- NOT the engine. Both "
+                    "are already M0b requirements and neither is built. `considered` currently "
+                    "costs a full-store scan (246,750 entries) and the dense cue brute-forces "
+                    "every scoped candidate; that is the largest removable term and it is "
+                    "already scheduled. Revisiting the engine before building the index that is "
+                    "already required would be optimizing the wrong term.",
+                    "2. The embedder's sequence length and model size. ADR-004 already names "
+                    "this cost as accepted: 'if M0b misses on recall rather than precision, the "
+                    "embedder is the first thing to revisit.'",
+                    "3. The engine, and only then. Any re-take runs the same gate table above.",
+                ],
+                "direction_the_engine_may_not_be_revisited_in": (
+                    "Toward an API embedder. ADR-004 rejects API-only because it breaks the "
+                    "offline path and puts a network round-trip inside a 300 ms budget, and "
+                    "that rejection does not weaken under latency pressure -- it is the reason "
+                    "the budget exists."
+                ),
+            },
+        },
+        # ------------------------------------------------------------------ the numbers
+        "number_1": {
+            "name": "operating-point result",
+            "definition": (
+                "evidence_precision and coverage on the held-out split at the frozen threshold "
+                "of 0.95 calibrated precision."
+            ),
+            "band": None,
+            "note": (
+                "Deliberately no band, exactly as Session B. Reported whatever it is, including "
+                "'the gate abstained on every case' for a second session. The threshold does "
+                "not move -- HP1 freezes it, ROADMAP M10 is the only milestone permitted to "
+                "move an operating point, and the roadmap says in as many words that adaptivity "
+                "is not the remedy for a missed K1."
+            ),
+            "readings_to_record": (
+                "whether max_calibrated_precision rises above Session B's 0.309, and whether it "
+                "clears 0.95. A rise that stays below 0.95 is progress on an incomplete cue "
+                "set, not a failure; no rise at all is the more informative outcome and points "
+                "at the fusion or the embedder rather than at the missing three cues."
+            ),
+        },
+        "number_2": {
+            "name": "cue capability",
+            "definition": (
+                "held-out evidence_precision read off the precision/coverage curve at the most "
+                "selective cut where coverage reaches 0.25. UNCHANGED from Session B, so the "
+                "two sessions are directly comparable."
+            ),
+            "why_a_curve": (
+                "ADR-003's precedent -- the curve is the artifact. Publishing it is reporting; "
+                "changing the shipped threshold because of it would be tuning."
+            ),
+            "band_derivation": (
+                f"Session B measured {baseline['value']} from gold {baseline['gold']} / "
+                f"attributed {baseline['attributed']}, Wilson 95% CI "
+                f"[{low:.4f}, {high:.4f}]. The 'improved' boundary is that interval's upper "
+                f"bound rounded outward to {band_ceiling}, and the 'regressed' boundary is its "
+                f"lower bound rounded outward to {band_floor}. Both are computed from the "
+                "previous measurement, not chosen."
+            ),
+            "bands": [
+                {
+                    "verdict": "dense cue working",
+                    "condition": "precision >= 0.50",
+                    "reading": (
+                        "K1 looks reachable once cues 3-5 land. Same top band as Session B, "
+                        "deliberately unchanged."
+                    ),
+                },
+                {
+                    "verdict": "dense contributing, cue set still incomplete",
+                    "condition": f"{band_ceiling} <= precision < 0.50",
+                    "reading": (
+                        "The expected outcome. Above the upper bound of Session B's interval, "
+                        "so this is improvement beyond sampling noise rather than the "
+                        "appearance of it."
+                    ),
+                },
+                {
+                    "verdict": "dense adds nothing measurable",
+                    "condition": f"{band_floor} <= precision < {band_ceiling}",
+                    "reading": (
+                        "Inside Session B's interval: two cues performing like one. Investigate "
+                        "the pooling, the L2 normalization, the truncation rate and the cosine "
+                        "mapping BEFORE adding cue 3. Number 3 is what distinguishes a weak "
+                        "embedder from a broken fusion."
+                    ),
+                },
+                {
+                    "verdict": "regression -- the dense cue is hurting",
+                    "condition": f"precision < {band_floor}",
+                    "reading": (
+                        "Below the lower bound of Session B's interval: two cues are worse than "
+                        "one. Investigate the fit and the feature scaling -- a strong dense "
+                        "feature drowning a precise lexical match is the mechanism to check "
+                        "first -- before anything else."
+                    ),
+                },
+            ],
+        },
+        "number_3": {
+            "name": "per-cue diagnostic",
+            "definition": (
+                "held-out precision at matched coverage 0.25, sweeping each RAW cue score alone "
+                "(lexical BM25 saturated, and dense cosine). Driver-side, computed from the "
+                "existing feature dump; no second fit and no second artifact."
+            ),
+            "why_it_exists": (
+                "Neither Number 1 nor Number 2 can tell 'the dense cue is weak' apart from 'the "
+                "fusion is wrong'. Both present as a flat Number 2, and the two have opposite "
+                "remedies. This is the only number in the session that separates them."
+            ),
+            "bands": [
+                {
+                    "condition": "dense_alone >= lexical_alone",
+                    "reading": "dense is the stronger cue; a flat Number 2 points at the fusion or the calibration.",
+                },
+                {
+                    "condition": "dense_alone < lexical_alone AND Number 2 did not improve",
+                    "reading": (
+                        "the embedder is suspect, not the fusion. Check the pooling and "
+                        "normalization against the committed reference vectors first, then the "
+                        "truncation rate."
+                    ),
+                },
+            ],
+        },
+        # ------------------------------------------------------------------ conditions
+        "independent_conditions": {
+            "determinism": {
+                "condition": (
+                    "golden embedding vectors bit-identical across two calls, two process "
+                    "spawns, and worker counts 1 / 2 / 8; AND `repro --runs 2` produces two "
+                    "identical sha256."
+                ),
+                "checked": "BEFORE the fit. Not after, and not alongside.",
+                "if_violated": (
+                    "EVERY number in this session is VOID, not caveated. A gate fit on "
+                    "non-deterministic features is an artifact nobody can reproduce, and the "
+                    "failure would surface weeks later as an unexplained hash mismatch with "
+                    "nothing pointing at the cause -- the same failure shape the HashMap ban "
+                    "exists to prevent."
+                ),
+                "scope_of_the_bit_identical_claim": (
+                    "Same binary, same machine. Cross-hardware bit-identity is NOT claimed: a "
+                    "different CPU feature set can dispatch different SIMD kernels. The "
+                    "existing one-key allowlist (latency_ms) is not widened, and no tolerance "
+                    "window is introduced anywhere on the Rust-to-Rust path."
+                ),
+            },
+            "budget": {
+                "condition": "P95 retrieval latency <= 300 ms AND no case above 7,000 retrieval tokens",
+                "if_violated": (
+                    "The precision numbers are VOID, not merely caveated. K1 is defined at "
+                    "those budgets and a precision figure bought with an overrun is not a K1 "
+                    "signal."
+                ),
+                "note": (
+                    "The token half was vacuous in Session B (max 0, because nothing was "
+                    "injected). If the gate injects it becomes informative for the first time. "
+                    "retrieval_tokens remains the pessimistic 3-chars/token estimate -- see "
+                    "retrieval_tokens_estimator below."
+                ),
+            },
+            "false_evidence_on_abstention_cases": {
+                "condition": "injections_on_abstention_cases / abstention_cases <= 0.20",
+                "why": (
+                    "Producing evidence for a question that has none is a distinct failure from "
+                    "picking the wrong evidence. Vacuous in Session B; informative again the "
+                    "moment the gate injects."
+                ),
+            },
+            "degenerate_pass_guard": {
+                "condition": "coverage < 0.05",
+                "if_triggered": (
+                    "Precision is reported as NOT a quality signal. A gate that abstains its "
+                    "way to a good-looking ratio has not retrieved anything."
+                ),
+            },
+        },
+        "ordered_gates_when_the_gate_starts_injecting": [
+            {
+                "order": 1,
+                "action": "run `conformance` and the clock probe BEFORE reading any quality number",
+                "why": (
+                    "That is the run in which section 4.3 maturation becomes verifiable through "
+                    "the contract again -- its named closing condition is the gate beginning to "
+                    "inject, and nothing else. A silent failure there means the defence was "
+                    "lost during the cue work with nothing observing it."
+                ),
+                "if_it_fails": "stop and fix. Do not score.",
+            },
+            {
+                "order": 2,
+                "action": "record the calibration generalization pair",
+                "definition": (
+                    "the top block's predicted precision (max of isotonic_breakpoints in the "
+                    "artifact) against number_2_cue_capability.value in summary.json."
+                ),
+                "session_b_reference": "0.309 predicted -> 0.334 measured; generalizing, slightly conservative",
+                "rule": (
+                    "held-out below the fit-split prediction by MORE THAN 0.05 absolute is a "
+                    "signal about the CALIBRATION, not about the cue: investigate the fit "
+                    "before adding anything else. A curve that predicts well in-sample and "
+                    "badly out-of-sample is a memorized calibration, and the failure is "
+                    "invisible in every other number the harness produces."
+                ),
+            },
+        ],
+        "poisoning_reactivation_prediction": {
+            "predicted_before_the_run": True,
+            "prediction": (
+                "If coverage > 0, the MINJA / MemoryGraft / delayed-trigger ASRs will RISE from "
+                "Session B's 0.000, and the laundering trust assertion will become non-vacuous "
+                "again. That rise is the vacuity lifting, NOT a regression the dense cue "
+                "caused: Session B's 0.000 was an artifact of a gate that injected nothing, and "
+                "Session A's 1.000 -- measured with no gate at all -- is the reference."
+            ),
+            "why_this_is_written_down_first": (
+                "A later reader meeting a jump from 0.000 to something large, with no record of "
+                "what was expected, reads it as the dense cue introducing an attack surface. It "
+                "is the opposite: the number is informative again for the first time since "
+                "Session A."
+            ),
+            "what_would_falsify_it": (
+                "ASR staying at 0.000 while coverage > 0.05. That would be a genuine "
+                "suppression result rather than a vacuous one -- and it must be checked for "
+                "vacuity, case by case, before being claimed as one."
+            ),
+            "what_this_is_not": (
+                "Not a reason to touch MATURATION_WINDOW_MS. The correct response to a vacuous "
+                "assertion is to report it as vacuous."
+            ),
+        },
+        # ------------------------------------------------------------------ carried decisions
+        "cue_agreement_semantics_change": {
+            "what_changed": (
+                "With cue 2 present the feature stops being a 0/1 indicator and becomes a 0-2 "
+                "count. A weight fit under one meaning and applied under the other is a live "
+                "mismatch, and nothing in the pipeline would observe it."
+            ),
+            "handled_structurally": (
+                "The feature is RENAMED cue_agreement -> cue_agreement_2cue and the gate "
+                "artifact goes frozen-v1 -> frozen-v2. FrozenGate::load's existing "
+                "FeatureNamesDisagree check then refuses any artifact fit under the old "
+                "meaning, at load time, naming the cause. The denominator is in the name, so "
+                "cue 3 forces another rename, another refusal, and another deliberate re-fit."
+            ),
+            "it_stays_pinned_to_zero": (
+                "A 0-2 count needs a firing predicate for the dense cue, and unlike BM25's "
+                "raw > 0 any cosine floor is an unmeasured constant entering the frozen path. "
+                "The count would then be a 2-bit coarsening of two continuous features already "
+                "in the vector -- cost with no evidenced benefit."
+            ),
+            "unpin_condition": (
+                "Cue 3. With three or more cues, agreement stops being a coarsening of the "
+                "vector's own contents and starts carrying information the individual scores do "
+                "not. The firing-predicate problem must be solved before it is unpinned, and "
+                "the predicate pre-registered."
+            ),
+        },
+        "retrieval_tokens_estimator": {
+            "decision": "unchanged -- 3 chars/token, pessimistic",
+            "deviation_from": (
+                "STATE.md, which says to replace the estimator with a real tokenizer when the "
+                "embedder lands and to expect the reported number to fall."
+            ),
+            "why": (
+                "MiniLM's WordPiece vocabulary is not the generation model's tokenizer, so "
+                "substituting it would not make the number more correct -- it would make the "
+                "reported number FALL, which is the unsafe direction, for a reason unrelated to "
+                "the budget section 5.7 protects. Over-estimating can only make a budget look "
+                "worse, never hide a miss. The estimator changes when there is a generation "
+                "model with a tokenizer to read."
+            ),
+        },
+        "split": {
+            "redrawn": False,
+            "rule": split["rule"],
+            "digest": split["digest"],
+            "fit_cases": split["fit_cases"],
+            "heldout_cases": split["heldout_cases"],
+            "corpus_sha256": split["corpus_sha256"],
+            "note": (
+                "Session B's split, unchanged and asserted by digest. Redrawing it would "
+                "invalidate every number fit under it, including Session B's published ones."
+            ),
+        },
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="overwrite an existing pre-registration. Refused by default: silently rewriting a "
+        "pre-registration is the thing this file exists to prevent.",
+    )
+    args = parser.parse_args()
+
+    if not SPLIT_PATH.exists():
+        raise SystemExit(f"{SPLIT_PATH} does not exist. Session C does not redraw it; it reads it.")
+    split = json.loads(SPLIT_PATH.read_text(encoding="utf-8"))
+
+    if split["digest"] != EXPECTED_SPLIT_DIGEST:
+        raise SystemExit(
+            f"{SPLIT_PATH} has digest {split['digest']}, but Session B's split is "
+            f"{EXPECTED_SPLIT_DIGEST}. The split was redrawn. Every number fit under the old "
+            "split -- including Session B's published ones -- is now unreproducible. Refusing."
+        )
+    # And the digest must still describe the file's own contents, not merely match a constant.
+    recomputed = hashlib.sha256(
+        canonical({"rule": split["rule"], "fit": split["fit"], "heldout": split["heldout"]}).encode()
+    ).hexdigest()
+    if recomputed != split["digest"]:
+        raise SystemExit(
+            f"{SPLIT_PATH} has been edited since it was written: declares {split['digest']}, "
+            f"contents hash to {recomputed}."
+        )
+
+    if PREREG_PATH.exists() and not args.force:
+        print(
+            f"{PREREG_PATH} already exists. Refusing to rewrite a pre-registration; pass "
+            "--force only if you intend to invalidate every number registered under it.",
+            file=sys.stderr,
+        )
+        return 1
+
+    baseline = session_b_baseline()
+    prereg = build(baseline, split)
+
+    PREREG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PREREG_PATH.write_text(json.dumps(prereg, indent=2) + "\n", encoding="utf-8")
+
+    print(f"pre-registration: {PREREG_PATH}")
+    print(f"  split digest (unchanged):   {split['digest']}")
+    print(
+        f"  Session B baseline:         {baseline['value']} "
+        f"(gold {baseline['gold']} / attributed {baseline['attributed']})"
+    )
+    print(
+        f"  Wilson 95% CI:              "
+        f"[{baseline['wilson_95_low']:.4f}, {baseline['wilson_95_high']:.4f}]"
+    )
+    print("  Number 2 bands:")
+    for band in prereg["number_2"]["bands"]:
+        print(f"    {band['condition']:34s} -> {band['verdict']}")
+    print("  MAX_SEQ_LEN falsification:  truncation rate > 0.25")
+    print("  Engine gate:                >= 25 texts/s/core, retrieval P95 <= 120 ms")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

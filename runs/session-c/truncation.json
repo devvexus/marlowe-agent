@@ -1,0 +1,88 @@
+{
+  "_what": "Truncation rate at MAX_SEQ_LEN over LongMemEval-S (cleaned), measured before the fit and before any quality number exists.",
+  "_pre_registered_rule": {
+    "parameter": "MAX_SEQ_LEN = 128 wordpiece tokens",
+    "principle_it_was_chosen_on": "LongMemEval turns are chat messages, and 128 wordpiece tokens covers the large majority of them. Chosen on that ground alone, not on any resulting number.",
+    "what_would_falsify_it": "A truncation rate above 25%. That would mean 128 does NOT cover the large majority of this corpus -- the premise of the choice, not the choice's outcome, would be wrong.",
+    "when_it_is_measured": "Phase 1, before the fit and before any quality number exists. The truncation rate is a property of the corpus and the tokenizer; nothing about it depends on precision, coverage, or the gate.",
+    "bands": [
+      {
+        "condition": "truncation_rate <= 0.10",
+        "verdict": "principle confirmed",
+        "action": "128 stands. Reported as a statistic."
+      },
+      {
+        "condition": "0.10 < truncation_rate <= 0.25",
+        "verdict": "principle weakened but directionally intact",
+        "action": "128 stands for this session and the rate is reported beside every number as a caveat. Changing it here would be changing a frozen parameter mid-session on a statistic that was anticipated."
+      },
+      {
+        "condition": "truncation_rate > 0.25",
+        "verdict": "principle falsified",
+        "action": "ONE pre-committed adjustment, taken before the fit and on the corpus statistic alone: raise to the smallest length in [192, 256] whose truncation rate is <= 0.10, or to 256 if neither reaches it. 256 is the model's own trained maximum, so there is nowhere further to go. The rule is stated HERE, before the measurement, so the adjustment cannot be chosen after seeing the rate; and it is taken before any quality number exists, so it cannot be tuned against one. Whatever is chosen is then frozen for the session and the original 128 with its measured rate is reported beside it."
+      }
+    ],
+    "interaction_with_the_engine_gate": "Raising the sequence length raises per-text cost. If the adjustment pushes the chosen engine below its throughput gate, the ENGINE decision is re-taken under the same pre-committed rule below -- the sequence length is not lowered back to rescue the engine, because that would be choosing a corpus parameter to protect an implementation choice."
+  },
+  "corpus": "longmemeval-s",
+  "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+  "tokenizer": "BertTokenizer from the pinned models/all-MiniLM-L6-v2",
+  "turns": {
+    "n": 246750,
+    "mean": 223.48,
+    "max": 16666,
+    "percentiles": {
+      "50": 96,
+      "75": 380,
+      "90": 594,
+      "95": 667,
+      "99": 796,
+      "99.9": 1615
+    },
+    "truncation_rate": {
+      "128": 0.461848,
+      "192": 0.407566,
+      "256": 0.343262
+    },
+    "tokens_lost_fraction": {
+      "128": 0.618665,
+      "192": 0.494111,
+      "256": 0.386392
+    }
+  },
+  "queries": {
+    "n": 500,
+    "mean": 20.38,
+    "max": 68,
+    "percentiles": {
+      "50": 17,
+      "75": 23,
+      "90": 35,
+      "95": 41,
+      "99": 53,
+      "99.9": 66
+    },
+    "truncation_rate": {
+      "128": 0.0,
+      "192": 0.0,
+      "256": 0.0
+    },
+    "tokens_lost_fraction": {
+      "128": 0.0,
+      "192": 0.0,
+      "256": 0.0
+    }
+  },
+  "measured_at_128": {
+    "truncation_rate": 0.461848,
+    "tokens_lost_fraction": 0.618665,
+    "verdict": "principle falsified",
+    "action": "ONE pre-committed adjustment: the smallest of [192, 256] whose rate is <= 0.10, else 256 (the model's own configured maximum)."
+  },
+  "adjustment": {
+    "required": true,
+    "new_max_seq_len": 256,
+    "its_truncation_rate": 0.343262,
+    "note": "Determined by the pre-registered rule, not chosen here. Apply it deliberately in the Rust constant and re-run the engine gate: a longer sequence costs throughput, and the pre-registration says the ENGINE is re-decided rather than the length lowered back."
+  }
+}

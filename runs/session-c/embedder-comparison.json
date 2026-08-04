@@ -1,0 +1,78 @@
+{
+  "_what": "Gold-turn recall@k under pure cosine ranking, no gate and no fitted weights. Decides how the dense cue handles truncation.",
+  "_split": "FIT SPLIT ONLY. Choosing between candidate designs on the fit split is what a fit split is for; the held-out split is untouched.",
+  "_ram_note": "ADR-003's hot array is float32 x dimensions. 1 GB holds 651,041 entries at 384 dims, 488,281 at 512, 325,520 at 768.",
+  "cases": 42,
+  "configs": {
+    "minilm-truncate-128": {
+      "dimensions": 384,
+      "max_len": 128,
+      "window": null,
+      "stride": 0,
+      "texts_per_sec_single_call": 197.3,
+      "recall_at_k": {
+        "1": 0.3135,
+        "5": 0.6984,
+        "10": 0.869,
+        "20": 0.9127,
+        "50": 0.9524
+      },
+      "cases": 42
+    },
+    "minilm-truncate-256": {
+      "dimensions": 384,
+      "max_len": 256,
+      "window": null,
+      "stride": 0,
+      "texts_per_sec_single_call": 144.0,
+      "recall_at_k": {
+        "1": 0.3452,
+        "5": 0.7024,
+        "10": 0.8333,
+        "20": 0.9127,
+        "50": 0.9524
+      },
+      "cases": 42,
+      "texts_per_sec_per_core_single_threaded": 46.7,
+      "engine_gate_25_per_core": "PASS"
+    },
+    "minilm-chunk-256/192": {
+      "dimensions": 384,
+      "max_len": 256,
+      "window": 256,
+      "stride": 192,
+      "texts_per_sec_single_call": 92.3,
+      "recall_at_k": {
+        "1": 0.3095,
+        "5": 0.6905,
+        "10": 0.7937,
+        "20": 0.9127,
+        "50": 0.9524
+      },
+      "cases": 42,
+      "texts_per_sec_per_core_single_threaded": 23.9,
+      "engine_gate_25_per_core": "FAIL"
+    },
+    "jina-small-full-8192": {
+      "dimensions": 512,
+      "max_len": 8192,
+      "window": null,
+      "stride": 0,
+      "texts_per_sec_single_call": 61.9,
+      "recall_at_k": {
+        "1": 0.4524,
+        "5": 0.7698,
+        "10": 0.8849,
+        "20": 0.9683,
+        "50": 0.9683
+      },
+      "cases": 42,
+      "texts_per_sec_per_core_single_threaded": 17.1,
+      "engine_gate_25_per_core": "FAIL"
+    }
+  },
+  "_throughput_note": "texts_per_sec_single_call is multi-threaded Python ORT and is NOT comparable to the pre-committed gate. texts_per_sec_per_core_single_threaded is the like-for-like figure: intra/inter_op=1, sequential. It validates against the Rust spike -- minilm-truncate-256 measures 46.7/s here and 45.7/s in Rust ort, 2% apart.",
+  "_finding_truncation": "Within a FIXED model, seeing more of the turn does not improve retrieval. minilm at 128 / 256 / chunked covers 46% / 34% / 0% of turns truncated, and recall@1 goes 0.314 / 0.345 / 0.309 while recall@10 goes 0.869 / 0.833 / 0.794 -- flat, and not monotone in how much text reached the encoder. Truncation is therefore NOT the binding constraint, and the earlier claim that 'Number 2 would measure truncation' is not supported.",
+  "_finding_chunking": "Chunk-and-pool with max over windows LOSES on both axes: recall@1 0.309 vs 0.345 truncated, recall@10 0.794 vs 0.833, at 23.9 texts/s/core against a 25 gate. The mechanism is the precision risk predicted in advance -- a long turn gets more windows and therefore more chances for one to look relevant in isolation, so irrelevant long turns crowd out the gold turn. Rejected on measurement, not on argument.",
+  "_finding_model": "jina-embeddings-v2-small-en wins at every k (recall@1 0.452 vs 0.345, +31% relative; recall@20 0.968 vs 0.913) at 0.37x the throughput and 512 dims instead of 384. Because the truncation comparison above is flat, this is a MODEL-QUALITY win and cannot be attributed to its 8192-token window."
+}

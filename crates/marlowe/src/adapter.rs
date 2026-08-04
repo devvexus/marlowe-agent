@@ -18,6 +18,8 @@ use marlowe_contract::{
 };
 use marlowe_journal::{Journal, Profile};
 use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
+use marlowe_memory::cue::dense::embedder::Embedder;
+use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::retrieve::{debug_assert_injection_valid, select_for_injection, Scoring};
 use marlowe_memory::{ingest, BeliefStore};
 
@@ -39,6 +41,14 @@ enum Mode {
 pub struct Adapter {
     journal: Journal,
     beliefs: BeliefStore,
+    /// The dense cue's embedder and the vectors it has produced.
+    ///
+    /// Both live here rather than in `BeliefStore` because vectors are a **derived view** that
+    /// is never journaled — see `cue::dense::vectors`, which reuses ADR-009's reasoning: a
+    /// derived plaintext key stored beside the record survives crypto-shredding and does not
+    /// demote when the entry's fidelity does.
+    embedder: Embedder,
+    vectors: VectorStore,
     mode: Mode,
 }
 
@@ -58,28 +68,36 @@ impl Adapter {
     /// reads when the gate abstains and the wire therefore carries nothing.
     pub fn start(
         profile_root: &Path,
+        embedder: Embedder,
         dump_path: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
         let dump = dump_path.map(FeatureDump::create).transpose()?;
-        Self::start_with(profile_root, Mode::Gated(gate, dump))
+        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump))
     }
 
     /// Start in feature-dump mode. Used only by `tools/fit_gate.py`; loads no gate.
     pub fn start_for_fit(
         profile_root: &Path,
+        embedder: Embedder,
         dump_path: &Path,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::start_with(profile_root, Mode::FitDump(FeatureDump::create(dump_path)?))
+        Self::start_with(profile_root, embedder, Mode::FitDump(FeatureDump::create(dump_path)?))
     }
 
-    fn start_with(profile_root: &Path, mode: Mode) -> Result<Self, Box<dyn std::error::Error>> {
+    fn start_with(
+        profile_root: &Path,
+        embedder: Embedder,
+        mode: Mode,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
         let beliefs = BeliefStore::derive(&journal, profile.manifest().derivation_version)?;
         Ok(Self {
             journal,
             beliefs,
+            embedder,
+            vectors: VectorStore::default(),
             mode,
         })
     }
@@ -146,6 +164,19 @@ impl Adapter {
                 return ResponseFrame::error(Op::Ingest, ErrorKind::InternalError, e.to_string())
             }
         };
+
+        // Embed the newly written memories. **Batched deliberately**: one LongMemEval ingest is
+        // ~493 turns, and embedding them one at a time would serialize the run's dominant cost.
+        // Failure is a class B result rather than a panic -- the write already happened and the
+        // journal is the source of truth; a missing vector degrades the dense cue to 0.0 for
+        // that entry, which `retrieve::dense_for` reports honestly rather than hiding.
+        if let Err(e) = self.vectors.embed_missing(&self.beliefs, &mut self.embedder) {
+            return ResponseFrame::error(
+                Op::Ingest,
+                ErrorKind::InternalError,
+                format!("embedding the ingested memories failed: {e}"),
+            );
+        }
         let latency = stopwatch.stop().as_cost_ms();
 
         let response = IngestResponse {
@@ -193,6 +224,20 @@ impl Adapter {
         // and absent stages are omitted; splitting one measured span into two invented halves
         // would be worse than reporting the span honestly under the stage that dominates it.
         let cue_watch = Stopwatch::start();
+
+        // The query's own embedding -- one forward pass, and the whole per-query cost of the
+        // dense cue. On failure the cue degrades to 0.0 for every candidate rather than the
+        // request failing: retrieval that returns nothing is a worse answer than retrieval that
+        // returns what the lexical cue found, and `dense_for` scores a missing query vector as
+        // no evidence rather than skipping candidates.
+        let query_vector = match self.embedder.embed(&request.query_text) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                eprintln!("marlowe: query embedding failed, dense cue degraded to zero: {e}");
+                None
+            }
+        };
+
         let scoring = match &self.mode {
             Mode::Gated(gate, _) => Scoring::Gated(gate),
             Mode::FitDump(_) => Scoring::FitDump,
@@ -204,6 +249,8 @@ impl Adapter {
             request.clock.now_ms,
             request.budget.max_tokens,
             &scoring,
+            &self.vectors,
+            query_vector.as_deref(),
         );
         let cues_ms = cue_watch.stop().as_cost_ms();
         debug_assert_injection_valid(&selection.injected);

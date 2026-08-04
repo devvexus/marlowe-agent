@@ -1,80 +1,127 @@
 # State
 
-**Updated:** 2026-08-03 — M0b **Session B** built; the first LongMemEval number exists; HP1 amended
-**Current milestone:** M0b — Sessions A and B **complete**. Next is the second cue.
+**Updated:** 2026-08-04 — M0b **Session C** built; the dense cue ships and the bottleneck is now
+located
+**Current milestone:** M0b — Sessions A, B and C **complete**. Next is the fusion, not cue 3.
 
 ## Next action
 
-**Add the dense cue (ADR-004's local ONNX embedder), then re-fit.** This is what Session B's
-numbers point at, and the reasoning is short:
+**Fix the fusion. Do not scope cue 3 yet.** `runs/session-c/cue-overlap.json` measured the
+question directly and the answer changed the plan:
 
-- The frozen gate's isotonic curve **tops out at 0.309 predicted precision**. The operating
-  point is 0.95. **There is no score region where one lexical cue can clear K1**, so the gate
-  abstains on every query — see *The first number* below.
-- Held-out precision at the curve's top block is **0.334 at 0.453 coverage**, which is the
-  pre-registered "functioning, cue set incomplete" band. The cue works; four of five are missing.
-- Latency has enormous headroom: **P95 24 ms against a 300 ms budget**. A dense cue plus an ANN
-  index fits inside it comfortably.
+- The lexical and dense cues are **complementary, not redundant** — per-case Spearman ρ 0.233,
+  and at top-1 lexical finds gold dense misses in 20.9% of cases while dense finds gold lexical
+  misses in 10.4%. The union reaches 0.652 against 0.548 for the better single cue.
+- **The fitted gate reaches 0.496 at top-1 — worse than lexical alone.** Rank fusion scores
+  identically, so this is not an artifact of the cues' score scales. The operating point lives in
+  the top-1 regime, which is exactly where the combiner is worse than its better input.
+- That explains the headline: a materially better cue was added, and max calibrated precision
+  moved **0.309 → 0.3176**. The information is in the cues; the combiner discards it.
 
-**Do not lower the threshold, and do not re-tune the calibration resolution.** HP1 freezes the
-operating point, ROADMAP M10 is the only milestone permitted to move one, and the roadmap says
-in as many words that adaptivity is not the remedy for a missed K1. The blocks-per-curve choice
-(256, equal-count) was fixed on a stated principle *before* the fit precisely so it could not
-become a back-door threshold knob — finer top-end buckets would raise the reachable maximum.
+**The next experiment is one session and has a measured ceiling.** A fusion that cannot score
+below its best input — max over per-cue calibrated precisions, or a combination fit on rank
+features rather than raw scores — measured against the same Number 2 read rule and the same
+frozen threshold. The oracle bound says the headroom is **+0.157 at top-1**.
 
-**Do not adjust the maturation window.** Unchanged from Session A, and now under a second kind
-of pressure — see *Open gaps*.
+**Two conditions are PRE-COMMITTED for the fusion session now, before any fusion exists.**
+Copy them verbatim into that session's `PREREGISTRATION.json`; they are maximally credible
+precisely because they were fixed while the number they judge could not be known.
 
-**Re-fit deliberately when the cue set changes.** `cue_agreement` is pinned to zero *by
-declaration*, not by variance, and that pin is a statement about a one-cue system. It stops
-being free the moment the second cue lands.
+1. **Floor condition — a hard condition, not a band.** *Any fusion must score at or above its
+   best single input at the operating point.* A combiner that can fall below `max(cues)` is
+   broken regardless of what it does elsewhere. Session C's gate scores **0.496 at top-1 against
+   lexical's 0.548** and therefore fails this floor today. If the new fusion still lands under
+   **0.548 at top-1**, it **fails outright**, and the finding is that *linear-score fusion is the
+   wrong shape* — not that the parameters need tuning.
 
-**Two things to do the moment the gate starts injecting again, in this order:**
+2. **The oracle bound is the read.** The either-cue union reaches **0.652 at top-1**, so the
+   ceiling on this work is **+0.157**. Report **the fraction of that gap closed**, not the
+   absolute number alone. It is the only way to tell "the fusion improved" from "the fusion is
+   now doing what it can" — an absolute gain of +0.05 means very different things at 30% and 90%
+   of the reachable headroom.
 
-1. **Run `conformance` before reading any quality number.** That is the run in which §4.3
-   maturation becomes verifiable through the contract again, and it closes the open gap below.
-   A silent failure there would mean the defence was lost during the cue work with nothing
-   observing it.
-2. **Record the calibration generalization pair** — fit-split prediction vs. held-out
-   measurement. See *Standing checks*. It is invisible in every other number.
+**A third cue is not ruled out and is not next.** 34.8% of cases still have no gold in either
+cue's top-1, which is real headroom that content-similarity cues do not reach. But adding a cue
+to a combiner that already degrades its best input would most likely reproduce this result.
 
-**Amended this session:** `DECISIONS.md` **HP1** gains *The fit/report split* — HP1 said the
-weights are fit on benchmark gold evidence and never said what they are then reported against,
-which is train-on-test read literally. The amendment pins a pre-registered, category-stratified
-split and the rule that the held-out figure is the headline. It also records the two ways a
-coefficient can be meaningless, because the first fit produced one of each.
+**Do not lower the threshold and do not re-tune the calibration resolution.** Unchanged from
+Session B, and now under a second session's worth of pressure.
 
-## The first number
+**Read the COLD retrieval latency, not the warm one.** See *Known issues*.
 
-**Everything below was pre-registered in `runs/session-b/PREREGISTRATION.json` before the gate
-was fit.** Bands, budget conditions, the degenerate-pass guard, and the poisoning vacuity
-prediction were all written first; none was edited after a number existed. Full write-up in
-`runs/session-b/RESULT.md`.
+## The numbers
 
-| | Pre-registered | Measured |
+**Pre-registered in `runs/session-c/PREREGISTRATION.json` and `PREREGISTRATION-model.json`
+before the fit.** Full write-up in `runs/session-c/RESULT.md`.
+
+| | Session B | Session C |
 |---|---|---|
-| **Number 1** — operating point at frozen 0.95 | *no band, by design* | **gate abstained on all 249 held-out cases.** 0 injections, coverage 0.000 |
-| **Number 2** — cue capability | 0.20–0.50 → "functioning, cue set incomplete" | **0.334** at cut 0.309, coverage 0.453 |
-| Retrieval P95 ≤ 300 ms | void the numbers if missed | **pass, 24 ms** |
-| Injections on abstention cases ≤ 0.20 | | pass, 0.000 — **vacuously** |
-| Degenerate-pass guard (coverage < 0.05) | | **triggered** |
+| **Number 1** @ frozen 0.95 | abstained on all 249 | **abstained on all 249** |
+| **Number 2** cue capability | 0.334 @ cut 0.309, cov 0.453 | **0.371 @ cut 0.3176, cov 0.504** |
+| verdict vs that session's bands | functioning, cue set incomplete | **"dense adds nothing measurable"** |
+| max calibrated precision | 0.309 | **0.3176** |
+| retrieval P95 (≤300 ms) | 24 ms | **36 ms cold** / 24 ms warm |
+| abstention injections ≤0.20 | 0.000, vacuous | 0.000, **vacuous** |
+| degenerate-pass guard | triggered | **triggered** |
 
-**Number 1 in one line: the calibration's maximum predicted precision is 0.309 and the frozen
-threshold is 0.95, so nothing can clear it.** That is a result about an incomplete cue set, not
-a defect, and it is the outcome the pre-registration named as anticipated.
+**Number 2's band was applied as written and its verdict stands.** The read rule fixes a
+coverage *floor*, not realised coverage, so it cannot express that precision and coverage both
+rose (0.334 @ 0.453 → 0.371 @ 0.504). Recorded as a limitation of the rule in
+`PREREGISTRATION-model.json`, explicitly **not** as grounds to reinterpret the band. A
+matched-coverage statistic must be pre-registered before a future fit, not substituted after.
 
-**`evidence_precision` reads 0.0 on both splits and the value is vacuous** — an empty
-denominator. It means *nothing was injected*, not *the injections were wrong*. `summary.json`
-carries that on the value itself, next to the contamination label on the all-500 figure.
+**Number 3 — per cue, alone:** lexical 0.418 precision @ 0.261 coverage; dense 0.298 @ 0.282.
+The pre-registered "embedder is suspect" reading fired, and **both named checks came back
+clean** — pooling agrees with the maintainer's own pooled graph to 1.08e-7, and truncation is
+0.002% at `MAX_SEQ_LEN` 8192. Raised by the pre-registration, discharged by the evidence it
+named.
 
-**A calibration check worth keeping.** The fit predicted 0.309 for its top block on the fit
-split; that block measured **0.334 on the held-out split**. The curve generalizes and is
-slightly conservative — which is the thing the split exists to be able to say at all.
+**Calibration generalization pair** (standing check): predicted **0.3176** on the fit split,
+measured **0.371** held-out — above prediction, same conservative direction as Session B's
+0.309 → 0.334. The failure rule (held-out >0.05 *below* prediction) did not fire.
 
-**The token-budget half of the budget condition is vacuous this run** (max 0 tokens, because
-nothing was injected). Only the latency half carries information.
+**The bottleneck is the fusion, and it is measured.** See *Next action*. `cue-overlap.json`:
+ρ 0.233, oracle union 0.652 at top-1, fitted gate 0.496 — **below lexical alone at 0.548**.
+**This is why cue 3 was deferred**: three more cues fed to a combiner that degrades its best
+input would have reproduced this result three more times.
+
+**The embedding cache, against its pre-registered condition.** ADR-004's model choice was made
+*conditional* on the cache, so this is a condition and not a statistic:
+
+| | Registered | Measured |
+|---|---|---|
+| embeddings per full cycle | 493,500 | 493,500 (exact, from the split) |
+| first cycle | 71.3 min projected | **~80 min** |
+| second cycle | "~0, cache hits only" | **12.3 min** (740 s) |
+| **two cycles ≤ 90 min** | condition | **pass — 12.3 min for the second, 190,025 vectors reused** |
+
+The first cycle ran ~12% over projection and the pair still clears the budget comfortably. The
+projection is recorded as having been optimistic rather than left standing as if confirmed.
 
 ## Built
+
+**M0b Session C** — the dense cue. **125 tests passing** (`cargo test --workspace`), up from 88.
+`eval/` **unchanged, zero lines**, its suite still printing 72.
+
+- **`cue/dense/`** — `tokenizer.rs` (hand-rolled BERT WordPiece, checked against HuggingFace on
+  41 hazard cases with **no tolerance on an integer**), `embedder.rs` (ort 2.0.0-rc.10, threads
+  pinned to 1, digests verified at **load** as well as download), `cache.rs`, `vectors.rs`.
+- **Model: `jinaai/jina-embeddings-v2-small-en`**, 512-dim, 8192-token ALiBi — **not** ADR-004's
+  original all-MiniLM-L6-v2/384. Chosen on measured recall (0.452 vs 0.345 R@1 on the fit split)
+  under a **new pre-registered condition** scoped to the model decision, because the engine gate
+  was written where quality was constant and cannot adjudicate a quality-for-throughput trade.
+  The engine gate stands unmodified and unmet; it was **replaced for this decision, not
+  overridden**.
+- **The embedding cache is load-bearing for that model choice**, not an optimization — second
+  full cycle **12.3 min** against ~80 min cold, 190,025 vectors. Its byte-identity test is a
+  standing check.
+- **Feature vector v2 / `frozen-v2`** — gained `dense_cosine`; `cue_agreement` renamed
+  `cue_agreement_2cue` so the *semantics* change is a load-time refusal by existing machinery.
+  Denominator in the name, so cue 3 forces the same refusal again.
+- **`tools/`** — `fetch_model.py`, `make_embedding_fixtures.py`, `measure_truncation.py`,
+  `compare_embedders.py`, `analyze_cue_overlap.py`, `preregister_session_c.py`.
+- Spike record: `docs/design/spike-2026-08-04-embedder.md`. ADR-004 amended to name both runtime
+  and model.
 
 **M0b Session B** — the lexical cue and the frozen gate. **88 tests passing**
 (`cargo test --workspace`), up from 49. `eval/` **unchanged, zero lines** — verified by
@@ -260,6 +307,36 @@ re-run `conformance` first — before reading any quality number — because tha
 which the maturation defence becomes verifiable again, and a silent failure there would mean the
 defence was lost at some point during the cue work with nothing observing it.
 
+### The exported ONNX weights are not independently validated against the published model
+
+**Closing condition: a maintained load path for `jinaai/jina-embeddings-v2-small-en` that does
+not go through `transformers.onnx`, or an alternative authority for the same weights.** Either
+closes it; nothing else does.
+
+**What is uncovered.** `tests/embedding_reference.rs` checks the Rust embedder against
+`tests/fixtures/embedding-reference.json`, which is generated by **Python onnxruntime on the same
+pinned `model.onnx`**. That validates everything our code does *around* the graph — tokenization,
+masking, mean pooling, L2 normalization — in a second language with different arithmetic. It does
+**not** validate that the exported weights in `models/` match the published PyTorch model. If the
+ONNX export were subtly wrong, every check in this repo would stay green.
+
+**Why it is uncovered, and it is not laziness.** Session B's equivalent check existed: for
+all-MiniLM-L6-v2 the export was verified against the `sentence-transformers` pipeline at
+**2.35e-7 max abs**. jina-v2 ships a custom BERT whose remote code does `from transformers.onnx
+import OnnxConfig`, and `transformers.onnx` was removed in transformers 5.x — so the published
+pipeline cannot be loaded in this environment at all. The authority is gone, not skipped.
+
+**What partly substitutes, and what it does not cover.** The maintainer's own
+`model-w-mean-pooling.onnx` compiles the pooling into the graph, and our hand-written pooling
+agrees with it to **1.08e-7**. On the highest-risk component — a wrong mask convention or a
+CLS-pooling mistake still yields a unit vector that scores and ranks — that is a *better*
+instrument than the end-to-end comparison it replaces. But it shares the same exported weights,
+so it cannot detect a bad export. Two graphs from one export agreeing proves consistency, not
+fidelity.
+
+**Do not close this by regenerating the fixture from Rust.** That would make the reference and
+the implementation the same artifact, which is the failure the fixture exists to prevent.
+
 ## Standing checks — re-run these on every cue addition
 
 - **Calibration generalization: fit-split prediction vs. held-out measurement.** Session B:
@@ -276,6 +353,21 @@ defence was lost at some point during the cue work with nothing observing it.
 
   The comparison is the top block's predicted precision (`max` of `isotonic_breakpoints` in the
   artifact) against `number_2_cue_capability.value` in `runs/<session>/summary.json`.
+
+- **The embedding cache's byte-identity test — a cache hit and a cache miss must produce
+  byte-identical vectors.** This is a **project-level dependency, not a component test**, and
+  belongs here rather than beside the cache code.
+
+  *Why it is load-bearing.* ADR-004's model choice is *conditional on the cache*. jina-v2-small
+  needs 142.5 minutes of embedding for two full fit-and-score cycles against a pre-registered
+  90-minute budget, and only the cache brings that to 71.3 (`PREREGISTRATION-model.json`). If the
+  cache is wrong, the model choice was not licensed — and a wrong cache does not fail loudly: it
+  serves a stale vector that still scores, still ranks, and still produces a number.
+
+  **Re-run it whenever the model, the tokenizer, the embedder version, or `MAX_SEQ_LEN` changes
+  — not only when the cache code changes.** Those are the inputs to the cache key, and a key that
+  stops covering an input is exactly how a stale vector survives a model swap. The pre-registered
+  branch if it fails is to revert to all-MiniLM-L6-v2, not to weaken the budget.
 
 - **`cargo test --workspace`, and `cd eval && python -m pytest` printing 72 unchanged.** A
   changed eval count means the scoreboard was modified.
@@ -319,6 +411,17 @@ defence was lost at some point during the cue work with nothing observing it.
   its derived trust is actually read; a good gate suppresses the injection and turns the
   assertion back into a silent pass. Verifying trust propagation before there is a gate is the
   only time it is cheap to verify properly.
+
+- **A warm embedding cache makes the reported retrieval P95 unrepresentative. Read the COLD
+  number.** The same held-out run measured **36 ms cold and 24 ms warm**, because a cache hit
+  removes the query's forward pass from the timed span. Both clear §5.7's 300 ms, so nothing is
+  at risk today — and the pattern is the dangerous one, because a future cue set could report a
+  passing budget on a warm cache that a cold run would fail. `runs/session-c/RESULT.md` quotes
+  36 ms.
+
+  **Do not "fix" this by excluding the embedding from the timed span** — it is a real per-query
+  cost that a user pays on a cold profile. The fix, when it matters, is to report the budget
+  from a cache-cold run and say so.
 
 - **`retrieval_tokens` is a pessimistic estimate, not a token count.** No tokenizer exists yet
   (ADR-004's model is unwired), so `retrieve.rs` uses 3 chars/token — deliberately *over*-

@@ -1,0 +1,16 @@
+[package]
+name = "marlowe-embed-spike"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TEMPORARY. Measures tract vs ort against the pre-committed engine gate. Deleted once the choice is made; the loser's dependency goes with it."
+publish = false
+
+[dependencies]
+marlowe-memory.workspace = true
+serde_json.workspace = true
+
+# Both candidates, together, ONLY in this crate. Neither reaches marlowe-memory until the
+# gate in runs/session-c/PREREGISTRATION.json has been measured and applied.
+tract-onnx = "0.23"
+ort = { version = "=2.0.0-rc.10", features = ["download-binaries"] }

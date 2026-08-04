@@ -1,0 +1,107 @@
+{
+  "session": "M0b Session C",
+  "what_this_is": "A NEW pre-registered condition, scoped to the MODEL decision. It replaces the engine gate for this decision rather than overriding it.",
+  "why_a_new_condition_instead_of_applying_the_old_one": {
+    "the_old_gate": ">= 25 texts/s per core, from runs/session-c/PREREGISTRATION.json engine_gate.throughput",
+    "what_it_was_scoped_to": "Choosing between tract and ort, which produce the SAME vectors -- both reproduced the reference within 3.42e-7 and 2.68e-7 respectively. With quality identical on both sides, throughput was the only axis, and a per-core rate was a sufficient proxy for it.",
+    "why_it_cannot_adjudicate_this_decision": "The model decision trades quality AGAINST throughput: jina-embeddings-v2-small-en measures recall@1 0.452 against all-MiniLM-L6-v2's 0.345 on the fit split, at 0.37x the per-core rate. A threshold written where quality was constant has nothing to say about a trade where it is not. Applying it anyway would be using a number outside the question it was derived for.",
+    "why_replace_rather_than_override": "A pre-commitment that is set aside the first time it blocks something desirable is advisory, not a commitment. This project's thresholds have held twice under real pressure -- tract failed by 13% and was not re-tuned, and the gate abstained on every query at 0.309 and was not lowered -- and they hold because nothing has been overridden once. So the engine gate stands, unmodified and unmet by jina, and a separate condition is derived here for the separate decision.",
+    "the_engine_gate_is_not_retired": "It still governs engine choice. If the runtime is ever revisited (see docs/design/spike-2026-08-04-embedder.md), 25 texts/s/core is still the bar, measured at whatever MAX_SEQ_LEN and model are current."
+  },
+  "derivation": {
+    "the_constraint": "The same one that produced the 25/s figure, stated in the engine gate's own `why_25`: a full fit-and-score cycle must be runnable TWICE in a session. Not for comfort -- if a suspicious number cannot be re-measured the same day, the investigation slips to the next session and the context that made it suspicious is gone.",
+    "embeddings_per_full_cycle": {
+      "value": 493500,
+      "how": "MEASURED from tools/split.json against the corpus, not estimated. fit split 123,809 turns + held-out split 122,941 + all-500 246,750. Plus 1,000 query embeddings, which are negligible.",
+      "why_three_passes": "tools/fit_gate.py drives the fit split; tools/score_longmemeval.py scores held-out and all-500."
+    },
+    "budget": {
+      "condition": "two consecutive full cycles complete their embedding work in <= 90 minutes",
+      "why_90": "A re-fit that cannot be repeated inside a working afternoon will not be repeated that day. 90 minutes is the point at which the second attempt stops being something you wait for and becomes something you schedule.",
+      "required_aggregate_throughput": "2 x 493,500 / (90 x 60) = 183 texts/s"
+    },
+    "honesty_about_the_ordering": "This condition is written AFTER jina's throughput was measured, and it cannot claim the 90-minute budget was chosen blind to that number. What it does claim, and what carries the weight: the budget is derived from the same constraint that produced the original 25/s figure, and the remedy for failing it -- the content-addressed embedding cache -- was specified in Phase 2 of the plan BEFORE any of this was measured. The remedy is not being invented to rescue a preferred model."
+  },
+  "measured": {
+    "_method": "onnxruntime, intra_op=1, inter_op=1, sequential, one session per worker, on the 1,000-turn corpus sample. Validated against the Rust spike: all-MiniLM-L6-v2 measures 46.7 texts/s/core here and 45.7 in Rust ort, 2% apart.",
+    "all-MiniLM-L6-v2": {
+      "per_core": 47.6,
+      "aggregate_16_workers": 262.1,
+      "scaling_at_16": "5.51x",
+      "one_cycle_minutes": 31.4,
+      "two_cycles_minutes": 62.7,
+      "verdict": "PASSES uncached"
+    },
+    "jina-embeddings-v2-small-en": {
+      "per_core": 20.1,
+      "aggregate_16_workers": 115.4,
+      "scaling_at_16": "5.74x",
+      "one_cycle_minutes": 71.3,
+      "two_cycles_minutes": 142.5,
+      "verdict": "FAILS uncached -- 142.5 minutes against a 90-minute budget"
+    }
+  },
+  "the_remedy_is_the_cache_not_a_weaker_model": {
+    "specified_where": "Phase 2 of the approved plan, conditionally, before any model comparison existed",
+    "mechanism": "An embedding is a pure function of (model digest, tokenizer digest, embedder version, MAX_SEQ_LEN, text). A content-addressed cache keyed on exactly those makes the SECOND cycle cost approximately zero, because every text it needs was embedded by the first.",
+    "cache_key": "sha256(model_sha256 || vocab_sha256 || embedder_version || MAX_SEQ_LEN || text)",
+    "why_that_key_and_not_just_the_text": "Every input that can change the output is in the key. A key of text alone would silently serve MiniLM vectors to a jina build -- which would still score, still rank, and still produce a number. That is this project's unobservable-mismatch pattern applied to a cache.",
+    "projected_with_cache": {
+      "first_cycle_minutes": 71.3,
+      "second_cycle_minutes": "~0, cache hits only",
+      "two_cycles_minutes": 71.3,
+      "verdict": "PASSES, at 79% of the 90-minute budget"
+    },
+    "required_test": "A cache hit and a cache miss must produce BYTE-IDENTICAL vectors, asserted by test. Without it the cache is a second implementation of the embedder with nothing comparing the two.",
+    "the_cache_must_not_live_in_the_profile_root": "--profile-root is required to be empty on every spawn, and the harness spawns one process per corpus plus four for the clock probe. A cache there would be cold every time and would prove nothing.",
+    "what_would_invalidate_this": "If the cache does not in fact make the second cycle free -- for example if cache lookup costs more than it saves on short texts -- then jina fails this condition and the decision returns to all-MiniLM-L6-v2. The cache is load-bearing for the model choice and is not optional."
+  },
+  "decision": {
+    "adopt": "jinaai/jina-embeddings-v2-small-en",
+    "conditional_on": "the embedding cache landing and passing its byte-identity test, measured before the fit",
+    "if_the_cache_fails": "revert to all-MiniLM-L6-v2 at MAX_SEQ_LEN 256. Recorded here so that outcome is a pre-registered branch rather than a fresh argument.",
+    "engine": "ort 2.0.0-rc.10, unchanged -- the engine decision is independent of the model and its gate was met on its own terms"
+  },
+  "what_must_be_re_established_not_assumed": [
+    "The determinism table. tract and ort were both bit-identical across calls, spawns and worker counts ON all-MiniLM-L6-v2. jina is a different graph -- ALiBi attention rather than learned position embeddings -- and determinism is a property of the graph and the kernels it dispatches, not of the engine alone. Re-measured, not inherited.",
+    "The reference fixtures. Regenerated from the sentence-transformers pipeline for the new model; the old ones describe a model this build no longer uses.",
+    "VOCAB_SIZE 30522 -> 30528, and DIMENSIONS 384 -> 512.",
+    "The ONNX export faithfulness number, which sets the Rust-vs-reference tolerance floor."
+  ],
+  "findings_that_must_survive_into_the_write_up": {
+    "the_truncation_premise_was_wrong": "Stated plainly and not softened. Both the operator and the agent reasoned that 38.64% of word pieces never reaching the embedder meant Number 2 would substantially measure truncation. Neither had data. The measurement contradicts it: within a FIXED model, turns truncated at 46% / 34% / 0% (MiniLM at 128, at 256, and chunked) give recall@1 of 0.314 / 0.345 / 0.309 and recall@10 of 0.869 / 0.833 / 0.794 -- flat, and not monotone in how much text reached the encoder. The first 256 word pieces carry essentially all the retrievable signal despite being only 61% of the tokens. This is a wrong call caught by measurement, not a near-miss.",
+    "jinas_win_is_model_quality_not_window_length": "Because the truncation comparison above is flat, the 8192-token context window is NOT what bought the +31% relative recall@1. A later session must not read 'longer context helped' from this record. What helped is that jina-v2-small is a better embedder for this task at 4 layers and 512 dimensions.",
+    "chunking_was_rejected_on_measurement": "Chunk-and-pool with max over windows lost on BOTH axes: recall@1 0.309 against 0.345 truncated, and 23.9 texts/s/core against the then-current 25 gate. The mechanism was predicted in advance -- a long turn gets more windows and therefore more chances for one to look relevant in isolation, so irrelevant long turns crowd the gold turn out of the top ranks. Recorded so the alternative reads as considered rather than skipped.",
+    "the_precision_risk_no_longer_applies": "The warning to check chunking before blaming the embedder if Number 2 came back with high coverage and low precision is now moot, because chunking is not shipping. Kept in the record because the reasoning stands if chunking is ever revisited.",
+    "invented_digests_were_caught_by_a_load_time_refusal": "tools/fetch_model.py was first written with three invented sha256 digests. The refusal caught all three, and one of them was correct by coincidence -- which is the argument for load-time refusals in one sentence: there is no way to tell a right guess from a wrong one without checking."
+  },
+  "ram_note_for_the_ann_session": {
+    "int8_settles_it": "ADR-004 already mandates int8 in the hot array precisely because float32 does not fit the VPS target. At int8, 512 dimensions holds ~1.95M entries per GB against 384's ~2.6M -- both far above any realistic profile, so the dimension increase does not bind.",
+    "what_does_get_tighter": "The retained exact-search f32 path, which ROADMAP requires permanently as ANN validation ground truth, is 0.75x as dense per GB at 512 dimensions: ~488,281 entries per GB against ~651,041 at 384. The ANN session inherits a tighter float32 ground-truth budget and should size its Tier-C validation points accordingly."
+  },
+  "confirmation_addendum_2026_08_04": {
+    "_what": "Added AFTER the conditions above were written. The `measured` block is left exactly as it was; this records the Rust-side confirmation rather than editing the numbers the decision was taken on.",
+    "rust_ort_on_jina": {
+      "per_core": 22.4,
+      "vs_python_measurement": "20.1 -- 11% apart, and the decision is robust to the difference",
+      "one_cycle_minutes_at_16_workers": 64.0,
+      "two_cycles_uncached_minutes": 128.0,
+      "verdict": "still FAILS the 90-minute pair budget uncached; still PASSES with the cache"
+    },
+    "engine_ordering_holds_on_the_new_model": "The engine was chosen on all-MiniLM-L6-v2 and the model then changed, so the ordering was re-measured rather than assumed: on jina, ort 22.4 texts/s/core against tract 13.7. ort remains 1.63x faster and the engine decision stands. Note BOTH engines fail the 25/s engine gate on this model -- which is expected and is precisely why the model decision needed its own condition.",
+    "determinism_re_established_on_the_new_graph": {
+      "_why_it_could_not_be_inherited": "jina-v2 uses ALiBi attention rather than learned position embeddings. Determinism is a property of the graph and the kernels it dispatches, not of the engine alone.",
+      "tract": "identical across 2 spawns and worker counts 1/2/8 (925dd7721951e902)",
+      "ort": "identical across 2 spawns and worker counts 1/2/8 (da3d27c3f124ab03)"
+    },
+    "onnx_runtime_version_sensitivity_quantified": "The same graph under ONNX Runtime 1.22.0 (bundled by ort-sys, Rust) and 1.24.2 (Python) differs by 2.75e-6 max abs. Small, non-zero, and exactly why the version is pinned rather than tracked. On all-MiniLM-L6-v2 the same comparison was 2.68e-7.",
+    "pooling_cross_check": "The sentence-transformers authority was LOST for this model: jina-v2's remote code imports transformers.onnx, removed in transformers 5.x. Substituted the maintainer's own model-w-mean-pooling.onnx, which compiles the pooling into the graph -- our hand-written pooling agrees to 1.08e-7 max abs. On the highest-risk component this is a better instrument than the end-to-end comparison it replaces, but it does NOT check the exported weights against the published PyTorch model, and that check is genuinely gone."
+  },
+  "read_rule_limitation_recorded_after_the_result": {
+    "_status": "A LIMITATION OF THE READ RULE, recorded after seeing the result and explicitly NOT a reason to reinterpret the band. The test was pre-registered, it was applied as written, and its verdict stands: 0.371 falls in 0.29 <= p < 0.39, 'dense adds nothing measurable'.",
+    "what_the_rule_does": "Number 2 reads precision at the MOST SELECTIVE cut whose coverage still reaches 0.25. The coverage floor is fixed; the cut and the realised coverage are not.",
+    "what_that_hides": "Session B read at cut 0.309 with coverage 0.453 and precision 0.334. Session C read at cut 0.3176 with coverage 0.504 and precision 0.371. BOTH moved up -- the two sessions are not compared at matched coverage, so a single scalar cannot express that the cue found more gold AND was more precise about it. 'Adds nothing measurable' is the correct verdict of the pre-registered test and it understates the movement.",
+    "why_this_is_not_a_reason_to_rescore": "A read rule changed after seeing the number it produced is not a read rule. The rule was chosen in Session B to isolate cue capability from where the frozen operating point sits, and it did that in both sessions. A matched-coverage comparison is a DIFFERENT statistic and would have to be pre-registered before the next fit, not substituted now.",
+    "what_a_later_session_should_pre_register_instead": "Precision at matched coverage -- read both sessions at the same realised coverage, not the same coverage floor -- reported BESIDE the existing Number 2 rather than replacing it, so the series stays comparable across sessions."
+  }
+}

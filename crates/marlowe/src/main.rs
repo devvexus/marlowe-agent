@@ -12,7 +12,9 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
-marlowe --eval-adapter --profile-root <DIR> [--dump-gate-features <FILE>] [--fit-mode]
+marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR>
+        [--embedding-cache <DIR>] [--embedder-workers <N>]
+        [--dump-gate-features <FILE>] [--fit-mode]
 
   Speak CONTRACTS.md section 4 over NDJSON on stdin/stdout.
 
@@ -20,6 +22,21 @@ marlowe --eval-adapter --profile-root <DIR> [--dump-gate-features <FILE>] [--fit
                                 required to be empty: the harness spawns one process per corpus
                                 and four more for the clock probe, and each must start from
                                 empty state.
+
+  --embedder-model <DIR>        ADR-004's embedding model. Required, no default. The files are
+                                verified against digests pinned in the binary, so a swapped or
+                                partial model is a refusal rather than a quietly different
+                                number. Fetch with `python tools/fetch_model.py`.
+
+  --embedding-cache <DIR>       Content-addressed embedding cache, keyed on the model and
+                                vocabulary digests, the embedder version and the sequence
+                                length. Optional. NOT inside --profile-root, which is required
+                                to be empty per spawn and would make the cache cold every time.
+
+  --embedder-workers <N>        Forward passes to run concurrently. A throughput knob and
+                                provably NOT a quality knob: each text is embedded entirely
+                                within one worker, asserted bit-for-bit at 1/3/8 workers.
+                                Default: available parallelism, capped at 8.
 
   --dump-gate-features <FILE>   Write one NDJSON row per SCORED CANDIDATE to FILE. A diagnostic
                                 side channel: it never changes what goes on the wire. With a
@@ -30,7 +47,7 @@ marlowe --eval-adapter --profile-root <DIR> [--dump-gate-features <FILE>] [--fit
 
   --fit-mode                    Load NO gate. Used only by `tools/fit_gate.py`, to produce the
                                 features the gate is fit from before any gate exists. The gate
-                                stamp reads `uncalibrated-fit-only`, never `frozen-v1`: this
+                                stamp reads `uncalibrated-fit-only`, never `frozen-v2`: this
                                 mode calibrates nothing and must not be mistakable for a run
                                 that did. Requires --dump-gate-features.
 ";
@@ -70,8 +87,46 @@ fn main() {
     let dump_path = flag_value(&args, "--dump-gate-features").map(std::path::Path::new);
     let fit_mode = args.iter().any(|a| a == "--fit-mode");
 
+    // Required, with no default, for the same reason --profile-root is: a default path here
+    // would let a run silently pick up whatever model happened to be lying around, and a
+    // different model still embeds, still scores, and still produces a number.
+    let embedder_model = match flag_value(&args, "--embedder-model") {
+        Some(v) => PathBuf::from(v),
+        None => {
+            eprintln!("{USAGE}");
+            eprintln!(
+                "error: --embedder-model is required and has no default. Fetch it with `python tools/fetch_model.py`."
+            );
+            std::process::exit(2);
+        }
+    };
+    let cache_dir = flag_value(&args, "--embedding-cache").map(PathBuf::from);
+    let workers = match flag_value(&args, "--embedder-workers") {
+        Some(v) => match v.parse::<usize>() {
+            Ok(n) if n >= 1 => n,
+            _ => {
+                eprintln!("{USAGE}");
+                eprintln!("error: --embedder-workers must be a positive integer, got {v:?}.");
+                std::process::exit(2);
+            }
+        },
+        None => std::thread::available_parallelism().map_or(1, |n| n.get().min(8)),
+    };
+
+    let embedder = match marlowe_memory::cue::dense::embedder::Embedder::load(
+        &embedder_model,
+        workers,
+        cache_dir.as_deref(),
+    ) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("marlowe: {e}");
+            std::process::exit(1);
+        }
+    };
+
     let started = match (fit_mode, dump_path) {
-        (true, Some(path)) => adapter::Adapter::start_for_fit(&profile_root, path),
+        (true, Some(path)) => adapter::Adapter::start_for_fit(&profile_root, embedder, path),
         (true, None) => {
             eprintln!("{USAGE}");
             // Refused rather than defaulted to a path. Fit mode with nowhere to write is a run
@@ -79,7 +134,7 @@ fn main() {
             eprintln!("error: --fit-mode requires --dump-gate-features.");
             std::process::exit(2);
         }
-        (false, path) => adapter::Adapter::start(&profile_root, path),
+        (false, path) => adapter::Adapter::start(&profile_root, embedder, path),
     };
 
     let mut adapter = match started {

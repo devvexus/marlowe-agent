@@ -1,0 +1,12 @@
+scoring heldout (249 cases) ...
+  -> runs\session-c\heldout
+scoring all (500 cases) ...
+  -> runs\session-c\all
+
+headline (held-out, n=249): 0.0
+all-500 (CONTAMINATED):                0.0
+Number 1 @ frozen 0.95: precision=None coverage=0.0
+Number 2 cue capability: {'value': 0.371429, 'read_at_cut': 0.317597, 'coverage_there': 0.504274, 'verdict': 'dense adds nothing measurable', 'bands_applied': ['precision >= 0.50 -> dense cue working', '0.39 <= precision < 0.50 -> dense contributing, cue set still incomplete', '0.29 <= precision < 0.39 -> dense adds nothing measurable', 'precision < 0.29 -> regression -- the dense cue is hurting'], 'band_source': 'runs/session-c/PREREGISTRATION.json, written before the fit'}
+Number 3 per-cue: {'_what': 'Each cue swept ALONE at the same read rule as Number 2. Driver-side; no second fit and no second artifact.', 'lexical_bm25_alone': {'cut': 0.7535, 'precision': 0.418182, 'coverage': 0.260684, 'gold': 69, 'distractor': 96}, 'dense_cosine_alone': {'cut': 0.846, 'precision': 0.298387, 'coverage': 0.282051, 'gold': 74, 'distractor': 174}, 'reading': 'dense is WEAKER than lexical alone. If Number 2 also failed to improve, the embedder is suspect -- check pooling and normalization against the committed reference vectors first, then the truncation rate.', 'band_source': 'runs/session-c/PREREGISTRATION.json number_3, written before the fit'}
+budget: {'passes': True, 'retrieval_p95_ms': 24.0, 'p95_budget_ms': 300, 'retrieval_tokens_max': 0, 'cases_over_token_budget': 0, 'token_budget': 7000, 'source': 'harness report.json cost block, not recomputed', 'if_violated': 'the precision numbers are VOID, not caveated: K1 is defined at these budgets.'}
+summary: runs\session-c\summary.json

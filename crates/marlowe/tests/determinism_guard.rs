@@ -122,10 +122,25 @@ fn no_hash_map_in_crate_sources() {
 fn the_only_real_clock_read_is_the_latency_fence() {
     const FENCE: &str = "elapsed.rs";
 
+    /// The engine spike — a **temporary** measurement crate, exempt with an expiry.
+    ///
+    /// It times forward passes to decide ADR-004's runtime, so a real clock is the whole
+    /// point. It implements no section 4 interface, is not a dependency of `marlowe`, and is
+    /// deleted once ADR-004 names an engine. **Delete this entry with the crate** — an
+    /// exemption that outlives what it exempts is how a guard quietly stops guarding.
+    ///
+    /// Note this is a directory exemption, which the `HashMap` guard deliberately refuses to
+    /// grant. The difference: that guard's whole value is covering the files where the real
+    /// mistake would live, whereas nothing on a contract path is inside this crate.
+    const TEMPORARY_SPIKE: &str = "marlowe-embed-spike";
+
     let mut offenders = Vec::new();
     for path in crate_sources() {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
         if name == FENCE || name == "determinism_guard.rs" {
+            continue;
+        }
+        if path.components().any(|c| c.as_os_str() == TEMPORARY_SPIKE) {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_default();

@@ -1,0 +1,21 @@
+corpus:  C:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\data\longmemeval_s_cleaned.json
+split:   251 fit / 249 heldout
+prereg:  runs\session-c\PREREGISTRATION.json (M0b Session C)
+dump:    C:\Users\matth\AppData\Local\Temp\tmpwb_yl2o1.ndjson
+driving the implementation over the fit split ...
+  119340 rows, 452 positive, 2180.2s
+  fitting ['lexical_bm25', 'dense_cosine']
+  pinning effective_trust to zero: zero variance across the fit split (constant 1.0000)
+  pinning fidelity to zero: zero variance across the fit split (constant 1.0000)
+  pinning cue_agreement_2cue to zero: declared pin, and the reason CHANGED with the cue count -- it is no longer the collinearity argument that pinned the one-cue version. With two cues this is a genuine 0 / 0.5 / 1 count and is not collinear with either cue score. It stays pinned because making it informative requires a FIRING PREDICATE for the dense cue, and unlike BM25's `raw > 0` any cosine floor is an unmeasured constant entering the frozen path. A 2-bit coarsening of two continuous features already in the vector does not earn that. Unpin at cue 3, where agreement stops being a coarsening -- and pre-register the predicate before doing so.
+
+artifact: C:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness\crates\marlowe-memory\artifacts\gate-frozen-v2.json
+  weights: {'lexical_bm25': 4.53926168, 'dense_cosine': 26.46788556, 'effective_trust': 0.0, 'fidelity': 0.0, 'cue_agreement_2cue': 0.0}
+  bias:    -26.31439339
+  curve:   111 blocks, max predicted precision 0.3176
+
+  NOTE: the curve never reaches the frozen threshold of 0.95. The gate will abstain on every query.
+  This is a pre-registered possible outcome, not a defect: with one cue the calibration may have no
+  score region where predicted precision clears the K1 operating point. The threshold does not move.
+
+now rebuild so the artifact is embedded:  cargo build --release

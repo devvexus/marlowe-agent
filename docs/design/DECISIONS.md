@@ -798,6 +798,100 @@ inside a 300 ms budget. Large local models — they do not fit the VPS target.
 bought by the gate, not by the embedder, so this is the right place to economize — but if M0b
 misses on recall rather than precision, the embedder is the first thing to revisit.
 
+### Amended 2026-08-04 (M0b Session C) — the runtime and the model are now named
+
+ADR-004 said "local ONNX small model, 384 dimensions" and named **neither an inference engine nor
+a model**. Both gaps are load-bearing, because `marlowe-eval repro` hashes the injected set byte
+for byte: anything that can change an embedding can move a published number. Both are now closed
+by measurement, and the measurements are in
+`docs/design/spike-2026-08-04-embedder.md`, `runs/session-c/embedder-comparison.json` and
+`runs/session-c/PREREGISTRATION-model.json`.
+
+**Runtime: `ort` 2.0.0-rc.10, threads pinned to 1, `GraphOptimizationLevel::Level1`.**
+
+Chosen by a gate pre-committed before either engine was built (≥25 texts/s/core, ≤120 ms
+retrieval P95, loads the pinned file, byte-identical across calls / spawns / worker counts).
+tract 0.23.4 passed every gate except throughput — 21.8/s/core against 25, missing by 13% — and
+the rule selected ort. **The gate was not revisited after seeing 21.8.** Both engines were fully
+deterministic; throughput was the only separator.
+
+The FTS5 hazard this was written against turns out to be substantially mitigated: `ort-sys`
+pins **ONNX Runtime 1.22.0 by SHA256 per target** in its `dist.txt` and links it statically, so
+the chain from `Cargo.lock` to the machine code computing an embedding is digest-pinned end to
+end. That is unlike FTS5, where the ranking function rode on whatever SQLite the build bundled
+with nothing recording it.
+
+*Quantified, because it stopped being hypothetical:* the same graph under ONNX Runtime 1.22.0
+(Rust) and 1.24.2 (Python) differs by **2.75e-6 max abs**. Small, non-zero, and exactly why the
+version is pinned rather than tracked.
+
+*Costs accepted:* ort has **no stable release** — 2.0.0-rc.13 is newest and there has never been
+a 2.0.0, so it is pinned with `=`. Determinism is measured rather than structural (tract has no
+thread pool; ort has one, pinned to 1), so the standing test is the mitigation, not the config.
+Cross-hardware bit-identity is not claimed by either engine and no tolerance window is introduced
+to pretend otherwise. Binary size ~46 MB.
+
+**Model: `jinaai/jina-embeddings-v2-small-en`, 512 dimensions, 8192-token ALiBi window.**
+Not all-MiniLM-L6-v2, and **not 384 dimensions**.
+
+Measured on 42 fit-split cases (held-out untouched), gold-turn recall@k under pure cosine — no
+gate, no fitted weights:
+
+| config | dim | turns truncated | texts/s/core | R@1 | R@10 | R@20 |
+|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2, truncate 128 | 384 | 46% | — | 0.314 | 0.869 | 0.913 |
+| all-MiniLM-L6-v2, truncate 256 | 384 | 34% | 46.7 | 0.345 | 0.833 | 0.913 |
+| all-MiniLM-L6-v2, chunk 256/192 | 384 | 0% | 23.9 | 0.309 | 0.794 | 0.913 |
+| **jina-embeddings-v2-small-en** | **512** | **0.002%** | **20.1** | **0.452** | **0.885** | **0.968** |
+
+**Three findings, and two of them corrected beliefs held before the measurement:**
+
+1. **Truncation was not the binding constraint.** `runs/session-c/truncation.json` found 38.64%
+   of the corpus's word pieces never reached the embedder at 256 tokens, and both the operator
+   and the agent reasoned that the dense number would substantially measure truncation rather
+   than retrieval. **That was wrong.** Within a *fixed* model, 46% / 34% / 0% of turns truncated
+   gives recall@1 of 0.314 / 0.345 / 0.309 — flat, and not monotone in how much text reached the
+   encoder. The first 256 word pieces carry essentially all the retrievable signal despite being
+   61% of the tokens. Recorded as a wrong call caught by measurement, not softened into a
+   near-miss: neither party had data, and the data disagreed with both.
+2. **jina's win is model quality, not window length.** Because the comparison above is flat, the
+   8192-token context is *not* what bought the +31% relative recall@1. **A later session must not
+   read "longer context helped" from this record.**
+3. **Chunk-and-pool was measured and rejected**, not skipped. Max-over-windows lost on both axes:
+   recall@1 0.309 against 0.345, at 23.9 texts/s/core against a 25 gate. The mechanism was
+   predicted in advance and then observed — a long turn gets more windows and so more chances for
+   one to look relevant in isolation, crowding the gold turn out of the top ranks.
+
+**The throughput gate was replaced, not overridden.** jina fails the engine gate at 20.1/s/core.
+That gate was scoped to a choice between engines producing *identical* vectors, where throughput
+was the only axis; it cannot adjudicate a trade of quality against throughput. Overriding it
+would have made it advisory — and this project's thresholds hold because none has been overridden
+once. So a **new** condition was derived, scoped to the model decision, from the same underlying
+constraint that produced the 25/s figure ("a full fit-and-score cycle must run twice in a
+session"): **two consecutive full cycles ≤ 90 minutes of embedding work**, against a measured
+493,500 embeddings per cycle. jina fails that uncached (142.5 min) and passes it with the
+content-addressed embedding cache specified in the plan *before* any model comparison existed
+(71.3 min, second cycle free). **The cache is therefore load-bearing for the model choice, not an
+optimization**, and if it fails its byte-identity test the pre-registered branch is to revert to
+all-MiniLM-L6-v2.
+
+**Dimensions: 384 → 512.** Under the int8 hot array this ADR already mandates, 512 holds ~1.95M
+entries per GB against 384's ~2.6M, so it does not bind. What *does* get tighter is the
+exact-search f32 path ROADMAP keeps permanently as ANN validation ground truth: **0.75× as dense
+per GB** — ~488k entries against ~651k. The ANN session inherits that budget and should size its
+Tier-C validation points accordingly.
+
+**Unchanged by this amendment:** int8 in the hot array; the rejection of API-only embedding,
+which does not weaken under latency pressure because a network round-trip inside a 300 ms budget
+is the reason the budget exists; and skills embedding description + trigger phrases only.
+
+**If cues 3–5 exhaust the remaining latency budget**, the response is pre-committed in
+`runs/session-c/PREREGISTRATION-model.json` and is, in order: ADR-003's hot index and the ANN
+index first (both already M0b requirements, and `considered` still costs a full-store scan);
+then the embedder's sequence length and model size; then the engine. The 300 ms budget does not
+move — it is K1's definition, and a cue set that cannot fit inside it is a finding about the cue
+set.
+
 ## ADR-005 · Auth broker
 
 Covered by HP16. One `Broker` trait, two implementations, disclosed capability difference.

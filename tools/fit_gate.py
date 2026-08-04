@@ -4,6 +4,11 @@ Refuses to run without `tools/split.json`, and refuses if that file's corpus dig
 match the corpus on disk. The split is pre-registered; a fit that could draw its own split
 would make the held-out number meaningless.
 
+Refuses equally without the **current session's pre-registration**, and refuses if that file
+was registered against a different split. Bands written after a number exists are not bands,
+and this refusal is what makes "pre-registered" a property of the filesystem rather than of
+somebody's recollection.
+
 What it does:
 
   1. restrict the corpus to the **fit** half of the pre-registered split
@@ -12,17 +17,22 @@ What it does:
   3. join each dumped candidate to its turn via the section 4.6 `written[].turn_id` mapping and
      label it against the benchmark's gold evidence
   4. fit logistic weights, then an isotonic curve on the resulting scores
-  5. write `crates/marlowe-memory/artifacts/gate-frozen-v1.json`
+  5. write `crates/marlowe-memory/artifacts/gate-frozen-v2.json`
 
 Then rebuild: the artifact is embedded with `include_str!`.
 
+**v2 feature vector.** `dense_cosine` was added and `cue_agreement` renamed to
+`cue_agreement_2cue`, so `FrozenGate::load` refuses any artifact fit under the v1 vector. The
+rename is the mechanism: the feature's MEANING changed, and a weight fit under one meaning and
+applied under the other is a live mismatch nothing downstream would observe.
+
 **Zero-variance features are pinned to zero, not fitted.** A coefficient fit on a feature that
 never varies is fit on noise, and it becomes load-bearing the instant the feature starts
-varying — for `cue_agreement` that is the day cue 2 lands. The pins are written into the
-artifact and `FrozenGate::load` enforces them, so the inertness is structural rather than
-intended.
+varying. The pins are written into the artifact and `FrozenGate::load` enforces them, so the
+inertness is structural rather than intended.
 
-    python tools/preregister_split.py     # first, and only once
+    python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
+    python tools/preregister_session_c.py   # this session's bands, before the fit
     python tools/fit_gate.py
     cargo build --release
 """
@@ -50,40 +60,57 @@ from marlowe_eval.suites import benchmark as bench  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v1.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v2.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
+MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
+# Outside the profile root by construction: --profile-root must be empty per spawn,
+# and the harness spawns one process per corpus plus four for the clock probe.
+CACHE_DIR = REPO / ".embedding-cache"
+
+# The current session's pre-registration. Refused if absent, for the same reason the split is:
+# bands written after a number exists are not bands, and this is the file that makes
+# "pre-registered" a property of the filesystem rather than of someone's intention.
+#
+# It is a per-session path deliberately. Pointing this at a stale session's file would let a new
+# cue be scored against bands written for a different cue set, which is the same failure the
+# split digest check catches one level up.
+PREREG_PATH = REPO / "runs" / "session-c" / "PREREGISTRATION.json"
 
 # Must match `marlowe_memory::gate::features::FEATURE_NAMES`, in order. Asserted against the
 # dump's own keys below, and again by `FrozenGate::load` against the Rust array.
-FEATURE_NAMES = ["lexical_bm25", "effective_trust", "fidelity", "cue_agreement"]
+FEATURE_NAMES = [
+    "lexical_bm25",
+    "dense_cosine",
+    "effective_trust",
+    "fidelity",
+    "cue_agreement_2cue",
+]
 
 # Must match `marlowe_memory::gate::THRESHOLD`. Frozen under HP1; `load` rejects any other.
 THRESHOLD = 0.95
 
 # Features pinned to zero **by declaration**, whether or not they vary in the fit split.
 #
-# The variance check below catches constants. `cue_agreement` is the case it does not catch and
-# is the more dangerous one: with a single cue it is exactly `1[lexical_bm25 > 0]`, so it varies
-# -- and a fit will happily hand it a coefficient -- while carrying no information the cue
-# feature does not already carry. Two things follow, and the second is why this is a pin rather
-# than a note:
+# The variance check below catches constants. `cue_agreement_2cue` is the case it does not catch:
+# with two cues it genuinely varies across 0 / 0.5 / 1, so a fit would hand it a coefficient.
 #
-#   * The coefficient is unidentified in any way that matters. Both features are monotone in the
-#     same underlying BM25 score, so the split between their weights cannot change the ranking of
-#     any candidate, and neither can the isotonic curve fit on top of that ranking.
-#   * Its SEMANTICS change when cue 2 lands: a 0/1 indicator becomes a 0..2 count. A weight
-#     calibrated for the indicator would silently become load-bearing at the wrong scale on the
-#     first run after the second cue exists -- and nothing in the pipeline would observe it.
+# Session B pinned its one-cue ancestor on COLLINEARITY -- it was exactly `1[lexical_bm25 > 0]`,
+# monotone in the same underlying score, so its coefficient could not change any ranking. **That
+# argument no longer applies**, and saying so matters: an inherited pin whose stated reason has
+# quietly stopped being true is the same failure as an inherited weight. The reason it stays
+# pinned is stated fresh below.
 #
-# So it is pinned now, while it is provably free to pin, rather than inherited later when it is
-# not. Enforced by `FrozenGate::load`, which rejects a pinned weight that is not zero.
+# Enforced by `FrozenGate::load`, which rejects a pinned weight that is not zero.
 ALWAYS_PINNED = {
-    "cue_agreement": (
-        "declared pin, not a variance result. With one cue this is exactly 1[lexical_bm25 > 0]: "
-        "collinear with the cue feature, so its coefficient cannot change any ranking or the "
-        "isotonic curve fit on that ranking. Its meaning also changes when cue 2 lands (a 0/1 "
-        "indicator becomes a 0..2 count), which would make a weight fitted today load-bearing "
-        "at the wrong scale tomorrow. Refit deliberately when the cue set changes."
+    "cue_agreement_2cue": (
+        "declared pin, and the reason CHANGED with the cue count -- it is no longer the "
+        "collinearity argument that pinned the one-cue version. With two cues this is a genuine "
+        "0 / 0.5 / 1 count and is not collinear with either cue score. It stays pinned because "
+        "making it informative requires a FIRING PREDICATE for the dense cue, and unlike BM25's "
+        "`raw > 0` any cosine floor is an unmeasured constant entering the frozen path. A 2-bit "
+        "coarsening of two continuous features already in the vector does not earn that. Unpin "
+        "at cue 3, where agreement stops being a coarsening -- and pre-register the predicate "
+        "before doing so."
     )
 }
 
@@ -98,6 +125,30 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def load_preregistration(split: dict) -> dict:
+    """Refuse to fit without a pre-registration bound to this split.
+
+    Two checks, and the second is the one that matters. Existence alone would be satisfied by a
+    file copied forward from an earlier session; the digest check is what ties the bands to the
+    split the number will actually be reported against.
+    """
+    if not PREREG_PATH.exists():
+        raise SystemExit(
+            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_c.py` first — "
+            "the bands are pre-registered, and a fit that runs before them makes every verdict "
+            "in this session unfalsifiable."
+        )
+    prereg = json.loads(PREREG_PATH.read_text(encoding="utf-8"))
+    registered = prereg.get("split", {}).get("digest")
+    if registered != split["digest"]:
+        raise SystemExit(
+            f"{PREREG_PATH} was registered against split {registered}, but {SPLIT_PATH} now "
+            f"holds {split['digest']}. The bands describe a different experiment than the one "
+            "about to run; refusing."
+        )
+    return prereg
 
 
 def load_split() -> dict:
@@ -150,6 +201,7 @@ def collect_rows(corpus: Corpus, dump_path: Path) -> tuple[np.ndarray, np.ndarra
     """
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
+        f"--embedder-model {MODEL_DIR} --embedding-cache {CACHE_DIR} "
         f"--fit-mode --dump-gate-features {dump_path}"
     )
     client = Client(build_target(target, corpus))
@@ -330,9 +382,11 @@ def main() -> int:
         )
 
     split = load_split()
+    prereg = load_preregistration(split)
     corpus_path = REPO / split["corpus_path"]
     print(f"corpus:  {corpus_path}")
     print(f"split:   {split['fit_cases']} fit / {split['heldout_cases']} heldout")
+    print(f"prereg:  {PREREG_PATH.relative_to(REPO)} ({prereg['session']})")
 
     corpus = longmemeval.load(corpus_path)
     fit_corpus = subset(corpus, set(split["fit"]), "-fit")
@@ -403,7 +457,7 @@ def main() -> int:
             "One lexical cue only -- this is not the five-cue system K1 measures. Regenerate "
             "with: python tools/fit_gate.py"
         ),
-        "version": "frozen-v1",
+        "version": "frozen-v2",
         "threshold": THRESHOLD,
         "feature_names": FEATURE_NAMES,
         "weights": [round(float(w), 8) for w in weights],

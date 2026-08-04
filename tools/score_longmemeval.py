@@ -46,8 +46,10 @@ from marlowe_eval.runner import RunConfig, run, write_artifacts  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v1.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v2.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
+MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
+CACHE_DIR = REPO / ".embedding-cache"
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -248,7 +250,35 @@ def diagnostics(records: list[dict], scored: dict[str, list[dict]]) -> dict:
     }
 
 
-def number_two(curve: list[dict]) -> dict:
+def _band_for(value: float, bands: list[dict]) -> str:
+    """Pick the pre-registered band containing `value`.
+
+    Conditions are parsed from the pre-registration rather than restated here. **That is the
+    point of this function existing at all**: the first version of this driver hardcoded Session
+    B's thresholds, and when Session C's bands changed it kept reporting the old verdict beside
+    the new number. Nothing failed -- the value was right and the label was wrong, which is
+    exactly the shape of mismatch this project keeps paying for.
+    """
+    numbers = []
+    for band in bands:
+        condition = band["condition"]
+        tokens = condition.replace("precision", " ").replace("<=", " ").replace("<", " ")
+        tokens = tokens.replace(">=", " ").split()
+        bounds = [float(t) for t in tokens]
+        if condition.startswith("precision >="):
+            lo, hi = bounds[0], float("inf")
+        elif condition.startswith("precision <"):
+            lo, hi = float("-inf"), bounds[0]
+        else:
+            lo, hi = bounds[0], bounds[1]
+        numbers.append((lo, hi, band["verdict"]))
+    for lo, hi, verdict in numbers:
+        if lo <= value < hi:
+            return verdict
+    raise SystemExit(f"value {value} matches no pre-registered band; refusing to invent one")
+
+
+def number_two(curve: list[dict], bands: list[dict]) -> dict:
     """Pre-registered Number 2: precision at the cut where coverage first reaches 0.25."""
     reachable = max((p["coverage"] for p in curve), default=0.0)
     if reachable < NUMBER_2_COVERAGE_TARGET:
@@ -261,25 +291,96 @@ def number_two(curve: list[dict]) -> dict:
             ),
             "max_coverage": round(reachable, 6),
         }
-    # The cut is the highest one that still reaches the target coverage: the most selective
-    # point that meets the pre-registered recall, which is the read the band was written for.
     eligible = [p for p in curve if p["coverage"] >= NUMBER_2_COVERAGE_TARGET]
     point = max(eligible, key=lambda p: p["cut"])
     if point["precision"] is None:
         return {"value": None, "reason": "no attributable injections at that cut"}
     value = point["precision"]
-    if value >= 0.50:
-        verdict = "cue working"
-    elif value >= 0.20:
-        verdict = "functioning, cue set incomplete"
-    else:
-        verdict = "implementation suspect"
     return {
         "value": value,
         "read_at_cut": point["cut"],
         "coverage_there": point["coverage"],
-        "verdict": verdict,
-        "band_source": "runs/session-b/PREREGISTRATION.json, written before the fit",
+        "verdict": _band_for(value, bands),
+        "bands_applied": [b["condition"] + " -> " + b["verdict"] for b in bands],
+        "band_source": "runs/session-c/PREREGISTRATION.json, written before the fit",
+    }
+
+
+def number_three(scored: dict[str, list[dict]], records: list[dict]) -> dict:
+    """Pre-registered Number 3: what each cue can do ALONE.
+
+    Sweeps each raw cue score on its own and reads precision at the most selective cut still
+    reaching coverage 0.25 -- the same read rule as Number 2, so the three numbers are directly
+    comparable.
+
+    **This is the only number in the session that separates a weak embedder from a broken
+    fusion.** Both present as a flat Number 2 and they have opposite remedies.
+    """
+    answerable = [r["query_id"] for r in records if not r.get("is_abstention")]
+    n = len(answerable)
+
+    def sweep(feature: str) -> dict:
+        values = sorted(
+            {round(c[feature], 4) for q in answerable for c in scored.get(q, ())}
+        )
+        if not values:
+            return {"value": None, "reason": f"no {feature} values on the held-out split"}
+        # A coarse grid over the observed range; the exact cut does not matter, the reachable
+        # precision at a fixed coverage does.
+        step = max(1, len(values) // 200)
+        best = None
+        for cut in values[::step]:
+            gold = distractor = covered = 0
+            for query_id in answerable:
+                kept = [c for c in scored.get(query_id, ()) if c[feature] >= cut]
+                hit = False
+                for item in kept:
+                    if item["attribution"] == "gold":
+                        gold += 1
+                        hit = True
+                    elif item["attribution"] == "distractor":
+                        distractor += 1
+                if hit:
+                    covered += 1
+            coverage = covered / n if n else 0.0
+            attributed = gold + distractor
+            if coverage >= NUMBER_2_COVERAGE_TARGET and attributed:
+                point = {
+                    "cut": cut,
+                    "precision": round(gold / attributed, 6),
+                    "coverage": round(coverage, 6),
+                    "gold": gold,
+                    "distractor": distractor,
+                }
+                # Most selective cut still meeting the coverage floor.
+                if best is None or cut > best["cut"]:
+                    best = point
+        return best or {"value": None, "reason": "coverage never reached the floor"}
+
+    lexical = sweep("lexical_bm25")
+    dense = sweep("dense_cosine")
+    reading = None
+    if lexical.get("precision") is not None and dense.get("precision") is not None:
+        if dense["precision"] >= lexical["precision"]:
+            reading = (
+                "dense is the stronger cue alone. A flat Number 2 therefore points at the "
+                "FUSION or the calibration, not at the embedder."
+            )
+        else:
+            reading = (
+                "dense is WEAKER than lexical alone. If Number 2 also failed to improve, the "
+                "embedder is suspect -- check pooling and normalization against the committed "
+                "reference vectors first, then the truncation rate."
+            )
+    return {
+        "_what": (
+            "Each cue swept ALONE at the same read rule as Number 2. Driver-side; no second "
+            "fit and no second artifact."
+        ),
+        "lexical_bm25_alone": lexical,
+        "dense_cosine_alone": dense,
+        "reading": reading,
+        "band_source": "runs/session-c/PREREGISTRATION.json number_3, written before the fit",
     }
 
 
@@ -315,6 +416,12 @@ def read_scored(dump: Path, transcript: Path, corpus: Corpus) -> dict[str, list[
                 "passes": row["passes"],
                 "attribution": attribution,
                 "turn_id": turn_id,
+                # The RAW per-cue features, carried so Number 3 can sweep each cue alone.
+                # Read from the dump the implementation wrote, never recomputed here: a second
+                # implementation of a cue's arithmetic sitting beside the real one with nothing
+                # comparing them is the mismatch pattern this project keeps paying for.
+                "lexical_bm25": row["lexical_bm25"],
+                "dense_cosine": row["dense_cosine"],
             }
         )
     return dict(out)
@@ -327,6 +434,7 @@ def score_one(
     dump = out_dir / "scored-candidates.ndjson"
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
+        f"--embedder-model {MODEL_DIR} --embedding-cache {CACHE_DIR} "
         f"--dump-gate-features {dump}"
     )
     result = run(
@@ -388,7 +496,7 @@ def budget_verdict(report: dict, records: list[dict]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default=str(REPO / "runs" / "session-b"))
+    parser.add_argument("--out", default=str(REPO / "runs" / "session-c"))
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -427,7 +535,9 @@ def main() -> int:
 
     heldout_ep = benchmark_block(runs["heldout"]["report"])["evidence_precision"]
     all_ep = benchmark_block(runs["all"]["report"])["evidence_precision"]
-    n2 = number_two(heldout_diag["curve"])
+    prereg = json.loads((REPO / "runs/session-c/PREREGISTRATION.json").read_text(encoding="utf-8"))
+    n2 = number_two(heldout_diag["curve"], prereg["number_2"]["bands"])
+    n3 = number_three(runs["heldout"]["scored"], runs["heldout"]["records"])
     budget = budget_verdict(runs["heldout"]["report"], runs["heldout"]["records"])
 
     at_op = heldout_diag["on_the_wire_at_frozen_threshold"]
@@ -470,10 +580,11 @@ def main() -> int:
         return block
 
     summary = {
-        "session": "M0b Session B",
+        "session": "M0b Session C",
         "what_this_is": (
-            "One lexical cue and the frozen gate. NOT the five-cue system K1 measures; a low "
-            "number is a statement about an incomplete cue set."
+            "Two cues -- lexical BM25 and the dense ONNX embedder -- and the frozen gate. NOT "
+            "the five-cue system K1 measures; entity-graph, temporal and causal are still "
+            "absent, so a low number remains a statement about an incomplete cue set."
         ),
         "gate": {
             "version": artifact["version"],
@@ -511,6 +622,7 @@ def main() -> int:
             ),
         },
         "number_2_cue_capability": n2,
+        "number_3_per_cue": n3,
         "conditions": {
             "budget": budget,
             "false_evidence_on_abstention_cases": {
@@ -536,7 +648,10 @@ def main() -> int:
             "corpus_variant": split["corpus_variant"],
             "split_digest": split["digest"],
             "split_rule": split["rule"],
-            "preregistration": "runs/session-b/PREREGISTRATION.json",
+            "preregistration": [
+                "runs/session-c/PREREGISTRATION.json",
+                "runs/session-c/PREREGISTRATION-model.json",
+            ],
             "eval_unchanged": "no file under eval/ is modified by this driver",
             "reading_the_sub_reports": (
                 "heldout/report.json is scored under the corpus name "
@@ -558,6 +673,7 @@ def main() -> int:
     print(f"all-500 (CONTAMINATED):                {summary['evidence_precision']['all_cases']['value']}")
     print(f"Number 1 @ frozen 0.95: precision={at_op['precision']} coverage={at_op['coverage']}")
     print(f"Number 2 cue capability: {n2}")
+    print(f"Number 3 per-cue: {n3}")
     print(f"budget: {budget}")
     print(f"summary: {out / 'summary.json'}")
     return 0

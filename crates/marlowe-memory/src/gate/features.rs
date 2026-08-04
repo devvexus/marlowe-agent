@@ -16,16 +16,24 @@ use crate::entry::MemoryEntry;
 
 /// The feature vector's field order, and the **single source of that order**.
 ///
+/// **v2, Session C.** `cue_agreement` was renamed to `cue_agreement_2cue` because its *meaning*
+/// changed when the dense cue landed: a 0/1 indicator became a count over two cues. A weight fit
+/// under one meaning and applied under the other is a live mismatch that nothing downstream
+/// would observe, so the rename converts it into a load-time refusal by machinery that already
+/// existed. The denominator is in the name on purpose — cue 3 forces another rename, another
+/// refusal, and another deliberate re-fit.
+///
 /// `FrozenGate::load` asserts this array against the artifact's declared `feature_names`. That
 /// check is the most valuable test in this module: weights and features living in two places
 /// with only one of them checked is the exact shape of every unobservable mismatch this
 /// project has paid for. A reordered array with no name check would silently apply the trust
 /// weight to the BM25 value and every test would stay green.
-pub const FEATURE_NAMES: [&str; 4] = [
+pub const FEATURE_NAMES: [&str; 5] = [
     "lexical_bm25",
+    "dense_cosine",
     "effective_trust",
     "fidelity",
-    "cue_agreement",
+    "cue_agreement_2cue",
 ];
 
 pub const FEATURE_COUNT: usize = FEATURE_NAMES.len();
@@ -69,21 +77,31 @@ fn fidelity_ordinal(fidelity: Fidelity) -> f32 {
 
 /// Extract features for one candidate.
 ///
-/// `raw_bm25` comes from [`lexical::score_all`] over the same candidate set, so the caller
+/// `raw_bm25` comes from [`lexical::score_all`] and `dense_cosine` from
+/// [`crate::cue::dense::cosine`], both computed over the same candidate set, so the caller
 /// scores the set once rather than per-entry.
-pub fn extract(entry: &MemoryEntry, raw_bm25: f32) -> FeatureVector {
+pub fn extract(entry: &MemoryEntry, raw_bm25: f32, dense_cosine: f32) -> FeatureVector {
     let lexical_bm25 = lexical::saturate(raw_bm25);
 
-    // Cue agreement: how many cues gave this candidate a positive score. With one cue this is
-    // 0 or 1 and is very nearly constant — every candidate a query matches at all scores 1.
-    // The fitter detects that as zero variance and pins the weight to zero; see `gate/mod.rs`.
-    let cue_agreement = if raw_bm25 > 0.0 { 1.0 } else { 0.0 };
+    // How many of the two cues fired, as a fraction. **The denominator is in the feature's
+    // name** — cue 3 changes this to /3, the rename forces `FrozenGate::load`'s
+    // `FeatureNamesDisagree` refusal, and the refusal forces a deliberate re-fit.
+    //
+    // Still pinned to zero, and the reason changed with the cue count. It is no longer collinear
+    // with the lexical feature the way the one-cue indicator was — but making it informative
+    // needs a *firing predicate* for the dense cue, and unlike BM25's `raw > 0` any cosine floor
+    // is an unmeasured constant entering the frozen path. A 2-bit coarsening of two continuous
+    // features already in this vector does not earn that. Unpin at cue 3, where agreement stops
+    // being a coarsening of the vector's own contents.
+    let fired = u8::from(raw_bm25 > 0.0) + u8::from(dense_cosine > 0.0);
+    let cue_agreement_2cue = f32::from(fired) / 2.0;
 
     FeatureVector([
         lexical_bm25,
+        dense_cosine,
         trust_ordinal(entry.effective_trust),
         fidelity_ordinal(entry.fidelity),
-        cue_agreement,
+        cue_agreement_2cue,
     ])
 }
 
@@ -125,37 +143,43 @@ mod tests {
         // reading the declared field would score 1.0 here and hand a laundered memory its
         // original trust back at the last step before injection.
         let e = entry(TrustClass::UntrustedContent, Fidelity::Record);
-        let f = extract(&e, 5.0);
-        assert_eq!(f.0[1], 0.0, "untrusted_content is the bottom of the scale");
+        let f = extract(&e, 5.0, 0.0);
+        assert_eq!(f.0[2], 0.0, "untrusted_content is the bottom of the scale");
 
         let e = entry(TrustClass::UserAsserted, Fidelity::Record);
-        assert_eq!(extract(&e, 5.0).0[1], 1.0);
+        assert_eq!(extract(&e, 5.0, 0.0).0[2], 1.0);
     }
 
     #[test]
     fn ordinals_span_zero_to_one() {
         let e = entry(TrustClass::AgentObserved, Fidelity::Summary);
-        let f = extract(&e, 5.0);
-        assert!((f.0[1] - 2.0 / 3.0).abs() < 1e-6, "{:?}", f.0);
+        let f = extract(&e, 5.0, 0.0);
         assert!((f.0[2] - 2.0 / 3.0).abs() < 1e-6, "{:?}", f.0);
+        assert!((f.0[3] - 2.0 / 3.0).abs() < 1e-6, "{:?}", f.0);
     }
 
     #[test]
-    fn cue_agreement_is_one_when_the_single_cue_fired() {
+    fn cue_agreement_counts_how_many_of_the_two_cues_fired() {
+        // The semantics change the rename exists for: 0 / 0.5 / 1.0, not 0 / 1.
         let e = entry(TrustClass::UserAsserted, Fidelity::Record);
-        assert_eq!(extract(&e, 0.0).0[3], 0.0);
-        assert_eq!(extract(&e, 0.1).0[3], 1.0);
+        assert_eq!(extract(&e, 0.0, 0.0).0[4], 0.0, "neither cue fired");
+        assert_eq!(extract(&e, 0.1, 0.0).0[4], 0.5, "lexical only");
+        assert_eq!(extract(&e, 0.0, 0.4).0[4], 0.5, "dense only");
+        assert_eq!(extract(&e, 0.1, 0.4).0[4], 1.0, "both");
     }
 
     #[test]
     fn names_and_values_stay_aligned() {
         let e = entry(TrustClass::UntrustedContent, Fidelity::Record);
-        let f = extract(&e, 30.0);
+        let f = extract(&e, 30.0, 0.62);
         let named = f.named();
         assert_eq!(named[0].0, "lexical_bm25");
         assert!(named[0].1 > 0.7);
-        assert_eq!(named[1].0, "effective_trust");
-        assert_eq!(named[1].1, 0.0);
-        assert_eq!(FEATURE_COUNT, 4);
+        assert_eq!(named[1].0, "dense_cosine");
+        assert_eq!(named[1].1, 0.62);
+        assert_eq!(named[2].0, "effective_trust");
+        assert_eq!(named[2].1, 0.0);
+        assert_eq!(named[4].0, "cue_agreement_2cue");
+        assert_eq!(FEATURE_COUNT, 5);
     }
 }

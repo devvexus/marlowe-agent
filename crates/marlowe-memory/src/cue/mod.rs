@@ -17,4 +17,5 @@
 //! The gate's `cue_agreement` feature exists now, constant, for the same reason: cues 2–5 land
 //! in a slot that already exists instead of reshaping the frozen artifact.
 
+pub mod dense;
 pub mod lexical;

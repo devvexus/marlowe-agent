@@ -25,7 +25,13 @@ pub use features::{FeatureVector, FEATURE_COUNT, FEATURE_NAMES};
 /// The stamp a **calibrated** gate puts on `§4.2 gate.version`.
 ///
 /// Never produced without a loaded, validated artifact. Asserted by test.
-pub const GATE_VERSION: &str = "frozen-v1";
+///
+/// **`frozen-v2`, bumped in Session C.** The feature vector changed meaning, not just contents:
+/// `dense_cosine` was added and `cue_agreement` became `cue_agreement_2cue`. A run stamped
+/// `frozen-v1` was scored by a different function, and a report joining numbers across the two
+/// without noticing would be comparing different systems. The v1 artifact stays on disk as the
+/// provenance of Session B's published numbers; it is no longer embedded.
+pub const GATE_VERSION: &str = "frozen-v2";
 
 /// The stamp the feature-dump mode puts on `§4.2 gate.version`.
 ///
@@ -45,9 +51,9 @@ pub const THRESHOLD: f32 = 0.95;
 ///
 /// `include_str!` means a missing file is a **compile** error rather than a runtime one, and a
 /// released binary can never be separated from the weights it was measured with.
-const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v1.json");
+const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v2.json");
 
-const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v1.json";
+const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v2.json";
 
 #[derive(Debug, thiserror::Error)]
 pub enum GateError {
@@ -368,10 +374,10 @@ mod tests {
   "note": "test fixture",
   "version": "frozen-v1",
   "threshold": 0.95,
-  "feature_names": ["lexical_bm25", "effective_trust", "fidelity", "cue_agreement"],
-  "weights": [4.0, 0.0, 0.0, 0.0],
+  "feature_names": ["lexical_bm25", "dense_cosine", "effective_trust", "fidelity", "cue_agreement_2cue"],
+  "weights": [4.0, 0.0, 0.0, 0.0, 0.0],
   "bias": -3.0,
-  "pinned_zero_weights": {{"cue_agreement": "constant until cue 2"}},
+  "pinned_zero_weights": {{"cue_agreement_2cue": "a coarsening of two continuous features"}},
   "isotonic_breakpoints": [[0.2, 0.1], [0.5, 0.4], [0.8, 0.97]],
   "corpus": "longmemeval-s",
   "corpus_variant": "cleaned",
@@ -417,8 +423,8 @@ mod tests {
     #[test]
     fn reordered_feature_names_are_refused() {
         let json = fitted_json("").replace(
-            r#"["lexical_bm25", "effective_trust", "fidelity", "cue_agreement"]"#,
-            r#"["effective_trust", "lexical_bm25", "fidelity", "cue_agreement"]"#,
+            r#"["lexical_bm25", "dense_cosine", "effective_trust", "fidelity", "cue_agreement_2cue"]"#,
+            r#"["dense_cosine", "lexical_bm25", "effective_trust", "fidelity", "cue_agreement_2cue"]"#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
@@ -428,10 +434,10 @@ mod tests {
 
     #[test]
     fn a_wrong_weight_count_is_refused_rather_than_zipped_short() {
-        let json = fitted_json("").replace("[4.0, 0.0, 0.0, 0.0]", "[4.0, 0.0, 0.0]");
+        let json = fitted_json("").replace("[4.0, 0.0, 0.0, 0.0, 0.0]", "[4.0, 0.0, 0.0, 0.0]");
         assert!(matches!(
             FrozenGate::from_json(&json),
-            Err(GateError::WeightCountDisagrees { found: 3, expected: 4 })
+            Err(GateError::WeightCountDisagrees { found: 4, expected: 5 })
         ));
     }
 
@@ -439,7 +445,7 @@ mod tests {
     fn a_pinned_weight_that_is_not_zero_is_refused() {
         // The hazard the pin exists for: a coefficient fit on a constant feature is noise, and
         // it becomes load-bearing the moment the feature starts varying.
-        let json = fitted_json("").replace("[4.0, 0.0, 0.0, 0.0]", "[4.0, 0.0, 0.0, 0.7]");
+        let json = fitted_json("").replace("[4.0, 0.0, 0.0, 0.0, 0.0]", "[4.0, 0.0, 0.0, 0.0, 0.7]");
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::PinnedWeightNotZero { .. })
@@ -449,7 +455,7 @@ mod tests {
     #[test]
     fn pinning_a_feature_this_build_does_not_have_is_refused() {
         let json = fitted_json("").replace(
-            r#"{"cue_agreement": "constant until cue 2"}"#,
+            r#"{"cue_agreement_2cue": "a coarsening of two continuous features"}"#,
             r#"{"recency": "not a feature here"}"#,
         );
         assert!(matches!(
@@ -513,8 +519,8 @@ mod tests {
         // `score` the operating point would stop being portable across profiles.
         let gate = FrozenGate::from_json(&fitted_json("")).unwrap();
 
-        let low = FeatureVector([0.05, 1.0, 1.0, 1.0]);
-        let high = FeatureVector([0.99, 1.0, 1.0, 1.0]);
+        let low = FeatureVector([0.05, 0.0, 1.0, 1.0, 1.0]);
+        let high = FeatureVector([0.99, 0.0, 1.0, 1.0, 1.0]);
 
         let low_v = gate.judge(&low);
         assert!(!low_v.passes);
@@ -529,15 +535,15 @@ mod tests {
     #[test]
     fn a_pinned_feature_cannot_move_the_score() {
         let gate = FrozenGate::from_json(&fitted_json("")).unwrap();
-        let with = FeatureVector([0.5, 1.0, 1.0, 1.0]);
-        let without = FeatureVector([0.5, 1.0, 1.0, 0.0]);
+        let with = FeatureVector([0.5, 0.0, 1.0, 1.0, 1.0]);
+        let without = FeatureVector([0.5, 0.0, 1.0, 1.0, 0.0]);
         assert_eq!(gate.score(&with), gate.score(&without));
     }
 
     #[test]
     fn scoring_is_deterministic() {
         let gate = FrozenGate::from_json(&fitted_json("")).unwrap();
-        let f = FeatureVector([0.37, 1.0, 1.0, 1.0]);
+        let f = FeatureVector([0.37, 0.0, 1.0, 1.0, 1.0]);
         assert_eq!(gate.judge(&f), gate.judge(&f));
     }
 

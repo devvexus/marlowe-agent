@@ -5,6 +5,8 @@ members = [
     "crates/marlowe-journal",
     "crates/marlowe-memory",
     "crates/marlowe",
+    # TEMPORARY: the engine spike. Removed once ADR-004 names a runtime.
+    "crates/marlowe-embed-spike",
 ]
 
 [workspace.package]
@@ -28,6 +30,17 @@ hmac = "0.12"
 sha2 = "0.10"
 rusqlite = { version = "0.32", features = ["bundled"] }
 thiserror = "2"
+# WordPiece needs NFD and Unicode general categories. Pure Rust, table-driven, no C.
+# These ARE a versioned behavioural dependency; what makes them safe is
+# tests/embedding_reference.rs, which would fail by name on a table change rather than
+# letting it surface as two different repro hashes.
+unicode-normalization = "0.1"
+unicode-general-category = "1"
+# ADR-004's runtime, chosen by measurement in docs/design/spike-2026-08-04-embedder.md.
+# EXACT version, not a caret range: ort-sys pins ONNX Runtime 1.22.0 by sha256 per target
+# and links it statically, so this line is the top of a digest-pinned chain down to the
+# machine code that computes an embedding. A caret range would break that.
+ort = { version = "=2.0.0-rc.10", features = ["download-binaries"] }
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 getrandom = "0.2"
 
