@@ -86,6 +86,58 @@ answer is not "add learning."** That treats a retrieval problem as a tuning prob
 responses are better cues, a better query-type router, or accepting lower recall at the same
 precision — recall is recovered through `recall`, per §5.5.
 
+### Amendment (2026-08-03) · The fit/report split
+
+**This closes an underspecification in HP1, not a deviation from it.** Property 1 says the
+weights are a build-time artifact trained on benchmark gold evidence, and that stands unchanged.
+What it does not say is what the fitted gate is then *reported against* — and M0b Session B, the
+first session to actually fit one, could not proceed without an answer.
+
+Read literally, the omission licenses fitting on all 500 LongMemEval-S cases and reporting
+evidence precision on the same 500. That is train-on-test. The isotonic curve has enough freedom
+to memorize the score distribution it was fit on, so the reported number would be optimistically
+biased by an unknown amount — and "unknown" is the problem, since the bias cannot be subtracted
+out or bounded from the number itself.
+
+**Decision.** The corpus is split before any fitting, by a rule fixed in advance:
+
+| | |
+|---|---|
+| Rule | Within each harness category, sort `query_id`s by `(sha256(query_id), query_id)`; even indices to `fit`, odd to `heldout` |
+| Stratification | Per category, so all seven are split within one case — not merely random assignment that happens to balance |
+| Recorded in | `tools/split.json`, with the corpus digest and its own content digest |
+| Enforced by | `tools/fit_gate.py`, which refuses to run without that file and refuses if either digest disagrees |
+| Copied into | the gate artifact, so a gate and the split it was fit under travel together |
+
+**The held-out figure is the headline everywhere it appears.** The all-cases figure is still
+reported — it is the one comparable to a published 500-case number — but its contamination is
+attached to the value itself, the same treatment `corpus_variant` already gets, and there is no
+place in the output where it appears bare. A contaminated number sitting beside a clean one with
+the caveat in surrounding prose will be quoted without the prose.
+
+**Cost accepted.** The headline is computed over ~250 cases rather than 500, so its confidence
+interval is wider, and it is not directly comparable to a vendor's 500-case figure. That is the
+right trade: a wider interval around an honest number beats a tight one around a biased one.
+
+**A related hazard, recorded because it generalizes — and because the first fit found two
+different versions of it.** A coefficient can be meaningless in two ways, and only one of them
+is detectable by looking at the fit data:
+
+| | Detected by | Example | Why the weight is meaningless |
+|---|---|---|---|
+| **No variance** | the fitter, automatically | `effective_trust`, `fidelity` — constant across LongMemEval, since every turn is terminal-origin and no demotion has run | fit on noise; becomes load-bearing the moment the feature starts varying |
+| **Varies, but is collinear and will change meaning** | nobody — it must be **declared** | `cue_agreement` — with one cue it is exactly `1[lexical_bm25 > 0]` | the split between its weight and the cue's cannot change any ranking, and its semantics change from a 0/1 indicator to a 0..2 count when cue 2 lands |
+
+The second is the dangerous one precisely because a variance check passes it. The first fit did
+hand `cue_agreement` a weight of 4.998, which looked like a finding and was an artifact of
+collinearity; re-fitting with it pinned produced a **bit-identical isotonic curve** (230 blocks,
+same maximum) with the bias absorbing the difference, which is the evidence that the pin was free.
+
+Both kinds are therefore **pinned to zero in the artifact, with the reason stored per feature,
+and the pin is enforced at load time.** This is not a comment: `FrozenGate::load` rejects a pinned
+weight that is not zero. **Refit deliberately when the cue set changes** — a pin is a statement
+about the current cue set, not a permanent property of the feature.
+
 ---
 
 ## HP2 · Cross-session identity

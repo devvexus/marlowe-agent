@@ -1,0 +1,11 @@
+# Session run artifacts.
+#
+# Tracked: PREREGISTRATION.json, summary.json, report.json, core.sha256 — the record of what
+# was predicted, what was measured, and the hash that makes the run reproducible.
+#
+# Ignored: the wire transcript and the scored-candidate dump. Both are regenerable from the
+# binary plus the pinned corpus digest, and both run to hundreds of megabytes — one
+# `git add -A` from entering the history permanently, which is the same reason `data/` is
+# ignored at the repo root.
+run.jsonl
+scored-candidates.ndjson

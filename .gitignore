@@ -15,3 +15,7 @@
 # rewriting every commit after it.
 data/
 corpora/
+
+# Python bytecode from the tools/ drivers.
+__pycache__/
+*.pyc

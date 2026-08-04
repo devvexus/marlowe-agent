@@ -8,6 +8,7 @@
 //! either way, which is the point of pinning the wire rather than the plumbing.
 
 use std::io::{BufRead, Write};
+use std::path::Path;
 
 use marlowe_contract::{
     AbstentionReason, AnswerCost, AnswerLatency, AnswerRequest, AnswerResponse, ContractVersion,
@@ -16,14 +17,29 @@ use marlowe_contract::{
     RetrievalResponse, CONTRACT_VERSION,
 };
 use marlowe_journal::{Journal, Profile};
-use marlowe_memory::retrieve::{debug_assert_injection_valid, select_for_injection, UNGATED_VERSION};
+use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
+use marlowe_memory::retrieve::{debug_assert_injection_valid, select_for_injection, Scoring};
 use marlowe_memory::{ingest, BeliefStore};
 
+use crate::dump::FeatureDump;
 use crate::elapsed::Stopwatch;
+
+/// How this process scores.
+///
+/// Two variants, and there is deliberately no third that would let a run gate with default
+/// weights. `Gated` can only be constructed from a validated artifact.
+///
+/// Both may carry a dump. The dump is a diagnostic side channel and never changes what goes on
+/// the wire; the mode is what decides whether a gate exists.
+enum Mode {
+    Gated(FrozenGate, Option<FeatureDump>),
+    FitDump(FeatureDump),
+}
 
 pub struct Adapter {
     journal: Journal,
     beliefs: BeliefStore,
+    mode: Mode,
 }
 
 impl Adapter {
@@ -33,11 +49,39 @@ impl Adapter {
     /// between the harness's spawns. The clock probe alone spawns four processes and compares
     /// their outputs; a shared root would make it compare contaminated runs while reporting a
     /// clean verdict.
-    pub fn start(profile_root: &std::path::Path) -> Result<Self, Box<dyn std::error::Error>> {
+    ///
+    /// **The gate is loaded here, and a bad artifact stops the process.** Deferring the load
+    /// to the first retrieval would turn a build-time mistake into a per-query error the
+    /// harness would score as a class B failure — a wrong number instead of no number.
+    /// `dump_path` is optional and orthogonal to gating: with a gate loaded, the dump carries
+    /// this build's own verdict for every scored candidate, which is what the scoring driver
+    /// reads when the gate abstains and the wire therefore carries nothing.
+    pub fn start(
+        profile_root: &Path,
+        dump_path: Option<&Path>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let gate = FrozenGate::load()?;
+        let dump = dump_path.map(FeatureDump::create).transpose()?;
+        Self::start_with(profile_root, Mode::Gated(gate, dump))
+    }
+
+    /// Start in feature-dump mode. Used only by `tools/fit_gate.py`; loads no gate.
+    pub fn start_for_fit(
+        profile_root: &Path,
+        dump_path: &Path,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::start_with(profile_root, Mode::FitDump(FeatureDump::create(dump_path)?))
+    }
+
+    fn start_with(profile_root: &Path, mode: Mode) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
         let beliefs = BeliefStore::derive(&journal, profile.manifest().derivation_version)?;
-        Ok(Self { journal, beliefs })
+        Ok(Self {
+            journal,
+            beliefs,
+            mode,
+        })
     }
 
     /// The serial request/response loop (section 4.0.5).
@@ -143,14 +187,33 @@ impl Adapter {
         body_frame(Op::Retrieve, &response)
     }
 
-    fn retrieve(&self, request: &RetrievalRequest, stopwatch: Stopwatch) -> RetrievalResponse {
+    fn retrieve(&mut self, request: &RetrievalRequest, stopwatch: Stopwatch) -> RetrievalResponse {
+        // The cue and the gate run inside `select_for_injection`, so the two stages are timed
+        // as one span rather than reported separately. §4.2's breakdown fields are optional
+        // and absent stages are omitted; splitting one measured span into two invented halves
+        // would be worse than reporting the span honestly under the stage that dominates it.
+        let cue_watch = Stopwatch::start();
+        let scoring = match &self.mode {
+            Mode::Gated(gate, _) => Scoring::Gated(gate),
+            Mode::FitDump(_) => Scoring::FitDump,
+        };
         let selection = select_for_injection(
             &self.beliefs,
             &request.session_id,
+            &request.query_text,
             request.clock.now_ms,
             request.budget.max_tokens,
+            &scoring,
         );
+        let cues_ms = cue_watch.stop().as_cost_ms();
         debug_assert_injection_valid(&selection.injected);
+
+        let (version, threshold) = match &self.mode {
+            Mode::Gated(gate, _) => (GATE_VERSION.to_string(), gate.threshold()),
+            // A mode that computed features but calibrated nothing must not be stampable as
+            // one that gated. Same rule as Session A's `ungated-v0`.
+            Mode::FitDump(_) => (FIT_ONLY_VERSION.to_string(), 0.0),
+        };
 
         // Section 4.2: abstention and injection are mutually exclusive **in both
         // directions**. Injecting nothing IS the abstention outcome, so an empty set must
@@ -160,13 +223,33 @@ impl Adapter {
             None
         } else if selection.budget_exhausted {
             Some(AbstentionReason::BudgetExhausted)
+        } else if selection.scoped > 0 && selection.above_threshold == 0 {
+            // The gate's own abstention, and the first run in which this value is truthful:
+            // candidates existed and every one of them scored below the operating point.
+            // Session A could not report it, because there was no threshold to fall below.
+            Some(AbstentionReason::NoCandidateAboveThreshold)
         } else {
-            // Everything else in Session A is "there was nothing eligible": either the store
-            // is empty for this session, or every candidate is still maturing. Both are
-            // `no_candidates` -- there is no threshold yet for anything to fall below, so
-            // `no_candidate_above_threshold` would name a mechanism that does not exist.
+            // Nothing was eligible at all: the store is empty for this session, or every
+            // candidate is still maturing.
             Some(AbstentionReason::NoCandidates)
         };
+
+        let dumped = match &mut self.mode {
+            Mode::FitDump(dump) => Some((dump, false)),
+            Mode::Gated(_, Some(dump)) => Some((dump, true)),
+            Mode::Gated(_, None) => None,
+        };
+        if let Some((dump, gated)) = dumped {
+            if let Err(e) = dump
+                .write(&request.query_id, &selection.scored, gated)
+                .and_then(|_| dump.flush())
+            {
+                // Loud. A truncated dump would produce a calibration fit on a silently partial
+                // sample, and nothing downstream could tell.
+                eprintln!("marlowe: gate-feature dump failed: {e}");
+                std::process::exit(1);
+            }
+        }
 
         RetrievalResponse {
             contract_version: ContractVersion,
@@ -176,8 +259,8 @@ impl Adapter {
             injected: selection.injected,
             considered: selection.considered,
             gate: GateStamp {
-                version: UNGATED_VERSION.to_string(),
-                threshold: 0.0,
+                version,
+                threshold,
                 // False for M0. Only M10 may set this true, and only after beating the
                 // frozen baseline at equal or lower cost.
                 adaptive: false,
@@ -186,8 +269,10 @@ impl Adapter {
                 retrieval_tokens: selection.retrieval_tokens,
                 latency_ms: RetrievalLatency {
                     total: stopwatch.stop().as_cost_ms(),
-                    // Absent stages are omitted, never zeroed: there is no embed, cue, fuse
-                    // or gate stage to time, and a zero would read as a measurement.
+                    cues: Some(cues_ms),
+                    // Still absent, and still omitted rather than zeroed: there is no embedder
+                    // (ADR-004 is unwired) and nothing to fuse with one cue. A zero would read
+                    // as a measurement of a stage that does not exist.
                     ..Default::default()
                 },
             },

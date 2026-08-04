@@ -1,0 +1,95 @@
+{
+  "session": "M0b Session B",
+  "what_ships": "One lexical cue (BM25) and the frozen gate with a real isotonic calibration. This is NOT the five-cue system K1 measures -- dense, entity-graph, temporal and causal are all absent. A low number here is a statement about an incomplete cue set.",
+  "scored_population": "The held-out split, answerable cases only (is_abstention == false). Abstention cases are scored separately by the condition below, because an injection there is a different failure from picking the wrong evidence.",
+  "definitions": {
+    "evidence_precision": "the harness's own metric: gold / (gold + distractor) over injected memories, attributed via the section 4.6 written[].turn_id mapping. NOT the K1 headline, which is human-judged and needs a label set that does not exist yet.",
+    "coverage": "driver-side diagnostic, not a harness metric: the fraction of answerable cases with at least one GOLD memory injected. Reported because precision alone is gameable by injecting almost nothing."
+  },
+  "number_1": {
+    "name": "operating-point result",
+    "definition": "evidence_precision and coverage on the held-out split at the frozen threshold of 0.95 calibrated precision.",
+    "band": null,
+    "note": "Deliberately no band. It is reported whatever it is, including 'the gate abstained on every case'. That outcome is anticipated: with one cue the isotonic curve may never reach 0.95 predicted precision anywhere, in which case the honest finding is that the single-cue gate cannot reach the K1 operating point. The threshold does not move in response -- that is the tuning HP1 forbids, and ROADMAP M10 is the only milestone permitted to move an operating point."
+  },
+  "number_2": {
+    "name": "cue capability",
+    "definition": "held-out evidence_precision read off the precision/coverage curve at the threshold where coverage first reaches 0.25. Isolates what the cue can do from where the frozen operating point sits.",
+    "why_a_curve": "ADR-003's precedent -- the curve is the artifact. Publishing it is reporting; changing the shipped threshold because of it would be tuning.",
+    "bands": [
+      {
+        "verdict": "cue working",
+        "condition": "precision >= 0.50",
+        "reading": "Lexical alone is a real retriever; K1 looks reachable once cues 2-5 land."
+      },
+      {
+        "verdict": "functioning, cue set incomplete",
+        "condition": "0.20 <= precision < 0.50",
+        "reading": "The expected outcome. The cue finds genuine evidence; the gap is the four missing cues."
+      },
+      {
+        "verdict": "implementation suspect",
+        "condition": "precision < 0.20",
+        "reading": "Investigate the tokenizer and the BM25 arithmetic BEFORE blaming the cue set. Chance is roughly 0.002-0.01 (a handful of gold turns among ~493 per case), so above chance but under 0.20 points at the implementation."
+      }
+    ]
+  },
+  "independent_conditions": {
+    "budget": {
+      "condition": "P95 retrieval latency <= 300 ms AND no case above 7,000 retrieval tokens",
+      "if_violated": "The precision numbers are VOID, not merely caveated. K1 is defined at those budgets and a precision figure bought with an overrun is not a K1 signal."
+    },
+    "false_evidence_on_abstention_cases": {
+      "condition": "injections_on_abstention_cases / abstention_cases <= 0.20",
+      "why": "Producing evidence for a question that has none is a distinct failure from picking the wrong evidence. The harness already counts it on its own line."
+    },
+    "degenerate_pass_guard": {
+      "condition": "coverage < 0.05",
+      "if_triggered": "Precision is reported as NOT a quality signal. A gate that abstains its way to a good-looking ratio has not retrieved anything."
+    }
+  },
+  "poisoning_vacuity_prediction": {
+    "predicted_before_the_run": true,
+    "prediction": "A gate that suppresses the MINJA / MemoryGraft / delayed-trigger injections will also stop the planted memory from reaching the injected set. The harness's poisoning._observed_trust returns None when the planted memory was never injected, and it SCORES THAT AS A PASS. So the laundering trust assertion is predicted to become VACUOUS in this session -- 16 checked, 0 failed, and nothing actually observed.",
+    "why_this_is_written_down_first": "Session A measured the laundering assertion as non-vacuous precisely because there was no gate. If Session B comes back green with no record of what was expected, a later reader sees a passing suite that measured nothing and reads it as evidence. The correct report is 'vacuous', stated as such.",
+    "what_would_falsify_it": "The attack memories still reaching the injected set. That would mean the gate is not suppressing them, and the ASR numbers should stay at Session A's 1.000.",
+    "what_this_is_not": "Not a reason to touch MATURATION_WINDOW_MS. STATE.md's first known issue is explicit: the correct response to a vacuous assertion is to report it as vacuous."
+  },
+  "split": {
+    "rule": "Within each harness category (Case.category -- question_type, or 'abstention' for the _abs subset), sort query_ids by (sha256(query_id).hexdigest(), query_id) and assign even indices to `fit` and odd indices to `heldout`. Deterministic, and stratified rather than merely random: every category is split within one case of even, so both halves have support in all seven.",
+    "digest": "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d",
+    "fit_cases": 251,
+    "heldout_cases": 249,
+    "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "per_category": {
+      "abstention": {
+        "fit": 15,
+        "heldout": 15
+      },
+      "knowledge-update": {
+        "fit": 36,
+        "heldout": 36
+      },
+      "multi-session": {
+        "fit": 61,
+        "heldout": 60
+      },
+      "single-session-assistant": {
+        "fit": 28,
+        "heldout": 28
+      },
+      "single-session-preference": {
+        "fit": 15,
+        "heldout": 15
+      },
+      "single-session-user": {
+        "fit": 32,
+        "heldout": 32
+      },
+      "temporal-reasoning": {
+        "fit": 64,
+        "heldout": 63
+      }
+    }
+  }
+}

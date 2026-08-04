@@ -114,7 +114,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 49 passing
+cargo test --workspace                       # 88 passing
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 
@@ -130,6 +130,28 @@ PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # sec
 PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
 PYTHONPATH=src python -m marlowe_eval.cli repro --runs 2 --target "$TARGET"
 ```
+
+**The gate, and the real corpus.** The frozen gate is a **build-time artifact** — the binary
+refuses to start without one and there is no default weight vector, so a fresh clone reproduces
+the number rather than inheriting it. The corpus is never vendored (`data/` is gitignored);
+`fetch.py` pins its digest.
+
+```bash
+python tools/preregister_split.py     # ONCE. Writes the split + the bands, BEFORE any fit.
+python tools/fit_gate.py              # refuses without the split, or on a digest mismatch
+cargo build --release                 # embeds the artifact via include_str!
+python tools/score_longmemeval.py --out runs/session-b
+```
+
+**`tools/` imports `marlowe_eval` as a library and changes nothing in it.** The harness
+deliberately exposes no real-corpus path to `run`; adding `--corpus-path` would be the
+implementation reshaping the scoreboard's interface for its own convenience. If that flag is
+right long-term it is an M0a change, argued separately.
+
+**Pre-registration is a file, not an intention.** `tools/split.json` and
+`runs/session-b/PREREGISTRATION.json` are written before the fit, and `fit_gate.py` refuses to
+run without them. Bands, budget conditions and the poisoning-vacuity prediction all live there,
+so a green suite can never be read as evidence for something nobody predicted.
 
 Toolchain on Windows: MSVC (`rustup default stable-x86_64-pc-windows-msvc`) plus the VS C++
 workload and Windows SDK — `rusqlite`'s bundled SQLite compiles C, and ADR-004's ONNX runtime

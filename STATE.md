@@ -1,37 +1,116 @@
 # State
 
-**Updated:** 2026-08-03 — M0b **Session A** built; §1 amended; ADR-009 recorded
-**Current milestone:** M0b — Session A **complete**. Next is Session B.
+**Updated:** 2026-08-03 — M0b **Session B** built; the first LongMemEval number exists; HP1 amended
+**Current milestone:** M0b — Sessions A and B **complete**. Next is the second cue.
 
 ## Next action
 
-**Start M0b Session B: the lexical cue and the frozen gate.** Session A deliberately stopped
-short of any retrieval quality, so that the structural invariants were verified before there
-was a benchmark number to argue about. That worked — see *Built* — and the number is now the
-next thing to produce.
+**Add the dense cue (ADR-004's local ONNX embedder), then re-fit.** This is what Session B's
+numbers point at, and the reasoning is short:
 
-Session B's scope, in order:
+- The frozen gate's isotonic curve **tops out at 0.309 predicted precision**. The operating
+  point is 0.95. **There is no score region where one lexical cue can clear K1**, so the gate
+  abstains on every query — see *The first number* below.
+- Held-out precision at the curve's top block is **0.334 at 0.453 coverage**, which is the
+  pre-registered "functioning, cue set incomplete" band. The cue works; four of five are missing.
+- Latency has enormous headroom: **P95 24 ms against a 300 ms budget**. A dense cue plus an ANN
+  index fits inside it comfortably.
 
-1. **A lexical cue** (SQLite FTS5 is available; a `.claude/settings.local.json` probe confirms
-   it compiles in). Retrieval currently returns *all matured entries for the session*, ordered
-   by recency, with no relevance judgment at all.
-2. **The frozen gate** with a **real isotonic calibration fit as a build-time artifact** on
-   LongMemEval gold evidence (HP1). Until that exists the gate stamp says `ungated-v0`,
-   `threshold: 0.0`, and every `score` / `calibrated_precision` is `0.0`. **Do not put a
-   plausible version string next to those zeros** — a stamp reading `frozen-v1` would make an
-   ungated run look like a gate that ran and found nothing interesting, which is a much
-   better-looking claim than the true one.
-3. Then the first LongMemEval number, with its cost, per §5.7.
+**Do not lower the threshold, and do not re-tune the calibration resolution.** HP1 freezes the
+operating point, ROADMAP M10 is the only milestone permitted to move one, and the roadmap says
+in as many words that adaptivity is not the remedy for a missed K1. The blocks-per-curve choice
+(256, equal-count) was fixed on a stated principle *before* the fit precisely so it could not
+become a back-door threshold knob — finer top-end buckets would raise the reachable maximum.
 
-**Do not start Session B by adjusting the maturation window.** See the first known issue.
+**Do not adjust the maturation window.** Unchanged from Session A, and now under a second kind
+of pressure — see *Open gaps*.
 
-**Amended this session:** `CONTRACTS.md` **§1** now specifies the journal as a hash chain
-(`prev_signature` in the signed tuple). No major bump — no journal had ever been written
-outside the test suite that landed in the same change; the reasoning is recorded in §1 itself,
-following the §4.0 precedent. **ADR-009** answers open question 3: no structural-signature
-field, on forgetting-leak grounds primarily and schema cost secondarily.
+**Re-fit deliberately when the cue set changes.** `cue_agreement` is pinned to zero *by
+declaration*, not by variance, and that pin is a statement about a one-cue system. It stops
+being free the moment the second cue lands.
+
+**Two things to do the moment the gate starts injecting again, in this order:**
+
+1. **Run `conformance` before reading any quality number.** That is the run in which §4.3
+   maturation becomes verifiable through the contract again, and it closes the open gap below.
+   A silent failure there would mean the defence was lost during the cue work with nothing
+   observing it.
+2. **Record the calibration generalization pair** — fit-split prediction vs. held-out
+   measurement. See *Standing checks*. It is invisible in every other number.
+
+**Amended this session:** `DECISIONS.md` **HP1** gains *The fit/report split* — HP1 said the
+weights are fit on benchmark gold evidence and never said what they are then reported against,
+which is train-on-test read literally. The amendment pins a pre-registered, category-stratified
+split and the rule that the held-out figure is the headline. It also records the two ways a
+coefficient can be meaningless, because the first fit produced one of each.
+
+## The first number
+
+**Everything below was pre-registered in `runs/session-b/PREREGISTRATION.json` before the gate
+was fit.** Bands, budget conditions, the degenerate-pass guard, and the poisoning vacuity
+prediction were all written first; none was edited after a number existed. Full write-up in
+`runs/session-b/RESULT.md`.
+
+| | Pre-registered | Measured |
+|---|---|---|
+| **Number 1** — operating point at frozen 0.95 | *no band, by design* | **gate abstained on all 249 held-out cases.** 0 injections, coverage 0.000 |
+| **Number 2** — cue capability | 0.20–0.50 → "functioning, cue set incomplete" | **0.334** at cut 0.309, coverage 0.453 |
+| Retrieval P95 ≤ 300 ms | void the numbers if missed | **pass, 24 ms** |
+| Injections on abstention cases ≤ 0.20 | | pass, 0.000 — **vacuously** |
+| Degenerate-pass guard (coverage < 0.05) | | **triggered** |
+
+**Number 1 in one line: the calibration's maximum predicted precision is 0.309 and the frozen
+threshold is 0.95, so nothing can clear it.** That is a result about an incomplete cue set, not
+a defect, and it is the outcome the pre-registration named as anticipated.
+
+**`evidence_precision` reads 0.0 on both splits and the value is vacuous** — an empty
+denominator. It means *nothing was injected*, not *the injections were wrong*. `summary.json`
+carries that on the value itself, next to the contamination label on the all-500 figure.
+
+**A calibration check worth keeping.** The fit predicted 0.309 for its top block on the fit
+split; that block measured **0.334 on the held-out split**. The curve generalizes and is
+slightly conservative — which is the thing the split exists to be able to say at all.
+
+**The token-budget half of the budget condition is vacuous this run** (max 0 tokens, because
+nothing was injected). Only the latency half carries information.
 
 ## Built
+
+**M0b Session B** — the lexical cue and the frozen gate. **88 tests passing**
+(`cargo test --workspace`), up from 49. `eval/` **unchanged, zero lines** — verified by
+`git status -- eval/` and by its suite still printing 72.
+
+- **`cue/lexical.rs`** — BM25, pure Rust. **Not SQLite FTS5, and this is a deviation from what
+  this file previously suggested.** FTS5 was never a pinned decision; `DECISIONS.md` does not
+  name it and the 2026-08-01 spike used it from Python. Three reasons against it here: `bm25()`
+  ranking is a property of the *bundled SQLite version* and `repro` hashes the injected set byte
+  for byte, so a dependency bump could move a published number with nothing in the repo
+  changing; a second physical index must be kept in sync with §4.3's live-only partition and a
+  drift there is unobservable; and an explicit tokenizer is testable where FTS5's is not.
+- **Absolute, not min-max, score normalization** (`saturate`, `s/(s+10)`). Min-max is the
+  obvious choice and would have destroyed the gate: it forces the best candidate of *every*
+  query to 1.0, including queries where nothing matches, so a gate reading it could never
+  abstain. Asserted by test.
+- **`gate/features.rs`** — deliberately **artifact-free**, which is what lets `--fit-mode`
+  produce the fit data without a gate existing yet. No bootstrap placeholder anywhere.
+- **`gate/mod.rs`** — frozen weights + isotonic curve, threshold in calibrated-precision units.
+  **Nine distinct load-time refusals and no default gate**: unfitted artifact, reordered feature
+  names, wrong weight count, a pinned weight that is not zero, a pin naming an unknown feature,
+  a non-monotone curve, an unsorted curve, an empty curve, a moved threshold. Verified live —
+  the binary refuses the placeholder and names the command that regenerates it.
+- **`--dump-gate-features` / `--fit-mode`** — a diagnostic side channel that never changes the
+  wire. Under a gate it also carries this build's own `score` and `calibrated_precision` for
+  every scored candidate, which is what the curve is read from when the gate abstains and the
+  wire therefore carries nothing. The alternative — re-applying the weights in Python — would
+  have put a second implementation of the gate's arithmetic beside the real one with nothing
+  comparing them.
+- **`no_candidate_above_threshold`** is now truthful for the first time; Session A correctly
+  refused to use it because no threshold existed.
+- **`tools/`** — `preregister_split.py`, `fit_gate.py`, `score_longmemeval.py`. They import
+  `marlowe_eval` as a library and change nothing in it. The harness deliberately exposes no
+  real-corpus path; adding `--corpus-path` would be the implementation reshaping the
+  scoreboard's interface for its own convenience, and if that flag is right it is an M0a change
+  argued separately.
 
 **M0b Session A** — Rust workspace, `crates/`. **49 tests passing** (`cargo test --workspace`).
 Toolchain: MSVC 14.44 + Windows SDK 10.0.22621, rustc 1.97.1 `stable-x86_64-pc-windows-msvc`.
@@ -135,20 +214,88 @@ vs. 94.9 ms without; append 633/s; index rebuild 11.7 s reproducing **exact per-
 
 ## In progress
 
-Nothing half-done. Session A's scope is closed and its four acceptance criteria are measured.
+Nothing half-done. Session B's scope is closed and both pre-registered numbers are measured.
 
-**Expected and honest, not failures** — these are what a substrate with no gate and no
-generator produces, and a later session must not read them as regressions:
+**Expected and honest, not failures** — a later session must not read these as regressions:
 
 | Number | Why |
 |---|---|
-| LongMemEval accuracy **0%**, 6 abstained-when-answerable | No generator is wired. Every answer is an honest abstention (`degraded_path`), 0 fabrications, 2 correct refusals |
-| MINJA / MemoryGraft / delayed-trigger ASR **1.000** | There is no gate. Suppressing these is Session B's job, and the ASR is what makes the laundering assertion non-vacuous today |
-| Utility retention **0.0** | It is a ratio over answer accuracy, and the denominator is 0 |
-| Staleness half-life **not measured** | Supersession *machinery* exists; the contradiction *detector* is retrieval quality and waits. Reported as unmeasured rather than extrapolated, which is correct |
-| `evidence_precision` 0.4375 | Not the K1 headline and must never be reported as it. K1 needs the human label set, which is still the human's deliverable |
+| LongMemEval accuracy **0%** | No generator is wired, and none was in scope. Every answer is an honest abstention (`degraded_path`), 0 fabrications. **K2 is not in reach and is not claimed.** |
+| `evidence_precision` **0.0 on both splits** | Vacuous — an empty denominator, because the gate injected nothing. It does **not** mean the injections were wrong. Carried on the value itself in `summary.json` |
+| Gate abstains on 100% of queries | Number 1. The calibration tops out at 0.309 predicted precision against a frozen 0.95 |
+| MINJA / MemoryGraft / delayed-trigger ASR **0.000** | **Vacuous** — see the second known issue. Not a security result |
+| Utility retention **0.0** | A ratio over answer accuracy, and the denominator is 0 |
+| Staleness half-life **not measured** | Supersession *machinery* exists; the contradiction *detector* is retrieval quality and waits. Reported as unmeasured rather than extrapolated |
+| Only the latency half of the budget condition is informative | Token max is 0 because nothing was injected. P95 24 ms is a real measurement — the cue really did rank ~493 candidates per query |
+
+## Open gaps — each with a named closing condition
+
+Not "known issues to live with". Each of these is currently *uncovered*, and each has a
+condition that closes it. A session that satisfies the condition must re-run the check and move
+the entry out of this section.
+
+### §4.3 maturation has no contract-level coverage
+
+**Closing condition: the gate begins injecting.** Nothing else closes it — not a code change,
+not a new unit test.
+
+**Status.** The clock probe **fails** (`fail_no_time_dependence`) and conformance reports
+**REJECTED with 0 section 4 findings**. Session A passed both.
+
+**The cause is Number 1, not a clock bug.** Maturation was observable in Session A because the
+injected set grew as entries matured. With the gate abstaining on every query the injected set
+is empty at every clock value, so there is no time dependence for the probe to find. The probe
+is **correct to fail** — this file already recorded that an implementation with no observable
+time-dependence fails correctly, because §4.3 maturation is a requirement.
+
+**What is actually uncovered.** Maturation is still enforced in `entry.rs` and still exercised
+by Rust unit tests, but **its effect is invisible through the section 4 contract**. That is this
+project's own unobservable-mismatch pattern applied to a *defence* rather than a bug: the
+mechanism could be removed entirely and every contract-level check would stay exactly as green
+as it is now. This is the strongest argument in the Session B data for completing the cue set
+rather than lowering the threshold.
+
+**It was not fixed by weakening the gate, and must not be.** When the gate starts injecting,
+re-run `conformance` first — before reading any quality number — because that is the run in
+which the maturation defence becomes verifiable again, and a silent failure there would mean the
+defence was lost at some point during the cue work with nothing observing it.
+
+## Standing checks — re-run these on every cue addition
+
+- **Calibration generalization: fit-split prediction vs. held-out measurement.** Session B:
+  the isotonic curve's top block predicted **0.309** on the fit split and measured **0.334** on
+  the held-out split — generalizing, and slightly conservative.
+
+  **Re-run at every cue addition and every re-fit, and record both numbers.** A curve that
+  predicts well in-sample and badly out-of-sample is a memorized calibration, and the failure is
+  invisible in every other number the harness produces: precision, coverage, ASR and latency all
+  look identical whether the curve generalizes or not. The only place it shows is this
+  comparison, so it only exists if someone looks. A later fit whose held-out measurement falls
+  materially *below* its fit-split prediction is a signal about the **calibration**, not about
+  the cue — investigate the fit before adding anything else.
+
+  The comparison is the top block's predicted precision (`max` of `isotonic_breakpoints` in the
+  artifact) against `number_2_cue_capability.value` in `runs/<session>/summary.json`.
+
+- **`cargo test --workspace`, and `cd eval && python -m pytest` printing 72 unchanged.** A
+  changed eval count means the scoreboard was modified.
 
 ## Known issues
+
+- **Every poisoning ASR is now 0.000, and the number is VACUOUS. Do not quote it as a security
+  result.** MINJA, MemoryGraft and delayed-trigger all fell from 1.000 to 0.000 — because a gate
+  that injects nothing has an attack success rate of zero trivially. `utility_retention` is 0.0
+  beside each one, which is the AgentDojo pairing saying exactly that. Session A's 1.000 and
+  Session B's 0.000 are both artifacts of the injection rate, not measurements of discrimination.
+
+  **The laundering trust assertion is now vacuous too — 16 checked, 0 failed, nothing observed.**
+  This was *predicted in writing before the run* (`PREREGISTRATION.json`), precisely so that a
+  green suite with no record of what was expected could not later be read as evidence. Session A
+  is the run where that assertion was non-vacuous, and it stays the reference.
+
+  **K3 is the exception and is still meaningful: unsigned-write ASR 0.000, 4/4 visibly
+  rejected.** It is measured at the write path, before any gate exists, so its value does not
+  depend on whether anything is injected.
 
 - **The maturation window is 6h, and it is under tuning pressure. Do not adjust it to make a
   suite go green.** `MATURATION_WINDOW_MS` in `crates/marlowe-memory/src/entry.rs`.
@@ -177,12 +324,28 @@ generator produces, and a later session must not read them as regressions:
   (ADR-004's model is unwired), so `retrieve.rs` uses 3 chars/token — deliberately *over*-
   estimating, because erring high can only make a budget look worse, never hide a miss against
   §5.7's ≤7,000. Replace it with a real tokenizer when the embedder lands, and expect the
-  reported number to **fall**.
+  reported number to **fall**. Untested against a real load so far: the gate injected nothing,
+  so the estimator has never had to price a non-empty set on the real corpus.
 
-- **Retrieval is scoped to the request's `session_id`.** That is a scope filter, not a
-  relevance judgment — it is the honest minimum for a system with no cues. It also means
-  LongMemEval's multi-session category cannot be answered correctly by construction until the
-  cues arrive. Do not mistake the resulting category breakdown for a quality signal.
+- **`considered` costs a full-store scan per query.** `injection_candidates` walks every entry
+  in the belief store (246,750 on the full corpus) before session scoping, because `considered`
+  is defined as the true size of the set passing §4.3's exclusions across the whole store.
+  Measured P95 is 24 ms so it is nowhere near the budget, but it is O(store) per query and
+  ADR-003's physical live-only hot index — an M0b requirement, not yet built — is what removes
+  it. Do not "optimize" it by redefining `considered` to the scoped count; that field is a real
+  measurement the report depends on.
+
+- **Retrieval is scoped to the request's `session_id`** — a scope filter, not a relevance
+  judgment. The cue is what judges relevance inside it.
+
+  **Session scoping does not foreclose any LongMemEval category, including multi-session.**
+  `datasets/longmemeval.py` merges *all* of a question's haystack sessions into one synthetic
+  per-question session (`case_session = qid`), so every candidate for a question is already in
+  scope. That is about **493 turns per case**, and picking the handful of gold turns out of them
+  is the actual retrieval problem — the same problem in every category.
+
+  *(Corrected 2026-08-03. The Session A version of this entry claimed the opposite and was
+  wrong; the claim above is the one to use.)*
 
 - **`--suite poisoning` writes an empty `run.jsonl`.** `runner.py` extends the transcript only
   inside the benchmark block; the poisoning suite builds its own clients and their exchanges

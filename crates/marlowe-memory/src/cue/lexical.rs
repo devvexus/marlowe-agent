@@ -1,0 +1,286 @@
+//! The lexical cue — BM25 over the live candidate set.
+//!
+//! **Pure Rust, not SQLite FTS5, and the reason is determinism.** `STATE.md` suggested FTS5
+//! (the 2026-08-01 spike used it from Python), but it was never a pinned decision and
+//! `DECISIONS.md` does not name it. Three reasons it is the wrong instrument here:
+//!
+//! 1. FTS5's `bm25()` ranking is a property of the *bundled SQLite version*. `marlowe-eval
+//!    repro` compares two runs byte for byte and the injected set is in that hash, so a
+//!    dependency bump could change a published number with nothing in this repo changing.
+//! 2. A second physical index has to be kept in sync with §4.3's live-only partition. A drift
+//!    there is unobservable — retrieval quietly reads a stale or over-broad set and every test
+//!    stays green. That is the failure pattern CLAUDE.md says has already cost this project
+//!    four bugs.
+//! 3. The tokenizer is the part most likely to be wrong, and here it is fifteen lines that can
+//!    be asserted against hand-computed values.
+//!
+//! ADR-003's hot index is about *physical* partitioning at scale. Session A recorded that the
+//! candidate filter **is** the partition for now; that is still true and this cue reads it.
+//!
+//! Every constant below is a **frozen parameter** under HP1: the cue is on the measured path,
+//! so its weights are frozen in M0 exactly as the gate's are.
+
+use std::collections::BTreeMap;
+
+use crate::entry::MemoryEntry;
+
+/// BM25 term-frequency saturation. The standard value.
+pub const BM25_K1: f64 = 1.2;
+
+/// BM25 length normalization. The standard value.
+pub const BM25_B: f64 = 0.75;
+
+/// Maps an unbounded BM25 score into `[0, 1]` as `s / (s + K)`.
+///
+/// The mapping is half-open in real arithmetic and closed after the `f32` cast: scores large
+/// enough round to exactly 1.0. Stated as `[0, 1]` because that is what the function returns.
+/// Real BM25 scores over a session's candidate set land in single or low double digits, so the
+/// rounding regime is not reachable in practice — but the range is documented as measured, not
+/// as derived.
+///
+/// **Absolute, deliberately — not min-max over the query's candidate set.** Min-max looks
+/// like the obvious normalization and would quietly destroy the gate: it forces the best
+/// candidate of *every* query to 1.0, including queries where nothing matches at all. A gate
+/// whose top feature is 1.0 by construction cannot abstain, and abstention is a first-class
+/// outcome under §4.2 — so the normalization has to preserve "everything here is bad".
+///
+/// The constant only sets where the fitted logistic's operating range sits; the fitted weight
+/// and bias absorb the scale. It is not a quality knob and must not be tuned as one.
+pub const BM25_SATURATION: f64 = 10.0;
+
+/// Split text into terms: ASCII-lowercased, non-alphanumeric treated as a boundary.
+///
+/// No stemming and no stop list. Both are defensible and both are *tuning knobs*, which under
+/// HP1's freeze rule would have to arrive as frozen artifacts with a recorded decision behind
+/// them. Digits are kept — LongMemEval's temporal-reasoning category turns on dates and
+/// version numbers, and dropping them would hobble the cue on the category most likely to
+/// need it.
+pub fn tokenize(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for ch in text.chars() {
+        if ch.is_ascii_alphanumeric() {
+            current.push(ch.to_ascii_lowercase());
+        } else if ch.is_alphanumeric() {
+            // Non-ASCII alphanumerics are kept as-is rather than dropped. `to_ascii_lowercase`
+            // is a no-op on them, so this is a faithful passthrough, not a casefold claim.
+            current.push(ch);
+        } else if !current.is_empty() {
+            out.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
+}
+
+/// Raw BM25 for every document, in the order the documents were given.
+///
+/// The corpus statistics (`N`, document frequency, average length) are taken over **the
+/// candidate set passed in** — the set retrieval is actually choosing from. Computing IDF over
+/// a wider set than the one being ranked would score documents against a corpus they are not
+/// competing in.
+///
+/// Determinism: query terms are deduplicated in order of first appearance and documents are
+/// visited in the given order, so the floating-point accumulation order is fixed. `repro`
+/// compares two runs byte for byte and the injected set is in that hash.
+pub fn score_all(docs: &[&MemoryEntry], query_text: &str) -> Vec<f32> {
+    let n = docs.len();
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let doc_terms: Vec<Vec<String>> = docs.iter().map(|d| tokenize(&d.text)).collect();
+    let lengths: Vec<usize> = doc_terms.iter().map(Vec::len).collect();
+    let total_len: usize = lengths.iter().sum();
+    // A candidate set of empty documents has no average length to speak of. Guarding with 1.0
+    // keeps the length-normalization term finite; every tf is zero in that case anyway, so the
+    // guard cannot manufacture a score.
+    let avgdl = if total_len == 0 {
+        1.0
+    } else {
+        total_len as f64 / n as f64
+    };
+
+    // Term frequency per document, and document frequency across the set.
+    let mut tf_maps: Vec<BTreeMap<&str, u32>> = Vec::with_capacity(n);
+    let mut df: BTreeMap<&str, u32> = BTreeMap::new();
+    for terms in &doc_terms {
+        let mut tf: BTreeMap<&str, u32> = BTreeMap::new();
+        for term in terms {
+            *tf.entry(term.as_str()).or_insert(0) += 1;
+        }
+        for term in tf.keys() {
+            *df.entry(term).or_insert(0) += 1;
+        }
+        tf_maps.push(tf);
+    }
+
+    let mut query_terms: Vec<String> = Vec::new();
+    for term in tokenize(query_text) {
+        if !query_terms.contains(&term) {
+            query_terms.push(term);
+        }
+    }
+
+    let mut scores = vec![0.0f64; n];
+    for term in &query_terms {
+        let df_t = *df.get(term.as_str()).unwrap_or(&0) as f64;
+        if df_t == 0.0 {
+            continue;
+        }
+        // The BM25+ / Lucene form: always positive, so a term present in every document
+        // contributes a small amount rather than a negative one. The classic Robertson IDF
+        // goes negative above df > N/2, which would let a common term *penalise* the
+        // documents that contain it.
+        let idf = (1.0 + (n as f64 - df_t + 0.5) / (df_t + 0.5)).ln();
+        for (i, tf) in tf_maps.iter().enumerate() {
+            let f = *tf.get(term.as_str()).unwrap_or(&0) as f64;
+            if f == 0.0 {
+                continue;
+            }
+            let norm = 1.0 - BM25_B + BM25_B * (lengths[i] as f64 / avgdl);
+            scores[i] += idf * (f * (BM25_K1 + 1.0)) / (f + BM25_K1 * norm);
+        }
+    }
+
+    scores.into_iter().map(|s| s as f32).collect()
+}
+
+/// Squash a raw BM25 score into `[0, 1)`. See [`BM25_SATURATION`].
+pub fn saturate(raw: f32) -> f32 {
+    let s = raw as f64;
+    if s <= 0.0 {
+        return 0.0;
+    }
+    (s / (s + BM25_SATURATION)) as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entry::MATURATION_WINDOW_MS;
+    use marlowe_contract::{Fidelity, PayloadKind, TrustClass};
+
+    fn entry(id: &str, text: &str) -> MemoryEntry {
+        MemoryEntry {
+            id: id.into(),
+            text: text.into(),
+            payload_kind: PayloadKind::Episode,
+            embedding_ref: None,
+            source_turn_id: format!("t-{id}"),
+            source_session_id: "s-1".into(),
+            trust_class: TrustClass::UserAsserted,
+            effective_trust: TrustClass::UserAsserted,
+            derivation: Vec::new(),
+            origin_event: 1,
+            created_at: 1_000,
+            last_accessed: 1_000,
+            access_count: 0,
+            confidence: 1.0,
+            activation: 1.0,
+            fidelity: Fidelity::Record,
+            silent_until: Some(1_000 + MATURATION_WINDOW_MS),
+            supersedes: Vec::new(),
+            superseded_by: None,
+        }
+    }
+
+    #[test]
+    fn the_tokenizer_does_what_it_says() {
+        assert_eq!(tokenize("Hello, World!"), vec!["hello", "world"]);
+        assert_eq!(
+            tokenize("moved off Postgres in April 2023"),
+            vec!["moved", "off", "postgres", "in", "april", "2023"],
+            "digits are kept: temporal-reasoning turns on them"
+        );
+        assert_eq!(tokenize("v1.2.3"), vec!["v1", "2", "3"]);
+        assert_eq!(tokenize(""), Vec::<String>::new());
+        assert_eq!(tokenize("   ,,,   "), Vec::<String>::new());
+    }
+
+    #[test]
+    fn no_stemming_and_no_stop_list() {
+        // Both are frozen-artifact decisions, not defaults. Asserted so adding either is a
+        // deliberate act that breaks a test rather than a quiet quality tweak.
+        assert_eq!(tokenize("running runs run"), vec!["running", "runs", "run"]);
+        assert_eq!(tokenize("the a of"), vec!["the", "a", "of"]);
+    }
+
+    #[test]
+    fn a_matching_document_outscores_a_non_matching_one() {
+        let a = entry("m-a", "the ingest job times out on the nightly run");
+        let b = entry("m-b", "we had pasta for dinner");
+        let docs = vec![&a, &b];
+        let scores = score_all(&docs, "why is the ingest job timing out");
+        assert!(scores[0] > scores[1], "{scores:?}");
+        assert!(scores[0] > 0.0);
+    }
+
+    #[test]
+    fn a_query_sharing_no_vocabulary_scores_zero_everywhere() {
+        // This is the single-cue failure mode brief §5 names, asserted rather than assumed:
+        // "fails when relevance is not similarity". A dense cue is what closes it.
+        let a = entry("m-a", "the ingest job times out on the nightly run");
+        let b = entry("m-b", "we had pasta for dinner");
+        let docs = vec![&a, &b];
+        let scores = score_all(&docs, "quarterly headcount forecast");
+        assert_eq!(scores, vec![0.0, 0.0]);
+    }
+
+    #[test]
+    fn idf_is_never_negative() {
+        // A term in every document must contribute a small positive amount, never a penalty.
+        let a = entry("m-a", "postgres postgres postgres");
+        let b = entry("m-b", "postgres");
+        let docs = vec![&a, &b];
+        let scores = score_all(&docs, "postgres");
+        assert!(scores.iter().all(|s| *s >= 0.0), "{scores:?}");
+        assert!(scores[0] > scores[1], "higher tf still ranks higher");
+    }
+
+    #[test]
+    fn scoring_is_deterministic_across_calls() {
+        let a = entry("m-a", "the ingest job times out on the nightly run");
+        let b = entry("m-b", "the nightly run was rescheduled");
+        let c = entry("m-c", "we had pasta for dinner");
+        let docs = vec![&a, &b, &c];
+        let first = score_all(&docs, "nightly ingest run");
+        let second = score_all(&docs, "nightly ingest run");
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn an_empty_candidate_set_scores_nothing_rather_than_dividing_by_zero() {
+        assert_eq!(score_all(&[], "anything"), Vec::<f32>::new());
+        let empty = entry("m-a", "");
+        assert_eq!(score_all(&[&empty], "anything"), vec![0.0]);
+    }
+
+    #[test]
+    fn saturation_is_absolute_not_relative_to_the_candidate_set() {
+        // The property the gate depends on: a query where nothing matches well must produce a
+        // LOW feature value, not a 1.0 for whichever candidate matched least badly. Min-max
+        // normalization would return 1.0 for the top document in both cases below.
+        let good = saturate(30.0);
+        let poor = saturate(0.4);
+        assert!(good > 0.7, "{good}");
+        assert!(poor < 0.1, "{poor}");
+        assert_eq!(saturate(0.0), 0.0);
+        assert_eq!(saturate(-1.0), 0.0, "a negative score is no evidence, not anti-evidence");
+        // Half-open in real arithmetic, closed after the f32 cast. Asserted as it behaves.
+        assert!(saturate(100.0) < 1.0, "a realistic score stays inside the range");
+        assert_eq!(saturate(f32::MAX), 1.0, "and an unreachable one saturates exactly");
+    }
+
+    #[test]
+    fn saturation_is_monotone() {
+        let mut previous = -1.0f32;
+        for raw in [0.0f32, 0.1, 1.0, 5.0, 10.0, 50.0, 500.0] {
+            let s = saturate(raw);
+            assert!(s > previous || (raw == 0.0 && s == 0.0), "{raw} -> {s}");
+            previous = s;
+        }
+    }
+}
