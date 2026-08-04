@@ -21,6 +21,7 @@ Three measurements, driver-side, on the held-out split only:
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import defaultdict
@@ -34,8 +35,14 @@ sys.path.insert(0, str(REPO / "eval" / "src"))
 from marlowe_eval.datasets import longmemeval  # noqa: E402
 from marlowe_eval.metrics.records import Attributor  # noqa: E402
 
-RUN = REPO / "runs" / "session-c" / "heldout"
-OUT = REPO / "runs" / "session-c" / "cue-overlap.json"
+DEFAULT_RUN = REPO / "runs" / "session-d" / "heldout"
+DEFAULT_OUT = REPO / "runs" / "session-d" / "cue-overlap.json"
+
+# Session C's published numbers, used only to report the pre-registered gap fractions against a
+# fixed baseline. Read from its file rather than retyped; absent is not fatal.
+SESSION_C_OVERLAP = REPO / "runs" / "session-c" / "cue-overlap.json"
+
+ARTIFACT = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v3.json"
 
 
 def iter_ndjson(path: Path):
@@ -64,31 +71,84 @@ def rrf(a: np.ndarray, b: np.ndarray, k: int = 60) -> np.ndarray:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run", type=Path, default=DEFAULT_RUN, help="a run directory")
+    parser.add_argument("--out", type=Path, default=None, help="where to write the JSON")
+    parser.add_argument(
+        "--record-verdict",
+        action="store_true",
+        help="stamp the measured floor verdict into the gate artifact, then REBUILD. "
+        "`FrozenGate::load` refuses an artifact whose floor verdict is `fail` when its "
+        "calibration would inject, so this is what arms that interlock.",
+    )
+    args = parser.parse_args()
+    run_dir: Path = args.run.resolve()
+    out_path: Path = (args.out.resolve() if args.out else run_dir.parent / "cue-overlap.json")
+
     split = json.loads((REPO / "tools" / "split.json").read_text(encoding="utf-8"))
     corpus = longmemeval.load(REPO / split["corpus_path"])
     gold_map = corpus.gold_map()
 
     attributor = Attributor()
-    for frame in iter_ndjson(RUN / "run.jsonl"):
+    for frame in iter_ndjson(run_dir / "run.jsonl"):
         body = frame.get("body")
         if frame.get("op") == "ingest" and isinstance(body, dict) and "written" in body:
             for written in body["written"]:
                 attributor.record(written["turn_id"], list(written["memory_ids"]))
 
     per = defaultdict(list)
-    for row in iter_ndjson(RUN / "scored-candidates.ndjson"):
+    for row in iter_ndjson(run_dir / "scored-candidates.ndjson"):
+        # The v3 gate ranks on FOUR keys, so reproducing its own top-1 needs all of them.
+        # Refused by name rather than defaulted: falling back to `score` alone against a pre-v3
+        # dump would silently compare a different ordering to the floor it is judged against.
+        for required in ("calibrated_precision", "min_calibrated_precision", "score"):
+            if required not in row:
+                raise SystemExit(
+                    f"{run_dir / 'scored-candidates.ndjson'} has no {required!r}. This is a "
+                    "pre-v3 dump, or the run was made with --fit-mode (which loads no gate). "
+                    "The fitted-gate ranking cannot be reproduced from it, and guessing an "
+                    "ordering would produce a top-1 number that is not the gate's."
+                )
         attribution, _ = attributor.attribute(
             row["memory_id"], gold_map.get(row["query_id"], frozenset())
         )
         per[row["query_id"]].append(
-            (row["lexical_bm25"], row["dense_cosine"], row["score"], attribution == "gold")
+            (
+                row["lexical_bm25"],
+                row["dense_cosine"],
+                row["calibrated_precision"],
+                row["min_calibrated_precision"],
+                row["score"],
+                attribution == "gold",
+            )
         )
 
     cases = {c.query_id: c for c in corpus.cases}
     queries = [q for q in per if q in cases and not cases[q].is_abstention]
 
-    def hit(scores: np.ndarray, gold: np.ndarray, k: int) -> bool:
-        return bool(set(np.argsort(-scores, kind="stable")[:k].tolist()) & set(np.flatnonzero(gold).tolist()))
+    def order_of(scores: np.ndarray) -> np.ndarray:
+        """Descending rank order for a single score. Stable, so ties keep the dump's own order,
+        which is entry-id ascending -- the gate's final tiebreak."""
+        return np.argsort(-scores, kind="stable")
+
+    def gate_order(cal: np.ndarray, min_cal: np.ndarray, score: np.ndarray) -> np.ndarray:
+        """The v3 gate's own ranking key, reproduced exactly.
+
+        `(calibrated_precision desc, min_calibrated_precision desc, percentile desc, id asc)` --
+        pre-registered before the fit. np.lexsort takes its PRIMARY key last and is stable, so
+        the trailing id-ascending tiebreak comes free from the dump's own row order.
+        """
+        return np.lexsort((-score, -min_cal, -cal))
+
+    def hit(order: np.ndarray, gold: np.ndarray, k: int) -> bool:
+        """Unchanged in meaning from Session C: does the top-k intersect gold?
+
+        It now takes an ORDER rather than a score array, so every ranker -- single-cue, RRF and
+        the four-key gate -- is truncated and intersected by the same code. For a single score
+        `order_of` is exactly what this function used to compute internally, so the lexical,
+        dense and oracle numbers are bit-identical to the ones the floor is judged against.
+        """
+        return bool(set(order[:k].tolist()) & set(np.flatnonzero(gold).tolist()))
 
     rhos: list[float] = []
     ks = (1, 5, 10)
@@ -97,29 +157,39 @@ def main() -> int:
     for query in queries:
         lex = np.array([r[0] for r in per[query]])
         den = np.array([r[1] for r in per[query]])
-        gate = np.array([r[2] for r in per[query]])
-        gold = np.array([r[3] for r in per[query]])
+        cal = np.array([r[2] for r in per[query]])
+        min_cal = np.array([r[3] for r in per[query]])
+        pct = np.array([r[4] for r in per[query]])
+        gold = np.array([r[5] for r in per[query]])
         if gold.sum() == 0:
             continue
         n += 1
         rhos.append(spearman(lex, den))
-        fused = rrf(lex, den)
+        lex_order = order_of(lex)
+        den_order = order_of(den)
+        rrf_order = order_of(rrf(lex, den))
+        fused_order = gate_order(cal, min_cal, pct)
         for k in ks:
-            L, D = hit(lex, gold, k), hit(den, gold, k)
+            L, D = hit(lex_order, gold, k), hit(den_order, gold, k)
             tally[k]["lexical"] += L
             tally[k]["dense"] += D
             tally[k]["both"] += L and D
             tally[k]["either"] += L or D
             tally[k]["neither"] += not L and not D
-            tally[k]["fitted_gate"] += hit(gate, gold, k)
-            tally[k]["rank_fusion_rrf"] += hit(fused, gold, k)
+            tally[k]["fitted_gate"] += hit(fused_order, gold, k)
+            tally[k]["rank_fusion_rrf"] += hit(rrf_order, gold, k)
+
+    baseline = {}
+    if SESSION_C_OVERLAP.exists() and SESSION_C_OVERLAP.resolve() != out_path.resolve():
+        baseline = json.loads(SESSION_C_OVERLAP.read_text(encoding="utf-8"))["gold_in_top_k"]
 
     rho = np.array(rhos)
     by_k = {}
     for k in ks:
         t = tally[k]
         best_single = max(t["lexical"], t["dense"])
-        by_k[str(k)] = {
+        fusion = t["fitted_gate"] / n
+        entry = {
             "lexical": round(t["lexical"] / n, 4),
             "dense": round(t["dense"] / n, 4),
             "both": round(t["both"] / n, 4),
@@ -127,12 +197,37 @@ def main() -> int:
             "dense_only": round((t["dense"] - t["both"]) / n, 4),
             "either_oracle": round(t["either"] / n, 4),
             "neither": round(t["neither"] / n, 4),
-            "fitted_gate": round(t["fitted_gate"] / n, 4),
+            "fitted_gate": round(fusion, 4),
             "rank_fusion_rrf": round(t["rank_fusion_rrf"] / n, 4),
             "oracle_gain_over_best_single": round((t["either"] - best_single) / n, 4),
             "fusion_gap_to_oracle": round((t["either"] - t["fitted_gate"]) / n, 4),
             "fusion_vs_best_single": round((t["fitted_gate"] - best_single) / n, 4),
         }
+
+        # The pre-registered oracle read. Both denominators, because they answer different
+        # questions and quoting only the larger fraction would be denominator-shopping.
+        prior = baseline.get(str(k))
+        if prior:
+            oracle = prior["either_oracle"]
+            v2_gate = prior["fitted_gate"]
+            v2_best = max(prior["lexical"], prior["dense"])
+            primary_denom = oracle - v2_gate
+            secondary_denom = oracle - v2_best
+            entry["fraction_of_gap_closed"] = (
+                round((fusion - v2_gate) / primary_denom, 4) if primary_denom else None
+            )
+            entry["fraction_of_headroom_over_best_single"] = (
+                round((fusion - v2_best) / secondary_denom, 4) if secondary_denom else None
+            )
+            entry["_gap_basis"] = {
+                "prior_session": "session-c",
+                "prior_fitted_gate": v2_gate,
+                "prior_best_single": v2_best,
+                "prior_either_oracle": oracle,
+                "primary_denominator": round(primary_denom, 4),
+                "secondary_denominator": round(secondary_denom, 4),
+            }
+        by_k[str(k)] = entry
 
     result = {
         "_what": "Do the two cues find the SAME gold turns? Held-out split, driver-side.",
@@ -153,8 +248,10 @@ def main() -> int:
         },
         "gold_in_top_k": by_k,
     }
-    OUT.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
+    print(f"run: {run_dir.relative_to(REPO)}")
     print(f"held-out answerable cases: {n}")
     print(f"Spearman rho: mean {rho.mean():.3f}  median {np.median(rho):.3f}")
     print()
@@ -169,7 +266,79 @@ def main() -> int:
             f"neither {b['neither']:.3f}  |  fusion vs best single {b['fusion_vs_best_single']:+.3f}  "
             f"gap to oracle {b['fusion_gap_to_oracle']:+.3f}"
         )
-    print(f"\nwrote {OUT.relative_to(REPO)}")
+
+    # --- the pre-registered floor, stated as a verdict rather than left to the reader ---------
+    top1 = by_k["1"]
+    if baseline.get("1"):
+        prior = baseline["1"]
+        floor = max(prior["lexical"], prior["dense"])
+        print()
+        print("=" * 78)
+        print("THE FLOOR (pre-registered, hard, no partial credit)")
+        print(f"  required   >= {floor}   (Session C's best single cue at top-1)")
+        print(f"  measured      {top1['fitted_gate']}")
+        if top1["fitted_gate"] >= floor:
+            print("  VERDICT: PASS")
+        else:
+            print("  VERDICT: FAIL -- the session fails outright. The finding is that calibrated")
+            print("           precision is not a valid cross-cue arbitration signal at the top")
+            print("           of the ranking. Not a tuning result.")
+        print()
+        print("THE ORACLE READ (fraction of the pre-committed +0.157 gap closed)")
+        for k in ks:
+            b = by_k[str(k)]
+            if b.get("fraction_of_gap_closed") is None:
+                continue
+            print(
+                f"  top-{k:<2} primary {b['fraction_of_gap_closed']:+.1%} "
+                f"(/{b['_gap_basis']['primary_denominator']}, from the v2 gate)   "
+                f"secondary {b['fraction_of_headroom_over_best_single']:+.1%} "
+                f"(/{b['_gap_basis']['secondary_denominator']}, from best single)"
+            )
+        # The cues did not change this session, so these three must not have moved. If they
+        # have, the held-out population changed rather than the fusion, and every comparison
+        # against Session C is invalid.
+        drift = {
+            name: (prior[name], top1[name])
+            for name in ("lexical", "dense", "either_oracle")
+            if abs(prior[name] - top1[name]) > 1e-9
+        }
+        print()
+        if drift:
+            print("  !! UNCHANGED-CUE CHECK FAILED -- these moved with no cue change:")
+            for name, (was, now) in drift.items():
+                print(f"     {name}: {was} -> {now}")
+            print("     The held-out population changed, not the fusion. Comparisons are invalid.")
+        else:
+            print("  unchanged-cue check: lexical / dense / oracle identical to Session C")
+        print("=" * 78)
+
+        if args.record_verdict:
+            verdict = "pass" if top1["fitted_gate"] >= floor else "fail"
+            artifact = json.loads(ARTIFACT.read_text(encoding="utf-8"))
+            if artifact.get("state") != "fitted":
+                raise SystemExit(
+                    f"{ARTIFACT} is not fitted; there is no shape whose floor this verdict "
+                    "would describe."
+                )
+            artifact["floor_verdict"] = verdict
+            artifact["floor_required"] = floor
+            artifact["floor_measured"] = top1["fitted_gate"]
+            artifact["floor_read_from"] = str(out_path.relative_to(REPO)).replace("\\", "/")
+            ARTIFACT.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
+            print()
+            print(f"recorded floor_verdict={verdict!r} into {ARTIFACT.relative_to(REPO)}")
+            print("  now rebuild so the artifact is embedded:  cargo build --release")
+            if verdict == "fail":
+                print(
+                    "  NOTE: this artifact is now REFUSED AT LOAD if its calibration ever "
+                    "reaches the\n"
+                    "  frozen threshold. It loads today only because it injects nothing. That is "
+                    "the point:\n"
+                    "  the shape cannot survive into the run that makes the gate inject."
+                )
+
+    print(f"\nwrote {out_path.relative_to(REPO)}")
     return 0
 
 

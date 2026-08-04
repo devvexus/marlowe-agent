@@ -1002,3 +1002,117 @@ influence as the worst failure, so the direction is right — but it is a loss, 
 
 Gated as M9 always was: nothing before M9 needs the field to work, and if M0b misses K1 a sixth cue
 is irrelevant.
+
+---
+
+## ADR-010 · Cue fusion: calibration cannot both compare cues and order within one
+
+**Status: the shape this ADR tests FAILED its pre-registered floor.** It is recorded anyway,
+because the reason it failed is a constraint on every future fusion shape and is more valuable
+than the shape was.
+
+**Context.** Session C measured the two-cue combiner against its own inputs
+(`runs/session-c/cue-overlap.json`). The cues are complementary — per-case Spearman 0.233, the
+either-cue oracle reaching 0.652 at top-1 — but the fitted logistic reached **0.4957 at top-1
+against lexical alone at 0.5478**. It won at k=5 and k=10 and lost only at k=1, which is where the
+operating point reads.
+
+The mechanism was the loss function, not the parameters. IRLS minimises log-loss over all 119,340
+rows; dense is the better cue in aggregate and lexical is the better cue at rank 1, so the fit came
+out `lexical 4.539 / dense 26.468` and was dense-shaped everywhere. **One global weight vector
+cannot be dense-shaped in the middle and lexical-shaped at the top.**
+
+**What was tried (Session D, `frozen-v3`).** Calibrate each cue separately against gold with its
+own isotonic curve; fuse by taking the max. This removes the global weight entirely, and
+calibration is the only thing that makes two cues comparable at all: a BM25 score whose empirical
+gold rate is 0.6 should outrank a cosine whose empirical gold rate is 0.3, which raw-score linear
+fusion cannot express at any weighting.
+
+### It failed, and the failure is the finding
+
+Floor: **0.4783 at top-1** against a required 0.5478 — worse than its best single input, and worse
+than the v2 linear gate at every k. Measured mechanism
+(`runs/session-d/fusion-failure.json`, 230 held-out cases):
+
+| | |
+|---|---|
+| `lexical_bm25` curve | everything above 0.68293 collapses to one value |
+| Cases with a tie at the fused maximum | **60.4%** (mean 2.72 candidates, max 19) |
+| Lexical's head reordered by the tiebreak | **23.0%** of cases |
+| Gold inside the unorderable band, not picked | **20.9%** of cases |
+
+> **Isotonic calibration maps a continuous score to a step function. `max` over step functions has
+> no resolution at the top — exactly where the operating point reads.**
+
+Lexical alone orders its head by continuous BM25. Max-fusion flattens that head to a single value
+and hands the decision to the tiebreak — and the tiebreak, `min_calibrated_precision`, is *the
+other cue's opinion*, so inside a lexical-dominated tie it defers to the weaker cue at top-1.
+
+**Decision, and it binds future shapes:** *calibration puts cues in common units by destroying the
+ordering inside each cue. A fusion may use calibrated values to CHOOSE BETWEEN cues, but the
+ordering that decides the top of the ranking must come from a continuous score.*
+
+### Consequence for the cascade, which is the next shape
+
+Recorded here so it is inherited rather than rediscovered:
+
+> Dense filters by **calibrated precision**; lexical reranks by **raw BM25**. A cascade that
+> reranked by *calibrated* lexical precision would reproduce Session D exactly.
+
+### The second cost, which was missed when the shape was argued
+
+Under max fusion, `max_calibrated_precision = max_c (cue c's own top block)`. **The fusion enters
+the ranking and cannot enter the ceiling at all.** v2's joint logistic could, and did — 0.3176
+above both cues' solo ceilings of 0.3090 and 0.2876, because blending produced a joint score whose
+top block was marginally purer than either cue's own. The shape was argued on ranking; its
+structural cap on the ceiling was not identified until after the fit.
+
+This has a methodological consequence recorded with it:
+
+> **A band on a quantity the tested shape cannot structurally move is not a valid read.** Check
+> that a shape can move the metric it will be judged on, before registering the band.
+
+Session D's ceiling band fired at `< 0.35` and its registered words called for escalation on the
+grounds that *two* structural fixes had each failed to move the ceiling. That reading does not
+hold: one fix moved it (+0.0086) and one could not move it by construction. **One trajectory data
+point, not two, and the escalation is not licensed by it.**
+
+**Rejected alternatives, with the evidence against each.**
+
+| Shape | Why not |
+|---|---|
+| Fitted combination on **rank features** | Measured null: RRF scores 0.4957 at top-1, identical to the fitted gate to four decimals. A fitted rank combiner differs only by weights — same global weight vector, same aggregate loss, strictly less information, since ranks discard the magnitude calibration reads. |
+| **Cascade** (dense filters, lexical reranks) | Not rejected — **deferred and now promoted.** It was ranked second because `N` is an unmeasured constant on the frozen path, which is verbatim the objection that keeps `cue_agreement_2cue` pinned. It is now the only candidate left, and `N` must be registered from dense's held-out recall curve before any reranker exists. |
+| Lowering the threshold to make the gate inject | HP1 freezes it; ROADMAP M10 is the only milestone permitted to move an operating point, and says in as many words that adaptivity is not the remedy for a missed K1. |
+
+**What ships, and the interlock that makes it safe.** `frozen-v3` stays the embedded artifact even
+though it failed. The gate abstains on 100% of queries under both v2 and v3 (ceilings 0.3176 and
+0.3090, both far under the frozen 0.95), so the ranking difference is invisible on the wire and
+costs nothing operationally; and v3's per-cue curve structure is a strict superset of what the
+cascade needs — a filter curve and a reranker. Reverting would discard the expanded refusal set and
+the diagnostic for no measurable gain.
+
+**That justification expires exactly when the next session succeeds**, because the cascade's whole
+purpose is to make the gate inject — the worst possible timing for an argument to lapse, and the
+kind of thing a session is guaranteed not to be thinking about on the day it finally gets a number
+above the threshold.
+
+So it is **not** left to anyone's memory. The artifact carries `floor_verdict`
+(`pass` | `fail` | `unmeasured`) alongside `floor_required`, `floor_measured` and
+`floor_read_from`, and `FrozenGate::load` refuses:
+
+> **A gate whose recorded floor verdict is `fail` cannot load if its calibration would reach the
+> frozen threshold.** A fusion measured below its own best single cue must not decide what reaches
+> the model.
+
+v3 therefore stays usable as scaffolding *because* it injects nothing, and becomes unloadable the
+instant that stops being true. Checked on `fail` only, not `unmeasured`: the floor is read from a
+scoring run's feature dump, which requires the gate to load in order to produce it, so refusing
+`unmeasured` would deadlock the measurement. `fit_gate.py` writes `unmeasured` because the fitter
+cannot know a held-out number; `tools/analyze_cue_overlap.py --record-verdict` stamps the measured
+verdict and the build embeds it.
+
+**This replaced an open question addressed to the human.** An earlier draft of this ADR flagged
+"confirm or reverse shipping v3" for a human decision. A structural interlock is strictly better
+than a question someone has to remember to answer, and the question was withdrawn when the
+interlock landed.

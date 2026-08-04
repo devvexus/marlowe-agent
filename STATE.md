@@ -1,89 +1,110 @@
 # State
 
-**Updated:** 2026-08-04 — M0b **Session C** built; the dense cue ships and the bottleneck is now
-located
-**Current milestone:** M0b — Sessions A, B and C **complete**. Next is the fusion, not cue 3.
+**Updated:** 2026-08-04 — M0b **Session D** built; the fusion **failed its pre-registered floor**
+and the failure is the session's output
+**Current milestone:** M0b — Sessions A–D **complete**. Next is the **cascade**, not cue 3 and not
+escalation.
 
 ## Next action
 
-**Fix the fusion. Do not scope cue 3 yet.** `runs/session-c/cue-overlap.json` measured the
-question directly and the answer changed the plan:
+**Build the cascade, and pre-register it first.** Session D replaced the linear combiner with max
+over per-cue calibrated precisions. It **failed the floor** — 0.4783 at top-1 against a required
+0.5478, worse than its best single input *and* worse than the v2 gate it replaced at every k. Full
+write-up in `runs/session-d/RESULT.md`; the mechanism is measured in
+`runs/session-d/fusion-failure.json`.
 
-- The lexical and dense cues are **complementary, not redundant** — per-case Spearman ρ 0.233,
-  and at top-1 lexical finds gold dense misses in 20.9% of cases while dense finds gold lexical
-  misses in 10.4%. The union reaches 0.652 against 0.548 for the better single cue.
-- **The fitted gate reaches 0.496 at top-1 — worse than lexical alone.** Rank fusion scores
-  identically, so this is not an artifact of the cues' score scales. The operating point lives in
-  the top-1 regime, which is exactly where the combiner is worse than its better input.
-- That explains the headline: a materially better cue was added, and max calibrated precision
-  moved **0.309 → 0.3176**. The information is in the cues; the combiner discards it.
+**The finding, which binds every future fusion shape (ADR-010):**
 
-**The next experiment is one session and has a measured ceiling.** A fusion that cannot score
-below its best input — max over per-cue calibrated precisions, or a combination fit on rank
-features rather than raw scores — measured against the same Number 2 read rule and the same
-frozen threshold. The oracle bound says the headroom is **+0.157 at top-1**.
+> **Isotonic calibration maps a continuous score to a step function. `max` over step functions has
+> no resolution at the top — exactly where the operating point reads.** 60.4% of cases had a tie at
+> the fused maximum; lexical's own head was reordered by the tiebreak in 23.0% of cases; gold sat
+> inside the unorderable band and was not picked in 20.9%.
+>
+> Calibration puts cues in common units **by destroying the ordering inside each cue.** A fusion
+> may use calibrated values to CHOOSE BETWEEN cues, but the ordering that decides the top of the
+> ranking must come from a **continuous** score.
 
-**Two conditions are PRE-COMMITTED for the fusion session now, before any fusion exists.**
-Copy them verbatim into that session's `PREREGISTRATION.json`; they are maximally credible
-precisely because they were fixed while the number they judge could not be known.
+**What to pre-register, before any reranker exists:**
 
-1. **Floor condition — a hard condition, not a band.** *Any fusion must score at or above its
-   best single input at the operating point.* A combiner that can fall below `max(cues)` is
-   broken regardless of what it does elsewhere. Session C's gate scores **0.496 at top-1 against
-   lexical's 0.548** and therefore fails this floor today. If the new fusion still lands under
-   **0.548 at top-1**, it **fails outright**, and the finding is that *linear-score fusion is the
-   wrong shape* — not that the parameters need tuning.
+1. **`N`**, from dense's held-out recall curve.
+2. **The rank-preservation constraint, explicitly:** dense filters by **calibrated precision**,
+   lexical reranks by **raw BM25**. A cascade that reranked by *calibrated* lexical precision would
+   reproduce Session D exactly. Write this into the pre-registration so it is inherited, not
+   rediscovered.
+3. **A ceiling band only if the cascade can structurally move the ceiling — check first.** See the
+   lesson below.
+4. **The floor is unchanged: ≥ 0.5478 at top-1.**
 
-2. **The oracle bound is the read.** The either-cue union reaches **0.652 at top-1**, so the
-   ceiling on this work is **+0.157**. Report **the fraction of that gap closed**, not the
-   absolute number alone. It is the only way to tell "the fusion improved" from "the fusion is
-   now doing what it can" — an absolute gain of +0.05 means very different things at 30% and 90%
-   of the reachable headroom.
+**The cascade is the only candidate left, and it can exceed the bound Session D was judged
+against.** Its top-1 ceiling is dense's R@N (0.917 at N=10) rather than the top-1 oracle 0.652.
 
-**A third cue is not ruled out and is not next.** 34.8% of cases still have no gold in either
-cue's top-1, which is real headroom that content-similarity cues do not reach. But adding a cue
-to a combiner that already degrades its best input would most likely reproduce this result.
+**Pre-registration lesson, and it is new (ADR-010):**
 
-**Do not lower the threshold and do not re-tune the calibration resolution.** Unchanged from
-Session B, and now under a second session's worth of pressure.
+> **A band on a quantity the tested shape cannot structurally move is not a valid read.** Check
+> that a shape can move the metric it will be judged on, *before* registering the band.
+
+**Do not escalate on the ceiling band, and do not read it as two data points.** See *The numbers*.
+
+**Do not scope cue 3.** Unchanged: 34.8% of cases have gold at rank 1 from neither content cue, so
+the eventual third cue must be structurally different — but the combiner question is not settled
+yet, and feeding a third cue to an unsettled combiner is what Session C already warned against.
+
+**Do not lower the threshold and do not re-tune the calibration resolution.** Unchanged, now under
+a third session's worth of pressure.
 
 **Read the COLD retrieval latency, not the warm one.** See *Known issues*.
 
 ## The numbers
 
-**Pre-registered in `runs/session-c/PREREGISTRATION.json` and `PREREGISTRATION-model.json`
-before the fit.** Full write-up in `runs/session-c/RESULT.md`.
+**Pre-registered in `runs/session-d/PREREGISTRATION.json`, committed at `0290a5d` before any fit
+existed.** Full write-up in `runs/session-d/RESULT.md`.
 
-| | Session B | Session C |
-|---|---|---|
-| **Number 1** @ frozen 0.95 | abstained on all 249 | **abstained on all 249** |
-| **Number 2** cue capability | 0.334 @ cut 0.309, cov 0.453 | **0.371 @ cut 0.3176, cov 0.504** |
-| verdict vs that session's bands | functioning, cue set incomplete | **"dense adds nothing measurable"** |
-| max calibrated precision | 0.309 | **0.3176** |
-| retrieval P95 (≤300 ms) | 24 ms | **36 ms cold** / 24 ms warm |
-| abstention injections ≤0.20 | 0.000, vacuous | 0.000, **vacuous** |
-| degenerate-pass guard | triggered | **triggered** |
+| | Session B | Session C | **Session D** |
+|---|---|---|---|
+| **Number 1** @ frozen 0.95 | abstained on all 249 | abstained on all 249 | **abstained on all 249** |
+| **Number 2** cue capability | 0.334 @ cut 0.309, cov 0.453 | 0.371 @ cut 0.3176, cov 0.504 | **0.334 @ cut 0.309, cov 0.453** |
+| **Number 2b** matched coverage | — | — | **0.3157 @ cov 0.607 — NOT matched, see below** |
+| max calibrated precision | 0.309 | 0.3176 | **0.3090** |
+| **top-1 (held-out, 230 cases)** | — | gate 0.496 | **gate 0.478**, floor **0.5478** → **FAIL** |
+| retrieval P95 (≤300 ms) | 24 ms | 36 ms cold / 24 warm | **NOT MEASURED** (cold) / 26 ms warm |
+| abstention injections ≤0.20 | 0.000, vacuous | 0.000, vacuous | 0.000, **vacuous** |
+| degenerate-pass guard | triggered | triggered | **triggered** |
 
-**Number 2's band was applied as written and its verdict stands.** The read rule fixes a
-coverage *floor*, not realised coverage, so it cannot express that precision and coverage both
-rose (0.334 @ 0.453 → 0.371 @ 0.504). Recorded as a limitation of the rule in
-`PREREGISTRATION-model.json`, explicitly **not** as grounds to reinterpret the band. A
-matched-coverage statistic must be pre-registered before a future fit, not substituted after.
+**The floor failed and the session fails outright, as pre-registered.** No number here is an
+improvement. The registered finding: *calibrated precision is not a valid cross-cue arbitration
+signal at the top of the ranking.*
 
-**Number 3 — per cue, alone:** lexical 0.418 precision @ 0.261 coverage; dense 0.298 @ 0.282.
-The pre-registered "embedder is suspect" reading fired, and **both named checks came back
-clean** — pooling agrees with the maintainer's own pooled graph to 1.08e-7, and truncation is
-0.002% at `MAX_SEQ_LEN` 8192. Raised by the pre-registration, discharged by the evidence it
-named.
+**The ceiling band fired at `< 0.35`, and the read is CONFOUNDED. Do not act on its words.** Those
+words called for escalation on the grounds that *two* independent structural fixes had each failed
+to move the ceiling. That is not what happened:
 
-**Calibration generalization pair** (standing check): predicted **0.3176** on the fit split,
-measured **0.371** held-out — above prediction, same conservative direction as Session B's
-0.309 → 0.334. The failure rule (held-out >0.05 *below* prediction) did not fire.
+- Session C's dense cue **moved** the ceiling (+0.0086).
+- Session D's shape **could not move it by construction** — under max fusion
+  `max_calibrated_precision = max_c (cue c's own top block)`, so the fusion enters the ranking and
+  **cannot enter the ceiling at all**. v2's joint logistic could, and did (0.3176 above both cues'
+  solo ceilings of 0.3090 and 0.2876).
 
-**The bottleneck is the fusion, and it is measured.** See *Next action*. `cue-overlap.json`:
-ρ 0.233, oracle union 0.652 at top-1, fitted gate 0.496 — **below lexical alone at 0.548**.
-**This is why cue 3 was deferred**: three more cues fed to a combiner that degrades its best
-input would have reproduced this result three more times.
+**That is one trajectory data point, not two, and the escalation is not licensed by it.** Recorded
+as: band fired, registered words on the record, read confounded by a structural cap identified
+during the session.
+
+**Number 2 returns to exactly Session B's 0.334123**, because the v3 read point is lexical's own
+top block — which *is* Session B's curve (a logistic on one cue is a monotone transform, and
+isotonic over the same quantile buckets is invariant to it). An independent confirmation that the
+new fitter does what it claims.
+
+**Number 2b did not achieve matched coverage and its delta is not a quality signal.** The
+registered read point was Session C's realised 0.504274; the nearest cut the v3 curve offers is
+coverage **0.606838**. Same root cause as the floor failure — the step function is too coarse to
+offer the read point. Reported as unmatched rather than quoted.
+
+**Calibration generalization — three pairs, none fired**, all conservative: overall 0.3090 → 0.3341
+(+0.0251), lexical 0.3090 → 0.4182 (+0.1092), dense 0.2876 → 0.2984 (+0.0108). **Now computed by
+the scorer** rather than worked out by hand in prose.
+
+**Number 3 is unchanged from Session C** — lexical 0.418 @ 0.261, dense 0.298 @ 0.282 — as are
+lexical/dense/oracle at every k. The cue set did not move; only the combiner did, so the
+comparison is valid.
 
 **The embedding cache, against its pre-registered condition.** ADR-004's model choice was made
 *conditional* on the cache, so this is a condition and not a statistic:
@@ -99,6 +120,59 @@ The first cycle ran ~12% over projection and the pair still clears the budget co
 projection is recorded as having been optimistic rather than left standing as if confirmed.
 
 ## Built
+
+**M0b Session D** — the fusion, `frozen-v3`. **146 tests passing** (`cargo test --workspace`), up
+from 125. `eval/` **unchanged, zero lines**, its suite still printing 72.
+
+- **`gate/mod.rs` — per-cue isotonic curves, `max` fusion, no weight vector and no logistic.** The
+  **refusal set grew from 11 to 19 and none was removed.** New: `VersionDisagrees`,
+  `FusionDisagrees`, `CueFeaturesDisagree`, `CueCurveMissing`, `CueCurveExtra`,
+  `NonCueFeatureNotInert`, `InertFeatureIsACue`, `InertFeatureUnknown`,
+  `CurveDuplicateBreakpoint`, `CurvePrecisionOutOfRange`, `FailedFloorWouldInject`,
+  `FloorVerdictUnrecognised`. `PinnedWeightNotZero` was **replaced by coverage enforcement**, not
+  dropped: with no weight vector the property to enforce is that no feature leaves the gate
+  silently.
+- **The floor interlock — `FailedFloorWouldInject`.** The artifact carries `floor_verdict`
+  (`pass` | `fail` | `unmeasured`) with the numbers it was read from, and **a gate whose floor
+  verdict is `fail` cannot load if its calibration would reach the frozen threshold.** v3 stays
+  usable as scaffolding *because* it injects nothing, and becomes unloadable the instant that
+  stops being true — which is exactly when the next session succeeds. Verified live in both
+  directions: v3 loads at ceiling 0.3090; the same artifact with its top block raised to 0.96
+  is refused, naming the command that re-records the verdict. Checked on `fail` only, not
+  `unmeasured`: the floor is read from a scoring run's dump, which needs the gate to load in
+  order to produce it, so refusing `unmeasured` would deadlock.
+- **`FusionDisagrees` is the load-bearing one.** Feature *names* are identical across v2 and v3, so
+  `FeatureNamesDisagree` cannot see a v2 calibration applied under v3 semantics. Verified live both
+  ways: a v2 artifact is refused on unknown `weights`, and the binary refuses the unfitted
+  placeholder naming the command that regenerates it.
+- **`CurveDuplicateBreakpoint`** — the hazard was identified **in the plan, before the fit**. Both
+  cue scores have a large atom at exactly 0, so quantile bucketing produces blocks sharing a
+  `score_upper`; `partition_point` cannot resolve which owns it and a `<`-based sortedness check
+  does not fire. Fixed at both ends — the fitter pools buckets sharing a bound before PAVA, and the
+  load-time refusal catches a fitter regression.
+- **`CUE_FEATURES` is pinned in Rust**, not left for the artifact to declare, so a cue cannot leave
+  the fusion without editing `features.rs`.
+- **`retrieve.rs`** — the pre-registered four-level ranking key `(calibrated_precision,
+  min_calibrated_precision, percentile, id)`. **`dump.rs`** carries `min_calibrated_precision` so
+  the driver reproduces the gate's ordering instead of re-implementing the fusion in Python.
+- **A false rationale was found and corrected.** `gate/mod.rs` claimed the harness stratifies its
+  human-label sample by gate-**score** decile. **It does not** — both call sites pass
+  `calibrated_precision` (`metrics/precision.py:96`, `labels/sampler.py:73`); `sampler.py:80`
+  carries `score` and nothing reads it. The harness's *parameter* is named `score`, which is how
+  the claim survived. Corrected rather than deleted, naming both verified call sites. The project's
+  unobservable-mismatch pattern applied to a **rationale**: nothing ever depended on the claim, so
+  removing it entirely would have left every test green.
+- **`CONTRACTS.md` §4 checked before building**: it does not constrain `score` semantically, so
+  redefining it as a within-curve percentile raised no contract question. Dropping `weights` is
+  likewise not a contract change — §4.4's `Gate` is the internal design type; the wire stamp is
+  `GateStamp {version, threshold, adaptive}` on both sides and carries no weights.
+- **`tools/`** — `preregister_session_d.py`, `analyze_fusion_failure.py`. `fit_gate.py` rewritten
+  per-cue with `fit_logistic` **deleted rather than left unused**. `analyze_cue_overlap.py` gains
+  `--run`/`--out`, the gap fractions, the floor verdict and an **unchanged-cue check** that fails
+  loudly if lexical/dense/oracle move when the cue set did not. `score_longmemeval.py` gains Number
+  2b, computed generalization pairs, and `--embedding-cache` / `--heldout-only` for the cold read.
+- **ADR-010** records the finding, the constraint it places on the cascade, and the
+  pre-registration lesson.
 
 **M0b Session C** — the dense cue. **125 tests passing** (`cargo test --workspace`), up from 88.
 `eval/` **unchanged, zero lines**, its suite still printing 72.
@@ -261,7 +335,11 @@ vs. 94.9 ms without; append 633/s; index rebuild 11.7 s reproducing **exact per-
 
 ## In progress
 
-Nothing half-done. Session B's scope is closed and both pre-registered numbers are measured.
+Nothing half-done. Session D's scope is closed: the floor and the ceiling were both measured, the
+floor failed, and the failure mechanism was diagnosed rather than left as a story.
+
+**The `.cold-cache-probe/` directory is a scratch artifact of the cold latency read and can be
+deleted.** It is gitignored alongside `.embedding-cache/`.
 
 **Expected and honest, not failures** — a later session must not read these as regressions:
 
@@ -269,7 +347,7 @@ Nothing half-done. Session B's scope is closed and both pre-registered numbers a
 |---|---|
 | LongMemEval accuracy **0%** | No generator is wired, and none was in scope. Every answer is an honest abstention (`degraded_path`), 0 fabrications. **K2 is not in reach and is not claimed.** |
 | `evidence_precision` **0.0 on both splits** | Vacuous — an empty denominator, because the gate injected nothing. It does **not** mean the injections were wrong. Carried on the value itself in `summary.json` |
-| Gate abstains on 100% of queries | Number 1. The calibration tops out at 0.309 predicted precision against a frozen 0.95 |
+| Gate abstains on 100% of queries | Number 1. The calibration tops out at **0.3090** predicted precision against a frozen 0.95 |
 | MINJA / MemoryGraft / delayed-trigger ASR **0.000** | **Vacuous** — see the second known issue. Not a security result |
 | Utility retention **0.0** | A ratio over answer accuracy, and the denominator is 0 |
 | Staleness half-life **not measured** | Supersession *machinery* exists; the contradiction *detector* is retrieval quality and waits. Reported as unmeasured rather than extrapolated |

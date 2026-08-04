@@ -38,6 +38,32 @@ pub const FEATURE_NAMES: [&str; 5] = [
 
 pub const FEATURE_COUNT: usize = FEATURE_NAMES.len();
 
+/// The features the **fusion** reads, in order — a subset of [`FEATURE_NAMES`].
+///
+/// **Session D.** The gate no longer combines the whole vector with one weight vector. It
+/// calibrates each *cue* separately and fuses by taking the max, so the artifact carries one
+/// isotonic curve per name here and nothing at all for the rest.
+///
+/// Pinned in Rust rather than left for the artifact to declare, for the reason that governs the
+/// `feature_names` check one line up: an artifact that named only `lexical_bm25` here would
+/// produce a gate that silently stopped reading the dense cue, and every downstream number would
+/// still be produced. `FrozenGate::load` asserts the artifact's `cue_features` against this array
+/// by name **and order**, so a cue can only leave the fusion by editing this file.
+///
+/// Cue 3 extends this array, which — together with the `cue_agreement_2cue` rename — makes
+/// adding a cue a deliberate two-line change that forces a re-fit rather than a silent one.
+pub const CUE_FEATURES: [&str; 2] = ["lexical_bm25", "dense_cosine"];
+
+pub const CUE_COUNT: usize = CUE_FEATURES.len();
+
+/// The position of a cue feature within [`FEATURE_NAMES`].
+///
+/// Returns `None` for a name this build does not extract, which `FrozenGate::load` turns into a
+/// refusal rather than a skipped cue.
+pub fn feature_index(name: &str) -> Option<usize> {
+    FEATURE_NAMES.iter().position(|n| *n == name)
+}
+
 /// One candidate's features, in `FEATURE_NAMES` order.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FeatureVector(pub [f32; FEATURE_COUNT]);

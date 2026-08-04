@@ -68,8 +68,13 @@ pub enum Scoring<'a> {
 pub struct ScoredCandidate<'a> {
     pub entry: &'a MemoryEntry,
     pub features: features::FeatureVector,
+    /// The winning cue's percentile within its own curve. See [`crate::gate::Verdict::score`] —
+    /// this changed meaning in Session D without the field name moving.
     pub score: f32,
+    /// **max** over the per-cue calibrated precisions. What the threshold reads.
     pub calibrated_precision: f32,
+    /// **min** over the per-cue calibrated precisions. The ranking key's second level.
+    pub min_calibrated_precision: f32,
     pub passes: bool,
 }
 
@@ -126,11 +131,12 @@ fn dense_for(
 
 /// Select what to inject.
 ///
-/// Ranking under [`Scoring::Gated`] is `(calibrated_precision desc, score desc, id asc)`; under
-/// [`Scoring::FitDump`] it is Session A's `(created_at desc, id asc)`. Both are **totally
-/// deterministic**, and that is not a nicety: `marlowe-eval repro` compares two runs byte for
-/// byte and the injected set is in the hash. The final tiebreak is always `id` because two
-/// entries with equal scores would otherwise be ordered by whatever the collection did.
+/// Ranking under [`Scoring::Gated`] is `(calibrated_precision desc, min_calibrated_precision
+/// desc, score desc, id asc)`; under [`Scoring::FitDump`] it is Session A's `(created_at desc,
+/// id asc)`. Both are **totally deterministic**, and that is not a nicety: `marlowe-eval repro`
+/// compares two runs byte for byte and the injected set is in the hash. The final tiebreak is
+/// always `id` because two entries with equal scores would otherwise be ordered by whatever the
+/// collection did.
 pub fn select_for_injection<'a>(
     beliefs: &'a BeliefStore,
     session_id: &str,
@@ -168,6 +174,7 @@ pub fn select_for_injection<'a>(
                         features: f,
                         score: v.score,
                         calibrated_precision: v.calibrated_precision,
+                        min_calibrated_precision: v.min_calibrated_precision,
                         passes: v.passes,
                     }
                 }
@@ -178,6 +185,7 @@ pub fn select_for_injection<'a>(
                     features: f,
                     score: 0.0,
                     calibrated_precision: 0.0,
+                    min_calibrated_precision: 0.0,
                     passes: true,
                 },
             }
@@ -188,10 +196,25 @@ pub fn select_for_injection<'a>(
     match scoring {
         Scoring::Gated(_) => {
             order.retain(|i| scored[*i].passes);
+            // Four levels, declared in `runs/session-d/PREREGISTRATION.json` BEFORE the fit.
+            //
+            // The tiebreak is load-bearing rather than cosmetic: isotonic output is a step
+            // function, so ties at the top block are pervasive and the second key decides top-1
+            // outright. Choosing it after seeing top-1 would be tuning the operating point
+            // through the back door, which is why it is pre-registered.
+            //
+            // `min_calibrated_precision` second is the agreement signal done correctly -- among
+            // candidates the winning cue rates equally, prefer the one the OTHER cue also rates
+            // highly. Continuous, calibrated, and needing no firing predicate, which is exactly
+            // what keeps `cue_agreement_2cue` pinned.
             order.sort_by(|a, b| {
                 let (x, y) = (&scored[*a], &scored[*b]);
                 y.calibrated_precision
                     .total_cmp(&x.calibrated_precision)
+                    .then_with(|| {
+                        y.min_calibrated_precision
+                            .total_cmp(&x.min_calibrated_precision)
+                    })
                     .then_with(|| y.score.total_cmp(&x.score))
                     .then_with(|| x.entry.id.cmp(&y.entry.id))
             });
@@ -301,16 +324,30 @@ mod tests {
         s
     }
 
-    /// A gate whose curve makes the threshold reachable, so the gated path can be exercised
+    /// A gate whose curves make the threshold reachable, so the gated path can be exercised
     /// without depending on whatever the real fit produced.
+    ///
+    /// The lexical curve clears 0.95; the dense curve deliberately does not. That asymmetry is
+    /// the v3 property under test — either cue alone may carry a candidate, and the weaker one
+    /// can never drag the stronger down.
     fn test_gate() -> FrozenGate {
         FrozenGate::from_json(
             r#"{
-              "state": "fitted", "note": "test", "version": "frozen-v1", "threshold": 0.95,
+              "state": "fitted", "note": "test", "version": "frozen-v3",
+              "fusion": "max-per-cue-calibrated-precision", "threshold": 0.95,
               "feature_names": ["lexical_bm25","dense_cosine","effective_trust","fidelity","cue_agreement_2cue"],
-              "weights": [8.0, 0.0, 0.0, 0.0, 0.0], "bias": -1.0,
-              "pinned_zero_weights": {"cue_agreement_2cue": "a coarsening of two continuous features"},
-              "isotonic_breakpoints": [[0.4, 0.10], [0.7, 0.99]],
+              "cue_features": ["lexical_bm25","dense_cosine"],
+              "cue_curves": {
+                "lexical_bm25": [[0.10, 0.10], [0.20, 0.99]],
+                "dense_cosine": [[0.50, 0.05], [0.90, 0.40]]
+              },
+              "inert_features": {
+                "effective_trust": "constant in this fixture",
+                "fidelity": "constant in this fixture",
+                "cue_agreement_2cue": "declared: needs a firing predicate for the dense cue"
+              },
+              "floor_verdict": "pass", "floor_required": 0.5478, "floor_measured": 0.6,
+              "floor_read_from": "test fixture",
               "corpus": "test", "corpus_variant": "cleaned", "corpus_sha256": "x",
               "split_rule": "test", "split_digest": "y",
               "fit_cases": 1, "heldout_cases": 1, "fit_rows": 1, "fit_positives": 1,

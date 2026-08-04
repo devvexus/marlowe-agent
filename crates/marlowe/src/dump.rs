@@ -12,13 +12,17 @@
 //! Nothing derived from the answer key is written here. The join to gold happens in the
 //! fitter, from §4.6's `written[].turn_id` mapping — the same join the harness itself uses.
 //!
-//! **In gated mode the dump also carries this build's own `score`, `calibrated_precision` and
-//! `passes`.** That is not a convenience. When the frozen gate abstains on every query — the
-//! anticipated single-cue outcome — the §4.2 response carries no `injected` entries at all, so
-//! a precision/coverage curve read from the wire would be a curve over an empty set. The
-//! alternative was to re-apply the artifact's weights and isotonic lookup in Python, which
+//! **In gated mode the dump also carries this build's own `score`, `calibrated_precision`,
+//! `min_calibrated_precision` and `passes`.** That is not a convenience. When the frozen gate
+//! abstains on every query — the outcome since Session B — the §4.2 response carries no
+//! `injected` entries at all, so a precision/coverage curve read from the wire would be a curve
+//! over an empty set. The alternative was to re-apply the artifact's curves in Python, which
 //! would put a second implementation of the gate's arithmetic beside the real one with nothing
 //! comparing them. Reading the implementation's own numbers has neither problem.
+//!
+//! `min_calibrated_precision` was added in Session D for exactly that reason: it is the ranking
+//! key's second level, so without it the driver cannot reproduce the gate's own top-1 — which is
+//! the number the session's floor condition is judged on.
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -67,6 +71,14 @@ impl FeatureDump {
                 row.insert(
                     "calibrated_precision".into(),
                     serde_json::json!(candidate.calibrated_precision),
+                );
+                // The ranking key's second level. Emitted for the same reason
+                // `calibrated_precision` is: without it the driver cannot reproduce the gate's
+                // own ordering, and reproducing it in Python would put a second implementation
+                // of the fusion beside the real one with nothing comparing them.
+                row.insert(
+                    "min_calibrated_precision".into(),
+                    serde_json::json!(candidate.min_calibrated_precision),
                 );
                 row.insert("passes".into(), serde_json::json!(candidate.passes));
             }

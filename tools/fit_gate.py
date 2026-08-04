@@ -16,23 +16,35 @@ What it does:
      transport, so the features come from the shipping code path rather than a reimplementation
   3. join each dumped candidate to its turn via the section 4.6 `written[].turn_id` mapping and
      label it against the benchmark's gold evidence
-  4. fit logistic weights, then an isotonic curve on the resulting scores
-  5. write `crates/marlowe-memory/artifacts/gate-frozen-v2.json`
+  4. fit **one isotonic curve per cue**, each on that cue's own score distribution
+  5. write `crates/marlowe-memory/artifacts/gate-frozen-v3.json`
 
 Then rebuild: the artifact is embedded with `include_str!`.
 
-**v2 feature vector.** `dense_cosine` was added and `cue_agreement` renamed to
-`cue_agreement_2cue`, so `FrozenGate::load` refuses any artifact fit under the v1 vector. The
-rename is the mechanism: the feature's MEANING changed, and a weight fit under one meaning and
-applied under the other is a live mismatch nothing downstream would observe.
+**v3 fusion, Session D. There is no logistic and no weight vector.** Through v2 the gate was one
+logistic over the whole feature vector, calibrated by a single isotonic curve. Session C measured
+that combiner against its own inputs and it lost: 0.4957 at top-1 on the held-out split against
+**lexical alone at 0.5478**, with the either-cue oracle at 0.6522. It won at k=5 and k=10 and lost
+only at k=1 -- which is where the operating point reads.
 
-**Zero-variance features are pinned to zero, not fitted.** A coefficient fit on a feature that
-never varies is fit on noise, and it becomes load-bearing the instant the feature starts
-varying. The pins are written into the artifact and `FrozenGate::load` enforces them, so the
-inertness is structural rather than intended.
+The mechanism was the loss function, not the parameters. IRLS minimises log-loss over all 119,340
+rows, dense is the better cue in aggregate, and lexical is the better cue at rank 1; the fitted
+weights came out `lexical 4.539 / dense 26.468` and the combination was dense-shaped everywhere.
+**One global weight vector cannot be dense-shaped in the middle and lexical-shaped at the top.**
+
+Calibrating each cue separately removes the global weight entirely, and calibration is the only
+thing that makes two cues comparable: a BM25 score whose empirical gold rate is 0.6 outranks a
+cosine whose empirical gold rate is 0.3, which raw-score linear fusion cannot express at any
+weighting. `fit_logistic` was **deleted rather than left unused** -- dead fit machinery beside a
+live one is the two-implementations-one-checked pattern this project keeps paying for.
+
+**Features outside the fusion carry a stated reason.** v2 checked that a pinned *weight* was
+zero; with no weight vector the property to enforce is COVERAGE, so `FrozenGate::load` refuses an
+artifact that leaves any non-cue feature undeclared. A feature cannot drop out of the gate
+silently.
 
     python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
-    python tools/preregister_session_c.py   # this session's bands, before the fit
+    python tools/preregister_session_d.py   # this session's bands, before the fit
     python tools/fit_gate.py
     cargo build --release
 """
@@ -60,7 +72,7 @@ from marlowe_eval.suites import benchmark as bench  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v2.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v3.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
 # Outside the profile root by construction: --profile-root must be empty per spawn,
@@ -74,7 +86,7 @@ CACHE_DIR = REPO / ".embedding-cache"
 # It is a per-session path deliberately. Pointing this at a stale session's file would let a new
 # cue be scored against bands written for a different cue set, which is the same failure the
 # split digest check catches one level up.
-PREREG_PATH = REPO / "runs" / "session-c" / "PREREGISTRATION.json"
+PREREG_PATH = REPO / "runs" / "session-d" / "PREREGISTRATION.json"
 
 # Must match `marlowe_memory::gate::features::FEATURE_NAMES`, in order. Asserted against the
 # dump's own keys below, and again by `FrozenGate::load` against the Rust array.
@@ -86,13 +98,24 @@ FEATURE_NAMES = [
     "cue_agreement_2cue",
 ]
 
+# Must match `marlowe_memory::gate::features::CUE_FEATURES`, in order. `FrozenGate::load` asserts
+# it against the Rust array by name AND order, so a cue cannot leave the fusion by editing this
+# list alone.
+CUE_FEATURES = ["lexical_bm25", "dense_cosine"]
+
+# Must match `marlowe_memory::gate::FUSION`. The feature names are identical across v2 and v3, so
+# this string is the only thing that catches a calibration fit under one combination function and
+# applied under the other.
+FUSION = "max-per-cue-calibrated-precision"
+GATE_VERSION = "frozen-v3"
+
 # Must match `marlowe_memory::gate::THRESHOLD`. Frozen under HP1; `load` rejects any other.
 THRESHOLD = 0.95
 
-# Features pinned to zero **by declaration**, whether or not they vary in the fit split.
+# Features declared inert **by declaration**, whether or not they vary in the fit split.
 #
 # The variance check below catches constants. `cue_agreement_2cue` is the case it does not catch:
-# with two cues it genuinely varies across 0 / 0.5 / 1, so a fit would hand it a coefficient.
+# with two cues it genuinely varies across 0 / 0.5 / 1, so a fit would happily calibrate it.
 #
 # Session B pinned its one-cue ancestor on COLLINEARITY -- it was exactly `1[lexical_bm25 > 0]`,
 # monotone in the same underlying score, so its coefficient could not change any ranking. **That
@@ -100,7 +123,14 @@ THRESHOLD = 0.95
 # quietly stopped being true is the same failure as an inherited weight. The reason it stays
 # pinned is stated fresh below.
 #
-# Enforced by `FrozenGate::load`, which rejects a pinned weight that is not zero.
+# **Session D note.** The v3 ranking key's second level is `min_calibrated_precision`, which does
+# the job agreement was supposed to do -- among candidates the winning cue rates equally, prefer
+# the one the other cue also rates highly -- and does it continuously, in calibrated units, with
+# NO firing predicate. That does not unpin this feature: the tiebreak is a different mechanism,
+# not the missing predicate. The unpin condition is unchanged.
+#
+# Enforced by `FrozenGate::load`, which refuses an artifact leaving any non-cue feature
+# undeclared, and refuses one that declares a cue inert.
 ALWAYS_PINNED = {
     "cue_agreement_2cue": (
         "declared pin, and the reason CHANGED with the cue count -- it is no longer the "
@@ -136,7 +166,7 @@ def load_preregistration(split: dict) -> dict:
     """
     if not PREREG_PATH.exists():
         raise SystemExit(
-            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_c.py` first — "
+            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_d.py` first — "
             "the bands are pre-registered, and a fit that runs before them makes every verdict "
             "in this session unfalsifiable."
         )
@@ -263,35 +293,6 @@ def collect_rows(corpus: Corpus, dump_path: Path) -> tuple[np.ndarray, np.ndarra
     return x, y, stats
 
 
-def fit_logistic(x: np.ndarray, y: np.ndarray, active: list[int]) -> tuple[np.ndarray, float]:
-    """Newton / IRLS on the active columns. Returns (weights over ALL columns, bias).
-
-    Ridge-regularized because the positive rate is low: a couple of gold turns among several
-    hundred candidates, so an unregularized fit on a near-separable feature runs the weights
-    off to infinity and the isotonic curve inherits a step function with no interior.
-    """
-    n, _ = x.shape
-    design = np.column_stack([np.ones(n), x[:, active]])
-    beta = np.zeros(design.shape[1])
-    ridge = 1e-4
-
-    for _ in range(50):
-        z = design @ beta
-        p = 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
-        w = np.clip(p * (1.0 - p), 1e-9, None)
-        gradient = design.T @ (y - p) - ridge * beta
-        hessian = (design * w[:, None]).T @ design + ridge * np.eye(design.shape[1])
-        step = np.linalg.solve(hessian, gradient)
-        beta = beta + step
-        if np.max(np.abs(step)) < 1e-8:
-            break
-
-    weights = np.zeros(x.shape[1])
-    for slot, column in enumerate(active):
-        weights[column] = beta[slot + 1]
-    return weights, float(beta[0])
-
-
 def pava(y: np.ndarray, weights: np.ndarray) -> np.ndarray:
     """Pool-adjacent-violators. Returns the isotonic (non-decreasing) fit of `y`."""
     values = list(y.astype(float))
@@ -331,10 +332,22 @@ def fit_isotonic(scores: np.ndarray, y: np.ndarray, max_blocks: int = CALIBRATIO
     """Isotonic calibration: score -> predicted precision, as `[score_upper, precision]` blocks.
 
     Buckets are **equal-count (quantile), not equal-width**. Equal-width buckets over [0, 1]
-    would be nearly empty everywhere: the positive rate is around 1%, so the fitted logistic
-    piles almost every row into the bottom of the score range and a uniform grid would spend
-    250 of its 256 blocks on empty space while the region that decides the operating point got
-    one block.
+    would be nearly empty everywhere: the positive rate is around 1%, so almost every row piles
+    into the bottom of the score range and a uniform grid would spend 250 of its 256 blocks on
+    empty space while the region that decides the operating point got one.
+
+    **Buckets sharing a score bound are POOLED before PAVA.** This is not tidying. Both cue
+    scores have a large atom at exactly 0 -- `lexical_bm25` for every candidate with no term
+    overlap, and `dense_cosine` at its cosine floor -- so quantile bucketing hands several
+    hundred consecutive blocks the same `score_upper` of 0.0. Emitting them would produce a curve
+    whose `partition_point` lookup cannot say which block owns that score, and the Rust side's
+    sortedness check uses `<` so it would NOT catch it: the curve is non-decreasing, just
+    ambiguous. Pooling first makes the emitted breakpoints strictly increasing, which is what
+    `CurveDuplicateBreakpoint` enforces at load.
+
+    Pooling by score is also the only *correct* thing to do. Two rows with an identical cue score
+    are indistinguishable to the cue; splitting them across blocks with different predicted
+    precisions would assign two different probabilities to the same evidence.
     """
     order = np.argsort(scores, kind="stable")
     s = scores[order]
@@ -343,18 +356,29 @@ def fit_isotonic(scores: np.ndarray, y: np.ndarray, max_blocks: int = CALIBRATIO
     bucket = np.minimum((np.arange(len(s)) * max_blocks) // len(s), max_blocks - 1)
 
     bucket_scores: list[float] = []
-    bucket_means: list[float] = []
+    bucket_hits: list[float] = []
     bucket_counts: list[float] = []
     for b in range(max_blocks):
         mask = bucket == b
         count = int(mask.sum())
         if count == 0:
             continue
-        bucket_scores.append(float(s[mask].max()))
-        bucket_means.append(float(labels[mask].mean()))
-        bucket_counts.append(float(count))
+        upper = float(s[mask].max())
+        hits = float(labels[mask].sum())
+        # Pool into the previous block when the score bound repeats. Counts are carried so the
+        # pooled mean is the true rate over the merged rows, not the mean of two means.
+        if bucket_scores and upper == bucket_scores[-1]:
+            bucket_hits[-1] += hits
+            bucket_counts[-1] += count
+        else:
+            bucket_scores.append(upper)
+            bucket_hits.append(hits)
+            bucket_counts.append(float(count))
 
-    fitted = pava(np.asarray(bucket_means), np.ones(len(bucket_means)))
+    means = np.asarray(
+        [hits / count for hits, count in zip(bucket_hits, bucket_counts)], dtype=float
+    )
+    fitted = pava(means, np.ones(len(means)))
 
     blocks: list[list[float]] = []
     for score_upper, precision in zip(bucket_scores, fitted):
@@ -362,6 +386,17 @@ def fit_isotonic(scores: np.ndarray, y: np.ndarray, max_blocks: int = CALIBRATIO
             blocks[-1][0] = round(float(score_upper), 6)
         else:
             blocks.append([round(float(score_upper), 6), round(float(precision), 6)])
+
+    # Rounding to 6 dp can re-collide two bounds that differed in the 7th. Re-merge, keeping the
+    # LAST precision -- the curve is non-decreasing so that is the higher of the two, and the
+    # alternative would silently lower a block's prediction.
+    merged: list[list[float]] = []
+    for block in blocks:
+        if merged and merged[-1][0] == block[0]:
+            merged[-1][1] = block[1]
+        else:
+            merged.append(block)
+    blocks = merged
 
     # The lookup clamps above the last breakpoint, but a curve whose last block sits below 1.0
     # in score is easy to misread. Anchor the top explicitly.
@@ -419,51 +454,82 @@ def main() -> int:
             "on all-negative data is a curve that predicts zero everywhere; refusing."
         )
 
-    # Zero-variance detection. See the module docstring: a coefficient fit on a constant is
-    # noise that becomes live the moment the feature starts varying.
-    pinned: dict[str, str] = {}
-    active: list[int] = []
+    # Every feature outside the fusion carries a stated reason. v2 checked that a pinned WEIGHT
+    # was zero; with no weight vector the property to enforce is COVERAGE -- a feature cannot
+    # drop out of the gate without a reason on record. `FrozenGate::load` refuses an artifact
+    # that leaves any non-cue feature undeclared.
+    inert: dict[str, str] = {}
     for i, name in enumerate(FEATURE_NAMES):
+        if name in CUE_FEATURES:
+            continue
         if name in ALWAYS_PINNED:
-            pinned[name] = ALWAYS_PINNED[name]
+            inert[name] = ALWAYS_PINNED[name]
             continue
         spread = float(x[:, i].max() - x[:, i].min())
         if spread == 0.0:
-            pinned[name] = (
-                f"zero variance across the fit split (constant {x[:, i][0]:.4f}); a weight "
+            inert[name] = (
+                f"zero variance across the fit split (constant {x[:, i][0]:.4f}); a calibration "
                 "fit on it would be noise, and would become load-bearing the moment the "
                 "feature starts varying"
             )
         else:
-            active.append(i)
-    if not active:
-        raise SystemExit("every feature is constant; there is nothing to fit")
+            inert[name] = (
+                "not a cue. Under the v3 fusion only CUE_FEATURES are calibrated and fused; "
+                "trust and fidelity are eligibility properties enforced by section 4.3's "
+                "exclusions, not evidence of relevance, and giving them a curve would let a "
+                "high-trust irrelevant memory outrank a low-trust exact match"
+            )
 
-    print(f"  fitting {[FEATURE_NAMES[i] for i in active]}")
-    for name, why in pinned.items():
-        print(f"  pinning {name} to zero: {why.split(';')[0]}")
+    # One isotonic curve per cue, each fit on its OWN score distribution. This is the whole
+    # change: there is no joint score, so lexical's top-end separation is never averaged against
+    # dense's mid-range separation.
+    curves: dict[str, list[list[float]]] = {}
+    per_cue_reachable: dict[str, float] = {}
+    for name in CUE_FEATURES:
+        column = FEATURE_NAMES.index(name)
+        values = x[:, column]
+        spread = float(values.max() - values.min())
+        if spread == 0.0:
+            raise SystemExit(
+                f"cue {name!r} is constant ({values[0]:.4f}) across the fit split. A cue that "
+                "does not vary cannot be calibrated, and a curve fit on it would predict one "
+                "precision for every candidate. Refusing rather than emitting a flat curve."
+            )
+        curve = fit_isotonic(values, y)
+        curves[name] = curve
+        per_cue_reachable[name] = max(block[1] for block in curve)
+        print(f"  calibrated {name}: {len(curve)} blocks, top block {per_cue_reachable[name]:.4f}")
 
-    weights, bias = fit_logistic(x, y, active)
-    z = bias + x @ weights
-    scores = 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
-    curve = fit_isotonic(scores, y)
-    reachable = max(block[1] for block in curve)
+    for name, why in inert.items():
+        print(f"  inert {name}: {why.split(';')[0]}")
+
+    # The fusion is max over cues, so the reachable precision is the best cue's top block.
+    reachable = max(per_cue_reachable.values())
 
     artifact = {
         "state": "fitted",
         "note": (
             "The frozen gate, HP1. Fit offline on the FIT half of the pre-registered split in "
             "tools/split.json; the held-out half is what the reported number is scored on. "
-            "One lexical cue only -- this is not the five-cue system K1 measures. Regenerate "
-            "with: python tools/fit_gate.py"
+            "TWO cues, fused by MAX OVER PER-CUE CALIBRATED PRECISIONS -- this is not the "
+            "five-cue system K1 measures. Regenerate with: python tools/fit_gate.py"
         ),
-        "version": "frozen-v2",
+        "version": GATE_VERSION,
+        "fusion": FUSION,
         "threshold": THRESHOLD,
         "feature_names": FEATURE_NAMES,
-        "weights": [round(float(w), 8) for w in weights],
-        "bias": round(float(bias), 8),
-        "pinned_zero_weights": pinned,
-        "isotonic_breakpoints": curve,
+        "cue_features": CUE_FEATURES,
+        "cue_curves": curves,
+        "inert_features": inert,
+        # The floor is measured on HELD-OUT after this artifact is built and scored, so the
+        # fitter cannot know it and must not guess. `FrozenGate::load` permits "unmeasured" --
+        # refusing it would deadlock, since the measurement needs this gate to load in order to
+        # produce the feature dump it is read from. Record it with:
+        #   python tools/analyze_cue_overlap.py --run <RUN> --record-verdict
+        "floor_verdict": "unmeasured",
+        "floor_required": None,
+        "floor_measured": None,
+        "floor_read_from": None,
         "corpus": split["corpus"],
         "corpus_variant": split["corpus_variant"],
         "corpus_sha256": split["corpus_sha256"],
@@ -479,18 +545,21 @@ def main() -> int:
 
     print()
     print(f"artifact: {ARTIFACT_PATH}")
-    print(f"  weights: {dict(zip(FEATURE_NAMES, artifact['weights']))}")
-    print(f"  bias:    {artifact['bias']}")
-    print(f"  curve:   {len(curve)} blocks, max predicted precision {reachable:.4f}")
+    print(f"  fusion:  {FUSION}")
+    for name in CUE_FEATURES:
+        print(f"  {name:20s} {len(curves[name]):4d} blocks, top {per_cue_reachable[name]:.4f}")
+    print(f"  reachable (max over cues): {reachable:.4f}")
     if reachable < THRESHOLD:
         print()
         print(
-            f"  NOTE: the curve never reaches the frozen threshold of {THRESHOLD}. The gate "
+            f"  NOTE: no cue's curve reaches the frozen threshold of {THRESHOLD}. The gate "
             "will abstain on every query.\n"
-            "  This is a pre-registered possible outcome, not a defect: with one cue the "
-            "calibration may have no\n"
-            "  score region where predicted precision clears the K1 operating point. The "
-            "threshold does not move."
+            "  This is a pre-registered possible outcome, not a defect: with two of five cues "
+            "the calibration may have\n"
+            "  no score region where predicted precision clears the K1 operating point. The "
+            "threshold does not move,\n"
+            "  and this number is the session's HEADLINE -- read it against the bands in "
+            "runs/session-d/PREREGISTRATION.json."
         )
     print()
     print("now rebuild so the artifact is embedded:  cargo build --release")

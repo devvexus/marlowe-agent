@@ -1,0 +1,42 @@
+{
+  "_what": "why max-over-per-cue-calibrated-precision lost at top-1",
+  "_this_is_a_diagnostic_not_a_search": "No re-fit, no re-rank against gold, no proposed operating point. Descriptive statistics about the artifact that shipped and the run that happened.",
+  "cases": 230,
+  "curve_resolution": {
+    "lexical_bm25": {
+      "blocks": 230,
+      "top_block_precision": 0.309013,
+      "top_block_lower_bound": 0.68293,
+      "_reading": "every candidate whose score exceeds the lower bound receives the SAME calibrated precision, so the fusion cannot order them"
+    },
+    "dense_cosine": {
+      "blocks": 95,
+      "top_block_precision": 0.287554,
+      "top_block_lower_bound": 0.832636,
+      "_reading": "every candidate whose score exceeds the lower bound receives the SAME calibrated precision, so the fusion cannot order them"
+    }
+  },
+  "ties_at_the_fused_maximum": {
+    "mean": 2.72,
+    "median": 2,
+    "p90": 6,
+    "max": 19,
+    "fraction_of_cases_with_a_tie": 0.6043,
+    "_reading": "the number of candidates sharing the top fused calibrated precision. Every one of these is decided by the TIEBREAK, not by the fusion."
+  },
+  "lexical_head_destroyed": {
+    "cases": 53,
+    "fraction": 0.2304,
+    "_reading": "cases where lexical's own best candidate was inside the tied band but the tiebreak promoted a different candidate above it. This is the mechanism: lexical alone orders its head by continuous BM25; max-fusion flattens that head to one value and lets the second key reorder it."
+  },
+  "tiebreak_favoured_the_weaker_cue": {
+    "cases": 57,
+    "fraction": 0.2478,
+    "_reading": "of those, how often the promoted candidate had a HIGHER dense cosine than lexical's own best. min_calibrated_precision is the other cue's opinion, so inside a lexical-dominated tie it hands the decision to dense -- the weaker cue at top-1 (0.444 vs 0.548)."
+  },
+  "gold_inside_the_tie_but_not_ranked_first": {
+    "cases": 48,
+    "fraction": 0.2087,
+    "_reading": "the loss made visible: the gold turn was inside the band the fusion could not order, and the tiebreak did not pick it."
+  }
+}

@@ -36,3 +36,5 @@ models/
 runs/**/spike-sample.json
 runs/**/run.jsonl
 runs/**/scored-candidates.ndjson
+.cold-cache-probe/
+runs/session-d-coldprobe/

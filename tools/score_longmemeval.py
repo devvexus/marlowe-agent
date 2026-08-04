@@ -46,10 +46,16 @@ from marlowe_eval.runner import RunConfig, run, write_artifacts  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v2.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v3.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
 CACHE_DIR = REPO / ".embedding-cache"
+
+# Overridable so the COLD retrieval latency can be measured on a fresh cache. A warm cache
+# removes the query's forward pass from the timed span, so the warm P95 understates what a user
+# pays on a fresh profile -- Session C measured 36 ms cold against 24 ms warm. The fix is to
+# report from a cache-cold run and say so, never to exclude the embedding from the timed span.
+_cache_dir = CACHE_DIR
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -278,32 +284,159 @@ def _band_for(value: float, bands: list[dict]) -> str:
     raise SystemExit(f"value {value} matches no pre-registered band; refusing to invent one")
 
 
-def number_two(curve: list[dict], bands: list[dict]) -> dict:
-    """Pre-registered Number 2: precision at the cut where coverage first reaches 0.25."""
+def _read_at_coverage(curve: list[dict], target: float) -> dict:
+    """Precision at the most selective cut still reaching `target` coverage.
+
+    The shared mechanic behind Number 2 and Number 2b. Extracted so the two cannot drift apart:
+    they differ only in the coverage they are read at, and a second hand-written copy of this
+    lookup is how two numbers described as "the same rule at a different coverage" stop being
+    that.
+    """
     reachable = max((p["coverage"] for p in curve), default=0.0)
-    if reachable < NUMBER_2_COVERAGE_TARGET:
+    if reachable < target:
         return {
             "value": None,
             "reason": (
-                f"coverage never reaches {NUMBER_2_COVERAGE_TARGET} anywhere on the curve "
-                f"(maximum {reachable:.4f}), so the pre-registered read point does not exist. "
-                "Reported as unmeasurable rather than substituted with a nearby point."
+                f"coverage never reaches {target} anywhere on the curve (maximum "
+                f"{reachable:.4f}), so the pre-registered read point does not exist. Reported "
+                "as unmeasurable rather than substituted with a nearby point."
             ),
             "max_coverage": round(reachable, 6),
         }
-    eligible = [p for p in curve if p["coverage"] >= NUMBER_2_COVERAGE_TARGET]
+    eligible = [p for p in curve if p["coverage"] >= target]
     point = max(eligible, key=lambda p: p["cut"])
     if point["precision"] is None:
         return {"value": None, "reason": "no attributable injections at that cut"}
-    value = point["precision"]
     return {
-        "value": value,
+        "value": point["precision"],
         "read_at_cut": point["cut"],
         "coverage_there": point["coverage"],
-        "verdict": _band_for(value, bands),
-        "bands_applied": [b["condition"] + " -> " + b["verdict"] for b in bands],
-        "band_source": "runs/session-c/PREREGISTRATION.json, written before the fit",
     }
+
+
+def number_two(curve: list[dict], bands: list[dict] | None) -> dict:
+    """Pre-registered Number 2: precision at the cut where coverage first reaches 0.25.
+
+    **Read rule unchanged since Session B**, so B, C and D are directly comparable. Session D
+    registers no bands for it -- the rule fixes a coverage FLOOR and cannot express a
+    simultaneous rise in precision and coverage, which is what Number 2b exists to address.
+    """
+    out = _read_at_coverage(curve, NUMBER_2_COVERAGE_TARGET)
+    out["read_rule"] = (
+        f"most selective cut whose coverage is at least {NUMBER_2_COVERAGE_TARGET} "
+        "(a coverage FLOOR; unchanged since Session B)"
+    )
+    if out["value"] is not None and bands:
+        out["verdict"] = _band_for(out["value"], bands)
+        out["bands_applied"] = [b["condition"] + " -> " + b["verdict"] for b in bands]
+    elif out["value"] is not None:
+        out["verdict"] = None
+        out["no_bands"] = (
+            "Session D registers no bands for Number 2. Its coverage-floor rule cannot express "
+            "that precision and coverage both rose -- the limitation Session C recorded -- so "
+            "the comparison that carries a verdict this session is Number 2b, at matched "
+            "coverage. Number 2 is reported for cross-session comparability only."
+        )
+    out["band_source"] = "runs/session-d/PREREGISTRATION.json, written before the fit"
+    return out
+
+
+GENERALIZATION_FAILURE_MARGIN = 0.05
+
+
+def calibration_generalization(per_cue_top: dict[str, float], n2: dict, n3: dict) -> dict:
+    """The standing check: fit-split prediction vs held-out measurement.
+
+    **Computed, not typed into a write-up.** Sessions B and C recorded this pair by hand in
+    prose; a check that only exists when someone remembers to do the arithmetic is a check that
+    stops happening. The failure it catches is invisible in every other number the harness
+    produces -- precision, coverage, ASR and latency all look identical whether the curve
+    generalizes or not.
+
+    Two levels under v3. The overall pair continues the B/C series so the three sessions stay
+    comparable; the per-cue pairs are new, because with one curve per cue a single cue's
+    calibration can memorize while the other masks it in the max.
+    """
+    rule = (
+        f"held-out BELOW the fit-split prediction by more than {GENERALIZATION_FAILURE_MARGIN} "
+        "absolute is a signal about the CALIBRATION, not about the cue: investigate the fit "
+        "before adding anything else."
+    )
+
+    def pair(name: str, predicted: float, measured: float | None, measured_from: str) -> dict:
+        out = {
+            "predicted_on_fit_split": predicted,
+            "measured_on_heldout": measured,
+            "measured_from": measured_from,
+        }
+        if measured is None:
+            out["fired"] = None
+            out["reading"] = "held-out value unmeasurable; the pair cannot be formed"
+            return out
+        delta = measured - predicted
+        out["delta"] = round(delta, 6)
+        out["fired"] = delta < -GENERALIZATION_FAILURE_MARGIN
+        out["reading"] = (
+            "MEMORIZED CALIBRATION SUSPECTED -- investigate the fit before anything else"
+            if out["fired"]
+            else (
+                "generalizing, conservative" if delta >= 0 else "generalizing, slightly optimistic"
+            )
+        )
+        return out
+
+    per_cue = {}
+    for cue, predicted in per_cue_top.items():
+        block = n3.get(f"{cue}_alone", {})
+        per_cue[cue] = pair(
+            cue, predicted, block.get("precision"), f"number_3 {cue}_alone precision"
+        )
+
+    return {
+        "_what": "fit-split predicted precision vs held-out measured precision",
+        "_why": rule,
+        "failure_margin": GENERALIZATION_FAILURE_MARGIN,
+        "overall": {
+            **pair(
+                "max over cues",
+                max(per_cue_top.values()),
+                n2.get("value"),
+                "number_2_cue_capability.value",
+            ),
+            "session_b_reference": "0.309 predicted -> 0.334 measured",
+            "session_c_reference": "0.3176 predicted -> 0.371 measured",
+        },
+        "per_cue": per_cue,
+        "any_fired": any(p.get("fired") for p in [*per_cue.values()]),
+    }
+
+
+def number_two_b(curve: list[dict], target: float, reference: float | None) -> dict:
+    """Pre-registered Number 2b: the same rule, read at MATCHED coverage.
+
+    Session C moved from 0.334 precision at 0.453 coverage to 0.371 at 0.504. Both rose, and
+    Number 2's coverage-FLOOR rule returned "dense adds nothing measurable" for it. STATE.md
+    required that a matched-coverage statistic be pre-registered before a future fit and never
+    substituted after one; `runs/session-d/PREREGISTRATION.json` is that registration.
+
+    Reported as a COMPANION, never a replacement. Number 2's verdict stands on Number 2's rule.
+    """
+    out = _read_at_coverage(curve, target)
+    out["read_rule"] = (
+        f"most selective cut whose coverage is at least {target} -- Session C's REALISED "
+        "coverage, not its floor"
+    )
+    out["matched_to"] = target
+    out["session_c_reference_at_its_own_read_point"] = reference
+    if out["value"] is not None and reference is not None:
+        out["delta_vs_session_c"] = round(out["value"] - reference, 6)
+    out["band"] = None
+    out["not_a_replacement"] = (
+        "Number 2 is reported unchanged beside this. Substituting a matched-coverage read for "
+        "the pre-registered floor rule after seeing a number is exactly what STATE.md forbade."
+    )
+    out["band_source"] = "runs/session-d/PREREGISTRATION.json, written before the fit"
+    return out
 
 
 def number_three(scored: dict[str, list[dict]], records: list[dict]) -> dict:
@@ -380,7 +513,7 @@ def number_three(scored: dict[str, list[dict]], records: list[dict]) -> dict:
         "lexical_bm25_alone": lexical,
         "dense_cosine_alone": dense,
         "reading": reading,
-        "band_source": "runs/session-c/PREREGISTRATION.json number_3, written before the fit",
+        "band_source": "runs/session-d/PREREGISTRATION.json number_3, written before the fit",
     }
 
 
@@ -434,7 +567,7 @@ def score_one(
     dump = out_dir / "scored-candidates.ndjson"
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
-        f"--embedder-model {MODEL_DIR} --embedding-cache {CACHE_DIR} "
+        f"--embedder-model {MODEL_DIR} --embedding-cache {_cache_dir} "
         f"--dump-gate-features {dump}"
     )
     result = run(
@@ -496,7 +629,19 @@ def budget_verdict(report: dict, records: list[dict]) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default=str(REPO / "runs" / "session-c"))
+    parser.add_argument("--out", default=str(REPO / "runs" / "session-d"))
+    parser.add_argument(
+        "--embedding-cache",
+        default=str(CACHE_DIR),
+        help="embedding cache directory. Point at an empty one to measure COLD retrieval "
+        "latency -- the number the budget condition is read from.",
+    )
+    parser.add_argument(
+        "--heldout-only",
+        action="store_true",
+        help="score the held-out split alone. Used for the cold-cache latency read, where the "
+        "all-500 pass would double the embedding cost for a number already measured warm.",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -515,28 +660,52 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
+    global _cache_dir
+    _cache_dir = Path(args.embedding_cache)
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     corpus = longmemeval.load(REPO / split["corpus_path"])
 
+    passes = [("heldout", set(split["heldout"]), "-heldout")]
+    if not args.heldout_only:
+        passes.append(("all", {c.query_id for c in corpus.cases}, ""))
+
     runs = {}
-    for name, ids, suffix in (
-        ("heldout", set(split["heldout"]), "-heldout"),
-        ("all", {c.query_id for c in corpus.cases}, ""),
-    ):
+    for name, ids, suffix in passes:
         print(f"scoring {name} ({len(ids)} cases) ...")
         sub = subset(corpus, ids, suffix)
         report, records, scored = score_one(sub, out / name, args.seed, args.clock)
         runs[name] = {"report": report, "records": records, "scored": scored}
         print(f"  -> {out / name}")
 
+    if args.heldout_only:
+        # The latency read and nothing else. No summary.json is written, deliberately: a
+        # half-populated summary sitting where the real one belongs is how a partial run gets
+        # quoted as a full one.
+        budget = budget_verdict(runs["heldout"]["report"], runs["heldout"]["records"])
+        print()
+        print(f"cache: {_cache_dir}")
+        print(f"retrieval P95: {budget['retrieval_p95_ms']} ms  (budget {BUDGET_P95_MS} ms)")
+        print(f"max retrieval tokens: {budget['retrieval_tokens_max']} (budget {BUDGET_TOKENS})")
+        print(f"budget passes: {budget['passes']}")
+        print("\nNo summary.json written -- this pass scores the latency only.")
+        return 0
+
     heldout_diag = diagnostics(runs["heldout"]["records"], runs["heldout"]["scored"])
     all_diag = diagnostics(runs["all"]["records"], runs["all"]["scored"])
 
     heldout_ep = benchmark_block(runs["heldout"]["report"])["evidence_precision"]
     all_ep = benchmark_block(runs["all"]["report"])["evidence_precision"]
-    prereg = json.loads((REPO / "runs/session-c/PREREGISTRATION.json").read_text(encoding="utf-8"))
-    n2 = number_two(heldout_diag["curve"], prereg["number_2"]["bands"])
+    prereg = json.loads((REPO / "runs/session-d/PREREGISTRATION.json").read_text(encoding="utf-8"))
+    n2 = number_two(heldout_diag["curve"], prereg["number_2"].get("bands"))
+    # The matched coverage is Session C's own realised coverage, read out of the pre-registration
+    # rather than retyped here -- the same value its Number 2b definition text refers to.
+    n2b = number_two_b(
+        heldout_diag["curve"],
+        prereg["session_c_baseline"]["number_2"]["coverage_there"],
+        prereg["number_2b"]["session_c_reference_at_this_coverage"],
+    )
     n3 = number_three(runs["heldout"]["scored"], runs["heldout"]["records"])
     budget = budget_verdict(runs["heldout"]["report"], runs["heldout"]["records"])
 
@@ -579,22 +748,33 @@ def main() -> int:
             )
         return block
 
+    # Per-cue top blocks. Under the v3 fusion the reachable precision is a PER-CUE quantity --
+    # the fusion takes the max, so it does not enter this number at all. That is what makes it a
+    # clean read on the best cue's most confident region, undiluted by a joint logistic.
+    per_cue_top = {
+        name: max(b[1] for b in artifact["cue_curves"][name])
+        for name in artifact["cue_features"]
+    }
+
     summary = {
-        "session": "M0b Session C",
+        "session": "M0b Session D",
         "what_this_is": (
-            "Two cues -- lexical BM25 and the dense ONNX embedder -- and the frozen gate. NOT "
-            "the five-cue system K1 measures; entity-graph, temporal and causal are still "
-            "absent, so a low number remains a statement about an incomplete cue set."
+            "Two cues -- lexical BM25 and the dense ONNX embedder -- fused by MAX OVER PER-CUE "
+            "CALIBRATED PRECISIONS. The cue set is unchanged from Session C; only the combiner "
+            "moved. NOT the five-cue system K1 measures; entity-graph, temporal and causal are "
+            "still absent, so a low number remains a statement about an incomplete cue set."
         ),
         "gate": {
             "version": artifact["version"],
+            "fusion": artifact["fusion"],
             "threshold": artifact["threshold"],
-            "max_calibrated_precision_on_the_curve": max(
-                b[1] for b in artifact["isotonic_breakpoints"]
-            ),
-            "weights": dict(zip(artifact["feature_names"], artifact["weights"])),
-            "bias": artifact["bias"],
-            "pinned_zero_weights": artifact["pinned_zero_weights"],
+            "max_calibrated_precision_on_the_curve": max(per_cue_top.values()),
+            "max_calibrated_precision_per_cue": per_cue_top,
+            "cue_features": artifact["cue_features"],
+            "cue_curve_blocks": {
+                name: len(artifact["cue_curves"][name]) for name in artifact["cue_features"]
+            },
+            "inert_features": artifact["inert_features"],
             "fit_cases": artifact["fit_cases"],
             "fit_rows": artifact["fit_rows"],
             "fit_positives": artifact["fit_positives"],
@@ -622,7 +802,9 @@ def main() -> int:
             ),
         },
         "number_2_cue_capability": n2,
+        "number_2b_at_matched_coverage": n2b,
         "number_3_per_cue": n3,
+        "calibration_generalization": calibration_generalization(per_cue_top, n2, n3),
         "conditions": {
             "budget": budget,
             "false_evidence_on_abstention_cases": {
@@ -649,8 +831,7 @@ def main() -> int:
             "split_digest": split["digest"],
             "split_rule": split["rule"],
             "preregistration": [
-                "runs/session-c/PREREGISTRATION.json",
-                "runs/session-c/PREREGISTRATION-model.json",
+                "runs/session-d/PREREGISTRATION.json",
             ],
             "eval_unchanged": "no file under eval/ is modified by this driver",
             "reading_the_sub_reports": (
