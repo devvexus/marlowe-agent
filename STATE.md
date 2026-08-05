@@ -2,7 +2,8 @@
 
 **Updated:** 2026-08-04 — M0b **Session E** built; the hypothesis is **confirmed**, the ceiling moved
 further than in any prior session, and the shape **still failed its pre-registered floor by one case**
-**Current milestone:** M0b — Sessions A–E **complete**. Next is the **cross-encoder**, not cue 3.
+**Current milestone:** M0b — Sessions A–E **complete**. The cross-encoder was spiked and is **ruled
+out at M0b on latency**, so next is **consolidation** — and still not cue 3.
 
 ## Next action
 

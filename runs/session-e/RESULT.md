@@ -332,6 +332,17 @@ on every interface — which reads like a protocol bug and is not one. Corrected
 
 ## What the next session does
 
+> **UPDATE, same session: the cross-encoder was spiked and it FAILED its registered latency bar.**
+> 1088 ms projected total at seq 512 and **365 ms at seq 256**, both against 300 ms, measured at 16
+> threads — a more generous machine than ADR-003's 1-vCPU target. Determinism passed perfectly
+> (`0.000e+00` on all three checks). Per the pre-registration: **not adopted at M0b, no third
+> attempt.** Full record in `docs/design/spike-2026-08-04-cross-encoder.md`.
+>
+> **It is ruled out on COST, not on quality — its quality was never measured.** So the reasoning
+> below stands as the reason it was the right thing to try; what changed is only that it cannot run
+> inside §5.7's budget. **The next lever is CONSOLIDATION**, which attacks the candidate pool —
+> the one named cause of the 54.8% / 31% gap this session did not close.
+
 **The cross-encoder, and the floor failure makes it better motivated than the plan assumed.**
 
 The residual is now an **arbitration** failure: every cue scores a memory in isolation and the gate
