@@ -73,6 +73,12 @@ BUDGET_P95_MS = 300
 ABSTENTION_INJECTION_CEILING = 0.20
 DEGENERATE_COVERAGE_FLOOR = 0.05
 
+# How close a Number 2b read point must sit to its target coverage to count as MATCHED. Session D
+# read at 0.607 against a 0.504 target and its delta was not like-for-like; the tolerance errs
+# toward declaring UNMATCHED because a suppressed delta costs a comparison while a spurious one
+# gets quoted.
+MATCHED_COVERAGE_TOL = 0.02
+
 
 def subset(corpus: Corpus, query_ids: set[str], suffix: str) -> Corpus:
     cases = tuple(c for c in corpus.cases if c.query_id in query_ids)
@@ -431,8 +437,35 @@ def number_two_b(curve: list[dict], target: float, reference: float | None) -> d
     )
     out["matched_to"] = target
     out["session_c_reference_at_its_own_read_point"] = reference
+
+    # **Whether the read is actually MATCHED is now computed, not left to prose.**
+    #
+    # `_read_at_coverage` returns the most selective cut whose coverage is AT LEAST the target.
+    # When the curve is coarse the nearest such cut can sit far above it -- Session D's landed at
+    # 0.607 against a 0.504 target -- and then the two numbers are read at different coverages and
+    # their difference is not a quality signal at all. Session D caught that by hand and said so in
+    # prose. A check that depends on someone remembering to do it is a check that stops happening,
+    # so it is computed here and **the delta is SUPPRESSED when unmatched** rather than emitted
+    # with a caveat beside it. A number that must not be used should not be in the file.
+    #
+    # The tolerance errs toward declaring UNMATCHED, which is the safe direction: a suppressed
+    # delta costs a comparison, a spurious one gets quoted.
+    coverage_there = out.get("coverage_there")
+    matched = coverage_there is not None and abs(coverage_there - target) <= MATCHED_COVERAGE_TOL
+    out["matched"] = matched
+    out["matched_tolerance"] = MATCHED_COVERAGE_TOL
     if out["value"] is not None and reference is not None:
-        out["delta_vs_session_c"] = round(out["value"] - reference, 6)
+        if matched:
+            out["delta_vs_session_c"] = round(out["value"] - reference, 6)
+        else:
+            out["delta_vs_session_c"] = None
+            out["why_no_delta"] = (
+                f"NOT MATCHED. The read point is coverage {coverage_there}, against a target of "
+                f"{target} (tolerance {MATCHED_COVERAGE_TOL}). The two values are read at "
+                "different coverages, so their difference measures selectivity as much as "
+                "precision and is not a quality signal. Suppressed rather than reported with a "
+                "caveat."
+            )
     out["band"] = None
     out["not_a_replacement"] = (
         "Number 2 is reported unchanged beside this. Substituting a matched-coverage read for "
@@ -723,7 +756,18 @@ def label_set_projection(records: list[dict], prereg: dict) -> dict:
     total = sum(per_category.values())
     want_total = spec["requirement"]["total_judged_injections"]
     want_each = spec["requirement"]["per_category"]
-    short = {c: n for c, n in sorted(per_category.items()) if n < want_each}
+
+    # **Iterate the corpus's OWN category list, not the observed keys.** A category with zero
+    # injections does not appear in `per_category` at all, so `{c: n for c, n in per_category ...}`
+    # would find nothing short and report the requirement MET at zero injections -- the exact
+    # empty-denominator failure `evidence_precision` already carries a vacuity note for. The
+    # category list is read from the pre-registration, which took it from the corpus.
+    known = spec["corpus_category_counts"]
+    short = {
+        c: per_category.get(c, 0)
+        for c in sorted(known)
+        if c != "abstention" and per_category.get(c, 0) < want_each
+    }
     return {
         "_status": spec["_status"],
         "_why_no_verdict": spec["_why_no_verdict"],

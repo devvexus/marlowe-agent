@@ -1,0 +1,86 @@
+{
+  "_what": "Do the two cues find the SAME gold turns? Held-out split, driver-side.",
+  "_why": "Number 3 says what each cue does alone. It cannot say whether a third cue or a better combiner is the higher-leverage next step, and this can.",
+  "cases": 230,
+  "rank_correlation": {
+    "mean": 0.2331,
+    "median": 0.2337,
+    "p10": 0.0968,
+    "p90": 0.3668,
+    "reading": "Low correlation means the cues rank candidates differently, which is the precondition for them being complementary rather than redundant."
+  },
+  "gold_in_top_k": {
+    "1": {
+      "lexical": 0.5478,
+      "dense": 0.4435,
+      "both": 0.3391,
+      "lexical_only": 0.2087,
+      "dense_only": 0.1043,
+      "either_oracle": 0.6522,
+      "neither": 0.3478,
+      "fitted_gate": 0.5435,
+      "rank_fusion_rrf": 0.4957,
+      "oracle_gain_over_best_single": 0.1043,
+      "fusion_gap_to_oracle": 0.1087,
+      "fusion_vs_best_single": -0.0043,
+      "fraction_of_gap_closed": 0.3053,
+      "fraction_of_headroom_over_best_single": -0.0414,
+      "_gap_basis": {
+        "prior_session": "session-c",
+        "prior_fitted_gate": 0.4957,
+        "prior_best_single": 0.5478,
+        "prior_either_oracle": 0.6522,
+        "primary_denominator": 0.1565,
+        "secondary_denominator": 0.1044
+      }
+    },
+    "5": {
+      "lexical": 0.787,
+      "dense": 0.8304,
+      "both": 0.7304,
+      "lexical_only": 0.0565,
+      "dense_only": 0.1,
+      "either_oracle": 0.887,
+      "neither": 0.113,
+      "fitted_gate": 0.8174,
+      "rank_fusion_rrf": 0.8435,
+      "oracle_gain_over_best_single": 0.0565,
+      "fusion_gap_to_oracle": 0.0696,
+      "fusion_vs_best_single": -0.013,
+      "fraction_of_gap_closed": -0.7757,
+      "fraction_of_headroom_over_best_single": -0.2298,
+      "_gap_basis": {
+        "prior_session": "session-c",
+        "prior_fitted_gate": 0.8478,
+        "prior_best_single": 0.8304,
+        "prior_either_oracle": 0.887,
+        "primary_denominator": 0.0392,
+        "secondary_denominator": 0.0566
+      }
+    },
+    "10": {
+      "lexical": 0.8348,
+      "dense": 0.9174,
+      "both": 0.8043,
+      "lexical_only": 0.0304,
+      "dense_only": 0.113,
+      "either_oracle": 0.9478,
+      "neither": 0.0522,
+      "fitted_gate": 0.8783,
+      "rank_fusion_rrf": 0.913,
+      "oracle_gain_over_best_single": 0.0304,
+      "fusion_gap_to_oracle": 0.0696,
+      "fusion_vs_best_single": -0.0391,
+      "fraction_of_gap_closed": -2.2046,
+      "fraction_of_headroom_over_best_single": -1.2875,
+      "_gap_basis": {
+        "prior_session": "session-c",
+        "prior_fitted_gate": 0.9261,
+        "prior_best_single": 0.9174,
+        "prior_either_oracle": 0.9478,
+        "primary_denominator": 0.0217,
+        "secondary_denominator": 0.0304
+      }
+    }
+  }
+}

@@ -1116,3 +1116,120 @@ verdict and the build embeds it.
 "confirm or reverse shipping v3" for a human decision. A structural interlock is strictly better
 than a question someone has to remember to answer, and the question was withdrawn when the
 interlock landed.
+
+---
+
+## ADR-011 · The calibration was asking an incoherent cross-query question
+
+**Status: the hypothesis is CONFIRMED and the shape still FAILED its floor.** Both are recorded,
+because the second is what the next session has to solve and the first is why it is now a different
+problem.
+
+**Context.** Through `frozen-v3` every cue curve was fit on that cue's **pooled raw score** across
+all fit queries — one isotonic curve over ~119,340 candidates, asking *what fraction of this score
+band is gold*. That question requires BM25 and cosine to be comparable **across** queries.
+
+They are not, and Session B made them that way on purpose. `lexical::BM25_SATURATION` is an
+*absolute* map (`s/(s+10)`) rather than min-max, because min-max forces the best candidate of every
+query to 1.0 — including queries where nothing matches — and a gate whose top feature is 1.0 by
+construction cannot abstain. The cost of that correct choice is that a query whose wording matches a
+lot of text has *all* its candidates scoring high.
+
+The symptom: lexical put gold at rank 1 in **54.8%** of held-out queries while the calibration's
+best block was **31.0%** gold.
+
+### The diagnosis, measured before any curve was fit
+
+Count the **distinct queries** represented in the top block. If the block were a uniform random
+sample of candidates, occupancy gives `m·(1−(1−1/m)ⁿ)` = **206.9 ± 4.5** of 242 queries.
+
+| ranked by | distinct queries | z |
+|---|---|---|
+| `lexical_bm25` (pooled) | **133** | **−16.4** |
+| `dense_cosine` (pooled) | 138 | −15.3 |
+
+**The pooled top block really does fill from a minority of queries.** Concentration alone would not
+prove it *harmful* — high-BM25 queries might genuinely have better matches — but the conjunction
+does: that block is 31% gold while each query's own rank-1 is 56%.
+
+### The fix, and what it bought
+
+Calibrate on **`{cue}_margin`** — the candidate's lead over its own runner-up, in raw score units —
+and rank by **`{cue}_z`**, dimensionless so it can order a lexical-won candidate against a dense-won
+one. Same cue, same scores, query-local question:
+
+| swept feature | precision | coverage |
+|---|---|---|
+| `lexical_bm25` pooled | 0.418 | 0.261 |
+| **`lexical_margin`** | **0.579** | **0.483** |
+
+Both terms improved at once. The ceiling moved **0.309013 → 0.371245**, against **+0.0086** for
+adding an entire new cue in Session C.
+
+**Why margin is calibrated and z is not.** Within a query the two give the identical order, so the
+choice only bites in two places and they want opposite properties. The ranking needs something
+*dimensionless*; the threshold needs something that *preserves absolute magnitude*, because
+σ-normalized z carries Session B's min-max defect in weaker form — a candidate that barely beats
+noise in a tight distribution still scores high. A query where everything is near zero has a tiny
+margin, and that is what keeps abstention possible.
+
+### It still failed the floor, and the failure changed kind
+
+**0.5435 at top-1 against a required 0.5478 — one case in 230.** Session D scored 0.4783 against the
+same floor, so v4 recovers 0.065 and lands at parity-minus-one-case with always-lexical.
+
+> **Session D's failure was a CALIBRATION failure; this one is an ARBITRATION failure.** A step
+> function deciding rank cannot recur — no calibrated value appears in the v4 ranking key at all.
+> What remains is that every cue scores a memory *in isolation* and the gate compares isolated
+> opinions. Choosing between them by calibrated margin picks wrong slightly more often than never
+> choosing at all.
+
+**Decision, and it binds the next shape:** *per-query normalization fixes the question the
+calibration asks. It cannot fix cue selection at rank 1, and no fusion over per-cue scores can —
+the top-1 either-cue oracle is 0.652 and that is the exact ceiling on perfect arbitration. Moving
+past it requires a scorer that reads query and candidate together.*
+
+### A structural cap, accepted knowingly
+
+`margin` is positive for **at most one candidate per cue per query**, and an isotonic curve is
+non-decreasing, so at most 2 candidates per query can ever clear the threshold — usually one.
+Coverage is therefore capped by the top-1 hit rate, and `m` is bounded by 2.
+
+This is not a defect to fix by widening the feature. §5.5 is precision-first and recovers recall
+through the explicit search tool. It is the cost of asking a decisiveness question, it was
+registered before the fit, and it is asserted by test.
+
+### The pre-registration lesson — ADR-010's mirror image
+
+ADR-010 recorded: *a band on a quantity the tested shape cannot structurally move is not a valid
+read.* The symmetric failure is now on the record too:
+
+> **A band whose confirming and falsifying regions OVERLAP is equally unreadable.** Session E's
+> ceiling band had CONFIRMED at ≥0.337 and UNMOVED at <0.354, because the predicted movement was
+> smaller than two binomial standard errors on a 466-row block. Check separation *before*
+> registering, with the same discipline that checks reachability.
+
+**And the response to a failed separation check is not to narrow the band.** δ was derived from the
+block size; shrinking it after seeing non-separation would be tuning the instrument to guarantee an
+answer. The band was left exactly as derived, demoted to a secondary read, and a **well-powered**
+diagnostic — top-block query concentration, where the difference between concentrated and diffuse is
+hundreds of queries rather than hundredths of a rate — became the primary. The measured ceiling then
+cleared *both* boundaries, so the overlap was never entered; that was luck, and the demotion was not
+contingent on it.
+
+### Two arithmetic traps in deriving a band from block structure
+
+Both are Session D's inverted selectivity comparison in new clothes, and both were caught pre-fit:
+
+1. **The top block fills from ALL cases, but only gold-bearing ones can contribute gold.** 229 of
+   251 fit cases have gold in scope; the other 22 contribute a row to every rank slice and a hit to
+   none. Scale each slice by the gold-bearing fraction.
+2. **The block is not a random sample of ranks.** Only one candidate per query has a positive
+   margin, so the remainder is the *least-negative* margins — rank-2s from queries where s₁ ≈ s₂,
+   whose gold rate is below the rank-2 average. The prediction is an **upper bound**, not a point
+   estimate, and was registered as one.
+
+**Part of the 54.8% / 31% gap was never a bug.** A 466-row block and a 251-row rank-1 set are
+different populations. The arithmetic above is what separates the real defect from that arithmetic
+difference, and predicting "the ceiling should approach 0.548" would have repeated Session D's error
+exactly.
