@@ -1233,3 +1233,106 @@ Both are Session D's inverted selectivity comparison in new clothes, and both we
 different populations. The arithmetic above is what separates the real defect from that arithmetic
 difference, and predicting "the ceiling should approach 0.548" would have repeated Session D's error
 exactly.
+
+---
+
+## ADR-012 · Consolidation is a supersession edge, and it does not move retrieval on this corpus
+
+**Status: the pre-registered prediction is CONFIRMED. Consolidation is built, journaled,
+reversible, and measured — and it moves nothing.** The either-cue top-1 oracle goes
+**0.6522 → 0.6435** like-for-like (−0.0087, two cases in 230). Recorded because the null is the
+last named lever closing, and because two of the decisions taken on the way are binding regardless
+of the result.
+
+**Context.** Sessions B–E moved the ceiling 0.309 → 0.371 against a frozen 0.95 and left the
+two-cue oracle at 0.652, which caps perfect arbitration. The cross-encoder — the one named lever
+that could exceed that oracle — was ruled out at M0b on latency (ADR-011, spike 2026-08-04).
+Consolidation was the last named lever, and its claim was different in kind: it changes *which
+candidates exist* rather than how they are ranked, so unlike Session E's per-query features it is
+not rank-preserving and **can** move the oracle.
+
+### The shape, and why it mints no new belief
+
+A near-duplicate cluster elects one of its **existing** members and the rest get `Superseded`;
+§4.3's exclusion (2) then removes them from the candidate set. **HP5 already specified this** —
+*"merges are supersedes edges and are therefore undoable"* — and two properties follow:
+
+1. **Reversibility.** An over-eager merge is an appended edge over untouched beliefs, so HP5's
+   *detect + reverse* is structural rather than aspirational.
+2. **Attribution survives.** M0a's `Attributor` builds its reverse map as
+   `_turn_of[memory_id] = turn_id`, **last write wins**, and `evidence_precision` drops
+   unattributable injections from its denominator entirely. A merge minting a *new* id would
+   therefore be scored against whichever constituent turn happened to be recorded last, silently —
+   or, reported under no turn, would leave precision as a ratio over an empty set. Neither failure
+   is visible in any number the harness prints.
+
+> **Decision, and it binds any future consolidation work at M0b: a merged memory must remain
+> attributable to exactly one ingested turn.** Distillation that rewrites text under a new id is
+> not measurable on a per-turn evidence key, and making it measurable is an M0a change argued
+> separately — not something an implementation session grants itself.
+
+### Two decisions that measurement changed, before any band was written
+
+**Single-link clustering is wrong on dense embeddings of conversation.** jina's similarity over
+chat turns is anisotropic: **40.8%** of all 30.6M fit-split pairs reach cosine 0.70. A transitive
+linkage therefore chains — at threshold 0.70 single link removed **99.8%** of the candidate pool
+and built a **616-member** cluster, declaring an entire session one memory. Complete link ships.
+Both are swept in the dry run and both tables are in the pre-registration, so the rejection stays
+measured rather than becoming folklore.
+
+**The survivor is the LATEST cluster member, not the earliest.** Supersession means a newer belief
+displaces an older one, and LongMemEval's **knowledge-update** category is built on exactly that:
+gold is the latest statement of a fact whose earlier statements are distractors. Electing the
+earliest would have systematically suppressed gold across the one category whose whole difficulty
+is recency — and would have presented as an unexplained retrieval regression with no visible cause.
+
+### The result, with both halves attached
+
+| | |
+|---|---|
+| Held-out pool reduction | **1.186%** — the pre-registered `< 0.03` band, **PREMISE REFUTED** |
+| Pairs at cosine ≥ 0.98 | **0.0086%** of 30,587,870 |
+| Oracle, like-for-like | 0.6522 → **0.6435** |
+| Largest movement anywhere in the R@k table | 0.0087, against a Wilson half-width of **0.062** |
+| Cost | **123 ms P95** per session close, 0.41% of the §4.0.7 ingest deadline |
+
+`STATE.md` carried the claim that the pool is *"~493 turns where near-duplicates compete with
+gold."* It is ~493 **distinct** turns. There is very little for a near-duplicate rule to remove
+because there is very little duplication present.
+
+> **This is a property of the corpus, not of consolidation.** LongMemEval-S haystacks are assembled
+> from *distinct real sessions*, so distractors are topically related rather than textually
+> duplicated.
+>
+> **It does not generalize to real user history**, where the same thing genuinely does get said
+> repeatedly across months. A null here is evidence about *this benchmark's candidate pool*. It is
+> **not** evidence that §5.3 consolidation is unnecessary in production.
+
+Both halves were registered before the fit, so neither can be quoted without the other.
+
+### The oracle carried no band, and that is ADR-011's lesson mirrored
+
+The reach check passed — removal changes ranks, so the metric is structurally movable, unlike
+Session E's monotone within-query transforms. But the measured fit-split headroom was **+0.0044,
+one case in 229**, against a Wilson half-width of 0.062. **A band an order of magnitude narrower
+than the instrument's resolution cannot be read.** ADR-010 says do not register a band on a
+quantity the shape cannot move; ADR-011's mirror image says do not register one the *split* cannot
+resolve. Both checks now run before bands are written.
+
+### The floor, re-based, fails for the third consecutive session
+
+The floor was the prior session's best single cue, which was safe only while the cues were fixed.
+Consolidation changes the cues, so an inherited floor could be cleared on a cue improvement the
+fusion did not earn. **Re-based before the fit to the best single cue measured in the same run:
+required ≥ 0.5415, measured 0.5371.** It fails against the superseded 0.5478 basis too.
+
+Three sessions of the fused gate losing to its own best input at top-1 is now a stable property of
+two-cue arbitration, not an accident of one shape.
+
+### What closes here
+
+The named-lever list. Registered before the result existed, so it cannot read as a reaction to a
+disappointing number: **there is no further named mechanism that raises the either-cue oracle
+within M0b's budget.** The next conversation is about K1's definition — what 0.95 injection
+precision means, and whether it is the right bar for a two-cue content-similarity system whose
+oracle caps at 0.65 — and not about the next lever.

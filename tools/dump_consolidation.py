@@ -61,6 +61,16 @@ def subset(corpus: Corpus, query_ids: set[str], suffix: str) -> Corpus:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(REPO / "runs" / "session-f"))
+    parser.add_argument(
+        "--applied",
+        action="store_true",
+        help="run with the FROZEN policy instead of the dry-run sweep, and dump what was "
+        "actually merged. This is how consolidation's share of the section 4.6 call is measured: "
+        "the ingest cost block carries a single `total`, and splitting that into invented halves "
+        "would be worse than reporting the measured span on the side channel. Not a substitute "
+        "for the dry run -- it cannot produce the sweep, because it has already assumed a "
+        "threshold.",
+    )
     parser.add_argument("--embedding-cache", default=str(CACHE_DIR))
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
@@ -75,22 +85,33 @@ def main() -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    sweep_path = out / "consolidation-sweep.ndjson"
+    sweep_path = out / ("consolidation-applied.ndjson" if args.applied else "consolidation-sweep.ndjson")
     features_path = out / "fit-features.ndjson"
 
     corpus = longmemeval.load(REPO / split["corpus_path"])
     fit = subset(corpus, set(split["fit"]), "-fit")
-    print(f"sweeping the FIT split: {len(fit.cases)} cases, {len(fit.sessions)} sessions")
+    mode = "APPLIED (frozen policy)" if args.applied else "dry-run sweep"
+    print(f"{mode} over the FIT split: {len(fit.cases)} cases, {len(fit.sessions)} sessions")
 
-    # `--fit-mode` loads no gate and `--consolidation-dry-run` loads no consolidation artifact.
-    # Neither calibrates nor applies anything, which is what makes this pass usable as the
-    # evidence for both artifacts that follow it.
-    target = (
-        f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
-        f"--embedder-model {MODEL_DIR} --embedding-cache {args.embedding_cache} "
-        f"--fit-mode --dump-gate-features {features_path} "
-        f"--consolidation-dry-run --dump-consolidation {sweep_path}"
-    )
+    if args.applied:
+        # The frozen policy, with the gate loaded — the shipping configuration. The point of this
+        # pass is the measured `consolidation_ms` per session, so it must not run under `--fit-mode`
+        # (which would change what else the call does) or under the dry run (which applies nothing).
+        target = (
+            f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
+            f"--embedder-model {MODEL_DIR} --embedding-cache {args.embedding_cache} "
+            f"--dump-consolidation {sweep_path}"
+        )
+    else:
+        # `--fit-mode` loads no gate and `--consolidation-dry-run` loads no consolidation artifact.
+        # Neither calibrates nor applies anything, which is what makes this pass usable as the
+        # evidence for both artifacts that follow it.
+        target = (
+            f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
+            f"--embedder-model {MODEL_DIR} --embedding-cache {args.embedding_cache} "
+            f"--fit-mode --dump-gate-features {features_path} "
+            f"--consolidation-dry-run --dump-consolidation {sweep_path}"
+        )
     result = run(
         lambda c: build_target(target, c),
         {fit.name: fit},
@@ -99,10 +120,14 @@ def main() -> int:
         # the same hazard `score_longmemeval.py` records for the feature dump.
         RunConfig(target=target, seed=args.seed, clock_ms=args.clock, suites=("benchmark",)),
     )
-    paths = write_artifacts(result, out / "fit-dryrun")
+    paths = write_artifacts(result, out / ("fit-applied" if args.applied else "fit-dryrun"))
 
     sessions = sum(1 for _ in sweep_path.open(encoding="utf-8", newline="\n") if _.strip())
-    rows = sum(1 for _ in features_path.open(encoding="utf-8", newline="\n") if _.strip())
+    rows = (
+        sum(1 for _ in features_path.open(encoding="utf-8", newline="\n") if _.strip())
+        if features_path.exists() and not args.applied
+        else 0
+    )
     # **Completeness, checked against the corpus rather than against a failure list.**
     # `RunResult` carries only the report and the transcript, so there is no failure collection
     # to consult here — and counting rows is the stronger check anyway: a session that errored

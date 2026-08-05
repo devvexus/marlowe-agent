@@ -342,7 +342,7 @@ mod tests {
     fn test_gate() -> FrozenGate {
         FrozenGate::from_json(
             r#"{
-              "state": "fitted", "note": "test", "version": "frozen-v4",
+              "state": "fitted", "note": "test", "version": "{version}",
               "fusion": "per-query-margin-calibration-continuous-z-ranking", "threshold": 0.95,
               "feature_names": ["lexical_bm25","dense_cosine","lexical_margin","dense_margin","lexical_z","dense_z","lexical_rank_recip","dense_rank_recip","effective_trust","fidelity","cue_agreement_2cue"],
               "cue_features": ["lexical_margin","dense_margin"],
@@ -366,7 +366,13 @@ mod tests {
               "split_rule": "test", "split_digest": "y",
               "fit_cases": 1, "heldout_cases": 1, "fit_rows": 1, "fit_positives": 1,
               "fitted_at_clock_ms": 0
-            }"#,
+            }"#
+            // Interpolated from the constant rather than written as a literal. A hardcoded
+            // version in a fixture goes stale silently on the next bump -- every test in this
+            // module then fails with a version-disagreement error that has nothing to do with
+            // what any of them are testing.
+            .replace("{version}", crate::gate::GATE_VERSION)
+            .as_str(),
         )
         .unwrap()
     }

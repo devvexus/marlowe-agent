@@ -1,5 +1,14 @@
 {
   "session": "M0b Session F",
+  "split": {
+    "redrawn": false,
+    "rule": "Within each harness category (Case.category -- question_type, or 'abstention' for the _abs subset), sort query_ids by (sha256(query_id).hexdigest(), query_id) and assign even indices to `fit` and odd indices to `heldout`. Deterministic, and stratified rather than merely random: every category is split within one case of even, so both halves have support in all seven.",
+    "digest": "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d",
+    "fit_cases": 251,
+    "heldout_cases": 249,
+    "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "note": "Session B's split, unchanged through C, D, E and F and asserted by digest. Redrawing it would invalidate every number fit under it."
+  },
   "what_is_tested": "Brief section 5.2/5.3 consolidation, measured on retrieval. Near-duplicate merging as a SUPERSESSION edge: a cluster elects one of its existing members and the rest leave the section 4.3 candidate set. No new belief is minted, so every retrievable memory keeps the id ingest returned for exactly one turn.",
   "registered_against_split": "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d",
   "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
@@ -478,5 +487,76 @@
       "0.96": 6997,
       "0.98": 2621
     }
+  },
+  "power_floor": {
+    "_registered_explicitly": "PARTIAL COVERAGE AT HIGH PRECISION IS A PASS. Brief section 5.5 is precision-first -- 'the gate must be tuned for precision, with recall recovered by making the agent's explicit memory search tool excellent' -- and K1's wording carries no coverage term at all. A gate firing on 30% of queries at >= 0.95 precision MEETS K1's stated requirement. It is not a partial success and must not be reported as one.",
+    "name": "power floor on attributed injections",
+    "why_injections_and_not_coverage": "The injection count is the primitive that decides whether the precision number is readable at all, and it is exactly computable before the fit. A coverage fraction is not: it depends on the mean injections per firing case, which does not exist until the gate has been fit.",
+    "condition": "at least 139 ATTRIBUTED injections (gold + distractor) on the held-out split at the reported operating point",
+    "n_min": 139,
+    "derivation": "the smallest N whose Wilson 95% lower bound at p_hat = 0.95 exceeds 0.9. Wilson, never Wald: at p near 1 the normal approximation extends above 1.0 and its coverage collapses, which is exactly the regime a 0.95 claim is read in.",
+    "wilson_lower_bound_at_n_min": 0.900164,
+    "wilson_lower_bound_at_n_min_minus_1": 0.899932,
+    "if_violated": "the precision number is reported as UNDERPOWERED -- not as a pass, and not as a failure. It means the held-out split could not certify the claim at this coverage, which is a statement about the INSTRUMENT, not about the gate.",
+    "implied_coverage_floor": "derived after the fact as 139 / (230 * m), with m the measured mean attributed injections per firing case. Reported, never used to move the floor.",
+    "predicted_difficulty": "At m = 1 this needs coverage 0.604 on 230 answerable held-out cases, and at m = 2 it needs 0.302. **And m is structurally bounded by 2 under this shape** -- see shape.STRUCTURAL_CAP: margin is positive for at most one candidate per cue per query, so the gate can inject at most one memory per cue. The realistic case is m ~ 1, which needs coverage 0.604 -- above this cue set's measured top-1 hit rate. **So UNDERPOWERED is the PREDICTED outcome, not a surprise.** Written down before the fit so it cannot later be read as a failure of the gate. The response is to report it and name what would fix it -- a larger scored population, since the all-500 run has twice the cases -- never to lower the floor and never to widen the feature until it injects more.",
+    "degenerate_pass_guard_still_applies": "coverage < 0.05 still reports the operating-point precision as NOT a quality signal. The power floor sits beside that guard, not in place of it."
+  },
+  "label_set_feasibility": {
+    "_status": "COMPANION. REPORTED WITH NO VERDICT. It does not decide this session's result.",
+    "_why_no_verdict": "At m = 1 injection per firing case and a 30-case smallest category, the >= 50-per-category requirement needs coverage 1.67 -- above 1.0, so it is unmeetable by construction. Registering it as a pass/fail floor would be exactly the ADR-010 error: a band on a quantity the tested shape cannot reach.",
+    "what_it_answers": "whether K1's own validation instrument is reachable at this operating point. K1's headline is human-judged, and the label set is what makes it measurable at all -- so a gate whose output cannot support a label draw has a headline nobody can compute.",
+    "requirement": {
+      "source": "ROADMAP.md, 'The human label set -- your deliverable, not the agent's'",
+      "total_judged_injections": 400,
+      "per_category": 50,
+      "stratified_by": "category and gate score decile"
+    },
+    "corpus_category_counts": {
+      "abstention": 30,
+      "knowledge-update": 72,
+      "multi-session": 121,
+      "single-session-assistant": 56,
+      "single-session-preference": 30,
+      "single-session-user": 64,
+      "temporal-reasoning": 127
+    },
+    "smallest_answerable_category": {
+      "category": "single-session-preference",
+      "cases": 30
+    },
+    "to_be_reported": "projected judged injections per category on a full-500 run at the MEASURED coverage and m, against both thresholds. Reported in summary.json beside the power floor."
+  },
+  "number_2": {
+    "name": "cue capability",
+    "definition": "held-out evidence_precision read off the precision/coverage curve at the most selective cut where coverage reaches 0.25. UNCHANGED from Sessions B, C and D.",
+    "read_rule_unchanged": true,
+    "band": null
+  },
+  "number_2b": {
+    "name": "cue capability at matched coverage",
+    "_status": "CARRIED FORWARD from Session D, anchored on the same point.",
+    "definition": "held-out evidence_precision read at the most selective cut whose coverage is at least 0.504274 -- Session C's REALISED coverage, not its floor.",
+    "session_c_reference_at_this_coverage": 0.371429,
+    "band": null,
+    "note": "Reported as a companion, never a replacement. Number 2's verdict stands on Number 2's own rule. Session D could not read this at matched coverage -- its step function offered no cut near the read point -- and reported it as unmatched rather than quoting the delta. A shape whose calibration is continuous at the head should be able to offer the read point; whether it does is itself a signal."
+  },
+  "session_c_baseline": {
+    "number_2": {
+      "value": 0.371429,
+      "read_at_cut": 0.317597,
+      "coverage_there": 0.504274
+    },
+    "_note": "Read from runs/session-c/summary.json, not retyped."
+  },
+  "carried_forward_from_session_e": {
+    "keys": [
+      "power_floor",
+      "label_set_feasibility",
+      "number_2",
+      "number_2b",
+      "session_c_baseline"
+    ],
+    "_why": "Copied from runs/session-e/PREREGISTRATION.json, not restated. number_2's read rule has been unchanged since Session B and that is the only reason B through F are comparable. A drifted read rule is invisible -- it produces a number of exactly the right shape against a baseline that no longer means the same thing."
   }
 }

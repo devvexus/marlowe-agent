@@ -114,7 +114,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 88 passing
+cargo test --workspace                       # 175 passing
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 
@@ -145,11 +145,12 @@ the number rather than inheriting it. The corpus is never vendored (`data/` is g
 
 ```bash
 python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
-python tools/preregister_session_e.py   # this session's bands, BEFORE any fit
+python tools/dump_consolidation.py      # the dry-run sweep; APPLIES NOTHING
+python tools/preregister_session_f.py   # this session's bands, BEFORE any fit
 python tools/fit_gate.py                # refuses without the split OR the pre-registration
 cargo build --release                   # embeds the artifact via include_str!
-python tools/score_longmemeval.py --out runs/session-e
-python tools/analyze_cue_overlap.py --run runs/session-e/heldout --record-verdict
+python tools/score_longmemeval.py --out runs/session-f
+python tools/analyze_cue_overlap.py --run runs/session-f/heldout --record-verdict
 ```
 
 **The cache-cold latency read cannot be taken over the full split, and the reason is measured.** On

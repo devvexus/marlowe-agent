@@ -20,7 +20,7 @@
 //! > values to CHOOSE BETWEEN cues, but the ordering that decides the top of the ranking must come
 //! > from a **continuous** score.
 //!
-//! `frozen-v4` obeys that constraint structurally rather than carefully:
+//! `frozen-v5` obeys that constraint structurally rather than carefully:
 //!
 //! * the calibration reads **`{cue}_margin`** — the candidate's lead over its own runner-up, in
 //!   raw score units. Query-local, so it no longer asks whether a candidate's *absolute* score
@@ -43,7 +43,7 @@
 //! **There is no default gate.** Every failure below is a load-time error naming the file and the
 //! command that regenerates it. CLAUDE.md: *"Prefer a load-time error to a sensible default."* A
 //! permissive fallback here would be the worst instance of that pattern in the project — a run
-//! would report `frozen-v4` while scoring with a calibration nobody fit.
+//! would report `frozen-v5` while scoring with a calibration nobody fit.
 
 pub mod features;
 
@@ -60,11 +60,19 @@ pub use features::{
 ///
 /// Never produced without a loaded, validated artifact. Asserted by test.
 ///
-/// **`frozen-v4`, bumped in Session E.** Both the feature vector and the combination function
-/// changed. A run stamped `frozen-v3` was scored by a different function over different features,
-/// and a report joining numbers across the two without noticing would be comparing different
-/// systems. Earlier artifacts stay on disk as the provenance of Sessions B–D; none is embedded.
-pub const GATE_VERSION: &str = "frozen-v4";
+/// **`frozen-v5`, bumped in Session F — and NOT because the shape changed.** The feature vector,
+/// the fusion and the ranking key are identical to v4. What changed is the **candidate set the
+/// calibration is fit over**: §5.3 consolidation now supersedes near-duplicate members before
+/// retrieval sees them, so v4 and v5 are curves over different populations.
+///
+/// Two artifacts fit over different pools must not carry one version. The failure that prevents is
+/// the usual silent one — a v4 stamp on a v5 run produces a full set of numbers, and the only
+/// symptom is a cross-session comparison that quietly is not one.
+///
+/// v4 was bumped from v3 for the other reason: both the feature vector and the combination
+/// function changed. Earlier artifacts stay on disk as the provenance of Sessions B–E; none is
+/// embedded.
+pub const GATE_VERSION: &str = "frozen-v5";
 
 /// The fusion this build implements, asserted against the artifact's own declaration.
 ///
@@ -92,9 +100,9 @@ pub const THRESHOLD: f32 = 0.95;
 ///
 /// `include_str!` means a missing file is a **compile** error rather than a runtime one, and a
 /// released binary can never be separated from the calibration it was measured with.
-const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v4.json");
+const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v5.json");
 
-const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v4.json";
+const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v5.json";
 
 #[derive(Debug, thiserror::Error)]
 pub enum GateError {
@@ -106,7 +114,7 @@ pub enum GateError {
 
     #[error(
         "{ARTIFACT_PATH} is in state {found:?} and carries no fitted calibration. This is the \
-         committed placeholder, not a gate. Run `python tools/preregister_session_e.py` then \
+         committed placeholder, not a gate. Run `python tools/preregister_session_f.py` then \
          `python tools/fit_gate.py` and rebuild. Refusing to run rather than inventing a curve"
     )]
     Unfitted { found: String },
@@ -712,7 +720,7 @@ mod tests {
             r#"{{
   "state": "fitted",
   "note": "test fixture",
-  "version": "frozen-v4",
+  "version": "{GATE_VERSION}",
   "fusion": "per-query-margin-calibration-continuous-z-ranking",
   "threshold": 0.95,
   "feature_names": {FEATURES_JSON},
@@ -824,7 +832,13 @@ mod tests {
 
     #[test]
     fn a_wrong_version_is_refused() {
-        let json = fitted_json().replace(r#""version": "frozen-v4""#, r#""version": "frozen-v3""#);
+        // Built from the constant, not from a literal. A hardcoded version here silently stops
+        // testing anything the moment `GATE_VERSION` is bumped: the `replace` finds nothing, the
+        // fixture stays valid, and the test asserts a refusal that never fires.
+        let json = fitted_json().replace(
+            &format!(r#""version": "{GATE_VERSION}""#),
+            r#""version": "frozen-v0-not-this-build""#,
+        );
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::VersionDisagrees { .. })

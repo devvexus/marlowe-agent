@@ -17,7 +17,7 @@ What it does:
   3. join each dumped candidate to its turn via the section 4.6 `written[].turn_id` mapping and
      label it against the benchmark's gold evidence
   4. fit **one isotonic curve per cue**, each on that cue's own WITHIN-QUERY MARGIN
-  5. write `crates/marlowe-memory/artifacts/gate-frozen-v4.json`
+  5. write `crates/marlowe-memory/artifacts/gate-frozen-v5.json`
 
 Then rebuild: the artifact is embedded with `include_str!`.
 
@@ -49,7 +49,7 @@ feature that decides the ordering "inert" would be a false claim on the record, 
 refusal.
 
     python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
-    python tools/preregister_session_e.py   # this session's bands, before the fit
+    python tools/preregister_session_f.py   # this session's bands, before the fit
     python tools/fit_gate.py
     cargo build --release
 """
@@ -77,7 +77,7 @@ from marlowe_eval.suites import benchmark as bench  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v4.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v5.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
 # Outside the profile root by construction: --profile-root must be empty per spawn,
@@ -91,7 +91,7 @@ CACHE_DIR = REPO / ".embedding-cache"
 # It is a per-session path deliberately. Pointing this at a stale session's file would let a new
 # cue be scored against bands written for a different cue set, which is the same failure the
 # split digest check catches one level up.
-PREREG_PATH = REPO / "runs" / "session-e" / "PREREGISTRATION.json"
+PREREG_PATH = REPO / "runs" / "session-f" / "PREREGISTRATION.json"
 
 # Must match `marlowe_memory::gate::features::FEATURE_NAMES`, in order. Asserted against the
 # dump's own keys below, and again by `FrozenGate::load` against the Rust array.
@@ -124,7 +124,7 @@ RANK_FEATURES = ["lexical_z", "dense_z"]
 
 # Must match `marlowe_memory::gate::FUSION`.
 FUSION = "per-query-margin-calibration-continuous-z-ranking"
-GATE_VERSION = "frozen-v4"
+GATE_VERSION = "frozen-v5"
 
 # Must match `marlowe_memory::gate::THRESHOLD`. Frozen under HP1; `load` rejects any other.
 THRESHOLD = 0.95
@@ -204,7 +204,7 @@ def load_preregistration(split: dict) -> dict:
     """
     if not PREREG_PATH.exists():
         raise SystemExit(
-            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_e.py` first — "
+            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_f.py` first — "
             "the bands are pre-registered, and a fit that runs before them makes every verdict "
             "in this session unfalsifiable."
         )
@@ -604,7 +604,7 @@ def main() -> int:
             "  no score region where predicted precision clears the K1 operating point. The "
             "threshold does not move,\n"
             "  and this number is the session's HEADLINE -- read it against the bands in "
-            "runs/session-e/PREREGISTRATION.json."
+            "runs/session-f/PREREGISTRATION.json."
         )
     print()
     print("now rebuild so the artifact is embedded:  cargo build --release")

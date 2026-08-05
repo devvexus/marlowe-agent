@@ -46,7 +46,7 @@ from marlowe_eval.runner import RunConfig, run, write_artifacts  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v4.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v5.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
 CACHE_DIR = REPO / ".embedding-cache"
@@ -346,7 +346,7 @@ def number_two(curve: list[dict], bands: list[dict] | None) -> dict:
             "the comparison that carries a verdict this session is Number 2b, at matched "
             "coverage. Number 2 is reported for cross-session comparability only."
         )
-    out["band_source"] = "runs/session-e/PREREGISTRATION.json, written before the fit"
+    out["band_source"] = "runs/session-f/PREREGISTRATION.json, written before the fit"
     return out
 
 
@@ -426,7 +426,7 @@ def number_two_b(curve: list[dict], target: float, reference: float | None) -> d
     Session C moved from 0.334 precision at 0.453 coverage to 0.371 at 0.504. Both rose, and
     Number 2's coverage-FLOOR rule returned "dense adds nothing measurable" for it. STATE.md
     required that a matched-coverage statistic be pre-registered before a future fit and never
-    substituted after one; `runs/session-e/PREREGISTRATION.json` is that registration.
+    substituted after one; `runs/session-f/PREREGISTRATION.json` is that registration.
 
     Reported as a COMPANION, never a replacement. Number 2's verdict stands on Number 2's rule.
     """
@@ -471,7 +471,7 @@ def number_two_b(curve: list[dict], target: float, reference: float | None) -> d
         "Number 2 is reported unchanged beside this. Substituting a matched-coverage read for "
         "the pre-registered floor rule after seeing a number is exactly what STATE.md forbade."
     )
-    out["band_source"] = "runs/session-e/PREREGISTRATION.json, written before the fit"
+    out["band_source"] = "runs/session-f/PREREGISTRATION.json, written before the fit"
     return out
 
 
@@ -568,7 +568,7 @@ def number_three(scored: dict[str, list[dict]], records: list[dict]) -> dict:
         "lexical_margin_alone": lexical_margin,
         "dense_margin_alone": dense_margin,
         "reading": reading,
-        "band_source": "runs/session-e/PREREGISTRATION.json number_3, written before the fit",
+        "band_source": "runs/session-f/PREREGISTRATION.json number_3, written before the fit",
     }
 
 
@@ -792,7 +792,7 @@ def label_set_projection(records: list[dict], prereg: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out", default=str(REPO / "runs" / "session-e"))
+    parser.add_argument("--out", default=str(REPO / "runs" / "session-f"))
     parser.add_argument(
         "--embedding-cache",
         default=str(CACHE_DIR),
@@ -892,7 +892,7 @@ def main() -> int:
 
     heldout_ep = benchmark_block(runs["heldout"]["report"])["evidence_precision"]
     all_ep = benchmark_block(runs["all"]["report"])["evidence_precision"]
-    prereg = json.loads((REPO / "runs/session-e/PREREGISTRATION.json").read_text(encoding="utf-8"))
+    prereg = json.loads((REPO / "runs/session-f/PREREGISTRATION.json").read_text(encoding="utf-8"))
     n2 = number_two(heldout_diag["curve"], prereg["number_2"].get("bands"))
     # The matched coverage is Session C's own realised coverage, read out of the pre-registration
     # rather than retyped here -- the same value its Number 2b definition text refers to.
@@ -951,8 +951,28 @@ def main() -> int:
         for name in artifact["cue_features"]
     }
 
+    # **The artifact this driver READ must be the artifact the run SCORED WITH.**
+    #
+    # It is read from disk by path while the binary embeds its own copy with `include_str!`, so
+    # the two can disagree the moment a session bumps the artifact version and this path is not
+    # updated with it — which is exactly what happened here on the first Session F scoring pass.
+    # Every measured number stayed correct, because those come off the wire; but the reported
+    # `gate` block and the calibration-generalization PREDICTIONS were the previous version's,
+    # compared against this version's held-out measurements. Nothing failed and nothing looked
+    # wrong.
+    #
+    # §4.2's gate stamp is the run's own statement of what scored it, so that is what this checks.
+    stamps = {r["gate_version"] for r in runs["heldout"]["records"]}
+    if stamps != {artifact["version"]}:
+        raise SystemExit(
+            f"{ARTIFACT_PATH.name} declares version {artifact['version']!r}, but the run stamped "
+            f"{sorted(stamps)} on the wire. This driver is reading a different artifact than the "
+            "binary scored with; refusing rather than reporting one gate's curves beside another "
+            "gate's numbers."
+        )
+
     summary = {
-        "session": "M0b Session D",
+        "session": "M0b Session F",
         "what_this_is": (
             "Two cues -- lexical BM25 and the dense ONNX embedder -- fused by MAX OVER PER-CUE "
             "CALIBRATED PRECISIONS. The cue set is unchanged from Session C; only the combiner "
@@ -1028,7 +1048,7 @@ def main() -> int:
             "split_digest": split["digest"],
             "split_rule": split["rule"],
             "preregistration": [
-                "runs/session-e/PREREGISTRATION.json",
+                "runs/session-f/PREREGISTRATION.json",
             ],
             "eval_unchanged": "no file under eval/ is modified by this driver",
             "reading_the_sub_reports": (

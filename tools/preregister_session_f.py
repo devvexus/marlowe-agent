@@ -55,6 +55,21 @@ MIN_POOL_REDUCTION = 0.01
 # Session E's published held-out numbers, the "before" side of every comparison. Read from its
 # committed artifact rather than retyped.
 SESSION_E_OVERLAP = REPO / "runs" / "session-e" / "cue-overlap.json"
+SESSION_E_PREREG = REPO / "runs" / "session-e" / "PREREGISTRATION.json"
+
+# Blocks whose READ RULE must not move, carried across from Session E's file rather than retyped.
+#
+# `number_2`'s definition has been unchanged since Session B, and that is the only reason B, C, D,
+# E and F are comparable at all. Retyping them here would put a second copy of each rule in the
+# repository with nothing comparing the two -- and a drifted read rule is invisible: it produces a
+# number of exactly the right shape, against a baseline that no longer means the same thing.
+CARRIED_FORWARD = (
+    "power_floor",
+    "label_set_feasibility",
+    "number_2",
+    "number_2b",
+    "session_c_baseline",
+)
 
 
 def iter_ndjson(path: Path):
@@ -207,6 +222,20 @@ def main() -> int:
     heldout_n = 230  # Session E's held-out answerable-with-gold population, for the power read.
     prereg = {
         "session": "M0b Session F",
+        # The split block `fit_gate.py` checks its digest against. Same shape as Session E's, and
+        # the digest is read from `tools/split.json` rather than restated.
+        "split": {
+            "redrawn": False,
+            "rule": split["rule"],
+            "digest": split["digest"],
+            "fit_cases": split["fit_cases"],
+            "heldout_cases": split["heldout_cases"],
+            "corpus_sha256": split["corpus_sha256"],
+            "note": (
+                "Session B's split, unchanged through C, D, E and F and asserted by digest. "
+                "Redrawing it would invalidate every number fit under it."
+            ),
+        },
         "what_is_tested": (
             "Brief section 5.2/5.3 consolidation, measured on retrieval. Near-duplicate merging "
             "as a SUPERSESSION edge: a cluster elects one of its existing members and the rest "
@@ -489,6 +518,28 @@ def main() -> int:
             "mean_candidates_per_session": round(float(np.mean(scanned)), 2),
             "at_or_above": {k: v for k, v in tail.items() if v > 0},
         },
+    }
+
+    # Carried forward verbatim. See CARRIED_FORWARD: these blocks' read rules are what make the
+    # cross-session comparison legitimate, so they are copied, not restated.
+    if not SESSION_E_PREREG.exists():
+        raise SystemExit(f"{SESSION_E_PREREG} is missing; the carried-forward read rules live there.")
+    previous = json.loads(SESSION_E_PREREG.read_text(encoding="utf-8"))
+    for key in CARRIED_FORWARD:
+        if key not in previous:
+            raise SystemExit(
+                f"Session E's pre-registration has no {key!r}. Refusing to invent a read rule "
+                "for a number whose whole value is that its rule has not moved."
+            )
+        prereg[key] = previous[key]
+    prereg["carried_forward_from_session_e"] = {
+        "keys": list(CARRIED_FORWARD),
+        "_why": (
+            "Copied from runs/session-e/PREREGISTRATION.json, not restated. number_2's read rule "
+            "has been unchanged since Session B and that is the only reason B through F are "
+            "comparable. A drifted read rule is invisible -- it produces a number of exactly the "
+            "right shape against a baseline that no longer means the same thing."
+        ),
     }
 
     RUN_DIR.mkdir(parents=True, exist_ok=True)
