@@ -176,6 +176,29 @@ impl BeliefStore {
         self.entries.insert(entry.id.clone(), entry);
     }
 
+    /// Fold a supersession edge into the live view.
+    ///
+    /// **This is deliberately the same two mutations `derive` performs for `EventKind::Superseded`
+    /// — the loser's `superseded_by`, then the winner's `supersedes`.** The incremental path and
+    /// the replay path have to agree, because §4.3's exclusion (2) reads the first field and the
+    /// audit trail reads the second; a rebuild that disagreed with the live store would change
+    /// what is retrievable with nothing observing it. `tests/ingest.rs` asserts the agreement
+    /// against a real journal rather than leaving it to this comment.
+    ///
+    /// Silent on an unknown id, because the journal is the authority: `derive` raises
+    /// `EventForUnknownMemory` on replay, which is where an unresolvable edge must be caught.
+    /// Raising here as well would make an already-journaled event unreplayable in memory only.
+    pub fn supersede(&mut self, id: &str, by: &str) {
+        if let Some(loser) = self.entries.get_mut(id) {
+            loser.superseded_by = Some(by.to_string());
+        } else {
+            return;
+        }
+        if let Some(winner) = self.entries.get_mut(by) {
+            winner.supersedes.push(id.to_string());
+        }
+    }
+
     /// Section 4.3 — the auto-injection candidate set, live-only.
     ///
     /// ADR-003 makes the live-only hot index a **requirement, not an optimization**: the

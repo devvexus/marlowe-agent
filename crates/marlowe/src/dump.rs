@@ -30,6 +30,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
+use marlowe_memory::consolidate::ConsolidationReport;
 use marlowe_memory::retrieve::ScoredCandidate;
 
 pub struct FeatureDump {
@@ -87,6 +88,57 @@ impl FeatureDump {
     }
 
     pub fn flush(&mut self) -> std::io::Result<()> {
+        self.out.flush()
+    }
+}
+
+/// The consolidation dump — one NDJSON row per **ingested session**.
+///
+/// Same discipline as [`FeatureDump`] and for the same reason: a diagnostic side channel under an
+/// explicit flag, never a fourth channel between harness and implementation. The §4.6 response is
+/// byte-identical with or without it.
+///
+/// What it carries depends on the policy, and the two must not be confusable:
+///
+/// * a **dry run** writes the full similarity histogram plus the session clustered at every
+///   threshold in `SWEEP_THRESHOLDS`. This is the evidence the frozen threshold is chosen from,
+///   and it is produced by a pass that applied nothing.
+/// * an **applied** run writes the one clustering it actually performed, with the threshold it
+///   read from the frozen artifact.
+///
+/// `policy` is written on every row, so a sweep row can never be mistaken for a row describing
+/// what a run really merged.
+pub struct ConsolidationDump {
+    out: BufWriter<File>,
+}
+
+impl ConsolidationDump {
+    pub fn create(path: &Path) -> std::io::Result<Self> {
+        // Truncating, not appending — see `FeatureDump::create`. An append would merge two runs'
+        // sweeps into one file and the threshold chosen from it would be reproducible from
+        // neither.
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
+        Ok(Self {
+            out: BufWriter::new(file),
+        })
+    }
+
+    /// `elapsed_ms` is consolidation's own share of the §4.6 call.
+    ///
+    /// It is reported **here rather than in the §4.6 cost block**, which carries a single `total`.
+    /// Splitting that total into invented halves would be worse than reporting the measured span
+    /// on the side channel, and §4.0.7's 30-second ingest deadline is the number this exists to
+    /// let a reader attribute.
+    pub fn write(&mut self, report: &ConsolidationReport, elapsed_ms: i64) -> std::io::Result<()> {
+        let mut row = serde_json::to_value(report).map_err(std::io::Error::other)?;
+        if let Some(object) = row.as_object_mut() {
+            object.insert("consolidation_ms".into(), serde_json::json!(elapsed_ms));
+        }
+        writeln!(self.out, "{row}")?;
         self.out.flush()
     }
 }

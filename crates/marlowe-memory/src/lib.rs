@@ -17,6 +17,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod consolidate;
 pub mod cue;
 pub mod entry;
 pub mod error;

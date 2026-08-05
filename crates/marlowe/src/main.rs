@@ -15,6 +15,7 @@ const USAGE: &str = "\
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR>
         [--embedding-cache <DIR>] [--embedder-workers <N>]
         [--dump-gate-features <FILE>] [--fit-mode]
+        [--dump-consolidation <FILE>] [--consolidation-dry-run]
 
   Speak CONTRACTS.md section 4 over NDJSON on stdin/stdout.
 
@@ -44,6 +45,22 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR>
                                 `calibrated_precision` and `passes` -- which is what a scoring
                                 run reads when the gate abstains and the response therefore
                                 carries no injected memories at all.
+
+  --dump-consolidation <FILE>   Write one NDJSON row per INGESTED SESSION describing what §5.3
+                                consolidation merged. A diagnostic side channel: the §4.6
+                                response is byte-identical with or without it.
+
+  --consolidation-dry-run       Cluster at every threshold in SWEEP_THRESHOLDS and APPLY NOTHING.
+                                This is the pass the frozen merge threshold is chosen from, so it
+                                must not itself assume one. Loads no consolidation artifact, and
+                                requires --dump-consolidation: a dry run with nowhere to write
+                                its sweep changes nothing and produces nothing.
+
+                                WITHOUT this flag consolidation is ON and reads its threshold
+                                from the frozen artifact. There is deliberately no flag that
+                                turns it off -- a default-off switch is the permissive default
+                                that lets a run measure the unconsolidated system under a
+                                consolidated label.
 
   --fit-mode                    Load NO gate. Used only by `tools/fit_gate.py`, to produce the
                                 features the gate is fit from before any gate exists. The gate
@@ -84,8 +101,33 @@ fn main() {
         std::process::exit(2);
     }
 
+    // Same rule as --dump-gate-features: present-but-empty is a typo, not a request for a
+    // default path. A default here would let a sweep land in a stale file from an earlier run
+    // and produce a threshold nobody could reproduce.
+    if args.iter().any(|a| a == "--dump-consolidation")
+        && flag_value(&args, "--dump-consolidation").is_none()
+    {
+        eprintln!("{USAGE}");
+        eprintln!("error: --dump-consolidation requires a path and has no default.");
+        std::process::exit(2);
+    }
+
     let dump_path = flag_value(&args, "--dump-gate-features").map(std::path::Path::new);
     let fit_mode = args.iter().any(|a| a == "--fit-mode");
+    let consolidation_dump = flag_value(&args, "--dump-consolidation").map(std::path::Path::new);
+    let consolidation = if args.iter().any(|a| a == "--consolidation-dry-run") {
+        if consolidation_dump.is_none() {
+            eprintln!("{USAGE}");
+            // Refused rather than defaulted. A dry run applies nothing, so a dry run with nowhere
+            // to write its sweep is a run that changes nothing and records nothing -- silently
+            // useless, and indistinguishable from a consolidated run that merged nothing.
+            eprintln!("error: --consolidation-dry-run requires --dump-consolidation.");
+            std::process::exit(2);
+        }
+        adapter::Consolidate::DryRun
+    } else {
+        adapter::Consolidate::Frozen
+    };
 
     // Required, with no default, for the same reason --profile-root is: a default path here
     // would let a run silently pick up whatever model happened to be lying around, and a
@@ -125,8 +167,14 @@ fn main() {
         }
     };
 
+    let consolidation = adapter::Consolidation {
+        policy: consolidation,
+        dump_path: consolidation_dump,
+    };
     let started = match (fit_mode, dump_path) {
-        (true, Some(path)) => adapter::Adapter::start_for_fit(&profile_root, embedder, path),
+        (true, Some(path)) => {
+            adapter::Adapter::start_for_fit(&profile_root, embedder, path, consolidation)
+        }
         (true, None) => {
             eprintln!("{USAGE}");
             // Refused rather than defaulted to a path. Fit mode with nowhere to write is a run
@@ -134,7 +182,7 @@ fn main() {
             eprintln!("error: --fit-mode requires --dump-gate-features.");
             std::process::exit(2);
         }
-        (false, path) => adapter::Adapter::start(&profile_root, embedder, path),
+        (false, path) => adapter::Adapter::start(&profile_root, embedder, path, consolidation),
     };
 
     let mut adapter = match started {

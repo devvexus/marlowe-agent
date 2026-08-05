@@ -17,13 +17,14 @@ use marlowe_contract::{
     RetrievalResponse, CONTRACT_VERSION,
 };
 use marlowe_journal::{Journal, Profile};
+use marlowe_memory::consolidate::{self, Policy};
 use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
 use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::retrieve::{debug_assert_injection_valid, select_for_injection, Scoring};
 use marlowe_memory::{ingest, BeliefStore};
 
-use crate::dump::FeatureDump;
+use crate::dump::{ConsolidationDump, FeatureDump};
 use crate::elapsed::Stopwatch;
 
 /// How this process scores.
@@ -38,6 +39,26 @@ enum Mode {
     FitDump(FeatureDump),
 }
 
+/// Which consolidation policy a run uses, and where its dump goes.
+///
+/// A struct rather than two loose arguments so a call site cannot silently pass the dry run's
+/// path to a frozen run, or the reverse.
+pub struct Consolidation<'a> {
+    pub policy: Consolidate,
+    pub dump_path: Option<&'a Path>,
+}
+
+/// The CLI's request, before the artifact is read.
+///
+/// Distinct from `Policy` because `Policy::Frozen` carries a threshold that only exists once the
+/// artifact has loaded. Collapsing the two would need a placeholder threshold at the call site,
+/// and a placeholder that reaches clustering is a merge at a number nobody chose.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Consolidate {
+    Frozen,
+    DryRun,
+}
+
 pub struct Adapter {
     journal: Journal,
     beliefs: BeliefStore,
@@ -50,6 +71,15 @@ pub struct Adapter {
     embedder: Embedder,
     vectors: VectorStore,
     mode: Mode,
+    /// §5.3 consolidation. **Not optional, and there is no "off".**
+    ///
+    /// `Policy::load` refuses an unregistered artifact outright, so a build either merges at a
+    /// threshold somebody registered or does not start. A boolean `--consolidate` flag was the
+    /// obvious alternative and is the one CLAUDE.md warns about: forget it in the harness target
+    /// string and the run measures the unconsolidated system under a consolidated label, with
+    /// every number still produced and nothing observing the mismatch.
+    policy: Policy,
+    consolidation_dump: Option<ConsolidationDump>,
 }
 
 impl Adapter {
@@ -70,35 +100,59 @@ impl Adapter {
         profile_root: &Path,
         embedder: Embedder,
         dump_path: Option<&Path>,
+        consolidation: Consolidation<'_>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
         let dump = dump_path.map(FeatureDump::create).transpose()?;
-        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump))
+        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump), consolidation)
     }
 
     /// Start in feature-dump mode. Used only by `tools/fit_gate.py`; loads no gate.
+    ///
+    /// **Consolidation still applies here.** The gate is fit over whatever pool retrieval will
+    /// actually see, so a fit run that skipped consolidation would calibrate against a candidate
+    /// set that no scoring run ever has.
     pub fn start_for_fit(
         profile_root: &Path,
         embedder: Embedder,
         dump_path: &Path,
+        consolidation: Consolidation<'_>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::start_with(profile_root, embedder, Mode::FitDump(FeatureDump::create(dump_path)?))
+        Self::start_with(
+            profile_root,
+            embedder,
+            Mode::FitDump(FeatureDump::create(dump_path)?),
+            consolidation,
+        )
     }
 
     fn start_with(
         profile_root: &Path,
         embedder: Embedder,
         mode: Mode,
+        consolidation: Consolidation<'_>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
         let beliefs = BeliefStore::derive(&journal, profile.manifest().derivation_version)?;
+        // Loaded here, not at the first ingest. Same rule the gate follows: a build-time mistake
+        // must stop the process, not become a per-call error the harness scores as a class B
+        // failure — a wrong number instead of no number.
+        let policy = match consolidation.policy {
+            Consolidate::DryRun => Policy::DryRun,
+            Consolidate::Frozen => Policy::load()?,
+        };
         Ok(Self {
             journal,
             beliefs,
             embedder,
             vectors: VectorStore::default(),
             mode,
+            policy,
+            consolidation_dump: consolidation
+                .dump_path
+                .map(ConsolidationDump::create)
+                .transpose()?,
         })
     }
 
@@ -177,6 +231,55 @@ impl Adapter {
                 format!("embedding the ingested memories failed: {e}"),
             );
         }
+
+        // §5.3's consolidation pass, at **session close** — which for a benchmark that ingests a
+        // whole synthetic session in one call is the end of that call. It runs after embedding
+        // because the merge rule reads the dense vectors, and before any retrieval, so nothing
+        // here touches the §4.1 path or its 300 ms budget.
+        //
+        // It reads `request.clock`, never a system clock: §4.5 is binding on every path reachable
+        // from §4.6, and this is one.
+        let consolidation_watch = Stopwatch::start();
+        let report = match self.policy {
+            // Sweeps every threshold and applies nothing. `apply` refuses the report it produces.
+            Policy::DryRun => Ok(consolidate::dry_run(
+                &self.beliefs,
+                &request.session_id,
+                &self.vectors,
+            )),
+            Policy::Frozen { .. } => consolidate::consolidate(
+                &mut self.journal,
+                &mut self.beliefs,
+                &request.session_id,
+                request.clock,
+                &self.vectors,
+                self.policy,
+            ),
+        };
+        let report = match report {
+            Ok(r) => r,
+            // Class B, like the ingest failure above: the writes already happened and the journal
+            // is the source of truth. Dying here would make a recoverable bug indistinguishable
+            // from a crash and throw away the rest of the run.
+            Err(e) => {
+                return ResponseFrame::error(
+                    Op::Ingest,
+                    ErrorKind::InternalError,
+                    format!("consolidating {} failed: {e}", request.session_id),
+                )
+            }
+        };
+        let consolidation_ms = consolidation_watch.stop().as_cost_ms();
+
+        if let Some(dump) = self.consolidation_dump.as_mut() {
+            if let Err(e) = dump.write(&report, consolidation_ms) {
+                // Loud, for the same reason a truncated feature dump is: a partial sweep would
+                // have a threshold chosen from it and nothing downstream could tell.
+                eprintln!("marlowe: consolidation dump failed: {e}");
+                std::process::exit(1);
+            }
+        }
+
         let latency = stopwatch.stop().as_cost_ms();
 
         let response = IngestResponse {

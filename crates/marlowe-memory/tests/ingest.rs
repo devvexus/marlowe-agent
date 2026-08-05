@@ -247,3 +247,175 @@ fn two_fresh_profiles_ingesting_the_same_history_agree_exactly() {
 
     assert_eq!(run("det-a"), run("det-b"));
 }
+
+// ===========================================================================================
+// §5.3 consolidation, through a real journal
+// §5.3 consolidation, through a real journal and a real embedder
+// ===========================================================================================
+//
+// These drive the shipping embedder rather than planting vectors. `VectorStore` deliberately
+// exposes no public setter -- its whole claim is that `embed_missing` is the ONE derivation
+// function -- so a test that installed vectors directly would be asserting against a path
+// production never takes. Two identical texts embed identically, which is all the fixture needs.
+
+use marlowe_memory::consolidate::{self, Policy};
+use marlowe_memory::cue::dense::embedder::{Embedder, MODEL_FILE};
+use marlowe_memory::cue::dense::vectors::VectorStore;
+
+fn model_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("workspace root")
+        .join("models/jina-embeddings-v2-small-en")
+}
+
+/// Ingest, then embed. Returns `None` when the model is absent, which is a legitimate state for
+/// a fresh clone: `models/` is gitignored and never vendored. It does NOT skip when the model is
+/// present and wrong -- `Embedder::load` verifies digests and a mismatch is a hard failure.
+fn ingested(f: &mut Fixture, texts: &[&str]) -> Option<(Vec<String>, VectorStore)> {
+    let dir = model_dir();
+    if !dir.join(MODEL_FILE).exists() {
+        eprintln!("SKIP: run `python tools/fetch_model.py`");
+        return None;
+    }
+    let turns = texts
+        .iter()
+        .enumerate()
+        .map(|(i, text)| {
+            turn(&format!("t-{i}"), text, Channel::Terminal, "user:primary")
+        })
+        .collect();
+    ingest(&mut f.journal, &mut f.beliefs, &request("s-1", turns)).unwrap();
+
+    let mut embedder = Embedder::load(&dir, 1, None).expect("the pinned model must load");
+    let mut vectors = VectorStore::default();
+    vectors.embed_missing(&f.beliefs, &mut embedder).expect("embeds");
+    let ids = f.beliefs.recall_candidates().iter().map(|e| e.id.clone()).collect();
+    Some((ids, vectors))
+}
+
+#[test]
+fn apply_refuses_a_dry_run_report() {
+    // Structural, not a convention: the pass the frozen threshold is chosen from must be
+    // INCAPABLE of applying anything, not merely trusted not to. A dry-run report carries no
+    // threshold, and that absence is what `apply` refuses on.
+    let mut f = fixture("consolidate-dry-refused");
+    let Some((_, vectors)) = ingested(&mut f, &["the deploy job runs on Fridays"; 2]) else {
+        return;
+    };
+    let report = consolidate::dry_run(&f.beliefs, "s-1", &vectors);
+    assert_eq!(report.threshold, None);
+    assert!(!report.sweep.is_empty(), "a dry run sweeps every threshold");
+
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = consolidate::apply(&mut f.journal, &mut f.beliefs, &report, Clock { now_ms: T0 });
+    }));
+    assert!(outcome.is_err(), "apply must refuse a dry-run report");
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
+#[test]
+fn a_merge_is_journaled_and_survives_a_rebuild() {
+    // The property the design rests on: consolidation is an appended EDGE over untouched beliefs,
+    // so the live view and a from-scratch replay must agree about what is retrievable. A rebuild
+    // that disagreed would change the candidate set with nothing observing it.
+    let mut f = fixture("consolidate-rebuild");
+    let Some((ids, vectors)) = ingested(
+        &mut f,
+        &[
+            "the deploy job runs on Fridays",
+            "the deploy job runs on Fridays",
+            "we had pasta for dinner and it was excellent",
+        ],
+    ) else {
+        return;
+    };
+    assert_eq!(ids.len(), 3);
+
+    let report = consolidate::consolidate(
+        &mut f.journal,
+        &mut f.beliefs,
+        "s-1",
+        Clock { now_ms: T0 },
+        &vectors,
+        Policy::Frozen { threshold: 0.99 },
+    )
+    .unwrap();
+    assert_eq!(report.clusters.len(), 1, "the two identical turns, and only those");
+    assert_eq!(report.suppressed, 1);
+    // The survivor is the LATEST -- see `consolidate`'s module docs on knowledge-update.
+    assert_eq!(report.clusters[0].representative, ids[1]);
+
+    let matured = T0 + MATURATION_WINDOW_MS;
+    let live: Vec<String> = f
+        .beliefs
+        .injection_candidates(matured)
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
+    assert_eq!(live, vec![ids[1].clone(), ids[2].clone()]);
+    // Reduced accessibility, never availability (§5.4).
+    assert_eq!(f.beliefs.recall_candidates().len(), 3);
+
+    let rebuilt = BeliefStore::derive(&f.journal, marlowe_memory::DERIVATION_VERSION).unwrap();
+    let live_rebuilt: Vec<String> = rebuilt
+        .injection_candidates(matured)
+        .iter()
+        .map(|e| e.id.clone())
+        .collect();
+    assert_eq!(live_rebuilt, live, "the rebuild must agree with the live view");
+    assert_eq!(
+        rebuilt.get(&ids[1]).unwrap().supersedes,
+        vec![ids[0].clone()],
+        "and the audit edge folds too, not only the exclusion"
+    );
+
+    // §5.3: consolidation is itself an episodic event.
+    let cap = OperatorCapability::for_operator_or_audit();
+    let kinds: Vec<EventKind> = f
+        .journal
+        .replay(&cap, None)
+        .unwrap()
+        .into_iter()
+        .map(|(_, kind, _)| kind)
+        .collect();
+    assert!(kinds.contains(&EventKind::BeliefsMerged));
+    assert!(kinds.contains(&EventKind::Superseded));
+    assert!(kinds.contains(&EventKind::ConsolidationRan));
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
+#[test]
+fn consolidation_ran_is_journaled_even_when_nothing_merged() {
+    // A pass that found no duplicates is a fact about the history. Inferring it from the absence
+    // of `BeliefsMerged` would be indistinguishable from consolidation never having run.
+    let mut f = fixture("consolidate-empty");
+    let Some((_, vectors)) = ingested(
+        &mut f,
+        &["the deploy job runs on Fridays", "we had pasta for dinner and it was excellent"],
+    ) else {
+        return;
+    };
+    let report = consolidate::consolidate(
+        &mut f.journal,
+        &mut f.beliefs,
+        "s-1",
+        Clock { now_ms: T0 },
+        &vectors,
+        Policy::Frozen { threshold: 0.99 },
+    )
+    .unwrap();
+    assert_eq!(report.suppressed, 0);
+
+    let cap = OperatorCapability::for_operator_or_audit();
+    let ran = f
+        .journal
+        .replay(&cap, None)
+        .unwrap()
+        .into_iter()
+        .filter(|(_, kind, _)| *kind == EventKind::ConsolidationRan)
+        .count();
+    assert_eq!(ran, 1);
+    let _ = fs::remove_dir_all(&f.dir);
+}

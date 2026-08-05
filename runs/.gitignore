@@ -9,3 +9,13 @@
 # ignored at the repo root.
 run.jsonl
 scored-candidates.ndjson
+
+# Session F's two dry-run dumps, ignored for the SIZE reason above and not the licensing one:
+# neither carries corpus text, only memory ids and float features. 90 MB combined, and both are
+# regenerable by `python tools/dump_consolidation.py` from the pinned corpus.
+#
+# Nothing decision-relevant is lost. PREREGISTRATION.json carries the derived sweep table, the
+# full pairwise-similarity histogram and the chosen threshold — the evidence a reader needs to
+# check the choice, rather than the 30.6M pairs it was computed from.
+consolidation-sweep.ndjson
+fit-features.ndjson

@@ -74,6 +74,23 @@ impl VectorStore {
         Ok(ids.len())
     }
 
+    /// Install a vector directly. **Tests only, and it stays that way.**
+    ///
+    /// There is deliberately no public setter. This module's whole claim is that
+    /// [`VectorStore::embed_missing`] is the *one* derivation function, so a second write path
+    /// reachable from production code would be the drift it exists to prevent. `#[cfg(test)]`
+    /// makes that structural rather than a naming convention.
+    #[cfg(test)]
+    pub(crate) fn insert_for_test(&mut self, memory_id: &str, vector: Vec<f32>) {
+        self.vectors.insert(memory_id.to_string(), vector);
+    }
+
+    /// Drop one vector, so a test can exercise the absent-vector path. Tests only, as above.
+    #[cfg(test)]
+    pub(crate) fn forget_for_test(&mut self, memory_id: &str) {
+        self.vectors.remove(memory_id);
+    }
+
     /// Drop vectors for memories that are no longer live.
     ///
     /// Called after consolidation. Without it a tombstoned memory's vector would outlive the
