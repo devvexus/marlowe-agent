@@ -6,35 +6,39 @@ further than in any prior session, and the shape **still failed its pre-register
 
 ## Next action
 
-**Build the cross-encoder rerank stage. Its pass conditions are ALREADY pre-registered** in
-`runs/session-e/PREREGISTRATION.json` → `cross_encoder_spike`, written before any measurement. Do not
-re-derive them and do not soften them.
+**Consolidation. The cross-encoder was spiked this session and is RULED OUT at M0b on latency.**
 
-**Why it, and why now.** Session E's floor failure is an **arbitration** failure, not a calibration
-one:
+**Do not re-attempt the cross-encoder without a fresh pre-registration.** Its bar was registered
+before it ran; both configurations missed and the registered response is "not adopted at M0b, no
+third attempt". Full record in `docs/design/spike-2026-08-04-cross-encoder.md`:
 
-> Every cue scores a memory **in isolation** and the gate compares isolated opinions. That bounds
-> top-1 at the either-cue oracle of **0.652**. A cross-encoder reads query and candidate **together
-> in one pass**, so its top-1 ceiling is the *recall of the pool it reranks*, not the oracle. It is
-> the only named shape that can exceed the bound Session E was judged against.
+| seq | threads | stage P95 | projected total | speedup got / needed |
+|---|---|---|---|---|
+| 512 | 16 | 1054 ms | 1088 ms | 2.45× / **9.71×** |
+| **256** | **16** | **331 ms** | **365 ms** | 3.33× / **4.14×** |
 
-**The registered conditions, in brief** (full text in the pre-registration):
+The closest configuration misses 300 ms by 65 ms — and 16 threads is a workstation, not ADR-003's
+1-vCPU target (single-thread: **1136 ms**), the total is an optimistic *sum* of two spans rather than
+an end-to-end measurement, and 37.8% of pairs were truncated at seq 256. **Determinism passed
+perfectly** (batch 1 vs 20, threads, two processes — all `0.000e+00`), so a future attempt keeps
+batching and multi-threading.
 
-1. **Latency** — total **cold** retrieval P95 ≤ 300 ms with the reranker inside the timed span, over
-   the top 20. §5.7's real requirement, never an invented sub-budget.
-2. **Determinism** — bit-identical logit across two spawns, two ONNX thread counts, and **batch 1 vs
-   batch 20**. The last is the one that catches things; if it fails, batching is not used.
-3. **Digest** — model + tokenizer vocab sha256 verified at **download and load**.
-4. **Reference** — Rust vs Python onnxruntime on the same pinned graph; **prefer a
-   maintainer-published ONNX export** so the open validation gap below does not gain a second
-   instance.
-5. **One fallback, decided in advance** — L-6 @ 512 → `max_seq_len` 256 with truncation reported →
-   otherwise **not adopted at M0b**. No third attempt.
+**It is ruled out on COST, not on quality — its quality was never measured.** Nothing says a
+cross-encoder would not work; only that this one cannot run inside §5.7's budget on this hardware.
+
+**So consolidation is the lever.** ~493 raw turns per case with near-duplicates competing against
+gold is the candidate-pool problem, and it is the one named cause of the 54.8% / 31% gap that
+Session E did **not** close. Session E closed the calibration cause and measured the arbitration
+cause; the pool itself is untouched.
+
+**Three future cross-encoder options are NAMED and NONE was tried** (spike record, §"What a future
+attempt would have to pre-register first"): a quantized/shallower encoder, N < 20, or a *conditional*
+stage that reranks only when the gate is uncertain. **Do not try them until one passes and report the
+winner** — each is a separate pre-registered experiment with its own bar, or none of them is.
 
 **Do not scope cues 3–5, in either direction.** Registered in all three ceiling bands *before* the
 fit, so no result reopens it: 34.8% of held-out cases have gold at rank 1 from **neither** content
-cue, and that population is unreachable by any content-similarity cue. Levers are the cross-encoder,
-then consolidation.
+cue, and that population is unreachable by any content-similarity cue.
 
 **Do not lower the threshold, and do not re-tune the calibration resolution.** Unchanged, now under a
 fourth session's worth of pressure. `CALIBRATION_BLOCKS = 256` is additionally an *input* to Session
@@ -258,9 +262,18 @@ ONNX export, and if none exists, record the gap for that model too rather than p
 3. **The trajectory is worth a human read, and it is not an escalation.** Four sessions of structural
    work have moved the ceiling 0.309 → 0.371 against a frozen 0.95, and the two-cue top-1 oracle caps
    perfect arbitration at 0.652. K1 at 0.95 is **not** on this trajectory with content-similarity cues
-   alone. The cross-encoder is the next lever and it can exceed that oracle; consolidation is the one
-   after. Raising this as information, not as a request to stop — no pre-registered band called for
-   escalation this session.
+   alone.
+
+   **The cross-encoder was the named lever that could exceed that oracle, and it is now ruled out at
+   M0b on latency** — 365 ms projected against a 300 ms budget in its most generous configuration,
+   on hardware more generous than the deployment target. That leaves **consolidation** as the last
+   named lever before the cue set itself, and consolidation attacks the candidate pool rather than
+   the ceiling directly.
+
+   Raising this as information, not as a request to stop, and **no pre-registered band called for
+   escalation this session** — Session D's band did, and its read was recorded as confounded. But a
+   human should know that the option space named in Session E's own pre-registration is now one
+   item shorter, and that it shortened on a measured budget rather than on a judgement call.
 
 ---
 

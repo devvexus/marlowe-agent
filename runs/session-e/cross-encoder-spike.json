@@ -1,0 +1,95 @@
+{
+  "_what": "Cross-encoder feasibility spike. Python-side; no Rust exists yet.",
+  "_bar_read_from": "runs/session-e/PREREGISTRATION.json -> cross_encoder_spike.conditions",
+  "model": "Xenova/ms-marco-MiniLM-L-6-v2 (maintainer-published ONNX export)",
+  "digests": {
+    "model.onnx": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+    "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "queries": 40,
+  "candidates_per_query": 20,
+  "registered_conditions": {
+    "latency": {
+      "condition": "total COLD retrieval P95 <= 300 ms with the reranker inside the timed span, over the top 20 candidates",
+      "why_not_a_sub_budget": "section 5.7's requirement is on total retrieval latency. An invented ~50 ms sub-budget would be a constant nobody measured entering the frozen path -- the objection that killed the cosine firing floor.",
+      "also_reported": "the rerank stage's own P95, beside the total."
+    },
+    "determinism": {
+      "condition": "bit-identical logit for the same (query, candidate) across: (a) two process spawns, (b) two ONNX worker-thread counts, (c) batch size 1 vs batch size 20",
+      "which_one_matters": "(c). Batching changes the reduction order inside the graph, and a batch-dependent logit would make the injected set depend on how many candidates happened to survive the filter -- which repro would catch only intermittently.",
+      "if_c_fails": "batching is not used, and the latency condition is re-read without it. Determinism is not traded for latency."
+    },
+    "digest": {
+      "condition": "model and tokenizer vocab sha256 pinned in a fetch script and verified at BOTH download and load",
+      "precedent": "embedder.rs already does exactly this."
+    },
+    "reference": {
+      "condition": "Rust output matches Python onnxruntime on the same pinned graph across pair-encoding hazards: long-candidate truncation, empty query, unicode, token_type_ids boundaries",
+      "prefer_a_maintainer_published_export": "STATE.md carries an open gap -- our jina ONNX export is not independently validated against the published model, because transformers.onnx was removed in transformers 5.x and the authority is gone. Using a maintainer-published ONNX export here avoids acquiring a SECOND instance of that gap. If no such export exists, the gap is recorded for this model too rather than papered over."
+    },
+    "one_fallback_decided_now": {
+      "condition": "if L-6 at max_seq_len 512 misses the latency bar, the single pre-registered fallback is max_seq_len 256 with the truncation rate measured and reported. If that also misses, THE RERANKER IS NOT ADOPTED AT M0b.",
+      "why_only_one": "a ladder of fallbacks chosen after seeing the number is tuning. One step, decided before measuring, with a named stopping point."
+    }
+  },
+  "by_seq_len": {
+    "512": {
+      "rerank_stage_p95_ms": 2583.1,
+      "rerank_stage_median_ms": 2467.0,
+      "rerank_stage_max_ms": 2614.8,
+      "truncation_rate": 0.19,
+      "truncated_pairs": 152,
+      "pairs": 800,
+      "measured_cold_retrieval_p95_without_reranker_ms": 34.0,
+      "projected_total_p95_ms": 2617.1,
+      "passes_300ms": false,
+      "_projection_caveat": "The total is a SUM of two separately measured spans, not an end-to-end measurement. It is an estimate and is labelled as one; the end-to-end number requires the Rust integration and is next session's measurement."
+    },
+    "256": {
+      "rerank_stage_p95_ms": 1102.2,
+      "rerank_stage_median_ms": 1059.1,
+      "rerank_stage_max_ms": 1119.1,
+      "truncation_rate": 0.3775,
+      "truncated_pairs": 302,
+      "pairs": 800,
+      "measured_cold_retrieval_p95_without_reranker_ms": 34.0,
+      "projected_total_p95_ms": 1136.2,
+      "passes_300ms": false,
+      "_projection_caveat": "The total is a SUM of two separately measured spans, not an end-to-end measurement. It is an estimate and is labelled as one; the end-to-end number requires the Rust integration and is next session's measurement."
+    }
+  },
+  "determinism": {
+    "batch_1_vs_batch_20": true,
+    "threads_1_vs_4": true,
+    "two_processes": true,
+    "max_abs_diff_batch": 0.0,
+    "max_abs_diff_threads": 0.0,
+    "max_abs_diff_process": 0.0,
+    "all_pass": true,
+    "_note_if_batch_fails": "The registered response is that BATCHING IS NOT USED and the latency condition is re-read without it. Determinism is not traded for latency."
+  },
+  "threading": {
+    "_why": "Thread pinning was an assumption this spike inherited from embedder.rs, NOT a registered condition. The registered determinism check found threads 1 vs 4 bit-identical, which licenses using more. Measured once at the core count, not swept.",
+    "cpu_count": 16,
+    "determinism_licenses_it": true,
+    "by_seq_len": {
+      "512": {
+        "threads": 16,
+        "rerank_stage_p95_ms": 1053.9,
+        "projected_total_p95_ms": 1087.9,
+        "passes_300ms": false,
+        "speedup_vs_single_thread": 2.45,
+        "speedup_needed_to_pass": 9.71
+      },
+      "256": {
+        "threads": 16,
+        "rerank_stage_p95_ms": 331.1,
+        "projected_total_p95_ms": 365.1,
+        "passes_300ms": false,
+        "speedup_vs_single_thread": 3.33,
+        "speedup_needed_to_pass": 4.14
+      }
+    }
+  },
+  "verdict": "FAIL at both registered configurations. Per the pre-registration the reranker is NOT ADOPTED AT M0b. No third attempt -- a ladder chosen after seeing the number is tuning."
+}
