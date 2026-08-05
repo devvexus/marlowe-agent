@@ -12,17 +12,19 @@
 //! Nothing derived from the answer key is written here. The join to gold happens in the
 //! fitter, from §4.6's `written[].turn_id` mapping — the same join the harness itself uses.
 //!
-//! **In gated mode the dump also carries this build's own `score`, `calibrated_precision`,
-//! `min_calibrated_precision` and `passes`.** That is not a convenience. When the frozen gate
-//! abstains on every query — the outcome since Session B — the §4.2 response carries no
-//! `injected` entries at all, so a precision/coverage curve read from the wire would be a curve
+//! **In gated mode the dump also carries this build's own `score`, `margin`,
+//! `calibrated_precision`, `winning_cue` and `passes`.** That is not a convenience. When the
+//! frozen gate abstains on every query — the outcome since Session B — the §4.2 response carries
+//! no `injected` entries at all, so a precision/coverage curve read from the wire would be a curve
 //! over an empty set. The alternative was to re-apply the artifact's curves in Python, which
 //! would put a second implementation of the gate's arithmetic beside the real one with nothing
 //! comparing them. Reading the implementation's own numbers has neither problem.
 //!
-//! `min_calibrated_precision` was added in Session D for exactly that reason: it is the ranking
-//! key's second level, so without it the driver cannot reproduce the gate's own top-1 — which is
-//! the number the session's floor condition is judged on.
+//! **`score` and `margin` are the v4 ranking key, in order**, so the driver can reproduce the
+//! gate's own top-1 — the number the floor condition is judged on — rather than guessing an
+//! ordering. Session D carried `min_calibrated_precision` for the same reason; it is gone because
+//! the v4 key does not contain it, and leaving a dead ranking field beside a live one is the
+//! two-implementations-one-checked pattern this project keeps paying for.
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
@@ -67,19 +69,16 @@ impl FeatureDump {
                 row.insert(name.into(), serde_json::json!(value));
             }
             if gated {
+                // The ranking key, in order. Without both levels the driver cannot reproduce the
+                // gate's own ordering, and reproducing it in Python would put a second
+                // implementation of the ranking beside the real one with nothing comparing them.
                 row.insert("score".into(), serde_json::json!(candidate.score));
+                row.insert("margin".into(), serde_json::json!(candidate.margin));
                 row.insert(
                     "calibrated_precision".into(),
                     serde_json::json!(candidate.calibrated_precision),
                 );
-                // The ranking key's second level. Emitted for the same reason
-                // `calibrated_precision` is: without it the driver cannot reproduce the gate's
-                // own ordering, and reproducing it in Python would put a second implementation
-                // of the fusion beside the real one with nothing comparing them.
-                row.insert(
-                    "min_calibrated_precision".into(),
-                    serde_json::json!(candidate.min_calibrated_precision),
-                );
+                row.insert("winning_cue".into(), candidate.winning_cue.into());
                 row.insert("passes".into(), serde_json::json!(candidate.passes));
             }
             writeln!(self.out, "{}", serde_json::Value::Object(row))?;

@@ -1,0 +1,4 @@
+{
+  "state": "unfitted",
+  "note": "PLACEHOLDER, not a gate. `FrozenGate::load` refuses this and names the way out; there is no default calibration and no fallback weights anywhere in the binary, so a fresh clone reproduces the number rather than inheriting it. Fit it with: python tools/preregister_session_e.py && python tools/fit_gate.py && cargo build --release. The v1/v2/v3 artifacts beside this file are the provenance of Sessions B, C and D; none of them is embedded, and none of them will load under this build -- v3 is refused on `version` and again on its missing `rank_features`, because the ordering role is a concept v3 did not have."
+}

@@ -124,12 +124,19 @@ each spawn must start from empty state.
 
 ```bash
 cd eval
-TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root}"
+# --embedder-model is REQUIRED and has no default (Session C). A target without it fails as
+# `implementation_crashed` on every interface, which reads like a protocol bug and is not one.
+TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root} \
+        --embedder-model ../models/jina-embeddings-v2-small-en"
 
 PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # section 4 + clock probe
 PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
 PYTHONPATH=src python -m marlowe_eval.cli repro --runs 2 --target "$TARGET"
 ```
+
+**Omit `--embedding-cache` for `repro`.** Two cold runs re-embed everything, which makes the
+determinism check cover the embedder across process spawns as well as the ranking. It is slower and
+it is the stronger check.
 
 **The gate, and the real corpus.** The frozen gate is a **build-time artifact** — the binary
 refuses to start without one and there is no default weight vector, so a fresh clone reproduces
@@ -137,10 +144,23 @@ the number rather than inheriting it. The corpus is never vendored (`data/` is g
 `fetch.py` pins its digest.
 
 ```bash
-python tools/preregister_split.py     # ONCE. Writes the split + the bands, BEFORE any fit.
-python tools/fit_gate.py              # refuses without the split, or on a digest mismatch
-cargo build --release                 # embeds the artifact via include_str!
-python tools/score_longmemeval.py --out runs/session-b
+python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
+python tools/preregister_session_e.py   # this session's bands, BEFORE any fit
+python tools/fit_gate.py                # refuses without the split OR the pre-registration
+cargo build --release                   # embeds the artifact via include_str!
+python tools/score_longmemeval.py --out runs/session-e
+python tools/analyze_cue_overlap.py --run runs/session-e/heldout --record-verdict
+```
+
+**The cache-cold latency read cannot be taken over the full split, and the reason is measured.** On
+a cold cache the implementation must embed a whole session's turns inside one §4.6 ingest call, and
+some LongMemEval sessions exceed the harness's §4.0.7 30-second deadline — which aborts the run
+before it scores anything. Retrieval P95 is a *per-query* property, so it is read from a bounded
+subset instead, and `--max-cases` refuses to combine with a quality number.
+
+```bash
+python tools/score_longmemeval.py --out <scratch> --heldout-only --max-cases 40 \
+       --embedding-cache <fresh empty dir>
 ```
 
 **`tools/` imports `marlowe_eval` as a library and changes nothing in it.** The harness

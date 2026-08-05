@@ -35,14 +35,14 @@ sys.path.insert(0, str(REPO / "eval" / "src"))
 from marlowe_eval.datasets import longmemeval  # noqa: E402
 from marlowe_eval.metrics.records import Attributor  # noqa: E402
 
-DEFAULT_RUN = REPO / "runs" / "session-d" / "heldout"
-DEFAULT_OUT = REPO / "runs" / "session-d" / "cue-overlap.json"
+DEFAULT_RUN = REPO / "runs" / "session-e" / "heldout"
+DEFAULT_OUT = REPO / "runs" / "session-e" / "cue-overlap.json"
 
 # Session C's published numbers, used only to report the pre-registered gap fractions against a
 # fixed baseline. Read from its file rather than retyped; absent is not fatal.
 SESSION_C_OVERLAP = REPO / "runs" / "session-c" / "cue-overlap.json"
 
-ARTIFACT = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v3.json"
+ARTIFACT = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v4.json"
 
 
 def iter_ndjson(path: Path):
@@ -98,14 +98,18 @@ def main() -> int:
 
     per = defaultdict(list)
     for row in iter_ndjson(run_dir / "scored-candidates.ndjson"):
-        # The v3 gate ranks on FOUR keys, so reproducing its own top-1 needs all of them.
-        # Refused by name rather than defaulted: falling back to `score` alone against a pre-v3
-        # dump would silently compare a different ordering to the floor it is judged against.
-        for required in ("calibrated_precision", "min_calibrated_precision", "score"):
+        # The v4 gate ranks on THREE keys -- `(score desc, margin desc, id asc)` -- and gates on a
+        # fourth, `passes`. Reproducing its own top-1 needs all of them.
+        #
+        # Refused by name rather than defaulted. A pre-v4 dump carries
+        # `min_calibrated_precision` and no `margin`; falling back to `score` alone would silently
+        # compare a DIFFERENT ordering to the floor it is judged against, and the resulting number
+        # would look entirely reasonable.
+        for required in ("calibrated_precision", "score", "margin", "passes"):
             if required not in row:
                 raise SystemExit(
                     f"{run_dir / 'scored-candidates.ndjson'} has no {required!r}. This is a "
-                    "pre-v3 dump, or the run was made with --fit-mode (which loads no gate). "
+                    "pre-v4 dump, or the run was made with --fit-mode (which loads no gate). "
                     "The fitted-gate ranking cannot be reproduced from it, and guessing an "
                     "ordering would produce a top-1 number that is not the gate's."
                 )
@@ -116,9 +120,8 @@ def main() -> int:
             (
                 row["lexical_bm25"],
                 row["dense_cosine"],
-                row["calibrated_precision"],
-                row["min_calibrated_precision"],
                 row["score"],
+                row["margin"],
                 attribution == "gold",
             )
         )
@@ -131,14 +134,20 @@ def main() -> int:
         which is entry-id ascending -- the gate's final tiebreak."""
         return np.argsort(-scores, kind="stable")
 
-    def gate_order(cal: np.ndarray, min_cal: np.ndarray, score: np.ndarray) -> np.ndarray:
-        """The v3 gate's own ranking key, reproduced exactly.
+    def gate_order(score: np.ndarray, margin: np.ndarray) -> np.ndarray:
+        """The v4 gate's own ranking key, reproduced exactly.
 
-        `(calibrated_precision desc, min_calibrated_precision desc, percentile desc, id asc)` --
-        pre-registered before the fit. np.lexsort takes its PRIMARY key last and is stable, so
-        the trailing id-ascending tiebreak comes free from the dump's own row order.
+        `(score desc, margin desc, id asc)` where `score` is the winning cue's within-query z and
+        `margin` is its lead over its own runner-up -- pre-registered before the fit. np.lexsort
+        takes its PRIMARY key last and is stable, so the trailing id-ascending tiebreak comes free
+        from the dump's own row order.
+
+        **No calibrated value appears here, and that is the point.** ADR-010: the ordering that
+        decides the top of the ranking must come from a continuous score. Session D's key led with
+        `calibrated_precision`, which is a step function, and 60.4% of cases ended in a tie at the
+        maximum with the tiebreak deciding top-1 outright.
         """
-        return np.lexsort((-score, -min_cal, -cal))
+        return np.lexsort((-margin, -score))
 
     def hit(order: np.ndarray, gold: np.ndarray, k: int) -> bool:
         """Unchanged in meaning from Session C: does the top-k intersect gold?
@@ -157,10 +166,9 @@ def main() -> int:
     for query in queries:
         lex = np.array([r[0] for r in per[query]])
         den = np.array([r[1] for r in per[query]])
-        cal = np.array([r[2] for r in per[query]])
-        min_cal = np.array([r[3] for r in per[query]])
-        pct = np.array([r[4] for r in per[query]])
-        gold = np.array([r[5] for r in per[query]])
+        score = np.array([r[2] for r in per[query]])
+        margin = np.array([r[3] for r in per[query]])
+        gold = np.array([r[4] for r in per[query]])
         if gold.sum() == 0:
             continue
         n += 1
@@ -168,7 +176,7 @@ def main() -> int:
         lex_order = order_of(lex)
         den_order = order_of(den)
         rrf_order = order_of(rrf(lex, den))
-        fused_order = gate_order(cal, min_cal, pct)
+        fused_order = gate_order(score, margin)
         for k in ks:
             L, D = hit(lex_order, gold, k), hit(den_order, gold, k)
             tally[k]["lexical"] += L

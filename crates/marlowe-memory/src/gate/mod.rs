@@ -9,38 +9,41 @@
 //!    = 0.95 means *predicted precision ≥ 0.95*, which is what makes the operating point
 //!    portable across profiles.
 //!
-//! # The fusion, and why it changed in Session D
+//! # The shape, and why it changed in Session E
 //!
-//! Through `frozen-v2` the gate was **one logistic over the whole feature vector**, calibrated by
-//! a single isotonic curve. Session C measured that combiner against its own inputs and it lost:
-//! at top-1 on the held-out split it reached 0.4957 against **lexical alone at 0.5478**, while the
-//! either-cue oracle reached 0.6522. It won at k=5 and k=10 and lost only at k=1 — which is where
-//! the operating point reads.
+//! `frozen-v3` calibrated each cue's **pooled raw score** and fused by taking the max. It failed
+//! its floor — 0.4783 at top-1 against a required 0.5478 — and ADR-010 recorded why:
 //!
-//! The mechanism is not mysterious. The fitted weights were `lexical 4.539 / dense 26.468` at bias
-//! `-26.314`, because IRLS minimises log-loss over all 119,340 rows and dense is the better cue in
-//! aggregate (R@5 0.830 vs 0.787) while lexical is the better cue *at rank 1* (0.548 vs 0.444).
-//! **One global weight vector cannot be dense-shaped in the middle and lexical-shaped at the top.**
+//! > Isotonic calibration maps a continuous score to a step function. `max` over step functions
+//! > has no resolution at the top, exactly where the operating point reads. Calibration puts cues
+//! > in common units **by destroying the ordering inside each cue**. A fusion may use calibrated
+//! > values to CHOOSE BETWEEN cues, but the ordering that decides the top of the ranking must come
+//! > from a **continuous** score.
 //!
-//! `frozen-v3` therefore calibrates **each cue separately** and fuses by taking the **max**. There
-//! is no weight vector left to trade, and calibration is the only thing that makes two cues
-//! comparable: a BM25 score whose empirical gold rate is 0.6 outranks a cosine whose empirical
-//! gold rate is 0.3, which raw-score linear fusion cannot express at any weighting.
+//! `frozen-v4` obeys that constraint structurally rather than carefully:
 //!
-//! Two properties of this shape, and the second is the one people assume wrongly:
+//! * the calibration reads **`{cue}_margin`** — the candidate's lead over its own runner-up, in
+//!   raw score units. Query-local, so it no longer asks whether a candidate's *absolute* score
+//!   predicts gold, which required BM25 and cosine to be comparable across queries when they are
+//!   not. It decides **pass/fail** and **which cue speaks for a candidate**, and nothing else.
+//! * the ranking reads **`{cue}_z`** — dimensionless, so a lexical-won candidate can be ordered
+//!   against a dense-won one. Continuous and query-local.
 //!
-//! * `max_i max(a_i, b_i) = max(max_i a_i, max_i b_i)`, so at top-1 the fused ranking always
-//!   selects one of the two cues' **own** top-1 candidates. The oracle is its exact ceiling.
-//! * **It is not structurally floor-safe.** Per candidate `max(p_lex, p_dense) ≥ p_lex`, so
-//!   *coverage* at a fixed threshold is monotone — but ranking is relative and `max` reorders. On
-//!   a query where lexical's top-1 is gold, dense's is not, and dense is the more confident of the
-//!   two, this loses a hit lexical alone would have had. The floor is an empirical test, not a
-//!   guarantee. See `runs/session-d/PREREGISTRATION.json`.
+//! **Session D's failure mode is therefore impossible here, not merely mitigated**: a step
+//! function never enters the ordering at all.
+//!
+//! Why the two roles are split rather than sharing one feature: within a query, raw score, z and
+//! margin are all monotone transforms of one another and give the *identical* order, so the choice
+//! only bites in two places and they want opposite properties. The ranking needs something
+//! **dimensionless** (z). The threshold needs something that **preserves absolute magnitude** —
+//! Session B rejected min-max normalization because it forces every query's best candidate to 1.0
+//! and so destroys abstention, and σ-normalized z carries that defect in weaker form. Margin does
+//! not: a query where everything is near zero has a tiny margin.
 //!
 //! **There is no default gate.** Every failure below is a load-time error naming the file and the
 //! command that regenerates it. CLAUDE.md: *"Prefer a load-time error to a sensible default."* A
 //! permissive fallback here would be the worst instance of that pattern in the project — a run
-//! would report `frozen-v3` while scoring with a calibration nobody fit.
+//! would report `frozen-v4` while scoring with a calibration nobody fit.
 
 pub mod features;
 
@@ -49,27 +52,27 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 pub use features::{
-    FeatureVector, CUE_COUNT, CUE_FEATURES, FEATURE_COUNT, FEATURE_NAMES,
+    CueSpec, FeatureVector, CUES, CUE_COUNT, CUE_FEATURES, FEATURE_COUNT, FEATURE_NAMES,
+    RANK_FEATURES,
 };
 
 /// The stamp a **calibrated** gate puts on `§4.2 gate.version`.
 ///
 /// Never produced without a loaded, validated artifact. Asserted by test.
 ///
-/// **`frozen-v3`, bumped in Session D.** The *combination function* changed, not the feature
-/// vector: same five features, fused by max over per-cue calibrated precisions instead of by one
-/// logistic. A run stamped `frozen-v2` was scored by a different function, and a report joining
-/// numbers across the two without noticing would be comparing different systems. The v1 and v2
-/// artifacts stay on disk as the provenance of Sessions B and C; neither is embedded.
-pub const GATE_VERSION: &str = "frozen-v3";
+/// **`frozen-v4`, bumped in Session E.** Both the feature vector and the combination function
+/// changed. A run stamped `frozen-v3` was scored by a different function over different features,
+/// and a report joining numbers across the two without noticing would be comparing different
+/// systems. Earlier artifacts stay on disk as the provenance of Sessions B–D; none is embedded.
+pub const GATE_VERSION: &str = "frozen-v4";
 
 /// The fusion this build implements, asserted against the artifact's own declaration.
 ///
-/// The feature *names* are unchanged from v2, so `FeatureNamesDisagree` cannot catch a v2
-/// calibration applied under v3 semantics. This constant is what does — and it is a separate
-/// check rather than a comment because the failure it prevents is silent: a max-fusion binary
-/// reading a logistic's weights would produce numbers for every query.
-pub const FUSION: &str = "max-per-cue-calibrated-precision";
+/// A separate check rather than a comment because the failure it prevents is silent: a binary
+/// reading a calibration fit under a different combination function would produce numbers for
+/// every query. Session D added this check precisely because v2 and v3 shared feature *names*;
+/// v4 changes the names too, but the check stays — the refusal set grows and never shrinks.
+pub const FUSION: &str = "per-query-margin-calibration-continuous-z-ranking";
 
 /// The stamp the feature-dump mode puts on `§4.2 gate.version`.
 ///
@@ -89,9 +92,9 @@ pub const THRESHOLD: f32 = 0.95;
 ///
 /// `include_str!` means a missing file is a **compile** error rather than a runtime one, and a
 /// released binary can never be separated from the calibration it was measured with.
-const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v3.json");
+const ARTIFACT_JSON: &str = include_str!("../../artifacts/gate-frozen-v4.json");
 
-const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v3.json";
+const ARTIFACT_PATH: &str = "crates/marlowe-memory/artifacts/gate-frozen-v4.json";
 
 #[derive(Debug, thiserror::Error)]
 pub enum GateError {
@@ -103,7 +106,7 @@ pub enum GateError {
 
     #[error(
         "{ARTIFACT_PATH} is in state {found:?} and carries no fitted calibration. This is the \
-         committed placeholder, not a gate. Run `python tools/preregister_session_d.py` then \
+         committed placeholder, not a gate. Run `python tools/preregister_session_e.py` then \
          `python tools/fit_gate.py` and rebuild. Refusing to run rather than inventing a curve"
     )]
     Unfitted { found: String },
@@ -121,10 +124,9 @@ pub enum GateError {
     VersionDisagrees { found: String },
 
     #[error(
-        "{ARTIFACT_PATH} declares fusion {found:?}; this build implements {FUSION}. The feature \
-         NAMES are identical across v2 and v3, so this is the only check that catches a \
-         calibration fit under a different combination function — and applying one under the \
-         other would produce a number for every query with nothing observing the mismatch"
+        "{ARTIFACT_PATH} declares fusion {found:?}; this build implements {FUSION}. Applying a \
+         calibration fit under one combination function under another would produce a number for \
+         every query with nothing observing the mismatch"
     )]
     FusionDisagrees { found: String },
 
@@ -138,7 +140,7 @@ pub enum GateError {
     },
 
     #[error(
-        "{ARTIFACT_PATH} declares cue features {found:?}; this build fuses {expected:?}. An \
+        "{ARTIFACT_PATH} declares cue features {found:?}; this build calibrates {expected:?}. An \
          artifact naming fewer cues would produce a gate that silently stopped reading one, and \
          every downstream number would still be produced"
     )]
@@ -148,8 +150,18 @@ pub enum GateError {
     },
 
     #[error(
+        "{ARTIFACT_PATH} declares rank features {found:?}; this build ORDERS BY {expected:?}. \
+         The ranking key is pre-registered before the fit, and an artifact disagreeing about it \
+         describes a different experiment than the one that runs"
+    )]
+    RankFeaturesDisagree {
+        found: Vec<String>,
+        expected: Vec<String>,
+    },
+
+    #[error(
         "{ARTIFACT_PATH} declares cue {feature:?} but carries no curve for it. A cue with no \
-         calibration cannot be fused and must not be silently dropped"
+         calibration cannot be read and must not be silently dropped"
     )]
     CueCurveMissing { feature: String },
 
@@ -160,17 +172,25 @@ pub enum GateError {
     CueCurveExtra { feature: String },
 
     #[error(
-        "{ARTIFACT_PATH} does not declare {feature:?} inert, and it is not a cue either. Every \
-         feature outside the fusion must carry a stated reason for being inert, so that a \
-         feature dropping out of the gate is a decision on the record rather than an omission"
+        "{ARTIFACT_PATH} does not declare {feature:?} inert, and it is neither a cue feature nor \
+         a rank feature. Every feature outside all three roles must carry a stated reason, so \
+         that a feature dropping out of the gate is a decision on the record rather than an \
+         omission"
     )]
     NonCueFeatureNotInert { feature: String },
 
     #[error(
         "{ARTIFACT_PATH} declares {feature:?} inert, but it is one of this build's cue features. \
-         A cue cannot be both fused and inert"
+         A cue cannot be both calibrated and inert"
     )]
     InertFeatureIsACue { feature: String },
+
+    #[error(
+        "{ARTIFACT_PATH} declares {feature:?} inert, but it is one of this build's RANK features \
+         — it decides the ordering. Calling a feature that orders the ranking inert is false, and \
+         it is the claim a reader would rely on when deciding what is safe to remove"
+    )]
+    InertFeatureIsARankFeature { feature: String },
 
     #[error(
         "{ARTIFACT_PATH} declares unknown feature {feature:?} inert. It matches no name in this \
@@ -204,9 +224,9 @@ pub enum GateError {
     #[error(
         "{ARTIFACT_PATH}'s curve for {cue:?} has two blocks at the same score {value} (index \
          {index}). `partition_point` cannot resolve which block owns that score, so the lookup \
-         would be ambiguous. Both cue scores have a large atom at 0 — candidates with no term \
-         overlap for BM25, and the cosine floor for dense — so quantile bucketing produces this \
-         unless the fitter pools buckets that share a score bound"
+         would be ambiguous. Margin has a large atom at 0 — every query whose candidates tie at \
+         the top contributes one — so quantile bucketing produces this unless the fitter pools \
+         buckets that share a score bound"
     )]
     CurveDuplicateBreakpoint {
         cue: String,
@@ -238,7 +258,7 @@ pub enum GateError {
     #[error(
         "{ARTIFACT_PATH} records floor_verdict {verdict:?}, and its calibration reaches \
          {reachable} against the frozen threshold of {THRESHOLD} — so this gate WOULD INJECT. A \
-         fusion measured below its own best single cue must not decide what reaches the model. \
+         shape measured below its own best single cue must not decide what reaches the model. \
          Fit a shape that passes the floor, or re-measure this one and record the verdict with \
          `python tools/analyze_cue_overlap.py --run <RUN> --record-verdict`"
     )]
@@ -258,9 +278,10 @@ pub enum GateError {
 /// them is required by [`FrozenGate::from_artifact`] when `state` is `fitted`, and the error names
 /// the missing field.
 ///
-/// `deny_unknown_fields` is what makes the v2/v3 boundary refuse in **both** directions: a v2
-/// artifact hits unknown `weights` here, and a v3 artifact hits unknown `cue_curves` under a v2
-/// binary. Neither can be loaded by the wrong build.
+/// `deny_unknown_fields` is what makes each version boundary refuse in **both** directions: a v3
+/// artifact under a v4 binary is missing `rank_features` and declares the wrong version, and a v4
+/// artifact under a v3 binary hits unknown `rank_features`. Neither can be loaded by the wrong
+/// build.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GateArtifact {
@@ -270,11 +291,13 @@ pub struct GateArtifact {
     pub fusion: Option<String>,
     pub threshold: Option<f32>,
     pub feature_names: Option<Vec<String>>,
-    /// The subset of `feature_names` the fusion reads, in order.
+    /// The subset of `feature_names` the calibration reads, in order.
     pub cue_features: Option<Vec<String>>,
-    /// cue name -> ascending `[score_upper, precision]` pairs.
+    /// The subset of `feature_names` the **ranking** reads, in order. Never calibrated.
+    pub rank_features: Option<Vec<String>>,
+    /// cue feature name -> ascending `[score_upper, precision]` pairs.
     pub cue_curves: Option<BTreeMap<String, Vec<[f32; 2]>>>,
-    /// feature name -> why it takes no part in the fusion.
+    /// feature name -> why it takes no part in the calibration or the ranking.
     pub inert_features: Option<BTreeMap<String, String>>,
     /// `"pass" | "fail" | "unmeasured"` — the pre-registered floor condition's verdict for the
     /// shape this artifact implements. See [`FrozenGate::from_artifact`].
@@ -296,12 +319,17 @@ pub struct GateArtifact {
     pub fitted_at_clock_ms: Option<i64>,
 }
 
-/// One cue's calibration.
+/// One cue's calibration, with the feature positions resolved once at load.
 #[derive(Debug, Clone)]
 pub struct CueCurve {
+    /// The cue's short name (`"lexical"`, `"dense"`).
+    pub cue: &'static str,
+    /// The **calibrated** feature's name — the artifact's curve-map key.
     pub name: String,
-    /// Position within [`FEATURE_NAMES`] — resolved once at load, never by name at score time.
-    pub feature_index: usize,
+    /// Position of the calibrated (margin) feature within [`FEATURE_NAMES`].
+    pub margin_index: usize,
+    /// Position of the ranking (z) feature within [`FEATURE_NAMES`].
+    pub z_index: usize,
     /// Ascending `[score_upper, precision]`, strictly increasing in score.
     pub curve: Vec<[f32; 2]>,
 }
@@ -337,38 +365,28 @@ pub struct Provenance {
 /// One candidate's gate verdict.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Verdict {
-    /// The winning cue's **percentile within its own curve**, in `[0, 1]`. On the wire as
-    /// `injected[].score`.
+    /// The winning cue's **within-query z**. On the wire as `injected[].score`.
     ///
-    /// **This changed meaning in Session D and the field name did not move**, which is exactly
+    /// **This field's meaning has now moved twice without the name changing**, which is exactly
     /// what a later reader would take for "unchanged". Through v2 it was a squashed linear
-    /// logistic. It is now a percentile.
+    /// logistic; in v3 it was a percentile within the winning cue's curve; it is now a z-score.
     ///
-    /// The v2 doc comment justified the logistic by saying the harness stratifies its human-label
-    /// sample by gate-*score* decile. **That was never true.** Both stratification call sites pass
-    /// `calibrated_precision`, not `score`:
-    /// `eval/src/marlowe_eval/metrics/precision.py:96` and
-    /// `eval/src/marlowe_eval/labels/sampler.py:73`. `sampler.py:80` carries `score` onto
-    /// `SampleDraw` and nothing reads it. The harness's *parameter* is named `score`
-    /// (`precision.py:67`), which is how the claim survived — the name matched this field, so the
-    /// dependency was inferred rather than checked.
-    ///
-    /// The reason it exists now is different and verifiable: it is the **third key of the ranking
-    /// tiebreak**, and it has to be on the wire so a driver-side reader can reproduce the gate's
-    /// ordering without re-implementing the curves in Python.
+    /// The reason it is on the wire is the same each time and it is verifiable: it is the
+    /// **primary ranking key**, so a driver-side reader must have it to reproduce the gate's own
+    /// ordering without re-implementing the gate in Python. (`CONTRACTS.md` §4 does not constrain
+    /// `score` semantically — §4.2b types it `f32`, there is no range or monotonicity rule, and
+    /// `validate.py` never inspects it. §4.4 mentions it only to say the threshold is in
+    /// calibrated-precision units, "not score".)
     pub score: f32,
-    /// **max** over the per-cue calibrated precisions. On the wire as
-    /// `injected[].calibrated_precision`, and the value the threshold is compared against.
+    /// The winning cue's **margin over its runner-up**, in that cue's raw units. The ranking key's
+    /// second level. Not on the wire; carried in the feature dump for the same reason as `score`.
+    pub margin: f32,
+    /// **max** over the per-cue calibrated precisions. The value the threshold is compared
+    /// against, and nothing else — under v4 it does not order anything.
     pub calibrated_precision: f32,
-    /// **min** over the per-cue calibrated precisions. Never on the wire; the ranking key's
-    /// second level.
-    ///
-    /// This is the agreement signal done correctly: among candidates the winning cue rates
-    /// equally, prefer the one the *other* cue also rates highly. It is continuous, calibrated,
-    /// and needs **no firing predicate** — which is precisely what keeps `cue_agreement_2cue`
-    /// pinned. The tiebreak is a different mechanism, not that missing predicate, so the unpin
-    /// condition is unchanged: cue 3, predicate pre-registered first.
-    pub min_calibrated_precision: f32,
+    /// Which cue's opinion won. Diagnostic; carried into the dump so a per-cue breakdown of the
+    /// injected set does not have to be reconstructed by guessing.
+    pub winning_cue: &'static str,
     pub passes: bool,
 }
 
@@ -399,8 +417,6 @@ impl FrozenGate {
             return Err(GateError::VersionDisagrees { found: version });
         }
 
-        // The check the v2/v3 boundary turns on. Feature names are IDENTICAL across the two, so
-        // `FeatureNamesDisagree` cannot see this one.
         let fusion = required(artifact.fusion, "fusion")?;
         if fusion != FUSION {
             return Err(GateError::FusionDisagrees { found: fusion });
@@ -421,8 +437,8 @@ impl FrozenGate {
             });
         }
 
-        // Same treatment for the cue subset, and for the same reason: an artifact naming one cue
-        // would produce a gate that quietly stopped fusing the other.
+        // Same treatment for the calibrated subset, and for the same reason: an artifact naming
+        // one cue would produce a gate that quietly stopped reading the other.
         let cue_names = required(artifact.cue_features, "cue_features")?;
         if cue_names.len() != CUE_COUNT || cue_names.iter().zip(CUE_FEATURES).any(|(a, b)| a != b) {
             return Err(GateError::CueFeaturesDisagree {
@@ -431,24 +447,37 @@ impl FrozenGate {
             });
         }
 
+        // ...and for the ORDERING subset. New in v4, and it is not decoration: the ranking key is
+        // pre-registered before the fit precisely so it cannot be chosen with the top-1 number in
+        // view, and an artifact that disagrees about it describes a different experiment.
+        let rank_names = required(artifact.rank_features, "rank_features")?;
+        if rank_names.len() != CUE_COUNT || rank_names.iter().zip(RANK_FEATURES).any(|(a, b)| a != b)
+        {
+            return Err(GateError::RankFeaturesDisagree {
+                found: rank_names,
+                expected: RANK_FEATURES.iter().map(|s| s.to_string()).collect(),
+            });
+        }
+
         let mut curves = required(artifact.cue_curves, "cue_curves")?;
 
-        // Every cue needs a curve...
+        // Every cue needs a curve, and the margin/z index pair is resolved from `CUES` so the two
+        // cannot drift apart.
         let mut cues: Vec<CueCurve> = Vec::with_capacity(CUE_COUNT);
-        for name in &cue_names {
+        for spec in CUES.iter() {
             let curve = curves
-                .remove(name)
+                .remove(spec.margin)
                 .ok_or_else(|| GateError::CueCurveMissing {
-                    feature: name.clone(),
+                    feature: spec.margin.to_string(),
                 })?;
-            let feature_index =
-                features::feature_index(name).ok_or_else(|| GateError::CueCurveExtra {
-                    feature: name.clone(),
-                })?;
-            validate_curve(name, &curve)?;
+            validate_curve(spec.margin, &curve)?;
             cues.push(CueCurve {
-                name: name.clone(),
-                feature_index,
+                cue: spec.cue,
+                name: spec.margin.to_string(),
+                margin_index: features::feature_index(spec.margin)
+                    .expect("CUES names are asserted against FEATURE_NAMES by test"),
+                z_index: features::feature_index(spec.z)
+                    .expect("CUES names are asserted against FEATURE_NAMES by test"),
                 curve,
             });
         }
@@ -459,9 +488,10 @@ impl FrozenGate {
             });
         }
 
-        // Every feature outside the fusion must carry a stated reason. This replaces v2's
-        // `PinnedWeightNotZero`: with no weight vector there is no coefficient to check, so the
-        // property to enforce is COVERAGE -- a feature cannot leave the gate silently.
+        // Every feature outside ALL THREE roles must carry a stated reason. v2 checked that a
+        // pinned weight was zero; with no weight vector the property is COVERAGE -- a feature
+        // cannot leave the gate silently. v4 adds the third role, because calling a feature that
+        // decides the ordering "inert" would be a false claim on the record.
         let inert = required(artifact.inert_features, "inert_features")?;
         for feature in inert.keys() {
             if features::feature_index(feature).is_none() {
@@ -474,9 +504,17 @@ impl FrozenGate {
                     feature: feature.clone(),
                 });
             }
+            if RANK_FEATURES.contains(&feature.as_str()) {
+                return Err(GateError::InertFeatureIsARankFeature {
+                    feature: feature.clone(),
+                });
+            }
         }
         for name in FEATURE_NAMES {
-            if !CUE_FEATURES.contains(&name) && !inert.contains_key(name) {
+            let covered = CUE_FEATURES.contains(&name)
+                || RANK_FEATURES.contains(&name)
+                || inert.contains_key(name);
+            if !covered {
                 return Err(GateError::NonCueFeatureNotInert {
                     feature: name.to_string(),
                 });
@@ -486,21 +524,17 @@ impl FrozenGate {
         // ---------------------------------------------------------------- the floor interlock
         //
         // Session D's fusion FAILED its pre-registered floor: 0.4783 at top-1 against a required
-        // 0.5478, worse than its own best single cue. It stays embedded only because its
-        // calibration tops out at 0.3090 against a frozen 0.95, so it injects nothing and the
-        // ranking never reaches the wire.
+        // 0.5478, worse than its own best single cue. It stayed embedded only because its
+        // calibration topped out at 0.3090 against a frozen 0.95, so it injected nothing.
         //
-        // **That argument expires exactly when the next session succeeds.** The whole goal of the
-        // cascade is to make the gate inject, and the moment it does, a shape measured worse than
-        // its own best input would start deciding what reaches the model. Leaving that to a
-        // session remembering to swap the artifact is the failure mode this project keeps paying
-        // for, so it is an interlock instead: a failed floor and a calibration that would inject
-        // cannot coexist.
+        // **That argument expires exactly when a session succeeds**, and Session E's whole goal is
+        // to make the gate inject. Leaving the swap to a session remembering to do it is the
+        // failure mode this project keeps paying for, so it is an interlock instead: a failed
+        // floor and a calibration that would inject cannot coexist in a loadable artifact.
         //
         // The check is on `"fail"` only, not on `"unmeasured"`. Refusing "unmeasured" would
-        // deadlock: the floor is read from a scoring run's feature dump, which requires this
-        // gate to load in order to produce it. "unmeasured" is therefore permitted to load and is
-        // visible in the artifact for a reader to act on.
+        // deadlock: the floor is read from a scoring run's feature dump, which requires this gate
+        // to load in order to produce it.
         let verdict = required(artifact.floor_verdict, "floor_verdict")?;
         if !matches!(verdict.as_str(), "pass" | "fail" | "unmeasured") {
             return Err(GateError::FloorVerdictUnrecognised { found: verdict });
@@ -545,53 +579,49 @@ impl FrozenGate {
         &self.cues
     }
 
-    /// One cue's calibration lookup: cue score → `(predicted precision, percentile)`.
+    /// One cue's calibration lookup: margin → predicted precision.
     ///
     /// Below the first breakpoint returns the first block; above the last returns the last. Both
     /// are the fit's own predictions at the extremes rather than extrapolations — isotonic
     /// regression is a step function and does not extrapolate.
-    ///
-    /// The percentile is `block index / (blocks - 1)`. Blocks are equal-count by construction
-    /// (the fitter buckets by quantile, not by width), so this is a genuine percentile of the fit
-    /// population rather than a position on an arbitrary grid.
-    pub fn calibrate_cue(curve: &[[f32; 2]], value: f32) -> (f32, f32) {
+    pub fn calibrate_cue(curve: &[[f32; 2]], value: f32) -> f32 {
         let index = curve.partition_point(|bp| bp[0] < value);
-        let index = index.min(curve.len() - 1);
-        let percentile = if curve.len() > 1 {
-            index as f32 / (curve.len() - 1) as f32
-        } else {
-            0.0
-        };
-        (curve[index][1], percentile)
+        curve[index.min(curve.len() - 1)][1]
     }
 
-    /// The fusion: **max over per-cue calibrated precisions**.
+    /// The verdict: calibrate each cue's margin, take the cue with the highest predicted
+    /// precision, and report **that cue's continuous z and margin** for the ranking.
     ///
-    /// Cue order is `CUE_FEATURES` order, and ties on both precision and percentile resolve to
-    /// the first cue listed — so the verdict is a pure function of the features, with no
-    /// dependence on map iteration order.
+    /// This is ADR-010's permitted use of calibration and only that use. The calibrated value
+    /// answers two yes/no-shaped questions — *does this candidate clear the operating point* and
+    /// *which cue speaks for it* — and never orders anything.
+    ///
+    /// Cue selection ties resolve on higher z, then on `CUES` order, so the verdict is a pure
+    /// function of the features with no dependence on map iteration order.
     pub fn judge(&self, f: &FeatureVector) -> Verdict {
         let values = f.as_slice();
-        let mut max_p = f32::NEG_INFINITY;
-        let mut min_p = f32::INFINITY;
-        let mut winning_percentile = 0.0f32;
+        let mut best: Option<(f32, f32, f32, &'static str)> = None;
 
         for cue in &self.cues {
-            let (p, percentile) = Self::calibrate_cue(&cue.curve, values[cue.feature_index]);
-            if p > max_p || (p == max_p && percentile > winning_percentile) {
-                max_p = p;
-                winning_percentile = percentile;
-            }
-            if p < min_p {
-                min_p = p;
+            let p = Self::calibrate_cue(&cue.curve, values[cue.margin_index]);
+            let z = values[cue.z_index];
+            let margin = values[cue.margin_index];
+            let take = match best {
+                None => true,
+                Some((bp, bz, _, _)) => p > bp || (p == bp && z > bz),
+            };
+            if take {
+                best = Some((p, z, margin, cue.cue));
             }
         }
 
+        let (p, z, margin, cue) = best.expect("a validated gate has at least one cue");
         Verdict {
-            score: winning_percentile,
-            calibrated_precision: max_p,
-            min_calibrated_precision: min_p,
-            passes: max_p >= self.threshold,
+            score: z,
+            margin,
+            calibrated_precision: p,
+            winning_cue: cue,
+            passes: p >= self.threshold,
         }
     }
 
@@ -601,9 +631,9 @@ impl FrozenGate {
     /// distinguishes *"nothing scored well today"* from *"this cue set cannot reach the operating
     /// point at all"*, and only the second is a statement about the design.
     ///
-    /// **Under v3 the fusion does not enter this number.** It is a per-cue quantity, which is what
-    /// makes it a clean read on how precise the best cue's most confident region is, undiluted by
-    /// a joint logistic. That is the headline of Session D.
+    /// **This is Session E's headline.** It is a per-cue quantity — the combination function does
+    /// not enter it — which is what makes it a clean read on how precise the best cue's most
+    /// confident region is once the calibration is asked a query-local question.
     pub fn max_calibrated_precision(&self) -> f32 {
         self.cues
             .iter()
@@ -650,7 +680,8 @@ fn validate_curve(cue: &str, curve: &[[f32; 2]]) -> Result<(), GateError> {
             });
         }
         // Strictly increasing, not merely non-decreasing. Two blocks at the same score make
-        // `partition_point` ambiguous, and both cue scores have a large atom at 0.
+        // `partition_point` ambiguous, and margin has a large atom at 0 -- every query whose
+        // candidates tie at the top contributes one.
         if curve[i][0] == curve[i - 1][0] {
             return Err(GateError::CurveDuplicateBreakpoint {
                 cue: cue.to_string(),
@@ -674,24 +705,32 @@ fn validate_curve(cue: &str, curve: &[[f32; 2]]) -> Result<(), GateError> {
 mod tests {
     use super::*;
 
+    const FEATURES_JSON: &str = r#"["lexical_bm25","dense_cosine","lexical_margin","dense_margin","lexical_z","dense_z","lexical_rank_recip","dense_rank_recip","effective_trust","fidelity","cue_agreement_2cue"]"#;
+
     fn fitted_json() -> String {
-        r#"{
+        format!(
+            r#"{{
   "state": "fitted",
   "note": "test fixture",
-  "version": "frozen-v3",
-  "fusion": "max-per-cue-calibrated-precision",
+  "version": "frozen-v4",
+  "fusion": "per-query-margin-calibration-continuous-z-ranking",
   "threshold": 0.95,
-  "feature_names": ["lexical_bm25", "dense_cosine", "effective_trust", "fidelity", "cue_agreement_2cue"],
-  "cue_features": ["lexical_bm25", "dense_cosine"],
-  "cue_curves": {
-    "lexical_bm25": [[0.2, 0.1], [0.5, 0.4], [0.8, 0.97]],
-    "dense_cosine": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]
-  },
-  "inert_features": {
+  "feature_names": {FEATURES_JSON},
+  "cue_features": ["lexical_margin", "dense_margin"],
+  "rank_features": ["lexical_z", "dense_z"],
+  "cue_curves": {{
+    "lexical_margin": [[0.2, 0.1], [0.5, 0.4], [0.8, 0.97]],
+    "dense_margin": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]
+  }},
+  "inert_features": {{
+    "lexical_bm25": "retained as Number 3's cross-session anchor; no curve reads it",
+    "dense_cosine": "retained as Number 3's cross-session anchor; no curve reads it",
+    "lexical_rank_recip": "diagnostic only",
+    "dense_rank_recip": "diagnostic only",
     "effective_trust": "zero variance across the fit split",
     "fidelity": "zero variance across the fit split",
     "cue_agreement_2cue": "declared: needs a firing predicate for the dense cue"
-  },
+  }},
   "floor_verdict": "pass",
   "floor_required": 0.5478,
   "floor_measured": 0.6,
@@ -706,15 +745,24 @@ mod tests {
   "fit_rows": 1000,
   "fit_positives": 10,
   "fitted_at_clock_ms": 1780000000000
-}"#
-        .to_string()
+}}"#
+        )
+    }
+
+    /// A feature vector by name, so a test never depends on positional order.
+    fn vector(pairs: &[(&str, f32)]) -> FeatureVector {
+        let mut v = [0.0f32; FEATURE_COUNT];
+        for (name, value) in pairs {
+            v[features::feature_index(name).expect("known feature")] = *value;
+        }
+        FeatureVector(v)
     }
 
     #[test]
     fn the_committed_artifact_is_whatever_it_says_it_is() {
         // Not an assertion about fitted-ness: this test passes before and after the fit, and
         // what it proves is that the embedded file parses and that `load` agrees with its own
-        // declared state. A parse failure here is a compile-adjacent breakage worth catching.
+        // declared state.
         let artifact: GateArtifact = serde_json::from_str(ARTIFACT_JSON).expect("artifact parses");
         match artifact.state.as_str() {
             "fitted" => {
@@ -738,34 +786,35 @@ mod tests {
         assert!(err.to_string().contains("tools/fit_gate.py"), "{err}");
     }
 
-    // ------------------------------------------------------------------ the v2/v3 boundary
+    // ------------------------------------------------------------------ the v3/v4 boundary
 
     #[test]
-    fn a_v2_artifact_is_refused_by_its_own_extra_fields() {
-        // The direction that matters most: v2 is a *fitted* artifact with plausible provenance,
-        // and its feature names are IDENTICAL to v3's. Nothing but the schema catches it.
-        let v2 = r#"{
-  "state": "fitted", "note": "v2", "version": "frozen-v2", "threshold": 0.95,
-  "feature_names": ["lexical_bm25", "dense_cosine", "effective_trust", "fidelity", "cue_agreement_2cue"],
-  "weights": [4.53, 26.46, 0.0, 0.0, 0.0], "bias": -26.31,
-  "pinned_zero_weights": {"fidelity": "constant"},
-  "isotonic_breakpoints": [[0.5, 0.1], [1.0, 0.3176]],
+    fn a_v3_artifact_is_refused_by_its_own_missing_role() {
+        // v3 is a *fitted* artifact with plausible provenance. Its version differs, and it also
+        // carries no `rank_features` -- two independent refusals, because the ordering role is
+        // the thing v3 had no concept of.
+        let v3 = r#"{
+  "state": "fitted", "note": "v3", "version": "frozen-v3",
+  "fusion": "max-per-cue-calibrated-precision", "threshold": 0.95,
+  "feature_names": ["lexical_bm25","dense_cosine","effective_trust","fidelity","cue_agreement_2cue"],
+  "cue_features": ["lexical_bm25","dense_cosine"],
+  "cue_curves": {"lexical_bm25": [[1.0, 0.309]], "dense_cosine": [[1.0, 0.2876]]},
+  "inert_features": {"effective_trust": "x", "fidelity": "y", "cue_agreement_2cue": "z"},
+  "floor_verdict": "fail", "floor_required": 0.5478, "floor_measured": 0.4783,
+  "floor_read_from": "runs/session-d/cue-overlap.json",
   "corpus": "longmemeval-s", "corpus_variant": "cleaned", "corpus_sha256": "abc",
   "split_rule": "r", "split_digest": "d", "fit_cases": 251, "heldout_cases": 249,
   "fit_rows": 119340, "fit_positives": 452, "fitted_at_clock_ms": 0
 }"#;
-        let err = FrozenGate::from_json(v2).unwrap_err();
-        assert!(matches!(err, GateError::Unparseable(_)), "{err}");
-        assert!(err.to_string().contains("weights"), "{err}");
+        let err = FrozenGate::from_json(v3).unwrap_err();
+        assert!(matches!(err, GateError::VersionDisagrees { .. }), "{err}");
     }
 
     #[test]
-    fn a_v2_fusion_declared_on_a_v3_schema_is_refused_by_name() {
-        // Belt and braces for the same hazard: if someone hand-edited a v2 calibration into the
-        // v3 schema, the feature names would still match and only `fusion` would catch it.
+    fn a_v3_fusion_declared_on_a_v4_schema_is_refused_by_name() {
         let json = fitted_json().replace(
+            r#""fusion": "per-query-margin-calibration-continuous-z-ranking""#,
             r#""fusion": "max-per-cue-calibrated-precision""#,
-            r#""fusion": "logistic-over-raw-scores""#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
@@ -775,20 +824,20 @@ mod tests {
 
     #[test]
     fn a_wrong_version_is_refused() {
-        let json = fitted_json().replace(r#""version": "frozen-v3""#, r#""version": "frozen-v2""#);
+        let json = fitted_json().replace(r#""version": "frozen-v4""#, r#""version": "frozen-v3""#);
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::VersionDisagrees { .. })
         ));
     }
 
-    // ------------------------------------------------------------------ feature / cue identity
+    // ------------------------------------------------------------------ role identity
 
     #[test]
     fn reordered_feature_names_are_refused() {
         let json = fitted_json().replace(
-            r#"["lexical_bm25", "dense_cosine", "effective_trust", "fidelity", "cue_agreement_2cue"]"#,
-            r#"["dense_cosine", "lexical_bm25", "effective_trust", "fidelity", "cue_agreement_2cue"]"#,
+            r#""lexical_bm25","dense_cosine","lexical_margin""#,
+            r#""dense_cosine","lexical_bm25","lexical_margin""#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
@@ -797,16 +846,11 @@ mod tests {
     }
 
     #[test]
-    fn dropping_a_cue_is_refused_rather_than_silently_fusing_one() {
-        // The v3-specific hazard. A gate that fused only lexical would still produce a number
-        // for every query, and every downstream metric would still be computed.
-        let json = fitted_json()
-            .replace(
-                r#""cue_features": ["lexical_bm25", "dense_cosine"]"#,
-                r#""cue_features": ["lexical_bm25"]"#,
-            )
-            .replace(r#",
-    "dense_cosine": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]"#, "");
+    fn dropping_a_cue_is_refused_rather_than_silently_calibrating_one() {
+        let json = fitted_json().replace(
+            r#""cue_features": ["lexical_margin", "dense_margin"]"#,
+            r#""cue_features": ["lexical_margin"]"#,
+        );
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::CueFeaturesDisagree { .. })
@@ -814,23 +858,37 @@ mod tests {
     }
 
     #[test]
-    fn reordered_cue_features_are_refused() {
+    fn a_disagreeing_ranking_key_is_refused() {
+        // **The v4-specific refusal.** The ranking key is pre-registered before the fit so it
+        // cannot be chosen with top-1 in view. An artifact ordering by something else is a
+        // different experiment, and every downstream number would still be produced.
         let json = fitted_json().replace(
-            r#""cue_features": ["lexical_bm25", "dense_cosine"]"#,
-            r#""cue_features": ["dense_cosine", "lexical_bm25"]"#,
+            r#""rank_features": ["lexical_z", "dense_z"]"#,
+            r#""rank_features": ["dense_z", "lexical_z"]"#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
-            Err(GateError::CueFeaturesDisagree { .. })
+            Err(GateError::RankFeaturesDisagree { .. })
         ));
+    }
+
+    #[test]
+    fn a_missing_rank_features_declaration_is_refused() {
+        let json = fitted_json().replace(
+            r#"  "rank_features": ["lexical_z", "dense_z"],
+"#,
+            "",
+        );
+        let err = FrozenGate::from_json(&json).unwrap_err();
+        assert!(
+            matches!(err, GateError::MissingField { field: "rank_features" }),
+            "{err}"
+        );
     }
 
     #[test]
     fn a_cue_without_a_curve_is_refused() {
-        let json = fitted_json().replace(
-            r#""dense_cosine": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]"#,
-            r#""fidelity": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]"#,
-        );
+        let json = fitted_json().replace(r#""dense_margin": [[0.3, 0.05]"#, r#""fidelity": [[0.3, 0.05]"#);
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::CueCurveMissing { .. })
@@ -840,9 +898,9 @@ mod tests {
     #[test]
     fn a_curve_that_is_never_read_is_refused() {
         let json = fitted_json().replace(
-            r#""dense_cosine": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]"#,
-            r#""dense_cosine": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]],
-    "effective_trust": [[0.5, 0.1]]"#,
+            r#""dense_margin": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]]"#,
+            r#""dense_margin": [[0.3, 0.05], [0.6, 0.2], [0.9, 0.5]],
+    "lexical_z": [[0.5, 0.1]]"#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
@@ -850,14 +908,12 @@ mod tests {
         ));
     }
 
-    // ------------------------------------------------------------------ inert-feature coverage
+    // ------------------------------------------------------------------ inert coverage
 
     #[test]
-    fn a_non_cue_feature_with_no_stated_reason_is_refused() {
-        // v2 checked that a pinned weight was zero. With no weight vector the property to
-        // enforce is coverage: a feature cannot drop out of the gate without a reason on record.
+    fn a_feature_in_no_role_with_no_stated_reason_is_refused() {
         let json = fitted_json().replace(
-            r#""fidelity": "zero variance across the fit split",
+            r#"    "fidelity": "zero variance across the fit split",
 "#,
             "",
         );
@@ -872,12 +928,28 @@ mod tests {
     fn declaring_a_cue_inert_is_refused() {
         let json = fitted_json().replace(
             r#""effective_trust": "zero variance across the fit split","#,
-            r#""lexical_bm25": "oops","#,
+            r#""lexical_margin": "oops","#,
         );
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::InertFeatureIsACue { .. })
         ));
+    }
+
+    #[test]
+    fn declaring_a_RANK_feature_inert_is_refused() {
+        // The role v4 adds. Calling a feature that decides the ordering "inert" is a false claim,
+        // and it is exactly the claim a later reader would rely on when deciding what is safe to
+        // remove.
+        let json = fitted_json().replace(
+            r#""effective_trust": "zero variance across the fit split","#,
+            r#""lexical_z": "takes no part","#,
+        );
+        let err = FrozenGate::from_json(&json).unwrap_err();
+        assert!(
+            matches!(err, GateError::InertFeatureIsARankFeature { ref feature } if feature == "lexical_z"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -899,7 +971,7 @@ mod tests {
         let json = fitted_json().replace("[0.5, 0.4]", "[0.5, 0.05]");
         let err = FrozenGate::from_json(&json).unwrap_err();
         assert!(
-            matches!(err, GateError::CurveNotMonotone { ref cue, .. } if cue == "lexical_bm25"),
+            matches!(err, GateError::CurveNotMonotone { ref cue, .. } if cue == "lexical_margin"),
             "{err}"
         );
     }
@@ -915,14 +987,15 @@ mod tests {
 
     #[test]
     fn a_duplicate_breakpoint_is_refused() {
-        // The hazard identified before the fit: both cue scores have a large atom at 0 -- BM25
-        // for candidates with no term overlap, dense at the cosine floor -- so quantile bucketing
-        // produces blocks sharing a score bound unless the fitter pools them. `partition_point`
-        // cannot say which block owns that score, and a NOT-SORTED check using `<` would pass it.
+        // The hazard carried forward from Session D and re-argued for the new feature: margin has
+        // a large atom at exactly 0 -- every query whose top two candidates tie contributes one --
+        // so quantile bucketing produces blocks sharing a bound unless the fitter pools them.
+        // `partition_point` cannot say which block owns that score, and a `<`-based sortedness
+        // check would pass it.
         let json = fitted_json().replace("[[0.2, 0.1], [0.5, 0.4]", "[[0.2, 0.1], [0.2, 0.4]");
         let err = FrozenGate::from_json(&json).unwrap_err();
         assert!(
-            matches!(err, GateError::CurveDuplicateBreakpoint { ref cue, .. } if cue == "lexical_bm25"),
+            matches!(err, GateError::CurveDuplicateBreakpoint { ref cue, .. } if cue == "lexical_margin"),
             "{err}"
         );
     }
@@ -947,9 +1020,8 @@ mod tests {
 
     #[test]
     fn a_moved_threshold_is_refused() {
-        // HP1's freeze, enforced. Lowering the operating point to make a run inject something
-        // is the exact tuning the freeze exists to forbid, and it cannot be done by editing
-        // the artifact alone.
+        // HP1's freeze, enforced. Lowering the operating point to make a run inject something is
+        // the exact tuning the freeze exists to forbid.
         let json = fitted_json().replace("\"threshold\": 0.95", "\"threshold\": 0.6");
         assert!(matches!(
             FrozenGate::from_json(&json),
@@ -964,92 +1036,102 @@ mod tests {
         assert!(matches!(err, GateError::MissingField { field: "corpus" }), "{err}");
     }
 
-    // ------------------------------------------------------------------ the fusion itself
+    // ------------------------------------------------------------------ the verdict
 
     #[test]
-    fn per_cue_lookup_hits_the_right_block() {
+    fn the_calibration_reads_MARGIN_and_nothing_else() {
+        // The whole point of the session, as a test: the raw score must not reach the curve.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let lex = &gate.cues()[0].curve;
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.0).0, 0.1, "below the first breakpoint");
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.2).0, 0.1, "at a breakpoint, inclusive");
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.35).0, 0.4, "between breakpoints");
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.8).0, 0.97);
-        assert_eq!(FrozenGate::calibrate_cue(lex, 1.0).0, 0.97, "above the last breakpoint");
+        let a = gate.judge(&vector(&[("lexical_margin", 0.8), ("lexical_bm25", 0.0)]));
+        let b = gate.judge(&vector(&[("lexical_margin", 0.8), ("lexical_bm25", 1.0)]));
+        assert_eq!(a.calibrated_precision, b.calibrated_precision);
+        assert_eq!(a.calibrated_precision, 0.97);
     }
 
     #[test]
-    fn the_percentile_spans_the_unit_interval() {
-        // It is the ranking key's third level, so it has to order candidates inside a tied block.
+    fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+        // ADR-010, enforced. The value that orders the ranking has to be continuous, and z is the
+        // only continuous cross-cue-comparable quantity in the vector.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let lex = &gate.cues()[0].curve;
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.0).1, 0.0);
-        assert_eq!(FrozenGate::calibrate_cue(lex, 0.35).1, 0.5);
-        assert_eq!(FrozenGate::calibrate_cue(lex, 1.0).1, 1.0);
+        let v = gate.judge(&vector(&[
+            ("lexical_margin", 0.8),
+            ("lexical_z", 3.25),
+            ("dense_margin", 0.3),
+            ("dense_z", 0.5),
+        ]));
+        assert_eq!(v.winning_cue, "lexical");
+        assert_eq!(v.score, 3.25, "the winning cue's z");
+        assert_eq!(v.margin, 0.8, "the winning cue's margin");
+        assert_eq!(v.calibrated_precision, 0.97);
     }
 
     #[test]
-    fn the_fusion_takes_the_max_and_reports_the_min() {
+    fn two_candidates_in_the_same_calibration_block_are_still_ordered() {
+        // **The Session D defect, as a regression test.** Under v3 every candidate above a
+        // breakpoint collapsed to one calibrated value and the tiebreak decided top-1; 60.4% of
+        // cases had a tie at the fused maximum. Here the two candidates share a block AND a
+        // calibrated precision, and the ranking still separates them -- because it never reads
+        // the calibrated value.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        // lexical 0.8 -> 0.97 ; dense 0.3 -> 0.05
-        let f = FeatureVector([0.8, 0.3, 1.0, 1.0, 1.0]);
-        let v = gate.judge(&f);
-        assert_eq!(v.calibrated_precision, 0.97, "max over cues");
-        assert_eq!(v.min_calibrated_precision, 0.05, "min over cues");
-        assert!(v.passes);
+        let a = gate.judge(&vector(&[("lexical_margin", 0.81), ("lexical_z", 4.0)]));
+        let b = gate.judge(&vector(&[("lexical_margin", 0.95), ("lexical_z", 2.0)]));
+        assert_eq!(a.calibrated_precision, b.calibrated_precision, "same block");
+        assert!(a.score > b.score, "and still strictly ordered by a continuous key");
     }
 
     #[test]
     fn the_weaker_cue_cannot_drag_the_verdict_down() {
-        // The v2 defect, stated as a test. A strong lexical match must not be diluted by a weak
-        // dense score -- which is exactly what a single weight vector did, and what cost the
-        // combiner 0.052 at top-1 against lexical alone.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let alone = gate.judge(&FeatureVector([0.8, 0.0, 1.0, 1.0, 1.0]));
-        let with_weak_dense = gate.judge(&FeatureVector([0.8, 0.3, 1.0, 1.0, 1.0]));
-        assert_eq!(
-            alone.calibrated_precision, with_weak_dense.calibrated_precision,
-            "a weak second cue must not lower the fused precision"
-        );
+        let alone = gate.judge(&vector(&[("lexical_margin", 0.8)]));
+        let with_weak_dense = gate.judge(&vector(&[("lexical_margin", 0.8), ("dense_margin", 0.3)]));
+        assert_eq!(alone.calibrated_precision, with_weak_dense.calibrated_precision);
     }
 
     #[test]
     fn either_cue_alone_can_carry_a_candidate() {
-        // The complementarity the fusion exists to exploit: Session C measured lexical finding
-        // gold dense misses in 20.9% of cases and dense finding gold lexical misses in 10.4%.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let lexical_only = gate.judge(&FeatureVector([0.8, 0.0, 1.0, 1.0, 1.0]));
+        let lexical_only = gate.judge(&vector(&[("lexical_margin", 0.8)]));
         assert_eq!(lexical_only.calibrated_precision, 0.97);
+        assert_eq!(lexical_only.winning_cue, "lexical");
         // dense's curve tops out at 0.5 in this fixture, so it carries but does not pass
-        let dense_only = gate.judge(&FeatureVector([0.0, 0.95, 1.0, 1.0, 1.0]));
+        let dense_only = gate.judge(&vector(&[("dense_margin", 0.95), ("lexical_margin", -1.0)]));
         assert_eq!(dense_only.calibrated_precision, 0.5);
+        assert_eq!(dense_only.winning_cue, "dense");
         assert!(!dense_only.passes);
     }
 
     #[test]
     fn the_threshold_is_read_in_calibrated_units_not_score_units() {
-        // The property HP1 property 3 turns on. `score` is now a percentile, and a candidate at
-        // the TOP percentile of a cue whose calibration never reaches 0.95 must still not pass.
+        // A candidate with an enormous z on a cue whose calibration never reaches 0.95 must not
+        // pass. This is what keeps the operating point portable.
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let top_of_dense = gate.judge(&FeatureVector([0.0, 1.0, 1.0, 1.0, 1.0]));
-        assert_eq!(top_of_dense.score, 1.0, "the highest percentile its cue has");
-        assert!(
-            !top_of_dense.passes,
-            "a perfect percentile on a cue that tops out at 0.5 predicted precision must not pass"
-        );
+        let v = gate.judge(&vector(&[
+            ("dense_margin", 1.0),
+            ("dense_z", 12.0),
+            ("lexical_margin", -1.0),
+        ]));
+        assert_eq!(v.score, 12.0);
+        assert!(!v.passes, "a huge z on a cue topping out at 0.5 must not pass");
     }
 
     #[test]
     fn an_inert_feature_cannot_move_the_verdict() {
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let with = FeatureVector([0.5, 0.4, 1.0, 1.0, 1.0]);
-        let without = FeatureVector([0.5, 0.4, 0.0, 0.0, 0.0]);
-        assert_eq!(gate.judge(&with), gate.judge(&without));
+        let with = gate.judge(&vector(&[
+            ("lexical_margin", 0.5),
+            ("effective_trust", 1.0),
+            ("fidelity", 1.0),
+            ("cue_agreement_2cue", 1.0),
+            ("lexical_rank_recip", 1.0),
+        ]));
+        let without = gate.judge(&vector(&[("lexical_margin", 0.5)]));
+        assert_eq!(with, without);
     }
 
     #[test]
     fn scoring_is_deterministic() {
         let gate = FrozenGate::from_json(&fitted_json()).unwrap();
-        let f = FeatureVector([0.37, 0.62, 1.0, 1.0, 1.0]);
+        let f = vector(&[("lexical_margin", 0.37), ("dense_margin", 0.62), ("lexical_z", 1.1)]);
         assert_eq!(gate.judge(&f), gate.judge(&f));
     }
 
@@ -1059,18 +1141,14 @@ mod tests {
         assert_eq!(gate.max_calibrated_precision(), 0.97);
         let per_cue = gate.max_calibrated_precision_per_cue();
         assert_eq!(per_cue.len(), 2);
-        assert_eq!(per_cue[0], ("lexical_bm25".to_string(), 0.97));
-        assert_eq!(per_cue[1], ("dense_cosine".to_string(), 0.5));
+        assert_eq!(per_cue[0], ("lexical_margin".to_string(), 0.97));
+        assert_eq!(per_cue[1], ("dense_margin".to_string(), 0.5));
     }
 
     // ------------------------------------------------------------------ the floor interlock
 
     #[test]
     fn a_failed_floor_loads_while_it_cannot_inject() {
-        // Session D's actual situation, and the reason v3 ships at all: the shape failed its
-        // floor, but its calibration tops out far below the frozen threshold, so it decides
-        // nothing that reaches the model. The fixture's cues top out at 0.97 and 0.5, so drop
-        // both under 0.95 to reproduce it.
         // 0.45, not something lower: the block below it predicts 0.4, and a curve that decreases
         // is refused by `CurveNotMonotone` before the floor interlock is ever reached.
         let json = fitted_json()
@@ -1083,19 +1161,11 @@ mod tests {
 
     #[test]
     fn a_failed_floor_that_would_inject_is_refused() {
-        // **The interlock.** The fixture's lexical curve reaches 0.97, above the frozen 0.95, so
-        // this gate would inject -- and its floor verdict says the shape ranks worse than its own
-        // best single cue. Those two facts must not coexist in a loadable artifact.
-        //
-        // This is the check that stops Session D's scaffolding from surviving into the run that
-        // makes the gate inject, without depending on anyone remembering to swap it.
+        // **The interlock.** Two facts that must not coexist in a loadable artifact: this shape
+        // ranks worse than its own best single cue, and this shape would inject.
         let json = fitted_json().replace(r#""floor_verdict": "pass""#, r#""floor_verdict": "fail""#);
         let err = FrozenGate::from_json(&json).unwrap_err();
-        assert!(
-            matches!(err, GateError::FailedFloorWouldInject { .. }),
-            "{err}"
-        );
-        // The message must name the way out, like every other refusal here.
+        assert!(matches!(err, GateError::FailedFloorWouldInject { .. }), "{err}");
         assert!(err.to_string().contains("--record-verdict"), "{err}");
     }
 
@@ -1110,31 +1180,20 @@ mod tests {
 
     #[test]
     fn an_unmeasured_floor_loads_because_refusing_it_would_deadlock() {
-        // The floor is read from a scoring run's feature dump, which requires this gate to load
-        // in order to produce it. Refusing "unmeasured" would make the measurement unreachable.
-        let json = fitted_json().replace(r#""floor_verdict": "pass""#, r#""floor_verdict": "unmeasured""#);
+        let json =
+            fitted_json().replace(r#""floor_verdict": "pass""#, r#""floor_verdict": "unmeasured""#);
         let gate = FrozenGate::from_json(&json).expect("unmeasured must load");
         assert_eq!(gate.provenance().floor_verdict, "unmeasured");
     }
 
     #[test]
     fn an_unrecognised_floor_verdict_is_refused() {
-        let json = fitted_json().replace(r#""floor_verdict": "pass""#, r#""floor_verdict": "probably fine""#);
+        let json = fitted_json()
+            .replace(r#""floor_verdict": "pass""#, r#""floor_verdict": "probably fine""#);
         assert!(matches!(
             FrozenGate::from_json(&json),
             Err(GateError::FloorVerdictUnrecognised { .. })
         ));
-    }
-
-    #[test]
-    fn a_missing_floor_verdict_is_refused() {
-        let json = fitted_json().replace(r#""floor_verdict": "pass",
-"#, "");
-        let err = FrozenGate::from_json(&json).unwrap_err();
-        assert!(
-            matches!(err, GateError::MissingField { field: "floor_verdict" }),
-            "{err}"
-        );
     }
 
     #[test]

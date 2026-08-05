@@ -16,35 +16,40 @@ What it does:
      transport, so the features come from the shipping code path rather than a reimplementation
   3. join each dumped candidate to its turn via the section 4.6 `written[].turn_id` mapping and
      label it against the benchmark's gold evidence
-  4. fit **one isotonic curve per cue**, each on that cue's own score distribution
-  5. write `crates/marlowe-memory/artifacts/gate-frozen-v3.json`
+  4. fit **one isotonic curve per cue**, each on that cue's own WITHIN-QUERY MARGIN
+  5. write `crates/marlowe-memory/artifacts/gate-frozen-v4.json`
 
 Then rebuild: the artifact is embedded with `include_str!`.
 
-**v3 fusion, Session D. There is no logistic and no weight vector.** Through v2 the gate was one
-logistic over the whole feature vector, calibrated by a single isotonic curve. Session C measured
-that combiner against its own inputs and it lost: 0.4957 at top-1 on the held-out split against
-**lexical alone at 0.5478**, with the either-cue oracle at 0.6522. It won at k=5 and k=10 and lost
-only at k=1 -- which is where the operating point reads.
+**v4, Session E. The calibration reads a per-query feature, and it no longer orders anything.**
 
-The mechanism was the loss function, not the parameters. IRLS minimises log-loss over all 119,340
-rows, dense is the better cue in aggregate, and lexical is the better cue at rank 1; the fitted
-weights came out `lexical 4.539 / dense 26.468` and the combination was dense-shaped everywhere.
-**One global weight vector cannot be dense-shaped in the middle and lexical-shaped at the top.**
+Through v3 each curve was fit on a cue's **pooled raw score** across all fit queries. That asks
+whether a candidate's *absolute* BM25 or cosine predicts gold -- which requires the two to be
+comparable ACROSS queries, and they are not. `lexical::BM25_SATURATION` is deliberately an
+absolute map rather than min-max (min-max would force every query's best candidate to 1.0 and
+destroy abstention), so a query whose wording matches a lot of text has all its candidates scoring
+high. The top block therefore filled with candidates from high-scoring **queries** rather than
+high-scoring **matches**: lexical puts gold at rank 1 in 54.8% of held-out queries while the
+calibration's best block was 31.0% gold.
 
-Calibrating each cue separately removes the global weight entirely, and calibration is the only
-thing that makes two cues comparable: a BM25 score whose empirical gold rate is 0.6 outranks a
-cosine whose empirical gold rate is 0.3, which raw-score linear fusion cannot express at any
-weighting. `fit_logistic` was **deleted rather than left unused** -- dead fit machinery beside a
-live one is the two-implementations-one-checked pattern this project keeps paying for.
+So the curves are fit on `{cue}_margin` -- the candidate's lead over its own query's runner-up, in
+raw score units. Query-local, continuous, and **absolute-magnitude-preserving**, which is what
+keeps abstention possible: a query where everything is near zero has a tiny margin, where a
+sigma-normalized z would still hand its best candidate a large value.
 
-**Features outside the fusion carry a stated reason.** v2 checked that a pinned *weight* was
-zero; with no weight vector the property to enforce is COVERAGE, so `FrozenGate::load` refuses an
-artifact that leaves any non-cue feature undeclared. A feature cannot drop out of the gate
-silently.
+**ADR-010 is discharged structurally.** Session D ranked on calibrated precision, isotonic output
+is a step function, and 60.4% of held-out cases ended in a tie at the fused maximum with the
+tiebreak deciding top-1. Under v4 the calibrated value decides only *pass/fail* and *which cue
+speaks for a candidate*; the ordering is `{cue}_z`, continuous and dimensionless. A step function
+cannot decide a rank here at all.
+
+**Every feature carries a role or a stated reason.** Three roles now -- calibrated, ranking, inert
+-- and `FrozenGate::load` refuses an artifact that leaves a feature out of all three. Calling a
+feature that decides the ordering "inert" would be a false claim on the record, so it has its own
+refusal.
 
     python tools/preregister_split.py       # ONCE, in Session B. Never re-run.
-    python tools/preregister_session_d.py   # this session's bands, before the fit
+    python tools/preregister_session_e.py   # this session's bands, before the fit
     python tools/fit_gate.py
     cargo build --release
 """
@@ -72,7 +77,7 @@ from marlowe_eval.suites import benchmark as bench  # noqa: E402
 from marlowe_eval_stubs import build_target  # noqa: E402
 
 SPLIT_PATH = REPO / "tools" / "split.json"
-ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v3.json"
+ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v4.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
 # Outside the profile root by construction: --profile-root must be empty per spawn,
@@ -86,28 +91,40 @@ CACHE_DIR = REPO / ".embedding-cache"
 # It is a per-session path deliberately. Pointing this at a stale session's file would let a new
 # cue be scored against bands written for a different cue set, which is the same failure the
 # split digest check catches one level up.
-PREREG_PATH = REPO / "runs" / "session-d" / "PREREGISTRATION.json"
+PREREG_PATH = REPO / "runs" / "session-e" / "PREREGISTRATION.json"
 
 # Must match `marlowe_memory::gate::features::FEATURE_NAMES`, in order. Asserted against the
 # dump's own keys below, and again by `FrozenGate::load` against the Rust array.
 FEATURE_NAMES = [
     "lexical_bm25",
     "dense_cosine",
+    "lexical_margin",
+    "dense_margin",
+    "lexical_z",
+    "dense_z",
+    "lexical_rank_recip",
+    "dense_rank_recip",
     "effective_trust",
     "fidelity",
     "cue_agreement_2cue",
 ]
 
 # Must match `marlowe_memory::gate::features::CUE_FEATURES`, in order. `FrozenGate::load` asserts
-# it against the Rust array by name AND order, so a cue cannot leave the fusion by editing this
-# list alone.
-CUE_FEATURES = ["lexical_bm25", "dense_cosine"]
+# it against the Rust array by name AND order, so a cue cannot leave the calibration by editing
+# this list alone.
+#
+# **These are the MARGINS, not the raw scores** -- the whole of Session E. See the module docstring.
+CUE_FEATURES = ["lexical_margin", "dense_margin"]
 
-# Must match `marlowe_memory::gate::FUSION`. The feature names are identical across v2 and v3, so
-# this string is the only thing that catches a calibration fit under one combination function and
-# applied under the other.
-FUSION = "max-per-cue-calibrated-precision"
-GATE_VERSION = "frozen-v3"
+# Must match `marlowe_memory::gate::features::RANK_FEATURES`, in order. The third role, new in v4:
+# these order the ranking and are NEVER calibrated. `FrozenGate::load` refuses an artifact that
+# disagrees, because the ranking key is pre-registered before the fit precisely so it cannot be
+# chosen with top-1 in view.
+RANK_FEATURES = ["lexical_z", "dense_z"]
+
+# Must match `marlowe_memory::gate::FUSION`.
+FUSION = "per-query-margin-calibration-continuous-z-ranking"
+GATE_VERSION = "frozen-v4"
 
 # Must match `marlowe_memory::gate::THRESHOLD`. Frozen under HP1; `load` rejects any other.
 THRESHOLD = 0.95
@@ -132,16 +149,37 @@ THRESHOLD = 0.95
 # Enforced by `FrozenGate::load`, which refuses an artifact leaving any non-cue feature
 # undeclared, and refuses one that declares a cue inert.
 ALWAYS_PINNED = {
+    "lexical_bm25": (
+        "RETAINED, NOT DELETED, and deliberately not calibrated. Session E's whole finding is "
+        "that a POOLED raw score asks an incoherent question -- it requires BM25 and cosine to be "
+        "comparable across queries, and Session B's absolute saturation means they are not. The "
+        "raw score stays in the vector because it is the cross-session anchor: "
+        "score_longmemeval.py's Number 3 sweeps it, and analyze_cue_overlap.py's unchanged-cue "
+        "check reads it to tell a changed cue set from a changed held-out population. Deleting it "
+        "would silently end the only comparison that can distinguish those two"
+    ),
+    "dense_cosine": (
+        "RETAINED, NOT DELETED, for the same reason as lexical_bm25 -- Number 3's cross-session "
+        "anchor and the unchanged-cue check. Not calibrated; the dense cue is read through "
+        "dense_margin"
+    ),
+    "lexical_rank_recip": (
+        "diagnostic only. Rank is a COARSENING of the same within-query information margin and z "
+        "carry continuously, and ADR-010's constraint is that the top of the ranking must be "
+        "decided by a continuous score -- a reciprocal rank is a step function with the same "
+        "defect the fusion just failed on. Dumped so the fit split's rank structure can be read, "
+        "never fused"
+    ),
+    "dense_rank_recip": ("diagnostic only, exactly as lexical_rank_recip"),
     "cue_agreement_2cue": (
-        "declared pin, and the reason CHANGED with the cue count -- it is no longer the "
-        "collinearity argument that pinned the one-cue version. With two cues this is a genuine "
-        "0 / 0.5 / 1 count and is not collinear with either cue score. It stays pinned because "
-        "making it informative requires a FIRING PREDICATE for the dense cue, and unlike BM25's "
-        "`raw > 0` any cosine floor is an unmeasured constant entering the frozen path. A 2-bit "
-        "coarsening of two continuous features already in the vector does not earn that. Unpin "
+        "declared pin, and the reason is UNCHANGED from Session D. With two cues this is a "
+        "genuine 0 / 0.5 / 1 count and is not collinear with either cue score. It stays pinned "
+        "because making it informative requires a FIRING PREDICATE for the dense cue, and unlike "
+        "BM25's `raw > 0` any cosine floor is an unmeasured constant entering the frozen path. A "
+        "2-bit coarsening of continuous features already in the vector does not earn that. Unpin "
         "at cue 3, where agreement stops being a coarsening -- and pre-register the predicate "
-        "before doing so."
-    )
+        "before doing so"
+    ),
 }
 
 
@@ -166,7 +204,7 @@ def load_preregistration(split: dict) -> dict:
     """
     if not PREREG_PATH.exists():
         raise SystemExit(
-            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_d.py` first — "
+            f"{PREREG_PATH} does not exist. Run `python tools/preregister_session_e.py` first — "
             "the bands are pre-registered, and a fit that runs before them makes every verdict "
             "in this session unfalsifiable."
         )
@@ -398,10 +436,16 @@ def fit_isotonic(scores: np.ndarray, y: np.ndarray, max_blocks: int = CALIBRATIO
             merged.append(block)
     blocks = merged
 
-    # The lookup clamps above the last breakpoint, but a curve whose last block sits below 1.0
-    # in score is easy to misread. Anchor the top explicitly.
-    if blocks and blocks[-1][0] < 1.0:
-        blocks[-1][0] = 1.0
+    # **The 1.0 top-anchor is REMOVED in v4, and the removal is the point.** Through v3 the
+    # calibrated features were `lexical_bm25` (saturated into [0,1]) and `dense_cosine` (a cosine),
+    # so anchoring the last breakpoint at 1.0 marked the true end of the feature's range.
+    #
+    # `{cue}_margin` is NOT bounded to [0,1] -- a BM25 margin is unbounded above and negative for
+    # every non-leader -- so that anchor would now assert a range boundary that does not exist. It
+    # was harmless in effect (the lookup clamps above the last breakpoint either way), which is
+    # exactly why it would have survived: an inherited rule whose stated reason has quietly stopped
+    # being true, changing nothing and meaning nothing. This project has paid for that pattern
+    # before, so the rule goes rather than being left to be re-derived by a later reader.
     return blocks
 
 
@@ -460,7 +504,7 @@ def main() -> int:
     # that leaves any non-cue feature undeclared.
     inert: dict[str, str] = {}
     for i, name in enumerate(FEATURE_NAMES):
-        if name in CUE_FEATURES:
+        if name in CUE_FEATURES or name in RANK_FEATURES:
             continue
         if name in ALWAYS_PINNED:
             inert[name] = ALWAYS_PINNED[name]
@@ -474,10 +518,10 @@ def main() -> int:
             )
         else:
             inert[name] = (
-                "not a cue. Under the v3 fusion only CUE_FEATURES are calibrated and fused; "
-                "trust and fidelity are eligibility properties enforced by section 4.3's "
-                "exclusions, not evidence of relevance, and giving them a curve would let a "
-                "high-trust irrelevant memory outrank a low-trust exact match"
+                "not a cue and not a rank key. Under v4 only CUE_FEATURES are calibrated and only "
+                "RANK_FEATURES order the ranking; trust and fidelity are eligibility properties "
+                "enforced by section 4.3's exclusions, not evidence of relevance, and giving them "
+                "a curve would let a high-trust irrelevant memory outrank a low-trust exact match"
             )
 
     # One isotonic curve per cue, each fit on its OWN score distribution. This is the whole
@@ -510,15 +554,16 @@ def main() -> int:
         "state": "fitted",
         "note": (
             "The frozen gate, HP1. Fit offline on the FIT half of the pre-registered split in "
-            "tools/split.json; the held-out half is what the reported number is scored on. "
-            "TWO cues, fused by MAX OVER PER-CUE CALIBRATED PRECISIONS -- this is not the "
-            "five-cue system K1 measures. Regenerate with: python tools/fit_gate.py"
+            "tools/split.json; the held-out half is what the reported number is scored on. TWO "
+            "cues, calibrated on WITHIN-QUERY MARGIN and ranked by WITHIN-QUERY Z -- this is not "
+            "the five-cue system K1 measures. Regenerate with: python tools/fit_gate.py"
         ),
         "version": GATE_VERSION,
         "fusion": FUSION,
         "threshold": THRESHOLD,
         "feature_names": FEATURE_NAMES,
         "cue_features": CUE_FEATURES,
+        "rank_features": RANK_FEATURES,
         "cue_curves": curves,
         "inert_features": inert,
         # The floor is measured on HELD-OUT after this artifact is built and scored, so the
@@ -559,7 +604,7 @@ def main() -> int:
             "  no score region where predicted precision clears the K1 operating point. The "
             "threshold does not move,\n"
             "  and this number is the session's HEADLINE -- read it against the bands in "
-            "runs/session-d/PREREGISTRATION.json."
+            "runs/session-e/PREREGISTRATION.json."
         )
     print()
     print("now rebuild so the artifact is embedded:  cargo build --release")

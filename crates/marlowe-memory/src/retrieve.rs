@@ -68,13 +68,16 @@ pub enum Scoring<'a> {
 pub struct ScoredCandidate<'a> {
     pub entry: &'a MemoryEntry,
     pub features: features::FeatureVector,
-    /// The winning cue's percentile within its own curve. See [`crate::gate::Verdict::score`] —
-    /// this changed meaning in Session D without the field name moving.
+    /// The winning cue's within-query **z**. See [`crate::gate::Verdict::score`] — this field's
+    /// meaning has moved twice without the name changing, and it is the ranking key's first level.
     pub score: f32,
-    /// **max** over the per-cue calibrated precisions. What the threshold reads.
+    /// The winning cue's **margin** over its runner-up. The ranking key's second level.
+    pub margin: f32,
+    /// **max** over the per-cue calibrated precisions. What the threshold reads, and under v4
+    /// the only thing it does.
     pub calibrated_precision: f32,
-    /// **min** over the per-cue calibrated precisions. The ranking key's second level.
-    pub min_calibrated_precision: f32,
+    /// Which cue's opinion won. Diagnostic, carried into the dump.
+    pub winning_cue: &'static str,
     pub passes: bool,
 }
 
@@ -131,12 +134,18 @@ fn dense_for(
 
 /// Select what to inject.
 ///
-/// Ranking under [`Scoring::Gated`] is `(calibrated_precision desc, min_calibrated_precision
-/// desc, score desc, id asc)`; under [`Scoring::FitDump`] it is Session A's `(created_at desc,
-/// id asc)`. Both are **totally deterministic**, and that is not a nicety: `marlowe-eval repro`
-/// compares two runs byte for byte and the injected set is in the hash. The final tiebreak is
-/// always `id` because two entries with equal scores would otherwise be ordered by whatever the
-/// collection did.
+/// Ranking under [`Scoring::Gated`] is `(score desc, margin desc, id asc)` — the winning cue's
+/// **continuous, query-local** z and then its margin. Under [`Scoring::FitDump`] it is Session A's
+/// `(created_at desc, id asc)`. Both are **totally deterministic**, and that is not a nicety:
+/// `marlowe-eval repro` compares two runs byte for byte and the injected set is in the hash. The
+/// final tiebreak is always `id` because two entries with equal scores would otherwise be ordered
+/// by whatever the collection did.
+///
+/// **`calibrated_precision` does not appear in the key, and that is ADR-010 being obeyed rather
+/// than remembered.** Session D ranked on it, isotonic output is a step function, and 60.4% of
+/// held-out cases ended in a tie at the fused maximum with the tiebreak deciding top-1 outright.
+/// The calibrated value now decides two yes/no-shaped things — whether a candidate clears the
+/// operating point, and which cue speaks for it — and orders nothing.
 pub fn select_for_injection<'a>(
     beliefs: &'a BeliefStore,
     session_id: &str,
@@ -160,35 +169,37 @@ pub fn select_for_injection<'a>(
     let raw_scores = lexical::score_all(&scoped, query_text);
     let dense_scores = dense_for(&scoped, query_vector, vectors);
 
+    // **Set-level, not per-candidate.** Rank, margin and z do not exist for a candidate in
+    // isolation, and this is the call that makes the calibration's question query-local.
+    let vectors = features::extract_all(&scoped, &raw_scores, &dense_scores);
+
     let mut scored: Vec<ScoredCandidate<'a>> = scoped
         .iter()
-        .zip(raw_scores.iter())
-        .zip(dense_scores.iter())
-        .map(|((entry, raw), dense)| {
-            let f = features::extract(entry, *raw, *dense);
-            match scoring {
-                Scoring::Gated(gate) => {
-                    let v = gate.judge(&f);
-                    ScoredCandidate {
-                        entry,
-                        features: f,
-                        score: v.score,
-                        calibrated_precision: v.calibrated_precision,
-                        min_calibrated_precision: v.min_calibrated_precision,
-                        passes: v.passes,
-                    }
-                }
-                // No gate ran. Zero is the honest report of "nothing scored this", and
-                // `gate.version` names the absence so the zero cannot be read as a low score.
-                Scoring::FitDump => ScoredCandidate {
+        .zip(vectors.into_iter())
+        .map(|(entry, f)| match scoring {
+            Scoring::Gated(gate) => {
+                let v = gate.judge(&f);
+                ScoredCandidate {
                     entry,
                     features: f,
-                    score: 0.0,
-                    calibrated_precision: 0.0,
-                    min_calibrated_precision: 0.0,
-                    passes: true,
-                },
+                    score: v.score,
+                    margin: v.margin,
+                    calibrated_precision: v.calibrated_precision,
+                    winning_cue: v.winning_cue,
+                    passes: v.passes,
+                }
             }
+            // No gate ran. Zero is the honest report of "nothing scored this", and
+            // `gate.version` names the absence so the zero cannot be read as a low score.
+            Scoring::FitDump => ScoredCandidate {
+                entry,
+                features: f,
+                score: 0.0,
+                margin: 0.0,
+                calibrated_precision: 0.0,
+                winning_cue: "none",
+                passes: true,
+            },
         })
         .collect();
 
@@ -196,26 +207,21 @@ pub fn select_for_injection<'a>(
     match scoring {
         Scoring::Gated(_) => {
             order.retain(|i| scored[*i].passes);
-            // Four levels, declared in `runs/session-d/PREREGISTRATION.json` BEFORE the fit.
+            // Three levels, declared in `runs/session-e/PREREGISTRATION.json` BEFORE the fit.
             //
-            // The tiebreak is load-bearing rather than cosmetic: isotonic output is a step
-            // function, so ties at the top block are pervasive and the second key decides top-1
-            // outright. Choosing it after seeing top-1 would be tuning the operating point
-            // through the back door, which is why it is pre-registered.
+            // Both scoring levels are CONTINUOUS and query-local, which is the ADR-010 constraint
+            // discharged structurally: no step function can decide a rank here, because no
+            // calibrated value is in the key at all.
             //
-            // `min_calibrated_precision` second is the agreement signal done correctly -- among
-            // candidates the winning cue rates equally, prefer the one the OTHER cue also rates
-            // highly. Continuous, calibrated, and needing no firing predicate, which is exactly
-            // what keeps `cue_agreement_2cue` pinned.
+            // `score` (the winning cue's z) is first because it is dimensionless and therefore the
+            // only quantity that can order a lexical-won candidate against a dense-won one.
+            // `margin` is second in the winning cue's own raw units, which is a valid comparison
+            // exactly when the first key ties.
             order.sort_by(|a, b| {
                 let (x, y) = (&scored[*a], &scored[*b]);
-                y.calibrated_precision
-                    .total_cmp(&x.calibrated_precision)
-                    .then_with(|| {
-                        y.min_calibrated_precision
-                            .total_cmp(&x.min_calibrated_precision)
-                    })
-                    .then_with(|| y.score.total_cmp(&x.score))
+                y.score
+                    .total_cmp(&x.score)
+                    .then_with(|| y.margin.total_cmp(&x.margin))
                     .then_with(|| x.entry.id.cmp(&y.entry.id))
             });
         }
@@ -328,20 +334,28 @@ mod tests {
     /// without depending on whatever the real fit produced.
     ///
     /// The lexical curve clears 0.95; the dense curve deliberately does not. That asymmetry is
-    /// the v3 property under test — either cue alone may carry a candidate, and the weaker one
-    /// can never drag the stronger down.
+    /// the property under test — either cue alone may carry a candidate, and the weaker one can
+    /// never drag the stronger down.
+    ///
+    /// Both curves are on **margin**, so a candidate only clears the threshold by leading its own
+    /// query's runner-up. A candidate tied at the top has margin 0 and lands in the bottom block.
     fn test_gate() -> FrozenGate {
         FrozenGate::from_json(
             r#"{
-              "state": "fitted", "note": "test", "version": "frozen-v3",
-              "fusion": "max-per-cue-calibrated-precision", "threshold": 0.95,
-              "feature_names": ["lexical_bm25","dense_cosine","effective_trust","fidelity","cue_agreement_2cue"],
-              "cue_features": ["lexical_bm25","dense_cosine"],
+              "state": "fitted", "note": "test", "version": "frozen-v4",
+              "fusion": "per-query-margin-calibration-continuous-z-ranking", "threshold": 0.95,
+              "feature_names": ["lexical_bm25","dense_cosine","lexical_margin","dense_margin","lexical_z","dense_z","lexical_rank_recip","dense_rank_recip","effective_trust","fidelity","cue_agreement_2cue"],
+              "cue_features": ["lexical_margin","dense_margin"],
+              "rank_features": ["lexical_z","dense_z"],
               "cue_curves": {
-                "lexical_bm25": [[0.10, 0.10], [0.20, 0.99]],
-                "dense_cosine": [[0.50, 0.05], [0.90, 0.40]]
+                "lexical_margin": [[0.00, 0.10], [0.50, 0.99]],
+                "dense_margin": [[0.50, 0.05], [0.90, 0.40]]
               },
               "inert_features": {
+                "lexical_bm25": "retained as the cross-session anchor; no curve reads it",
+                "dense_cosine": "retained as the cross-session anchor; no curve reads it",
+                "lexical_rank_recip": "diagnostic only",
+                "dense_rank_recip": "diagnostic only",
                 "effective_trust": "constant in this fixture",
                 "fidelity": "constant in this fixture",
                 "cue_agreement_2cue": "declared: needs a firing predicate for the dense cue"
@@ -400,13 +414,87 @@ mod tests {
         assert_eq!(sel.injected.len(), 1);
         assert_eq!(sel.injected[0].memory_id, "m-a");
         assert!(sel.injected[0].calibrated_precision >= crate::gate::THRESHOLD);
-        assert!(sel.injected[0].score > 0.0, "a real score, not Session A's zero");
+        assert!(
+            sel.injected[0].score > 0.0,
+            "the wire carries the winning cue's z -- a real score, not Session A's zero"
+        );
+    }
+
+    #[test]
+    fn a_margin_calibrated_gate_can_pass_at_most_one_candidate_per_cue() {
+        // **A structural cap on coverage, and it is a real cost of the v4 shape.**
+        //
+        // `margin` is the lead over the runner-up, so within one query at most ONE candidate per
+        // cue has a positive margin — every other candidate's margin is <= 0 by construction. An
+        // isotonic curve is non-decreasing, so it cannot assign high precision to a negative
+        // margin and low precision to a positive one. Therefore **at most `CUE_COUNT` candidates
+        // per query can ever clear the threshold**, and in the common case where both cues favour
+        // the same memory, exactly one.
+        //
+        // This is not a defect to fix here. It is what a precision-first gate reading a
+        // decisiveness feature does, and §5.5 recovers recall through the explicit search tool.
+        // But it caps coverage and therefore the injection count the power floor is read against,
+        // which is why it is pre-registered in `runs/session-e/PREREGISTRATION.json` rather than
+        // discovered in the results.
+        let now = 3_000 + MATURATION_WINDOW_MS;
+        let gate = test_gate();
+        let mut beliefs = BeliefStore::default();
+        // Three candidates that ALL match the query, with m-a a clear leader. Under a pooled
+        // raw-score calibration all three would sit high together; under margin only the leader
+        // can clear.
+        beliefs.insert(entry(
+            "m-a",
+            "s-1",
+            "the ingest job times out because the ingest job is out of memory",
+            1_000,
+        ));
+        beliefs.insert(entry("m-b", "s-1", "the ingest job times out on mondays", 2_000));
+        beliefs.insert(entry("m-c", "s-1", "the job runs", 2_500));
+        let sel = select_for_injection(
+            &beliefs,
+            "s-1",
+            "why is the ingest job timing out",
+            now,
+            7000,
+            &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
+        );
+
+        assert_eq!(sel.scoped, 3, "all three were scored");
+        assert!(
+            sel.above_threshold as usize <= crate::gate::CUE_COUNT,
+            "at most one candidate per cue can clear a margin-calibrated gate, got {}",
+            sel.above_threshold
+        );
+
+        // Exactly one candidate has a positive lexical margin, and it is the one that passed.
+        let positive: Vec<&str> = sel
+            .scored
+            .iter()
+            .filter(|c| c.features.0[features::feature_index("lexical_margin").unwrap()] > 0.0)
+            .map(|c| c.entry.id.as_str())
+            .collect();
+        assert_eq!(positive.len(), 1, "exactly one leader, got {positive:?}");
+
+        // And the injected set is ordered by the continuous key, never by the calibrated value.
+        let scores: Vec<f32> = sel.injected.iter().map(|i| i.score).collect();
+        assert!(
+            scores.windows(2).all(|w| w[0] >= w[1]),
+            "injected set must be ordered by the continuous key, got {scores:?}"
+        );
     }
 
     #[test]
     fn a_query_matching_nothing_clears_no_candidate() {
         // The abstention path that matters: candidates existed, none was good enough. This is
         // what makes `no_candidate_above_threshold` distinguishable from `no_candidates`.
+        //
+        // **And it is the test that per-query normalization did not destroy abstention.** Session
+        // B rejected min-max because it forces every query's best candidate to 1.0 — a gate whose
+        // top feature is 1.0 by construction cannot abstain. Margin does not do that: nothing
+        // matches here, so both candidates score 0, they tie at the top, and a tie at the top is
+        // margin 0 for both. The gate sees "no decisive winner" and declines.
         let now = 3_000 + MATURATION_WINDOW_MS;
         let gate = test_gate();
         let beliefs = store();
