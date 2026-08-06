@@ -1,0 +1,207 @@
+{
+  "_what": "Session H Phase 1 -- the sessionizer measured against its registered band, and arm 1 re-derived on the FIT split. Held-out is not read.",
+  "split": "fit",
+  "cases": 229,
+  "frozen": {
+    "session_gap_ms": 1800000,
+    "prune_N": 3,
+    "rule": "max aggregation over a session's turns, union of per-cue top-N"
+  },
+  "partition_agreement": {
+    "homogeneity_pure_derived_sessions": 0.8705,
+    "completeness_whole_true_sessions": 1.0,
+    "true_sessions_split": 0,
+    "cases_with_any_split_true_session": 0,
+    "cases_where_a_GOLD_session_is_split": 0,
+    "_why_that_last_one_matters": "A split gold session is the only way the sessionizer can lose the answer: pruning keeps one fragment and the gold turn is in the other.",
+    "mean_derived_sessions_per_case": 39.02,
+    "mean_true_sessions_per_case": 47.65,
+    "cases": 229
+  },
+  "arm1_true_partition": {
+    "1": {
+      "N": 1,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.031401,
+      "gold_retention": 0.9127,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9039,
+        "dense@20": 0.9127,
+        "dense@5": 0.8079,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.8952,
+        "lexical@20": 0.9127,
+        "lexical@5": 0.8035,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.9127,
+        "oracle@20": 0.9127,
+        "oracle@5": 0.8603
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 56,
+        "solved": 153,
+        "wrong_session": 20
+      }
+    },
+    "3": {
+      "N": 3,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.10026,
+      "gold_retention": 0.9825,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9083,
+        "dense@20": 0.9694,
+        "dense@5": 0.8253,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.9083,
+        "lexical@20": 0.9563,
+        "lexical@5": 0.8166,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.9563,
+        "oracle@20": 0.9782,
+        "oracle@5": 0.9039
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 72,
+        "solved": 153,
+        "wrong_session": 4
+      }
+    },
+    "5": {
+      "N": 5,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.177896,
+      "gold_retention": 0.9913,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9214,
+        "dense@20": 0.9651,
+        "dense@5": 0.8253,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.8908,
+        "lexical@20": 0.9651,
+        "lexical@5": 0.8035,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.9607,
+        "oracle@20": 0.9869,
+        "oracle@5": 0.9039
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 74,
+        "solved": 153,
+        "wrong_session": 2
+      }
+    }
+  },
+  "arm1_derived_partition": {
+    "1": {
+      "N": 1,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.052001,
+      "gold_retention": 0.9127,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9039,
+        "dense@20": 0.9127,
+        "dense@5": 0.8122,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.8952,
+        "lexical@20": 0.9083,
+        "lexical@5": 0.7948,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.9127,
+        "oracle@20": 0.9127,
+        "oracle@5": 0.8603
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 56,
+        "solved": 153,
+        "wrong_session": 20
+      }
+    },
+    "3": {
+      "N": 3,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.15503,
+      "gold_retention": 0.9825,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9083,
+        "dense@20": 0.9694,
+        "dense@5": 0.8253,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.9039,
+        "lexical@20": 0.9563,
+        "lexical@5": 0.8122,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.952,
+        "oracle@20": 0.9782,
+        "oracle@5": 0.9039
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 72,
+        "solved": 153,
+        "wrong_session": 4
+      }
+    },
+    "5": {
+      "N": 5,
+      "cases": 229,
+      "surviving_pool_fraction_mean": 0.265354,
+      "gold_retention": 0.9913,
+      "rates": {
+        "dense@1": 0.4629,
+        "dense@10": 0.9214,
+        "dense@20": 0.9651,
+        "dense@5": 0.8253,
+        "lexical@1": 0.5633,
+        "lexical@10": 0.8908,
+        "lexical@20": 0.9651,
+        "lexical@5": 0.8035,
+        "oracle@1": 0.6681,
+        "oracle@10": 0.9607,
+        "oracle@20": 0.9869,
+        "oracle@5": 0.9039
+      },
+      "failure_decomposition": {
+        "right_session_wrong_rank": 74,
+        "solved": 153,
+        "wrong_session": 2
+      }
+    }
+  },
+  "registered_bands": {
+    "primary_gold_retention": {
+      "derived": 0.9825,
+      "true": 0.9825,
+      "delta": 0.0,
+      "band": 0.02,
+      "pass": true
+    },
+    "guard_pool_fraction": {
+      "derived": 0.15503,
+      "true": 0.10026,
+      "inflation": 1.5463,
+      "band": 1.5,
+      "pass": false
+    },
+    "sessionizer_usable": false,
+    "_on_failure": "STOP AND RAISE IT. Timestamp contiguity is not a usable proxy for session structure on this corpus, and the session reports the sessionizer as the blocking finding. Do NOT fall back to parsing turn_id, do not sweep the gap threshold to rescue it, and do not proceed to the reranker on a pool whose session boundaries are known to be wrong."
+  },
+  "max_aggregation_identity": [
+    {
+      "partition": "true",
+      "checked_case_cue_pairs": 458,
+      "violations": 0,
+      "identity_holds": true
+    },
+    {
+      "partition": "derived",
+      "checked_case_cue_pairs": 458,
+      "violations": 0,
+      "identity_holds": true
+    }
+  ]
+}
