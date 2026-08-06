@@ -221,6 +221,32 @@ def load_pools(run_dir: Path = DEFAULT_RUN) -> tuple[dict[str, Pool], dict]:
     return pools, stats
 
 
+def turn_texts() -> dict[str, dict[str, str]]:
+    """query_id -> turn_id -> text. The pools carry scores, not text.
+
+    Arms 2, 3 and the cross-encoder all need the text a candidate was scored from, and the dump
+    stores only `memory_id`. Rebuilt from the raw corpus for the same reason the session
+    provenance is.
+    """
+    split = json.loads(io.open(SPLIT_PATH, encoding="utf-8").read())
+    raw = json.loads(io.open(REPO / split["corpus_path"], encoding="utf-8").read())
+    out: dict[str, dict[str, str]] = {}
+    for inst in raw:
+        per: dict[str, str] = {}
+        for sid, session in zip(inst["haystack_session_ids"], inst["haystack_sessions"]):
+            for t_idx, turn in enumerate(session):
+                per[f"{sid}-{t_idx}"] = str(turn.get("content", ""))
+        out[str(inst["question_id"])] = per
+    return out
+
+
+def gold_answers() -> dict[str, str | None]:
+    """query_id -> the released gold answer. Used ONLY for arm 3's oracle ceiling."""
+    split = json.loads(io.open(SPLIT_PATH, encoding="utf-8").read())
+    corpus = longmemeval.load(REPO / split["corpus_path"])
+    return {c.query_id: c.gold_answer for c in corpus.cases}
+
+
 def baseline_top1(pools: dict[str, Pool]) -> dict[str, float]:
     """Session F's three headline top-1 rates, recomputed from the rebuilt pools."""
     n = len(pools)

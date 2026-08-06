@@ -1,0 +1,115 @@
+{
+  "_what": "Session G cross-encoder re-costing at the registered configurations.",
+  "registered_bar_ms": 240,
+  "candidates": 10,
+  "max_seq_len": 256,
+  "spike_reference": {
+    "config": "fp32 L-6, 20 candidates, seq 256, 16 threads",
+    "stage_p95_ms": 331,
+    "projected_total_ms": 365,
+    "verdict": "NOT ADOPTED at M0b"
+  },
+  "results": {
+    "L-6-int8": {
+      "digests": {
+        "model_int8.onnx": "a13ec391ca99f49886694e12d3e800521f36d4267d7d448c34421c541a2baf50",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "bytes": 23012404
+      },
+      "cpu": {
+        "1": {
+          "threads": 1,
+          "provider": "CPUExecutionProvider",
+          "stage_p95_ms": 273.47,
+          "stage_median_ms": 256.14,
+          "truncation_rate": 0.405,
+          "queries": 40
+        },
+        "16": {
+          "threads": 16,
+          "provider": "CPUExecutionProvider",
+          "stage_p95_ms": 121.18,
+          "stage_median_ms": 66.68,
+          "truncation_rate": 0.405,
+          "queries": 40
+        }
+      },
+      "determinism": {
+        "batch_1_vs_batch_N": {
+          "max_abs_diff": 0.050006866455078125,
+          "pass": false
+        },
+        "threads_1_vs_4": {
+          "max_abs_diff": 0.0,
+          "pass": true
+        }
+      },
+      "gpu": {
+        "measured": false,
+        "reason": "requested CUDAExecutionProvider, ORT is running ['CPUExecutionProvider']",
+        "_note": "CUDAExecutionProvider is listed by get_available_providers() but does not load -- its cuBLAS/cuDNN dependencies are missing. ORT falls back to CPU silently, so no GPU number is reported rather than a CPU number wearing a GPU label."
+      },
+      "latency_pass_at_1_thread": false,
+      "determinism_pass": false
+    },
+    "L-2-int8": {
+      "digests": {
+        "model_int8.onnx": "1857c1a59b01c1641a46a47fd85b01d98c6e15e1e48588eac1f6a97ff83479c7",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+        "bytes": 15727674
+      },
+      "cpu": {
+        "1": {
+          "threads": 1,
+          "provider": "CPUExecutionProvider",
+          "stage_p95_ms": 92.41,
+          "stage_median_ms": 84.62,
+          "truncation_rate": 0.405,
+          "queries": 40
+        },
+        "16": {
+          "threads": 16,
+          "provider": "CPUExecutionProvider",
+          "stage_p95_ms": 45.36,
+          "stage_median_ms": 22.68,
+          "truncation_rate": 0.405,
+          "queries": 40
+        }
+      },
+      "determinism": {
+        "batch_1_vs_batch_N": {
+          "max_abs_diff": 0.037085533142089844,
+          "pass": false
+        },
+        "threads_1_vs_4": {
+          "max_abs_diff": 0.0,
+          "pass": true
+        }
+      },
+      "gpu": {
+        "measured": false,
+        "reason": "requested CUDAExecutionProvider, ORT is running ['CPUExecutionProvider']",
+        "_note": "CUDAExecutionProvider is listed by get_available_providers() but does not load -- its cuBLAS/cuDNN dependencies are missing. ORT falls back to CPU silently, so no GPU number is reported rather than a CPU number wearing a GPU label."
+      },
+      "latency_pass_at_1_thread": true,
+      "determinism_pass": false
+    }
+  },
+  "shortlist_equivalence_condition": {
+    "passed": false,
+    "_source": "runs/session-g/arm1-pruning.json"
+  },
+  "adoption": {
+    "requires_all_of": [
+      "the latency bar at 1 thread",
+      "arm 1's shortlist-equivalence condition",
+      "re-verified determinism"
+    ],
+    "latency_pass_any_model": true,
+    "determinism_pass_any_model": false,
+    "shortlist_equivalence": false,
+    "verdict": "NOT ADOPTED -- the registered shortlist-equivalence condition failed, so the re-open is not justified by this session regardless of the latency result."
+  },
+  "gpu_note": "Requested for information only, and NOT adopted regardless of the number: determinism across execution providers and the VPS deployment target each need their own ADR, and the verdict is read on CPU at 1 thread. Where the provider failed to load, no figure is reported -- ORT falls back to CPU silently and a fallback timing would be a CPU number labelled as a GPU one.",
+  "determinism_note": "The batch-invariance check FAILS for int8 where the spike's fp32 L-6 passed. This is why re-verification was registered rather than inherited: quantization changes the reduction order inside the graph. A stage whose score depends on batch composition breaks `repro --runs 2`, which is a standing check, so this alone blocks adoption."
+}

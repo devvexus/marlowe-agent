@@ -1,0 +1,288 @@
+{
+  "_what": "Session G registered additivity read plus the combined arm.",
+  "baseline_oracle_at_1": 0.6463,
+  "combined_arm": {
+    "_what": "arm 1 pruning at N=3, then arm 3's template-rewritten query over the pruned pool",
+    "rates": {
+      "dense@1": 0.4323,
+      "dense@10": 0.9083,
+      "dense@5": 0.821,
+      "lexical@1": 0.524,
+      "lexical@10": 0.8646,
+      "lexical@5": 0.7904,
+      "oracle@1": 0.6507,
+      "oracle@10": 0.9432,
+      "oracle@5": 0.8908
+    },
+    "delta_vs_baseline": 0.0044
+  },
+  "per_arm": {
+    "COMBINED_prune_N3_plus_template": {
+      "recovered": 10,
+      "broken": 9,
+      "net": 1
+    },
+    "arm1_pruning_N3": {
+      "recovered": 0,
+      "broken": 0,
+      "net": 0
+    },
+    "arm2_primary_k5_m10_w1": {
+      "recovered": 11,
+      "broken": 65,
+      "net": -54
+    },
+    "arm2_sensitivity_k3_m5_w2": {
+      "recovered": 13,
+      "broken": 40,
+      "net": -27
+    },
+    "arm3_ORACLE_answer_UPPER_BOUND": {
+      "recovered": 33,
+      "broken": 84,
+      "net": -51
+    },
+    "arm3_ORACLE_question_plus_answer_UPPER_BOUND": {
+      "recovered": 27,
+      "broken": 6,
+      "net": 21
+    },
+    "arm3_template_rewrite_no_LLM": {
+      "recovered": 9,
+      "broken": 4,
+      "net": 5
+    },
+    "arm4_temporal": {
+      "recovered": 0,
+      "broken": 2,
+      "net": -2
+    }
+  },
+  "pairwise_subsumption": [
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm1_pruning_N3",
+      "a_only": 10,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "COMBINED_prune_N3_plus_template subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm2_primary_k5_m10_w1",
+      "a_only": 9,
+      "b_only": 10,
+      "both": 1,
+      "verdict": "complementary"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm2_sensitivity_k3_m5_w2",
+      "a_only": 7,
+      "b_only": 10,
+      "both": 3,
+      "verdict": "complementary"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm3_ORACLE_answer_UPPER_BOUND",
+      "a_only": 7,
+      "b_only": 30,
+      "both": 3,
+      "verdict": "complementary"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "a_only": 8,
+      "b_only": 25,
+      "both": 2,
+      "verdict": "complementary"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 1,
+      "b_only": 0,
+      "both": 9,
+      "verdict": "COMBINED_prune_N3_plus_template subsumes arm3_template_rewrite_no_LLM"
+    },
+    {
+      "a": "COMBINED_prune_N3_plus_template",
+      "b": "arm4_temporal",
+      "a_only": 10,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "COMBINED_prune_N3_plus_template subsumes arm4_temporal"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm2_primary_k5_m10_w1",
+      "a_only": 0,
+      "b_only": 11,
+      "both": 0,
+      "verdict": "arm2_primary_k5_m10_w1 subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm2_sensitivity_k3_m5_w2",
+      "a_only": 0,
+      "b_only": 13,
+      "both": 0,
+      "verdict": "arm2_sensitivity_k3_m5_w2 subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm3_ORACLE_answer_UPPER_BOUND",
+      "a_only": 0,
+      "b_only": 33,
+      "both": 0,
+      "verdict": "arm3_ORACLE_answer_UPPER_BOUND subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "a_only": 0,
+      "b_only": 27,
+      "both": 0,
+      "verdict": "arm3_ORACLE_question_plus_answer_UPPER_BOUND subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 0,
+      "b_only": 9,
+      "both": 0,
+      "verdict": "arm3_template_rewrite_no_LLM subsumes arm1_pruning_N3"
+    },
+    {
+      "a": "arm1_pruning_N3",
+      "b": "arm4_temporal",
+      "a_only": 0,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "overlapping"
+    },
+    {
+      "a": "arm2_primary_k5_m10_w1",
+      "b": "arm2_sensitivity_k3_m5_w2",
+      "a_only": 7,
+      "b_only": 9,
+      "both": 4,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_primary_k5_m10_w1",
+      "b": "arm3_ORACLE_answer_UPPER_BOUND",
+      "a_only": 5,
+      "b_only": 27,
+      "both": 6,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_primary_k5_m10_w1",
+      "b": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "a_only": 4,
+      "b_only": 20,
+      "both": 7,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_primary_k5_m10_w1",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 10,
+      "b_only": 8,
+      "both": 1,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_primary_k5_m10_w1",
+      "b": "arm4_temporal",
+      "a_only": 11,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "arm2_primary_k5_m10_w1 subsumes arm4_temporal"
+    },
+    {
+      "a": "arm2_sensitivity_k3_m5_w2",
+      "b": "arm3_ORACLE_answer_UPPER_BOUND",
+      "a_only": 6,
+      "b_only": 26,
+      "both": 7,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_sensitivity_k3_m5_w2",
+      "b": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "a_only": 7,
+      "b_only": 21,
+      "both": 6,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_sensitivity_k3_m5_w2",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 10,
+      "b_only": 6,
+      "both": 3,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm2_sensitivity_k3_m5_w2",
+      "b": "arm4_temporal",
+      "a_only": 13,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "arm2_sensitivity_k3_m5_w2 subsumes arm4_temporal"
+    },
+    {
+      "a": "arm3_ORACLE_answer_UPPER_BOUND",
+      "b": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "a_only": 11,
+      "b_only": 5,
+      "both": 22,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm3_ORACLE_answer_UPPER_BOUND",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 30,
+      "b_only": 6,
+      "both": 3,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm3_ORACLE_answer_UPPER_BOUND",
+      "b": "arm4_temporal",
+      "a_only": 33,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "arm3_ORACLE_answer_UPPER_BOUND subsumes arm4_temporal"
+    },
+    {
+      "a": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "b": "arm3_template_rewrite_no_LLM",
+      "a_only": 25,
+      "b_only": 7,
+      "both": 2,
+      "verdict": "complementary"
+    },
+    {
+      "a": "arm3_ORACLE_question_plus_answer_UPPER_BOUND",
+      "b": "arm4_temporal",
+      "a_only": 27,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "arm3_ORACLE_question_plus_answer_UPPER_BOUND subsumes arm4_temporal"
+    },
+    {
+      "a": "arm3_template_rewrite_no_LLM",
+      "b": "arm4_temporal",
+      "a_only": 9,
+      "b_only": 0,
+      "both": 0,
+      "verdict": "arm3_template_rewrite_no_LLM subsumes arm4_temporal"
+    }
+  ],
+  "_why_no_full_cross_product": "Arm 2 is HARMFUL at both configurations and arm 4 is NOT REACHED. Combining a harmful arm with a neutral one measures nothing."
+}
