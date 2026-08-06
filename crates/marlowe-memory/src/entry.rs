@@ -72,6 +72,29 @@ pub struct MemoryEntry {
     /// The `MemoryWritten` event that created it.
     pub origin_event: u64,
 
+    /// The turn's own `occurred_at_ms`, from the §4.6 request.
+    ///
+    /// **This is not `created_at` and the difference is the whole reason the field exists.**
+    /// `created_at` is the *ingest clock* — the moment the system learned the fact. The harness
+    /// ingests an entire history in **one** §4.6 call, so `created_at` is identical for every turn
+    /// in that call and carries no ordering whatsoever. `occurred_at_ms` is when the underlying
+    /// utterance happened, and it is the only per-turn time the store has.
+    ///
+    /// Session H added it because §4.6 carries it on the wire and this implementation was
+    /// discarding it. [`crate::retrieve::session_keys`] is what needed it.
+    ///
+    /// **It is never read by the maturation path, and that exclusion is load-bearing.**
+    /// [`MemoryEntry::is_matured`] deliberately reads `silent_until`, which is derived from the
+    /// ingest clock. Maturation asks how long a belief has existed *in the system* and had a
+    /// chance to be contradicted — using an attacker-supplied `occurred_at_ms` would let a planted
+    /// turn be backdated and arrive pre-matured, which is single-exposure poisoning with the
+    /// defence handed over in the payload. See `ingest.rs`'s `maturation_deadline`.
+    ///
+    /// Grouping is not a trust decision, which is why reading it *here* is safe: a caller who
+    /// backdates turns can influence which candidates are ranked together and cannot influence
+    /// whether any of them may be injected at all.
+    pub occurred_at_ms: i64,
+
     // -- lifecycle ---------------------------------------------------------------------
     pub created_at: i64,
     pub last_accessed: i64,
@@ -121,6 +144,7 @@ mod tests {
             effective_trust: TrustClass::UserAsserted,
             derivation: Vec::new(),
             origin_event: 1,
+            occurred_at_ms: 1_000,
             created_at: 1_000,
             last_accessed: 1_000,
             access_count: 0,

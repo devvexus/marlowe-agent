@@ -96,6 +96,10 @@ pub fn ingest(
             trust_class: own_trust,
             effective_trust: effective,
             derivation: derivation.clone(),
+            // The turn's OWN time, carried through instead of discarded. See
+            // MemoryEntry::occurred_at_ms for why this is not created_at and why maturation
+            // must never read it.
+            occurred_at_ms: turn.occurred_at_ms,
             created_at: clock.now_ms,
             silent_until,
             // Explicit on every write. Replay must never have to assume a tier.
@@ -127,6 +131,7 @@ pub fn ingest(
             effective_trust: effective,
             derivation,
             origin_event: event.seq,
+            occurred_at_ms: turn.occurred_at_ms,
             created_at: clock.now_ms,
             last_accessed: clock.now_ms,
             access_count: 0,

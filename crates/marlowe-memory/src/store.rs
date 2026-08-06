@@ -41,6 +41,14 @@ pub struct MemoryWrittenPayload {
     pub trust_class: TrustClass,
     pub effective_trust: TrustClass,
     pub derivation: Vec<MemoryId>,
+    /// The turn's own `occurred_at_ms` from §4.6. See [`MemoryEntry::occurred_at_ms`].
+    ///
+    /// **Not optional, and not defaulted.** A `#[serde(default)]` here would let a pre-Session-H
+    /// journal replay into entries whose `occurred_at_ms` is silently 0 — every turn in the same
+    /// derived session, pruning quietly degenerate, and nothing looking wrong. `DERIVATION_VERSION`
+    /// is bumped instead, so an older profile fails to open with a version mismatch that names the
+    /// problem. Load-time error over sensible default, per CLAUDE.md.
+    pub occurred_at_ms: i64,
     pub created_at: i64,
     pub silent_until: Option<i64>,
     pub fidelity: Fidelity,
@@ -105,6 +113,7 @@ impl BeliefStore {
                             effective_trust: p.effective_trust,
                             derivation: p.derivation,
                             origin_event: seq,
+                            occurred_at_ms: p.occurred_at_ms,
                             created_at: p.created_at,
                             last_accessed: p.created_at,
                             access_count: 0,

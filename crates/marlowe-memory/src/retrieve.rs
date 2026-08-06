@@ -310,6 +310,7 @@ mod tests {
             effective_trust: TrustClass::UserAsserted,
             derivation: Vec::new(),
             origin_event: 1,
+            occurred_at_ms: created,
             created_at: created,
             last_accessed: created,
             access_count: 0,

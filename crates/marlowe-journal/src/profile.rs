@@ -28,7 +28,13 @@ pub const MANIFEST_FILE: &str = "profile.json";
 /// adding a derived per-entry field later is a version bump plus a rebuild — never a journal
 /// migration, and never a contract major bump. Recording the version is what makes "rebuild
 /// when it changes" checkable instead of remembered.
-pub const DERIVATION_VERSION: u32 = 1;
+///
+/// **2 — Session H.** `MemoryWrittenPayload` gained `occurred_at_ms`, the per-turn time §4.6
+/// carries on the wire and the implementation had been discarding. The field is required rather
+/// than defaulted, so a version-1 journal cannot replay: it would decode into entries whose
+/// `occurred_at_ms` is 0, which puts every turn in one derived session and makes session pruning
+/// silently degenerate. This bump is what turns that into a named refusal at open time.
+pub const DERIVATION_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

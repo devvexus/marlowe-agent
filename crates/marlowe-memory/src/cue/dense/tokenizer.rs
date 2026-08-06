@@ -73,11 +73,21 @@ pub enum VocabError {
     MissingSpecial { path: String, token: &'static str },
 
     #[error(
-        "{path} holds {found} entries; jina-embeddings-v2-small-en's vocabulary has {expected}. A \
-         different vocabulary produces token ids the embedding matrix was not trained on, and \
-         the model would still return a plausible-looking vector"
+        "{path} holds {found} entries; the expected vocabulary has {expected}. A different \
+         vocabulary produces token ids the embedding matrix was not trained on, and the model \
+         would still return a plausible-looking vector"
     )]
     WrongSize { path: String, found: usize, expected: usize },
+
+    #[error("{path} is not a readable tokenizer.json: no model.vocab object")]
+    MalformedTokenizerJson { path: String },
+
+    #[error(
+        "{path} declares normalizer.{key} = {found}, this build implements {expected}. The \
+         tokenizer would produce different ids than the model's own, and the graph would still \
+         return a plausible score. See DECISIONS.md ADR-004"
+    )]
+    NormalizerDisagrees { path: String, key: &'static str, expected: bool, found: String },
 }
 
 /// jina-embeddings-v2-small-en's vocabulary size, from the model's own `config.json`.
@@ -98,9 +108,71 @@ pub struct Vocab {
     sep_id: u32,
 }
 
+/// `ms-marco-MiniLM-L-2-v2`'s vocabulary size, from its own `tokenizer.json`.
+///
+/// 30,522 — plain `bert-base-uncased`, where jina's 30,528 is the same vocabulary padded. Verified
+/// id-for-id: the cross-encoder's vocabulary is exactly the first 30,522 entries of jina's
+/// `vocab.txt`, so `encode`'s WordPiece is the same algorithm over a prefix of the same table.
+pub const CROSS_ENCODER_VOCAB_SIZE: usize = 30522;
+
 impl Vocab {
     /// Parse a `vocab.txt`: one token per line, id = line number.
     pub fn parse(text: &str, path: &str) -> Result<Self, VocabError> {
+        Self::parse_with_size(text, path, VOCAB_SIZE)
+    }
+
+    /// Parse a HuggingFace `tokenizer.json`, which is what the cross-encoder ships instead of a
+    /// `vocab.txt`.
+    ///
+    /// **The normalizer settings are checked, not assumed.** This build implements exactly one
+    /// normalization — BERT's, lowercasing, keeping accents, cleaning control characters, folding
+    /// Chinese characters. `tokenizer.json` *declares* its normalizer, so a pinned file that ever
+    /// changed one of those flags would leave this WordPiece silently tokenizing differently from
+    /// the model's own tokenizer, producing plausible ids and a plausible score. Refused at load.
+    pub fn from_tokenizer_json(text: &str, path: &str) -> Result<Self, VocabError> {
+        let root: serde_json::Value = serde_json::from_str(text)
+            .map_err(|_| VocabError::MalformedTokenizerJson { path: path.to_string() })?;
+
+        let expect_flag = |key: &'static str, want: bool| -> Result<(), VocabError> {
+            let found = root["normalizer"][key].as_bool();
+            if found != Some(want) {
+                return Err(VocabError::NormalizerDisagrees {
+                    path: path.to_string(),
+                    key,
+                    expected: want,
+                    found: found.map(|b| b.to_string()).unwrap_or_else(|| "absent".into()),
+                });
+            }
+            Ok(())
+        };
+        expect_flag("lowercase", true)?;
+        expect_flag("clean_text", true)?;
+        expect_flag("handle_chinese_chars", true)?;
+        // `strip_accents: null` means "follow lowercase", and this build keeps accents by
+        // decomposing without stripping. An explicit `true` would be a different tokenizer.
+        if !root["normalizer"]["strip_accents"].is_null() {
+            return Err(VocabError::NormalizerDisagrees {
+                path: path.to_string(),
+                key: "strip_accents",
+                expected: false,
+                found: root["normalizer"]["strip_accents"].to_string(),
+            });
+        }
+
+        let map = root["model"]["vocab"]
+            .as_object()
+            .ok_or_else(|| VocabError::MalformedTokenizerJson { path: path.to_string() })?;
+        let mut tokens = BTreeMap::new();
+        for (token, id) in map {
+            let id = id
+                .as_u64()
+                .ok_or_else(|| VocabError::MalformedTokenizerJson { path: path.to_string() })?;
+            tokens.insert(token.clone(), id as u32);
+        }
+        Self::finish(tokens, path, CROSS_ENCODER_VOCAB_SIZE)
+    }
+
+    fn parse_with_size(text: &str, path: &str, expected: usize) -> Result<Self, VocabError> {
         let mut tokens = BTreeMap::new();
         for (index, line) in text.lines().enumerate() {
             // `vocab.txt` is one token per line and the token may not be trimmed of its own
@@ -109,12 +181,19 @@ impl Vocab {
             let token = line.strip_suffix('\r').unwrap_or(line);
             tokens.insert(token.to_string(), index as u32);
         }
+        Self::finish(tokens, path, expected)
+    }
 
-        if tokens.len() != VOCAB_SIZE {
+    fn finish(
+        tokens: BTreeMap<String, u32>,
+        path: &str,
+        expected: usize,
+    ) -> Result<Self, VocabError> {
+        if tokens.len() != expected {
             return Err(VocabError::WrongSize {
                 path: path.to_string(),
                 found: tokens.len(),
-                expected: VOCAB_SIZE,
+                expected,
             });
         }
 
@@ -457,6 +536,96 @@ pub fn encode(vocab: &Vocab, text: &str, max_seq_len: usize) -> Encoded {
 
     let attention_mask = vec![1u32; input_ids.len()];
     Encoded { input_ids, attention_mask, truncated }
+}
+
+/// One tokenized `(query, document)` pair, ready for a cross-encoder.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedPair {
+    pub input_ids: Vec<u32>,
+    pub attention_mask: Vec<u32>,
+    /// 0 for `[CLS] query [SEP]`, 1 for `document [SEP]`, 0 for padding.
+    ///
+    /// This is the input that carries the query/candidate boundary. A cross-encoder fed all-zero
+    /// segment ids still returns a score, and the score is wrong in a way nothing downstream can
+    /// see — which is why `rerank.rs` binds ONNX inputs by name rather than by position.
+    pub token_type_ids: Vec<u32>,
+    pub truncated: bool,
+}
+
+fn pieces_of(vocab: &Vocab, text: &str) -> Vec<u32> {
+    let mut pieces = Vec::new();
+    for segment in split_on_special(text) {
+        match segment {
+            Segment::Special(literal) => pieces.push(
+                vocab
+                    .id(literal)
+                    .expect("Vocab::parse guarantees every special literal is present"),
+            ),
+            Segment::Text(chunk) => {
+                for token in basic_tokenize(chunk) {
+                    wordpiece(vocab, &token, &mut pieces);
+                }
+            }
+        }
+    }
+    pieces
+}
+
+/// Encode `[CLS] query [SEP] document [SEP]`, padded to exactly `max_seq_len`.
+///
+/// **Truncation is HuggingFace's `longest_first`, which is its default for pairs** and is not the
+/// obvious thing. It does not truncate the document to fit around the query; it repeatedly drops
+/// one token from whichever sequence is currently longer. For a short query and a long document
+/// the two agree, and for a long query they do not — so implementing the obvious rule would match
+/// the reference on most inputs and diverge on exactly the ones where sequence length is doing
+/// work. `tests/cross_encoder_reference.rs` compares against the real tokenizer id-for-id.
+///
+/// **Padding is to a fixed `max_seq_len`, always.** The graph is then a fixed `[1, max_seq_len]`
+/// shape — the same shape Session G's re-costing measured, so its 92.41 ms figure stays the thing
+/// being checked rather than a different measurement wearing its name.
+pub fn encode_pair(vocab: &Vocab, query: &str, document: &str, max_seq_len: usize) -> EncodedPair {
+    debug_assert!(max_seq_len >= 3, "no room for [CLS] and two [SEP]s");
+
+    let mut a = pieces_of(vocab, query);
+    let mut b = pieces_of(vocab, document);
+
+    let room = max_seq_len - 3;
+    let truncated = a.len() + b.len() > room;
+    while a.len() + b.len() > room {
+        // **On a tie the FIRST sequence loses the token**, hence `>=` rather than `>`.
+        //
+        // Measured against HuggingFace, not reasoned about: two equal 60-piece sequences into a
+        // 61-piece budget come back as (30, 31), so the query is what shrinks when the two are
+        // level. The first draft used `>` — the opposite — and produced (31, 30). Every other
+        // fixture case still passed; only `long query AND long document` caught it, which is why
+        // that case exists.
+        if a.len() >= b.len() {
+            a.pop();
+        } else {
+            b.pop();
+        }
+    }
+
+    let mut input_ids = Vec::with_capacity(max_seq_len);
+    let mut token_type_ids = Vec::with_capacity(max_seq_len);
+
+    input_ids.push(vocab.cls_id);
+    input_ids.extend(&a);
+    input_ids.push(vocab.sep_id);
+    token_type_ids.resize(input_ids.len(), 0);
+
+    input_ids.extend(&b);
+    input_ids.push(vocab.sep_id);
+    token_type_ids.resize(input_ids.len(), 1);
+
+    let mut attention_mask = vec![1u32; input_ids.len()];
+
+    let pad_id = vocab.id(PAD).expect("Vocab::parse guarantees [PAD] is present");
+    input_ids.resize(max_seq_len, pad_id);
+    attention_mask.resize(max_seq_len, 0);
+    token_type_ids.resize(max_seq_len, 0);
+
+    EncodedPair { input_ids, attention_mask, token_type_ids, truncated }
 }
 
 #[cfg(test)]
