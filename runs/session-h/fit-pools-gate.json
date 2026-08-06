@@ -1,0 +1,30 @@
+{
+  "_what": "The held-out half cut out of runs/session-f/all/ must reproduce Session F's published held-out top-1 exactly. Passing is what licenses using the FIT half of the same dump.",
+  "source_run": "runs/session-f/all",
+  "rule": "exact equality at 4 decimal places on all three",
+  "heldout_cases_reconstructed": 229,
+  "checks": {
+    "lexical": {
+      "target": 0.5415,
+      "measured": 0.5415,
+      "pass": true
+    },
+    "dense": {
+      "target": 0.4454,
+      "measured": 0.4454,
+      "pass": true
+    },
+    "either_oracle": {
+      "target": 0.6463,
+      "measured": 0.6463,
+      "pass": true
+    }
+  },
+  "pass": true,
+  "fit_split_baseline_top1": {
+    "lexical": 0.5633,
+    "dense": 0.4629,
+    "either_oracle": 0.6681
+  },
+  "fit_cases_reconstructed": 229
+}
