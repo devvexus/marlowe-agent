@@ -162,7 +162,8 @@ fn main() {
         None => {
             eprintln!("{USAGE}");
             eprintln!(
-                "error: --reranking is required and has no default. Pass `off` to disable the                  cross-encoder explicitly, or the directory holding its pinned files."
+                "error: --reranking is required and has no default. Pass `off` to disable the \
+                 cross-encoder explicitly, or the directory holding its pinned files."
             );
             std::process::exit(2);
         }

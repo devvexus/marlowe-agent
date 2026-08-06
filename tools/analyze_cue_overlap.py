@@ -121,6 +121,10 @@ def main() -> int:
         attribution, _ = attributor.attribute(
             row["memory_id"], gold_map.get(row["query_id"], frozenset())
         )
+        # Session H's two extra ranking levels. Read with `.get` and a NAMED absence rather than
+        # refused, because a Session F dump legitimately predates them -- and the shipped ranker
+        # is reported as NOT AVAILABLE on such a dump rather than silently falling back to the
+        # fused-gate order and being labelled as the shipped one.
         per[row["query_id"]].append(
             (
                 row["lexical_bm25"],
@@ -128,6 +132,8 @@ def main() -> int:
                 row["score"],
                 row["margin"],
                 attribution == "gold",
+                row.get("survived_pruning"),
+                row.get("rerank_score"),
             )
         )
 
@@ -154,6 +160,28 @@ def main() -> int:
         """
         return np.lexsort((-margin, -score))
 
+    def shipped_order(
+        score: np.ndarray, margin: np.ndarray, survived: np.ndarray, rerank: np.ndarray
+    ) -> np.ndarray:
+        """The order the BINARY produces, reproduced from the dump's own columns.
+
+        Five levels, matching `retrieve.rs::select_for_injection` exactly:
+
+          1. survived pruning, survivors first
+          2. rerank score descending, for candidates that were reranked
+          3. score  -- the winning cue's z
+          4. margin -- its lead over its own runner-up
+          5. id     -- free, from the dump's stable row order
+
+        `rerank` carries NaN where a candidate was not reranked (JSON `null`). NaN must sort
+        LAST, and that is the whole subtlety: np.lexsort places NaN last under an ascending key,
+        so the rerank level is expressed as `-rerank` with NaN mapped to +inf rather than by
+        negating a NaN, which stays NaN and would sort unreranked candidates to the TOP.
+        """
+        rerank_key = np.where(np.isnan(rerank), np.inf, -rerank)
+        # PRIMARY key last, per np.lexsort.
+        return np.lexsort((-margin, -score, rerank_key, ~survived))
+
     def hit(order: np.ndarray, gold: np.ndarray, k: int) -> bool:
         """Unchanged in meaning from Session C: does the top-k intersect gold?
 
@@ -163,6 +191,13 @@ def main() -> int:
         dense and oracle numbers are bit-identical to the ones the floor is judged against.
         """
         return bool(set(order[:k].tolist()) & set(np.flatnonzero(gold).tolist()))
+
+    # Is this a dump that carries Session H's columns at all? Decided ONCE over the whole dump
+    # rather than per row: a dump where only some rows carry them is a mixed dump, and a
+    # per-row fallback would quietly rank half the pool by one key and half by another.
+    has_shipped = any(
+        r[5] is not None or r[6] is not None for rows in per.values() for r in rows
+    )
 
     rhos: list[float] = []
     ks = (1, 5, 10)
@@ -174,6 +209,8 @@ def main() -> int:
         score = np.array([r[2] for r in per[query]])
         margin = np.array([r[3] for r in per[query]])
         gold = np.array([r[4] for r in per[query]])
+        survived = np.array([True if r[5] is None else bool(r[5]) for r in per[query]])
+        rerank = np.array([np.nan if r[6] is None else float(r[6]) for r in per[query]])
         if gold.sum() == 0:
             continue
         n += 1
@@ -182,6 +219,7 @@ def main() -> int:
         den_order = order_of(den)
         rrf_order = order_of(rrf(lex, den))
         fused_order = gate_order(score, margin)
+        shipped = shipped_order(score, margin, survived, rerank)
         for k in ks:
             L, D = hit(lex_order, gold, k), hit(den_order, gold, k)
             tally[k]["lexical"] += L
@@ -191,6 +229,8 @@ def main() -> int:
             tally[k]["neither"] += not L and not D
             tally[k]["fitted_gate"] += hit(fused_order, gold, k)
             tally[k]["rank_fusion_rrf"] += hit(rrf_order, gold, k)
+            if has_shipped:
+                tally[k]["shipped"] += hit(shipped, gold, k)
 
     baseline = {}
     if PRIOR_OVERLAP.exists() and PRIOR_OVERLAP.resolve() != out_path.resolve():
@@ -216,6 +256,14 @@ def main() -> int:
             "fusion_gap_to_oracle": round((t["either"] - t["fitted_gate"]) / n, 4),
             "fusion_vs_best_single": round((t["fitted_gate"] - best_single) / n, 4),
         }
+        if has_shipped:
+            # The order the BINARY produces: pruning, then reranking, then the three levels the
+            # fused gate already used. Reported BESIDE `fitted_gate` rather than replacing it,
+            # so the pruning-and-rerank delta is readable off one table -- `fitted_gate` here is
+            # the same ranker Session F published, computed over the same dump.
+            entry["shipped"] = round(t["shipped"] / n, 4)
+            entry["shipped_vs_fitted_gate"] = round((t["shipped"] - t["fitted_gate"]) / n, 4)
+            entry["shipped_vs_best_single"] = round((t["shipped"] - best_single) / n, 4)
 
         # The pre-registered oracle read. Both denominators, because they answer different
         # questions and quoting only the larger fraction would be denominator-shopping.
@@ -269,8 +317,17 @@ def main() -> int:
     print(f"Spearman rho: mean {rho.mean():.3f}  median {np.median(rho):.3f}")
     print()
     print(f"{'ranker':22s} " + " ".join(f"{'top-'+str(k):>8}" for k in ks))
-    for name in ["lexical", "dense", "fitted_gate", "rank_fusion_rrf", "either_oracle"]:
+    rankers = ["lexical", "dense", "fitted_gate", "rank_fusion_rrf"]
+    if has_shipped:
+        rankers.append("shipped")
+    rankers.append("either_oracle")
+    for name in rankers:
         print(f"{name:22s} " + " ".join(f"{by_k[str(k)][name]:>8.3f}" for k in ks))
+    if not has_shipped:
+        print()
+        print("  NOTE: this dump carries no `survived_pruning` / `rerank_score` columns, so the")
+        print("  SHIPPED ranker is NOT AVAILABLE and is not reported. `fitted_gate` is Session F's")
+        print("  ranker and is not a stand-in for it.")
     print()
     for k in ks:
         b = by_k[str(k)]

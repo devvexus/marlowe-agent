@@ -56,6 +56,8 @@ CACHE_DIR = REPO / ".embedding-cache"
 # pays on a fresh profile -- Session C measured 36 ms cold against 24 ms warm. The fix is to
 # report from a cache-cold run and say so, never to exclude the embedding from the timed span.
 _cache_dir = CACHE_DIR
+# The cross-encoder directory the binary is pointed at, or the literal "off". Set from --reranking.
+_reranking = str(REPO / "models" / "ms-marco-MiniLM-L-2-v2-int8")
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -630,9 +632,15 @@ def score_one(
 ) -> tuple[dict, list[dict], dict[str, list[dict]]]:
     out_dir.mkdir(parents=True, exist_ok=True)
     dump = out_dir / "scored-candidates.ndjson"
+    # `--reranking` is REQUIRED by the binary and takes an explicit value, so it appears here
+    # spelled out rather than omitted. `_reranking` is set from the CLI and defaults to the
+    # pinned cross-encoder directory; passing `off` measures the pruning-only ablation, and the
+    # value is echoed into the run's summary so a number can never be read without knowing which
+    # configuration produced it.
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
         f"--embedder-model {MODEL_DIR} --embedding-cache {_cache_dir} "
+        f"--reranking {_reranking} "
         f"--dump-gate-features {dump}"
     )
     result = run(
@@ -820,6 +828,14 @@ def main() -> int:
         "pre-registered population is the whole held-out split, and scoring a subset would be "
         "choosing the population after seeing the split.",
     )
+    parser.add_argument(
+        "--reranking",
+        default=str(REPO / "models" / "ms-marco-MiniLM-L-2-v2-int8"),
+        help=(
+            "the cross-encoder directory, or the literal 'off' for the pruning-only ablation. "
+            "Passed straight through to the binary, which requires the flag and has no default."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -838,8 +854,9 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
-    global _cache_dir
+    global _cache_dir, _reranking
     _cache_dir = Path(args.embedding_cache)
+    _reranking = args.reranking
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -879,6 +896,7 @@ def main() -> int:
         budget = budget_verdict(runs["heldout"]["report"], runs["heldout"]["records"])
         print()
         print(f"cache: {_cache_dir}")
+        print(f"reranking: {_reranking}")
         print(f"cases scored: {len(heldout_ids)}"
               + ("  (SUBSET -- latency only)" if args.max_cases is not None else ""))
         print(f"retrieval P95: {budget['retrieval_p95_ms']} ms  (budget {BUDGET_P95_MS} ms)")
