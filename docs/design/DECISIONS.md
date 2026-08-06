@@ -1336,3 +1336,110 @@ disappointing number: **there is no further named mechanism that raises the eith
 within M0b's budget.** The next conversation is about K1's definition — what 0.95 injection
 precision means, and whether it is the right bar for a two-cue content-similarity system whose
 oracle caps at 0.65 — and not about the next lever.
+
+---
+
+## ADR-013 · The query side is measured, and the problem is inside the session
+
+**Status: the direction change is recorded, the four named query-side mechanisms are measured, and
+three of four are closed.** Session G ships nothing. Its value is that it moves the open question
+from *"which arbitration shape"* to *"which pool is being arbitrated over"*, and it closes named
+levers rather than accumulating them.
+
+**Context, and why this does not violate Session F's registration.** Session F registered, before
+its result existed, that *"there is no further named mechanism that raises the either-cue oracle
+within M0b's budget."* That statement stands as written and was true of the project's option space
+at the time. External research then named mechanisms the project had not — SmartSearch's
+cross-encoder-carries-all-precision result, Supermemory's session-level ingest granularity, Mastra's
+three-date temporal structure. **The option space was extended from outside; a registered escalation
+was not quietly reversed after a disappointing number.** ADR-012 records the same distinction.
+
+### What was measured
+
+All four arms were verified against ADR-010 **before** any band was registered: none is an
+arbitration change, so none is capped by the either-cue oracle. Arms 1 and 4 change the candidate
+set; arms 2 and 3 change the per-cue scores via a new query representation.
+
+| arm | verdict | number |
+|---|---|---|
+| 1 · session-level pruning | **oracle read VACUOUS**; value is pool reduction | 10.3% pool at 98.25% gold retention, N=3 |
+| 2 · PRF + entity expansion | **HARMFUL**, both configurations | −0.2358 / −0.1179, p < 0.001 |
+| 3 · hypothetical answer embedding | **PREMISE REFUTED** | answer-for-question −0.2227; realizable +0.0218, p=0.27 |
+| 4 · temporal anchoring, hard constraint | **NOT REACHED**, and the corpus explains it | 1 of 59 temporal questions carries a window |
+
+### The decision, and it binds the next session
+
+> **Session selection is close to solved; ranking inside a correct session is not.** At N=3 the
+> failure decomposition is 4 wrong-session against 77 right-session-wrong-rank — **19.2 to 1**.
+
+Sessions D, E and F attacked arbitration over a ~487-turn pool, which is what carries the 0.6435
+oracle cap. Ranking ~47 topically coherent turns is a different problem and is **not known** to
+carry the same bound. Session G did not measure it and did not claim it. The question is registered
+forward and unmeasured in `runs/session-g/REGISTERED-QUESTION-in-session-rerank.json`, with its pass
+condition fixed in advance.
+
+**A better session scorer is worth approximately nothing** — four cases. Do not build one.
+
+### Two things that are closed, and one that is not
+
+**Closed: query expansion.** PRF draws feedback from the first pass, and the first pass is worst
+exactly where help is needed. This was predicted before measurement and confirmed at −0.2358.
+
+**Closed: HyDE as specified.** Embedding a plausible answer *instead of* the question costs 22 points
+**with a perfect generator** — the released gold answer. The premise that answers resemble the
+searched turns better than questions do is refuted, not merely unsupported. What helps is the answer
+*augmenting* the question, and that is only visible at an upper bound requiring the answer to be
+known already.
+
+**Not closed: temporal anchoring.** It is closed *as a retrieval-side hard constraint on this
+corpus*, because LongMemEval's temporal questions name events rather than windows. Mastra's
+mechanism does its work at the **answer stage**, computing an offset once evidence is in hand. That
+is untested here and remains open.
+
+### The cross-encoder, re-costed and still not adopted
+
+`L-2-int8` clears the registered latency bar with room to spare — **92.41 ms P95 at 1 thread against
+240 ms** — and is still NOT ADOPTED, on two independent grounds registered before measurement:
+
+1. **Batch invariance FAILS for int8**, max logit difference 0.050 (L-6) and 0.037 (L-2), where the
+   spike's fp32 L-6 passed at exactly 0.000e+00. Quantization changes the reduction order. A stage
+   whose score depends on batch composition breaks `repro --runs 2`.
+2. **Arm 1's shortlist-equivalence condition failed** at every N and every ranker, so the budget
+   argument that justified re-opening the question does not hold.
+
+> **Determinism is re-verified per graph, never inherited across a quantization or a model change.**
+> This is the rule the session earned and it is binding.
+
+### The pre-registration lesson, which is the durable part
+
+Arm 1's registered primary read returned **+0.0000 at every N in both modes** — an identity, not a
+null. Under max aggregation a session's score *is* its best turn's score, so the top-scoring turn
+always lies in the top-scoring session and pruning cannot displace it. Proven, not argued: 458/458
+case-cue pairs, zero violations.
+
+The registration performed the ADR-010 reach check correctly. It verified that **the shape can move
+the metric** — and pruning genuinely can. It did not verify that **the read, under the chosen
+aggregation, can vary at all.**
+
+> **Binding on every future pre-registration: check that the READ can vary, not only that the SHAPE
+> can move the metric. They are different questions and only the first has been asked so far.**
+
+A quantity that cannot move produces a clean, confident, meaningless number with nothing downstream
+looking wrong. That is the same failure mode ADR-011 records for Session D's calibration, arriving
+through the measurement instead of the mechanism.
+
+**A second, smaller miss, recorded because it recurred:** the registration fixed N and every read but
+not the session **scoring rule**. Three variants were declared before running and all reported, and
+the best is not quotable as the arm's result. A registration that fixes the bands but leaves a free
+hyperparameter has not fixed the experiment.
+
+### Also recorded
+
+**A provider that is listed is not a provider that loads.** `get_available_providers()` advertised
+CUDA; it failed on missing cuBLAS/cuDNN and ORT fell back to CPU **silently**, producing a "GPU"
+figure within 1% of the 1-thread CPU one. Execution providers are now asserted against
+`get_providers()` on the constructed session. Sixth instance of the two-sides-silently-disagree
+pattern, and the first in a hardware binding.
+
+**GPU is not adopted for the retrieval path** and no number is reported. Determinism across
+execution providers and the VPS deployment target each need their own ADR.

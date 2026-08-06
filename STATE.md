@@ -1,218 +1,204 @@
 # State
 
-**Updated:** 2026-08-05 — M0b **Session F** built. Consolidation is implemented, journaled and
-measured, the pre-registered prediction is **confirmed**, and **the named-lever list is now empty**.
-**Current milestone:** M0b — Sessions A–F **complete**.
+**Updated:** 2026-08-06 — M0b Session G complete. **The query side is measured and three of four
+named mechanisms are closed. The problem has moved: it is ranking inside a correct session.**
+**Current milestone:** M0b — Sessions A–G complete. Session H is scoped below.
 
 ## Next action
 
-**Not a lever. The next conversation is about K1's definition, and that is a human decision.**
+**Session H — measure in-session reranking, then QA accuracy.**
 
-Registered in `runs/session-f/PREREGISTRATION.json` **before the result existed**, so it cannot
-read as a reaction to a disappointing number: after this session the cross-encoder is out on
-latency and consolidation is measured, and **there is no further named mechanism that raises the
-either-cue oracle within M0b's budget.**
+Session G's failure decomposition is the reframe. At N=3 session pruning, the residual splits
+**4 wrong-session against 77 right-session-wrong-rank — 19.2 to 1**. Selecting which of ~48
+sessions holds the answer is close to solved. What is not solved is ranking inside a correct
+**~47-turn** session.
 
-The question to put to a human is not "what next" but **"is 0.95 injection precision the right bar
-for a two-cue content-similarity system whose top-1 oracle caps at 0.65?"** See "Open questions".
+Sessions D, E and F attacked arbitration over a **~487-turn** pool. That is what carries the 0.6435
+either-cue oracle cap. **Ranking 47 topically coherent turns is a different problem and is not known
+to carry the same bound.** Session G did not measure it.
 
-**Do not re-attempt consolidation without a fresh pre-registration.** It is built and it works;
-the finding is that this corpus has almost nothing to merge. Three future directions are *named
-and none was tried*, each needing its own registration: (1) contradiction resolution and fidelity
-demotion, the §5.3 parts deliberately deferred here; (2) in-place episode→fact distillation — same
-id, same turn, rewritten text, which is the only distillation shape that stays attributable; (3) a
-structurally different cue (entity-graph or temporal), which is the only thing left that can
-exceed a content-similarity oracle.
+**The pass condition is already registered**, before any result exists, in
+`runs/session-g/REGISTERED-QUESTION-in-session-rerank.json`. Read it first; do not restate or move
+it. Two sub-questions, both paired McNemar at α=0.05:
 
-**Do not read the null as "consolidation is unnecessary."** Both halves are registered and neither
-may be quoted alone — see ADR-012.
+1. **Q1, quality:** rerank all ~50 candidates in the N=3 pruned pool vs all ~487 unpruned.
+2. **Q2, equal cost:** at a fixed budget of **10** reranked pairs, does drawing them from the pruned
+   pool beat drawing them from the unpruned pool?
 
-**Still standing from Session E, unchanged:** do not scope cues 3–5 on the old reasoning; do not
-lower the threshold; do not re-tune the calibration resolution; do not re-attempt the cross-encoder
-without a fresh pre-registration.
+Both pass at **Δ ≥ +0.05, p < 0.05**, and both carry an absolute floor: **reranked top-1 > 0.5415**,
+the best single cue. A reranker that does not beat BM25 alone is not a reranker.
 
-## The numbers
+**A better session scorer is worth approximately nothing — four cases. Do not build one.**
 
-Full write-up in `runs/session-f/RESULT.md`. Pre-registration committed at `3de5625`, before the
-fit existed.
+**Second deliverable: QA accuracy**, dropped from Session G for lack of credentials and rolled here.
+It needs an API key and a small HTTP client in `tools/` — a credential, not a design question.
+Build it in `tools/` as an offline measurement over retrieval output; **ROADMAP M0b is exercised
+through the eval harness only**, and an answer stage on the measured path is milestone drift.
+**Registered in advance: a strong QA number does not satisfy K1 and a weak one does not refute the
+design.** Report it with its answer model named — Mastra moved 84.23 → 94.87 on model alone.
 
-| | Session D | Session E | **Session F** |
-|---|---|---|---|
-| **Either-cue oracle** top-1 | 0.6522 | 0.6522 | **0.6435** (like-for-like, −0.0087) |
-| **Ceiling** (max calibrated precision) | 0.309013 | 0.371245 | **0.3739** |
-| **Floor** top-1 | 0.4783 ❌ | 0.5435 vs 0.5478 ❌ | **0.5371 vs 0.5415** ❌ **FAIL, re-based** |
-| **Number 1** — pool reduction | — | — | **1.186%** → **PREMISE REFUTED** |
-| Number 2 cue capability | 0.334 @ 0.453 | 0.355 @ 0.650 | **0.3612 @ 0.645** |
-| Number 3 lexical / dense raw | 0.418 / 0.298 | 0.418 / 0.298 | **0.4343 / 0.3067** |
-| Number 3 lexical / dense margin | — | 0.579 / 0.565 | **0.6149 / 0.5728** |
-| retrieval P95 (≤300 ms) | NOT MEASURED | 34 ms cold | **33 ms cold**, 19 ms warm |
-| consolidation cost per ingest | — | — | **123 ms P95** (0.41% of the 30 s deadline) |
+**Still standing:** do not scope cues 3–5; do not lower the threshold; do not re-tune the calibration
+resolution; do not re-attempt consolidation without a fresh pre-registration; do not attack
+arbitration over the full pool again.
 
-**The R@k table is the deliverable this session, above the ceiling** — it is the input to the K1
-decision. Held-out, re-based onto Session E's 230-case denominator:
+## Session G — what closed, and what the numbers were
 
-| ranker | R@1 | R@5 | R@10 |
-|---|---|---|---|
-| lexical | 0.5478 → **0.5391** | 0.7870 → **0.7870** | 0.8348 → **0.8305** |
-| dense | 0.4435 → **0.4435** | 0.8304 → **0.8305** | 0.9174 → **0.9130** |
-| **fused gate** | 0.5435 → **0.5348** | 0.8174 → **0.8130** | 0.8783 → **0.8826** |
-| RRF (reference) | 0.4957 → **0.4913** | 0.8435 → **0.8391** | 0.9130 → **0.9087** |
-| **either-cue oracle** | **0.6522 → 0.6435** | 0.8870 → **0.8869** | 0.9478 → **0.9435** |
+Full write-up in `runs/session-g/RESULT.md`. Pre-registration committed at `db114e8`, before any pool
+was reconstructed. **ADR-013.** Nothing shipped: no gate refit, no artifact minted, binary untouched.
 
-**Every movement is one to two cases in 230, against a Wilson half-width of 0.062.** Nothing here
-is separable from noise, which is exactly why the oracle carried no band.
+| arm | verdict | number |
+|---|---|---|
+| 1 · session pruning | **oracle read VACUOUS**; value is pool reduction | 10.3% pool, 98.25% gold retention at N=3 |
+| 2 · PRF + entity expansion | **HARMFUL**, both configs | −0.2358 / −0.1179, p < 0.001 |
+| 3 · hypothetical answer embedding | **PREMISE REFUTED** | answer-for-question **−0.2227**; realizable +0.0218 at p=0.27 |
+| 4 · temporal anchoring | **NOT REACHED**; the corpus explains it | **1 of 59** temporal questions carries a window |
+| combined (1 + 3) | sub-additive as registered | +0.0044; rewrite alone nets +5 cases, combined +1 |
 
-**The denominator moved 230 → 229 and that is a finding, not bookkeeping.** One case lost its only
-gold turn to a merge, so the analyzer drops it; that is a **miss**, not an exclusion. The table
-above counts it as a failure. Raw 229-case figures in `cue-overlap.json` read ~0.004 higher
-throughout — **do not quote those against Session E.**
+**Arm 3's premise is refuted, not merely unsupported.** The brief specified embedding a plausible
+answer *rather than* the question. Embedding the **released gold answer** instead of the question
+costs **−0.2227**. Answers do not resemble the searched turns better than questions do. The gain
+appears only when the answer *augments* the question (+0.0917) — query augmentation, gold-label
+upper bound, unattainable because it requires knowing the answer.
 
-**Why the null, in one line:** LongMemEval-S haystacks are assembled from *distinct real sessions*,
-so distractors are topically related rather than textually duplicated. 0.0086% of 30.6M pairs reach
-cosine 0.98. The "~493 turns with near-duplicates" this file used to claim is **~493 distinct
-turns**.
+**Arm 4 is closed only as a retrieval-side hard constraint on this corpus.** LongMemEval's temporal
+questions are interval arithmetic over two named **events**, not queries over a **window**. Mastra's
+three-date structure does its work at the **answer stage**. That remains open and untested.
+
+### The cross-encoder is fast enough and not deterministic
+
+| model | 1 thread P95 | 16 thread | truncation | bar (240 ms) | batch determinism |
+|---|---|---|---|---|---|
+| L-6 int8 | 273.47 ms | 121.18 ms | 0.4050 | ✗ | **FAIL** (0.050) |
+| **L-2 int8** | **92.41 ms** | 45.36 ms | 0.4050 | **✓** | **FAIL** (0.037) |
+
+**L-2-int8 clears the latency bar with 147 ms to spare and is NOT ADOPTED**, on two independently
+registered grounds: batch invariance fails for int8 where the spike's fp32 L-6 passed at exactly
+0.000e+00, and arm 1's shortlist-equivalence condition failed at every N and every ranker
+(oracle R@10 0.9563 against a required 0.9769). **Determinism is re-verified per graph, never
+inherited across a quantization or model change.**
+
+**No GPU number exists.** `get_available_providers()` listed CUDA, it failed to load on missing
+cuBLAS/cuDNN, and ORT fell back to CPU silently — producing a "CUDA" figure within 1% of the
+1-thread CPU one. Providers are now asserted against `get_providers()` after construction.
+**Sixth instance of the two-sides-silently-disagree pattern**, first in a hardware binding.
+
+### The pre-registration lesson — ADR-013, and it is binding
+
+Arm 1's registered primary read was **vacuous**: `oracle@1` returned +0.0000 at every N in both
+modes because under max aggregation a session's score *is* its best turn's score, so pruning cannot
+displace the top-1 turn. Proven, not argued — **458/458 case-cue pairs, zero violations**.
+
+The registration did the ADR-010 reach check correctly: it verified the **shape** can move the
+metric. It did not verify the **read** can vary.
+
+> **Check that the READ can vary, not only that the SHAPE can move the metric.** Different
+> questions; only the first has been asked so far.
+
+Second miss: the registration fixed N and every read but **not the session scoring rule**. Three
+variants were declared before running and all reported; the best is **not quotable** as the arm's
+result. A registration that fixes bands but leaves a free hyperparameter has not fixed the
+experiment.
 
 ## Built
 
-**M0b Session F** — consolidation, `frozen-v5` + `consolidation-frozen-v1`. **175 tests passing**,
-up from 162. `eval/` **unchanged, zero lines**, still printing 72.
+**M0b Session G** — measurement only, **zero implementation change**. **175 tests passing**,
+`eval/` unchanged and still printing **72**.
 
-- **`consolidate.rs` — the merge is a supersession edge and mints no new belief.** A cluster elects
-  an existing member; the rest get `Superseded` and leave §4.3's candidate set via exclusion (2),
-  which already existed. This is what **HP5** specifies, and attribution survives as a consequence:
-  every retrievable memory keeps the id ingest returned for exactly one turn.
-- **`plan` is pure; `apply` writes.** A dry-run report carries no threshold and `apply` refuses it,
-  so the pass the frozen threshold is derived from is *structurally* incapable of applying anything.
-- **Complete linkage, measured — single link chains catastrophically.** 40.8% of all 30.6M pairs
-  reach cosine 0.70, so at that threshold single link removed **99.8%** of the pool and built a
-  **616-member** cluster. Both linkages are swept and both tables are in the pre-registration.
-- **The survivor is the LATEST member.** Electing the earliest would suppress gold across the whole
-  knowledge-update category, whose difficulty *is* recency.
-- **`min_cosine` is over all pairs INSIDE a cluster, not the joining edges** — every joining edge
-  is above threshold by construction, so the first version could never have shown transitivity.
-- **No on/off flag.** `Policy::load` refuses an unregistered artifact, so a build either merges at
-  a registered threshold or does not start. A default-off switch is the permissive default that
-  lets a run measure the unconsolidated system under a consolidated label.
-- **`tools/dump_consolidation.py`** (dry-run sweep and `--applied` cost read) and
-  **`tools/preregister_session_f.py`** (gold-blind threshold choice; carries Session E's read
-  rules forward by copy rather than restating them).
-- **ADR-012** records the finding, both halves of the non-generalization, and the two decisions
-  measurement changed.
+New in `tools/`: `preregister_session_g.py`, `preregister_in_session_rerank.py`, `reach_pools.py`,
+`reach_embed.py`, `reach_lexical.py`, `reach_arm1_pruning.py`, `reach_arm4_temporal.py`,
+`reach_arm23_query.py`, `reach_additivity.py`, `reach_cross_encoder.py`.
 
 **Earlier sessions:** A (workspace, contracts, journal, memory) · B (lexical cue, frozen gate) ·
 C (dense cue, jina-v2-small) · D (max fusion, **failed floor**, ADR-010) · E (per-query features,
-**failed floor**, ADR-011). See git history and `runs/session-*/RESULT.md`.
+**failed floor**, ADR-011) · F (consolidation, **null**, ADR-012). See git history and
+`runs/session-*/RESULT.md`.
 
-## Standing checks — re-run these on every cue, feature or pool change
+## Standing checks — re-run on every cue, feature or pool change
 
-- **The artifact the driver reads must be the artifact the run scored with.** New, and it exists
-  because it broke: Session F's first scoring pass reported v4's ceiling and v4's calibration
-  predictions beside v5's held-out measurements. Every measured number was right; only the
-  artifact-derived metadata was a version behind, and nothing looked wrong.
-  `score_longmemeval.py` now compares the artifact's version against the §4.2 gate stamp on the
-  wire and refuses on disagreement. **Fifth instance of the two-sides-disagree pattern, and the
-  first in a `tools/` driver.**
+- **Offline reachability work must pass a reconstruction fidelity gate first.** Session G's rebuilt
+  pools reproduce Session F's published held-out top-1 exactly (0.5415 / 0.4454 / 0.6463) before any
+  arm number is quoted. A delta against a wrong baseline looks exactly like a result.
+- **A second implementation of a scored-path component must reproduce the first on unmodified
+  input.** Session G's Python query embedder matches Rust's cached vectors to **7.45e-08**
+  elementwise; Python BM25 reproduces the stored column at Spearman **1.000000**. Where Rust's own
+  cache holds a vector, **do not recompute it** — the smaller the second implementation, the less
+  there is to disagree.
+- **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue, read
   against the sweep of the feature the curve was **fit on** (margin, not raw).
-- **The unchanged-cue check.** `lexical` / `dense` / `oracle` must be identical across sessions
-  that did not change the cue set **or the candidate pool**. Session F changes the pool, so it
-  fired and was pre-registered to. A move that the pool reduction cannot account for is still
-  alarming.
-- **`repro --runs 2`, WITHOUT an embedding cache.** Session F adds a real new surface —
-  agglomerative clustering is order-sensitive unless the union rule is. Pinned: union into the
-  numerically smaller index, candidate edges sorted `(−similarity, i, j)`, clusters emitted by
-  representative id.
-- **The embedding cache's byte-identity test** — a hit and a miss must produce byte-identical
-  vectors.
+- **The unchanged-cue check.** Registered as **will not fire** in Session G — no implementation
+  change shipped. It must be pre-registered to fire in any session that changes the pool.
+- **`repro --runs 2`, WITHOUT an embedding cache.** Run it *early*.
+- **The embedding cache's byte-identity test.**
 - **`cargo test --workspace` and `cd eval && python -m pytest` printing 72 unchanged.**
 
 ## Open gaps — each with a named closing condition
 
 ### §4.3 maturation has no contract-level coverage
-
-**Closing condition: the gate begins injecting.** Status unchanged: clock probe **fails**
-`no_time_dependence`, conformance **REJECTED with 0 section-4 findings**. Both are consequences of
-the empty injected set and the probe is **correct** to fail. **When the gate starts injecting,
-re-run `conformance` FIRST**, before any quality number.
+**Closing condition: the gate begins injecting.** Clock probe fails `no_time_dependence`;
+conformance REJECTED with 0 section-4 findings. Both are consequences of the empty injected set and
+the probe is **correct** to fail. **When the gate starts injecting, re-run `conformance` FIRST.**
 
 ### The exported ONNX weights are not independently validated against the published model
-
 **Closing condition: a maintained load path for `jinaai/jina-embeddings-v2-small-en` that does not
-go through `transformers.onnx`, or an alternative authority for the same weights.** Unchanged from
-Session E — `tests/embedding_reference.rs` validates everything *around* the graph in a second
-language, but two graphs from one export prove consistency, not fidelity. **Do not close this by
-regenerating the fixture from Rust.**
+go through `transformers.onnx`, or an alternative authority for the same weights.** **Do not close
+this by regenerating the fixture from Rust.** Session G did not create a second instance — both
+cross-encoders are maintainer-published Xenova exports, pinned by sha256 in
+`runs/session-g/cross-encoder-recost.json`.
 
 ## Known issues
 
-- **Consolidation is measured on a corpus that has almost nothing to merge, so its retrieval effect
-  is untested at realistic duplicate density.** 1.186% pool reduction is not a stress test of the
-  merge logic. The clustering, the survivor rule and the reversibility are exercised by unit and
-  integration tests; the *quality* consequence of merging is not, and cannot be here.
-
-- **Trust propagation through a derived belief is STILL unexercised, and consolidation arriving did
-  not change that.** `ingest.rs` records that `effective_trust` is called with an empty parent list
-  so the propagation path would not be "broken when consolidation arrives". Consolidation has now
-  arrived and **mints no new belief**, so the path remains untested end to end. It will first be
-  exercised by whatever does create a derived belief — contradiction resolution, or in-place
-  distillation. Worst-case propagation itself is unit-tested in `trust.rs`.
-
-- **The 230 → 229 denominator change must not be ignored in any cross-session comparison.** A case
-  whose only gold turn is suppressed leaves the analyzer's population entirely. Always re-base onto
-  the earlier denominator before quoting a delta.
-
-- **Retrieval P95 is 33 ms COLD on a 40-case SUBSET, and the subset is forced.** A fully cache-cold
-  full-split run cannot complete: the implementation must embed a whole session's turns inside one
-  §4.6 ingest call and some sessions exceed the §4.0.7 30-second deadline. `--max-cases` refuses to
-  combine with a quality number. **Consolidation adds 123 ms P95 to that call** — 0.41% of the
-  deadline, so it is not what pushes a session over, but it is now on the wrong side of the budget
-  and should be watched if ingest work grows.
-
-- **Every poisoning ASR is 0.000 and VACUOUS. Do not quote it as a security result.** A gate that
-  injects nothing has a trivially zero attack success rate. **K3 is the exception and is still
-  meaningful: unsigned-write ASR 0.000, 4/4 visibly rejected.**
-
+- **Every Session G number is HELD-OUT and is therefore headroom, not validation.** Anything
+  promoted from it must have its band re-derived on the **fit** split before being built. Quoting a
+  Session G figure in Session H as evidence a shipped mechanism generalizes would be the same
+  measurement on the same cases. Disclosed in the pre-registration, not discovered after.
+- **The additivity read's subsumption rule is defective as registered.** It declares "A subsumes B"
+  when B recovers ≤2 cases A does not, with no precondition that A recover anything. Arm 1 recovers
+  **zero** cases, so every pairwise verdict involving it fires trivially. Those rows in
+  `additivity.json` mean nothing. Fix the rule before reusing it.
+- **Consolidation's retrieval effect is untested at realistic duplicate density.**
+- **Trust propagation through a derived belief is STILL unexercised.**
+- **The 230 → 229 denominator change must not be ignored in any cross-session comparison.** Session
+  G's arms are all **paired within one reconstruction** at n=229, which sidesteps it; the raw 229
+  figures (oracle 0.6463) are **not** comparable to Session E's re-based 0.6435.
+- **Retrieval P95 is 33 ms COLD on a 40-case SUBSET, and the subset is forced.**
+- **Every poisoning ASR is 0.000 and VACUOUS. Do not quote it as a security result.** **K3 is the
+  exception and still meaningful: unsigned-write ASR 0.000, 4/4 visibly rejected.**
 - **The maturation window is 6h and is under tuning pressure. Do not adjust it to make a suite go
-  green.** It reads the **ingest clock**, never `occurred_at_ms`.
-
+  green.**
 - **`retrieval_tokens` is a pessimistic estimate, not a token count** (3 chars/token).
-
-- **`considered` costs a full-store scan per query.** ADR-003's physical live-only hot index is what
-  removes it.
-
+- **`considered` costs a full-store scan per query.** ADR-003's physical live-only hot index removes
+  it. Session-level pruning would reduce it further as a side effect, not as its purpose.
 - **Retrieval is scoped to the request's `session_id`** — a scope filter, not a relevance judgment.
-
+  Session boundaries inside a haystack are still unused **in the binary**; Session G measured them
+  offline only.
 - **`--suite poisoning` writes an empty `run.jsonl`**; **`timing_tainted` is not wired into
-  `report.json`**. Both are harness observations, **not** things to fix in `eval/`.
-
+  `report.json`**. Harness observations, **not** things to fix in `eval/`.
 - **LongMemEval-S adapter verified 2026-08-02; LoCoMo still unverified.** We run the **`cleaned`**
   variant; comparison against a published number is invalid unless that number states its variant.
-
-- **LongMemEval-S penalises correct clock handling on 76 of 500 cases.** Reproduced faithfully; the
-  harness reports accuracy over the 424 clean cases beside the 500-case headline.
-
+- **LongMemEval-S penalises correct clock handling on 76 of 500 cases.**
 - **The headline metric has never been produced.** No human label set exists, so every run reports
-  `injection_precision_human: null`, and at this operating point the label set is **not drawable**.
-
+  `injection_precision_human: null`.
 - **The permission layer has no kernel backstop (ADR-002, revised).**
-
 - **M1's §B9 suite must run on both native Windows Terminal and a Linux terminal emulator.**
 
 ## Open questions for the human
 
-1. **The K1 conversation, and it is now the only one.** Four structural fixes have moved the ceiling
-   0.309 → 0.374 against a frozen 0.95, and the two-cue top-1 oracle is 0.65 — so even perfect
-   arbitration cannot reach the operating point. The named-lever list is empty, and that was
-   registered before this session's result existed.
+1. **The K1 conversation — live, and Session G sharpened it rather than answering it.**
+   Four structural fixes moved the ceiling 0.309 → 0.374 against a frozen 0.95, and the two-cue
+   top-1 oracle is 0.65 over the **full pool**. Session G's contribution is that **the full pool may
+   be the wrong denominator**: the 19:1 decomposition says the live problem is ranking ~47 in-session
+   turns, and the 0.65 cap was measured over ~487. Session H measures whether that changes anything.
 
-   The comparable numbers, because published LongMemEval results in the 90s are recall@k or QA
-   accuracy rather than injection precision: **R@5 0.813 fused / 0.831 dense / 0.839 RRF against an
-   0.887 oracle; R@10 0.883 against 0.944.** Those are competitive-shaped. The 0.95
-   injection-precision bar is a different quantity.
+   External framing unchanged: **no published system reports injection precision at all**, the
+   closest independent work on admission thresholds tops out near 0.58, and every system reaching
+   90%+ spends materially more than 300 ms. **L-2-int8 now measures at 92 ms for 10 pairs**, so the
+   budget objection to a reranker is weaker than it was — determinism, not latency, is what blocks
+   it. The question remains *"is 0.95 the right bar"* and *"is 300 ms the right budget"*, and 300 ms
+   exists for voice, which is M7.
 
-   The decision is whether K1 means what it was written to mean, or whether it needs restating for
-   a system whose retrieval is this good and whose *arbitration* is what caps it. **Raising this as
-   the agenda item, not proposing an answer.**
+   Comparable numbers: **R@5 0.813 fused / 0.831 dense / 0.839 RRF against an 0.887 oracle; R@10
+   0.883 against 0.944.** QA accuracy still unmeasured; Session H measures it.
 
 2. **The M0a human label set is your deliverable, not the agent's.** ≥400 judged injections, ≥50 per
    category, judge blinded. **Still not drawable at this operating point.**
