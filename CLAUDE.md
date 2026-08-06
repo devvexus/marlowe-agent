@@ -114,7 +114,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 175 passing
+cargo test --workspace                       # 188 passing
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 
@@ -126,8 +126,14 @@ each spawn must start from empty state.
 cd eval
 # --embedder-model is REQUIRED and has no default (Session C). A target without it fails as
 # `implementation_crashed` on every interface, which reads like a protocol bug and is not one.
+#
+# --reranking is REQUIRED and has no default (Session H), and it takes an EXPLICIT value: either
+# a model directory or the literal `off`. It is deliberately not a bare boolean — a default-off
+# switch forgotten in a target string measures the un-reranked system under a reranked label.
+# `off` is the pruning-only ablation and is a recorded choice; omitting the flag refuses to start.
 TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root} \
-        --embedder-model ../models/jina-embeddings-v2-small-en"
+        --embedder-model ../models/jina-embeddings-v2-small-en \
+        --reranking ../models/ms-marco-MiniLM-L-2-v2-int8"
 
 PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # section 4 + clock probe
 PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
@@ -152,6 +158,22 @@ cargo build --release                   # embeds the artifact via include_str!
 python tools/score_longmemeval.py --out runs/session-f
 python tools/analyze_cue_overlap.py --run runs/session-f/heldout --record-verdict
 ```
+
+**Session H's rerank stage has a second pinned model and its own fixture.** The cross-encoder is
+digest-pinned at load exactly as the embedder is, and the hand-rolled BERT *pair* encoder is a
+second implementation of a scored-path component, so the standing check applies to it:
+
+```bash
+python tools/make_cross_encoder_fixtures.py   # HF tokenizers + ONNX reference; NEVER regenerated
+                                              # to make the Rust test pass
+cargo test -p marlowe-memory --test cross_encoder_reference
+```
+
+**Pin the ONNX graph optimization level on both sides.** `ort` builds at `Level1`; Python's default
+is `ORT_ENABLE_ALL`, and the two fuse this int8 graph differently — identical token ids, logits
+**0.0699** apart, nearly twice the batch-invariance failure that blocked adoption in Session G. Every
+Python tool that scores with the cross-encoder sets `ORT_ENABLE_BASIC` explicitly. An offline
+measurement taken at a different level measures a different scorer.
 
 **The cache-cold latency read cannot be taken over the full split, and the reason is measured.** On
 a cold cache the implementation must embed a whole session's turns inside one §4.6 ingest call, and
