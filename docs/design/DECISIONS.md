@@ -1443,3 +1443,105 @@ pattern, and the first in a hardware binding.
 
 **GPU is not adopted for the retrieval path** and no number is reported. Determinism across
 execution providers and the VPS deployment target each need their own ADR.
+
+---
+
+## ADR-014 · The cross-encoder is the gain; the in-session framing is not
+
+**Status: shipped and measured. The retrieval path prunes and reranks; the registered question that
+motivated the pruning half FAILS.** Both halves are this session's result.
+
+### What was built
+
+Session G measured the reframe offline and nothing in the binary used it. Session H ships it:
+sessions derived from `occurred_at_ms` contiguity at a frozen 30-minute gap, pruned to the union of
+each cue's top-3 by max aggregation, and the top 10 survivors reranked by `ms-marco-MiniLM-L-2-v2`
+int8 at batch 1.
+
+| | before | after |
+|---|---|---|
+| R@1 | 0.5348 | **0.5764** |
+| R@5 | 0.8130 | **0.8428** |
+| R@10 | 0.8826 | **0.9039** |
+| oracle R@1 | 0.6435 | 0.6463 (**pinned**) |
+| ceiling | 0.3739 | 0.3739 (**pinned**) |
+| retrieval P95 | 33 ms cold subset | 149 ms warm, full split |
+
+**The shipped ranker beats the best single cue for the first time in this project** — 0.5764 against
+lexical's 0.5415. Sessions D, E and F each shipped a fusion that did not.
+
+### The decision, and it binds the next session
+
+> **The gain is the cross-encoder. It is not the in-session framing.** The reranker gains +0.0393
+> over the fitted gate **whether or not the pool was pruned first**. Q1 and Q2 differ on 3 and 1
+> cases out of 229: feeding the reranker a 10.3% shortlist instead of the whole ~487-turn pool
+> changes its top-1 almost never.
+
+ADR-013 reframed the problem as ranking inside a correct ~47-turn session, on a 19:1 failure
+decomposition. That decomposition was a **true description of where the errors are and a false lead
+about what fixes them.** Knowing gold survives into the kept session does not help a reranker that
+was going to consider it regardless. **Session pruning is closed as a quality mechanism.** It
+remains a cost mechanism and reduces `considered` as a side effect.
+
+### The number that matters for K1
+
+**The reranker is NOT capped by the either-cue oracle, and lands below it anyway.** Its presence
+ceiling on the pruned pool is **0.9825** against the 0.6435 cap — measured on the fit split before
+anything was built, per ADR-010, and confirmed rather than assumed. It is structurally free to reach
+~0.98. It reads **0.5764** against a held-out oracle of **0.6463**.
+
+Sessions D and E were bounded by that oracle **because of their shape**. This mechanism is not, and
+performs in the same neighbourhood regardless.
+
+> **The bound is a property of the task, not of the combiner.** A better arbitration shape is not
+> the missing piece — this was not an arbitration and did not clear the bar either.
+
+### The pre-registration lesson: verify the CONTRAST can vary, not just the read
+
+**The registered α was unreachable.** Exact McNemar is a binomial over the discordant pairs, so the
+smallest attainable p is `2/2^n`: 0.25 at n=3, 1.0 at n=1. Q1 had **3** discordant pairs and Q2 had
+**1**. `p < 0.05` was **not attainable at any outcome**, and the significance half of both verdicts
+is uninformative by construction.
+
+The ADR-013 instrument check **passed** — 62 discordant, both directions — and measured the wrong
+thing. It compared reranked top-1 against **the ranking the reranker replaces**. The registered test
+consumes a different contrast: **reranked-pruned against reranked-unpruned**, two arms sharing one
+reranker.
+
+Third member of one family, arriving a level deeper each time:
+
+1. **ADR-011** — the *mechanism* could not move the metric.
+2. **ADR-013** — the *read* could not vary.
+3. **ADR-014, here** — the read varies; the **contrast the test consumes** does not.
+
+> **Binding: a pre-registration using a paired test MUST state the minimum discordant count at which
+> its α is attainable, and its instrument check MUST confirm the arms disagree that often — on the
+> exact contrast, not on a proxy for it.**
+
+The **delta** criterion is unaffected and carries the conclusion: +0.0131 and +0.0044 against +0.05
+are an order of magnitude short.
+
+### Also decided
+
+**Pruning runs after `features::extract_all`, and the ceiling is therefore pinned.** The frozen
+gate's isotonic curves were fit on ~487-candidate margin distributions; feeding them a ~50-candidate
+distribution is two sides silently disagreeing. Every `calibrated_precision` is bit-identical to
+Session F's. **Refitting the gate on pruned pools is the named next lever and needs its own
+registration.**
+
+**The max-aggregation identity is partition-independent**, so it holds for derived sessions —
+re-measured, 458/458, zero violations, both partitions. Consequently **the unchanged-cue check is a
+null instrument for a pruning change** and its silence is not evidence.
+
+**Seventh instance of the two-sides-silently-disagree pattern.** Session G re-costed at ORT's
+default `ENABLE_ALL`; the Rust builds at `Level1`. Same pinned graph, same token ids, **logits
+0.0699 apart** — nearly twice the batch-invariance failure that blocked adoption. Caught by the
+reference fixture. Both sides now pin `ORT_ENABLE_BASIC`.
+
+**Batch is 1 structurally**, not by configuration: one pair per call, asserted leading dimension, no
+slice entry point. Batch invariance at Level1 is **0.0958**, worse than at `ENABLE_ALL`.
+`repro --runs 2` is byte-identical with the reranker live.
+
+**§4.6 carries no session structure and that is the real defect.** Deriving sessions from timestamps
+is an approximation of something the contract could carry. **An M0a change with its own
+registration**, not absorbed as a permanent workaround.
