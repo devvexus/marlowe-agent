@@ -81,6 +81,27 @@ impl FeatureDump {
                 );
                 row.insert("winning_cue".into(), candidate.winning_cue.into());
                 row.insert("passes".into(), serde_json::json!(candidate.passes));
+
+                // Session H's two new ranking levels, written for the same reason `score` and
+                // `margin` are: without them the driver cannot reproduce the shipped ordering,
+                // and reproducing it in Python would put a second implementation of the ranking
+                // beside the real one with nothing comparing the two.
+                row.insert("session_key".into(), serde_json::json!(candidate.session_key));
+                row.insert(
+                    "survived_pruning".into(),
+                    serde_json::json!(candidate.survived_pruning),
+                );
+                // **`null` when the candidate was not reranked, never 0.0.** A cross-encoder logit
+                // is signed and near-zero is a real, middling score, so a zero sentinel would be
+                // indistinguishable from a genuine reading — and `analyze_cue_overlap.py` would
+                // rank an unreranked candidate above every genuinely negative one.
+                row.insert(
+                    "rerank_score".into(),
+                    match candidate.rerank_score {
+                        Some(v) => serde_json::json!(v),
+                        None => serde_json::Value::Null,
+                    },
+                );
             }
             writeln!(self.out, "{}", serde_json::Value::Object(row))?;
         }

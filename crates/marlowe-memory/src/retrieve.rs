@@ -22,6 +22,7 @@ use crate::cue::dense::{self, vectors::VectorStore};
 use crate::cue::lexical;
 use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
+use crate::rerank::CrossEncoder;
 use crate::store::BeliefStore;
 
 /// The gate stamp for a build with no gate — Session A's state, retained for the feature-dump
@@ -51,6 +52,123 @@ pub fn estimate_tokens(text: &str) -> u32 {
     (text.len().div_ceil(CHARS_PER_TOKEN_PESSIMISTIC)) as u32
 }
 
+/// The inactivity gap that separates one derived session from the next.
+///
+/// **Thirty minutes, and it is not swept.** Chosen as the web-analytics inactivity-timeout
+/// convention — a value that exists independently of this corpus and was not derived from it. A
+/// threshold picked by looking at LongMemEval's inter-session gaps would be a parameter fit on the
+/// data it is then evaluated against. It has to be defensible for the production mechanism too,
+/// and Marlowe's real sessions are terminal sessions, where a 30-minute gap is a boundary as well.
+///
+/// Frozen in `runs/session-h/PREREGISTRATION.json → frozen_parameters.session_gap_ms`.
+pub const SESSION_GAP_MS: i64 = 30 * 60 * 1000;
+
+/// How many sessions per cue survive pruning. The union is taken, so at most `2N` survive.
+///
+/// Inherited rather than chosen: the registered question names "the arm-1 N=3 pruned pool".
+pub const PRUNE_TOP_N: usize = 3;
+
+/// Group candidates into sessions by `occurred_at_ms` contiguity.
+///
+/// Returns one session index per candidate, **in the candidates' own order**.
+///
+/// ## Why this exists rather than a session id
+///
+/// CONTRACTS.md §4.6 carries no internal session structure. The harness flattens a case's ~48
+/// haystack sessions into one history whose `session_id` is the question id, so the real boundary
+/// survives only inside the *harness's private* `turn_id` encoding. Teaching the shipping
+/// retrieval path to parse that would be the implementation reshaping itself around the
+/// scoreboard, so it is not done and there is no fallback to it. §4.6 not carrying sessions is
+/// recorded as the real defect and as an M0a change with its own registration.
+///
+/// ## What it is measured to do, and what it is measured NOT to do
+///
+/// On the fit split, against the true partition (`runs/session-h/sessionizer-and-arm1-fit.json`):
+///
+/// * gold retention at N=3 is **identical**, Δ +0.0000
+/// * completeness **1.0000** — no true session is ever split across two derived ones, and no gold
+///   session is split, so pruning can never discard the fragment holding the answer
+/// * it **merges**: 39.0 derived sessions per case against 47.7 true, so the surviving pool is
+///   15.5% where the true partition gives 10.0%
+///
+/// That last figure **failed** the registered pool-inflation guard at 1.546× against ≤1.5×. The
+/// argument for proceeding is recorded in `runs/session-h/BAND-FAILURE-ARGUMENT.md` and is *not*
+/// that the miss was small: the guard is a proxy for gold damage, and the quantity it proxies for
+/// was measured directly and is exactly zero.
+pub fn session_keys(candidates: &[&MemoryEntry], gap_ms: i64) -> Vec<u32> {
+    let mut order: Vec<usize> = (0..candidates.len()).collect();
+    // Sorted by time, then by id. The id tiebreak is for determinism only and cannot change the
+    // grouping: two candidates at the same millisecond have a gap of 0, which never exceeds the
+    // threshold, so they land in the same session whichever order they are visited in.
+    order.sort_by(|a, b| {
+        candidates[*a]
+            .occurred_at_ms
+            .cmp(&candidates[*b].occurred_at_ms)
+            .then_with(|| candidates[*a].id.cmp(&candidates[*b].id))
+    });
+
+    let mut keys = vec![0u32; candidates.len()];
+    let mut group = 0u32;
+    let mut previous: Option<i64> = None;
+    for index in order {
+        let at = candidates[index].occurred_at_ms;
+        if let Some(prev) = previous {
+            if at - prev > gap_ms {
+                group += 1;
+            }
+        }
+        keys[index] = group;
+        previous = Some(at);
+    }
+    keys
+}
+
+/// Which sessions survive pruning: the union of each cue's top-`n` by max-aggregated score.
+///
+/// **Max aggregation, and the union.** Frozen in the pre-registration before the fit-split
+/// re-derivation, which is what closes ADR-013's second lesson — Session G declared three variants
+/// and left the rule free, so its best was not quotable. This is the first rule it declared and the
+/// only one with no free parameter. **A better session scorer is worth about four cases and is
+/// explicitly out of scope.**
+///
+/// Returns `None` when nothing can be pruned — fewer sessions than the union would keep — so the
+/// caller can record "pruning did not apply" rather than a no-op that looks like a decision.
+fn surviving_sessions(
+    keys: &[u32],
+    cue_scores: &[&[f32]],
+    n: usize,
+) -> Option<std::collections::BTreeSet<u32>> {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let mut distinct = BTreeSet::new();
+    for key in keys {
+        distinct.insert(*key);
+    }
+    if distinct.len() <= n {
+        return None;
+    }
+
+    let mut keep = BTreeSet::new();
+    for scores in cue_scores {
+        // BTreeMap, not HashMap: the determinism guard bans hash-ordered collections, and the
+        // tiebreak below reads this map's order.
+        let mut best: BTreeMap<u32, f32> = BTreeMap::new();
+        for (key, score) in keys.iter().zip(scores.iter()) {
+            let slot = best.entry(*key).or_insert(f32::NEG_INFINITY);
+            if *score > *slot {
+                *slot = *score;
+            }
+        }
+        let mut ranked: Vec<(u32, f32)> = best.into_iter().collect();
+        // Score descending, then session key ascending. Deterministic at every tie.
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        for (key, _) in ranked.into_iter().take(n) {
+            keep.insert(key);
+        }
+    }
+    Some(keep)
+}
+
 /// How a run scores its candidates.
 ///
 /// Two modes and no third. The absence of a "gate is optional" variant is the point: there is
@@ -63,6 +181,27 @@ pub enum Scoring<'a> {
     /// as Session A did (recency, then the budget) and stamps `uncalibrated-fit-only`.
     FitDump,
 }
+
+/// Whether a run reranks, and with what budget.
+///
+/// Two variants and no "rerank with default settings" third. The budget is always explicit because
+/// it is the whole cost of the stage: Q2's registered question fixes it at 10, and a build that
+/// could quietly use a different number would be answering a different question.
+pub enum Rerank<'a> {
+    /// No cross-encoder. The ranking is Session F's exactly.
+    Off,
+    CrossEncoder {
+        encoder: &'a mut CrossEncoder,
+        /// How many of the pruned pool's top candidates to rerank.
+        budget: usize,
+    },
+}
+
+/// Q2's registered budget, and therefore the shipped candidate count.
+///
+/// Fixed by `runs/session-g/REGISTERED-QUESTION-in-session-rerank.json`, not by this build. At
+/// ~9 ms per pair measured at 1 thread, ten pairs is ~90 ms against §5.7's 300 ms.
+pub const RERANK_BUDGET: usize = 10;
 
 /// One candidate after scoring. The dump writes these; the selection ranks them.
 pub struct ScoredCandidate<'a> {
@@ -79,6 +218,23 @@ pub struct ScoredCandidate<'a> {
     /// Which cue's opinion won. Diagnostic, carried into the dump.
     pub winning_cue: &'static str,
     pub passes: bool,
+
+    /// The derived session this candidate belongs to. See [`session_keys`].
+    pub session_key: u32,
+    /// Did this candidate survive session-level pruning?
+    ///
+    /// **Pruned-away candidates stay in `scored` rather than being dropped**, for the same reason
+    /// the gate's rejects do: `scored` is the population every offline number is computed over, and
+    /// a candidate that vanished with nothing recording it had been there is this project's
+    /// unobservable-mismatch pattern applied to a denominator. They are ranked last, not deleted.
+    pub survived_pruning: bool,
+    /// The cross-encoder's logit, for the candidates that were reranked.
+    ///
+    /// `None` means *not reranked* — either no cross-encoder was loaded, or this candidate was
+    /// outside the reranking budget. It never means "scored zero": a cross-encoder logit is signed
+    /// and near-zero is a real, middling score, so a `0.0` sentinel would be indistinguishable from
+    /// a genuine reading.
+    pub rerank_score: Option<f32>,
 }
 
 pub struct Selection<'a> {
@@ -98,6 +254,18 @@ pub struct Selection<'a> {
     /// How many cleared the gate's threshold, before the budget.
     pub above_threshold: u32,
     pub budget_exhausted: bool,
+    /// How many candidates survived session-level pruning.
+    ///
+    /// Equal to `scoped` when pruning did not apply — there were no more sessions than the union
+    /// would have kept. Reported rather than inferred, so "pruning kept everything" and "pruning
+    /// did not run" are distinguishable in the report.
+    pub survived_pruning: u32,
+    /// Whether pruning actually ran and removed something.
+    pub pruning_applied: bool,
+    /// How many candidates the cross-encoder scored. Zero when reranking is off.
+    pub reranked: u32,
+    /// How many distinct sessions [`session_keys`] derived from the scoped candidates.
+    pub derived_sessions: u32,
 }
 
 /// Dense cosine for every candidate, in the candidate set's order.
@@ -155,6 +323,7 @@ pub fn select_for_injection<'a>(
     scoring: &Scoring<'_>,
     vectors: &VectorStore,
     query_vector: Option<&[f32]>,
+    rerank: &mut Rerank<'_>,
 ) -> Selection<'a> {
     let candidates = beliefs.injection_candidates(now_ms);
     let considered = candidates.len() as u32;
@@ -187,6 +356,9 @@ pub fn select_for_injection<'a>(
                     calibrated_precision: v.calibrated_precision,
                     winning_cue: v.winning_cue,
                     passes: v.passes,
+                    session_key: 0,
+                    survived_pruning: true,
+                    rerank_score: None,
                 }
             }
             // No gate ran. Zero is the honest report of "nothing scored this", and
@@ -199,9 +371,67 @@ pub fn select_for_injection<'a>(
                 calibrated_precision: 0.0,
                 winning_cue: "none",
                 passes: true,
+                session_key: 0,
+                survived_pruning: true,
+                rerank_score: None,
             },
         })
         .collect();
+
+    // ---- session pruning and reranking ------------------------------------------------------
+    //
+    // **Gated path only.** `Scoring::FitDump` is the population `tools/fit_gate.py` calibrates on,
+    // and pruning it would refit the gate on a different population as a side effect of a ranking
+    // change — a gate refit nobody registered.
+    //
+    // **After `features::extract_all`, deliberately, and this is the most consequential ordering
+    // decision in the session.** The frozen gate's isotonic curves were fit on margin
+    // distributions drawn from ~487-candidate pools. Computing features over ~50 candidates would
+    // feed those curves a distribution they were never fit on — two sides silently disagreeing,
+    // which this project has now produced seven instances of. Every candidate's
+    // `calibrated_precision` here is therefore bit-identical to Session F's, and the registered
+    // consequence is that **the ceiling cannot rise**: the max over a subset can only equal or
+    // fall below the max over the whole. Refitting the gate on pruned pools is the named next
+    // lever and needs its own registration.
+    let mut pruning_applied = false;
+    if matches!(scoring, Scoring::Gated(_)) {
+        let keys = session_keys(&scoped, SESSION_GAP_MS);
+        for (candidate, key) in scored.iter_mut().zip(keys.iter()) {
+            candidate.session_key = *key;
+        }
+        if let Some(keep) = surviving_sessions(&keys, &[&raw_scores, &dense_scores], PRUNE_TOP_N) {
+            pruning_applied = true;
+            for (candidate, key) in scored.iter_mut().zip(keys.iter()) {
+                candidate.survived_pruning = keep.contains(key);
+            }
+        }
+    }
+
+    if let Rerank::CrossEncoder { encoder, budget } = rerank {
+        // The slate: the top `budget` survivors under the EXISTING ranking key. Drawing the slate
+        // with the key the reranker then replaces is what makes this a rerank stage rather than a
+        // new cue — and it is what Q2's registered "fixed budget of 10 reranked pairs" costs.
+        let mut slate: Vec<usize> =
+            (0..scored.len()).filter(|i| scored[*i].survived_pruning).collect();
+        slate.sort_by(|a, b| {
+            let (x, y) = (&scored[*a], &scored[*b]);
+            y.score
+                .total_cmp(&x.score)
+                .then_with(|| y.margin.total_cmp(&x.margin))
+                .then_with(|| x.entry.id.cmp(&y.entry.id))
+        });
+        slate.truncate(*budget);
+        for index in slate {
+            // One pair at a time. See `rerank.rs`: batch is 1 structurally because int8 batch
+            // invariance fails, measured at 0.0958 logits at this optimization level.
+            match encoder.score(query_text, &scored[index].entry.text) {
+                Ok(logit) => scored[index].rerank_score = Some(logit),
+                // Loud. A reranker that silently scored nothing would leave the stage looking
+                // present in the report and absent in the ranking.
+                Err(e) => eprintln!("marlowe: cross-encoder failed on {}: {e}", scored[index].entry.id),
+            }
+        }
+    }
 
     let mut order: Vec<usize> = (0..scored.len()).collect();
     match scoring {
@@ -217,10 +447,33 @@ pub fn select_for_injection<'a>(
             // only quantity that can order a lexical-won candidate against a dense-won one.
             // `margin` is second in the winning cue's own raw units, which is a valid comparison
             // exactly when the first key ties.
+            //
+            // **Session H prepends two levels, and neither disturbs the two below it.** The key is
+            // now, in order:
+            //
+            //   1. survived pruning (survivors before pruned-away)
+            //   2. rerank score descending, for the candidates that were reranked
+            //   3. score  — the winning cue's z
+            //   4. margin — its lead over its own runner-up
+            //   5. id
+            //
+            // Levels 3 to 5 are untouched, so a build with no cross-encoder and nothing to prune
+            // ranks exactly as Session F did. That is not a convenience: it is what makes the
+            // held-out comparison a comparison of one change.
             order.sort_by(|a, b| {
                 let (x, y) = (&scored[*a], &scored[*b]);
-                y.score
-                    .total_cmp(&x.score)
+                y.survived_pruning
+                    .cmp(&x.survived_pruning)
+                    // `None` sorts AFTER any `Some`, so an unreranked candidate never outranks a
+                    // reranked one on the absence of a score. `Option`'s own ordering puts `None`
+                    // first, which is the opposite, so it is written out rather than derived.
+                    .then_with(|| match (x.rerank_score, y.rerank_score) {
+                        (Some(p), Some(q)) => q.total_cmp(&p),
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    })
+                    .then_with(|| y.score.total_cmp(&x.score))
                     .then_with(|| y.margin.total_cmp(&x.margin))
                     .then_with(|| x.entry.id.cmp(&y.entry.id))
             });
@@ -265,6 +518,14 @@ pub fn select_for_injection<'a>(
     // Dump order is by id so two runs write byte-identical files.
     scored.sort_by(|a, b| a.entry.id.cmp(&b.entry.id));
 
+    let survived_pruning = scored.iter().filter(|c| c.survived_pruning).count() as u32;
+    let reranked = scored.iter().filter(|c| c.rerank_score.is_some()).count() as u32;
+    let derived_sessions = scored
+        .iter()
+        .map(|c| c.session_key)
+        .collect::<std::collections::BTreeSet<_>>()
+        .len() as u32;
+
     Selection {
         injected,
         considered,
@@ -273,6 +534,10 @@ pub fn select_for_injection<'a>(
         above_threshold,
         scored,
         budget_exhausted,
+        survived_pruning,
+        pruning_applied,
+        reranked,
+        derived_sessions,
     }
 }
 
@@ -385,7 +650,7 @@ mod tests {
     #[test]
     fn nothing_is_injected_before_maturation() {
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump(), &VectorStore::default(), None);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
         assert!(sel.injected.is_empty());
         assert_eq!(sel.considered, 0, "and nothing was even a candidate");
     }
@@ -394,7 +659,7 @@ mod tests {
     fn only_the_requested_session_is_scoped() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
         assert_eq!(sel.injected.len(), 2);
         assert!(sel.injected.iter().all(|i| i.memory_id != "m-c"));
         assert_eq!(sel.considered, 3, "considered counts the whole candidate set");
@@ -415,6 +680,7 @@ mod tests {
             &Scoring::Gated(&gate),
             &VectorStore::default(),
             None,
+            &mut Rerank::Off,
         );
         assert_eq!(sel.scoped, 2, "both were scored");
         assert_eq!(sel.above_threshold, 1, "only one cleared the threshold");
@@ -466,6 +732,7 @@ mod tests {
             &Scoring::Gated(&gate),
             &VectorStore::default(),
             None,
+            &mut Rerank::Off,
         );
 
         assert_eq!(sel.scoped, 3, "all three were scored");
@@ -514,6 +781,7 @@ mod tests {
             &Scoring::Gated(&gate),
             &VectorStore::default(),
             None,
+            &mut Rerank::Off,
         );
         assert_eq!(sel.scoped, 2);
         assert_eq!(sel.above_threshold, 0);
@@ -537,6 +805,7 @@ mod tests {
             &Scoring::Gated(&gate),
             &VectorStore::default(),
             None,
+            &mut Rerank::Off,
         );
         assert_eq!(sel.scored.len(), 2, "both, not just the one that passed");
         assert!(sel.scored.iter().any(|c| !c.passes));
@@ -546,7 +815,7 @@ mod tests {
     fn the_dump_order_is_stable() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
         let ids: Vec<&str> = sel.scored.iter().map(|c| c.entry.id.as_str()).collect();
         assert_eq!(ids, vec!["m-a", "m-b"], "sorted by id, so two runs write the same bytes");
     }
@@ -557,9 +826,131 @@ mod tests {
         let gate = test_gate();
         let beliefs = store();
         let ids = |s: &Selection| s.injected.iter().map(|i| i.memory_id.clone()).collect::<Vec<_>>();
-        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None);
-        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None);
+        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None, &mut Rerank::Off);
+        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None, &mut Rerank::Off);
         assert_eq!(ids(&a), ids(&b));
+    }
+
+    // ---- Session H: session grouping and pruning -----------------------------------------
+
+    /// Entries at explicit `occurred_at_ms`, which is the only thing `session_keys` reads.
+    fn at(id: &str, occurred: i64) -> MemoryEntry {
+        let mut e = entry(id, "s-1", "text", 1_000);
+        e.occurred_at_ms = occurred;
+        e
+    }
+
+    #[test]
+    fn contiguous_turns_form_one_session_and_a_gap_starts_another() {
+        let minute = 60_000;
+        let entries = vec![
+            at("m-a", 0),
+            at("m-b", 1_000),
+            at("m-c", 2_000),
+            // 31 minutes later: past the 30-minute threshold.
+            at("m-d", 31 * minute),
+            at("m-e", 31 * minute + 1_000),
+        ];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        assert_eq!(session_keys(&refs, SESSION_GAP_MS), vec![0, 0, 0, 1, 1]);
+    }
+
+    #[test]
+    fn a_gap_exactly_at_the_threshold_does_not_split() {
+        // The comparison is `>`, not `>=`. Asserted because an off-by-one here would move every
+        // boundary on the corpus and the only visible symptom would be a moved number.
+        let entries = vec![at("m-a", 0), at("m-b", SESSION_GAP_MS)];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        assert_eq!(session_keys(&refs, SESSION_GAP_MS), vec![0, 0]);
+
+        let entries = vec![at("m-a", 0), at("m-b", SESSION_GAP_MS + 1)];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        assert_eq!(session_keys(&refs, SESSION_GAP_MS), vec![0, 1]);
+    }
+
+    #[test]
+    fn keys_follow_the_candidates_own_order_not_time_order() {
+        // `session_keys` returns keys positionally, and the caller zips them against `scored`.
+        // If it returned them in sorted order instead, every candidate would get some other
+        // candidate's session and nothing downstream would look wrong.
+        let entries = vec![at("m-late", 60 * 60_000), at("m-early", 0)];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        let keys = session_keys(&refs, SESSION_GAP_MS);
+        assert_eq!(keys, vec![1, 0], "m-late is in the LATER session, at index 0");
+    }
+
+    #[test]
+    fn simultaneous_turns_share_a_session_whatever_their_ids() {
+        let entries = vec![at("m-z", 5_000), at("m-a", 5_000)];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        assert_eq!(session_keys(&refs, SESSION_GAP_MS), vec![0, 0]);
+    }
+
+    #[test]
+    fn pruning_keeps_the_union_of_each_cues_top_sessions() {
+        //             session:   0    0    1    1    2    2    3    3
+        let keys = [0u32, 0, 1, 1, 2, 2, 3, 3];
+        let lexical = [0.9f32, 0.1, 0.2, 0.0, 0.1, 0.0, 0.0, 0.0];
+        //  dense favours session 3, which lexical ranks last.
+        let dense = [0.0f32, 0.0, 0.1, 0.0, 0.2, 0.0, 0.9, 0.1];
+
+        let keep = surviving_sessions(&keys, &[&lexical, &dense], 1).expect("pruning applies");
+        assert!(keep.contains(&0), "lexical's best session survives");
+        assert!(keep.contains(&3), "and so does dense's, which lexical ranked last");
+        assert_eq!(keep.len(), 2, "union of two top-1 sets, got {keep:?}");
+    }
+
+    #[test]
+    fn pruning_does_not_apply_when_there_is_nothing_to_prune() {
+        // Distinguishable from "pruning kept everything". A no-op that reported itself as a
+        // decision would make `pruning_applied` useless in the report.
+        let keys = [0u32, 0, 1];
+        let scores = [1.0f32, 0.5, 0.2];
+        assert!(surviving_sessions(&keys, &[&scores], PRUNE_TOP_N).is_none());
+    }
+
+    #[test]
+    fn max_aggregation_cannot_displace_a_cues_top_1_candidate() {
+        // **Session G's identity, asserted in the shipping code.** Under max aggregation a
+        // session's score IS its best turn's score, so the globally top-scoring turn always lies
+        // in a top-scoring session and pruning to top-N>=1 can never remove it. Session G proved
+        // this over 458 case-cue pairs on the true partition, and Session H re-measured it on the
+        // DERIVED partition; this is the same claim as a unit test, so a future change to the
+        // aggregation rule fails here by name rather than as a moved number.
+        let keys = [0u32, 1, 1, 2, 2, 3];
+        let scores = [0.1f32, 0.95, 0.2, 0.3, 0.4, 0.05];
+        let best = 1usize; // index of the global maximum
+
+        let keep = surviving_sessions(&keys, &[&scores], 1).expect("pruning applies");
+        assert!(
+            keep.contains(&keys[best]),
+            "the top-scoring turn's session must survive at N=1"
+        );
+    }
+
+    #[test]
+    fn an_unreranked_candidate_never_outranks_a_reranked_one() {
+        // `Option`'s derived ordering puts `None` FIRST, which is the opposite of what the
+        // ranking needs. The key writes the comparison out by hand; this is what would catch a
+        // later "simplification" back to `y.rerank_score.partial_cmp(&x.rerank_score)`.
+        let now = 3_000 + MATURATION_WINDOW_MS;
+        let gate = test_gate();
+        let beliefs = store();
+        let sel = select_for_injection(
+            &beliefs,
+            "s-1",
+            "ingest",
+            now,
+            7000,
+            &Scoring::Gated(&gate),
+            &VectorStore::default(),
+            None,
+            &mut Rerank::Off,
+        );
+        // With reranking off nothing carries a score, so the key must fall through to `score`
+        // and reproduce Session F's ordering exactly.
+        assert!(sel.scored.iter().all(|c| c.rerank_score.is_none()));
+        assert_eq!(sel.reranked, 0);
     }
 
     #[test]
@@ -584,6 +975,7 @@ mod tests {
             &Scoring::Gated(&gate),
             &VectorStore::default(),
             None,
+            &mut Rerank::Off,
         );
         assert_eq!(sel.above_threshold, 1, "the gate still passed it");
         assert!(sel.budget_exhausted, "and the budget is what cut it");

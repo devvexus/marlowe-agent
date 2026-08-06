@@ -21,7 +21,10 @@ use marlowe_memory::consolidate::{self, Policy};
 use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
 use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
-use marlowe_memory::retrieve::{debug_assert_injection_valid, select_for_injection, Scoring};
+use marlowe_memory::rerank::CrossEncoder;
+use marlowe_memory::retrieve::{
+    debug_assert_injection_valid, select_for_injection, Rerank, Scoring, RERANK_BUDGET,
+};
 use marlowe_memory::{ingest, BeliefStore};
 
 use crate::dump::{ConsolidationDump, FeatureDump};
@@ -80,6 +83,9 @@ pub struct Adapter {
     /// every number still produced and nothing observing the mismatch.
     policy: Policy,
     consolidation_dump: Option<ConsolidationDump>,
+    /// Session H's rerank stage. `None` is an EXPLICIT choice made at the command line
+    /// (`--reranking off`), never a default -- see `main.rs`'s USAGE.
+    cross_encoder: Option<CrossEncoder>,
 }
 
 impl Adapter {
@@ -101,10 +107,11 @@ impl Adapter {
         embedder: Embedder,
         dump_path: Option<&Path>,
         consolidation: Consolidation<'_>,
+        cross_encoder: Option<CrossEncoder>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
         let dump = dump_path.map(FeatureDump::create).transpose()?;
-        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump), consolidation)
+        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump), consolidation, cross_encoder)
     }
 
     /// Start in feature-dump mode. Used only by `tools/fit_gate.py`; loads no gate.
@@ -117,12 +124,14 @@ impl Adapter {
         embedder: Embedder,
         dump_path: &Path,
         consolidation: Consolidation<'_>,
+        cross_encoder: Option<CrossEncoder>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         Self::start_with(
             profile_root,
             embedder,
             Mode::FitDump(FeatureDump::create(dump_path)?),
             consolidation,
+            cross_encoder,
         )
     }
 
@@ -131,6 +140,7 @@ impl Adapter {
         embedder: Embedder,
         mode: Mode,
         consolidation: Consolidation<'_>,
+        cross_encoder: Option<CrossEncoder>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
@@ -153,6 +163,7 @@ impl Adapter {
                 .dump_path
                 .map(ConsolidationDump::create)
                 .transpose()?,
+            cross_encoder,
         })
     }
 
@@ -354,6 +365,10 @@ impl Adapter {
             &scoring,
             &self.vectors,
             query_vector.as_deref(),
+            &mut match self.cross_encoder.as_mut() {
+                Some(encoder) => Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET },
+                None => Rerank::Off,
+            },
         );
         let cues_ms = cue_watch.stop().as_cost_ms();
         debug_assert_injection_valid(&selection.injected);

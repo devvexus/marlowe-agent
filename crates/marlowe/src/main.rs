@@ -12,7 +12,7 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
-marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR>
+marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
         [--embedding-cache <DIR>] [--embedder-workers <N>]
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
@@ -28,6 +28,18 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR>
                                 verified against digests pinned in the binary, so a swapped or
                                 partial model is a refusal rather than a quietly different
                                 number. Fetch with `python tools/fetch_model.py`.
+
+  --reranking <off|DIR>         Session H's in-session cross-encoder rerank stage. REQUIRED, no
+                                default, and it takes an EXPLICIT value -- either the literal
+                                `off` or the directory holding the pinned ms-marco-MiniLM-L-2-v2
+                                int8 graph and tokenizer.
+                                Deliberately NOT a bare `--rerank` boolean. That is the mistake
+                                the consolidation flag documents below: forget a default-off
+                                switch in the harness target string and the run measures the
+                                un-reranked system under a reranked label, producing every number
+                                with nothing observing the mismatch. Spelling `off` is a choice
+                                somebody made and the report records it; omitting the flag is a
+                                refusal to start.
 
   --embedding-cache <DIR>       Content-addressed embedding cache, keyed on the model and
                                 vocabulary digests, the embedder version and the sequence
@@ -142,6 +154,20 @@ fn main() {
             std::process::exit(2);
         }
     };
+    // Required, and it takes an explicit value. See USAGE: a bare boolean here is exactly the
+    // failure mode the consolidation flag exists to avoid.
+    let reranking = match flag_value(&args, "--reranking") {
+        Some(v) if v == "off" => None,
+        Some(v) => Some(PathBuf::from(v)),
+        None => {
+            eprintln!("{USAGE}");
+            eprintln!(
+                "error: --reranking is required and has no default. Pass `off` to disable the                  cross-encoder explicitly, or the directory holding its pinned files."
+            );
+            std::process::exit(2);
+        }
+    };
+
     let cache_dir = flag_value(&args, "--embedding-cache").map(PathBuf::from);
     let workers = match flag_value(&args, "--embedder-workers") {
         Some(v) => match v.parse::<usize>() {
@@ -167,13 +193,26 @@ fn main() {
         }
     };
 
+    // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
+    // must stop the process, not become a per-query error the harness scores as a wrong number.
+    let cross_encoder = match reranking {
+        Some(dir) => match marlowe_memory::rerank::CrossEncoder::load(&dir) {
+            Ok(e) => Some(e),
+            Err(e) => {
+                eprintln!("marlowe: {e}");
+                std::process::exit(1);
+            }
+        },
+        None => None,
+    };
+
     let consolidation = adapter::Consolidation {
         policy: consolidation,
         dump_path: consolidation_dump,
     };
     let started = match (fit_mode, dump_path) {
         (true, Some(path)) => {
-            adapter::Adapter::start_for_fit(&profile_root, embedder, path, consolidation)
+            adapter::Adapter::start_for_fit(&profile_root, embedder, path, consolidation, cross_encoder)
         }
         (true, None) => {
             eprintln!("{USAGE}");
@@ -182,7 +221,9 @@ fn main() {
             eprintln!("error: --fit-mode requires --dump-gate-features.");
             std::process::exit(2);
         }
-        (false, path) => adapter::Adapter::start(&profile_root, embedder, path, consolidation),
+        (false, path) => {
+            adapter::Adapter::start(&profile_root, embedder, path, consolidation, cross_encoder)
+        }
     };
 
     let mut adapter = match started {
