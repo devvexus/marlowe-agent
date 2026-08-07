@@ -1,0 +1,240 @@
+{
+  "_what": "Session I Phase 1.1 probe -- which candidate rerankers have a pinnable export.",
+  "_bar": "maintainer-published ONNX + tokenizer.json + ungated. A self-made transformers.onnx export does NOT clear it; that is the artifact behind this project's existing open gap.",
+  "candidates": {
+    "L-2": [
+      {
+        "repo": "Xenova/ms-marco-MiniLM-L-2-v2",
+        "exists": true,
+        "revision": "b84c4fa7efd7b4801931e75773c940f002a494f5",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_q4f16.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "L-4": [
+      {
+        "repo": "Xenova/ms-marco-MiniLM-L-4-v2",
+        "exists": true,
+        "revision": "e8fdba61d478d042b338f7bcf7ba4e48ed7d46d7",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_q4f16.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "L-6": [
+      {
+        "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+        "exists": true,
+        "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_q4f16.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "L-12": [
+      {
+        "repo": "Xenova/ms-marco-MiniLM-L-12-v2",
+        "exists": true,
+        "revision": "42a4a787e30451cf9dbd09080c2a5b8dde332c1e",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_q4f16.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "bge-base": [
+      {
+        "repo": "BAAI/bge-reranker-base",
+        "exists": true,
+        "revision": "2cfc18c9415c912f9d8155881c133215df768a70",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "bge-large": [
+      {
+        "repo": "BAAI/bge-reranker-large",
+        "exists": true,
+        "revision": "55611d7bca2a7133960a6d3b71e083071bbfc312",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "bge-v2-m3": [
+      {
+        "repo": "BAAI/bge-reranker-v2-m3",
+        "exists": true,
+        "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+        "gated": false,
+        "onnx_files": [],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": false
+      }
+    ],
+    "jina-v1-turbo": [
+      {
+        "repo": "jinaai/jina-reranker-v1-turbo-en",
+        "exists": true,
+        "revision": "b8c14f4e723d9e0aab4732a7b7b93741eeeb77c2",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "jina-v2": [
+      {
+        "repo": "jinaai/jina-reranker-v2-base-multilingual",
+        "exists": true,
+        "revision": "9cfeff2df7d40d1b78e75e5e9cebec92a99813c9",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_bnb4.onnx",
+          "onnx/model_fp16.onnx",
+          "onnx/model_int8.onnx",
+          "onnx/model_q4.onnx",
+          "onnx/model_quantized.onnx",
+          "onnx/model_uint8.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "mxbai-base": [
+      {
+        "repo": "mixedbread-ai/mxbai-rerank-base-v1",
+        "exists": true,
+        "revision": "800f24c113213a187e65bde9db00c15a2bb12738",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_quantized.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "mxbai-large": [
+      {
+        "repo": "mixedbread-ai/mxbai-rerank-large-v1",
+        "exists": true,
+        "revision": "98f655841d5caf0b16eaff79c2b4ca109d920d17",
+        "gated": false,
+        "onnx_files": [
+          "onnx/model.onnx",
+          "onnx/model_quantized.onnx"
+        ],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": true
+      }
+    ],
+    "mxbai-base-v2": [
+      {
+        "repo": "mixedbread-ai/mxbai-rerank-base-v2",
+        "exists": true,
+        "revision": "3ea9d4dffa7d12a4f366be8e275c349de9fc9865",
+        "gated": false,
+        "onnx_files": [],
+        "has_tokenizer_json": [
+          "tokenizer.json"
+        ],
+        "meets_pinning_bar": false
+      }
+    ]
+  },
+  "adoptable": [
+    "L-12",
+    "L-2",
+    "L-4",
+    "L-6",
+    "bge-base",
+    "bge-large",
+    "jina-v1-turbo",
+    "jina-v2",
+    "mxbai-base",
+    "mxbai-large"
+  ],
+  "refused": [
+    "bge-v2-m3",
+    "mxbai-base-v2"
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "_what": "Session I candidate rerankers, pinned by repository revision AND file digest.",
+  "_variant_choice": "f32 onnx/model.onnx for every model. Follows fetch_model.py's reasoning, and holds precision constant across the capacity sweep so arm 2's result is attributable to capacity. The shipped L-2-int8 remains on the frontier as the control.",
+  "refused": {
+    "BAAI/bge-reranker-v2-m3": "no ONNX export published by the maintainer. Adopting it would require a self-made transformers.onnx export -- the exact artifact behind this project's existing open gap on the embedder. NOT ADOPTED, and NOT substituted.",
+    "mixedbread-ai/mxbai-rerank-base-v2": "same: no maintainer-published ONNX export."
+  },
+  "models": [
+    {
+      "name": "ms-marco-MiniLM-L-2-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-2-v2",
+      "revision": "b84c4fa7efd7b4801931e75773c940f002a494f5",
+      "tier": 1,
+      "arch": "BERT",
+      "params_m": 16,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "ceb39caaebb66f421f82b9051e466d817c8f715e8e1d663e020168c5e2af7914",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      }
+    },
+    {
+      "name": "ms-marco-MiniLM-L-4-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-4-v2",
+      "revision": "e8fdba61d478d042b338f7bcf7ba4e48ed7d46d7",
+      "tier": 1,
+      "arch": "BERT",
+      "params_m": 19,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "f03e07422f9f723146d9e65ee52cef262ac4ada5997dce0f9e72422327cf8252",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      }
+    },
+    {
+      "name": "ms-marco-MiniLM-L-6-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+      "tier": 1,
+      "arch": "BERT",
+      "params_m": 23,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      }
+    },
+    {
+      "name": "ms-marco-MiniLM-L-12-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-12-v2",
+      "revision": "42a4a787e30451cf9dbd09080c2a5b8dde332c1e",
+      "tier": 1,
+      "arch": "BERT",
+      "params_m": 33,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "3a6d50ce60de831c8c68197df674eeb878d4ff34bb1aca5d1f3cb346c9075dba",
+        "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+      }
+    },
+    {
+      "name": "bge-reranker-base",
+      "repo": "BAAI/bge-reranker-base",
+      "revision": "2cfc18c9415c912f9d8155881c133215df768a70",
+      "tier": 2,
+      "arch": "XLM-RoBERTa",
+      "params_m": 278,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "15b9a8c3da82eddf263df571281166e00e9308fe19d077084b642ebfcaf06d2b",
+        "tokenizer.json": "9eb652ac4e40cc093272bbbe0f55d521cf67570060227109b5cdc20945a4489e"
+      }
+    },
+    {
+      "name": "jina-reranker-v2-base-multilingual",
+      "repo": "jinaai/jina-reranker-v2-base-multilingual",
+      "revision": "9cfeff2df7d40d1b78e75e5e9cebec92a99813c9",
+      "tier": 2,
+      "arch": "XLM-RoBERTa",
+      "params_m": 278,
+      "max_seq": 1024,
+      "digests": {
+        "model.onnx": "0ef3f7978f7bc52360864d74edc1a0e03d159af770a7767c4d5943496e616012",
+        "tokenizer.json": "3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20"
+      }
+    },
+    {
+      "name": "mxbai-rerank-base-v1",
+      "repo": "mixedbread-ai/mxbai-rerank-base-v1",
+      "revision": "800f24c113213a187e65bde9db00c15a2bb12738",
+      "tier": 2,
+      "arch": "DeBERTa-v3",
+      "params_m": 184,
+      "max_seq": 512,
+      "digests": {
+        "model.onnx": "acd44aff3ed526079ed44cffac2e549ce70805ea193d70973c98b67e09efec1a",
+        "tokenizer.json": "305674b4d785287feecfb5f73f24aa75e9b57c87c579cfe24fbd207987d4b4c4"
+      }
+    },
+    {
+      "name": "jina-reranker-v1-turbo-en",
+      "repo": "jinaai/jina-reranker-v1-turbo-en",
+      "revision": "b8c14f4e723d9e0aab4732a7b7b93741eeeb77c2",
+      "tier": 2,
+      "arch": "JinaBERT",
+      "params_m": 38,
+      "max_seq": 8192,
+      "digests": {
+        "model.onnx": "c1296c66c119de645fa9cdee536d8637740efe85224cfa270281e50f213aa565",
+        "tokenizer.json": "0046da43cc8c424b317f56b092b0512aaaa65c4f925d2f16af9d9eeb4d0ef902"
+      }
+    }
+  ]
+}

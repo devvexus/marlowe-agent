@@ -1,0 +1,4315 @@
+{
+  "_what": "Session I Phase 1.2 -- truncation reachability. ADR-010 applied to arm 1.",
+  "split": "fit",
+  "cases": 229,
+  "context_rule": "neighbours by occurred_at_ms order over ALL of the case's turns, clamped at a 30-minute gap -- the rule the binary can reconstruct from MemoryEntry.occurred_at_ms, NOT the corpus's (sid, turn_index) adjacency.",
+  "reachable_threshold": 0.98,
+  "prefix_property_violations": 0,
+  "grid": {
+    "ms-marco-MiniLM-L-2-v2": {
+      "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "shared_by": [
+        "ms-marco-MiniLM-L-2-v2",
+        "ms-marco-MiniLM-L-4-v2",
+        "ms-marco-MiniLM-L-6-v2",
+        "ms-marco-MiniLM-L-12-v2"
+      ],
+      "max_seq_supported": 512,
+      "windows": {
+        "0": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 84.0,
+              "p95": 270.19999999999993,
+              "max": 681
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 84.0,
+              "p95": 270.19999999999993,
+              "max": 681
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 84.0,
+              "p95": 270.19999999999993,
+              "max": 681
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 84.0,
+              "p95": 270.19999999999993,
+              "max": 681
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 733.0,
+              "p75": 1083.0,
+              "p95": 1368.7999999999997,
+              "max": 1615
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4148,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5371,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 121.0,
+              "p75": 143.0,
+              "p95": 324.79999999999995,
+              "max": 713
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 179.0,
+              "p75": 205.0,
+              "p95": 330.6,
+              "max": 745
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 299.0,
+              "p75": 330.0,
+              "p95": 365.2,
+              "max": 757
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8865,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9563,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 849.0,
+              "p75": 1216.0,
+              "p95": 1496.6,
+              "max": 2616
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5328,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 176.0,
+              "p75": 205.0,
+              "p95": 365.5999999999999,
+              "max": 713
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 262.0,
+              "p75": 298.0,
+              "p95": 415.6,
+              "max": 745
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 390.0,
+              "p75": 438.0,
+              "p95": 543.8,
+              "max": 757
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-3/+3": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 1461.0,
+              "p75": 2010.0,
+              "p95": 2578.2,
+              "max": 3834
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.345,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.3974,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.7467,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 229.0,
+              "p75": 260.0,
+              "p95": 390.4,
+              "max": 713
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 349.0,
+              "p75": 416.0,
+              "p95": 476.4,
+              "max": 745
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.7031,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9432,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 536.0,
+              "p75": 662.0,
+              "p95": 741.6,
+              "max": 866
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4236,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.7205,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 774.0,
+              "p75": 1159.0,
+              "p95": 1445.1999999999998,
+              "max": 2555
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5328,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 148.0,
+              "p75": 175.0,
+              "p95": 344.3999999999998,
+              "max": 713
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 223.0,
+              "p75": 252.0,
+              "p95": 385.5999999999999,
+              "max": 745
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 344.0,
+              "p75": 378.0,
+              "p95": 463.4,
+              "max": 757
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 794.0,
+              "p75": 1158.0,
+              "p95": 1416.3999999999999,
+              "max": 1671
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4148,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5371,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 150.0,
+              "p75": 173.0,
+              "p95": 350.4,
+              "max": 713
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 220.0,
+              "p75": 257.0,
+              "p95": 379.5999999999999,
+              "max": 745
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 341.0,
+              "p75": 381.0,
+              "p95": 456.79999999999995,
+              "max": 757
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8865,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9563,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "bge-reranker-base": {
+      "tokenizer_sha256": "9eb652ac4e40cc093272bbbe0f55d521cf67570060227109b5cdc20945a4489e",
+      "shared_by": [
+        "bge-reranker-base"
+      ],
+      "max_seq_supported": 512,
+      "windows": {
+        "0": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 786.0,
+              "p75": 1149.0,
+              "p95": 1430.6,
+              "max": 1723
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3974,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5153,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5939,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9913,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 126.0,
+              "p75": 148.0,
+              "p95": 349.6,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 185.0,
+              "p75": 210.0,
+              "p95": 352.6,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 305.0,
+              "p75": 336.0,
+              "p95": 380.19999999999993,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8646,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 912.0,
+              "p75": 1296.0,
+              "p95": 1571.6,
+              "max": 2718
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3581,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5197,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9825,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 181.0,
+              "p75": 209.0,
+              "p95": 394.0,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 273.0,
+              "p75": 312.0,
+              "p95": 444.4,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8777,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9389,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9694,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 401.0,
+              "p75": 450.0,
+              "p95": 566.9999999999999,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-3/+3": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 1562.0,
+              "p75": 2116.0,
+              "p95": 2707.7999999999997,
+              "max": 3903
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3406,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.3843,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.4279,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.7293,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 233.0,
+              "p75": 268.0,
+              "p95": 419.99999999999994,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 360.0,
+              "p75": 426.0,
+              "p95": 494.4,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6594,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9301,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 549.0,
+              "p75": 673.0,
+              "p95": 759.4,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.393,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.6681,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 828.0,
+              "p75": 1222.0,
+              "p95": 1507.8,
+              "max": 2655
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3581,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5197,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9825,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 156.0,
+              "p75": 178.0,
+              "p95": 371.79999999999995,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 230.0,
+              "p75": 259.0,
+              "p95": 403.5999999999998,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8777,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9389,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9694,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 354.0,
+              "p75": 385.0,
+              "p95": 480.6,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 837.0,
+              "p75": 1218.0,
+              "p95": 1516.2,
+              "max": 1788
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3974,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5153,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5939,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9913,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 156.0,
+              "p75": 177.0,
+              "p95": 375.0,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 227.0,
+              "p75": 262.0,
+              "p95": 402.9999999999999,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 349.0,
+              "p75": 389.0,
+              "p95": 478.79999999999995,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8646,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "jina-reranker-v2-base-multilingual": {
+      "tokenizer_sha256": "3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20",
+      "shared_by": [
+        "jina-reranker-v2-base-multilingual"
+      ],
+      "max_seq_supported": 1024,
+      "windows": {
+        "0": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 71.0,
+              "p75": 88.0,
+              "p95": 295.5999999999999,
+              "max": 837
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-1/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 786.0,
+              "p75": 1149.0,
+              "p95": 1430.6,
+              "max": 1723
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3974,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5153,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5939,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9913,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 126.0,
+              "p75": 148.0,
+              "p95": 349.6,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 185.0,
+              "p75": 210.0,
+              "p95": 352.6,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 305.0,
+              "p75": 336.0,
+              "p95": 380.19999999999993,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8646,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-2/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 912.0,
+              "p75": 1296.0,
+              "p95": 1571.6,
+              "max": 2718
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3581,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5197,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 181.0,
+              "p75": 209.0,
+              "p95": 394.0,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 273.0,
+              "p75": 312.0,
+              "p95": 444.4,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8777,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9389,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9694,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 401.0,
+              "p75": 450.0,
+              "p95": 566.9999999999999,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-3/+3": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 1562.0,
+              "p75": 2116.0,
+              "p95": 2707.7999999999997,
+              "max": 3903
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3406,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.3843,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.4279,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.7293,
+                "applicable": true,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 233.0,
+              "p75": 268.0,
+              "p95": 419.99999999999994,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 360.0,
+              "p75": 426.0,
+              "p95": 494.4,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6594,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9301,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 549.0,
+              "p75": 673.0,
+              "p95": 759.4,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.393,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.6681,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-2/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 828.0,
+              "p75": 1222.0,
+              "p95": 1507.8,
+              "max": 2655
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3581,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5197,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 156.0,
+              "p75": 178.0,
+              "p95": 371.79999999999995,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 230.0,
+              "p75": 259.0,
+              "p95": 403.5999999999998,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8777,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9389,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9694,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 354.0,
+              "p75": 385.0,
+              "p95": 480.6,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-1/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 837.0,
+              "p75": 1218.0,
+              "p95": 1516.2,
+              "max": 1788
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3974,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5153,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5939,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9913,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 156.0,
+              "p75": 177.0,
+              "p95": 375.0,
+              "max": 869
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 227.0,
+              "p75": 262.0,
+              "p95": 402.9999999999999,
+              "max": 901
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 349.0,
+              "p75": 389.0,
+              "p95": 478.79999999999995,
+              "max": 920
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8646,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "mxbai-rerank-base-v1": {
+      "tokenizer_sha256": "305674b4d785287feecfb5f73f24aa75e9b57c87c579cfe24fbd207987d4b4c4",
+      "shared_by": [
+        "mxbai-rerank-base-v1"
+      ],
+      "max_seq_supported": 512,
+      "windows": {
+        "0": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 66.0,
+              "p75": 82.0,
+              "p95": 249.79999999999998,
+              "max": 687
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9258,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 66.0,
+              "p75": 82.0,
+              "p95": 249.79999999999998,
+              "max": 687
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9258,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 66.0,
+              "p75": 82.0,
+              "p95": 249.79999999999998,
+              "max": 687
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9258,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 66.0,
+              "p75": 82.0,
+              "p95": 249.79999999999998,
+              "max": 687
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9258,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 713.0,
+              "p75": 1043.0,
+              "p95": 1308.3999999999999,
+              "max": 1565
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4367,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.559,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 120.0,
+              "p75": 141.0,
+              "p95": 301.2,
+              "max": 719
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 179.0,
+              "p75": 203.0,
+              "p95": 304.19999999999993,
+              "max": 751
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 295.0,
+              "p75": 326.0,
+              "p95": 356.2,
+              "max": 760
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 812.0,
+              "p75": 1165.0,
+              "p95": 1425.6,
+              "max": 2483
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 176.0,
+              "p75": 201.0,
+              "p95": 346.19999999999993,
+              "max": 719
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 260.0,
+              "p75": 297.0,
+              "p95": 397.4,
+              "max": 751
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9563,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 386.0,
+              "p75": 435.0,
+              "p95": 531.4,
+              "max": 760
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6507,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-3/+3": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 1421.0,
+              "p75": 1939.0,
+              "p95": 2491.3999999999996,
+              "max": 3655
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3537,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.4017,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.4498,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.7511,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 226.0,
+              "p75": 258.0,
+              "p95": 374.6,
+              "max": 719
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9563,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 345.0,
+              "p75": 411.0,
+              "p95": 463.59999999999997,
+              "max": 751
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.7293,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9432,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9825,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 526.0,
+              "p75": 651.0,
+              "p95": 738.2,
+              "max": 865
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.7467,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9694,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-2/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 751.0,
+              "p75": 1102.0,
+              "p95": 1363.4,
+              "max": 2424
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 146.0,
+              "p75": 173.0,
+              "p95": 325.9999999999999,
+              "max": 719
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 220.0,
+              "p75": 249.0,
+              "p95": 360.4,
+              "max": 751
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9563,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 340.0,
+              "p75": 374.0,
+              "p95": 458.0,
+              "max": 760
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6507,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        },
+        "-1/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 771.0,
+              "p75": 1099.0,
+              "p95": 1360.6,
+              "max": 1620
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4367,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.559,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6201,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 149.0,
+              "p75": 171.0,
+              "p95": 324.3999999999999,
+              "max": 719
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 220.0,
+              "p75": 254.0,
+              "p95": 341.4,
+              "max": 751
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 339.0,
+              "p75": 376.0,
+              "p95": 449.6,
+              "max": 760
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": false,
+                "reachable": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "jina-reranker-v1-turbo-en": {
+      "tokenizer_sha256": "0046da43cc8c424b317f56b092b0512aaaa65c4f925d2f16af9d9eeb4d0ef902",
+      "shared_by": [
+        "jina-reranker-v1-turbo-en"
+      ],
+      "max_seq_supported": 8192,
+      "windows": {
+        "0": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 82.0,
+              "p95": 259.4,
+              "max": 692
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 82.0,
+              "p95": 259.4,
+              "max": 692
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 82.0,
+              "p95": 259.4,
+              "max": 692
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 68.0,
+              "p75": 82.0,
+              "p95": 259.4,
+              "max": 692
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9214,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9738,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-1/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 708.0,
+              "p75": 1022.0,
+              "p95": 1274.3999999999999,
+              "max": 1514
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4236,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5459,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6245,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 120.0,
+              "p75": 141.0,
+              "p95": 315.2,
+              "max": 724
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 179.0,
+              "p75": 205.0,
+              "p95": 317.6,
+              "max": 756
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 297.0,
+              "p75": 328.0,
+              "p95": 360.59999999999997,
+              "max": 767
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8865,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-2/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 806.0,
+              "p75": 1149.0,
+              "p95": 1388.3999999999999,
+              "max": 2442
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 177.0,
+              "p75": 203.0,
+              "p95": 360.19999999999993,
+              "max": 724
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 261.0,
+              "p75": 298.0,
+              "p95": 406.79999999999995,
+              "max": 756
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 388.0,
+              "p75": 435.0,
+              "p95": 532.6,
+              "max": 767
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6157,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-3/+3": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 1387.0,
+              "p75": 1888.0,
+              "p95": 2441.2,
+              "max": 3537
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.345,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.4017,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.441,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.7642,
+                "applicable": true,
+                "reachable": false
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 228.0,
+              "p75": 260.0,
+              "p95": 381.4,
+              "max": 724
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8996,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.952,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 347.0,
+              "p75": 413.0,
+              "p95": 468.2,
+              "max": 756
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.7031,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9432,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9782,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 531.0,
+              "p75": 657.0,
+              "p95": 741.8,
+              "max": 865
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4192,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.7249,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-2/+1": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 733.0,
+              "p75": 1090.0,
+              "p95": 1332.2,
+              "max": 2383
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.3668,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.5415,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 0.9956,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 148.0,
+              "p75": 173.0,
+              "p95": 335.9999999999999,
+              "max": 724
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9039,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 223.0,
+              "p75": 250.0,
+              "p95": 371.79999999999984,
+              "max": 756
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8952,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9476,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 342.0,
+              "p75": 378.0,
+              "p95": 461.0,
+              "max": 767
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.6157,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9345,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        },
+        "-1/+2": {
+          "uncapped": {
+            "doc_wordpieces": {
+              "median": 751.0,
+              "p75": 1080.0,
+              "p95": 1323.8,
+              "max": 1570
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.4236,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.5459,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.6245,
+                "applicable": true,
+                "reachable": false
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "32": {
+            "doc_wordpieces": {
+              "median": 149.0,
+              "p75": 171.0,
+              "p95": 334.2,
+              "max": 724
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9127,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "64": {
+            "doc_wordpieces": {
+              "median": 220.0,
+              "p75": 255.0,
+              "p95": 358.6,
+              "max": 756
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.9083,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9651,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          },
+          "128": {
+            "doc_wordpieces": {
+              "median": 339.0,
+              "p75": 377.0,
+              "p95": 456.19999999999993,
+              "max": 767
+            },
+            "by_seq_len": {
+              "256": {
+                "gold_survives_intact": 0.8865,
+                "applicable": true,
+                "reachable": false
+              },
+              "384": {
+                "gold_survives_intact": 0.9607,
+                "applicable": true,
+                "reachable": false
+              },
+              "512": {
+                "gold_survives_intact": 0.9869,
+                "applicable": true,
+                "reachable": true
+              },
+              "1024": {
+                "gold_survives_intact": 1.0,
+                "applicable": true,
+                "reachable": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sweepable_cells": {
+    "ms-marco-MiniLM-L-2-v2": [
+      [
+        "-1/+1",
+        "128",
+        512
+      ],
+      [
+        "-1/+1",
+        "32",
+        512
+      ],
+      [
+        "-1/+1",
+        "64",
+        512
+      ],
+      [
+        "-1/+2",
+        "128",
+        512
+      ],
+      [
+        "-1/+2",
+        "32",
+        512
+      ],
+      [
+        "-1/+2",
+        "64",
+        512
+      ],
+      [
+        "-2/+1",
+        "32",
+        512
+      ],
+      [
+        "-2/+1",
+        "64",
+        512
+      ],
+      [
+        "-2/+2",
+        "32",
+        512
+      ],
+      [
+        "-2/+2",
+        "64",
+        512
+      ],
+      [
+        "-3/+3",
+        "32",
+        512
+      ],
+      [
+        "-3/+3",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "128",
+        512
+      ],
+      [
+        "0",
+        "32",
+        512
+      ],
+      [
+        "0",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "uncapped",
+        512
+      ]
+    ],
+    "bge-reranker-base": [
+      [
+        "-1/+1",
+        "128",
+        512
+      ],
+      [
+        "-1/+1",
+        "32",
+        512
+      ],
+      [
+        "-1/+1",
+        "64",
+        512
+      ],
+      [
+        "-1/+2",
+        "128",
+        512
+      ],
+      [
+        "-1/+2",
+        "32",
+        512
+      ],
+      [
+        "-1/+2",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "128",
+        512
+      ],
+      [
+        "0",
+        "32",
+        512
+      ],
+      [
+        "0",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "uncapped",
+        512
+      ]
+    ],
+    "jina-reranker-v2-base-multilingual": [
+      [
+        "-1/+1",
+        "128",
+        512
+      ],
+      [
+        "-1/+1",
+        "128",
+        1024
+      ],
+      [
+        "-1/+1",
+        "32",
+        512
+      ],
+      [
+        "-1/+1",
+        "32",
+        1024
+      ],
+      [
+        "-1/+1",
+        "64",
+        512
+      ],
+      [
+        "-1/+1",
+        "64",
+        1024
+      ],
+      [
+        "-1/+1",
+        "uncapped",
+        1024
+      ],
+      [
+        "-1/+2",
+        "128",
+        512
+      ],
+      [
+        "-1/+2",
+        "128",
+        1024
+      ],
+      [
+        "-1/+2",
+        "32",
+        512
+      ],
+      [
+        "-1/+2",
+        "32",
+        1024
+      ],
+      [
+        "-1/+2",
+        "64",
+        512
+      ],
+      [
+        "-1/+2",
+        "64",
+        1024
+      ],
+      [
+        "-1/+2",
+        "uncapped",
+        1024
+      ],
+      [
+        "-2/+1",
+        "128",
+        1024
+      ],
+      [
+        "-2/+1",
+        "32",
+        1024
+      ],
+      [
+        "-2/+1",
+        "64",
+        1024
+      ],
+      [
+        "-2/+1",
+        "uncapped",
+        1024
+      ],
+      [
+        "-2/+2",
+        "128",
+        1024
+      ],
+      [
+        "-2/+2",
+        "32",
+        1024
+      ],
+      [
+        "-2/+2",
+        "64",
+        1024
+      ],
+      [
+        "-2/+2",
+        "uncapped",
+        1024
+      ],
+      [
+        "-3/+3",
+        "128",
+        1024
+      ],
+      [
+        "-3/+3",
+        "32",
+        1024
+      ],
+      [
+        "-3/+3",
+        "64",
+        1024
+      ],
+      [
+        "0",
+        "128",
+        512
+      ],
+      [
+        "0",
+        "128",
+        1024
+      ],
+      [
+        "0",
+        "32",
+        512
+      ],
+      [
+        "0",
+        "32",
+        1024
+      ],
+      [
+        "0",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "64",
+        1024
+      ],
+      [
+        "0",
+        "uncapped",
+        512
+      ],
+      [
+        "0",
+        "uncapped",
+        1024
+      ]
+    ],
+    "mxbai-rerank-base-v1": [
+      [
+        "-1/+1",
+        "128",
+        512
+      ],
+      [
+        "-1/+1",
+        "32",
+        512
+      ],
+      [
+        "-1/+1",
+        "64",
+        512
+      ],
+      [
+        "-1/+2",
+        "128",
+        512
+      ],
+      [
+        "-1/+2",
+        "32",
+        512
+      ],
+      [
+        "-1/+2",
+        "64",
+        512
+      ],
+      [
+        "-2/+1",
+        "32",
+        512
+      ],
+      [
+        "-2/+1",
+        "64",
+        512
+      ],
+      [
+        "-2/+2",
+        "32",
+        512
+      ],
+      [
+        "-2/+2",
+        "64",
+        512
+      ],
+      [
+        "-3/+3",
+        "32",
+        512
+      ],
+      [
+        "-3/+3",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "128",
+        384
+      ],
+      [
+        "0",
+        "128",
+        512
+      ],
+      [
+        "0",
+        "32",
+        384
+      ],
+      [
+        "0",
+        "32",
+        512
+      ],
+      [
+        "0",
+        "64",
+        384
+      ],
+      [
+        "0",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "uncapped",
+        384
+      ],
+      [
+        "0",
+        "uncapped",
+        512
+      ]
+    ],
+    "jina-reranker-v1-turbo-en": [
+      [
+        "-1/+1",
+        "128",
+        512
+      ],
+      [
+        "-1/+1",
+        "128",
+        1024
+      ],
+      [
+        "-1/+1",
+        "32",
+        512
+      ],
+      [
+        "-1/+1",
+        "32",
+        1024
+      ],
+      [
+        "-1/+1",
+        "64",
+        512
+      ],
+      [
+        "-1/+1",
+        "64",
+        1024
+      ],
+      [
+        "-1/+1",
+        "uncapped",
+        1024
+      ],
+      [
+        "-1/+2",
+        "128",
+        512
+      ],
+      [
+        "-1/+2",
+        "128",
+        1024
+      ],
+      [
+        "-1/+2",
+        "32",
+        512
+      ],
+      [
+        "-1/+2",
+        "32",
+        1024
+      ],
+      [
+        "-1/+2",
+        "64",
+        512
+      ],
+      [
+        "-1/+2",
+        "64",
+        1024
+      ],
+      [
+        "-1/+2",
+        "uncapped",
+        1024
+      ],
+      [
+        "-2/+1",
+        "128",
+        1024
+      ],
+      [
+        "-2/+1",
+        "32",
+        512
+      ],
+      [
+        "-2/+1",
+        "32",
+        1024
+      ],
+      [
+        "-2/+1",
+        "64",
+        512
+      ],
+      [
+        "-2/+1",
+        "64",
+        1024
+      ],
+      [
+        "-2/+1",
+        "uncapped",
+        1024
+      ],
+      [
+        "-2/+2",
+        "128",
+        1024
+      ],
+      [
+        "-2/+2",
+        "32",
+        512
+      ],
+      [
+        "-2/+2",
+        "32",
+        1024
+      ],
+      [
+        "-2/+2",
+        "64",
+        512
+      ],
+      [
+        "-2/+2",
+        "64",
+        1024
+      ],
+      [
+        "-2/+2",
+        "uncapped",
+        1024
+      ],
+      [
+        "-3/+3",
+        "128",
+        1024
+      ],
+      [
+        "-3/+3",
+        "32",
+        512
+      ],
+      [
+        "-3/+3",
+        "32",
+        1024
+      ],
+      [
+        "-3/+3",
+        "64",
+        1024
+      ],
+      [
+        "0",
+        "128",
+        512
+      ],
+      [
+        "0",
+        "128",
+        1024
+      ],
+      [
+        "0",
+        "32",
+        512
+      ],
+      [
+        "0",
+        "32",
+        1024
+      ],
+      [
+        "0",
+        "64",
+        512
+      ],
+      [
+        "0",
+        "64",
+        1024
+      ],
+      [
+        "0",
+        "uncapped",
+        512
+      ],
+      [
+        "0",
+        "uncapped",
+        1024
+      ]
+    ]
+  }
+}

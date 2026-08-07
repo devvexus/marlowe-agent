@@ -175,6 +175,13 @@ is `ORT_ENABLE_ALL`, and the two fuse this int8 graph differently — identical 
 Python tool that scores with the cross-encoder sets `ORT_ENABLE_BASIC` explicitly. An offline
 measurement taken at a different level measures a different scorer.
 
+**The quantized graph is bound to its tensor shape in EVERY dimension — `[1, 256]` is load-bearing
+exactly as batch = 1 is.** Session I re-padded bit-identical token ids to a longer tensor, changing
+nothing but the shape: int8 moved by a median **0.0109** logits and **padding alone flipped top-1 in
+15% of cases**, while all eight f32 graphs were invariant to **0.000000**. **Any sweep that varies
+sequence length runs f32, or its cells are different scorers.** This also corrects ADR-014's
+neighbourhood: the batch-invariance failure was *quantization*, not architecture. See ADR-015.
+
 **The cache-cold latency read cannot be taken over the full split, and the reason is measured.** On
 a cold cache the implementation must embed a whole session's turns inside one §4.6 ingest call, and
 some LongMemEval sessions exceed the harness's §4.0.7 30-second deadline — which aborts the run

@@ -1,0 +1,363 @@
+{
+  "_what": "Session I Phase 1.3 -- the load-time gate every candidate reranker must pass.",
+  "_gates": [
+    "digest",
+    "provider asserted",
+    "pair encoding",
+    "discrimination",
+    "determinism"
+  ],
+  "_not_a_gate": "batch invariance -- the shipped path scores one pair per call, so a batch failure cannot reach it. Measured per graph and reported.",
+  "results": {
+    "ms-marco-MiniLM-L-2-v2-int8": {
+      "arch": "BERT (int8)",
+      "params_m": 16,
+      "digest": "1857c1a59b01c1641a46a47fd85b01d98c6e15e1e48588eac1f6a97ff83479c7",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 4.219422817230225,
+        "irrelevant": -11.816786766052246,
+        "margin": 16.03620958328247,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          4.219422817230225,
+          4.219422817230225,
+          4.219422817230225
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.03522205352783203,
+        "identical": false,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 8.932,
+        "p95_ms": 10.239,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "ms-marco-MiniLM-L-2-v2": {
+      "arch": "BERT",
+      "params_m": 16,
+      "digest": "ceb39caaebb66f421f82b9051e466d817c8f715e8e1d663e020168c5e2af7914",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 4.912886142730713,
+        "irrelevant": -11.779605865478516,
+        "margin": 16.69249200820923,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          4.912886142730713,
+          4.912886142730713,
+          4.912886142730713
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 18.387,
+        "p95_ms": 20.442,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "ms-marco-MiniLM-L-4-v2": {
+      "arch": "BERT",
+      "params_m": 19,
+      "digest": "f03e07422f9f723146d9e65ee52cef262ac4ada5997dce0f9e72422327cf8252",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 4.854318618774414,
+        "irrelevant": -11.779727935791016,
+        "margin": 16.63404655456543,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          4.854318618774414,
+          4.854318618774414,
+          4.854318618774414
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 36.038,
+        "p95_ms": 39.347,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "ms-marco-MiniLM-L-6-v2": {
+      "arch": "BERT",
+      "params_m": 23,
+      "digest": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 5.552743434906006,
+        "irrelevant": -11.419841766357422,
+        "margin": 16.972585201263428,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          5.552743434906006,
+          5.552743434906006,
+          5.552743434906006
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 57.131,
+        "p95_ms": 59.492,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "ms-marco-MiniLM-L-12-v2": {
+      "arch": "BERT",
+      "params_m": 33,
+      "digest": "3a6d50ce60de831c8c68197df674eeb878d4ff34bb1aca5d1f3cb346c9075dba",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 6.528044700622559,
+        "irrelevant": -11.229689598083496,
+        "margin": 17.757734298706055,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          6.528044700622559,
+          6.528044700622559,
+          6.528044700622559
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 112.968,
+        "p95_ms": 118.951,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "bge-reranker-base": {
+      "arch": "XLM-RoBERTa",
+      "params_m": 278,
+      "digest": "15b9a8c3da82eddf263df571281166e00e9308fe19d077084b642ebfcaf06d2b",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 4.195812225341797,
+        "irrelevant": -10.195091247558594,
+        "margin": 14.39090347290039,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          4.195812225341797,
+          4.195812225341797,
+          4.195812225341797
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 380.562,
+        "p95_ms": 404.185,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "jina-reranker-v2-base-multilingual": {
+      "arch": "XLM-RoBERTa",
+      "params_m": 278,
+      "digest": "0ef3f7978f7bc52360864d74edc1a0e03d159af770a7767c4d5943496e616012",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 1024,
+      "discrimination": {
+        "relevant": 1.55756676197052,
+        "irrelevant": -3.7393927574157715,
+        "margin": 5.2969595193862915,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          1.55756676197052,
+          1.55756676197052,
+          1.55756676197052
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 384.646,
+        "p95_ms": 407.718,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "mxbai-rerank-base-v1": {
+      "arch": "DeBERTa-v3",
+      "params_m": 184,
+      "digest": "acd44aff3ed526079ed44cffac2e549ce70805ea193d70973c98b67e09efec1a",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 512,
+      "discrimination": {
+        "relevant": 3.344637393951416,
+        "irrelevant": -6.25925874710083,
+        "margin": 9.603896141052246,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          3.344637393951416,
+          3.344637393951416,
+          3.344637393951416
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 462.219,
+        "p95_ms": 478.306,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    },
+    "jina-reranker-v1-turbo-en": {
+      "arch": "JinaBERT",
+      "params_m": 38,
+      "digest": "c1296c66c119de645fa9cdee536d8637740efe85224cfa270281e50f213aa565",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "output_dim": 1,
+      "max_seq_supported": 8192,
+      "discrimination": {
+        "relevant": 0.2567799985408783,
+        "irrelevant": -4.536205291748047,
+        "margin": 4.792985290288925,
+        "pass": true
+      },
+      "determinism": {
+        "values": [
+          0.2567799985408783,
+          0.2567799985408783,
+          0.2567799985408783
+        ],
+        "pass": true
+      },
+      "batch_invariance": {
+        "max_abs_diff": 0.0,
+        "identical": true,
+        "pairs": 8
+      },
+      "cost": {
+        "median_ms": 67.52,
+        "p95_ms": 74.45,
+        "pairs": 40,
+        "max_len": 256
+      },
+      "admitted": true
+    }
+  },
+  "admitted": [
+    "ms-marco-MiniLM-L-2-v2-int8",
+    "ms-marco-MiniLM-L-2-v2",
+    "ms-marco-MiniLM-L-4-v2",
+    "ms-marco-MiniLM-L-6-v2",
+    "ms-marco-MiniLM-L-12-v2",
+    "bge-reranker-base",
+    "jina-reranker-v2-base-multilingual",
+    "mxbai-rerank-base-v1",
+    "jina-reranker-v1-turbo-en"
+  ],
+  "refused": {}
+}

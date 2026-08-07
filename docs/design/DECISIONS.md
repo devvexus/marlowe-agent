@@ -1545,3 +1545,73 @@ slice entry point. Batch invariance at Level1 is **0.0958**, worse than at `ENAB
 **§4.6 carries no session structure and that is the real defect.** Deriving sessions from timestamps
 is an approximation of something the contract could carry. **An M0a change with its own
 registration**, not absorbed as a permanent workaround.
+
+---
+
+## ADR-015 · The sequence cap is an accidental length normalizer, and quantized graphs are shape-bound
+
+**Status: measured, and NOTHING SHIPPED. `rerank.rs` is unchanged.** Session I's scope was narrowed
+twice; the sweep was not run. Three findings are the result, and the first one is why no code
+changed.
+
+### The decision, and it binds the next session
+
+> **Do not raise `MAX_SEQ_LEN` on its own. It is a −0.0917 R@1 regression, and the reason is that
+> the 256 cap is doing two opposing jobs.** It costs the 7.86% of gold turns that do not fit, and it
+> earns more than that back by capping how much score a long distractor can accumulate. **Removing
+> the cap removes the normalization.** Raising sequence length is viable only alongside **explicit
+> length normalization of the rerank score** — which is therefore promoted to the named next lever.
+
+L-2 f32, depth 10, window 0, fit split, everything but sequence length identical:
+
+| | R@1 | conditional accuracy |
+|---|---|---|
+| seq 256 | 0.5983 | 0.6493 |
+| seq 512 | 0.5066 | 0.5498 |
+
+Discordant 31 (5 gained, 26 lost), exact McNemar **p = 0.0002, α attainable** — the first
+significance statement in this project since ADR-014's defect that actually carries information.
+
+**The mechanism was registered as a two-way prediction before the measurement.** Either (a) the
+model genuinely prefers long passages, or (b) truncation manufactures the score by cutting a
+distractor to its most query-like opening. **(a) holds.** The rank-1 distractor on failures moves
+from 50.0% assistant-authored at 157 median word pieces to **74.3% at 487**, against gold that is
+87.7% user-authored at a median of 70. Truncation was *suppressing* the bias, not creating it.
+
+### Quantized graphs are bound to their tensor shape, in every dimension
+
+**`[1, 256]` is load-bearing on the shipped int8 graph exactly as batch = 1 is.** With bit-identical
+token ids, stripped of padding and re-padded to a longer tensor — only the shape differing:
+
+| padding-only, 600 pairs | median \|Δlogit\| | p95 | max | top-1 flips from padding alone |
+|---|---|---|---|---|
+| L-2 **int8** | 0.010904 | 0.046044 | 0.417379 | **9/60 = 15%** |
+| L-2 **f32** | 0.000000 | 0.000000 | 0.000000 | **0/60** |
+
+**Standing check: any sweep that varies sequence length runs f32, or its cells are different
+scorers.** The first read of the contrast above was taken on int8 and is void for that reason;
+int8 and f32 both landing on −0.0917 is coincidence, not corroboration. Eighth instance of the
+two-sides-silently-disagree pattern. It also corrects ADR-014's neighbourhood: batch invariance
+failed because of **quantization, not architecture** — all eight f32 graphs are invariant to
+0.000000.
+
+### CUDA is unblocked, and nothing was missing
+
+Session G's CUDA figure landed within 1% of CPU because the provider was *listed* and never
+*loaded*. No CUDA Toolkit is installed and none is needed: `torch 2.5.1+cu121` bundles what ORT 1.24
+requires in `site-packages/torch/lib`, and they were not on ORT's DLL search path.
+`os.add_dll_directory(torch/lib)` **before** importing onnxruntime, provider asserted against
+`get_providers()` after construction. **This unblocks fine-tuning, now the strongest remaining lever
+after length normalization.** GPU is **not** adopted for shipped inference; that needs its own ADR
+covering determinism and the VPS target.
+
+### What this session banked rather than spent
+
+The fit/held-out identity (+0.0000 on both halves, the gap is case mix), the failure decomposition,
+the depth table (**saturates at 30**, and depth 30 *is* the whole pruned pool), 8 rerankers pinned by
+repository revision **and** sha256, the model gate, and the truncation reachability grid. **A later
+session resumes at Phase 2 and does not repeat Phase 0 or Phase 1.**
+
+**Arm 6 is reclassified rather than deferred: per-query normalization CANNOT move R@1** — a strictly
+increasing within-query transform against a within-query ordering read is an identity, the same
+defect as ADR-011 and ADR-013. It belongs to the coverage curve, where the decision is cross-query.

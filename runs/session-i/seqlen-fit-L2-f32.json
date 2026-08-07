@@ -1,0 +1,3740 @@
+{
+  "_what": "Session I P1 (truncation defect fix) and P2 (arm 0, minimum breadth).",
+  "split": "fit",
+  "slate": {
+    "prune_N": 3,
+    "session_gap_ms": 1800000,
+    "budget": 10,
+    "window": "none"
+  },
+  "adr_014_floor": {
+    "alpha": 0.05,
+    "min_discordant_n": 6,
+    "_why": "exact McNemar's smallest two-sided p is 2/2^n"
+  },
+  "results": {
+    "ms-marco-MiniLM-L-2-v2@256": {
+      "seq_len": 256,
+      "cases": 229,
+      "r_at_1": 0.5983,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6493,
+      "ms_per_pair": {
+        "median": 18.206,
+        "p95": 20.452
+      },
+      "rank1_on_failures": {
+        "n": 92,
+        "assistant_share": 0.5,
+        "wordpieces": {
+          "median": 157.0,
+          "p75": 424.25,
+          "p95": 632.1500000000002
+        }
+      }
+    },
+    "ms-marco-MiniLM-L-2-v2@512": {
+      "seq_len": 512,
+      "cases": 229,
+      "r_at_1": 0.5066,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.5498,
+      "ms_per_pair": {
+        "median": 40.5,
+        "p95": 44.989
+      },
+      "rank1_on_failures": {
+        "n": 113,
+        "assistant_share": 0.7434,
+        "wordpieces": {
+          "median": 487.0,
+          "p75": 611.0,
+          "p95": 770.5999999999997
+        }
+      }
+    }
+  },
+  "contrasts": {
+    "ms-marco-MiniLM-L-2-v2@512 vs ms-marco-MiniLM-L-2-v2@256": {
+      "delta_r_at_1": -0.0917,
+      "delta_conditional_accuracy": -0.0995,
+      "gained": 5,
+      "lost": 26,
+      "discordant": 31,
+      "mcnemar_exact_p": 0.0002,
+      "smallest_attainable_p_at_this_n": 0.0,
+      "alpha_005_attainable": true,
+      "_adr_013_read_varies": true
+    }
+  },
+  "_per_case": {
+    "ms-marco-MiniLM-L-2-v2@256": [
+      {
+        "query_id": "51a45a95",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 39
+      },
+      {
+        "query_id": "58bf7951",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "1e043500",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "c5e8278d",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 381
+      },
+      {
+        "query_id": "6f9b354f",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "58ef2f1c",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 69
+      },
+      {
+        "query_id": "5d3d2817",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 713
+      },
+      {
+        "query_id": "c960da58",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 96
+      },
+      {
+        "query_id": "3b6f954b",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 93
+      },
+      {
+        "query_id": "94f70d80",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "ad7109d1",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "dccbc061",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "21436231",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "95bcc1c8",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "a06e4cfe",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 84
+      },
+      {
+        "query_id": "37d43f65",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "b86304ba",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "25e5aa4f",
+        "category": "single-session-user",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 563
+      },
+      {
+        "query_id": "caf9ead2",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 64
+      },
+      {
+        "query_id": "8550ddae",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 101
+      },
+      {
+        "query_id": "60d45044",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 42
+      },
+      {
+        "query_id": "3f1e9474",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 100
+      },
+      {
+        "query_id": "577d4d32",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 97
+      },
+      {
+        "query_id": "ec81a493",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 41
+      },
+      {
+        "query_id": "15745da0",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 45
+      },
+      {
+        "query_id": "e01b8e2f",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 44
+      },
+      {
+        "query_id": "001be529",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "19b5f2b3",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 53
+      },
+      {
+        "query_id": "4fd1909e",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 155
+      },
+      {
+        "query_id": "8e9d538c",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "4100d0a0",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 325
+      },
+      {
+        "query_id": "c14c00dd",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "6d550036",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "gpt4_59c863d7",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "e831120c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "gpt4_f2262a51",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 391
+      },
+      {
+        "query_id": "gpt4_a56e767c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 577
+      },
+      {
+        "query_id": "6cb6f249",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 310
+      },
+      {
+        "query_id": "46a3abf7",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 58
+      },
+      {
+        "query_id": "36b9f61e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 420
+      },
+      {
+        "query_id": "28dc39ac",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "gpt4_2f8be40d",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 437
+      },
+      {
+        "query_id": "gpt4_15e38248",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "88432d0a",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 102
+      },
+      {
+        "query_id": "d682f1a2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 59
+      },
+      {
+        "query_id": "gpt4_2ba83207",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "2ce6a0f2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 290
+      },
+      {
+        "query_id": "gpt4_d12ceb0e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "gpt4_31ff4165",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 512
+      },
+      {
+        "query_id": "129d1232",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "a9f6b44c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 61
+      },
+      {
+        "query_id": "d851d5ba",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_ab202e7f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 59
+      },
+      {
+        "query_id": "gpt4_e05b82a6",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 55
+      },
+      {
+        "query_id": "gpt4_731e37d7",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "edced276",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 64
+      },
+      {
+        "query_id": "10d9b85a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "e3038f8c",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "2b8f3739",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "c2ac3c61",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 70
+      },
+      {
+        "query_id": "bf659f65",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "gpt4_372c3eed",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "8a2466db",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "35a27287",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 593
+      },
+      {
+        "query_id": "195a1a1b",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 441
+      },
+      {
+        "query_id": "afdc33df",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 734
+      },
+      {
+        "query_id": "54026fce",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 45
+      },
+      {
+        "query_id": "1a1907b4",
+        "category": "single-session-preference",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 131
+      },
+      {
+        "query_id": "09d032c9",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 48
+      },
+      {
+        "query_id": "57f827a0",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 111
+      },
+      {
+        "query_id": "505af2f5",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 34
+      },
+      {
+        "query_id": "75f70248",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 680
+      },
+      {
+        "query_id": "d6233ab6",
+        "category": "single-session-preference",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "1da05512",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "b6025781",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 29
+      },
+      {
+        "query_id": "a89d7624",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "b0479f84",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "d3ab962e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "cc06de0d",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 56
+      },
+      {
+        "query_id": "a11281a2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 706
+      },
+      {
+        "query_id": "9aaed6a3",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "1f2b8d4f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 50
+      },
+      {
+        "query_id": "d905b33f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "f35224e0",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "6456829e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 88
+      },
+      {
+        "query_id": "a4996e51",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 448
+      },
+      {
+        "query_id": "3c1045c8",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 68
+      },
+      {
+        "query_id": "60036106",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 46
+      },
+      {
+        "query_id": "681a1674",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 58
+      },
+      {
+        "query_id": "e25c3b8d",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 44
+      },
+      {
+        "query_id": "4adc0475",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 35
+      },
+      {
+        "query_id": "4bc144e2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 330
+      },
+      {
+        "query_id": "3fdac837",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 46
+      },
+      {
+        "query_id": "91b15a6e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 85
+      },
+      {
+        "query_id": "720133ac",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "77eafa52",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "0100672e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 138
+      },
+      {
+        "query_id": "92a0aa75",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 254
+      },
+      {
+        "query_id": "3fe836c9",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 60
+      },
+      {
+        "query_id": "6c49646a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "61f8c8f8",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 578
+      },
+      {
+        "query_id": "ef9cf60a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "09ba9854",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 28
+      },
+      {
+        "query_id": "157a136e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "a3332713",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 159
+      },
+      {
+        "query_id": "a08a253f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 55
+      },
+      {
+        "query_id": "078150f1",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 574
+      },
+      {
+        "query_id": "a346bb18",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "gpt4_f49edff3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 507
+      },
+      {
+        "query_id": "b46e15ed",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 498
+      },
+      {
+        "query_id": "gpt4_fa19884c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 70
+      },
+      {
+        "query_id": "gpt4_4929293a",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 532
+      },
+      {
+        "query_id": "gpt4_b5700ca9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "9a707b81",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 51
+      },
+      {
+        "query_id": "gpt4_1d4ab0c9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 43
+      },
+      {
+        "query_id": "0db4c65d",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 61
+      },
+      {
+        "query_id": "gpt4_6dc9b45b",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_18c2b244",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 327
+      },
+      {
+        "query_id": "gpt4_a1b77f9c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 60
+      },
+      {
+        "query_id": "gpt4_468eb063",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 116
+      },
+      {
+        "query_id": "gpt4_7abb270c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 480
+      },
+      {
+        "query_id": "gpt4_4fc4f797",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "gpt4_45189cb4",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 443
+      },
+      {
+        "query_id": "gpt4_e061b84f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 249
+      },
+      {
+        "query_id": "370a8ff4",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 49
+      },
+      {
+        "query_id": "gpt4_d6585ce8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 90
+      },
+      {
+        "query_id": "8077ef71",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "gpt4_8e165409",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 85
+      },
+      {
+        "query_id": "bcbe585f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "gpt4_98f46fc6",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 505
+      },
+      {
+        "query_id": "eac54adc",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "gpt4_a2d1d1f6",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 59
+      },
+      {
+        "query_id": "gpt4_85da3956",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "gpt4_b0863698",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "gpt4_68e94287",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "gpt4_7ca326fa",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "2ebe6c92",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 228
+      },
+      {
+        "query_id": "gpt4_d6585ce9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 467
+      },
+      {
+        "query_id": "gpt4_e414231f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 80
+      },
+      {
+        "query_id": "gpt4_468eb064",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "9a707b82",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 54
+      },
+      {
+        "query_id": "eac54add",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "4dfccbf8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "6e984302",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 42
+      },
+      {
+        "query_id": "gpt4_2655b836",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 103
+      },
+      {
+        "query_id": "08f4fc43",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 63
+      },
+      {
+        "query_id": "gpt4_385a5000",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 63
+      },
+      {
+        "query_id": "bbf86515",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 88
+      },
+      {
+        "query_id": "gpt4_5dcc0aab",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 80
+      },
+      {
+        "query_id": "gpt4_0b2f1d21",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 54
+      },
+      {
+        "query_id": "gpt4_70e84552",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 722
+      },
+      {
+        "query_id": "982b5123",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 70
+      },
+      {
+        "query_id": "c8090214",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "gpt4_483dd43c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "gpt4_2c50253f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 97
+      },
+      {
+        "query_id": "cc6d1ec1",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "gpt4_8c8961ae",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 88
+      },
+      {
+        "query_id": "d01c6aa8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "a3045048",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 107
+      },
+      {
+        "query_id": "gpt4_d31cdae3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_cd90e484",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 123
+      },
+      {
+        "query_id": "b29f3365",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 60
+      },
+      {
+        "query_id": "gpt4_78cf46a3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 29
+      },
+      {
+        "query_id": "gpt4_2f584639",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 63
+      },
+      {
+        "query_id": "gpt4_5438fa52",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 61
+      },
+      {
+        "query_id": "830ce83f",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 39
+      },
+      {
+        "query_id": "852ce960",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 40
+      },
+      {
+        "query_id": "945e3d21",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 101
+      },
+      {
+        "query_id": "d7c942c3",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "07741c44",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 487
+      },
+      {
+        "query_id": "a1eacc2a",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 78
+      },
+      {
+        "query_id": "031748ae",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "4d6b87c8",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "0f05491a",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 207
+      },
+      {
+        "query_id": "08e075c7",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 75
+      },
+      {
+        "query_id": "41698283",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 112
+      },
+      {
+        "query_id": "2698e78f",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "45dc21b6",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 56
+      },
+      {
+        "query_id": "5a4f22c0",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "6071bd76",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "e493bb7c",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 201
+      },
+      {
+        "query_id": "72e3ee87",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 353
+      },
+      {
+        "query_id": "c4ea545c",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 43
+      },
+      {
+        "query_id": "01493427",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 82
+      },
+      {
+        "query_id": "ed4ddc30",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "8fb83627",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 210
+      },
+      {
+        "query_id": "22d2cb42",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 318
+      },
+      {
+        "query_id": "eace081b",
+        "category": "knowledge-update",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 32
+      },
+      {
+        "query_id": "affe2881",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "0ddfec37",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 78
+      },
+      {
+        "query_id": "dfde3500",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "69fee5aa",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "06db6396",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "3ba21379",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "9bbe84a2",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 581
+      },
+      {
+        "query_id": "dad224aa",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 106
+      },
+      {
+        "query_id": "ba61f0b9",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "5c40ec5b",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "c6853660",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "0977f2af",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 45
+      },
+      {
+        "query_id": "07741c45",
+        "category": "knowledge-update",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 68
+      },
+      {
+        "query_id": "c4f10528",
+        "category": "single-session-assistant",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 308
+      },
+      {
+        "query_id": "89527b6b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 69
+      },
+      {
+        "query_id": "e9327a54",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 345
+      },
+      {
+        "query_id": "f523d9fe",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "fea54f57",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 45
+      },
+      {
+        "query_id": "cc539528",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 277
+      },
+      {
+        "query_id": "18dcd5a5",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 683
+      },
+      {
+        "query_id": "488d3006",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 191
+      },
+      {
+        "query_id": "8cf51dda",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 18
+      },
+      {
+        "query_id": "8aef76bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 252
+      },
+      {
+        "query_id": "71a3fd6b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "70b3e69b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 290
+      },
+      {
+        "query_id": "3249768e",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 238
+      },
+      {
+        "query_id": "1b9b7252",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 182
+      },
+      {
+        "query_id": "6222b6eb",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 341
+      },
+      {
+        "query_id": "e8a79c70",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 268
+      },
+      {
+        "query_id": "d596882b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 230
+      },
+      {
+        "query_id": "e3fc4d6e",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 229
+      },
+      {
+        "query_id": "e982271f",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 116
+      },
+      {
+        "query_id": "fca762bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 178
+      },
+      {
+        "query_id": "7a8d0b71",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 537
+      },
+      {
+        "query_id": "8b9d4367",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 327
+      },
+      {
+        "query_id": "41275add",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 250
+      },
+      {
+        "query_id": "4baee567",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "28bcfaac",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 215
+      },
+      {
+        "query_id": "16c90bf4",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 114
+      },
+      {
+        "query_id": "e48988bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "778164c6",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 178
+      }
+    ],
+    "ms-marco-MiniLM-L-2-v2@512": [
+      {
+        "query_id": "51a45a95",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 39
+      },
+      {
+        "query_id": "58bf7951",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "1e043500",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "c5e8278d",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 586
+      },
+      {
+        "query_id": "6f9b354f",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "58ef2f1c",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 69
+      },
+      {
+        "query_id": "5d3d2817",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 713
+      },
+      {
+        "query_id": "c960da58",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 96
+      },
+      {
+        "query_id": "3b6f954b",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 93
+      },
+      {
+        "query_id": "94f70d80",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 545
+      },
+      {
+        "query_id": "ad7109d1",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "dccbc061",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "21436231",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "95bcc1c8",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "a06e4cfe",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 476
+      },
+      {
+        "query_id": "37d43f65",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "b86304ba",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 625
+      },
+      {
+        "query_id": "25e5aa4f",
+        "category": "single-session-user",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 563
+      },
+      {
+        "query_id": "caf9ead2",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 64
+      },
+      {
+        "query_id": "8550ddae",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 101
+      },
+      {
+        "query_id": "60d45044",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 42
+      },
+      {
+        "query_id": "3f1e9474",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 100
+      },
+      {
+        "query_id": "577d4d32",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 97
+      },
+      {
+        "query_id": "ec81a493",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 41
+      },
+      {
+        "query_id": "15745da0",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 45
+      },
+      {
+        "query_id": "e01b8e2f",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 845
+      },
+      {
+        "query_id": "001be529",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "19b5f2b3",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 53
+      },
+      {
+        "query_id": "4fd1909e",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 155
+      },
+      {
+        "query_id": "8e9d538c",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "4100d0a0",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 325
+      },
+      {
+        "query_id": "c14c00dd",
+        "category": "single-session-user",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "6d550036",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 620
+      },
+      {
+        "query_id": "gpt4_59c863d7",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "e831120c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 439
+      },
+      {
+        "query_id": "gpt4_f2262a51",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 391
+      },
+      {
+        "query_id": "gpt4_a56e767c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 577
+      },
+      {
+        "query_id": "6cb6f249",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 611
+      },
+      {
+        "query_id": "46a3abf7",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 58
+      },
+      {
+        "query_id": "36b9f61e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 420
+      },
+      {
+        "query_id": "28dc39ac",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "gpt4_2f8be40d",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 639
+      },
+      {
+        "query_id": "gpt4_15e38248",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 72
+      },
+      {
+        "query_id": "88432d0a",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 639
+      },
+      {
+        "query_id": "d682f1a2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 59
+      },
+      {
+        "query_id": "gpt4_2ba83207",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "2ce6a0f2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 479
+      },
+      {
+        "query_id": "gpt4_d12ceb0e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "gpt4_31ff4165",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 512
+      },
+      {
+        "query_id": "129d1232",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "a9f6b44c",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 61
+      },
+      {
+        "query_id": "d851d5ba",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_ab202e7f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 508
+      },
+      {
+        "query_id": "gpt4_e05b82a6",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 55
+      },
+      {
+        "query_id": "gpt4_731e37d7",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "edced276",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 64
+      },
+      {
+        "query_id": "10d9b85a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "e3038f8c",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "2b8f3739",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "c2ac3c61",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 70
+      },
+      {
+        "query_id": "bf659f65",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "gpt4_372c3eed",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "8a2466db",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "35a27287",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 593
+      },
+      {
+        "query_id": "195a1a1b",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 441
+      },
+      {
+        "query_id": "afdc33df",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 811
+      },
+      {
+        "query_id": "54026fce",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 652
+      },
+      {
+        "query_id": "1a1907b4",
+        "category": "single-session-preference",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 131
+      },
+      {
+        "query_id": "09d032c9",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 561
+      },
+      {
+        "query_id": "57f827a0",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 611
+      },
+      {
+        "query_id": "505af2f5",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 34
+      },
+      {
+        "query_id": "75f70248",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 680
+      },
+      {
+        "query_id": "d6233ab6",
+        "category": "single-session-preference",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 791
+      },
+      {
+        "query_id": "1da05512",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "b6025781",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 29
+      },
+      {
+        "query_id": "a89d7624",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "b0479f84",
+        "category": "single-session-preference",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "d3ab962e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 385
+      },
+      {
+        "query_id": "cc06de0d",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 56
+      },
+      {
+        "query_id": "a11281a2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 706
+      },
+      {
+        "query_id": "9aaed6a3",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "1f2b8d4f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 50
+      },
+      {
+        "query_id": "d905b33f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "f35224e0",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "6456829e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 630
+      },
+      {
+        "query_id": "a4996e51",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 448
+      },
+      {
+        "query_id": "3c1045c8",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 68
+      },
+      {
+        "query_id": "60036106",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 620
+      },
+      {
+        "query_id": "681a1674",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 58
+      },
+      {
+        "query_id": "e25c3b8d",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 44
+      },
+      {
+        "query_id": "4adc0475",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 35
+      },
+      {
+        "query_id": "4bc144e2",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 330
+      },
+      {
+        "query_id": "3fdac837",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 472
+      },
+      {
+        "query_id": "91b15a6e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 533
+      },
+      {
+        "query_id": "720133ac",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "77eafa52",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "0100672e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 138
+      },
+      {
+        "query_id": "92a0aa75",
+        "category": "multi-session",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 254
+      },
+      {
+        "query_id": "3fe836c9",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 60
+      },
+      {
+        "query_id": "6c49646a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "61f8c8f8",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 578
+      },
+      {
+        "query_id": "ef9cf60a",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "09ba9854",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 28
+      },
+      {
+        "query_id": "157a136e",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "a3332713",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 159
+      },
+      {
+        "query_id": "a08a253f",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 55
+      },
+      {
+        "query_id": "078150f1",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 574
+      },
+      {
+        "query_id": "a346bb18",
+        "category": "multi-session",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "gpt4_f49edff3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 507
+      },
+      {
+        "query_id": "b46e15ed",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 498
+      },
+      {
+        "query_id": "gpt4_fa19884c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 552
+      },
+      {
+        "query_id": "gpt4_4929293a",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 532
+      },
+      {
+        "query_id": "gpt4_b5700ca9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "9a707b81",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 51
+      },
+      {
+        "query_id": "gpt4_1d4ab0c9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 580
+      },
+      {
+        "query_id": "0db4c65d",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 499
+      },
+      {
+        "query_id": "gpt4_6dc9b45b",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_18c2b244",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 757
+      },
+      {
+        "query_id": "gpt4_a1b77f9c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 656
+      },
+      {
+        "query_id": "gpt4_468eb063",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 1248
+      },
+      {
+        "query_id": "gpt4_7abb270c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 480
+      },
+      {
+        "query_id": "gpt4_4fc4f797",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 73
+      },
+      {
+        "query_id": "gpt4_45189cb4",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 472
+      },
+      {
+        "query_id": "gpt4_e061b84f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 845
+      },
+      {
+        "query_id": "370a8ff4",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 574
+      },
+      {
+        "query_id": "gpt4_d6585ce8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 641
+      },
+      {
+        "query_id": "8077ef71",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "gpt4_8e165409",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 85
+      },
+      {
+        "query_id": "bcbe585f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "gpt4_98f46fc6",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 627
+      },
+      {
+        "query_id": "eac54adc",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 639
+      },
+      {
+        "query_id": "gpt4_a2d1d1f6",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 59
+      },
+      {
+        "query_id": "gpt4_85da3956",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 526
+      },
+      {
+        "query_id": "gpt4_b0863698",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "gpt4_68e94287",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 76
+      },
+      {
+        "query_id": "gpt4_7ca326fa",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 47
+      },
+      {
+        "query_id": "2ebe6c92",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 548
+      },
+      {
+        "query_id": "gpt4_d6585ce9",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 467
+      },
+      {
+        "query_id": "gpt4_e414231f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 80
+      },
+      {
+        "query_id": "gpt4_468eb064",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 86
+      },
+      {
+        "query_id": "9a707b82",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 54
+      },
+      {
+        "query_id": "eac54add",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 514
+      },
+      {
+        "query_id": "4dfccbf8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "6e984302",
+        "category": "temporal-reasoning",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 471
+      },
+      {
+        "query_id": "gpt4_2655b836",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 103
+      },
+      {
+        "query_id": "08f4fc43",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 63
+      },
+      {
+        "query_id": "gpt4_385a5000",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 586
+      },
+      {
+        "query_id": "bbf86515",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 88
+      },
+      {
+        "query_id": "gpt4_5dcc0aab",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 80
+      },
+      {
+        "query_id": "gpt4_0b2f1d21",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 582
+      },
+      {
+        "query_id": "gpt4_70e84552",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 722
+      },
+      {
+        "query_id": "982b5123",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 70
+      },
+      {
+        "query_id": "c8090214",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "gpt4_483dd43c",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 516
+      },
+      {
+        "query_id": "gpt4_2c50253f",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 97
+      },
+      {
+        "query_id": "cc6d1ec1",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 541
+      },
+      {
+        "query_id": "gpt4_8c8961ae",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 88
+      },
+      {
+        "query_id": "d01c6aa8",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 468
+      },
+      {
+        "query_id": "a3045048",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 107
+      },
+      {
+        "query_id": "gpt4_d31cdae3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 74
+      },
+      {
+        "query_id": "gpt4_cd90e484",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 123
+      },
+      {
+        "query_id": "b29f3365",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 60
+      },
+      {
+        "query_id": "gpt4_78cf46a3",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 29
+      },
+      {
+        "query_id": "gpt4_2f584639",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 502
+      },
+      {
+        "query_id": "gpt4_5438fa52",
+        "category": "temporal-reasoning",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 364
+      },
+      {
+        "query_id": "830ce83f",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 39
+      },
+      {
+        "query_id": "852ce960",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 40
+      },
+      {
+        "query_id": "945e3d21",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 724
+      },
+      {
+        "query_id": "d7c942c3",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "07741c44",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 487
+      },
+      {
+        "query_id": "a1eacc2a",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 78
+      },
+      {
+        "query_id": "031748ae",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 52
+      },
+      {
+        "query_id": "4d6b87c8",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "0f05491a",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 207
+      },
+      {
+        "query_id": "08e075c7",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 75
+      },
+      {
+        "query_id": "41698283",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 112
+      },
+      {
+        "query_id": "2698e78f",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 81
+      },
+      {
+        "query_id": "45dc21b6",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 56
+      },
+      {
+        "query_id": "5a4f22c0",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "6071bd76",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 469
+      },
+      {
+        "query_id": "e493bb7c",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 201
+      },
+      {
+        "query_id": "72e3ee87",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "c4ea545c",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 43
+      },
+      {
+        "query_id": "01493427",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 82
+      },
+      {
+        "query_id": "ed4ddc30",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 71
+      },
+      {
+        "query_id": "8fb83627",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 210
+      },
+      {
+        "query_id": "22d2cb42",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 318
+      },
+      {
+        "query_id": "eace081b",
+        "category": "knowledge-update",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 32
+      },
+      {
+        "query_id": "affe2881",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "0ddfec37",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 78
+      },
+      {
+        "query_id": "dfde3500",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 66
+      },
+      {
+        "query_id": "69fee5aa",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 62
+      },
+      {
+        "query_id": "06db6396",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "3ba21379",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 877
+      },
+      {
+        "query_id": "9bbe84a2",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 620
+      },
+      {
+        "query_id": "dad224aa",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 106
+      },
+      {
+        "query_id": "ba61f0b9",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 83
+      },
+      {
+        "query_id": "5c40ec5b",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 65
+      },
+      {
+        "query_id": "c6853660",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 626
+      },
+      {
+        "query_id": "0977f2af",
+        "category": "knowledge-update",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 627
+      },
+      {
+        "query_id": "07741c45",
+        "category": "knowledge-update",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 519
+      },
+      {
+        "query_id": "c4f10528",
+        "category": "single-session-assistant",
+        "gold_in_slate": false,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 308
+      },
+      {
+        "query_id": "89527b6b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 575
+      },
+      {
+        "query_id": "e9327a54",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 345
+      },
+      {
+        "query_id": "f523d9fe",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "user",
+        "rank1_wordpieces": 77
+      },
+      {
+        "query_id": "fea54f57",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 261
+      },
+      {
+        "query_id": "cc539528",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 277
+      },
+      {
+        "query_id": "18dcd5a5",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 683
+      },
+      {
+        "query_id": "488d3006",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 191
+      },
+      {
+        "query_id": "8cf51dda",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 407
+      },
+      {
+        "query_id": "8aef76bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 252
+      },
+      {
+        "query_id": "71a3fd6b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 67
+      },
+      {
+        "query_id": "70b3e69b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 290
+      },
+      {
+        "query_id": "3249768e",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 310
+      },
+      {
+        "query_id": "1b9b7252",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 182
+      },
+      {
+        "query_id": "6222b6eb",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 341
+      },
+      {
+        "query_id": "e8a79c70",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 461
+      },
+      {
+        "query_id": "d596882b",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 230
+      },
+      {
+        "query_id": "e3fc4d6e",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 659
+      },
+      {
+        "query_id": "e982271f",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 116
+      },
+      {
+        "query_id": "fca762bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 178
+      },
+      {
+        "query_id": "7a8d0b71",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 537
+      },
+      {
+        "query_id": "8b9d4367",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 327
+      },
+      {
+        "query_id": "41275add",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 250
+      },
+      {
+        "query_id": "4baee567",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 79
+      },
+      {
+        "query_id": "28bcfaac",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 215
+      },
+      {
+        "query_id": "16c90bf4",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": true,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 114
+      },
+      {
+        "query_id": "e48988bc",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "user",
+        "rank1_wordpieces": 38
+      },
+      {
+        "query_id": "778164c6",
+        "category": "single-session-assistant",
+        "gold_in_slate": true,
+        "top1_is_gold": false,
+        "rank1_role": "assistant",
+        "rank1_wordpieces": 178
+      }
+    ]
+  }
+}
