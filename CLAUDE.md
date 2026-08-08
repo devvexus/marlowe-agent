@@ -59,10 +59,15 @@ requirements only when the design docs do not answer the question.
   question *adjacent* to the one being asked, and the adjacent answer looks authoritative.
   `tier=truecolor` printed beside a white screen. `scroll` incrementing while the view sat still. A
   green hover test over an event that never arrived. A run recorded as passing on Windows Terminal
-  when only a headless buffer had been diffed. **Twelve instances across M0b, M1 and M2** — in code,
-  in defaults, in verification methods, and in measurement targets. Before believing a number, ask
-  what it would read if the thing you actually care about were broken; if the answer is "the same",
-  it is a proxy and it is not evidence.
+  when only a headless buffer had been diffed. **Fourteen instances across M0b, M1, M0c and M2** —
+  in code, in defaults, in verification methods, in measurement targets, and once in a guard. Before
+  believing a number, ask what it would read if the thing you actually care about were broken; if
+  the answer is "the same", it is a proxy and it is not evidence.
+
+  The ledger, for the last three, because the count is only useful if it is auditable:
+  **12** — `Deserialize` routing around a validating constructor (M2 A; the first caught by design).
+  **13** — R@1 counting a superseded fact as a hit, so every R@1 in the project was inflated
+  (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
 - **Watch for defaults that make a mismatch unobservable.** A fallback value, a permissive
   default, a re-resolved path — each lets two sides silently disagree while the test goes green
   because the failing path stopped existing. This pattern has produced four bugs in this project
@@ -78,6 +83,24 @@ requirements only when the design docs do not answer the question.
   question "what would this read if the property were broken?" was asked of the serde path
   specifically. That is what naming a failure family is *for*; recognising it only in hindsight is
   the cheaper half.
+- **A guarded path that moved is unguarded, and the guard says nothing.** The **fourteenth**
+  instance, and the first where *the guard itself* is what quietly stopped existing.
+
+  M2 Session B split `crates/marlowe-permission/src/scope.rs` into `scope/{mod,request,glob,walk}.rs`.
+  The §13 hook's entry named the old file, matched nothing, and **path scoping — the wall, with no
+  kernel behind it — was silently unprotected.** No error, no warning, no failing test. The hook
+  still ran, still worked, and still guarded every other entry, which is exactly why nothing looked
+  wrong.
+
+  **Every other entry in that table has the same failure mode**, and it fires on the most ordinary
+  action there is: renaming a file. Two fixes, and both are needed — a directory prefix survives a
+  split, and `protect-boundaries.py --self-check <repo>` fails when any guarded path does not exist,
+  run by `marlowe-permission/tests/boundary_hook.rs` so a stale entry fails the build. A negative
+  control confirms it is not decorative: renaming a guarded file makes it fail by name.
+
+  Generalised: **a guard is a claim about a path, and a claim about a path needs a test that the
+  path is still there.** Ask of any protective mechanism — what would this report if its subject
+  moved? If the answer is "nothing", the mechanism is a comment.
 
 ## Do not touch
 

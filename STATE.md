@@ -2,9 +2,8 @@
 
 **Updated:** 2026-08-08 — **M1 is CLOSED (`ed25914`). Current milestone: M2**, branch `m2-loop`.
 Session A shipped the spine (loop, tools, permissions, runs, assembler); **Session B shipped path
-scoping whole** — traversal suite and handle discipline together, ADR-027. **412 cargo tests,
-`eval/` untouched at 72.** Next is Session C. **Two gaps carried from B and neither is small: the
-symlink class did not run on this machine, and the POSIX walk has never been executed.**
+scoping whole** — traversal suite and handle discipline together, ADR-027, **verified on Windows AND
+Linux**. **414 cargo tests on Windows, 62 on Linux, `eval/` untouched at 72.** Next is Session C.
 
 **M0b is COMPLETE and SHIPPED.** The Session J fine-tune is on the scored path; held-out R@1
 **0.5764 → 0.6725**. K1 is amended and pinned. The precision/coverage curve is published and an
@@ -164,16 +163,23 @@ deterministic via a `WalkObserver` called at the exact vulnerable instant (`()` 
 a thread racing and hoping. On Windows the test also asserts the swap failed *as a sharing
 violation*, so a swap that failed because `mklink` was missing cannot leave it green.
 
-**TWO GAPS, AND THEY ARE NOT SMALL:**
+**BOTH GAPS ARE CLOSED, and the closing condition is now a standing requirement.**
 
-1. **The symlink class DID NOT RUN here** — `New-Item -ItemType SymbolicLink` gives os error 1314,
-   "a required privilege is not held by the client". Junctions need no privilege and *did* run, so
-   the Windows directory-reparse escape is covered; a **file** symlink is not. The suite prints a
-   coverage manifest naming any unrunnable class, and `MARLOWE_TRAVERSAL_STRICT=1` makes it a
-   failure. **Enable Developer Mode or run elevated to close this locally.**
-2. **The POSIX walk has never been executed.** It type-checks against `x86_64-unknown-linux-gnu`
-   and nothing more. ADR-002's inversion, on the security boundary: **Session B's acceptance is met
-   on Windows only until the suite runs on Linux.**
+They were real and blocking: the symlink class could not run on Windows (os error 1314, privilege
+not held), and the POSIX walk had never been executed — ADR-002's inversion landing on the security
+boundary.
+
+**Closed 2026-08-08 on WSL2 (Kali, ext4 `/tmp`, native symlinks), `MARLOWE_TRAVERSAL_STRICT=1`, all
+62 tests green and the coverage manifest reporting `RAN` for all eleven classes including symlink
+escape.** The POSIX `openat`/`O_NOFOLLOW` walk executed for the first time there, and
+`the_naive_implementation_escapes_which_is_what_makes_this_a_race` passed on Linux too — so the race
+window is demonstrably real on Linux and `O_NOFOLLOW` demonstrably closes it.
+
+**The standing requirement, because a one-time run is not a guarantee:** the suite runs on **both**
+platforms with `MARLOWE_TRAVERSAL_STRICT=1` before path scoping is called verified after any change
+to `scope/`. Windows alone leaves the symlink class unrunnable; Linux alone never executes the
+pinning. `.wsl-probe.sh` is deliberately **not** kept — a script nobody reads is not a procedure;
+the command is two lines in ADR-027.
 
 **A guard whose subject moved is no guard.** Splitting `scope.rs` into `scope/` made the brief §13
 hook name a file that no longer existed — path scoping was silently unguarded and nothing said so.
@@ -560,12 +566,9 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The headline metric has never been produced.** No human label set exists.
 - **The permission layer has no kernel backstop (ADR-002, revised).**
 - **M1's §B13 suite must run on both native Windows Terminal and a Linux terminal emulator.**
-- **Path scoping is verified on WINDOWS ONLY.** The POSIX walk (`openat`/`O_NOFOLLOW`) type-checks
-  against `x86_64-unknown-linux-gnu` and **has never been executed**. ADR-002's inversion, on the
-  security boundary. Session B's acceptance is met on Windows only until the suite runs on Linux.
-- **The symlink traversal class did not run here** (os error 1314, privilege not held). Junctions
-  did, so the Windows directory-reparse escape is covered and a *file* symlink is not. Run
-  elevated or with Developer Mode, and set `MARLOWE_TRAVERSAL_STRICT=1` in CI.
+- **Path scoping must be re-verified on BOTH platforms after any change to `scope/`.** Windows
+  cannot run the symlink class without elevation; Linux never exercises the Windows pinning. A
+  single-platform green is a half-measured wall. Both were run at the close of Session B.
 - **`read`, `edit`, `find` and `bash` still have no executors** (Session C). Path scoping now
   admits a declared path, so a green traversal suite is evidence about the *checker*, not about
   filesystem tools that do not exist yet.

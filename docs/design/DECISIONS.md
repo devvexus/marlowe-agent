@@ -618,11 +618,47 @@ Under the original design, `paths: ["./out/**"]` in a capability manifest was a 
 kernel would have enforced anyway. It is now the enforcement. **A path check that can be defeated
 by string manipulation is the whole protection gone** — there is nothing behind it.
 
-**Canonicalize first, then check. Never check, then canonicalize.** Every comparison happens on
-the fully resolved path: symlinks and reparse points followed, relative segments collapsed, case
-folded on case-insensitive volumes, extended-length and UNC forms normalized. A check performed
-against the string the model supplied is a check against an attacker-chosen encoding of a path,
-not against the path.
+**AMENDED 2026-08-08, at the close of M2 Session B.** The original wording is kept, because a
+future session must be able to see what was strengthened and why.
+
+> **Original:** *"Canonicalize first, then check. Never check, then canonicalize. Every comparison
+> happens on the fully resolved path: symlinks and reparse points followed, relative segments
+> collapsed, case folded on case-insensitive volumes, extended-length and UNC forms normalized. A
+> check performed against the string the model supplied is a check against an attacker-chosen
+> encoding of a path, not against the path."*
+
+**The amended rule: the hostile string is never canonicalized at all.**
+
+The original is right about the ordering and wrong about what it permits. It describes a resolved
+path being produced and then compared — and **an implementation doing exactly that complies with
+every word of it and is still defeated by a link planted between the comparison and the open.** The
+resolved string is a value that exists, is trusted, and can go stale. The wording admits the very
+window the paragraph below it was added to close, so a session implementing to its letter could ship
+a check-then-open resolver and believe it had complied.
+
+The rule is therefore stated as the property, not the ordering:
+
+> **No resolved path string is ever produced for the purpose of being trusted.** A requested path is
+> (1) refused if its *spelling* is ambiguous — `..`, rooted, UNC, extended-length, device,
+> drive-relative, alternate data stream, reserved device name, 8.3 short name, munged trailing dot
+> or space, homoglyph separator; (2) matched against the manifest's declared globs as a relative
+> string, before any syscall; and (3) **walked open one component at a time**, with the kernel
+> resolving each component under supervision and the handle retained. There is no step in which a
+> canonical path is computed and then relied upon.
+>
+> The only normalization applied to a path is Unicode NFC, applied to **both sides of one
+> comparison** and to nothing used afterwards. Every other ambiguous form is refused rather than
+> normalized: a normalizer must be right about every encoding, a refusal about one thing.
+
+Concretely: `openat` with `O_NOFOLLOW` per component on POSIX; on Windows, every directory on the
+path pinned open with a share mode excluding `FILE_SHARE_DELETE`, each component opened with
+`FILE_FLAG_OPEN_REPARSE_POINT` and refused on `FILE_ATTRIBUTE_REPARSE_POINT`, and the root's identity
+verified before and after. **ADR-027** carries the implementation, its measured gaps, and the test
+that defeats a check-then-open reference implementation on purpose.
+
+**Nothing is relaxed.** The original's intent — never compare against the string the model supplied —
+is preserved and strengthened; what is removed is the implicit permission to hold a resolved path and
+trust it.
 
 **M2 acceptance gains a path-traversal suite.** Not a smoke test — an adversarial one, covering
 at minimum:
@@ -2547,28 +2583,38 @@ that passes for the wrong reason most of the time.
 *with a sharing or access violation* — the pinning firing. A swap that failed because `mklink` was
 missing would leave the outcome assertion green while measuring nothing.
 
-### What is verified, and where — stated because it is not uniform
+### What is verified, and where — measured on both platforms
 
-| | Windows (this machine) | Linux / macOS |
+| | Windows 11 (MSVC) | Linux (WSL2 Kali, ext4) |
 |---|---|---|
-| String-level classes | run | run (platform-independent) |
-| Junction / directory-link escape | **run** | run as symlink |
-| **Symlink escape** | **NOT RUN — needs Developer Mode or elevation** | expected to run |
-| TOCTOU race | **run**, including the naive-escapes control | **written, never executed** |
-| Compile | run | `cargo check --target x86_64-unknown-linux-gnu`, clean |
+| String-level classes | run | run |
+| Junction / directory-link escape | run | run (as symlink) |
+| **Symlink escape** | **cannot run — needs Developer Mode or elevation (os error 1314)** | **run** |
+| TOCTOU race, incl. the naive-escapes control | run | **run** |
+| Windows pinning mechanism assertion | run | n/a |
+| Suite under `MARLOWE_TRAVERSAL_STRICT=1` | **fails** (symlink class unrunnable) | **passes**, 11/11 classes `RAN` |
+| Totals | 414 workspace tests | 62 crate tests |
 
-Two gaps, both real:
+**Both gaps that this ADR originally recorded as open are closed.** The POSIX `openat`/`O_NOFOLLOW`
+walk executed for the first time on WSL2 at the close of Session B, and the symlink class ran there.
+`the_naive_implementation_escapes_which_is_what_makes_this_a_race` passes on Linux as well, so the
+race window is demonstrably real on Linux and `O_NOFOLLOW` demonstrably closes it — the same pair of
+assertions the Windows run makes about pinning.
 
-1. **The symlink class did not run on the development machine.** `New-Item -ItemType SymbolicLink`
-   returns "A required privilege is not held by the client" (os error 1314). The suite **reports**
-   this rather than skipping it: `every_traversal_class_is_accounted_for` prints a coverage manifest
-   naming any class it could not run, and `MARLOWE_TRAVERSAL_STRICT=1` turns an unrunnable class
-   into a failure. CI sets it.
-2. **The POSIX walk has never been executed.** It type-checks against a real Linux target and
-   nothing more. ADR-002 predicted this inversion — development moved to native Windows, so
-   *Linux* is the CI-only surface — and it applies with more force here than it did to M1's
-   interface work, because this is the security boundary. **Session B's acceptance is met on
-   Windows only until the suite runs on Linux.**
+**The command, so it does not need a script:**
+
+```bash
+# Windows
+cargo test -p marlowe-permission
+# Linux, from the same checkout. A separate target dir keeps the Windows one intact and puts
+# build artifacts on ext4; fixtures already live in $TMPDIR, which must not be on DrvFs --
+# /mnt/c does not have Linux symlink or openat semantics, so a suite run there measures DrvFs.
+wsl -d <distro> -- bash -lc 'cd /mnt/c/<repo> && CARGO_TARGET_DIR=/tmp/marlowe-target-linux   MARLOWE_TRAVERSAL_STRICT=1 cargo test -p marlowe-permission'
+```
+
+**This is a standing requirement, not a one-time closure.** Any change under `scope/` re-runs both.
+Windows alone leaves the symlink class unrunnable; Linux alone never exercises the pinning. A
+single-platform green is a half-measured wall, and the halves do not overlap.
 
 ### A suite of refusals can be passed by refusing everything
 
@@ -2595,6 +2641,10 @@ present, not whether it is correct.
   whether a path is inside a security boundary.
 
 ### A guard whose subject moved is no guard, and it says nothing
+
+**This is the fourteenth instance of the adjacent-measurement family and the first where the guard
+itself is what quietly stopped existing.** CLAUDE.md carries the generalised form.
+
 
 Splitting `scope.rs` into `scope/{mod,request,glob,walk}.rs` made the brief §13 hook's entry name a
 file that no longer existed. **Path scoping was silently unguarded**, and nothing reported it — the
