@@ -54,10 +54,33 @@ const TRIALS: &[(&str, &str, &str, &str)] = &[
     ("Look up what I said about deadlines.", "recall", "query", ""),
 ];
 
+/// **One model, unless a sweep is explicitly asked for.**
+///
+/// Model comparison on this project is bounded by local hardware: the development machine cannot
+/// hold several large models resident at once, and a probe that iterated a list would try. The
+/// default is therefore a single model, and a sweep needs `MARLOWE_PROBE_SWEEP=1` **and** an
+/// explicit list — two deliberate acts, because the failure mode is a machine thrashing rather
+/// than an error message.
+///
+/// This constraint is not a property of the probe. It binds every future routing decision,
+/// including ADR-008's strong-model/cheap-model split, and `STATE.md` carries it so it does not
+/// surface as a surprise when someone proposes one.
 fn candidates() -> Vec<String> {
-    std::env::var("MARLOWE_PROBE_MODELS")
+    let listed: Vec<String> = std::env::var("MARLOWE_PROBE_MODELS")
         .map(|s| s.split(',').map(|m| m.trim().to_string()).filter(|m| !m.is_empty()).collect())
-        .unwrap_or_else(|_| vec![marlowe_provider::DEFAULT_MODEL.to_string()])
+        .unwrap_or_default();
+
+    match listed.len() {
+        0 => vec![marlowe_provider::DEFAULT_MODEL.to_string()],
+        1 => listed,
+        n => {
+            assert!(
+                std::env::var("MARLOWE_PROBE_SWEEP").is_ok(),
+                "{n} models were listed. A sweep loads them one after another and this project's                  development machine cannot hold several large models at once — set                  MARLOWE_PROBE_SWEEP=1 if the machine running this can. Measuring one model at a                  time is the supported path."
+            );
+            listed
+        }
+    }
 }
 
 #[test]

@@ -115,6 +115,15 @@ first four cost time and one produced a false report.
 | 3 | `git add -A` sweeps the other session's in-flight edits | Five of their files went into a commit under someone else's message. `git reset --soft` unpicks it without touching the working tree |
 | 4 | **A session reports a real error in the other's mid-edit** | A `profile.write` arity mismatch was accurate when observed and had been resolved minutes earlier |
 | 5 | **…and it happens in both directions** | A missing `DegradedPath::ModelUnavailable` was reported against `marlowe-loop` between the tool call that *used* it and the tool call that *defined* it, seconds apart |
+| 6 | **One session's build invalidates another's measurement** | A 16-core `cargo build` ran straight through a parallel session's timed queries and inflated every stage ~10%. The table it produced looked complete and was wrong |
+
+**6 is the one that does not announce itself.** Forms 1–5 produce a wrong branch, a swept file or
+a false error report — all visible. A build stealing CPU from a timed query produces a **complete,
+plausible table that is simply wrong**, and the only reason it was caught is that the measuring
+session had kept an **un-instrumented control** to compare against. That is the standing lesson
+applied to wall-clock: *a number is not evidence unless you know what it would read if the thing
+you care about were fine.* **Any timed measurement in a shared checkout needs a control, and any
+session about to build should say so first.**
 
 **4 and 5 are the same failure and they are worth naming together.** Both reports were correct
 about a state that had already stopped existing. A build error observed in a shared checkout is a

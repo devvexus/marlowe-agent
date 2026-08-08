@@ -557,6 +557,36 @@ learned mechanism**, or **the 10%-coverage interval**.
   — the other eleven were found after they shipped; this one was closed before it could exist,
   because the family's question was asked of the serde path specifically.
 
+## The default model, and what was actually measured
+
+**`qwen3.5:9b`**, pinned as `marlowe_provider::DEFAULT_MODEL`. Chosen on **tool-call reliability**
+rather than general quality, because the first thing a user does is ask Marlowe to read a file and
+a model that cannot emit a well-formed call looks exactly like a broken harness.
+
+**Measured 2026-08-08, one model, 12 trials: 12/12 well-formed, 12/12 correct target, median
+1666 ms.**
+
+**And the qualification, because a point estimate is not an interval.** 12/12 on twelve trials has
+a 95% Clopper-Pearson lower bound of ≈**0.74**, which is *below* the 0.80 bar it is measured
+against. It clears the bar **on the point estimate and not with its interval** — the same
+distinction K1's amendment turns on. Twelve trials is thin. Raising `capability::MIN_TRIALS` costs
+only probe time, and is the cheapest way to tighten this.
+
+**No other model has been measured**, so this is not a comparison — see the constraint below.
+
+## A standing constraint on every routing decision
+
+**Model comparison is bounded by local hardware: one model at a time.** The development machine
+holds a large library on disk but cannot keep several large models resident, so a comparison sweep
+thrashes rather than erroring. `tests/tool_call_probe.rs` therefore measures **one** model by
+default and requires `MARLOWE_PROBE_SWEEP=1` plus an explicit list before it will iterate.
+
+**This binds more than the probe.** ADR-008's tiered routing — strong model for orchestration,
+cheap models for extraction and classification — assumes two models can be *chosen between*, and
+choosing between them means measuring them. On this hardware that is sequential, slow, and cannot
+be done as one run. A proposal that treats a strong/cheap split as free is a proposal that has not
+priced the measurement. Recorded here so it does not surface as a surprise inside one.
+
 ## Known issues
 
 - **The export gap is now on the SHIPPED path.** The graph is **self-validated only** — this project

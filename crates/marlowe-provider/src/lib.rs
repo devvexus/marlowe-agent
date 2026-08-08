@@ -36,5 +36,5 @@ pub mod routing;
 pub use capability::{ModelCapability, ToolCallReport};
 pub use marlowe_permission::ArgValue;
 pub use http::{HttpError, LocalEndpoint};
-pub use ollama::{Availability, OllamaDriver, DEFAULT_MODEL};
+pub use ollama::{default_capability, Availability, OllamaDriver, DEFAULT_MODEL};
 pub use routing::{Routing, RoutingError};

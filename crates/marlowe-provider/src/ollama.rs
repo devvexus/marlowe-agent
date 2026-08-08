@@ -19,10 +19,38 @@ use crate::capability::ModelCapability;
 use crate::http::{self, HttpError, LocalEndpoint};
 use crate::routing::Routing;
 
-/// The pinned default, chosen on **measured tool-call reliability** — see `README` of
-/// `tests/tool_call_probe.rs` and `docs/design/DECISIONS.md` ADR-028. It is a constant so the
-/// choice is one line to change and one line to review.
+/// The pinned default, chosen on **measured tool-call reliability** (ADR-028 requirement 2).
+///
+/// **Measured 2026-08-08, `tests/tool_call_probe.rs`, 12 trials: 12/12 well-formed, 12/12 with
+/// the correct target, median 1666 ms.**
+///
+/// **And the honest qualification, because a point estimate is not an interval.** 12/12 is a
+/// perfect score on twelve trials; the 95% Clopper-Pearson lower bound is ≈0.74, which is *below*
+/// [`crate::capability::MIN_RATE`]. So this clears the bar **on the point estimate and not with
+/// its interval** — the same distinction K1's amendment turns on, and it is stated here rather
+/// than rounded away. Twelve trials is thin; the number to raise is
+/// [`crate::capability::MIN_TRIALS`], and raising it costs only probe time.
+///
+/// It is a constant so the choice is one line to change and one line to review.
 pub const DEFAULT_MODEL: &str = "qwen3.5:9b";
+
+/// What [`DEFAULT_MODEL`] was measured to do, so a run can disclose it without re-measuring.
+///
+/// A build that changes `DEFAULT_MODEL` and not this is a build that discloses one model's
+/// number under another model's name — so the pair is asserted in `tests`.
+pub fn default_capability() -> ModelCapability {
+    ModelCapability {
+        model: DEFAULT_MODEL.to_string(),
+        parameters: Some("9B".into()),
+        tool_calls: Some(crate::capability::ToolCallReport {
+            trials: 12,
+            well_formed: 12,
+            correct_target: 12,
+            measured_on: "2026-08-08".into(),
+            median_ms: 1666,
+        }),
+    }
+}
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -277,6 +305,17 @@ pub fn parse_step(message: &serde_json::Value) -> ModelStep {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_recorded_capability_describes_the_model_that_is_actually_default() {
+        // A build that changed DEFAULT_MODEL and not `default_capability` would disclose one
+        // model's measured rate under another model's name — a number quoted about the wrong
+        // subject, which is the family this project has logged fourteen times.
+        let c = default_capability();
+        assert_eq!(c.model, DEFAULT_MODEL);
+        assert!(c.fit_for_default(), "the pinned default must clear its own bar: {}", c.disclosure());
+        assert!(c.disclosure().contains("12/12"), "{}", c.disclosure());
+    }
 
     #[test]
     fn an_absent_endpoint_degrades_with_a_remedy_rather_than_crashing() {
