@@ -102,6 +102,26 @@ requirements only when the design docs do not answer the question.
   path is still there.** Ask of any protective mechanism — what would this report if its subject
   moved? If the answer is "nothing", the mechanism is a comment.
 
+## Parallel sessions share a checkout until they do not
+
+**Use `git worktree`.** Two sessions in one checkout share one `HEAD`, and this project has now
+produced the hazard in **five distinct forms** in a single day. None lost work; all four of the
+first four cost time and one produced a false report.
+
+| # | Form | What happened |
+|---|---|---|
+| 1 | A branch switch redirects the other session's commits | `git checkout -b m2-loop` at `ed25914`; the retrieval session's next two commits landed on `m2-loop` while `retrieval-m0c` stayed put |
+| 2 | The checkout moves under a running session | A fix moved `HEAD` to `retrieval-m0c` mid-session; the next commit landed there |
+| 3 | `git add -A` sweeps the other session's in-flight edits | Five of their files went into a commit under someone else's message. `git reset --soft` unpicks it without touching the working tree |
+| 4 | **A session reports a real error in the other's mid-edit** | A `profile.write` arity mismatch was accurate when observed and had been resolved minutes earlier |
+| 5 | **…and it happens in both directions** | A missing `DegradedPath::ModelUnavailable` was reported against `marlowe-loop` between the tool call that *used* it and the tool call that *defined* it, seconds apart |
+
+**4 and 5 are the same failure and they are worth naming together.** Both reports were correct
+about a state that had already stopped existing. A build error observed in a shared checkout is a
+*snapshot*, not a fact — and the reflex it provokes, fixing the other session's code, is exactly
+wrong, because only its author knows the intent. **Re-verify before reporting a build break, and
+say when it was observed.**
+
 ## Do not touch
 
 Per brief §13.

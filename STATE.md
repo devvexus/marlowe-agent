@@ -538,7 +538,11 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue.
 - **The unchanged-cue check is a NULL INSTRUMENT for a pruning change.** Its silence is not evidence.
-- **`cargo test --workspace` (412) and `cd eval && python -m pytest` (72).**
+- **`cargo test --workspace` (442) and `cd eval && python -m pytest` (72).**
+- **A build error seen in a shared checkout is a SNAPSHOT, not a fact.** Re-verify before
+  reporting one, and say when it was observed. Twice in one day a session reported a real error in
+  the other's mid-edit that had already been resolved — in both directions. See CLAUDE.md's
+  parallel-sessions table.
 - **A traversal suite must contain an implementation it DEFEATS.** `tests/toctou.rs` asserts that
   `naive_check_then_open` escapes under the same interleaving. Without that half, a green suite is
   equally consistent with a test that never landed in the race window.

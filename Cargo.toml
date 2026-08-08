@@ -10,6 +10,7 @@ members = [
     "crates/marlowe-permission",
     "crates/marlowe-loop",
     "crates/marlowe-exec",
+    "crates/marlowe-provider",
     "crates/marlowe",
     # TEMPORARY: the engine spike. Removed once ADR-004 names a runtime.
     "crates/marlowe-embed-spike",
@@ -33,6 +34,7 @@ marlowe-tools = { path = "crates/marlowe-tools" }
 marlowe-permission = { path = "crates/marlowe-permission" }
 marlowe-loop = { path = "crates/marlowe-loop" }
 marlowe-exec = { path = "crates/marlowe-exec" }
+marlowe-provider = { path = "crates/marlowe-provider" }
 
 # ADR-001 and Addendum B §B15. The widget mapping is close to one-to-one, which is why the
 # design is buildable rather than aspirational: Block::bordered().title() is the region

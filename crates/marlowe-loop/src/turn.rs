@@ -37,6 +37,12 @@ pub enum DegradedPath {
     DenseRetrievalOffline,
     VoiceUnavailable,
     ProviderFailedOver,
+    /// ADR-028: the local Ollama endpoint is absent, or the routed model is not pulled.
+    ///
+    /// A declared value on the run, not a crash — invariant 4. The *specific* remedy
+    /// (`ollama serve`, `ollama pull <model>`) lives in `Availability::remedy`, because a
+    /// degraded state a user cannot act on is a crash with better manners.
+    ModelUnavailable,
 }
 
 impl DegradedPath {
@@ -45,6 +51,7 @@ impl DegradedPath {
             DegradedPath::DenseRetrievalOffline => "dense retrieval offline · lexical only",
             DegradedPath::VoiceUnavailable => "voice offline · text only",
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",
+            DegradedPath::ModelUnavailable => "no model available · see status",
         }
     }
 }
