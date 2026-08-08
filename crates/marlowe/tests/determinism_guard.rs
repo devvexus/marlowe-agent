@@ -114,13 +114,30 @@ fn no_hash_map_in_crate_sources() {
 /// *"On any path reachable from sections 4.1, 4.6, or 4.7, the implementation MUST NOT read
 /// a system clock. Every timestamp is derived from the `clock` supplied by the caller."*
 ///
-/// Exactly one reading of a real clock is legitimate: `cost.latency_ms`, which the contract
-/// requires the implementation to self-report and which the harness excludes from its
-/// reproduction hash for that reason. That read is fenced into one module so this guard can
-/// name it, and so a second one cannot appear without appearing here.
+/// Exactly one reading of a real clock is legitimate **on a contract path**: `cost.latency_ms`,
+/// which the contract requires the implementation to self-report and which the harness excludes
+/// from its reproduction hash for that reason. That read is fenced into one module so this guard
+/// can name it, and so a second one cannot appear without appearing here.
+///
+/// M1 adds a second fence, off every contract path. A terminal that animates needs a monotonic
+/// time base, and K4 is stated in milliseconds to first frame, so `--timing-probe` has to read a
+/// real clock to report one. It is fenced for the same reason the first one is: so that the
+/// *third* read cannot appear silently.
+///
+/// **Both entries are exact file names, never directories.** The `HashMap` guard's argument
+/// applies here too — allowlisting a directory would blind this guard to the files where the real
+/// mistake would live. `marlowe-surface` gets no exemption at all: every render there is a pure
+/// function of `(state, now_ms)`, which is what makes §B13's flicker rows diffable in the first
+/// place, and a stray `Instant::now()` inside a widget would take that away.
 #[test]
 fn the_only_real_clock_read_is_the_latency_fence() {
-    const FENCE: &str = "elapsed.rs";
+    const FENCES: &[&str] = &[
+        // Section 4.2's self-reported `cost.latency_ms`. The original fence.
+        "elapsed.rs",
+        // M1: the stub owns the time base because ARCHITECTURE.md §2.14 says a surface holds no
+        // state the daemon lacks, and time is state. Not on any contract path.
+        "frame_clock.rs",
+    ];
 
     /// The engine spike — a **temporary** measurement crate, exempt with an expiry.
     ///
@@ -137,7 +154,7 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     let mut offenders = Vec::new();
     for path in crate_sources() {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if name == FENCE || name == "determinism_guard.rs" {
+        if FENCES.contains(&name.as_str()) || name == "determinism_guard.rs" {
             continue;
         }
         if path.components().any(|c| c.as_os_str() == TEMPORARY_SPIKE) {
@@ -155,7 +172,7 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     }
     assert!(
         offenders.is_empty(),
-        "a real clock is read outside {FENCE}. Section 4.5 is binding on every path \
+        "a real clock is read outside the fences {FENCES:?}. Section 4.5 is binding on every path \
          reachable from sections 4.1/4.6/4.7, and a stray read makes staleness half-life \
          unmeasurable and every decay-dependent result irreproducible. If this is a latency \
          measurement, route it through the fence:\n  {}",

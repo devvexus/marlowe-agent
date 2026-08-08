@@ -292,7 +292,7 @@ ten?
 
 1. **Risk tiering so most actions never prompt.** Approval scarcity is what preserves meaning;
    a prompt on every action is a prompt on none.
-2. **Rubber-stamping is measured** (§B6): approval latency and approve-without-expand rate,
+2. **Rubber-stamping is measured** (§B9): approval latency and approve-without-expand rate,
    per class. When the user is clicking through, the system says so and proposes either
    promoting the class (stop asking) or tightening it.
 3. **Novelty gating**, so the prompts that do fire skew toward the genuinely unusual.
@@ -659,7 +659,7 @@ the override, used daily, stops reading as a warning inside a week — the erosi
 right, which is why the answer is to remove the default rather than to keep a default nobody
 exercises.
 
-**Consequence for M1.** The §B9 suite must still run on native Windows Terminal *and* on a Linux
+**Consequence for M1.** The §B13 suite must still run on native Windows Terminal *and* on a Linux
 terminal emulator. The direction of the gap has inverted — development is now on Windows, so
 **Linux is the surface at risk of being verified only in CI** — but the requirement is symmetric
 and unchanged.
@@ -2183,3 +2183,90 @@ export's. `vocab` (30522), `normalizer`, `pre_tokenizer`, `post_processor`, `dec
 `rerank.rs` implements itself and never reads. **Confirmed empirically rather than argued:** token
 ids, attention mask, token type ids and the truncation flag agree on all 8 reference cases across
 both vocabularies, and that agreement is now a test.
+
+---
+
+## ADR-021 · The status indicator is a braille amplitude meter, 6×2 cells, and it has no fallback
+
+**Status: decided 2026-08-08, at the start of M1, before implementation.** §B5 requires the glyph
+form to be decided and recorded first, because the choice is not reversible once seven states and an
+acceptance suite are written against it.
+
+### The decision
+
+> **The status indicator is a braille column meter over U+2800–U+28FF, six cells wide by two rows
+> tall — twelve horizontal samples at eight vertical levels. There is exactly one glyph set. There
+> is no capability probe and no fallback.**
+
+Braille packs 2×4 dots into a character cell. Two rows of six cells is therefore a 12×8 sample grid
+in the space a 6×2 block-character meter would give 6 columns at 8 levels with no vertical
+subdivision inside a row. **That resolution is the point.** It is the form `btop` and `bottom` use,
+and it is the register §B0 is aiming for — an engineer opens it and thinks someone who uses
+terminals every day built this.
+
+### What was considered and rejected
+
+**Block characters (`▁▂▃▄▅▆▇█`), rejected.** Two arguments were made for them and both were wrong.
+
+The first was font coverage, and it is **largely stale**. Cascadia Code, DejaVu Sans Mono, JetBrains
+Mono, Fira Code and the Nerd Fonts patch set all cover U+2800–U+28FF. The terminal fonts that do not
+are not the fonts this product's users run.
+
+The second was legibility — that braille is too fine to read `waiting` from across a room. That
+**misattributes the work.** `waiting` is legible because three signals fire together: the indicator
+**freezes**, the state name reads `waiting`, and the region goes amber. §B5's requirement is carried
+by the combination, not by one glyph's stroke weight. Choosing a coarser glyph to make a single
+signal do three signals' work is the wrong trade.
+
+### The widget renders what the source reports, and animates nothing
+
+**The widget has no animation of its own.** It draws whatever its sample source last reported and
+**holds the last frame when sampling stops.** This is what makes §B5's central rule structural rather
+than a special case:
+
+> Motion means Marlowe is working. Stillness means the ball is in the user's court.
+
+`waiting` freezes because `waiting` **stops sampling** — not because a branch somewhere disables an
+animation timer for that one state. A frozen indicator is the absence of a source, which is exactly
+what the state means.
+
+| state | what the source reports |
+|---|---|
+| listening, speaking | microphone amplitude |
+| thinking, writing | token/stream progress |
+| running | elapsed against expected duration |
+| **waiting** | **nothing — sampling stops, last frame held** |
+| idle | a flat zero baseline, still and dim |
+
+### M1's source is a scripted envelope, not a microphone
+
+**Stated plainly, because §B12 forbids decorative motion and this is the seam where that could rot.**
+M1 has no microphone and no model. The M1 sample source is the stub's scripted amplitude envelope.
+Real data flows through the real path and the widget still invents nothing — but a scripted envelope
+is not a microphone. §B12's "reports real state" is **structurally satisfied, not done.** M2 replaces
+the *source*; the widget does not change.
+
+### The cost of braille, and how it is paid
+
+**There is no way to detect whether a font renders U+2800–U+28FF.** The terminal reports no glyph
+coverage; a missing glyph surfaces as tofu, a blank, or a width-2 replacement, and none of those are
+distinguishable from a correctly rendered dim frame by anything the program can measure.
+
+**No fallback is added, and that is deliberate.** A silent block-character fallback would mean two
+users see two different indicators with nothing observing the divergence — the exact class of defect
+CLAUDE.md warns about, and the fifth instance of it in this project. Instead:
+
+1. **The font requirement is documented** — a terminal font covering U+2800–U+28FF.
+2. **`marlowe doctor` prints the glyph row and asks the user to confirm it by eye.** One honest
+   one-time check, at a moment the user is looking, beats a silent divergence that never surfaces.
+
+A capability probe here would be a guess dressed as a measurement. A human eye is the only instrument
+that actually reads this, so the check is given to the human.
+
+### Consequences
+
+- The meter is a custom `ratatui` widget over a 6×2 cell rect (§B15's last row).
+- Sampling is pull-based from a source trait. `waiting` is the absence of a source, not a flag.
+- `marlowe doctor` is an M1 deliverable, not a later convenience.
+- Any future re-decision re-opens this ADR. **Do not add a fallback to make a font problem go away** —
+  fix the font, or change the decision here in the open.

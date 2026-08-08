@@ -1,21 +1,63 @@
 //! The Marlowe binary.
 //!
 //! ADR-002: one binary, two roles — `marlowe` (thin client) and `marlowe --serve` (daemon).
-//! Neither exists yet. M0b ships one mode: the eval adapter, which is how the M0a harness
-//! reaches an implementation over the section 4.0 transport.
+//! The daemon does not exist yet. M1 adds the client's two surfaces, driven by a scripted stub:
+//! `--tui` (Addendum B v2) and `--classic` (§B11). M0b's eval adapter is unchanged.
 
 mod adapter;
 mod dump;
 mod elapsed;
+mod launcher;
+mod tui;
 
 use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
+marlowe --launch
+marlowe --tui [--timing-probe] [--color-depth <truecolor|256|16>] [--ground]
+marlowe --classic
+marlowe --doctor
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
         [--embedding-cache <DIR>] [--embedder-workers <N>]
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
+
+  --tui                         The terminal interface. Requires at least 120x30; below that it
+                                prints one line naming the current and required size and offers
+                                --classic. It does NOT render a degraded grid -- a narrow variant
+                                was designed and rejected because it cost the borders, which cost
+                                the region contract, which is the entire design (Addendum B §B11).
+
+  --diagnostic                  Render raw-mode state, the colour tier and a LIVE KEYSTROKE
+                                COUNTER in the titlebar. A running TUI's most important properties
+                                are invisible from outside the process, and a separate probe run
+                                measures a different process. This makes the session answer for
+                                itself: a terminal that renders and animates while ignoring every
+                                key looks exactly like one that works.
+
+  --timing-probe                Draw one frame, report time to first frame and time to
+                                interactive in milliseconds, and leave. K4 is stated in these
+                                numbers, so they are a command that prints them rather than a
+                                target nobody measures.
+
+  --color-depth <TIER>          Override the colour-depth probe. §B2 requires the 256- and
+                                16-colour fallbacks, so a probe cannot be avoided -- but a silent
+                                probe is the mismatch-hiding default this project has shipped four
+                                bugs behind. The probe's answer is printed by --timing-probe and
+                                --doctor, and this is how it is overridden.
+
+  --classic                     The classic CLI: a readline REPL with COMMAND parity, not layout
+                                parity. The narrow, SSH, piped-stdin and no-TTY path. Both
+                                surfaces dispatch from one command registry, so parity is a
+                                property of the design rather than a checklist that rots.
+
+  --doctor                      Terminal capability report: size, colour depth and why it was
+                                chosen, accent contrast against a dark and a light background, and
+                                the braille glyph row for you to confirm BY EYE. Font coverage for
+                                U+2800-U+28FF cannot be detected, and ADR-021 refuses to add a
+                                silent fallback -- so the check is given to the only instrument
+                                that can read it.
 
   Speak CONTRACTS.md section 4 over NDJSON on stdin/stdout.
 
@@ -87,10 +129,116 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    if !args.iter().any(|a| a == "--eval-adapter") {
-        eprintln!("{USAGE}");
-        eprintln!("error: no mode selected. M0b ships only --eval-adapter.");
-        std::process::exit(2);
+    // Modes are mutually exclusive and named. There is deliberately no default mode: a bare
+    // `marlowe` becomes the thin client at M2, and guessing one now would mean changing what an
+    // existing command does later.
+    let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch"]
+        .into_iter()
+        .filter(|m| args.iter().any(|a| a == m))
+        .collect();
+    match modes.len() {
+        1 => {}
+        0 => {
+            eprintln!("{USAGE}");
+            eprintln!(
+                "error: no mode selected. One of --launch, --tui, --classic, --doctor, --eval-adapter."
+            );
+            std::process::exit(2);
+        }
+        _ => {
+            eprintln!("{USAGE}");
+            eprintln!(
+                "error: {} were all given. They are different surfaces over the same session, not \
+                 layers; pick one.",
+                modes.join(" and ")
+            );
+            std::process::exit(2);
+        }
+    }
+
+    // §B17. Opens a terminal Marlowe controls, rather than assuming this one is suitable.
+    if modes[0] == "--launch" {
+        let extra: Vec<String> = args.iter().filter(|a| *a != "--launch").cloned().collect();
+        match launcher::launch(&extra) {
+            Ok(o) => {
+                // Report what was chosen, always. A launcher that silently accepts a terminal it
+                // could not configure is how "the font is wrong" becomes a bug against the frame.
+                match &o.terminal {
+                    Some(t) => println!("terminal   {t}{}", if o.profile_written {
+                        " (Marlowe profile)"
+                    } else {
+                        " (no profile; direct launch)"
+                    }),
+                    None => println!("terminal   this one"),
+                }
+                // Global settings are named individually. Windows Terminal keeps window chrome
+                // outside profiles, so theming it necessarily reaches past "adds one, modifies
+                // none" — which is allowed, and is never silent.
+                if !o.globals_changed.is_empty() {
+                    println!("globals    {} (chrome is global in Windows Terminal; \
+                              settings.json.marlowe-backup holds the previous file)",
+                             o.globals_changed.join(", "));
+                }
+                for d in &o.degraded {
+                    println!("degraded   {d}");
+                }
+                if o.terminal.is_none() {
+                    // Nothing suitable was found. Run here rather than refuse, having said what
+                    // is degraded — §B17 asks for the note, not for a dead end.
+                    if let Err(e) = tui::run(tui::Options {
+                        timing_probe: false,
+                        diagnostic: false,
+                        color_depth: None,
+                        ground: true,
+                        panic_probe: false,
+                    }) {
+                        eprintln!("error: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+
+    if modes[0] == "--tui" {
+        let opts = tui::Options {
+            timing_probe: args.iter().any(|a| a == "--timing-probe"),
+            diagnostic: args.iter().any(|a| a == "--diagnostic"),
+            color_depth: flag_value(&args, "--color-depth").map(str::to_string),
+            ground: args.iter().any(|a| a == "--ground"),
+            panic_probe: args.iter().any(|a| a == "--panic-probe"),
+        };
+        if args.iter().any(|a| a == "--color-depth") && opts.color_depth.is_none() {
+            eprintln!("error: --color-depth requires a value: truecolor, 256 or 16.");
+            std::process::exit(2);
+        }
+        if let Err(e) = tui::run(opts) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if modes[0] == "--classic" {
+        let stdin = io::stdin();
+        let clock = marlowe_stub::Clock::real();
+        if let Err(e) = marlowe_surface::cli::run(stdin.lock(), io::stdout(), &clock) {
+            eprintln!("error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+
+    if modes[0] == "--doctor" {
+        for line in marlowe_surface::doctor::report(&marlowe_stub::Session::new()) {
+            println!("{line}");
+        }
+        return;
     }
 
     let profile_root = match flag_value(&args, "--profile-root") {

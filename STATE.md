@@ -34,6 +34,34 @@ fine-tuning effect.
 **Budget margin is now thin: 238/300 cold leaves 62 ms.** K1's precision numbers are *defined* at
 these budgets — a violation makes them void, not caveated.
 
+## READ THIS FIRST — three things that must not be re-derived wrong
+
+**0. A CAPABILITY REPORT IS NOT AN EMISSION REPORT.** This is the standing lesson, and it is the
+**eleventh** instance of the pattern this file has recorded — the first where *the harness disabled
+the very thing it was verifying*.
+
+M1's frame rendered entirely achromatic in Windows Terminal for four rounds of screenshots while the
+startup record printed `tier=truecolor`. Nothing was wrong with the detection: the terminal really
+was truecolor. `NO_COLOR=1` was set in the environment of the shell that launched it, crossterm
+honours `NO_COLOR` **at the formatter level** — `SetForegroundColor(..)` emits `ESC[m`, an empty SGR
+which is a full reset — and every cell was therefore painted in the terminal's default foreground.
+The layout, the styles, the region contract and the colour tier were all correct simultaneously.
+
+**The probe was answering the wrong question.** It measured what the terminal *can carry* and
+reported it where the reader would understand *what will be emitted*. Those two are different
+quantities and nothing in the system compared them, so they disagreed in silence — the same shape as
+the `--reranking` default, the `--embedder-model` default, and the eight before them.
+
+The fix is `Theme::emission_report()`, which states what will actually be emitted and names the
+override; it has a regression test. **The fix is not to stop honouring `NO_COLOR`** — that is a
+legitimate user preference, and overriding it silently would be the identical sin inverted.
+
+Generalised, for the next time: **when a component reports a capability, ask what it would print if
+the capability were present but suppressed downstream.** If the answer is "the same thing", the
+report is decorative. Diagnosing this cost four rounds and was only closed by writing three probes
+that emitted known bytes and measuring the resulting pixels — *the screenshot was right and the
+record was wrong* the entire time.
+
 ## READ THIS FIRST — two things that must not be re-derived wrong
 
 **1. The 0.3739 ceiling never measured retrieval quality.** ADR-016. **A perfect retrieval system
@@ -87,13 +115,104 @@ calibration set is 12 against a floor of 40.
 
 ## Next action — M1
 
-**Scope and kickoff: `docs/design/M1-KICKOFF.md`.** Ships the TUI and classic CLI against a
+**Scope and kickoff: `ROADMAP.md` §M1** (`M1-KICKOFF.md` is deleted — it was v1 scope). Ships a
 **scripted stub**. **Carries K4.** Read `03-addendum-terminal.md` fully before any interface work,
 and `04-addendum-persona.md` before any user-visible prose — **including the stub's**.
 
 **§B1 is binding: zero memory-related elements in the default view.** The `TurnEvent` enum has no
 injection variant and must not gain one. M1 consumes none of M0b, deliberately — the interface must
 not be shaped by what memory happens to do today.
+
+### M1 progress — 2026-08-08
+
+**Built and verified live in Windows Terminal** (not `TestBackend`): the frame, keyboard navigation,
+conversation and §B6 tool lines, status band and seven states, inspector, approvals overlay, classic
+CLI, width refusal, `doctor`. 87 tests green across `marlowe-surface`, `marlowe-stub`, `marlowe`;
+`eval/` untouched at 72.
+
+**Amendments to Addendum B made this session, all at the human's direction:**
+
+- **§B10 — the mouse is captured.** Reverses the earlier "keyboard-first, so leave selection to the
+  terminal" reasoning: drag-selecting the frame is the single thing that made a running application
+  read as a printout. Keyboard remains complete; teardown is in the panic hook too.
+- **§B10 — the first-keystroke rule.** The default focus is a region where letters are hotkeys,
+  **never a text input**. Stated as a rule because the failure is invisible to any test that presses
+  `Esc` first — "reachable after one extra key that no border mentions" still passes.
+- **§B10 — copy is first-class.** `Shift`-drag (verified working under capture: 121 chars out of a
+  live session), `y` for the focused turn, `Y` for the transcript as markdown. **Payloads are built
+  from the model, never the screen** — the measured native selection returns
+  `+3 −0 ││ ┌Spend───…`, three regions' cells from one row.
+- **§B17 — the launcher.** `marlowe --launch` writes an additive Windows Terminal profile, scheme
+  and theme, then opens the window. A desktop shortcut (`Marlowe.lnk`) runs it.
+
+**Three bugs found by using it that no test caught, all now fixed:**
+
+1. **Scroll never moved.** `move_within` computed `u16::MAX - 1` and the renderer clamped it back to
+   the bottom, so the first notch moved nothing and so did the next 65,533. **Every unit test
+   passed**, because they asserted `scroll` *changed*, not that the view *moved*. The renderer now
+   hands its clamp back to the app.
+2. **The third foreground weight was double-dimmed.** The palette carried the mockup's exact
+   `#4a4460` **and** `Modifier::DIM` on top, "for terminals that honour it" — which had the
+   reasoning backwards: an explicit fg colour is universal and SGR 2 is the unreliable half, so the
+   modifier could only double-apply where it worked. Windows Terminal honours it, and the dimmest
+   tier became unreadable. **The weights now carry no modifier**, so the mockup is the reference on
+   every terminal.
+3. **`NO_COLOR`.** See item 0 at the top of this file.
+
+**Two Windows Terminal limits, measured rather than assumed** — do not re-attempt without new
+evidence: `themes.window.frame` is accepted and **silently ignored** (focused title bar stayed at
+the Windows accent colour `#946B33`); and the tab strip's `+` cannot be hidden while Windows
+Terminal draws the title bar, while giving the title bar back to Windows removes `+` but repaints it
+in the accent colour. The `×` *is* removable (`tab.showCloseButton: never`). Focus mode was tried
+and rejected — it takes drag and close with it, and `WS_CAPTION` is already set, so no window-style
+trick restores them.
+
+**HOVER WORKS. A CLAIM THAT IT DID NOT WAS WRONG, AND THE WAY IT WAS WRONG IS THE LESSON.**
+
+An earlier version of this section recorded, as a measured fact, that mouse motion events were never
+delivered and that every hover state was dead code. **That was false.** The human confirmed hover
+working by using it.
+
+What the measurement actually showed: a synthetic pointer sweep via `SetCursorPos` produced
+`mouse=2`. The harness had failed `SetForegroundWindow` three times immediately beforehand
+("target window refused focus"), and terminals report mouse motion only to a **focused** window.
+So the number measured the harness's inability to activate the window, not the application's
+ability to receive motion.
+
+**This is the same error as the `NO_COLOR` bug in item 0, committed while writing up the `NO_COLOR`
+bug.** A probe answered a question adjacent to the one being asked, and its answer was read as a
+product failure. The specific trap for anything driving a GUI from outside: **synthetic input into an
+unfocused window is not evidence about the application.** Assert focus, or do not report the result.
+
+No code change was kept. `ESC[?1003h` was briefly added and has been reverted — crossterm's
+`EnableMouseCapture` already enables all-motion tracking, which is why hover worked all along.
+
+**Deferred to M2, with a real blocker rather than a shrug: app-level text selection in the
+conversation pane.** Mouse-down anchors, drag extends, the span renders in inverse video, release
+copies. It needs cell-to-character mapping that respects wrapped lines and **never crosses a region
+boundary** — which is exactly what terminal selection cannot do, and the measured proof is in §B10:
+a `Shift`-drag across one row of the running build returned `+3 -0 || ,-Spend---`, three regions'
+cells from a single screen row. It is blocked on Marlowe owning the renderer for that pane, it is
+about a week, and `helix`/`zellij` are the reference implementations. M1 ships `Shift`-drag plus
+`y`/`Y`, which covers the need without pretending to be the same capability.
+
+**Two Windows Terminal limits, as measured facts with their numbers.** These are the evidence for
+whether a native window is ever worth a milestone, so they are recorded as data, not impressions:
+
+1. **`themes.window.frame` is accepted and silently ignored** (WT 1.24.11911.0). Set to `#0F0E14`,
+   the focused title bar still measured **`#946B33`** — the Windows accent colour. A settings key
+   that does nothing and reports nothing.
+2. **The tab strip's `+` cannot be hidden while Windows Terminal draws the title bar.** The two
+   reachable states were both built and measured: `showTabsInTitlebar: true` gives a title bar at
+   **`#0F0E14`**, identical to the terminal background and seamless, but keeps `+` and the chevron;
+   `false` removes the whole strip but hands the bar to Windows, which paints it **`#946B33`**. The
+   `x` *is* removable (`tab.showCloseButton: never`). Focus mode was tried and rejected: it removes
+   drag and close, and `WS_CAPTION`/`WS_SYSMENU` are **already set** (style `0x14CF0000`), so no
+   window-style trick restores them — WT draws over the caption itself.
+
+**Still open in M1:** the live 9-line checklist run end to end; `runs/m1-session-a/RESULT.md`
+marking **every §B13 row live or headless** — a headless pass on a row about keystrokes, flicker,
+colour or terminal state is **not a pass**, and that is the finding of this milestone.
 
 ### The two M0b directions, carried as named work rather than preconditions
 
@@ -181,7 +300,7 @@ mechanism, length normalization, or raising sequence length.
 - **LongMemEval-S penalises correct clock handling on 76 of 500 cases.**
 - **The headline metric has never been produced.** No human label set exists.
 - **The permission layer has no kernel backstop (ADR-002, revised).**
-- **M1's §B9 suite must run on both native Windows Terminal and a Linux terminal emulator.**
+- **M1's §B13 suite must run on both native Windows Terminal and a Linux terminal emulator.**
 
 ## Open questions for the human
 

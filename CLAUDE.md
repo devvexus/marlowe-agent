@@ -55,6 +55,14 @@ requirements only when the design docs do not answer the question.
   number does not exist.
 - **Do not author the memory eval.** `eval/` is the scoreboard. It is not modified to accommodate
   an implementation. If a test fails, the implementation is wrong until proven otherwise.
+- **Assert the property you care about, not a proxy that moves with it.** A measurement can answer a
+  question *adjacent* to the one being asked, and the adjacent answer looks authoritative.
+  `tier=truecolor` printed beside a white screen. `scroll` incrementing while the view sat still. A
+  green hover test over an event that never arrived. A run recorded as passing on Windows Terminal
+  when only a headless buffer had been diffed. **Eleven instances across M0b and M1** — in code, in
+  defaults, in verification methods, and in measurement targets. Before believing a number, ask what
+  it would read if the thing you actually care about were broken; if the answer is "the same", it is
+  a proxy and it is not evidence.
 - **Watch for defaults that make a mismatch unobservable.** A fallback value, a permissive
   default, a re-resolved path — each lets two sides silently disagree while the test goes green
   because the failing path stopped existing. This pattern has produced four bugs in this project

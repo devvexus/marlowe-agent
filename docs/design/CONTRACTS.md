@@ -1037,7 +1037,7 @@ review exists to catch.
 
 ---
 
-## 8. Tool-result summary contract (§B3)
+## 8. Tool-result summary contract (§B6)
 
 Every tool declares how its result renders as **one line**. `done` is not acceptable.
 
@@ -1046,7 +1046,7 @@ pub struct SummarySpec {
     pub verb: &'static str,               // "read", "bash", "edit", "web"
     pub target: fn(&Args) -> String,
     pub summarize: fn(&Output) -> ResultSummary,
-    pub is_failure: fn(&Output) -> bool,  // failures AUTO-EXPAND (§B3)
+    pub is_failure: fn(&Output) -> bool,  // failures AUTO-EXPAND (§B6)
     pub inline_threshold_bytes: u64,      // above this, the loop gets a ContentRef
 }
 
@@ -1066,7 +1066,7 @@ pub enum Metric {
 
 Rendering: `⋯ {verb}  {target}  {metrics}` — right-aligned, one line, expandable on Enter/Tab.
 This same summary is the loop's **default view** of the result when the payload exceeds
-`inline_threshold_bytes`. One contract serves terminal craft (§B3), the token budget (§6), and
+`inline_threshold_bytes`. One contract serves terminal craft (§B6), the token budget (§6), and
 containment (§8.2) simultaneously.
 
 ---
@@ -1079,7 +1079,7 @@ pub struct PermissionDecision {
     pub tool: ToolId,
     pub action_class: ActionClass,
     pub outcome: Outcome,
-    pub blast_radius: BlastRadius,        // what the USER is shown, §B6
+    pub blast_radius: BlastRadius,        // what the USER is shown, §B9
     pub taint: TaintSet,
     pub reasons: Vec<Reason>,
 }
@@ -1315,8 +1315,8 @@ pub enum TurnEvent {
     TextDelta(String),
     ToolLine { id: CallId, verb: String, target: String, state: ToolLineState },
     Compacted { turns: u32 },
-    Degraded { what: DegradedPath },      // ONE word on the input line, §B4
-    ApprovalPrompt(BlastRadius),          // the only bordered element in the product
+    Degraded { what: DegradedPath },      // the status band, in amber, §B5
+    ApprovalPrompt(BlastRadius),          // the only element permitted to DIM the frame, §B9
     Done { spend: Money, elapsed: Duration, fill_pct: f32 },
 }
 
@@ -1326,3 +1326,10 @@ pub enum ToolLineState { Running { elapsed_ms: u64 }, Ok(ResultSummary), Failed(
 **There is no `MemoryInjected` variant in `TurnEvent`, and there must never be one.** Memory
 gets no representation in the interface (§B1). Diagnostics reach `--dev` through a separate
 channel that is not part of `TurnEvent`.
+
+**Two comments on this enum were corrected 2026-08-08 against Addendum B v2. The schema was already
+correct and is untouched.** `Degraded` read *"ONE word on the input line, §B4"*; v2 moves degradation
+into the status band (§B5) and §B4 is now the control strip. `ApprovalPrompt` read *"the only
+bordered element in the product"*; under v2 **every** region is bordered, so a border no longer
+signals modality — the overlay is the only element permitted to **dim** the rest of the frame (§B9).
+Recorded here because a stale pointer in a pinned file is a defect even when the type is right.

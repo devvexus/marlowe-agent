@@ -295,8 +295,10 @@ injected at the transport layer at call time.
 **Never** holds policy, and never holds state the daemon does not have. Surfaces are
 projections; closing one does not affect a run.
 
-**No TUI-only features** (§B7). The classic CLI has 100% parity on commands, sessions, and
-data.
+**No TUI-only capabilities** (§B11). The classic CLI has 100% parity on commands, sessions, and
+data. **Layout is allowed to differ** — Addendum B v2 amends v1's "no TUI-only features" to
+"no TUI-only *capabilities*", because layout is exactly what a grid buys and the classic CLI is
+the narrow, SSH, piped-stdin and no-TTY path rather than a lesser product.
 
 ---
 
@@ -409,7 +411,7 @@ def run(run_id):
 
                 # inline-vs-reference by SIZE; trust class by ORIGIN. Independent axes.
                 ckpt = ckpt.with_tool_result(
-                    summary=result.summary,          # the §B3 one-line contract, also the
+                    summary=result.summary,          # the §B6 one-line contract, also the
                     body=(result.bytes if result.small else ref),   # model's default view
                 )
 
@@ -457,7 +459,7 @@ invariant hold whether or not the model cooperates.
 | 1 | Nothing is lost on the boundary | Append-before-discard is the **only** eviction path. Compaction cannot begin until `SessionSummarized` and `SessionSpawned` are durable; the parent's volatile state is dropped after, never concurrently. Enforced by the assembler having no API that discards without a prior durable append. |
 | 2 | Every belief has a birth certificate | **No unsigned write path exists.** The model cannot append; `remember` is a request the harness adjudicates and stamps with origin, timestamp, derivation, trust class, and signature. A memory without provenance is not rejected at read time — it is unrepresentable at write time. |
 | 3 | The model is not the security boundary | The permission layer is a separate component the loop calls *before* execution; it reads manifests and taint, never model output. Default-deny on consequence, validated at load. The model has no path to the layer's inputs. |
-| 4 | Degrade, never break | Every cue, provider, and surface is individually optional behind an interface with a declared fallback. Degradation sets a run flag that the surface renders (§B4, one amber word). Silent degradation is impossible because the flag is on the run object, not a log line. |
+| 4 | Degrade, never break | Every cue, provider, and surface is individually optional behind an interface with a declared fallback. Degradation sets a run flag that the surface renders (§B5 — in the status band, in amber, with the reason in the Status tab). Silent degradation is impossible because the flag is on the run object, not a log line. |
 | 5 | See, edit, delete | The belief store is derived and rebuildable, so correction is an append. Deletion is destructive redaction with per-`(profile, person)` key destruction — a real delete, not a logical tombstone. |
 | 6 | A running task survives its starter | Runs are owned by the daemon, not the client. The client is thin by construction: it holds no run state, so there is nothing for it to take down. Checkpoint-per-iteration + WAL gives resume from last completed step. |
 | 7 | Every autonomous action is reconstructable | Replay is the log's **primary read path**, not an added feature. Every model step, tool call, permission decision, approval, and injected memory is a typed event under one trace ID. |
@@ -532,7 +534,7 @@ One binary, two roles.
   gateway, and voice pipeline. One daemon per profile.
 
 The client/daemon split is forced by invariant 6: if the client owned the run, closing the
-terminal would kill it. It also buys §B9's 150 ms first frame — the client has almost nothing
+terminal would kill it. It also buys §B13's 150 ms first frame — the client has almost nothing
 to initialize, and the header paints before the daemon connection resolves.
 
 Profiles are isolated agent roots: separate journal, belief store, credentials, and

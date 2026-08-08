@@ -1,0 +1,8 @@
+[package]
+name = "marlowe-stub"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The scripted stub agent M1's surfaces are built against. No model, no memory, no network."
+
+[dependencies]

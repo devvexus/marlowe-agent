@@ -6,9 +6,8 @@ works when complete is a harness that never works.
 **Scope rule:** one milestone at a time. Scope is whatever this file marks current. If a task
 pulls you outside it, note it in `STATE.md` and stop.
 
-**Current milestone: M1.** M0a and M0b are complete. M0b shipped 2026-08-08 — see
-[`M1-KICKOFF.md`](M1-KICKOFF.md) for the handoff and [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md)
-for what M0b published.
+**Current milestone: M1.** M0a and M0b are complete. M0b shipped 2026-08-08 — see §M1 below for the
+handoff and scope, and [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
 
 ---
 
@@ -21,7 +20,7 @@ Per brief §0.7 — what measurement, if it came back bad, says this design is w
 | **K1** | **AMENDED 2026-08-08 — see below.** A flat precision/coverage curve: precision at 10% coverage not materially above precision at 100% coverage | **Project-level.** A confidence signal carrying no information is the failure K1 was written to catch. Reconsider rather than continue (§5.7). **The answer is not "add learning"** — see HP1. |
 | **K2** | LongMemEval-S <90% or abstention <85% | Memory design is wrong, not undertuned. Revisit cue set and query routing before anything downstream. |
 | **K3** | Non-zero ASR on unsigned memory writes | Invariant 2 is not structurally enforced. Stop and fix the write path; nothing else matters. |
-| **K4** | First frame >150 ms or any flicker at 80×24 | The terminal thesis (§B0: differentiation is subtraction, craft is the product) is not achievable in the chosen stack. Revisit ADR-001. |
+| **K4** | **RESTATED 2026-08-08 — see below.** First frame >150 ms, or any repaint flicker across 120×30 → 240×60 | The terminal thesis (§B0: density with discipline, craft is the product) is not achievable in the chosen stack. Revisit ADR-001. |
 | **K5** | Runs do not resume from checkpoint across host reboot | Invariant 6 fails; the durable-run control plane — the stated competitive opening — is not real. |
 | **K6** | Time from install to first useful output >5 min, or any config required | §4's zero-config constraint failed; the product is for developers only, which is not the product. |
 
@@ -85,6 +84,30 @@ flawless retriever.
 **The published curve and the declared operating point live at
 [`docs/design/PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md)**, with the machine-readable artifact
 at `crates/marlowe-memory/artifacts/precision-coverage-heldout-v1.json`.
+
+### K4 — restated 2026-08-08, at the start of M1
+
+**Both of the original statement's premises were withdrawn by Addendum B v2, and neither withdrawal
+was reflected here.** The original read:
+
+> First frame >150 ms or any flicker at **80×24** → the terminal thesis (§B0: **differentiation is
+> subtraction**, craft is the product) is not achievable in the chosen stack. Revisit ADR-001.
+
+§B11 v2 withdraws the 80×24 requirement outright — the TUI requires **≥120 columns and ≥30 rows**
+and renders an honest refusal below that, because a narrow variant was designed and rejected. §B0 v2
+withdraws *subtraction* as the thesis and replaces it with **density with discipline**. §B13 sets the
+flicker verification surface at **120×30 through 240×60**.
+
+**A kill criterion measured at a width the design refuses to render is not a criterion.** It could
+only ever return "fail", and it would be measuring the refusal line.
+
+> **K4, restated.** First frame >150 ms, or any repaint flicker across the supported range 120×30 →
+> 240×60. **Verdict if it fails:** the terminal thesis (§B0 v2: density with discipline, craft is the
+> product) is not achievable in the chosen stack. Revisit ADR-001.
+
+**Nothing is relaxed.** The 150 ms budget is untouched, and the flicker surface is *larger* than the
+one it replaces — 120×30 → 240×60 spans a wider range of reflow geometries than a single 80×24 grid
+did, and §B2's border-not-fill focus rule exists precisely to survive it. M1 carries K4.
 
 ---
 
@@ -180,7 +203,7 @@ Curve and declared operating point: [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE
 Sessions A–K; `runs/session-*/RESULT.md`.
 
 **Carried forward as named work, not preconditions:** head separability, and the human label set.
-See `STATE.md` and [`M1-KICKOFF.md`](M1-KICKOFF.md).
+See `STATE.md` and §M1 below.
 
 
 **Ships:** memory that scores against M0a. **Carries K1, K2, K3.**
@@ -244,43 +267,144 @@ No agent loop, no tools, no TUI. M0b is exercised through the eval harness only.
 **Ships:** the TUI and classic CLI, driven by a scripted stub. **Carries K4.**
 
 Craft is proven *before* there is a real agent behind it, because craft that is retrofitted
-onto a working agent never happens.
+onto a working agent never happens. M1 has no model call in it.
 
-### Scope
+**This section was rewritten 2026-08-08 against Addendum B v2, and it absorbed `M1-KICKOFF.md`,
+which is deleted.** The kickoff was written at the close of M0b against Addendum B **v1** and every
+scope line in it was withdrawn within the day: it specified "header line, conversation, input line —
+nothing else by default", "≤2 lines of chrome", "zero box-drawn panels", "usable over SSH at 80×24",
+and "modal approval overlay — the only bordered element". v2 reverses all five. Two documents
+describing one milestone is how the next session reads the withdrawn one; there is now one.
 
-Header line, conversation, input line — nothing else by default. One-line tool calls with typed
-summaries, expand on demand, failures auto-expanding, live lines animating in place,
-consecutive same-verb collapse. Three ambient values (context %, spend, elapsed) with context
-pressure as colour, not a bar. `⌘K`/`Ctrl-K` palette. Slash autocomplete. Multiline default,
-Esc interrupt, type-while-thinking. `!cmd`. `/undo N`. Local session recap with no LLM call.
-Modal approval overlay — the only bordered element.
+### Read before writing any code
 
-### Acceptance (§B9, all of it)
+| Path | Why, for M1 specifically |
+|---|---|
+| [`03-addendum-terminal.md`](../requirements/03-addendum-terminal.md) | **The interface requirements, v2. Binding.** Read it fully — this is the milestone it was written for, and **v2 reverses v1**. |
+| [`marlowe-tui-mockup.html`](marlowe-tui-mockup.html) | The clickable mockup of that spec. **Where prose and mockup disagree, prose wins**; where prose is silent, the mockup is the intent. |
+| [`04-addendum-persona.md`](../requirements/04-addendum-persona.md) | Anything producing user-visible prose carries the persona — **including a stub's scripted output**. |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Component boundaries. §2.14: surfaces hold no policy and no state the daemon lacks. |
+| [`CONTRACTS.md`](CONTRACTS.md) | **Before any code crossing a boundary.** `TurnEvent` §13. |
+| `STATE.md` | Always, at session start. |
+
+**§B1 is binding: zero memory-related regions in the default surface.** The user experiences memory
+through the agent knowing things, never through panels, scores, or citations. A `recall` *tool line*
+is permitted — it is a tool line like any other. A *region whose subject is the memory system* is
+not. Retrieval instrumentation is a seventh inspector tab under `--dev` only, and that is M2.
+
+### The rule the design rests on — §B2
+
+> A border delineates an interactive region. Every bordered region carries a label on its top border
+> and a hotkey on its bottom border. **A region with no hotkey has no border.**
+
+**Focus is border colour and label colour, never a background fill.** A fill collides with the
+user's theme, costs a full-cell repaint on every focus change (which fights K4), and reads as a web
+page rendered in a terminal.
+
+**Reading §B3 precisely, because getting it wrong ships decorative borders.** Six regions, of which
+only four are bordered *as regions*: the five control-strip fields, the status band, the
+conversation, and the message field. The titlebar, the footer and **the inspector itself** have no
+hotkey and therefore no border — the inspector's borders live on its *items* (§B7), each of which
+carries a label and a key. The mockup shows several bordered inspector items without a key; that is
+the mockup being loose, and prose wins.
+
+### Scope — what M1 ships
+
+1. **The frame.** Six regions per §B3, conversation never below 55% of the horizontal split, every
+   label, hotkey, pager and tab bar pinned **outside** its region's scroll area. Chrome that scrolls
+   is a bug and it is the bug this design is most likely to ship with.
+2. **Keyboard navigation, built before any content.** Region hotkeys jump focus, `Tab`/`Shift-Tab`
+   cycle in reading order, arrows move within, `Enter` acts, `Esc` backs out one level. Mouse is a
+   bonus; mouse-first retrofitted with keys produces a bad TUI.
+3. **The conversation pane and §B6 tool lines.** One line per call, typed summaries, failures
+   auto-expanding, live lines animating in place, consecutive same-verb collapse, a visible
+   scrollbar, and the pinned pager carrying turn count, compaction count and lineage depth.
+4. **The status band and its seven states** (§B5). Motion means Marlowe is working; stillness means
+   the ball is in the user's court, which is why `waiting` **freezes** the indicator. Glyph form is
+   **ADR-021** — a braille amplitude meter, decided and recorded before implementation.
+5. **The inspector: Runs and Schedule live.** Runs carries the Steer field, a focusable text input
+   *inside* a pane and the hardest interaction in the inspector. Schedule is where §B7's actual
+   argument for a TUI lives — the region carries the data, the transcript carries the judgment.
+6. **Approvals** (§B9). Dims the entire frame, doubled border in its risk tier's colour, centred.
+   The only element permitted to dim the rest of the screen — and **dimming is a foreground rewrite,
+   never a fill**, so the zero-fill acceptance row proves it.
+7. **The classic CLI** (§B11). Command parity, not layout parity. Both surfaces dispatch from **one
+   command registry**, so parity is a property of the design rather than a checklist that rots.
+8. **Width handling.** `CSI 8 ; rows ; cols t` resize request on start; below 120×30 an honest
+   refusal naming current and required size and offering the classic CLI. **Never a degraded grid.**
+
+### Deferred to M2, with reasons
+
+- **The `Ctrl-K` palette.** It indexes sessions, skills, models and memory search, none of which
+  exist. Built against a stub index it measures nothing. **Slash-command autocomplete does ship** —
+  it lives in the message field and is cheap.
+- **Sessions, Skills, Trust and Status panes.** Present in the tab bar and reachable, each rendering
+  one bordered region with a label, a key, and a line naming what will live there and in which
+  milestone. Honest and present, not a fake pane — the tab bar must not lie.
+- **`--dev`'s seventh tab.** Nothing to inspect without memory wiring.
+- **Mouse.** §B10 — every path by key first.
+
+### Acceptance — §B13 in full
+
+Every row is a command that prints a number, per the standing rule.
 
 | Metric | Target |
 |---|---|
-| Time to first frame | <150 ms |
-| Time to interactive | <300 ms |
+| Time to first frame | < 150 ms |
+| Time to interactive | < 300 ms |
 | Dropped keystrokes during streaming | Zero |
-| Repaint flicker during stream or resize | Zero, verified 80×24 → 200×60 |
+| Repaint flicker during stream or resize | **Zero, verified 120×30 through 240×60** |
 | Tool call default footprint | 1 line |
-| Persistent chrome | ≤2 lines |
-| Distinct colours in default view | ≤1 accent + 3 foreground weights |
-| Box-drawn panels in default view | Zero |
-| **Memory-related elements in default view** | **Zero** |
-| Classic CLI parity with TUI | 100% of commands, sessions, data |
-| Usable over SSH at 80×24 | Yes |
-| **Full §B9 suite re-run against native Windows Terminal** | **Pass** |
+| **Every bordered region has a label and a hotkey** | **100%, asserted by test** |
+| **Regions reachable by keyboard alone** | 100% |
+| Background fills used to signal focus | Zero |
+| Chrome inside a scroll area | Zero |
+| Distinct colours | ≤ 1 accent + 3 state + 3 foreground weights |
+| Memory-related regions in the default surface | Zero |
+| **Accent legible on both dark and light terminal backgrounds** | **Verified by eye on each** |
+| Below-minimum width behaviour | Honest refusal, never a degraded grid |
+| Classic CLI command parity | 100% of commands, sessions, data |
+| **§B13 suite run on native Windows Terminal AND a Linux emulator** | **Pass on both** |
 
-The last row is symmetric and unchanged, but its direction has inverted: ADR-002 (revised) puts
-development on native Windows, so **Linux is now the surface at risk of being verified only in
-CI**. Both must be run on a real terminal emulator — a TUI verified on one platform is not
-verified.
+**Three rows are most likely to be skipped and all three are load-bearing.** The label-and-hotkey
+row is asserted by test, not by inspection — the region contract is a type that cannot be
+constructed without both. The cross-platform row inverts with ADR-002 (revised): development is on
+native Windows, so **Linux is the surface at risk of CI-only verification**, and a TUI verified on
+one platform is not verified. The accent row cannot be a test on its own — violet is the accent most
+likely to fail it, and a value that works only on dark works on one machine.
+
+**K4 is carried here.** First frame >150 ms, or any flicker across 120×30 → 240×60, revisits
+ADR-001. See "K4 — restated" above.
 
 ### Non-goals
 
 No real agent. No memory wiring. No network. **No memory UI, ever** (§B1) — the `TurnEvent` enum
 has no injection variant and must not gain one.
+
+M1 consumes **none** of M0b. That is deliberate: the interface must not be shaped by whatever the
+memory system happens to do today.
+
+### What M0b hands over, and what it does not
+
+**Hands over:** a memory subsystem scoring against M0a at held-out R@1 **0.6725**, a published
+precision/coverage curve and a declared operating point.
+
+**Does not hand over: an abstention path.** The amended K1's condition 3 requires that below the
+operating point the system abstains and the agent recovers through the explicit `recall` tool
+(§5.5). **That is M2 work and it is load-bearing** — a condition of the criterion M0b was judged
+against, not a nice-to-have. Do not let it drift.
+
+### The two M0b directions carried, not closed
+
+Neither is an M1 dependency. Both are named so they are not rediscovered.
+
+1. **Head separability.** Fine-tuning dominates the curve from 100% down to ~25% coverage and stops
+   helping at the head, which is exactly where the criterion reads. **The rerank margin is not the
+   signal.** Unexplored: a confidence signal fit against **relevance** rather than against score
+   (ADR-017's rule), and set-wise/listwise scoring that observes candidates jointly.
+2. **The human label set.** ≥400 judged injections, ≥50 per category, judged blind, stratified by
+   score decile. **True injection precision has never been computed** — every figure to date is a
+   gold-turn proxy. Drawable now that a conformal operating point exists to sample from.
 
 ---
 
@@ -300,6 +424,24 @@ lineage and cache invalidation, structural governance re-assertion.
 
 M0b's memory is wired in here — this is the first milestone where the eleven-week callback can
 happen.
+
+**Two items deferred from M1, deliberately and with the reason recorded.**
+
+**App-level text selection in the conversation pane.** Mouse-down anchors, drag extends, the span
+renders in inverse video, release copies. Cell-to-character mapping that respects wrapped lines and
+**never crosses a region boundary** — which is exactly what terminal selection cannot do, and the
+measured proof is in §B10: a `Shift`-drag across one line of the running M1 build returned
+`+3 −0 ││ ┌Spend───…`, three regions' worth of cells from one screen row. `helix` and `zellij` are
+the reference implementations. **It is about a week of work and it is not the frame**, which is
+what M1 exists to prove; M1 ships `Shift`-drag plus `y`/`Y` copy, which covers the need without
+pretending to be the same thing.
+
+**The launcher on macOS and Linux** (§B17). Windows ships in M1 because Windows Terminal exposes
+all three of what §B17 needs — `--focus`, a named profile, and additive settings. The equivalents
+exist elsewhere (iTerm2 dynamic profiles, GNOME Terminal via dconf, kitty and alacritty config
+fragments) but each is a separate implementation that has to be **verified on the platform** rather
+than reasoned about from another one. Until then `marlowe --launch` reports the degraded path and
+runs in the current terminal.
 
 ### Acceptance
 

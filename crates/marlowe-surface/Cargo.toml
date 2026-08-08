@@ -1,0 +1,11 @@
+[package]
+name = "marlowe-surface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The TUI and the classic CLI. Rendering and input only — no policy, no state the daemon lacks."
+
+[dependencies]
+marlowe-stub.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
