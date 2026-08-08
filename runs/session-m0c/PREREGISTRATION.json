@@ -1,0 +1,304 @@
+{
+  "_what": "M0c Session A pre-registration -- head separability. Written before anything is fit.",
+  "written_before": "any M0c checkpoint, any trained set-wise or listwise scorer, any M0c R@1 number, and any M0c point on the precision/coverage curve",
+  "session": "M0c Session A",
+  "branch": "retrieval-m0c",
+  "scope_boundary": {
+    "_why": "another session is running M2 in parallel on the loop, tools and permissions",
+    "may_write": ["crates/marlowe-memory", "tools/", "runs/session-m0c/", "docs/design/"],
+    "read_only": ["eval/"],
+    "must_not_touch": ["crates/marlowe-loop", "crates/marlowe-surface", "the permission layer"]
+  },
+
+  "split": {
+    "rule": "unchanged and never re-drawn; sha256-stratified even/odd per category",
+    "digest": "3a685798a4fcac4cb97b645394d4935906a4f67e605398e7d659d48c8f685a3d",
+    "corpus_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "fit_cases": 251,
+    "heldout_cases": 249,
+    "scored_population": 229,
+    "_heldout_discipline": "the held-out split is read ONCE, at the end, on the arm selected by the rule in `selection_rule`. Every selection read below is fit-split or fit-carved-validation."
+  },
+
+  "inherited_and_not_repeated": {
+    "shipped_baseline": {
+      "configuration": "ms-marco-MiniLM-L-2-v2-ft-session-j, f32, seq 256, batch 1, depth 10",
+      "digest": "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0",
+      "heldout_r_at_1": 0.6725,
+      "heldout_r_at_5": 0.8865,
+      "heldout_r_at_10": 0.9039,
+      "heldout_input_recall": 0.9039,
+      "heldout_conditional_accuracy": 0.744,
+      "fit_r_at_1": 0.7555,
+      "precision_at_10pct_coverage": 0.913,
+      "precision_at_10pct_ci95": [0.7196, 0.9893],
+      "margin_threshold_at_10pct": 1.1651,
+      "retrieval_p95_warm_ms": 211,
+      "retrieval_p95_cold_ms": 238,
+      "source": "runs/session-k/RESULT.md, docs/design/PRECISION-COVERAGE.md"
+    },
+    "adr_016_gate_resolution": {
+      "consequence": "the isotonic gate has no vocabulary for confident subsets and a perfect retrieval system scores 0.8483 on it. This session does NOT refit the gate and does NOT touch THRESHOLD = 0.95. Every curve here is measured at query resolution."
+    },
+    "adr_015_int8_is_shape_bound": {
+      "consequence": "any new graph is f32. No quantization is attempted, and no invariance is inherited from the shipped graph."
+    },
+    "adr_017_estimator_rule": {
+      "rule": "a correction term must be fitted against RELEVANCE, not against the score",
+      "consequence": "every arm below is trained against a gold label, never against the incumbent's own score distribution. No arm distils the shipped logits."
+    }
+  },
+
+  "reach_checks_run_before_this_file_was_written": {
+    "_why": "ADR-010, ADR-013 and ADR-014, in that order. All three were run offline, on the fit split, before any arm was designed. Their artifacts are in runs/session-m0c/.",
+
+    "R0_attainability_of_the_criterion_itself": {
+      "artifact": "runs/session-m0c/reach-r0-attainability.json",
+      "tool": "tools/reach_head_r0_attainability.py",
+      "finding": "K1's interval reading is UNATTAINABLE at 10% coverage on n=229 for ANY mechanism. A perfect selector -- 23 of 23 -- has a Clopper-Pearson 95% lower bound of 0.8518, and 0.8518 < 0.95.",
+      "min_injected_set_to_clear_threshold": {"0_errors": 72, "1_error": 110, "2_errors": 142},
+      "consequence_binding_on_this_session": "no band is registered on 'reaches 0.95 by interval at 10% coverage'. That is a quantity the split cannot express, and registering a band on it would be ADR-010's error committed against the criterion instead of against a shape. The bands below are on the POINT ESTIMATE at declared coverages, on R@1, and on the coverage at which the interval CAN clear.",
+      "_this_is_a_finding_not_a_caveat": "it retires a target the project would otherwise have spent sessions chasing, in the same way ADR-016 retired the 0.3739 ceiling."
+    },
+
+    "R1_candidate_A_confidence_signal": {
+      "artifact": "runs/session-m0c/reach-r1-confidence.json",
+      "tool": "tools/reach_head_r1_confidence.py",
+      "can_move": {"precision at the operating point": "YES. The selector chooses which 23 of 229 queries are injected; 173 fit queries are correct, so 0..23 of 23 is reachable. Incumbent margin selects 21/23."},
+      "cannot_move": {
+        "R@1, R@5, R@10, input recall": "NO, STRUCTURALLY. A selector reorders nothing inside a slate. Registering an R@1 band on candidate A would repeat Session D's error verbatim.",
+        "the R0 interval verdict": "NO. capped at 0.8518 at n_c = 23."
+      },
+      "measured_screen_on_fit": "no single query-time feature beats the margin at 10% coverage. Best AUC is margin_1_3 at 0.7137 against the margin's 0.6677, and it scores WORSE at the head (20/23 vs 21/23). Overall discrimination and head discrimination are different quantities on this corpus.",
+      "verdict": "candidate A is registered as a SECONDARY arm with its own band. It is not expected to carry the session and the screen is the reason, recorded before the fit."
+    },
+
+    "R2_candidate_B_setwise_listwise": {
+      "artifact": "runs/session-m0c/reach-r2-listwise.json",
+      "tool": "tools/reach_head_r2_listwise.py",
+      "can_move": {"R@1, R@5, conditional accuracy, and every point on the curve including the head": "YES. A joint scorer reorders the slate."},
+      "cannot_move": {
+        "input recall / gold-in-slate": "NO. The slate is an INPUT. Hard ceiling 0.9214 fit, 0.9039 held-out.",
+        "the R0 interval verdict": "NO."
+      },
+      "measured_headroom": {
+        "heldout_recoverable_failures": 53,
+        "gold_at_rank_2": "32 of 53 (60%)",
+        "gold_at_rank_le_3": "41 of 53 (77%)",
+        "median_logit_gap_rank1_minus_gold": 0.435,
+        "gap_le_1_0_logits": "46 of 53 (87%), worth +0.2009 R@1 if all flipped"
+      },
+      "joint_structure_hypothesis": {
+        "measured": "among failures the gold is same-session as the wrong rank 1 in 52.8% of held-out cases, against 40.3% for the rank1/rank2 relation among successes. Enrichment is 1.3x on held-out and 1.8x on fit.",
+        "reading_registered_now": "WEAK support. Real but small. This is registered before the fit so a strong result is not later attributed to a relation the data only weakly shows, and so a null is not read as surprising.",
+        "a_defect_caught_and_recorded": "the first version of this read compared rank 1 to the gold in BOTH groups. On successes the gold IS rank 1, so 'same session' was 1.0000 by construction -- a null instrument. The contrast was changed to rank1-vs-rank2 on the success side before any number was believed."
+      },
+      "training_free_proxies_measured_and_both_useless": {
+        "slate_z_score": "0 discordant. A within-slate monotone transform cannot change argmax -- ADR-015 arm 6's identity, re-confirmed.",
+        "hand_rule_promote_the_user_turn_rank1_answers": "5 discordant, 0 gained, 5 LOST. The naive relational rule is wrong-signed.",
+        "consequence": "no training-free proxy is a valid instrument check for a trained arm. Per ADR-014 the discordance is measured on the ARM ITSELF, on fit, on the exact contrast, before the held-out read. That measurement is a precondition of the held-out read and is listed in `preconditions_of_the_heldout_read`."
+      }
+    }
+  },
+
+  "arms": {
+    "_all_trained_on_fit_only": "training data is drawn from fit-split queries only. Model selection uses a validation slice carved from fit BY CONVERSATION ID, not by query id, reusing Session J's leakage rule.",
+    "_all_f32": "ADR-015. No quantization anywhere in this session.",
+
+    "L1_listwise_objective_same_inference_shape": {
+      "what": "fine-tune the pair cross-encoder with a LISTWISE softmax cross-entropy over the depth-10 slate, instead of Session J's pairwise MarginMSE.",
+      "inference": "IDENTICAL to shipped -- 10 independent pair passes at seq 256, batch 1. No latency change, no architecture change, no new tensor shape.",
+      "why_it_is_not_closed": "the closed list names length normalization, reranker CAPACITY, fusion, consolidation, PRF, entity expansion, HyDE, session pruning and raising MAX_SEQ_LEN. A change of TRAINING OBJECTIVE at fixed capacity, fixed sequence length and fixed inference shape is none of those.",
+      "why_it_is_not_candidate_B": "it is trained listwise but SCORES independently. It is registered as the control that separates 'the objective was wrong' from 'independent scoring is the limit'. Without it, a win from S1/S2 could not be attributed to joint observation.",
+      "init": "ms-marco-MiniLM-L-2-v2-ft-session-j"
+    },
+
+    "L2_listwise_with_mined_slate_augmentation": {
+      "what": "L1, plus synthetic slates assembled from Session J's 6,898 mined hard negatives (temporal_adjacency, entity_overlap, opposite_role, long_assistant).",
+      "why": "229 real fit slates is a small listwise corpus. The mined negatives are already fit-only and already conversation-split.",
+      "inference": "identical to L1."
+    },
+
+    "S1_setwise_head_over_pair_representations": {
+      "what": "the frozen shipped pair encoder produces a per-candidate representation; a small permutation-equivariant transformer attends ACROSS the ten candidates and emits a re-score.",
+      "why_it_is_candidate_B": "the head observes the slate jointly. It can express 'B supersedes A' at the representation level.",
+      "inference": "the ten existing pair passes, unchanged, plus one head pass over ten vectors. Expected marginal cost is sub-millisecond and it is MEASURED, not assumed.",
+      "permutation_equivariance": "no positional encoding over the candidate axis. Registered as a property to VERIFY, not assume: the head's output must be invariant to input permutation to 0.000000, measured on the fit slates."
+    },
+
+    "S2_global_cross_encoder_over_the_top_k": {
+      "what": "[CLS] Q [SEP] T_1 [SEP] ... [SEP] T_k over the top k of the shipped ranking, k = 4, allowing token-level cross-talk between candidates.",
+      "why_k_is_4": "89% of held-out recoverable gold sits at rank <= 4 (47 of 53). k is fixed at 4 BEFORE the fit and is not swept -- ADR-013's second lesson: a registration that leaves a free hyperparameter has not fixed the experiment.",
+      "sequence_length": "512, on a NEW graph. This is not 'raising MAX_SEQ_LEN' on the shipped pair encoder -- that is the closed item, and the shipped pair encoder stays at 256. A global scorer over four concatenated candidates cannot exist at 256 and its length is a property of the shape, not a tuning knob.",
+      "cost_risk_registered_in_advance": "one 512-token pass on a 2-layer model, added to the existing 214 ms/query. The cold budget margin is 62 ms. If measured latency breaks 300 ms P95 this arm is UNSHIPPABLE regardless of quality, and that is recorded now so a winning arm is not discovered to be unshippable afterwards -- Session J's registered lesson."
+    },
+
+    "C1_relevance_fitted_confidence_selector": {
+      "what": "candidate A. A logistic model predicting CORRECTNESS (not score) from query-time slate features, used only to select which queries are injected.",
+      "features": "the screened set in reach-r1-confidence.json. `category` is EXCLUDED -- LongMemEval's question_type is a label, not a runtime signal, and a selector reading it would be scoring with the answer sheet.",
+      "adr_017_compliance": "the target is the binary gold-hit label. No feature is fitted against the rerank score.",
+      "band_is_separate": "C1 is judged on precision at matched coverage ONLY. It cannot move R@1 and no R@1 band is registered on it."
+    }
+  },
+
+  "selection_rule": {
+    "_why_declared_now": "so the winner cannot be chosen with the held-out result in view.",
+    "primary": "the ranking arm (L1, L2, S1, S2) with the highest R@1 on the FIT-CARVED VALIDATION SLICE. Ties within 0.005 are broken by measured added latency, lowest wins; ties within 0.005 AND within 5 ms are broken by simplicity of inference shape, in the order L1 > L2 > S1 > S2.",
+    "combination": "the selected ranking arm is then combined with C1 as a selector, and the combination is read on held-out ALONGSIDE the ranking arm alone. Both are reported; the ranking arm alone is the headline.",
+    "how_many_heldout_reads": "ONE pass over the held-out split, producing all reported held-out numbers at once."
+  },
+
+  "bands": {
+    "number_1_heldout_r_at_1": {
+      "name": "the headline",
+      "definition": "top-1 gold-hit rate on the 229 eligible held-out queries, read by the ranking functions in tools/analyze_cue_overlap.py, unmodified.",
+      "baseline": 0.6725,
+      "floor": {
+        "value": 0.6925,
+        "_rule": "shipped baseline + 0.02. An arm below this FAILS OUTRIGHT and does not ship. No partial credit and no re-tuning.",
+        "_why_0_02": "Session J's fine-tune moved +0.0699 with a pairwise objective and the McNemar power to detect it. An objective and architecture change that cannot clear a third of that has not earned a place on the scored path."
+      },
+      "predicted": [0.72, 0.80],
+      "_derivation_of_the_prediction": "53 recoverable held-out failures; 87% sit within 1.0 logits of the wrong rank 1 and 60% at rank 2. Recovering a third of them is +0.077. The upper end assumes 57% recovery, which is what the stated 0.80 goal requires.",
+      "stretch_goal_stated_but_not_a_band": 0.80,
+      "_stretch_is_not_a_band": "0.80 is the human's stated goal. It is recorded so the session is honest about what it was aiming at, and it is NOT a pass/fail condition -- a band chosen to match an aspiration is not a band."
+    },
+
+    "number_2_precision_at_the_head": {
+      "name": "the operating point, point estimate",
+      "definition": "precision among the top 10% of held-out queries by the arm's own confidence key, with a Clopper-Pearson 95% interval.",
+      "baseline": 0.913,
+      "floor": {
+        "value": 0.8696,
+        "_rule": "20 of 23. The head must not LOSE more than one case. K1 condition 3 forbids buying coverage with precision; the symmetric care is that a ranking gain must not be bought with head precision.",
+        "_why_not_a_gain_floor": "R0 shows the head has two cases of headroom on n=23 and no interval reading can clear 0.95 there. Requiring a gain on a 23-case read would be a band narrower than the instrument's resolution -- ADR-012."
+      },
+      "predicted": [0.913, 1.0],
+      "_no_interval_band": "per R0. Reported always, never used as a pass condition at this coverage."
+    },
+
+    "number_3_the_coverage_at_which_the_interval_CAN_clear": {
+      "name": "the honest K1 read",
+      "definition": "the lowest coverage level whose Clopper-Pearson 95% lower bound reaches 0.95, or the statement that none does.",
+      "baseline": "none. No coverage level clears on the shipped configuration.",
+      "floor": "none registered -- this is a report, not a test.",
+      "predicted": "none clears. R0 requires 72 consecutive correct injections at zero errors; the shipped head errs at 2 of 23.",
+      "_why_registered_anyway": "so the K1 answer is computed and stated rather than inferred, and so a surprising pass is not discovered informally."
+    },
+
+    "number_4_flatness_kill_condition": {
+      "definition": "unchanged from ADR-019: flat iff NOT (precision@10 > precision@100 AND ci_low@10 > precision@100).",
+      "predicted": "NOT flat, as in Session K.",
+      "_binding": "if a candidate arm produces a FLAT curve it fails K1's kill condition and does not ship regardless of its R@1."
+    },
+
+    "number_5_C1_at_matched_coverage": {
+      "definition": "precision at 10% coverage using C1's key instead of the rerank margin, on the SAME ranking.",
+      "floor": "none. C1 is exploratory and R1 already predicts it will not beat the margin.",
+      "predicted": [0.83, 0.96],
+      "_prediction_registered_because_R1_is_negative": "R1's fit screen found no feature beating the margin at the head. If C1 beats it on held-out, that is a fit/held-out disagreement and must be reported as one, not as a win."
+    }
+  },
+
+  "independent_conditions": {
+    "budget": {
+      "condition": "retrieval P95 <= 300 ms cache-cold on the bounded 40-case subset, AND no case above 7,000 retrieval tokens",
+      "if_violated": "the precision numbers are VOID, not caveated. K1 is defined at those budgets. An arm that violates it is UNSHIPPABLE regardless of quality.",
+      "_margin_is_thin": "the shipped configuration measures 238 ms cold. 62 ms of headroom."
+    },
+    "determinism": {
+      "condition": "`repro --runs 2` WITHOUT an embedding cache is byte-identical, run EARLY",
+      "if_violated": "no quality number is read at all"
+    },
+    "per_graph_invariance": {
+      "condition": "any NEW graph re-measures discrimination, determinism, batch invariance and padding invariance FROM SCRATCH. Nothing is inherited from the shipped graph.",
+      "_adr_013": "determinism is re-verified per graph, never inherited"
+    },
+    "second_implementation": {
+      "condition": "the Rust implementation of any adopted scorer must reproduce the Python offline read EXACTLY, as 0.5764 = 0.5764 in Session H and 0.6725 = 0.6725 in Session K"
+    },
+    "eval_unchanged": {
+      "condition": "`cd eval && python -m pytest` prints 72 and eval/ has no diff",
+      "_why": "eval/ is the scoreboard. It is read-only this session by instruction."
+    },
+    "workspace_tests": {"condition": "`cargo test --workspace` passes at 190 or above"},
+    "conformance_before_any_quality_number": {
+      "condition": "`conformance` is run first",
+      "expected_outcome": "REJECTED, 0 findings, fail_no_time_dependence -- the unchanged baseline since Session B. This is EXPECTED and is not evidence about this session's arms."
+    }
+  },
+
+  "preconditions_of_the_heldout_read": {
+    "_why": "ADR-014's binding rule. These are measured on FIT, on the selected arm, and written down BEFORE the held-out split is touched.",
+    "1_adr_010_reach_on_the_built_arm": "the selected arm must CHANGE top-1 on at least 10 fit queries against the shipped ranking. An arm that reorders nothing cannot move R@1 and its delta is an identity.",
+    "2_adr_013_both_directions": "movement in both directions -- gained > 0 AND lost > 0 -- or the arm is reported as dominating rather than as tested.",
+    "3_adr_014_power": {
+      "alpha": 0.05,
+      "test": "two-sided exact McNemar over queries whose top-1 differs",
+      "min_discordant_for_alpha": 6,
+      "why": "exact McNemar's smallest attainable two-sided p is 2/2^n; 2/2^6 = 0.03125 <= 0.05",
+      "contrast_the_test_consumes": "selected arm's top-1 vs SHIPPED top-1, same slate, same split, same population of 229",
+      "if_below_the_floor": "alpha is declared UNATTAINABLE IN ADVANCE, no p-value is reported, and the delta carries the verdict alone and is labelled as such",
+      "_6_is_a_floor_not_a_target": "the fit-measured n is reported beside every p so a reader can see what the test could have detected"
+    },
+    "4_the_selector_contrast_is_a_different_test": {
+      "test": "Fisher's exact, two-sided, on the 2x2 of (arm-only vs margin-only) x (correct vs wrong) over the swap set at matched coverage",
+      "why_not_mcnemar": "the two selectors inject DIFFERENT queries, so there are no paired per-query outcomes",
+      "min_swaps_for_alpha": 4,
+      "formula": "smallest attainable two-sided p is 2 / C(2m, m); 2/C(8,4) = 0.0286",
+      "binding_floor_is_adr_013s": 10
+    }
+  },
+
+  "calibration_generalization": {
+    "_standing_check": "fit-split prediction vs held-out measurement, stated per arm before the read",
+    "the_specific_hazard_this_session": "the shipped reranker was FINE-TUNED on fit-split conversations, so fit R@1 is 0.7555 against held-out 0.6725 -- a 0.0830 optimism gap on the BASELINE itself. Every arm trained on fit inherits that gap and will look better on fit than it is. The fit-carved validation slice is split by conversation to bound it, and the predicted held-out delta is registered BELOW the fit-validation delta by construction.",
+    "registered_prediction": "each arm's held-out delta will be SMALLER than its fit-validation delta. If any arm's held-out delta EXCEEDS its fit delta, that is not a bonus -- it is evidence the validation slice is not measuring what it claims and must be reported as such."
+  },
+
+  "out_of_scope_and_not_attempted": [
+    "fusion over per-cue scores (ADR-010, ADR-011)",
+    "consolidation (ADR-012)",
+    "pseudo-relevance feedback",
+    "entity expansion",
+    "HyDE",
+    "session pruning as a quality mechanism",
+    "length normalization (ADR-017)",
+    "raising MAX_SEQ_LEN on the shipped PAIR encoder (ADR-015); S2's 512 is a new graph of a different shape, argued separately above",
+    "cues 3-5",
+    "reranker capacity -- every arm initialises from an L-2 model; no larger backbone is adopted",
+    "lowering the 0.95 threshold",
+    "re-tuning the gate's calibration resolution (ADR-016 forbids it explicitly)",
+    "refitting the frozen gate",
+    "modifying eval/ -- it is the scoreboard and it prints 72",
+    "turn-pair chunking -- named as open in STATE.md and deliberately deferred; it changes INGEST and this session is scoped to the scored path"
+  ],
+
+  "standing_checks": [
+    "repro --runs 2 WITHOUT a cache, run EARLY",
+    "conformance BEFORE any quality number",
+    "cargo test --workspace and cd eval && pytest at 72",
+    "a second implementation of a scored-path component must reproduce the first EXACTLY",
+    "determinism, batch and padding invariance re-measured PER GRAPH, never inherited",
+    "ONNX graph optimization level pinned on both sides: ORT_ENABLE_BASIC / Level1",
+    "every adopted model pinned by sha256",
+    "the artifact the driver reads must be the artifact the run scored with",
+    "analyze_cue_overlap.py is the authority for binary-side R@1 and publish_precision_coverage.py refuses to write unless it matches"
+  ],
+
+  "the_named_next_lever_if_every_arm_fails": {
+    "_why_named_now": "so the response to a failure cannot be chosen with the failure in view",
+    "next": "turn-pair chunking at ingest. It is the cheapest untested structural idea, it addresses fragment boundaries directly, and it is the only named open item that moves INPUT RECALL -- the 0.9039 ceiling every arm in this session is bounded by. If joint scoring cannot recover the 53, the constraint moves upstream of the reranker."
+  },
+
+  "artifacts_this_registration_rests_on": [
+    "runs/session-m0c/reach-r0-attainability.json",
+    "runs/session-m0c/reach-r1-confidence.json",
+    "runs/session-m0c/reach-r2-listwise.json",
+    "runs/session-m0c/slates-fit.json",
+    "runs/session-m0c/slates-heldout.json",
+    "runs/session-k/RESULT.md",
+    "docs/design/PRECISION-COVERAGE.md",
+    "runs/session-j/PREREGISTRATION.json"
+  ]
+}

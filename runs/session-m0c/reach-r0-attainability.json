@@ -1,0 +1,214 @@
+{
+  "_what": "R0 attainability arithmetic: the ceiling K1's interval reading imposes, independent of any mechanism.",
+  "_why": "ADR-010 asks whether a shape can move the metric. This asks whether the metric can reach the band at all on this split. It is prior to every candidate.",
+  "n_heldout": 229,
+  "threshold": 0.95,
+  "reading_rule": "'Reaches 0.95' means the Clopper-Pearson 95% lower bound, not the point estimate. Pinned in runs/session-j/PREREGISTRATION.json.",
+  "curve_ceiling": [
+    {
+      "coverage": 1.0,
+      "n_c": 229,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.984,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9956,
+      "ci95_low_with_one_error": 0.9759,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.95,
+      "n_c": 218,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9832,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9954,
+      "ci95_low_with_one_error": 0.9747,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.9,
+      "n_c": 206,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9823,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9951,
+      "ci95_low_with_one_error": 0.9733,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.85,
+      "n_c": 195,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9813,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9949,
+      "ci95_low_with_one_error": 0.9718,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.8,
+      "n_c": 183,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.98,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9945,
+      "ci95_low_with_one_error": 0.9699,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.75,
+      "n_c": 172,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9788,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9942,
+      "ci95_low_with_one_error": 0.968,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.7,
+      "n_c": 160,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9772,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9938,
+      "ci95_low_with_one_error": 0.9657,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.65,
+      "n_c": 149,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9755,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9933,
+      "ci95_low_with_one_error": 0.9632,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.6,
+      "n_c": 137,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9734,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9927,
+      "ci95_low_with_one_error": 0.96,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.55,
+      "n_c": 126,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9711,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9921,
+      "ci95_low_with_one_error": 0.9566,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.5,
+      "n_c": 114,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9682,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9912,
+      "ci95_low_with_one_error": 0.9521,
+      "clears_threshold_with_one_error": true
+    },
+    {
+      "coverage": 0.45,
+      "n_c": 103,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9648,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9903,
+      "ci95_low_with_one_error": 0.9471,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.4,
+      "n_c": 92,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9607,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9891,
+      "ci95_low_with_one_error": 0.9409,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.35,
+      "n_c": 80,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9549,
+      "clears_threshold_if_perfect": true,
+      "precision_with_one_error": 0.9875,
+      "ci95_low_with_one_error": 0.9323,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.3,
+      "n_c": 69,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9479,
+      "clears_threshold_if_perfect": false,
+      "precision_with_one_error": 0.9855,
+      "ci95_low_with_one_error": 0.9219,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.25,
+      "n_c": 57,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9373,
+      "clears_threshold_if_perfect": false,
+      "precision_with_one_error": 0.9825,
+      "ci95_low_with_one_error": 0.9061,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.2,
+      "n_c": 46,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.9229,
+      "clears_threshold_if_perfect": false,
+      "precision_with_one_error": 0.9783,
+      "ci95_low_with_one_error": 0.8847,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.15,
+      "n_c": 34,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.8972,
+      "clears_threshold_if_perfect": false,
+      "precision_with_one_error": 0.9706,
+      "ci95_low_with_one_error": 0.8467,
+      "clears_threshold_with_one_error": false
+    },
+    {
+      "coverage": 0.1,
+      "n_c": 23,
+      "best_possible_precision": 1.0,
+      "ci95_low_if_perfect": 0.8518,
+      "clears_threshold_if_perfect": false,
+      "precision_with_one_error": 0.9565,
+      "ci95_low_with_one_error": 0.7805,
+      "clears_threshold_with_one_error": false
+    }
+  ],
+  "min_injected_set_size_to_clear_threshold": {
+    "0": 72,
+    "1": 110,
+    "2": 142,
+    "3": 173,
+    "4": 202
+  },
+  "verdict_at_declared_operating_point": {
+    "coverage": 0.1,
+    "n_c": 23,
+    "precision_if_perfect": 1.0,
+    "ci95_low_if_perfect": 0.8518,
+    "clears_threshold": false,
+    "reading": "UNATTAINABLE for any mechanism at n_c = 23. Arithmetic, not quality."
+  }
+}
