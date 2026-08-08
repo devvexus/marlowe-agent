@@ -1,0 +1,80 @@
+{
+  "_what": "Amendment 1 to the M0c Session A pre-registration. Adds one arm that the original file did not contain, and records why it exists and when it was written.",
+  "written_before": "any held-out number for this session. The held-out split has NOT been opened for R@1 by any arm at the time this file is written.",
+  "amends": "runs/session-m0c/PREREGISTRATION.json",
+
+  "why_an_amendment_and_not_a_quiet_addition": {
+    "_the_honest_account": "The original registration named four ranking arms (L1, L2, S1, S2) and one selector (C1). All four ranking arms were built and cross-validated and ALL FOUR ARE NULL. The arm added here -- slate construction -- was not in the original file. It was found by R3, a diagnostic run AFTER the original registration, which measured that the shipped depth-10 slate is not the best way to choose which ten candidates the cross-encoder sees.",
+    "_the_risk_this_creates": "An arm added mid-session, after four registered arms failed, is exactly the shape of a post-hoc selection. Session J's addendum is the precedent: the post-hoc length form looked strongest on fit and FAILED its registered floor on every held-out cell. That is what post-hoc selection predicts and it is why this amendment carries its own floor and its own prediction, written now.",
+    "_what_is_NOT_being_done": "No floor is being lowered. Number 1's floor stays at +0.02 held-out R@1. The four original arms are reported as the nulls they measured, not quietly dropped."
+  },
+
+  "a_disclosure_that_belongs_in_the_record": {
+    "what_happened": "tools/reach_head_r3_slate.py was run on the HELD-OUT split before it was run on fit. It measures input recall of the already-published configuration under alternative slate orderings and fits no parameter, but it was seen.",
+    "why_it_is_disclosed_rather_than_absorbed": "the project's standing rule is that a measurement taken is a measurement reported. A reader who finds the held-out R3 output in runs/session-m0c/ and no mention of it in the record would be right to distrust the rest.",
+    "how_the_selection_was_protected": "the selection below is made ENTIRELY on the fit split, by the tie-break rule already written in the original registration. The held-out R3 read and the fit R3 read DISAGREE in direction on the single strongest rule -- dense-ordered top-10 is worse than gate on fit (0.9083 vs 0.9214) and better on held-out (0.9258 vs 0.9039) -- which is itself the evidence that selecting on the held-out read would have been selecting on noise.",
+    "residual_risk_stated_plainly": "non-zero. The union family was visible as promising in both R3 outputs. The mitigation is that the specific rule and depth were chosen by a pre-written tie-break on fit numbers, and that the floor below was set before the read."
+  },
+
+  "arm_S3_slate_construction": {
+    "what": "the depth-10 rerank slate is built as the UNION of the gate order's top 8 and the dense cue's top 8, instead of the gate order's top 10.",
+    "the_reranker_is_UNCHANGED": "same graph, same digest 9c222dac..., same f32, same seq 256, same batch 1, same depth. Only which candidates reach it changes.",
+    "why_it_is_not_the_closed_fusion": "ADR-010 and ADR-011 close fusion over per-cue scores DECIDING THE RANKING -- 'no fusion over per-cue scores can fix cue selection at rank 1; the top-1 either-cue oracle is 0.652 and that is the exact ceiling on perfect arbitration'. A union combines no scores and arbitrates nothing: every admitted candidate is ranked by the cross-encoder, which already scores 0.6725 against that 0.6463 oracle precisely because it is not arbitrating between cues. The closed item is a RANKING mechanism; this is an ADMISSION rule. This distinction must land in DECISIONS.md before anything ships, and if a reader rejects it the arm does not ship.",
+    "latency": "ZERO added cost. The slate is the same size, so the same ten pair passes run. The union is two integer top-k selections over arrays the retriever already has.",
+
+    "fit_measurement_that_selected_it": {
+      "tool": "tools/m0c_slate_rules.py --split fit",
+      "control_check": "gate top10 reproduces the published fit R@1 0.7555 exactly",
+      "gate8_UNION_dense8": {"depth": 10, "input_recall": 0.9345, "conditional_accuracy": 0.8178, "r_at_1": 0.7642, "delta": 0.0087},
+      "gate9_UNION_dense9": {"depth": 11, "input_recall": 0.9432, "conditional_accuracy": 0.8148, "r_at_1": 0.7686, "delta": 0.0131},
+      "gate_top15": {"depth": 15, "r_at_1": 0.7686, "delta": 0.0131},
+      "gate_top20": {"depth": 20, "r_at_1": 0.7686, "delta": 0.0131}
+    },
+
+    "selection_by_the_ALREADY_WRITTEN_tie_break": {
+      "the_rule_quoted_from_the_original_file": "Ties within 0.005 are broken by measured added latency, lowest wins.",
+      "arithmetic": "0.0131 - 0.0087 = 0.0044, which is inside 0.005, so gate9 UNION dense9 and gate8 UNION dense8 are a TIE under the pre-written rule. gate8 UNION dense8 adds zero latency; gate9 UNION dense9 adds one pair pass.",
+      "PRIMARY": "gate8 UNION dense8, depth 10",
+      "SECONDARY_reported_not_selected": "gate9 UNION dense9, depth 11, ~+21 ms",
+      "_why_both_are_declared": "the held-out tool scores every rule in one pass. Declaring which one is PRIMARY before the read is what stops that pass from being a fishing expedition. Every other rule in the output is context and none of them is quotable as this session's result."
+    },
+
+    "bands": {
+      "floor": {
+        "value": 0.6925,
+        "_unchanged": "shipped 0.6725 + 0.02, exactly as number_1 registered it. An arm below this FAILS OUTRIGHT and does not ship.",
+        "_expected_to_fail": "stated plainly: the fit delta is +0.0087 and the registered calibration-generalization prediction is that held-out deltas come in BELOW fit deltas. The honest expectation is that S3 does NOT clear its floor. It is read anyway, because a measured small positive reported as small is worth more than an unmeasured hope."
+      },
+      "predicted_heldout_delta": [0.0, 0.015],
+      "directional_prediction": "input recall rises and conditional accuracy falls partly to meet it, so the R@1 delta is materially smaller than the recall delta. Measured on fit: +0.0131 recall bought +0.0087 R@1; +0.0262 recall bought +0.0043.",
+      "what_would_falsify_the_directional_prediction": "a held-out R@1 delta at least as large as the input-recall delta. That would mean the added candidates are not adding distractors, and the fit reading of the mechanism is wrong."
+    },
+
+    "preconditions_of_the_heldout_read": {
+      "control_must_reproduce": "gate top10 must reproduce held-out R@1 0.6725 exactly, or no delta measured against it means anything. Enforced in code -- the tool refuses to write.",
+      "adr_010_reach": "S3 changes which candidates are scored, so it can change top-1 by construction; the fit-measured count is reported.",
+      "adr_014_power": {
+        "alpha": 0.05,
+        "test": "two-sided exact McNemar over queries whose top-1 differs",
+        "min_discordant_for_alpha": 6,
+        "contrast_the_test_consumes": "gate8 UNION dense8 top-1 vs gate top10 top-1, SAME reranker, same split, same 229 population",
+        "if_below_the_floor": "alpha declared UNATTAINABLE and the delta carries the verdict alone"
+      }
+    }
+  },
+
+  "the_four_original_ranking_arms_as_measured": {
+    "_recorded_here_so_the_amendment_cannot_be_read_as_replacing_them": "all four were built, cross-validated by conversation over the fit split, and reported. None is dropped.",
+    "S1_setwise_head_over_pooled_representations": {"oof_r_at_1": 0.7598, "delta": 0.0044, "discordant": 1, "alpha_attainable": false},
+    "L1_listwise_finetune": {"oof_r_at_1": 0.7424, "delta": -0.0131, "discordant": 13, "alpha_attainable": true, "exact_mcnemar_p": 0.5811, "_reading": "a NULL WITH POWER, and slightly negative"},
+    "LS1_encoder_plus_head_jointly": {"oof_r_at_1": 0.7555, "delta": 0.0, "discordant": 4, "alpha_attainable": false},
+    "S2_global_cross_encoder_token_level_crosstalk": {"oof_r_at_1": 0.7555, "delta": 0.0, "discordant": 0, "alpha_attainable": false},
+    "the_conclusion_registered_before_the_heldout_read": "learned re-scoring of the existing depth-10 slate does not generalise from this fit split. Four architectures spanning a 384-dimensional pooled bottleneck to full token-level cross-attention all land on the shipped number. The binding constraint is the DATA: 229 fit queries of which 38 are recoverable failures, on a reranker Session J already fine-tuned on those same queries."
+  },
+
+  "what_this_amendment_does_not_do": {
+    "does_not_lower_a_floor": "number_1's floor is +0.02 held-out and stays there.",
+    "does_not_claim_the_named_candidates_succeeded": "candidate A is negative and candidate B is null. Both are reported as measured.",
+    "does_not_ship_anything": "shipping requires clearing the floor, a DECISIONS entry for the admission-rule distinction, a Rust implementation reproducing the Python read exactly, and every standing check."
+  }
+}

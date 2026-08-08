@@ -1,0 +1,28 @@
+{
+  "arm": "L1",
+  "best_epoch": 1,
+  "val_r_at_1": 0.8043,
+  "fit_r_at_1": 0.7642,
+  "baseline_val": 0.7826,
+  "baseline_fit": 0.7555,
+  "changed_top1_fit": 24,
+  "gained_fit": 6,
+  "lost_fit": 4,
+  "discordant_fit": 10,
+  "adr_010_reach_pass": true,
+  "adr_013_both_directions": true,
+  "adr_014_alpha_attainable": true,
+  "hyperparameters": {
+    "arm": "L1",
+    "epochs": 40,
+    "epochs_encoder": 6,
+    "batch": 8,
+    "lr_head": 0.0003,
+    "lr_encoder": 1e-05,
+    "weight_decay": 0.01,
+    "d_model": 128,
+    "layers": 2,
+    "heads": 4,
+    "dropout": 0.1
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "_what": "ceiling offered by turn-pair chunking, measured on the existing slates",
+  "_what_it_is_not": "a measurement of what pairing does to retrieval; that changes the pool, the BM25 statistics and the embeddings at once and needs a full re-run",
+  "fit": {
+    "n": 229,
+    "recoverable_failures": 38,
+    "gold_is_other_half_of_rank1_pair": 2,
+    "r_at_1_now": 0.7555,
+    "r_at_1_ceiling_if_those_fixed": 0.7642,
+    "delta": 0.0087,
+    "same_session_gaps": {
+      "-10": 2,
+      "-8": 2,
+      "-6": 2,
+      "-4": 3,
+      "-3": 1,
+      "-2": 4,
+      "1": 2,
+      "2": 3,
+      "6": 1
+    },
+    "gold_shares_pair_with_another_slate_member": 155,
+    "gold_in_slate_n": 211,
+    "median_units_after_pairing": 7.0,
+    "gold_user_authored": "185/211",
+    "rank1_assistant_authored_on_failures": "2/38"
+  },
+  "heldout": {
+    "n": 229,
+    "recoverable_failures": 53,
+    "gold_is_other_half_of_rank1_pair": 3,
+    "r_at_1_now": 0.6725,
+    "r_at_1_ceiling_if_those_fixed": 0.6856,
+    "delta": 0.0131,
+    "same_session_gaps": {
+      "-10": 3,
+      "-8": 5,
+      "-6": 2,
+      "-4": 3,
+      "-2": 6,
+      "1": 4,
+      "2": 2,
+      "4": 1,
+      "8": 2
+    },
+    "gold_shares_pair_with_another_slate_member": 151,
+    "gold_in_slate_n": 207,
+    "median_units_after_pairing": 7.0,
+    "gold_user_authored": "185/207",
+    "rank1_assistant_authored_on_failures": "4/53"
+  }
+}

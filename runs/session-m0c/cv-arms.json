@@ -1,0 +1,83 @@
+{
+  "_what": "nested 5-fold CV over the fit split; out-of-fold R@1 on all 229 fit queries",
+  "_why": "a 46-case validation slice cannot resolve the differences being selected on (ADR-012). No query is scored by a model that saw it.",
+  "n": 229,
+  "folds": 5,
+  "shipped_fit_r_at_1": 0.7555,
+  "hyperparameters": {
+    "arms": [
+      "S1",
+      "L1",
+      "LS1"
+    ],
+    "folds": 5,
+    "epochs": 8,
+    "lr_head": 0.0003,
+    "lr_encoder": 1e-05,
+    "weight_decay": 0.01,
+    "d_model": 128,
+    "layers": 2,
+    "heads": 4,
+    "dropout": 0.1,
+    "tag": ""
+  },
+  "arms": {
+    "S1": {
+      "oof_r_at_1": 0.7598,
+      "shipped_r_at_1": 0.7555,
+      "delta": 0.0044,
+      "changed_top1": 2,
+      "gained": 1,
+      "lost": 0,
+      "discordant": 1,
+      "exact_mcnemar_p": 1.0,
+      "alpha_attainable": false,
+      "best_epochs_per_fold": [
+        7,
+        0,
+        0,
+        0,
+        0
+      ],
+      "median_best_epoch": 0
+    },
+    "L1": {
+      "oof_r_at_1": 0.7424,
+      "shipped_r_at_1": 0.7555,
+      "delta": -0.0131,
+      "changed_top1": 31,
+      "gained": 5,
+      "lost": 8,
+      "discordant": 13,
+      "exact_mcnemar_p": 0.5811,
+      "alpha_attainable": true,
+      "best_epochs_per_fold": [
+        4,
+        1,
+        3,
+        7,
+        1
+      ],
+      "median_best_epoch": 3
+    },
+    "LS1": {
+      "oof_r_at_1": 0.7555,
+      "shipped_r_at_1": 0.7555,
+      "delta": 0.0,
+      "changed_top1": 7,
+      "gained": 2,
+      "lost": 2,
+      "discordant": 4,
+      "exact_mcnemar_p": 1.0,
+      "alpha_attainable": false,
+      "best_epochs_per_fold": [
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "median_best_epoch": 0
+    }
+  }
+}

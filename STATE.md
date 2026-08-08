@@ -4,6 +4,11 @@
 path; held-out R@1 **0.5764 → 0.6725**. K1 is amended and pinned. The precision/coverage curve is
 published and an operating point is declared. **Current milestone: M1.**
 
+**M0c Session A (branch `retrieval-m0c`) ran head separability to a conclusion and shipped nothing.
+R@1 stays 0.6725.** Both named candidates are measured and closed; K1's 10%-coverage interval is
+retired as arithmetically unreachable. See "M0c Session A" below and `runs/session-m0c/RESULT.md`
+before proposing any retrieval work.
+
 ## The shipped configuration
 
 `--reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j` — **f32**, seq 256, batch 1, depth 10,
@@ -221,32 +226,57 @@ asks for the eye, on each; it has a contrast number (3.26:1, which clears AA for
 components but not AA body) and has never been looked at. Open it once on a light background and
 either accept it or move the accent.
 
-### The two M0b directions, carried as named work rather than preconditions
+### M0c Session A — head separability, MEASURED AND CLOSED. `runs/session-m0c/RESULT.md`.
 
-**1. HEAD SEPARABILITY — the highest-weighted finding of Sessions J and K.** Fine-tuning dominates
-the curve from 100% down to ~25% coverage and **stops helping at the head, which is exactly where
-the criterion reads.** Something must make the top decile separable and **the rerank margin is not
-it**. Two named candidates, both unexplored:
+**R@1 is 0.6725 and this session did not move it. Nothing shipped; there is no Rust diff.** Both
+named candidates were built, four learned architectures were cross-validated, and a seventh
+mechanism was found mid-session and taken to a held-out read. All null or negative.
 
-  - **A distinct confidence signal fit against RELEVANCE rather than against score** (ADR-017's
-    rule). The margin is what conformal thresholds today and its head is where fine-tuning stopped
-    helping. Candidates: agreement between cues, gold-length prior, session-level evidence.
-  - **Set-wise or listwise scoring** that observes candidates jointly rather than independently. The
-    cross-encoder scores each pair in isolation; nothing in the shipped path ever compares two
-    candidates directly.
+**1. K1's interval reading is ARITHMETICALLY UNREACHABLE at the declared operating point.** A
+**perfect** selector — 23 of 23 — has a Clopper-Pearson lower bound of **0.8518** at 10% coverage on
+n = 229. Clearing 0.95 by interval needs **n_c ≥ 72 with zero errors, or ≥ 110 with one**. This is
+not a retrieval statement; it retires a target the way ADR-016 retired the 0.3739 ceiling.
+**Do not register a band on it.** `tools/reach_head_r0_attainability.py`.
 
-**2. THE HUMAN LABEL SET — ≥400 judged injections, ≥50 per category, judged blind, stratified by
-score decile.** **True injection precision — the quantity K1 names — has never been computed**;
-every figure to date is a gold-turn proxy. **It is now drawable**, because a conformal operating
-point exists to sample from. It was not before.
+**2. Candidate A — a relevance-fitted confidence signal — is NEGATIVE.** No query-time feature beats
+the rerank margin at the head, and the three with *better overall AUC are worse there*. Overall
+discrimination and head discrimination are different quantities on this corpus.
 
-**Also still open:** turn-pair chunking (untested, cheapest structural idea, addresses fragment
-boundaries directly); the gate-design constraint (ADR-016's closing section — either the resolution
-rule or the margin feature's one-positive-per-query property must change, and **re-tuning the
-resolution stays forbidden**); QA accuracy (needs an API credential, not a design decision).
+**3. Candidate B — set-wise / listwise scoring — is a NULL across four architectures.** Out-of-fold,
+5-fold CV by conversation: S1 set-wise head **+0.0044**, L1 listwise fine-tune **−0.0131** (null
+*with power*, discordant 13, p = 0.5811), LS1 **+0.0000**, S2 global cross-encoder with token-level
+cross-talk **+0.0000** (top-1 changed on 2 of 229). **The binding resource is labelled data** — 229
+fit queries, 38 recoverable failures, on a reranker Session J already fine-tuned on them.
+
+**4. Slate construction gained +0.0087 on fit and lost −0.0044 on held-out.** Input recall rose
++0.0175 and conditional accuracy fell −0.0189 to meet it. The Session J addendum pattern exactly.
+
+**5. THE FAILURE MODE IS NOW CHARACTERISED, and it is not what STATE.md said.** Same-session
+gold-to-rank-1 turn gaps are **−10, −8, −6, −4, −2 — all even, therefore SAME ROLE**. The failure is
+**discriminating between two USER turns in one conversation several exchanges apart**. Rank 1 on
+failures is assistant-authored on only **5.3% (fit) / 7.5% (held-out)** of cases — the Session J
+fine-tune already removed the user/assistant confusion. **The "47.1% assistant-authored" figure
+below is stale and turn-pair chunking's rationale goes with it** (measured ceiling: +0.0087 fit,
++0.0131 held-out).
+
+**6. A METRIC MISMATCH, resolved.** Systems publishing "96.6% on LongMemEval" report **session-level
+R@5**. Marlowe measures **0.9738 session R@5 shipped, 0.9869 on its dense cue alone** — it is not
+behind on that metric, it reports a far harder one (turn-level R@1 out of ~490 candidates). Never
+quote one against the other.
+
+**THE HUMAN LABEL SET is now the highest-value open item** — ≥400 judged injections, ≥50 per
+category, judged blind, stratified by score decile. **True injection precision has never been
+computed**; every figure is a gold-turn proxy. It is drawable and it is the human's deliverable.
+
+**Also still open:** the gate-design constraint (ADR-016's closing section — either the resolution
+rule or the margin feature's one-positive-per-query property must change; **re-tuning the resolution
+stays forbidden**); QA accuracy (needs an API credential); **batching the depth-10 rerank** —
+batch invariance measured **0.000000** on the shipped f32 graph in Session K, so it is available and
+untested, and latency is the only currency that buys depth.
 
 **Do not re-attempt:** consolidation, PRF, entity expansion, HyDE, session pruning as a quality
-mechanism, length normalization, or raising sequence length.
+mechanism, length normalization, raising sequence length, **re-scoring the depth-10 slate by any
+learned mechanism**, or **the 10%-coverage interval**.
 
 ## Standing checks — re-run on every cue, feature, pool or MODEL change
 
@@ -292,8 +322,18 @@ mechanism, length normalization, or raising sequence length.
   conformal, not a caveat on it.** Largest wrong-query calibration set is 12 against a floor of 40.
 - **Do not quote Session H's McNemar p-values.** The test had no power; ADR-014.
 - **Session pruning is closed as a QUALITY mechanism.** It remains a cost mechanism.
-- **Turn-pair chunking is untested** and is a candidate for any session touching ingest. 87.7% of
-  gold is user-authored; the distractors that beat it are 47.1% assistant-authored and 1.9× longer.
+- **Turn-pair chunking is now MEASURED and small.** Ceiling +0.0087 fit / +0.0131 held-out. Its
+  stated rationale is stale: 89.4% of gold is still user-authored, but rank 1 on failures is
+  assistant-authored on only 5.3–7.5% of cases, not 47.1%. See M0c above.
+- **A TOKENIZER WRAPPER IS NOT THE TOKENIZER.** `PreTrainedTokenizerFast` over the shipped
+  `tokenizer.json` produced logits up to **3.56** from the raw `tokenizers.Tokenizer` the scored
+  path uses — same file, same vocabulary, entirely plausible output. Twelfth instance of
+  two-sides-silently-disagree. Anything scoring offline must use `tokenizers.Tokenizer` configured
+  as `spike_cross_encoder.encode` configures it, and must assert against cached logits before
+  writing.
+- **A single 20% validation slice is not an instrument at this n.** It read one arm at +0.0435 that
+  5-fold CV read at +0.0044 — 38 versus 37 of 46 queries. ADR-012. Use out-of-fold predictions over
+  all 229.
 - **The failure mode is only 58% same-session.** Any brief describing it as same-session
   discrimination is wrong by that margin.
 - **The additivity read's subsumption rule is defective as registered.** Fix before reusing.

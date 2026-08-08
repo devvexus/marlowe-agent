@@ -1,0 +1,28 @@
+{
+  "_what": "torch reference vs shipped ONNX logits, checked before any head is trained",
+  "_why": "a head trained on representations from a checkpoint that scores differently from the shipped graph would be trained against a scorer that does not exist",
+  "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "max_len": 256,
+  "splits": [
+    {
+      "split": "fit",
+      "pairs": 2290,
+      "max_abs_err_torch_vs_onnx": 9.5367431640625e-06,
+      "mean_abs_err": 1.971065737795101e-06,
+      "p99_abs_err": 6.67572021484375e-06,
+      "tolerance": 0.001,
+      "pass": true,
+      "top1_agreement": "229/229"
+    },
+    {
+      "split": "heldout",
+      "pairs": 2290,
+      "max_abs_err_torch_vs_onnx": 1.0013580322265625e-05,
+      "mean_abs_err": 1.993137676122407e-06,
+      "p99_abs_err": 6.67572021484375e-06,
+      "tolerance": 0.001,
+      "pass": true,
+      "top1_agreement": "229/229"
+    }
+  ]
+}

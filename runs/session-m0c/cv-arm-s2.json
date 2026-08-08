@@ -1,0 +1,30 @@
+{
+  "_what": "arm S2, global cross-encoder over the top-4, 5-fold CV by conversation on fit",
+  "k": 4,
+  "max_len": 512,
+  "per_candidate_tokens": 112,
+  "oof_r_at_1": 0.7555,
+  "shipped_r_at_1": 0.7555,
+  "delta": 0.0,
+  "changed_top1": 2,
+  "gained": 0,
+  "lost": 0,
+  "discordant": 0,
+  "exact_mcnemar_p": null,
+  "alpha_attainable": false,
+  "best_epochs_per_fold": [
+    7,
+    6,
+    0,
+    6,
+    7
+  ],
+  "hyperparameters": {
+    "epochs": 8,
+    "batch": 8,
+    "lr": 1e-05,
+    "lr_head": 0.0003,
+    "weight_decay": 0.01,
+    "folds": 5
+  }
+}

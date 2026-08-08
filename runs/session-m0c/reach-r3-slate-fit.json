@@ -1,0 +1,78 @@
+{
+  "_what": "where the input-recall ceiling comes from and what would move it",
+  "_nothing_here_is_a_proposal": "several orderings are on the closed list and are computed as diagnostic ceilings only",
+  "fit": {
+    "n_eligible": 229,
+    "turn_level": [
+      {
+        "ordering": "gate (SHIPPED slate order)",
+        "recall_at_10": 0.9214,
+        "recall_at_15": 0.9563,
+        "recall_at_20": 0.9738,
+        "recall_at_48": 0.9825
+      },
+      {
+        "ordering": "dense alone",
+        "recall_at_10": 0.9083,
+        "recall_at_15": 0.9563,
+        "recall_at_20": 0.9694,
+        "recall_at_48": 0.9825
+      },
+      {
+        "ordering": "lexical alone",
+        "recall_at_10": 0.9039,
+        "recall_at_15": 0.9432,
+        "recall_at_20": 0.9563,
+        "recall_at_48": 0.9738
+      },
+      {
+        "ordering": "RRF lexical+dense [CLOSED: ADR-010/011]",
+        "recall_at_10": 0.9476,
+        "recall_at_15": 0.9651,
+        "recall_at_20": 0.9694,
+        "recall_at_48": 0.9825
+      }
+    ],
+    "unions": [
+      {
+        "union": "gate top10 UNION dense top10",
+        "recall": 0.9476,
+        "median_size": 12.0
+      },
+      {
+        "union": "gate top8 UNION dense top8",
+        "recall": 0.9345,
+        "median_size": 10.0
+      },
+      {
+        "union": "gate top10 UNION lexical top10",
+        "recall": 0.9432,
+        "median_size": 13.0
+      }
+    ],
+    "recall_over_survivors": 0.9825,
+    "session_level": [
+      {
+        "ordering": "gate (SHIPPED slate order)",
+        "session_recall_at_1": 0.8297,
+        "session_recall_at_3": 0.9476,
+        "session_recall_at_5": 0.9869,
+        "session_recall_at_10": 0.9869
+      },
+      {
+        "ordering": "dense alone",
+        "session_recall_at_1": 0.8646,
+        "session_recall_at_3": 0.9738,
+        "session_recall_at_5": 0.9869,
+        "session_recall_at_10": 0.9913
+      },
+      {
+        "ordering": "lexical alone",
+        "session_recall_at_1": 0.8297,
+        "session_recall_at_3": 0.9345,
+        "session_recall_at_5": 0.9869,
+        "session_recall_at_10": 0.9913
+      }
+    ]
+  }
+}

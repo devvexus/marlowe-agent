@@ -1,0 +1,109 @@
+{
+  "_what": "input recall, conditional accuracy and R@1 under alternative slate-construction rules, reranked by the shipped cross-encoder",
+  "_the_reranker_is_unchanged": "only which candidates reach it changes",
+  "split": "fit",
+  "n": 229,
+  "control_reproduces_shipped": true,
+  "shipped": {
+    "r_at_1": 0.7555,
+    "input_recall": 0.9214
+  },
+  "rules": [
+    {
+      "rule": "gate top10 (SHIPPED CONTROL)",
+      "median_depth": 10.0,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.8199,
+      "r_at_1": 0.7555,
+      "delta_vs_shipped": -0.0
+    },
+    {
+      "rule": "dense top10",
+      "median_depth": 10.0,
+      "input_recall": 0.9083,
+      "conditional_accuracy": 0.8173,
+      "r_at_1": 0.7424,
+      "delta_vs_shipped": -0.0131
+    },
+    {
+      "rule": "gate8 UNION dense8",
+      "median_depth": 10.0,
+      "input_recall": 0.9345,
+      "conditional_accuracy": 0.8178,
+      "r_at_1": 0.7642,
+      "delta_vs_shipped": 0.0087
+    },
+    {
+      "rule": "gate7 UNION dense7",
+      "median_depth": 9.0,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.8199,
+      "r_at_1": 0.7555,
+      "delta_vs_shipped": -0.0
+    },
+    {
+      "rule": "gate6 UNION dense6 UNION lex6",
+      "median_depth": 9.0,
+      "input_recall": 0.9345,
+      "conditional_accuracy": 0.8084,
+      "r_at_1": 0.7555,
+      "delta_vs_shipped": -0.0
+    },
+    {
+      "rule": "gate10 UNION dense10",
+      "median_depth": 12.0,
+      "input_recall": 0.9476,
+      "conditional_accuracy": 0.8018,
+      "r_at_1": 0.7598,
+      "delta_vs_shipped": 0.0043
+    },
+    {
+      "rule": "gate top15",
+      "median_depth": 15.0,
+      "input_recall": 0.9563,
+      "conditional_accuracy": 0.8037,
+      "r_at_1": 0.7686,
+      "delta_vs_shipped": 0.0131
+    },
+    {
+      "rule": "dense top15",
+      "median_depth": 15.0,
+      "input_recall": 0.9563,
+      "conditional_accuracy": 0.7945,
+      "r_at_1": 0.7598,
+      "delta_vs_shipped": 0.0043
+    },
+    {
+      "rule": "gate9 UNION dense9",
+      "median_depth": 11.0,
+      "input_recall": 0.9432,
+      "conditional_accuracy": 0.8148,
+      "r_at_1": 0.7686,
+      "delta_vs_shipped": 0.0131
+    },
+    {
+      "rule": "gate top12",
+      "median_depth": 12.0,
+      "input_recall": 0.9432,
+      "conditional_accuracy": 0.8056,
+      "r_at_1": 0.7598,
+      "delta_vs_shipped": 0.0043
+    },
+    {
+      "rule": "gate top20",
+      "median_depth": 20.0,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.7892,
+      "r_at_1": 0.7686,
+      "delta_vs_shipped": 0.0131
+    },
+    {
+      "rule": "gate12 UNION dense6",
+      "median_depth": 12.0,
+      "input_recall": 0.9432,
+      "conditional_accuracy": 0.8056,
+      "r_at_1": 0.7598,
+      "delta_vs_shipped": 0.0043
+    }
+  ]
+}
