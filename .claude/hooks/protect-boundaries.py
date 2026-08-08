@@ -54,10 +54,6 @@ PROTECTED = {
         "argument reads as UntrustedContent; a default the other way inverts the security "
         "property while looking like tidy code"
     ),
-    "crates/marlowe-permission/src/scope.rs": (
-        "path scoping (brief §13). ADR-024: the traversal suite and the handle discipline "
-        "ship together or neither ships, and `ScopedPath` has no constructor from a string"
-    ),
     "crates/marlowe-permission/src/egress.rs": (
         "egress allowlisting (brief §13, path scoping and egress rules). Deny-by-default per "
         "run, and one of the three mechanisms that lets Inert reads skip the target check"
@@ -74,10 +70,21 @@ PROTECTED = {
 }
 
 # Directory prefixes, matched anywhere in the normalized path.
+#
+# Path scoping is a DIRECTORY entry rather than a file list, and that is a lesson rather than a
+# style choice. It was `crates/marlowe-permission/src/scope.rs` until M2 Session B split it into
+# `scope/{mod,request,glob,walk}.rs`, at which point the entry named a file that no longer
+# existed and the whole component was silently unguarded. Nothing reported it. A directory entry
+# survives a split; `--self-check` below catches the case where nothing survives.
 PROTECTED_DIRS = {
     "/persona/": (
         "the persona artifact (brief §13). It lives in the stable tier, is versioned, and is "
         "not configurable — see 04-addendum-persona.md"
+    ),
+    "/marlowe-permission/src/scope/": (
+        "path scoping (brief §13). ADR-024: the traversal suite and the handle discipline ship "
+        "together or neither ships; ADR-027: containment is the handle walk, and `ScopedPath` "
+        "has no constructor from a string"
     ),
 }
 
@@ -93,7 +100,45 @@ def reason_for(path: str) -> str | None:
     return None
 
 
+def self_check(repo_root: str) -> int:
+    """Verify every guarded entry still names something that exists.
+
+    A guard whose subject moved is not a weaker guard — it is no guard, and it reports nothing.
+    That happened once already: `scope.rs` became `scope/mod.rs` in M2 Session B and path scoping
+    was unguarded until a pipe test noticed. This turns that from silence into a failing build;
+    `marlowe-permission/tests/boundary_hook.rs` runs it.
+    """
+    import os
+
+    missing = []
+    for suffix in PROTECTED:
+        if not os.path.exists(os.path.join(repo_root, suffix)):
+            missing.append(suffix)
+    # A directory entry is matched anywhere in a path, not rooted at the repo, so it is resolved
+    # by searching rather than by joining. `/persona/` is pre-emptive by design (CLAUDE.md says
+    # so) and is exempt; everything else must be findable.
+    pre_emptive = {"/persona/"}
+    wanted = {f for f in PROTECTED_DIRS if f not in pre_emptive}
+    if wanted:
+        skip = {"target", ".git", "data", "models", "runs", "node_modules", "__pycache__"}
+        found = set()
+        for dirpath, dirnames, _ in os.walk(repo_root):
+            dirnames[:] = [d for d in dirnames if d not in skip]
+            normalized = dirpath.replace("\\", "/") + "/"
+            for fragment in wanted:
+                if fragment in normalized:
+                    found.add(fragment)
+        missing.extend(sorted(wanted - found))
+
+    for m in missing:
+        print(f"UNGUARDED: {m} is listed as protected and does not exist", file=sys.stderr)
+    return 1 if missing else 0
+
+
 def main() -> int:
+    if len(sys.argv) >= 3 and sys.argv[1] == "--self-check":
+        return self_check(sys.argv[2])
+
     try:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):

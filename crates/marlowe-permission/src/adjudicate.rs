@@ -591,6 +591,61 @@ mod tests {
     }
 
     #[test]
+    fn with_a_real_scope_a_declared_path_is_allowed_and_the_handle_comes_back_with_the_decision() {
+        // The integration proof between M2 Sessions A and B, and the reason `Adjudication`
+        // carries handles: the executor must use the handle the check opened. If it re-opened
+        // the path instead, the check-then-use race would reappear *across* this boundary —
+        // the one place a traversal suite would not look, because the suite tests the checker
+        // and the race would be in the caller.
+        let dir = std::env::temp_dir().join(format!("marlowe-adj-scope-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(dir.join("src").join("main.rs"), "fn main() {}").unwrap();
+
+        let r = registry();
+        let exposed = exposed();
+        let args = Args::new().text("path", "src/main.rs");
+        let taint = TaintSet::new().with("path", TrustClass::UserAsserted);
+        let egress = EgressPolicy::DenyAll;
+        let mut a = Adjudicator::new(crate::scope::WorkspaceScope::new());
+        let adjudication = a.adjudicate(Request {
+            manifest: r.manifest(&ToolId::new("read")).unwrap(),
+            args: &args,
+            taint: &taint,
+            exposed: &exposed,
+            egress: &egress,
+            workspace: &dir,
+            tier: Tier::Act,
+            novelty: None,
+        });
+
+        assert_eq!(adjudication.decision.outcome, Outcome::Allowed, "{:?}", adjudication.decision);
+        let handle = adjudication
+            .handles
+            .get("path")
+            .expect("the opened handle travels with the decision");
+        assert!(handle.resolved().starts_with(&dir));
+        assert_eq!(handle.relative(), "src/main.rs");
+
+        // ...and an escape attempt against the same real scope is still refused.
+        let bad = Args::new().text("path", "../outside/passwd");
+        let refused = a.adjudicate(Request {
+            manifest: r.manifest(&ToolId::new("read")).unwrap(),
+            args: &bad,
+            taint: &taint,
+            exposed: &exposed,
+            egress: &egress,
+            workspace: &dir,
+            tier: Tier::Act,
+            novelty: None,
+        });
+        assert!(matches!(refused.decision.blocked(), Some(BlockReason::UndeclaredPath { .. })));
+        assert!(refused.handles.is_empty(), "a refusal hands over no handle");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn an_action_class_is_stable_across_values_and_splits_on_shape() {
         let r = registry();
         let m = r.manifest(&ToolId::new("edit")).unwrap();

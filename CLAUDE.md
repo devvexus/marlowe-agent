@@ -59,14 +59,25 @@ requirements only when the design docs do not answer the question.
   question *adjacent* to the one being asked, and the adjacent answer looks authoritative.
   `tier=truecolor` printed beside a white screen. `scroll` incrementing while the view sat still. A
   green hover test over an event that never arrived. A run recorded as passing on Windows Terminal
-  when only a headless buffer had been diffed. **Eleven instances across M0b and M1** — in code, in
-  defaults, in verification methods, and in measurement targets. Before believing a number, ask what
-  it would read if the thing you actually care about were broken; if the answer is "the same", it is
-  a proxy and it is not evidence.
+  when only a headless buffer had been diffed. **Twelve instances across M0b, M1 and M2** — in code,
+  in defaults, in verification methods, and in measurement targets. Before believing a number, ask
+  what it would read if the thing you actually care about were broken; if the answer is "the same",
+  it is a proxy and it is not evidence.
 - **Watch for defaults that make a mismatch unobservable.** A fallback value, a permissive
   default, a re-resolved path — each lets two sides silently disagree while the test goes green
   because the failing path stopped existing. This pattern has produced four bugs in this project
   already. Prefer a load-time error to a sensible default.
+- **A validating constructor must be the only way in, and `serde` is a way in.** `ExposedSet`,
+  `CapabilityManifest` and `CapabilityProfile` route `Deserialize` through their constructors. A
+  field-wise deserialize leaves every in-code test green while the one path that reads outside input
+  — a config file, an MCP descriptor, a spawn request — skips the check entirely.
+
+  **This is the twelfth instance, and it is the first that was caught by design rather than by
+  failure.** The other eleven were found after they had shipped, by a screenshot or a number that
+  did not add up. This one was closed before it could exist, because the family was named and the
+  question "what would this read if the property were broken?" was asked of the serde path
+  specifically. That is what naming a failure family is *for*; recognising it only in hindsight is
+  the cheaper half.
 
 ## Do not touch
 

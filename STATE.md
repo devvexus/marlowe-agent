@@ -1,9 +1,10 @@
 # State
 
 **Updated:** 2026-08-08 — **M1 is CLOSED (`ed25914`). Current milestone: M2**, branch `m2-loop`.
-M2 Session A shipped the spine — the one loop, the eleven tool manifests, the permission layer, runs
-and the context assembler. **375 cargo tests, `eval/` untouched at 72.** See "Next action — M2
-Session B" below; the next session is path scoping, and it ships whole or not at all (ADR-024).
+Session A shipped the spine (loop, tools, permissions, runs, assembler); **Session B shipped path
+scoping whole** — traversal suite and handle discipline together, ADR-027. **412 cargo tests,
+`eval/` untouched at 72.** Next is Session C. **Two gaps carried from B and neither is small: the
+symlink class did not run on this machine, and the POSIX walk has never been executed.**
 
 **M0b is COMPLETE and SHIPPED.** The Session J fine-tune is on the scored path; held-out R@1
 **0.5764 → 0.6725**. K1 is amended and pinned. The precision/coverage curve is published and an
@@ -132,27 +133,62 @@ coverage. The bound covers the false-injection rate among wrong queries; K1 asks
 `P(correct | injected)`, a selective risk it does not cover. **Global τ only** — largest wrong-query
 calibration set is 12 against a floor of 40.
 
-## Next action — M2 Session B: path scoping, whole
+## Next action — M2 Session C: tool executors, skills, MCP, a provider client
 
-**Scope: `ROADMAP.md` §M2. Carries K6.** Session A built the spine; the remaining sessions are
-sequenced below and the order is a dependency order, not a preference.
+**Scope: `ROADMAP.md` §M2.** Sessions A and B are done. C builds the executors behind
+`driver::ToolHost` (and they must take the handle from `Adjudication::handles`, **never re-open a
+path** — that is the one way to reopen the race ADR-027 closed), `SKILL.md` loading with progressive
+disclosure, `find_skill` semantic discovery, MCP as tool transport, and a provider client honouring
+`CallLimits::max_output_tokens` as a hard cap.
 
-**Session B is path scoping and it is one item, not two.** ADR-024: the traversal suite and the
-handle discipline ship together or neither ships. Today `marlowe_permission::scope` has one
-implementation, `Unavailable`, which **refuses every path** — so `read`, `edit`, `find` and `bash`
-cannot run. That is deliberate and it is the loud version of the deferral. **Do not add a textual
-canonicalize-and-compare check to unblock the tools.** It would pass every obvious test and certify
-a boundary a planted symlink walks through, and the suite written against it would then be
-measuring the wrong thing. Owed: `openat`/`O_NOFOLLOW` on POSIX; explicit reparse semantics plus
-final-handle identity verification on Windows; and ADR-002's full table — relative traversal,
-symlinks and junctions, extended-length/UNC/device forms, 8.3 short names, case collisions, Win32
-name munging, alternate data streams, Unicode normalization.
+**Before writing an executor, read ADR-027's last section.** The wall is the handle walk; an
+executor that calls `File::open(scoped.resolved())` has undone it, and no test in the traversal
+suite would notice, because the suite tests the checker and the race would be in the caller.
 
-**Then, in order:** C — tool executors, `SKILL.md` with progressive disclosure, `find_skill`, MCP
-transport, and a provider client. D — wire M0b's memory in, including K1 condition 3's abstention
-path, which is a condition of the criterion M0b was judged against and is **load-bearing**.
-E — the TUI against the real loop, first-run onboarding (ADR-002 makes it a requirement, not a
-nicety), and K6 measured in a clean container.
+### M2 Session B — 2026-08-08. Path scoping, whole. ADR-027.
+
+**412 cargo tests (from 375), `eval/` untouched at 72.** `WorkspaceScope` replaces the refusal;
+`Unavailable` is retained for profiles that must provably not touch the filesystem.
+
+**Three parts, and only the third contains anything:** `request` refuses ambiguous spellings before
+any syscall, `glob` matches the declaration, `walk` opens without ever letting a string be resolved
+twice. POSIX: `openat` + `O_NOFOLLOW` per component. Windows: every directory pinned open with a
+share mode **excluding `FILE_SHARE_DELETE`** (so the prefix cannot be renamed out from under the
+walk), plus `FILE_FLAG_OPEN_REPARSE_POINT` with refusal on `FILE_ATTRIBUTE_REPARSE_POINT`, plus
+root identity verified before and after.
+
+**The TOCTOU test races, and proves it races.** `tests/toctou.rs` carries a deliberately vulnerable
+`naive_check_then_open` and **asserts that it escapes** — returning out-of-scope content under the
+same interleaving. That is the half that makes the other half mean anything. The interleaving is
+deterministic via a `WalkObserver` called at the exact vulnerable instant (`()` in production), not
+a thread racing and hoping. On Windows the test also asserts the swap failed *as a sharing
+violation*, so a swap that failed because `mklink` was missing cannot leave it green.
+
+**TWO GAPS, AND THEY ARE NOT SMALL:**
+
+1. **The symlink class DID NOT RUN here** — `New-Item -ItemType SymbolicLink` gives os error 1314,
+   "a required privilege is not held by the client". Junctions need no privilege and *did* run, so
+   the Windows directory-reparse escape is covered; a **file** symlink is not. The suite prints a
+   coverage manifest naming any unrunnable class, and `MARLOWE_TRAVERSAL_STRICT=1` makes it a
+   failure. **Enable Developer Mode or run elevated to close this locally.**
+2. **The POSIX walk has never been executed.** It type-checks against `x86_64-unknown-linux-gnu`
+   and nothing more. ADR-002's inversion, on the security boundary: **Session B's acceptance is met
+   on Windows only until the suite runs on Linux.**
+
+**A guard whose subject moved is no guard.** Splitting `scope.rs` into `scope/` made the brief §13
+hook name a file that no longer existed — path scoping was silently unguarded and nothing said so.
+The entry is now a directory prefix, the hook grew `--self-check`, and
+`marlowe-permission/tests/boundary_hook.rs` fails the build on a stale entry. Verified by a negative
+control: renaming a guarded file makes it fail by name.
+
+**Positive controls are in the suite deliberately.** Session A's refuse-everything scope would pass
+every negative assertion in a traversal suite. Legitimate deep reads and lookalike filenames
+(`console.log`, `a..b.txt`) must open, or the suite measures presence rather than correctness.
+
+**After C, in order:** D — wire M0b's memory in, including K1 condition 3's abstention path, which
+is a condition of the criterion M0b was judged against and is **load-bearing**. E — the TUI against
+the real loop, first-run onboarding (ADR-002 makes it a requirement, not a nicety), K6 measured in a
+clean container, and M1's one open acceptance row (accent on a light background).
 
 ### M2 Session A — 2026-08-08. The spine: loop, tools, permissions, runs.
 
@@ -405,7 +441,13 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue.
 - **The unchanged-cue check is a NULL INSTRUMENT for a pruning change.** Its silence is not evidence.
-- **`cargo test --workspace` (375) and `cd eval && python -m pytest` (72).**
+- **`cargo test --workspace` (412) and `cd eval && python -m pytest` (72).**
+- **A traversal suite must contain an implementation it DEFEATS.** `tests/toctou.rs` asserts that
+  `naive_check_then_open` escapes under the same interleaving. Without that half, a green suite is
+  equally consistent with a test that never landed in the race window.
+- **A guarded path that moved is unguarded, and says nothing.** `protect-boundaries.py --self-check`
+  fails on a stale entry and `tests/boundary_hook.rs` runs it. Re-run after any file move under a
+  guarded component.
 - **A validating constructor must be the ONLY way in, `serde` included.** `ExposedSet`,
   `CapabilityManifest` and `CapabilityProfile` route `Deserialize` through theirs. A field-wise
   deserialize leaves every in-code test green while the one path that reads outside input skips the
@@ -465,9 +507,15 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The headline metric has never been produced.** No human label set exists.
 - **The permission layer has no kernel backstop (ADR-002, revised).**
 - **M1's §B13 suite must run on both native Windows Terminal and a Linux terminal emulator.**
-- **`read`, `edit`, `find` and `bash` cannot run.** Path scoping is `Unavailable` and refuses every
-  path (ADR-024). Their executors do not exist either, so nothing regresses — but do not read a
-  green M2 suite as evidence that filesystem access works.
+- **Path scoping is verified on WINDOWS ONLY.** The POSIX walk (`openat`/`O_NOFOLLOW`) type-checks
+  against `x86_64-unknown-linux-gnu` and **has never been executed**. ADR-002's inversion, on the
+  security boundary. Session B's acceptance is met on Windows only until the suite runs on Linux.
+- **The symlink traversal class did not run here** (os error 1314, privilege not held). Junctions
+  did, so the Windows directory-reparse escape is covered and a *file* symlink is not. Run
+  elevated or with Developer Mode, and set `MARLOWE_TRAVERSAL_STRICT=1` in CI.
+- **`read`, `edit`, `find` and `bash` still have no executors** (Session C). Path scoping now
+  admits a declared path, so a green traversal suite is evidence about the *checker*, not about
+  filesystem tools that do not exist yet.
 - **HP10's zero-config row is PARTIAL.** The library half is tested; **K6 — install → first useful
   output under five minutes in a clean container — is not measured** and lands in Session E. It is a
   milestone kill criterion, so do not let the passing library test be read as the criterion.

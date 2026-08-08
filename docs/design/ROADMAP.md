@@ -441,10 +441,17 @@ happen.
 | Session | Ships | Status |
 |---|---|---|
 | **A** | The spine: the one loop, eleven tool manifests, registration ≠ exposure, the permission layer, `(action, target)`, egress, runs + budgets + ephemeral spawn, the context assembler | ✅ 2026-08-08 |
-| **B** | **Path scoping — the traversal suite and handle discipline, together** (ADR-024) | next |
-| **C** | Tool executors, `SKILL.md` + progressive disclosure + `find_skill`, MCP transport, a provider client | |
+| **B** | **Path scoping — the traversal suite and handle discipline, together** (ADR-024, ADR-027) | ✅ 2026-08-08, **Windows only** |
+| **C** | Tool executors, `SKILL.md` + progressive disclosure + `find_skill`, MCP transport, a provider client | next |
 | **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | |
 | **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | |
+
+**Session B's acceptance is met on Windows only, and that is recorded rather than rounded up.**
+The traversal suite's symlink class could not run on the development machine (privilege), and the
+POSIX walk type-checks against a Linux target but **has never been executed**. ADR-002 predicted
+this inversion — development is native Windows, so Linux is the CI-only surface — and it binds
+harder here than it did for M1's interface work, because this is the wall. `MARLOWE_TRAVERSAL_STRICT=1`
+turns an unrunnable class into a failing test; CI sets it.
 
 **Session A's deliberate absences are refusals, not gaps.** Every one is a named error rather than a
 permissive default: a `Path` argument is blocked because scoping does not exist, `remember` reports

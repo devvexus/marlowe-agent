@@ -2478,3 +2478,129 @@ worth naming here because they are the ones a reader will question:
 **And one role assignment carries more weight than the rest: `bash.command` is a `Target`.** It is not
 body content a tool happens to carry — it *is* the action. As a `Payload` it would be unchecked by
 design, and untrusted content composing a shell line would pass.
+
+## ADR-027 · Containment is the handle walk; the string check is the weaker of two walls, and it is named as such
+
+**Context.** ADR-024 deferred path scoping until it could ship with its traversal suite and its
+handle discipline. This is what shipped. ADR-002 removed the kernel backstop, so everything below
+is the only wall there is.
+
+**Decision. Three parts, in a fixed order, and the third is the one that contains.**
+
+| Part | Job | Strength |
+|---|---|---|
+| `scope::request` | refuse ambiguous **spellings** before any syscall | weak — it only closes forms where two strings name one file |
+| `scope::glob` | decide whether a well-formed request is inside what the manifest declared | weak — it is a comparison on a string nobody has resolved yet |
+| `scope::walk` | open it without ever letting a string be resolved twice | **this is the containment** |
+
+The order is ADR-002's *"canonicalize before the check, never after"*, taken to its strongest
+reading: **the hostile string is never canonicalized at all.** It is validated, matched against the
+declaration, then *walked* — the kernel resolves one component at a time under supervision. There is
+no moment at which a resolved string exists and is trusted, so there is nothing for a check to be
+performed against and then invalidated.
+
+### The walk, per platform
+
+**POSIX.** `openat` from the parent's descriptor, one component at a time, with `O_NOFOLLOW`. A
+symlink in any position fails with `ELOOP` rather than being followed. There is no string for anyone
+to swap: each step names a single component relative to a descriptor already held. `rustix` supplies
+the safe wrapper; std exposes no handle-relative open, and without one this walk is not expressible.
+
+**Windows.** There is no `openat` in Win32, so containment comes from **pinning**: every directory on
+the path is opened with a share mode that **excludes `FILE_SHARE_DELETE`**, and every handle is held
+for the whole walk. A directory cannot be renamed or deleted while such a handle is open, so the
+prefix cannot be swapped underneath the next open. Each component is additionally opened with
+`FILE_FLAG_OPEN_REPARSE_POINT` and refused if it carries `FILE_ATTRIBUTE_REPARSE_POINT` — junctions
+and symlinks are caught rather than traversed. The root's identity (volume serial + file index, via
+`same-file`) is compared before and after.
+
+**Rejected: `NtCreateFile` with a `RootDirectory` handle**, which is the true `openat` equivalent on
+Windows. It would remove the reliance on share-mode semantics, and it costs an `ntdll` FFI surface
+and `unsafe` in the one crate where a memory-safety bug would be worst. Pinning plus reparse refusal
+plus identity verification is three independent mechanisms in safe Rust, and the TOCTOU test
+exercises the first of them directly. If a future measurement shows pinning failing on some
+filesystem, this is the decision to revisit.
+
+**Rejected: `cap-std`.** Capability-based, well-maintained, and it solves exactly this. It was not
+adopted because the direction given was explicit about the primitives, and because a dependency here
+would move the wall into a crate whose changes this project does not review. Recorded so that the
+option is visible rather than merely unused; if hand-rolled Windows containment ever looks shakier
+than a reviewed dependency, that trade should be made deliberately.
+
+### The TOCTOU test races, and it proves it races
+
+The requirement is that a suite must not pass against a check-then-open implementation. So
+`tests/toctou.rs` contains one — `naive_check_then_open`, which canonicalizes, verifies the result
+is under the workspace, and then opens by path — and **asserts that it escapes**, returning the
+contents of a file outside the workspace.
+
+That is the load-bearing half. Without it, a green suite is equally consistent with a test that never
+landed in the window at all, and "the boundary held" would be indistinguishable from "the attack
+never ran".
+
+**The interleaving is deterministic, not hopeful.** The walk calls a `WalkObserver` at exactly the
+instant a race must land — after component *k* is open, before *k+1*. In production the observer is
+`()`, a zero-sized no-op. A thread racing a resolver and hoping to hit a microsecond window is a test
+that passes for the wrong reason most of the time.
+
+**And the mechanism is asserted, not only the outcome.** On Windows the test asserts the swap fails
+*with a sharing or access violation* — the pinning firing. A swap that failed because `mklink` was
+missing would leave the outcome assertion green while measuring nothing.
+
+### What is verified, and where — stated because it is not uniform
+
+| | Windows (this machine) | Linux / macOS |
+|---|---|---|
+| String-level classes | run | run (platform-independent) |
+| Junction / directory-link escape | **run** | run as symlink |
+| **Symlink escape** | **NOT RUN — needs Developer Mode or elevation** | expected to run |
+| TOCTOU race | **run**, including the naive-escapes control | **written, never executed** |
+| Compile | run | `cargo check --target x86_64-unknown-linux-gnu`, clean |
+
+Two gaps, both real:
+
+1. **The symlink class did not run on the development machine.** `New-Item -ItemType SymbolicLink`
+   returns "A required privilege is not held by the client" (os error 1314). The suite **reports**
+   this rather than skipping it: `every_traversal_class_is_accounted_for` prints a coverage manifest
+   naming any class it could not run, and `MARLOWE_TRAVERSAL_STRICT=1` turns an unrunnable class
+   into a failure. CI sets it.
+2. **The POSIX walk has never been executed.** It type-checks against a real Linux target and
+   nothing more. ADR-002 predicted this inversion — development moved to native Windows, so
+   *Linux* is the CI-only surface — and it applies with more force here than it did to M1's
+   interface work, because this is the security boundary. **Session B's acceptance is met on
+   Windows only until the suite runs on Linux.**
+
+### A suite of refusals can be passed by refusing everything
+
+M2 Session A shipped a scope that refused every path, and it would satisfy every negative assertion
+in this suite. So the suite carries **positive controls**: a legitimate deep read, a narrow
+declaration admitting its own subtree, and filenames that merely look dangerous (`console.log`,
+`nullable.rs`, `a..b.txt`) which must all open. Without them the suite measures whether a scope is
+present, not whether it is correct.
+
+### Accepted costs, each with its false positive
+
+- **8.3 short names are refused by shape**, so a legitimate `backup~1.txt` is refused and must be
+  renamed. The alternative is a second spelling of a path that a glob written against the long name
+  does not match.
+- **Unicode normalization is the one thing here that is normalized rather than refused.** Refusing
+  non-NFC would make legitimate macOS filenames unreachable, with no attacker behind it. Both the
+  request and the glob are normalized to NFC, and the normalization is applied to both sides of one
+  comparison rather than to a value used for something else. Homoglyph separators are a different
+  problem and *are* refused.
+- **A backslash is a separator on every platform**, so a POSIX filename containing one is split.
+  That fails closed — the request reaches a deeper, narrower path or is refused, never a wider one.
+- **The glob language is two wildcards.** No `?`, no classes, no braces, no negation. Every one is a
+  feature whose interaction with the others must be reasoned about, on a comparison that decides
+  whether a path is inside a security boundary.
+
+### A guard whose subject moved is no guard, and it says nothing
+
+Splitting `scope.rs` into `scope/{mod,request,glob,walk}.rs` made the brief §13 hook's entry name a
+file that no longer existed. **Path scoping was silently unguarded**, and nothing reported it — the
+same family as every other unobservable mismatch this project has logged.
+
+Two changes: the entry is now a **directory** prefix, which survives a split; and the hook grew a
+`--self-check` mode that fails when any guarded path does not exist, run by
+`marlowe-permission/tests/boundary_hook.rs` so it fails the build. A negative control confirms the
+check is not decorative — renaming a guarded file makes it fail by name.
