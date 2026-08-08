@@ -6,6 +6,9 @@ members = [
     "crates/marlowe-memory",
     "crates/marlowe-stub",
     "crates/marlowe-surface",
+    "crates/marlowe-tools",
+    "crates/marlowe-permission",
+    "crates/marlowe-loop",
     "crates/marlowe",
     # TEMPORARY: the engine spike. Removed once ADR-004 names a runtime.
     "crates/marlowe-embed-spike",
@@ -22,6 +25,12 @@ marlowe-journal = { path = "crates/marlowe-journal" }
 marlowe-memory = { path = "crates/marlowe-memory" }
 marlowe-stub = { path = "crates/marlowe-stub" }
 marlowe-surface = { path = "crates/marlowe-surface" }
+# M2. The layering is one-way and load-bearing: tools -> permission -> loop. The permission
+# layer reads manifests, so it depends on the registry; the loop calls the permission layer
+# before execution, so it depends on both. Nothing depends on the loop except a surface.
+marlowe-tools = { path = "crates/marlowe-tools" }
+marlowe-permission = { path = "crates/marlowe-permission" }
+marlowe-loop = { path = "crates/marlowe-loop" }
 
 # ADR-001 and Addendum B §B15. The widget mapping is close to one-to-one, which is why the
 # design is buildable rather than aspirational: Block::bordered().title() is the region

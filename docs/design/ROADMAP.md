@@ -6,8 +6,8 @@ works when complete is a harness that never works.
 **Scope rule:** one milestone at a time. Scope is whatever this file marks current. If a task
 pulls you outside it, note it in `STATE.md` and stop.
 
-**Current milestone: M1.** M0a and M0b are complete. M0b shipped 2026-08-08 — see §M1 below for the
-handoff and scope, and [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
+**Current milestone: M2.** M0a, M0b and M1 are complete. M1 closed 2026-08-08 at `ed25914`; see §M2
+below for scope, and [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
 
 ---
 
@@ -262,7 +262,18 @@ No agent loop, no tools, no TUI. M0b is exercised through the eval harness only.
 
 ---
 
-## M1 — The terminal shell against a stub agent
+## M1 — The terminal shell against a stub agent ✅ COMPLETE 2026-08-08
+
+**Shipped** at `ed25914`: the frame, keyboard navigation, §B6 tool lines, the status band and its
+seven states, the inspector, the approvals overlay, the classic CLI, width refusal, `doctor`, and
+the §B17 Windows launcher. The 9-line interaction checklist was driven by hand in a live Windows
+Terminal session and passed. Three bugs were found by *using* it that no test caught — scroll,
+double-dimming, and `NO_COLOR` — and all three are recorded in `STATE.md` with their lesson.
+
+**One acceptance row was still open at close: accent legibility on a light background** (§B13 asks
+for the eye, on each). It carries a contrast number of 3.26:1, which clears AA for large text and UI
+components but not AA body text. It is carried into M2 Session E, which is the next session that
+touches the interface.
 
 **Ships:** the TUI and classic CLI, driven by a scripted stub. **Carries K4.**
 
@@ -424,6 +435,22 @@ lineage and cache invalidation, structural governance re-assertion.
 
 M0b's memory is wired in here — this is the first milestone where the eleven-week callback can
 happen.
+
+### Session order — a dependency order, not a preference
+
+| Session | Ships | Status |
+|---|---|---|
+| **A** | The spine: the one loop, eleven tool manifests, registration ≠ exposure, the permission layer, `(action, target)`, egress, runs + budgets + ephemeral spawn, the context assembler | ✅ 2026-08-08 |
+| **B** | **Path scoping — the traversal suite and handle discipline, together** (ADR-024) | next |
+| **C** | Tool executors, `SKILL.md` + progressive disclosure + `find_skill`, MCP transport, a provider client | |
+| **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | |
+| **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | |
+
+**Session A's deliberate absences are refusals, not gaps.** Every one is a named error rather than a
+permissive default: a `Path` argument is blocked because scoping does not exist, `remember` reports
+that memory is not wired, and `RunControl::resume` refuses by name because runs are not durable
+until M3. A build in which those quietly succeeded would be the failure this project has logged
+eleven times.
 
 **Two items deferred from M1, deliberately and with the reason recorded.**
 

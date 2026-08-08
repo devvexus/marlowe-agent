@@ -2270,3 +2270,211 @@ that actually reads this, so the check is given to the human.
 - `marlowe doctor` is an M1 deliverable, not a later convenience.
 - Any future re-decision re-opens this ADR. **Do not add a fallback to make a font problem go away** —
   fix the font, or change the decision here in the open.
+
+---
+
+## ADR-022 · The loop is a state machine over ports, and a subagent is that loop re-entered
+
+**Context.** M2 builds ARCHITECTURE §3. Two shapes were available. The loop could own its
+provider client, its tool executors and its journal directly, or it could take them as injected
+ports. And a subagent could be a scheduler entry, or the same function called again.
+
+**Decision. Ports, and recursion.**
+
+`Engine::run(run, state, provenance, ports)` is the only driving loop in `marlowe-loop`.
+`Ports` carries nine trait objects — driver, summarizer, tool host, memory, approvals, sink,
+control, clock, recorder. A **spawn is `Engine::run` calling itself** with a fresh `Run`, a
+fresh `SessionState` and a fresh `Provenance`.
+
+**Why ports.** *"One loop, many capability profiles"* is only checkable if consolidation and a
+coding turn are the same code. With a concrete provider inside the loop, a consolidation run
+would need either a fake provider or its own entry point, and the second is how a second loop
+gets written. It also keeps the M2 session order honest: the loop is complete and tested before
+a provider client, a tool executor or a memory binding exists, and each of those absences is a
+port with no production implementation rather than a branch inside the loop.
+
+**Why recursion, given that M3 replaces it.** M2's stated lifecycle is *the parent blocks, the
+child returns, the child dies with the parent*. That is exactly a call. Building a scheduler now
+would be building M3's mechanism against M2's semantics and getting a queue nobody dequeues
+concurrently. What matters for M3 extending rather than replacing this is the **data**, not the
+control flow: `Run`, `CapabilityProfile`, `Budget` and `OrphanPolicy` are implemented in full,
+and `OrphanPolicy` is recorded in the `RunSpawned` payload from the first spawn even though M2
+cannot orphan anything. When M3 arrives, the journal already says what every child was supposed
+to do when its parent ended.
+
+**Depth is the bound on the recursion**, checked before a child is created. `Budget::depth`
+decrements per level and `slice_for` returns `None` at zero, which the loop turns into a refusal
+the model can read. Anthropic's documented deep-research failures were excessive subagent
+spawning and endless loops; depth, subagent count, and a `MAX_STEPS` cap are the structural
+answers, and all three are tested.
+
+### Two refusals on `CapabilityProfile` that CONTRACTS §5 does not state
+
+§5 pins one load-time error: `reads_untrusted && !exposed_tools.is_empty()`. Two more are
+enforced, and they are **strictly narrower** — no profile that satisfied §5 is rejected unless it
+also recombines a trifecta leg:
+
+- `reads_untrusted && may_write_memory` — the empty tool set does not close memory writing,
+  because the loop's own `MemoryWrite` step is not a tool. A quarantined reader that can write
+  beliefs is laundering with the derivation step built in (HP6).
+- `reads_untrusted && egress != DenyAll` — egress needs no tool either, if the profile grants it.
+
+Recorded here rather than left in the code because they are additions to a pinned contract's
+validation, and a later reader is entitled to know they were deliberate. If §5 should carry them,
+that is a contract amendment and a separate change.
+
+**Consequences.**
+
+- `tests/hp10_budgets.rs` scans this crate's source and fails the build on a second driving loop.
+  The exemption marker is a comment on the line, so an exemption appears in the diff.
+- The layering is one-way: `marlowe-tools` then `marlowe-permission` then `marlowe-loop`. The
+  permission layer reads manifests, the loop calls the permission layer before execution, and
+  nothing depends on the loop except a surface (§2.14).
+- A `Recorder` port rather than an `Option<Journal>`. A write path that sometimes does not write
+  makes an audit trail unfalsifiable; the in-memory recorder records the same sequence.
+
+## ADR-023 · Argument provenance is computed from the context window, never declared by the model
+
+**Context.** ARCHITECTURE §3 calls `taint.of(args)` inside adjudication, and CONTRACTS §12 pins
+`TaintSet` as per-value provenance. Neither says **who computes it**. The convenient answer is
+that the model's tool call carries it, because the model knows where it got each value.
+
+**Decision. The harness computes it, and `ModelStep::ToolCall` has no taint field at all.**
+
+Two sources of truth, in order:
+
+1. **Attribution.** The harness records the exact strings the user typed and the exact fields it
+   itself computed. An argument whose value matches one **exactly** carries that class.
+2. **The floor.** Everything else is model-composed and carries §3.3's worst-case rule applied to
+   the window it was composed in: the **minimum trust class of any block in the context view**.
+
+**A model that could label its own arguments trusted would be the security boundary**, which
+invariant 3 says it is not. That is the whole argument, and it is why the field is absent from the
+type rather than ignored by the adjudicator.
+
+**The consequence, stated because it looks like a bug the first time it fires.** Once a run has
+read untrusted content, **every model-composed Target in that run is blocked** — a fetched page in
+the window drags the floor to `UntrustedContent`, and the (action, target) check refuses any
+target that is not separately attributable.
+
+That is §8.2's structural trifecta break arriving as a property of provenance rather than as a
+second mechanism bolted beside it. The way to act on what a page said is to spawn a quarantined
+reader that returns structured findings, and let the orchestrator — which never saw the page —
+act. The design already required that; this makes it the path of least resistance instead of a
+rule somebody has to remember.
+
+**Matching is exact.** A value differing by a trailing space falls to the floor. A fuzzy match here
+would be an attacker-shaped near-miss away from promoting untrusted text to user-asserted, and the
+false-positive cost of exactness is one blocked call the user can restate.
+
+**A child does not inherit its parent's attributions.** A fresh `Provenance` per spawn, so a string
+the user typed to a parent is not user-asserted inside a child that never saw the user say it.
+Without this a spawn is a laundering step. Tested.
+
+**Rejected.** Substring or normalized matching (promotes by similarity). Per-message taint rather
+than per-value (§12 pins per-value, and a call mixing a trusted recipient with an untrusted body is
+the case that has to adjudicate correctly). Trusting the driver (invariant 3).
+
+**Cost accepted, and it is real.** Research-then-act in a single run is not possible. That is the
+intended shape, but it means the orchestrator-worker split is not an optimization for hard
+questions — it is **required** for any run that reads the web and then does anything. If that
+proves too strict in practice, the fix is a narrower attribution path for specific harness-computed
+fields, argued here — not a wider floor.
+
+## ADR-024 · Path scoping ships with its traversal suite and its handle discipline, or it does not ship
+
+**Context.** ADR-002 (revised) removed the kernel backstop from the ordinary path, and brief §8.3
+states the consequence: *"inseparable from handle-based access: canonicalize-then-open leaves a
+check-then-use race, so a traversal suite passing against a check-then-open implementation reports
+a boundary that is not there. The suite and the handle discipline are one requirement and ship
+together."* M2 Session A had room for a path check but not for the suite and the handles.
+
+**Decision. Session A ships no path check at all. It ships a refusal.**
+
+`marlowe_permission::scope` contains a `PathScope` trait and exactly one implementation,
+`Unavailable`, which refuses every path with a message naming the reason. The adjudicator routes
+every `ParamType::Path` argument through it at **every** consequence level — path scoping is a
+different question from target provenance, and the `Inert` exemption does not reach it.
+
+**The consequence is loud and intended: `read`, `edit`, `find` and `bash` cannot run in this
+build.** Their executors do not exist either, so nothing regresses; what is bought is that no path
+ever passes through a check that does not exist.
+
+**Why not a textual check now, improved later.** Because it would work. A `fs::canonicalize` plus a
+prefix comparison passes every obvious test, reads as done in a review, and certifies a boundary
+that a symlink planted between the check and the open walks straight through. The next session
+would then be *improving* a passing check rather than *building* a missing one, and the traversal
+suite written against it would be measuring the wrong thing. §8.3 calls that worse than no suite,
+because it is believed.
+
+**`ScopedPath` has no constructor from a string.** It holds an open handle and a resolved path,
+both private, and the only accessor for the path is documented as *not for re-opening*. An
+implementation that resolved without opening cannot produce the type the adjudicator requires.
+`Adjudication` carries the handles it opened, and the tool host is expected to use them — otherwise
+the check-then-use race reopens **across the permission boundary**, which is the one place a
+traversal suite would not look, because the suite tests the checker and the race is in the caller.
+
+**What Session B owes.** `openat`/`O_NOFOLLOW` on POSIX; explicit reparse semantics plus
+final-handle identity verification on Windows; and the suite from ADR-002's table — relative
+traversal, symlinks and junctions, extended-length and UNC and device forms, 8.3 short names, case
+collisions, Win32 name munging, alternate data streams, Unicode normalization. Together, in one
+session, or neither.
+
+## ADR-025 · A source may be trimmed out of the context view only if its content is recoverable
+
+**Context.** Brief §6 requires an explicit token budget per source, enforced by the assembler. The
+obvious enforcement drops a source's oldest blocks when it exceeds its cap. Applied uniformly, that
+silently evicts old conversation turns to stay under a history budget.
+
+**Decision. Only recoverable sources are trimmable.** Tool results (behind a `ContentRef`), project
+files (re-readable), skills, tool schemas, injected memory (re-retrievable) and child results may be
+shortened. **Identity, governance and history may not.**
+
+Dropping conversation turns to stay under a cap is eviction with no durable append — invariant 1's
+failure — and it would present as a working budget. History pressure therefore raises `fill_pct`
+until **compaction** handles it, with `SessionSummarized` and `SessionSpawned` durable first. History
+keeps its budget entry, because §6 asks for per-source accounting; what the entry does not do is
+authorise a silent drop.
+
+**Nothing is omitted silently even where trimming is allowed.** A block that does not fit is replaced
+by a marker naming the count; one that partially fits is truncated with a marker. A view that quietly
+lacked a source would leave the model reasoning about a gap it cannot see, and would leave the
+per-source accounting describing a different view than the one that was sent.
+
+**This was found by a failing test, not by design.** The first implementation dropped any block whose
+own size exceeded its source cap, which made a single large turn vanish. The test that caught it was
+asserting the 70% trigger and got `fill_pct = 0.0024`. Recorded because the failure mode — a budget
+that enforces correctly and loses data while doing it — is not visible from the budget's own tests.
+
+## ADR-026 · A manifest's declared consequence is the ceiling a tool can reach, and `bash` is Irreversible
+
+**Context.** CONTRACTS §7.3 pins `consequence` per tool. A shell tool can do anything, so the honest
+declaration is `Irreversible` — which means every `bash` call needs approval, which is approval
+fatigue (HP8) on the most-used tool in a coding agent.
+
+**Decision. The declared level is the ceiling, `bash` declares `Irreversible`, and per-command
+refinement is refused as a convenience change.**
+
+Refining a shell call's consequence means parsing the command to decide whether it is safe. That is
+the Cursor CVE in brief §8.1 exactly: *"an allowlist made the attack easier by auto-approving exactly
+the commands the attacker needed."* A command classifier is an allowlist with extra steps, and its
+failure mode is silent.
+
+This is not a claim that `bash` must always block. It is a claim about **where** the relief comes
+from: M6's trust ledger, per action class, on observed agreement evidence, with novelty gating and
+hard ceilings — mechanisms that accumulate evidence about a class rather than pattern-matching a
+string. Until then the honest behaviour is to ask.
+
+**The rest of the column, with reasons, is in `crates/marlowe-tools/src/builtin.rs`.** Two entries are
+worth naming here because they are the ones a reader will question:
+
+- **`web` is `Inert`.** §9's own example: following a link found on a page is how research works. Its
+  containment is three non-kernel mechanisms — the result returns `UntrustedContent`, it returns by
+  reference (`inline_threshold_bytes: 0`, never inlined), and egress allowlisting closes the
+  exfiltration leg. ADR-002 records that if any one weakens, this is revisited rather than inherited.
+- **`use` is `Reversible` rather than `Inert`, specifically so its target check fires.** Loading a
+  skill chosen by untrusted content is supply-chain steering, and §9 checks `Reversible`.
+
+**And one role assignment carries more weight than the rest: `bash.command` is a `Target`.** It is not
+body content a tool happens to carry — it *is* the action. As a `Payload` it would be unchecked by
+design, and untrusted content composing a shell line would pass.

@@ -1,0 +1,15 @@
+[package]
+name = "marlowe-loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+marlowe-contract.workspace = true
+marlowe-journal.workspace = true
+marlowe-permission.workspace = true
+marlowe-tools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true

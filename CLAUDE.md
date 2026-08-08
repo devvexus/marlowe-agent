@@ -93,9 +93,20 @@ construction** and the gap is the point:
 | Memory provenance and trust-class propagation | `crates/marlowe-memory/src/trust.rs` | **Enforced** |
 | Audit logging — the signed write path | `crates/marlowe-journal/src/{signature,journal}.rs` | **Enforced** |
 | The persona artifact | any `persona/` directory | **Enforced** (pre-emptively) |
-| The permission and approval layer | — | **Not enforced; does not exist yet** |
-| Path scoping and egress rules | — | **Not enforced; does not exist yet** |
-| The trust ledger's promotion logic | — | **Not enforced; does not exist yet** |
+| The permission and approval layer | `crates/marlowe-permission/src/{adjudicate,taint}.rs`, `crates/marlowe-loop/src/{profile,provenance}.rs` | **Enforced** (M2 A) |
+| Path scoping and egress rules | `crates/marlowe-permission/src/{scope,egress}.rs` | **Enforced** (M2 A) |
+| The trust ledger's promotion logic | — | **Not enforced; does not exist yet** (M6) |
+
+**One gap in this that the hook cannot close, named rather than left implicit.** The layer is
+guarded; **the loop's call into it is not**. `crates/marlowe-loop/src/engine.rs` is ordinary
+milestone work and guarding it would make every loop change ask, but deleting the `adjudicate`
+call from it would evaporate the boundary while every file above stayed untouched. What stands
+behind that is a test, not the hook:
+`marlowe-loop/tests/spawn_and_budget.rs::a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop`
+drives a real blocked call **through the loop**. If the call site goes, that test fails.
+
+Verified live on 2026-08-08: each new path above was pipe-tested against the hook, and
+`engine.rs` was confirmed to return no decision — so the gap is measured, not assumed.
 
 **As each component lands, add its path to the hook.** A component with no entry is unguarded
 regardless of what this list says — the entry is the enforcement, and the list is only a map of it.
@@ -122,7 +133,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 190 passing
+cargo test --workspace                       # 375 passing (273 before M2 Session A)
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 

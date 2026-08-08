@@ -1,0 +1,57 @@
+//! The one loop, its runs, and the context assembler.
+//!
+//! ARCHITECTURE §2.8: *"One loop. Research, voice, coding, automation, consolidation, and
+//! quarantined reading are **capability profiles** — differing in tool exposure, budgets, and
+//! interrupt policy — not variants."*
+//!
+//! HP10 makes that executable: `tests/hp10_budgets.rs` fails the build if a second driving loop
+//! appears in this crate. If you find yourself needing one, the architecture is wrong and the
+//! fix is a `CapabilityProfile`, not a `while`.
+//!
+//! # What this crate does **not** do yet, stated so it is not assumed
+//!
+//! | Missing | Session | Consequence today |
+//! |---|---|---|
+//! | Path scoping | M2 B | `read`/`edit`/`find`/`bash` are blocked at adjudication — see `marlowe_permission::scope` |
+//! | Tool executors, skills, MCP | M2 C | [`driver::ToolHost`] has no production implementation |
+//! | Memory | M2 D | [`driver::MemoryHost`] is `None`; `remember` reports that it is not wired |
+//! | A provider client | M2 C | [`driver::ModelDriver`] has no production implementation |
+//! | Durable runs | M3 | [`control::EphemeralControl::resume`] refuses by name |
+//!
+//! Every one of those is a **named refusal** rather than a permissive default. That is the
+//! standing rule in `CLAUDE.md` — prefer a load-time error to a sensible default — and it is
+//! why the absences above are visible in a run's output instead of being invisible successes.
+
+#![forbid(unsafe_code)]
+
+pub mod budget;
+pub mod context;
+pub mod control;
+pub mod driver;
+pub mod engine;
+pub mod profile;
+pub mod provenance;
+pub mod record;
+pub mod run;
+pub mod turn;
+
+pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS};
+pub use context::{
+    estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
+    SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER,
+};
+pub use control::{EphemeralControl, ResumeError, RunControl};
+pub use driver::{
+    ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,
+    ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
+    ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,
+};
+pub use engine::{Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS, MAX_STEPS};
+pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError};
+pub use provenance::Provenance;
+pub use record::{JournalRecorder, MemoryRecorder, Recorder};
+pub use run::{
+    CondensedResult, ContractViolation, OrphanPolicy, OutputContract, PauseReason, Run, RunId,
+    RunStatus, SessionId, DEFAULT_RESULT_MAX_CHARS,
+};
+pub use turn::{DegradedPath, ToolLineState, TurnEvent};

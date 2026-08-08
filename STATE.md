@@ -1,8 +1,13 @@
 # State
 
-**Updated:** 2026-08-08 — **M0b is COMPLETE and SHIPPED.** The Session J fine-tune is on the scored
-path; held-out R@1 **0.5764 → 0.6725**. K1 is amended and pinned. The precision/coverage curve is
-published and an operating point is declared. **Current milestone: M1.**
+**Updated:** 2026-08-08 — **M1 is CLOSED (`ed25914`). Current milestone: M2**, branch `m2-loop`.
+M2 Session A shipped the spine — the one loop, the eleven tool manifests, the permission layer, runs
+and the context assembler. **375 cargo tests, `eval/` untouched at 72.** See "Next action — M2
+Session B" below; the next session is path scoping, and it ships whole or not at all (ADR-024).
+
+**M0b is COMPLETE and SHIPPED.** The Session J fine-tune is on the scored path; held-out R@1
+**0.5764 → 0.6725**. K1 is amended and pinned. The precision/coverage curve is published and an
+operating point is declared.
 
 **M0c Session A (branch `retrieval-m0c`) ran head separability to a conclusion and shipped nothing.
 R@1 stays 0.6725.** Both named candidates are measured and closed; K1's 10%-coverage interval is
@@ -118,15 +123,81 @@ coverage. The bound covers the false-injection rate among wrong queries; K1 asks
 `P(correct | injected)`, a selective risk it does not cover. **Global τ only** — largest wrong-query
 calibration set is 12 against a floor of 40.
 
-## Next action — M1
+## Next action — M2 Session B: path scoping, whole
 
-**Scope and kickoff: `ROADMAP.md` §M1** (`M1-KICKOFF.md` is deleted — it was v1 scope). Ships a
-**scripted stub**. **Carries K4.** Read `03-addendum-terminal.md` fully before any interface work,
-and `04-addendum-persona.md` before any user-visible prose — **including the stub's**.
+**Scope: `ROADMAP.md` §M2. Carries K6.** Session A built the spine; the remaining sessions are
+sequenced below and the order is a dependency order, not a preference.
 
-**§B1 is binding: zero memory-related elements in the default view.** The `TurnEvent` enum has no
-injection variant and must not gain one. M1 consumes none of M0b, deliberately — the interface must
-not be shaped by what memory happens to do today.
+**Session B is path scoping and it is one item, not two.** ADR-024: the traversal suite and the
+handle discipline ship together or neither ships. Today `marlowe_permission::scope` has one
+implementation, `Unavailable`, which **refuses every path** — so `read`, `edit`, `find` and `bash`
+cannot run. That is deliberate and it is the loud version of the deferral. **Do not add a textual
+canonicalize-and-compare check to unblock the tools.** It would pass every obvious test and certify
+a boundary a planted symlink walks through, and the suite written against it would then be
+measuring the wrong thing. Owed: `openat`/`O_NOFOLLOW` on POSIX; explicit reparse semantics plus
+final-handle identity verification on Windows; and ADR-002's full table — relative traversal,
+symlinks and junctions, extended-length/UNC/device forms, 8.3 short names, case collisions, Win32
+name munging, alternate data streams, Unicode normalization.
+
+**Then, in order:** C — tool executors, `SKILL.md` with progressive disclosure, `find_skill`, MCP
+transport, and a provider client. D — wire M0b's memory in, including K1 condition 3's abstention
+path, which is a condition of the criterion M0b was judged against and is **load-bearing**.
+E — the TUI against the real loop, first-run onboarding (ADR-002 makes it a requirement, not a
+nicety), and K6 measured in a clean container.
+
+### M2 Session A — 2026-08-08. The spine: loop, tools, permissions, runs.
+
+**Three new crates, one-way layering: `marlowe-tools` → `marlowe-permission` → `marlowe-loop`.**
+375 cargo tests (from 273), `eval/` untouched at 72, conformance unchanged
+(`REJECTED, 0 findings, fail_no_time_dependence` — the baseline since Session B, see Known issues).
+
+**The three things M2 had to get right so M3 extends rather than replaces:**
+
+1. **Every spawn declares a `CapabilityProfile`**, and `reads_untrusted && !exposed_tools.is_empty()`
+   is a load-time error — private fields, one constructor, and `Deserialize` routed through it so a
+   profile from a file cannot bypass what a profile from code cannot. **Two refusals beyond the
+   pinned one** (ADR-022): a quarantined reader may not write memory and may not hold egress, because
+   the empty tool set closes neither — the loop's own `MemoryWrite` step is not a tool.
+2. **Every spawn declares a `Budget` and an `OrphanPolicy`.** `OrphanPolicy` is recorded in the
+   `RunSpawned` payload and unused, which is what makes M3 an extension. All six budget dimensions
+   fire, each tested individually.
+3. **Children return `CondensedResult` and nothing else.** The child's `SessionState` is dropped when
+   the recursive call returns; there is no accessor that hands a parent a child's history.
+
+**A subagent is the one loop re-entered** (ADR-022). `tests/hp10_budgets.rs` fails the build if a
+second driving loop appears in the crate.
+
+**The decision most likely to be argued with is ADR-023, and it should be read before Session C.**
+Taint is computed by the harness from the context window — `ModelStep::ToolCall` has no taint field
+at all — so a model-composed Target carries the **worst trust class in view**. The consequence looks
+like a bug the first time it fires: **once a run has read untrusted content, every model-composed
+Target in that run is blocked.** That is §8.2's trifecta break arriving as a property rather than a
+second mechanism, and it means orchestrator-worker is *required* for any run that reads the web and
+then acts, not an optimization for hard questions.
+
+**Two defects found by tests, both fixed, both recorded because their failure modes were invisible
+from their own tests:**
+
+- **The assembler dropped any block larger than its source cap.** A single long turn vanished. Found
+  by a 70%-trigger test reading `fill_pct = 0.0024`. Fixed by ADR-025: only *recoverable* sources are
+  trimmable — history is not, so history pressure raises fill until compaction handles it with the
+  durable appends in front. Omissions are now marked in the view, never silent.
+- **Two spin paths.** Compaction compared successive iterations rather than its own result, and
+  tool-result masking re-ran when it had nothing left to mask. Both presented as a hang, which is the
+  worst shape: `MAX_STEPS` caught them as a budget pause, which reads like a model problem.
+
+**`--reranking`-class hazard avoided, worth naming:** `ExposedSet`, `CapabilityManifest` and
+`CapabilityProfile` all route `Deserialize` through their validating constructor. A field-wise
+deserialize would have left every in-code test green while the only path that reads outside input
+skipped the check.
+
+**Known gap in the brief §13 hook, measured not assumed.** The permission layer's files are guarded;
+`engine.rs` — the loop's *call* into it — is not, because guarding it would make every loop change
+ask. What stands behind the call site is a test that drives a real blocked call through the loop.
+See CLAUDE.md's enforcement table.
+
+**Deferred from M1 and still deferred:** app-level text selection in the conversation pane, and the
+launcher on macOS/Linux (§B17). Both are Session E or later; neither blocks anything.
 
 ### M1 progress — 2026-08-08
 
@@ -295,7 +366,11 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue.
 - **The unchanged-cue check is a NULL INSTRUMENT for a pruning change.** Its silence is not evidence.
-- **`cargo test --workspace` (190) and `cd eval && python -m pytest` (72).**
+- **`cargo test --workspace` (375) and `cd eval && python -m pytest` (72).**
+- **A validating constructor must be the ONLY way in, `serde` included.** `ExposedSet`,
+  `CapabilityManifest` and `CapabilityProfile` route `Deserialize` through theirs. A field-wise
+  deserialize leaves every in-code test green while the one path that reads outside input skips the
+  check — the same shape as a stale default, arriving through a different door.
 
 ## Known issues
 
@@ -348,6 +423,18 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The headline metric has never been produced.** No human label set exists.
 - **The permission layer has no kernel backstop (ADR-002, revised).**
 - **M1's §B13 suite must run on both native Windows Terminal and a Linux terminal emulator.**
+- **`read`, `edit`, `find` and `bash` cannot run.** Path scoping is `Unavailable` and refuses every
+  path (ADR-024). Their executors do not exist either, so nothing regresses — but do not read a
+  green M2 suite as evidence that filesystem access works.
+- **HP10's zero-config row is PARTIAL.** The library half is tested; **K6 — install → first useful
+  output under five minutes in a clean container — is not measured** and lands in Session E. It is a
+  milestone kill criterion, so do not let the passing library test be read as the criterion.
+- **`TurnEvent` exists twice** — canonically in `marlowe-loop`, and M1's view-model copy in
+  `marlowe-stub`. Session E deletes the stub's copy and points `marlowe-surface` at the real one.
+  The two `BlastRadius` shapes (CONTRACTS §9's, and the stub's rendered form) reconcile there.
+- **The M2 report line said "a spawn with an empty tool set and reads_untrusted fails at load
+  time".** It is the **non-empty** set that fails, per CONTRACTS §5; the empty set is the valid
+  quarantined reader. Both cases are tested so the two cannot be confused.
 
 ## Open questions for the human
 
@@ -357,6 +444,17 @@ learned mechanism**, or **the 10%-coverage interval**.
 3. **The human label set is your deliverable and it is now drawable.** See above.
 
 ## Built
+
+**M2 Session A** — the spine. Three crates: `marlowe-tools` (manifests with load-time default-deny,
+`ExposedSet` capped in its constructor, the eleven builtins, tool descriptions carrying a trust
+class), `marlowe-permission` (`TaintSet` failing closed, the `(action, target)` check, egress with a
+deliberately strict URL parser, a path scope that refuses everything, the adjudicator),
+`marlowe-loop` (the one loop, `Budget`, `Run`, `CapabilityProfile`, the context assembler,
+provenance, ephemeral spawn, `TurnEvent`). **375 tests, from 273.** ADR-022 through ADR-026. Six
+paths added to the brief §13 hook and pipe-tested.
+
+**M1 Sessions A–B** — the TUI and classic CLI against the scripted stub, closed at `ed25914`. K4
+carried and met. ADR-021.
 
 **M0b Session K** — the reranker ships. `rerank.rs` re-pinned to the fine-tuned f32 graph with a
 named refusal for the superseded int8 directory; `cross_encoder_reference.rs` table-driven over both

@@ -43,6 +43,34 @@ PROTECTED = {
         "the only write path (brief §13, audit logging). There is no unsigned variant, which "
         "is how the 0% unsigned-write ASR target (K3) is structural rather than filtered"
     ),
+    # ── landed in M2 Session A ────────────────────────────────────────────────────────────
+    "crates/marlowe-permission/src/adjudicate.rs": (
+        "the permission and approval layer (brief §13). ADR-002 removed the kernel backstop, "
+        "so this is the wall rather than the first of two: the (action, target) split, the "
+        "path-scope routing and the tier decision all live here"
+    ),
+    "crates/marlowe-permission/src/taint.rs": (
+        "the permission layer's fail-closed provenance lookup (brief §13). An untracked "
+        "argument reads as UntrustedContent; a default the other way inverts the security "
+        "property while looking like tidy code"
+    ),
+    "crates/marlowe-permission/src/scope.rs": (
+        "path scoping (brief §13). ADR-024: the traversal suite and the handle discipline "
+        "ship together or neither ships, and `ScopedPath` has no constructor from a string"
+    ),
+    "crates/marlowe-permission/src/egress.rs": (
+        "egress allowlisting (brief §13, path scoping and egress rules). Deny-by-default per "
+        "run, and one of the three mechanisms that lets Inert reads skip the target check"
+    ),
+    "crates/marlowe-loop/src/profile.rs": (
+        "the capability profile's load-time invariants (brief §13, the permission layer). "
+        "`reads_untrusted && !exposed_tools.is_empty()` is §8.2's structural trifecta break"
+    ),
+    "crates/marlowe-loop/src/provenance.rs": (
+        "argument provenance (brief §13, the permission layer). ADR-023: the harness computes "
+        "taint from the context window, and a model that could label its own arguments "
+        "trusted would be the security boundary"
+    ),
 }
 
 # Directory prefixes, matched anywhere in the normalized path.
