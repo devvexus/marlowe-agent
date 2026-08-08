@@ -442,7 +442,11 @@ happen.
 |---|---|---|
 | **A** | The spine: the one loop, eleven tool manifests, registration ≠ exposure, the permission layer, `(action, target)`, egress, runs + budgets + ephemeral spawn, the context assembler | ✅ 2026-08-08 |
 | **B** | **Path scoping — the traversal suite and handle discipline, together** (ADR-024, ADR-027) | ✅ 2026-08-08, Windows **and** Linux |
-| **C** | Tool executors, `SKILL.md` + progressive disclosure + `find_skill`, MCP transport, a provider client | next |
+| **C1** | The platform gate; `ParamType::WritePath` and the walk's write/create path | ✅ 2026-08-08 |
+| **C2a** | The four executors — `read`, `edit`, `find`, `bash` — on adjudicated handles | next |
+| **C2b** | The **Ollama provider adapter** (ADR-028). Adapter only; **no credential broker** | |
+| **C2c** | **ARCHITECTURE §6 wiring — the daemon/client split made real.** `Engine` constructed, `marlowe --tui` driving it instead of M1's scripted stub | |
+| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | defers if C2 runs long |
 | **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | |
 | **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | |
 
@@ -451,6 +455,16 @@ one-time closure.** The symlink class cannot run on Windows without elevation an
 never executes there; the Windows pinning never executes on Linux. The halves do not overlap, so a
 single-platform green is a half-measured wall. Both were run at the close of Session B —
 `MARLOWE_TRAVERSAL_STRICT=1` passes on Linux with 11/11 classes `RAN`. ADR-027 carries the command.
+
+**§6's wiring is a named item because it was not one, and that is how it nearly became a K6
+surprise.** `marlowe --tui` drives M1's scripted stub; nothing constructs an `Engine`; the
+client/daemon split does not exist. It is the last thing between the parts and the whole, and it
+carries **invariant 6** (a run survives its starter) and **M1's 150 ms first-frame budget**, so it
+is not plumbing to rush. Left implicit between sessions, its absence would surface at K6 as
+"install → first useful output failed" and read as a model problem.
+
+**C3 defers before C2 does.** A Marlowe that can be talked to with no skills library beats a skills
+library that cannot be talked to.
 
 **Session A's deliberate absences are refusals, not gaps.** Every one is a named error rather than a
 permissive default: a `Path` argument is blocked because scoping does not exist, `remember` reports

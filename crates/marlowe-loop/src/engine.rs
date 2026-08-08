@@ -461,8 +461,14 @@ impl<S: PathScope> Engine<S> {
             state: ToolLineState::Running { elapsed_ms: 0 },
         });
 
-        let outcome = ports.tools.execute(&tool, &args, &adjudication);
-        run.spent.add(&Budget { tool_calls: 1, wall_ms: outcome.wall_ms, ..Budget::default() });
+        // The loop times the call, from its INJECTED clock. An executor reading a real clock
+        // would put a system-clock read on a path §4.5 forbids, in a component nobody would
+        // think to check — `marlowe/tests/determinism_guard.rs` caught exactly that in `bash`.
+        let before_ms = ports.clock.now_ms();
+        let mut outcome = ports.tools.execute(&tool, &args, &adjudication);
+        let elapsed_ms = ports.clock.now_ms().saturating_sub(before_ms).max(0) as u64;
+        outcome.wall_ms = elapsed_ms;
+        run.spent.add(&Budget { tool_calls: 1, wall_ms: elapsed_ms, ..Budget::default() });
 
         self.record(
             ports,

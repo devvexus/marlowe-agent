@@ -1048,6 +1048,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "marlowe-exec"
+version = "0.1.0"
+dependencies = [
+ "marlowe-contract",
+ "marlowe-loop",
+ "marlowe-permission",
+ "marlowe-tools",
+ "rustix 0.38.44",
+]
+
+[[package]]
 name = "marlowe-journal"
 version = "0.1.0"
 dependencies = [
