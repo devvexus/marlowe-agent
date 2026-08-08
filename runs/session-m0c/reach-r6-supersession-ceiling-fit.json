@@ -1,0 +1,105 @@
+{
+  "_what": "the ceiling on supersession detection, under a perfect oracle",
+  "_simulation": "candidate-set level: superseded turns are removed BEFORE gate ordering and slate construction, so a surviving candidate is promoted and scored",
+  "split": "fit",
+  "n": 229,
+  "knowledge_update_n": 36,
+  "control_reproduces_harm_weighted_precision": true,
+  "arms": {
+    "shipped": {
+      "r_at_1_published": 0.7555,
+      "r_at_1_current": 0.69,
+      "ku_r_at_1_current": 0.3056,
+      "ku_n": 36,
+      "harm_rate": 0.0742,
+      "harmful_count": 17,
+      "top1_changed_vs_shipped": 0,
+      "candidates_removed": 0,
+      "operating_point": {
+        "n_c": 23,
+        "precision_current": 0.913,
+        "ci95_precision_current": [
+          0.7196,
+          0.9893
+        ],
+        "harm_count": 0,
+        "harm_rate": 0.0,
+        "ci95_harm": [
+          0.0,
+          0.1482
+        ],
+        "knowledge_update_share": 0.0435
+      }
+    },
+    "oracle_narrow": {
+      "r_at_1_published": 0.7162,
+      "r_at_1_current": 0.7162,
+      "ku_r_at_1_current": 0.4722,
+      "ku_n": 36,
+      "harm_rate": 0.0218,
+      "harmful_count": 5,
+      "top1_changed_vs_shipped": 15,
+      "candidates_removed": 35,
+      "operating_point": {
+        "n_c": 23,
+        "precision_current": 0.9565,
+        "ci95_precision_current": [
+          0.7805,
+          0.9989
+        ],
+        "harm_count": 0,
+        "harm_rate": 0.0,
+        "ci95_harm": [
+          0.0,
+          0.1482
+        ],
+        "knowledge_update_share": 0.1304
+      }
+    },
+    "oracle_broad": {
+      "r_at_1_published": 0.7336,
+      "r_at_1_current": 0.7336,
+      "ku_r_at_1_current": 0.5833,
+      "ku_n": 36,
+      "harm_rate": 0.0,
+      "harmful_count": 0,
+      "top1_changed_vs_shipped": 17,
+      "candidates_removed": 393,
+      "operating_point": {
+        "n_c": 23,
+        "precision_current": 0.9565,
+        "ci95_precision_current": [
+          0.7805,
+          0.9989
+        ],
+        "harm_count": 0,
+        "harm_rate": 0.0,
+        "ci95_harm": [
+          0.0,
+          0.1482
+        ],
+        "knowledge_update_share": 0.1739
+      }
+    }
+  },
+  "verdict": {
+    "adr_010_top1_changed": 15,
+    "adr_010_pass": true,
+    "adr_013_gained": 6,
+    "adr_013_lost": 0,
+    "adr_013_both_directions": false,
+    "adr_014_discordant": 6,
+    "adr_014_alpha": 0.05,
+    "adr_014_min_discordant_for_alpha": 6,
+    "adr_014_smallest_attainable_p": 0.03125,
+    "adr_014_exact_mcnemar_p": 0.0312,
+    "adr_014_alpha_attainable": true,
+    "contrast": "perfect narrow supersession top-1 vs shipped top-1, read as current-value-only correctness",
+    "oracle_removes_nothing_from_the_current_session": true
+  },
+  "ceiling": {
+    "delta_ku_r_at_1_current": 0.1666,
+    "delta_overall_r_at_1_current": 0.0262,
+    "top1_changed": 15
+  }
+}

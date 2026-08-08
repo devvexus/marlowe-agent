@@ -1,0 +1,345 @@
+{
+  "_what": "is the supersession pair findable by similarity? R6 gave the ceiling; this gives the approach.",
+  "_cost_model_registered_before_any_threshold": {
+    "false_supersession": "removes a live memory from injection permanently and silently. Reversible via the supersedes edge (HP5, ADR-012) but not self-announcing.",
+    "missed_supersession": "leaves a stale memory injectable; visible as a wrong answer.",
+    "rule": "the threshold is chosen against the FALSE-POSITIVE direction, not against F1"
+  },
+  "split": "fit",
+  "embedder": "jina-embeddings-v2-small-en, mean-pooled, ORT_ENABLE_BASIC",
+  "n_cases": 33,
+  "n_distractor_pairs": 15789,
+  "true_pair_cosine": {
+    "p5": 0.7622,
+    "p25": 0.8103,
+    "p50": 0.8332,
+    "p75": 0.8619,
+    "p95": 0.8995
+  },
+  "distractor_cosine": {
+    "p50": 0.6976,
+    "p90": 0.7565,
+    "p99": 0.8532,
+    "p99.9": 0.9291,
+    "p100": 0.9523
+  },
+  "rank_of_true_partner": {
+    "rank_1": 1,
+    "top_5": 10,
+    "top_20": 28,
+    "median": 7.0,
+    "median_pool": 479.0
+  },
+  "threshold_grid": [
+    {
+      "threshold": 0.99,
+      "true_positives": 0,
+      "recall": 0.0,
+      "false_positives": 0,
+      "precision": null
+    },
+    {
+      "threshold": 0.98,
+      "true_positives": 0,
+      "recall": 0.0,
+      "false_positives": 0,
+      "precision": null
+    },
+    {
+      "threshold": 0.95,
+      "true_positives": 0,
+      "recall": 0.0,
+      "false_positives": 3,
+      "precision": 0.0
+    },
+    {
+      "threshold": 0.92,
+      "true_positives": 1,
+      "recall": 0.0303,
+      "false_positives": 21,
+      "precision": 0.045455
+    },
+    {
+      "threshold": 0.9,
+      "true_positives": 1,
+      "recall": 0.0303,
+      "false_positives": 48,
+      "precision": 0.020408
+    },
+    {
+      "threshold": 0.88,
+      "true_positives": 6,
+      "recall": 0.1818,
+      "false_positives": 85,
+      "precision": 0.065934
+    },
+    {
+      "threshold": 0.85,
+      "true_positives": 15,
+      "recall": 0.4545,
+      "false_positives": 176,
+      "precision": 0.078534
+    },
+    {
+      "threshold": 0.8,
+      "true_positives": 26,
+      "recall": 0.7879,
+      "false_positives": 549,
+      "precision": 0.045217
+    },
+    {
+      "threshold": 0.75,
+      "true_positives": 33,
+      "recall": 1.0,
+      "false_positives": 1912,
+      "precision": 0.016967
+    },
+    {
+      "threshold": 0.7,
+      "true_positives": 33,
+      "recall": 1.0,
+      "false_positives": 7507,
+      "precision": 0.004377
+    }
+  ],
+  "best_precision": {
+    "threshold": 0.85,
+    "true_positives": 15,
+    "recall": 0.4545,
+    "false_positives": 176,
+    "precision": 0.078534
+  },
+  "per_case": [
+    {
+      "query_id": "01493427",
+      "stale_turn": "answer_a7b44747_1-6",
+      "cos_to_current_gold": 0.8924,
+      "rank_of_true_partner": 4,
+      "pool": 486
+    },
+    {
+      "query_id": "031748ae",
+      "stale_turn": "answer_8748f791_2-2",
+      "cos_to_current_gold": 0.8509,
+      "rank_of_true_partner": 7,
+      "pool": 489
+    },
+    {
+      "query_id": "06db6396",
+      "stale_turn": "answer_da72b1b4_1-4",
+      "cos_to_current_gold": 0.8284,
+      "rank_of_true_partner": 7,
+      "pool": 472
+    },
+    {
+      "query_id": "07741c45",
+      "stale_turn": "answer_7e9ad7b4_1-2",
+      "cos_to_current_gold": 0.8572,
+      "rank_of_true_partner": 7,
+      "pool": 516
+    },
+    {
+      "query_id": "08e075c7",
+      "stale_turn": "answer_cdbe2250_1-2",
+      "cos_to_current_gold": 0.8547,
+      "rank_of_true_partner": 3,
+      "pool": 482
+    },
+    {
+      "query_id": "0977f2af",
+      "stale_turn": "answer_3bf5b73b_2-2",
+      "cos_to_current_gold": 0.7624,
+      "rank_of_true_partner": 32,
+      "pool": 473
+    },
+    {
+      "query_id": "0ddfec37",
+      "stale_turn": "answer_a22b654d_2-0",
+      "cos_to_current_gold": 0.8182,
+      "rank_of_true_partner": 7,
+      "pool": 475
+    },
+    {
+      "query_id": "0f05491a",
+      "stale_turn": "answer_d6d2eba8_1-10",
+      "cos_to_current_gold": 0.9,
+      "rank_of_true_partner": 7,
+      "pool": 485
+    },
+    {
+      "query_id": "2698e78f",
+      "stale_turn": "answer_9282283d_1-2",
+      "cos_to_current_gold": 0.8046,
+      "rank_of_true_partner": 31,
+      "pool": 471
+    },
+    {
+      "query_id": "3ba21379",
+      "stale_turn": "answer_cd345582_1-0",
+      "cos_to_current_gold": 0.8221,
+      "rank_of_true_partner": 20,
+      "pool": 428
+    },
+    {
+      "query_id": "41698283",
+      "stale_turn": "answer_c7ddc051_1-2",
+      "cos_to_current_gold": 0.7923,
+      "rank_of_true_partner": 23,
+      "pool": 470
+    },
+    {
+      "query_id": "45dc21b6",
+      "stale_turn": "answer_07664d43_1-0",
+      "cos_to_current_gold": 0.8991,
+      "rank_of_true_partner": 2,
+      "pool": 479
+    },
+    {
+      "query_id": "4d6b87c8",
+      "stale_turn": "answer_766ab8da_1-2",
+      "cos_to_current_gold": 0.7617,
+      "rank_of_true_partner": 17,
+      "pool": 514
+    },
+    {
+      "query_id": "5a4f22c0",
+      "stale_turn": "answer_b0f3dfff_1-2",
+      "cos_to_current_gold": 0.8241,
+      "rank_of_true_partner": 13,
+      "pool": 474
+    },
+    {
+      "query_id": "5c40ec5b",
+      "stale_turn": "answer_1cb52d0a_1-6",
+      "cos_to_current_gold": 0.8945,
+      "rank_of_true_partner": 4,
+      "pool": 473
+    },
+    {
+      "query_id": "6071bd76",
+      "stale_turn": "answer_4dac77cb_1-0",
+      "cos_to_current_gold": 0.8617,
+      "rank_of_true_partner": 6,
+      "pool": 479
+    },
+    {
+      "query_id": "69fee5aa",
+      "stale_turn": "answer_d6028d6e_1-8",
+      "cos_to_current_gold": 0.8251,
+      "rank_of_true_partner": 5,
+      "pool": 474
+    },
+    {
+      "query_id": "72e3ee87",
+      "stale_turn": "answer_d7de9a6a_1-0",
+      "cos_to_current_gold": 0.8332,
+      "rank_of_true_partner": 14,
+      "pool": 489
+    },
+    {
+      "query_id": "830ce83f",
+      "stale_turn": "answer_0b1a0942_1-2",
+      "cos_to_current_gold": 0.8619,
+      "rank_of_true_partner": 2,
+      "pool": 503
+    },
+    {
+      "query_id": "852ce960",
+      "stale_turn": "answer_3a6f1e82_1-2",
+      "cos_to_current_gold": 0.8103,
+      "rank_of_true_partner": 8,
+      "pool": 394
+    },
+    {
+      "query_id": "8fb83627",
+      "stale_turn": "answer_966cecbb_1-10",
+      "cos_to_current_gold": 0.7592,
+      "rank_of_true_partner": 26,
+      "pool": 477
+    },
+    {
+      "query_id": "945e3d21",
+      "stale_turn": "answer_6a4f8626_1-4",
+      "cos_to_current_gold": 0.8226,
+      "rank_of_true_partner": 19,
+      "pool": 485
+    },
+    {
+      "query_id": "9bbe84a2",
+      "stale_turn": "answer_c6a0c6c2_2-4",
+      "cos_to_current_gold": 0.7738,
+      "rank_of_true_partner": 17,
+      "pool": 457
+    },
+    {
+      "query_id": "a1eacc2a",
+      "stale_turn": "answer_0eb23770_1-2",
+      "cos_to_current_gold": 0.8452,
+      "rank_of_true_partner": 10,
+      "pool": 466
+    },
+    {
+      "query_id": "affe2881",
+      "stale_turn": "answer_90de9b4d_1-4",
+      "cos_to_current_gold": 0.7747,
+      "rank_of_true_partner": 40,
+      "pool": 479
+    },
+    {
+      "query_id": "ba61f0b9",
+      "stale_turn": "answer_f377cda7_1-2",
+      "cos_to_current_gold": 0.8787,
+      "rank_of_true_partner": 4,
+      "pool": 443
+    },
+    {
+      "query_id": "c4ea545c",
+      "stale_turn": "answer_d3bf812b_1-4",
+      "cos_to_current_gold": 0.7969,
+      "rank_of_true_partner": 7,
+      "pool": 475
+    },
+    {
+      "query_id": "c6853660",
+      "stale_turn": "answer_626e93c4_1-0",
+      "cos_to_current_gold": 0.8574,
+      "rank_of_true_partner": 5,
+      "pool": 469
+    },
+    {
+      "query_id": "d7c942c3",
+      "stale_turn": "answer_eecb10d9_1-8",
+      "cos_to_current_gold": 0.8712,
+      "rank_of_true_partner": 7,
+      "pool": 508
+    },
+    {
+      "query_id": "dad224aa",
+      "stale_turn": "answer_4a97ae40_1-2",
+      "cos_to_current_gold": 0.8532,
+      "rank_of_true_partner": 16,
+      "pool": 517
+    },
+    {
+      "query_id": "dfde3500",
+      "stale_turn": "answer_35d6c0be_2-2",
+      "cos_to_current_gold": 0.8248,
+      "rank_of_true_partner": 8,
+      "pool": 479
+    },
+    {
+      "query_id": "e493bb7c",
+      "stale_turn": "answer_1a374afa_1-4",
+      "cos_to_current_gold": 0.9262,
+      "rank_of_true_partner": 1,
+      "pool": 505
+    },
+    {
+      "query_id": "ed4ddc30",
+      "stale_turn": "answer_babbaccb_1-2",
+      "cos_to_current_gold": 0.8824,
+      "rank_of_true_partner": 2,
+      "pool": 536
+    }
+  ]
+}

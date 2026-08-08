@@ -1,0 +1,87 @@
+{
+  "_what": "value-conflict approximation of HP4's entity-relation contradiction detector",
+  "_this_is_an_approximation_not_the_component": "real entity and relation extraction does not exist in this workspace. This measures whether a crude 'same context, disjoint values' rule separates the pairs at all.",
+  "_what_the_approximation_cannot_see": [
+    "supersession whose value is a common noun (tea -> coffee)",
+    "a turn that recaps the old value while stating the new one",
+    "negation and hedging that supersede without contradicting a number",
+    "anything needing the RELATION identified, which is the actual HP4 component"
+  ],
+  "split": "fit",
+  "true_pairs": 33,
+  "distractor_pairs": 15789,
+  "true_pairs_with_no_extractable_value": 7,
+  "threshold_grid": [
+    {
+      "threshold": 0.3,
+      "true_positives": 0,
+      "recall": 0.0,
+      "false_positives": 1,
+      "precision": 0.0
+    },
+    {
+      "threshold": 0.201,
+      "true_positives": 3,
+      "recall": 0.0909,
+      "false_positives": 5,
+      "precision": 0.375
+    },
+    {
+      "threshold": 0.2,
+      "true_positives": 4,
+      "recall": 0.1212,
+      "false_positives": 5,
+      "precision": 0.444444
+    },
+    {
+      "threshold": 0.15,
+      "true_positives": 6,
+      "recall": 0.1818,
+      "false_positives": 23,
+      "precision": 0.206897
+    },
+    {
+      "threshold": 0.146,
+      "true_positives": 7,
+      "recall": 0.2121,
+      "false_positives": 25,
+      "precision": 0.21875
+    },
+    {
+      "threshold": 0.1,
+      "true_positives": 11,
+      "recall": 0.3333,
+      "false_positives": 118,
+      "precision": 0.085271
+    },
+    {
+      "threshold": 0.095,
+      "true_positives": 13,
+      "recall": 0.3939,
+      "false_positives": 138,
+      "precision": 0.086093
+    },
+    {
+      "threshold": 0.075,
+      "true_positives": 19,
+      "recall": 0.5758,
+      "false_positives": 332,
+      "precision": 0.054131
+    },
+    {
+      "threshold": 0.05,
+      "true_positives": 23,
+      "recall": 0.697,
+      "false_positives": 1078,
+      "precision": 0.02089
+    }
+  ],
+  "best": {
+    "threshold": 0.2,
+    "true_positives": 4,
+    "recall": 0.1212,
+    "false_positives": 5,
+    "precision": 0.444444
+  },
+  "r7_similarity_best_precision": 0.0745
+}

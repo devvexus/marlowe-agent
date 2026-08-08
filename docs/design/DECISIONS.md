@@ -2604,3 +2604,165 @@ Two changes: the entry is now a **directory** prefix, which survives a split; an
 `--self-check` mode that fails when any guarded path does not exist, run by
 `marlowe-permission/tests/boundary_hook.rs` so it fails the build. A negative control confirms the
 check is not decorative — renaming a guarded file makes it fail by name.
+
+---
+
+## ADR-028 · Supersession detection: the signal is present, the extraction is missing
+
+**Status: NOT BUILT. The verdict is about SCOPE, not about the mechanism — supersession is BLOCKED,
+not dead.** Measured on the fit split before anything was implemented. Three measurements make the
+argument and separately none of them does: `runs/session-m0c/reach-r6-supersession-ceiling-fit.json`
+(the ceiling), `reach-r7-separability-fit.json` (the similarity floor), `reach-r8-valueconflict-fit.json`
+(the value-conflict probe and its unanchored collapse).
+
+**Context.** §4.3's supersession exclusion is correct, wired and unit-tested (`entry.rs:124`, called
+at `retrieve.rs:328`). It is also blind: the only writer of `superseded_by` is consolidation's
+near-duplicate merge at cosine ≥ 0.98, `ingest.rs:142` hardcodes `None`, §4.6's `IngestRequest` has
+no supersession field and forbids extras, and `store.rs:133` defers the contradiction detector.
+§5.7's entire harm argument assumes a component that has never existed.
+
+### The cost model, registered before any threshold was measured
+
+**A false supersession removes a live memory from injection permanently and silently. A missed
+supersession leaves a stale one injectable, where it surfaces as a wrong answer.** These are not
+symmetric. Merges are reversible via the `supersedes` edge (HP5, ADR-012), so a false supersession
+is recoverable — but it does not announce itself, and a silent permanent removal is worse than a
+visible stale injection. **The threshold is chosen against the false-positive direction, not against
+F1.** Parity — one false supersession per correct one — is the floor, not the target.
+
+### 1. The ceiling, measured first
+
+A perfect oracle marking every stale knowledge-update belief superseded, simulated at the
+**candidate-set** level so a surviving candidate is promoted into the freed slate slot:
+
+| fit, n = 229 | shipped | perfect oracle |
+|---|---|---|
+| R@1, current-value only | 0.6900 | **0.7162** (+0.0262) |
+| knowledge-update R@1, current-value only | 0.3056 | **0.4722** (+0.1666) |
+| harm rate | 0.0742 | **0.0218** (−71%) |
+| precision at the operating point | 0.9130 | 0.9565 |
+| top-1 changed | — | 15 of 229 |
+
+**This is what is at stake if the blocker is ever removed**, and it is why supersession is recorded
+as blocked rather than closed.
+
+**ADR-014, and it is a stop signal on the statistical claim.** The oracle produces exactly **6
+discordant** — the bare minimum at which α = 0.05 is attainable — and reaches p = 0.0312 *only*
+because all 6 fall one way. A detector at half the ceiling gives 3 discordant, where the smallest
+attainable p is 0.25. One with 6 gains and a single false supersession gives 7 and p = 0.125.
+**Significance would need ≥ 9 discordant, more than a perfect oracle produces.** α is declared
+unattainable in advance for every real arm; the delta carries the verdict alone.
+
+**ADR-013, stated so it is not inherited.** The oracle's read is one-directional — gained 6, lost 0 —
+and that is *structural*: an oracle only removes definitionally-stale turns. A real detector moves
+both ways and its instrument check must be re-run on its own contrast, never on the oracle's.
+
+### 2. Signal 2 — temporal precedence on high similarity — is DEAD, and the cost model is why
+
+Cosine between the 33 true supersession pairs and the 15,789 pool turns they must be separated from:
+
+| threshold | recall | false positives | precision |
+|---|---|---|---|
+| **0.98** — ADR-012's duplicate bar | **0 of 33** | 0 | — |
+| 0.95 | 0 of 33 | 3 | 0.0000 |
+| **0.85** | 14 of 33 | 174 | **0.0745** — best anywhere on the grid |
+| 0.75 | 33 of 33 | 1,874 | 0.0173 |
+
+**Best precision anywhere is 0.0745**, which under the registered cost model destroys roughly
+**twelve live memories per correct supersession**. That is not a threshold to tune; it is a signal
+that is absent. The true pairs sit inside the distractor distribution — median true cosine 0.8284
+against a distractor p99 of 0.8526 — and the true partner is the nearest neighbour in **1 of 33**
+cases, median rank 7 of a 479-turn pool.
+
+> **`0 of 33` at cosine 0.98 is the quantitative reason the current merge is blind**, and it is the
+> number to quote. ADR-012 measured ≥ 0.98 pairs at 0.0086% of 30.6M and recorded that LongMemEval
+> distractors are "topically related rather than textually duplicated". This is that finding
+> localised to the pairs supersession actually cares about.
+
+### 3. Signal 1 — entity-relation conflict — is PRESENT, and the missing half is identity
+
+Real entity and relation extraction does not exist in this workspace, so what was measured is an
+approximation: context Jaccard × value-token disjointness, over numbers, times, money and
+non-sentence-initial capitalised words. **What it cannot see, stated before the result:** a
+supersession whose value is a common noun (tea → coffee); a turn recapping the old value while
+stating the new; negation and hedging; and anything requiring the *relation* to be identified. It
+abstains on 7 of 33 true pairs because one side carries no extractable value.
+
+| | anchored on the true stale turn | **unanchored, as a detector runs** |
+|---|---|---|
+| pairs considered, 34 fit cases | 15,789 | **3,941,120** — 241× more |
+| true positives at threshold 0.20 | 4 | 4 |
+| false positives | 6 | **~1,539** |
+| **precision** | **0.4000** | **0.0026** |
+
+**Precision collapses 154× when the anchor is removed, and that collapse is the finding.**
+
+> **0.4000 was never a detector's number. It is the value-comparison rule's precision *conditional
+> on already knowing which two beliefs are about the same thing*.** The rule was not *detecting*
+> supersession — it was *verifying* it, given a candidate something else had found. Those are two
+> components and only one of them was probed. Unanchored, "same context, different value" fires on
+> about fifteen hundred unrelated pairs per 34 cases.
+
+> **Verdict: signal present, extraction missing.** Not "supersession is undetectable on this
+> corpus". Value conflict beats similarity **6×** when anchored (0.4444 against 0.0745), and the
+> entire gap between anchored and unanchored is the same-thing question. What is missing is the
+> component that narrows 3.9 million pairs to a handful before the value comparison runs.
+
+**Two honest limits on that verdict.** The anchor is *stronger* than entity resolution — it names one
+turn, where identity would yield a candidate set — so 0.4000 is an **upper bound** on what identity
+buys, not an estimate. And even at 0.4000 the rule sits at 4 true against 6 false, below the parity
+floor. Whether a real (entity, relation, value) comparison clears the bar is **not measured, and
+cannot be** without building the component.
+
+### 4. The missing component already has a design, and it was never built
+
+**HP2 specifies it:** *"Identity is a belief, not a lookup. Sameness is an `Edge { rel: SameAs }`
+memory entry with confidence and provenance, produced by consolidation and correctable in plain
+speech. Blocking on normalized surface form and channel address; scoring on embedding similarity,
+co-occurrence, temporal contiguity, and handle match."* `Payload::Entity` and `Payload::Edge` exist
+in §3.2. The slot is there; nothing fills it.
+
+**Recorded, not scoped — this session does not design it.** Entity resolution is HP2 and needs its
+own registration and its own reachability check. What is worth writing down is that it would touch
+the ingest path, mint `Payload::Entity`/`Edge` beliefs in consolidation, and — because consolidation
+mints no new belief today — would be **the first live exercise of trust propagation through a
+derived belief**, which STATE.md carries as unexercised and which needs its own test.
+
+### Decision
+
+1. **Supersession detection is not built, and no approximation is shipped to avoid a null.**
+2. **Signal 2 is CLOSED** on this corpus, on the cost model, with 0.0745 and the 0-of-33 as the record.
+3. **Signal 1 is OPEN and BLOCKED on HP2 entity identity**, not on a threshold. Supersession is
+   **blocked, not dead**: the ceiling says it is worth +0.1666 on knowledge-update and a 71% cut in
+   harmful injections if it is ever unblocked.
+4. **§4.3's exclusion is untouched.** It is correct. It has no edges because nothing produces them.
+5. **The tripwire ships regardless** — `tools/tripwire_head_composition.py`, baselined at
+   `crates/marlowe-memory/artifacts/head-composition-baseline-v1.json`.
+
+**Closing condition, named now so a later session need not invent one:** supersession detection
+reopens when HP2's `SameAs` edges exist, and closes when a value comparison over (entity, relation)
+triples clears **precision ≥ 0.5 measured UNANCHORED** — parity under the registered asymmetry — at
+a recall that moves the ceiling by more than one case. Anything below parity fails the cost model
+regardless of its recall, and any figure measured anchored is not the number this condition asks for.
+
+### 5. The consequence for §5.7, which is the finding of this whole line of work
+
+With supersession unreachable on this corpus with available components, **harm being zero at the
+operating point is the only protection that exists, and it is accidental.** It holds because the
+head contains ~0% knowledge-update queries against a 15.7% base rate — a category-exclusion side
+effect of those queries being low-confidence (median margin 0.2782 against 0.4020), not a harm-aware
+mechanism. Within knowledge-update the margin's relation to harm flips sign between splits.
+
+**It is fragile in two named directions.** Coverage rising pulls lower-confidence queries into the
+injected set. Knowledge-update confidence improving pulls that category into the head — R6 measured
+exactly this, a perfect oracle taking the fit knowledge-update share of the top decile from **4.3%
+to 13.0%**. Either removes the protection with no component reporting a change.
+
+> **The tripwire is therefore load-bearing rather than diagnostic.** It is the only thing standing
+> between §5.7's guarantee and a silent regression. It TRIPs on any harmful injection at the
+> operating point against a baseline of zero, and WARNs when the knowledge-update share reaches the
+> base rate — the point at which the harm figure must be re-measured rather than inherited.
+>
+> And **`0 of 23` is reported with its interval every time.** Its Clopper-Pearson upper bound is
+> **0.1482**. Three configurations agreeing on zero is three configurations agreeing on a number
+> that cannot distinguish zero from one in seven.

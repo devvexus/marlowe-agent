@@ -410,9 +410,62 @@ category, judged blind, stratified by score decile. **True injection precision h
 computed**; every figure is a gold-turn proxy, including the harm classes above. It is drawable and
 it is the human's deliverable.
 
-**THE NAMED NEXT LEVER IS A CONTRADICTION DETECTOR**, not a ranking mechanism. It is the one thing
-that would let a live, correct, already-wired exclusion do the job §5.7 assumes it does. Everything
-downstream of it — the exclusion, the journal event, the replay fold — already exists and is tested.
+### M0c Session B — supersession is BLOCKED, not dead. ADR-028. `runs/session-m0c/RESULT.md` Part 7.
+
+**Nothing was built. The verdict is about scope.** Three measurements, on fit, before any code:
+
+- **R6, the ceiling.** A perfect oracle is worth **+0.1666 knowledge-update R@1 current-value-only**
+  (0.3056 → 0.4722), **+0.0262 overall** (0.6900 → 0.7162), and cuts harmful injections **17 → 5**.
+  **Worth building whenever it becomes reachable.**
+- **R6, the power finding.** A perfect oracle produces exactly **6 discordant** — the bare minimum
+  for α = 0.05 — reaching p = 0.0312 *only* because all six fall one way. **No realisable detector
+  can produce a significant result on this split.** α is declared UNATTAINABLE IN ADVANCE; the delta
+  carries any future verdict alone. The oracle's one-directional read is structural and must not be
+  inherited by a real arm's instrument check.
+- **R7, similarity CLOSED.** True pairs at ~0.83 cosine sit inside a distractor distribution reaching
+  0.95. **Best precision anywhere: 0.0745** — twelve live memories permanently removed per correct
+  catch, against a cost model registered before measuring. **ADR-012's 0.98 bar catches 0 of 33**,
+  which is the quantitative reason the current merge is blind.
+- **R8, value conflict CLOSED ON SCALING.** **0.4444 anchored** on the true stale turn; **0.0026
+  unanchored** as a real detector runs — 4 true against ~1,539 false across 3.9M pairs, a **154×
+  collapse**. The anchored number was the mechanism's precision *conditional on entity resolution
+  already existing*. **The rule verifies supersession given a candidate; it does not find one.**
+
+> **VERDICT (2): signal present, extraction missing.** Not undetectable — blocked on a component.
+
+**OPEN GAP, with a named closing condition. DO NOT MARK SUPERSESSION CLOSED.** Detection requires
+**entity resolution over the candidate pool**, which narrows 3.9M pairs to a handful before any value
+comparison runs. **HP2 specifies it — `SameAs` beliefs with confidence and provenance, produced by
+consolidation — and it has never been built.** `Payload::Entity` and `Payload::Edge` exist in §3.2;
+nothing fills them. **Closing condition: that component exists**, and then a value comparison over
+(entity, relation) triples clears **precision ≥ 0.5 measured UNANCHORED** — parity under the
+registered asymmetry — at a recall moving the ceiling by more than one case. **Entity resolution is
+HP2 and is NOT scoped here**; it needs its own registration and its own reachability check. Note it
+would be the first live exercise of trust propagation through a derived belief.
+
+> ### §5.7 CONSEQUENCE — the finding of this whole line of work
+> **With supersession unreachable, harm being zero at the operating point is the ONLY protection
+> that exists, and it is ACCIDENTAL.** The head contains **0.0% knowledge-update queries against a
+> 15.7% base rate** because that category is low-confidence (median margin 0.2782 vs 0.4020), not
+> because harm is detected. **The tripwire is now LOAD-BEARING, not diagnostic.**
+>
+> **Two ways it disappears, both things a future session might do deliberately:** coverage rising,
+> or knowledge-update confidence improving. R6 measured the second — a perfect oracle takes the fit
+> knowledge-update share of the top decile from **4.3% to 13.0%**. Neither announces itself.
+>
+> **`tools/tripwire_head_composition.py`**, baselined at
+> `crates/marlowe-memory/artifacts/head-composition-baseline-v1.json`. TRIPs on any harmful
+> injection at the operating point against a baseline of zero; WARNs when the knowledge-update share
+> reaches the base rate, at which point the harm figure must be RE-MEASURED, not inherited.
+> **`0 of 23` is reported with its interval every time — upper bound 0.1482.**
+
+**THE CORRECTED BASELINE MUST APPEAR BESIDE EVERY PUBLISHED R@1.** Held-out **0.6288** current-value-
+only against **0.6725** published; knowledge-update **0.4444** against **0.7222**. A session quoting
+the published figure without knowing it counts stale hits as successes is working from a false
+premise.
+
+**§4.3's exclusion is untouched and is NOT the defect.** It is correct, wired and unit-tested. It has
+no edges because nothing produces them.
 
 **Also still open:** the gate-design constraint (ADR-016's closing section — either the resolution
 rule or the margin feature's one-positive-per-query property must change; **re-tuning the resolution
