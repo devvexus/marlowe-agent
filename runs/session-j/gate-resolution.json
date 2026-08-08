@@ -1,0 +1,99 @@
+{
+  "_what": "Session J Part 0, the ADR-010 reachability check for Part 3(a). What the 0.3739 ceiling measures: the RESOLUTION of the calibration at ~100% coverage, not the quality of the retrieval system.",
+  "artifact": {
+    "path": "crates/marlowe-memory/artifacts/gate-frozen-v5.json",
+    "version": "frozen-v5",
+    "threshold": 0.95,
+    "shipped_ceiling": 0.373913
+  },
+  "bound_on_shipped_fit_population": {
+    "rows": 117894,
+    "positives": 450,
+    "cases": 251,
+    "smallest_expressible_block_rows": 460,
+    "top_block_rows": 460,
+    "rows_per_query_in_one_block": 1.8327,
+    "max_attainable_calibrated_precision": 0.978261,
+    "gold_rows_needed_for_threshold": 437,
+    "share_of_all_gold_that_requires": 0.971111,
+    "threshold_attainable_in_principle": true
+  },
+  "bound_on_gated_fit_population": {
+    "rows": 111510,
+    "positives": 445,
+    "cases": 229,
+    "smallest_expressible_block_rows": 435,
+    "top_block_rows": 435,
+    "rows_per_query_in_one_block": 1.8996,
+    "max_attainable_calibrated_precision": 1.0,
+    "gold_rows_needed_for_threshold": 414,
+    "share_of_all_gold_that_requires": 0.930337,
+    "threshold_attainable_in_principle": true
+  },
+  "top_block_coverage": {
+    "lexical_margin": {
+      "top_block_rows": 435,
+      "distinct_queries_in_top_block": 229,
+      "query_coverage": 1.0,
+      "gold_rows_in_top_block": 169,
+      "top_block_precision": 0.3885,
+      "queries_with_a_gold_row_in_top_block": 151,
+      "refit_curve_blocks": 250,
+      "refit_top_block": 0.388506,
+      "composition": {
+        "rank1_rows_in_top_block": 229,
+        "non_rank1_rows_in_top_block": 206,
+        "gold_among_the_rank1_rows": 129,
+        "gold_among_the_rest": 40,
+        "cue_r_at_1_on_this_population": 0.5633,
+        "top_block_precision_predicted_from_cue_r_at_1": 0.2966
+      }
+    },
+    "dense_margin": {
+      "top_block_rows": 435,
+      "distinct_queries_in_top_block": 229,
+      "query_coverage": 1.0,
+      "gold_rows_in_top_block": 154,
+      "top_block_precision": 0.354,
+      "queries_with_a_gold_row_in_top_block": 136,
+      "refit_curve_blocks": 63,
+      "refit_top_block": 0.354023,
+      "composition": {
+        "rank1_rows_in_top_block": 229,
+        "non_rank1_rows_in_top_block": 206,
+        "gold_among_the_rank1_rows": 106,
+        "gold_among_the_rest": 48,
+        "cue_r_at_1_on_this_population": 0.4629,
+        "top_block_precision_predicted_from_cue_r_at_1": 0.2437
+      }
+    }
+  },
+  "oracle": {
+    "_what": "The best top-block precision ANY feature could produce at this resolution. The naive min(positives, block)/block bound is vacuous because it ignores where gold rows can be: a {cue}_margin is positive for exactly one candidate per query, so the top block is forced to be one row from every query plus the least-negative rank-2s, and a query contributes a gold rank-2 row only if it HAS a second gold.",
+    "gold_rows_per_query_histogram": {
+      "1": 89,
+      "2": 99,
+      "3": 21,
+      "4": 9,
+      "5": 7,
+      "6": 4
+    },
+    "queries_with_two_or_more_gold_rows": 140,
+    "forced_rank1_rows": 229,
+    "forced_rank2_rows": 206,
+    "max_gold_rows_in_top_block": 369,
+    "max_calibrated_precision": 0.848276,
+    "clears_threshold": false
+  },
+  "second_implementation_check": {
+    "run": false,
+    "why": "the shipped 0.373913 was fit on the --fit-mode dump, whose in-process attribution was never archived. runs/session-f/fit-applied/run.jsonl is a CONSOLIDATION-APPLIED run; attributing runs/session-f/fit-features.ndjson through it yields 119340 rows and 452 positives against the artifact's recorded 117894 and 450. That is a different population, and describing one with the other's licence is the exact failure this project keeps paying for. The check is reported as NOT RUN rather than run against the wrong population.",
+    "fit_mode_dump": "runs/session-f/fit-features.ndjson",
+    "reconstructed_rows": 119340,
+    "reconstructed_positives": 452,
+    "artifact_rows": 117894,
+    "artifact_positives": 450,
+    "_cost_of_not_running_it": "none that matters. The bound is arithmetic over numbers the artifact carries itself, and the coverage finding is a property of any population with ~487 candidates and ~1.8 gold rows per query."
+  },
+  "verdict": "max_calibrated_precision >= 0.95 is UNREACHABLE at CALIBRATION_BLOCKS = 256 for any feature, including a perfect one: the oracle is 0.8483. The frozen threshold names an operating point on a CONFIDENT SUBSET, and the calibration cannot express a subset smaller than one block. One block spans 1.90 candidates per query across 100% of queries, so the only operating point the gate can name is FULL COVERAGE, where the value is a diluted single-cue R@1. 0.3739 is a resolution property reported at full coverage. It has been read against 0.95 as a quality gap since Session B, and that gap was never closable by improving retrieval."
+}

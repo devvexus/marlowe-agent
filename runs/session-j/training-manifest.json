@@ -1,0 +1,53 @@
+{
+  "_what": "Session J Part 2 \u2014 same-session hard negatives, fit split only.",
+  "pairs": 6898,
+  "queries_with_pairs": 242,
+  "per_class": {
+    "temporal_adjacency": 1304,
+    "entity_overlap": 1876,
+    "opposite_role": 1867,
+    "long_assistant": 1851
+  },
+  "per_class_cap_per_query": 4,
+  "leakage_controls": {
+    "sessions_in_both_fit_and_heldout_haystacks": 2182,
+    "rule": "no training pair may come from a session present in ANY held-out haystack",
+    "fit_queries_excluded_by_that_rule": [
+      "2ebe6c92"
+    ],
+    "_note": "negatives are drawn only from the gold turn's own session, and gold-session collision with held-out haystacks is nearly zero \u2014 hence a single exclusion rather than a large one. Measured, not assumed."
+  },
+  "split_by_conversation_not_query": {
+    "gold_sessions_shared_by_more_than_one_fit_query": 3,
+    "shared": {
+      "answer_9b09d95b_1": [
+        "gpt4_468eb063",
+        "gpt4_468eb064"
+      ],
+      "answer_7e9ad7b4_2": [
+        "07741c44",
+        "07741c45"
+      ],
+      "answer_7e9ad7b4_1": [
+        "07741c44",
+        "07741c45"
+      ]
+    },
+    "_why_it_matters": "with shared gold sessions present, a query-id split would put the same conversation on both sides of the train/val boundary",
+    "groups": 248,
+    "train_queries": 200,
+    "val_queries": 50,
+    "val_fraction_target": 0.2
+  },
+  "queries_with_no_usable_gold_turn": [
+    "f4f1d8a4_abs",
+    "80ec1f4f_abs",
+    "60bf93ed_abs",
+    "2311e44b_abs",
+    "ba358f49_abs",
+    "6aeb4375_abs",
+    "2133c1b5_abs",
+    "0ddfec37_abs"
+  ],
+  "out": "runs/session-j/training-pairs.jsonl"
+}

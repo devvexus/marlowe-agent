@@ -1,0 +1,876 @@
+{
+  "_what": "Session J Part 3 \u2014 precision/coverage on held-out, both arms.",
+  "arm_a_isotonic_refit": {
+    "run": false,
+    "reason": "ADR-016: the oracle at CALIBRATION_BLOCKS = 256 is 0.848276, below the 0.95 threshold, so no refit can clear it whatever features it is given",
+    "bound": {
+      "rows": 111510,
+      "positives": 445,
+      "cases": 229,
+      "smallest_expressible_block_rows": 435,
+      "top_block_rows": 435,
+      "rows_per_query_in_one_block": 1.8996,
+      "max_attainable_calibrated_precision": 1.0,
+      "gold_rows_needed_for_threshold": 414,
+      "share_of_all_gold_that_requires": 0.930337,
+      "threshold_attainable_in_principle": true
+    },
+    "oracle": {
+      "_what": "The best top-block precision ANY feature could produce at this resolution. The naive min(positives, block)/block bound is vacuous because it ignores where gold rows can be: a {cue}_margin is positive for exactly one candidate per query, so the top block is forced to be one row from every query plus the least-negative rank-2s, and a query contributes a gold rank-2 row only if it HAS a second gold.",
+      "gold_rows_per_query_histogram": {
+        "1": 89,
+        "2": 99,
+        "3": 21,
+        "4": 9,
+        "5": 7,
+        "6": 4
+      },
+      "queries_with_two_or_more_gold_rows": 140,
+      "forced_rank1_rows": 229,
+      "forced_rank2_rows": 206,
+      "max_gold_rows_in_top_block": 369,
+      "max_calibrated_precision": 0.848276,
+      "clears_threshold": false
+    },
+    "top_block_coverage": {
+      "lexical_margin": {
+        "top_block_rows": 435,
+        "distinct_queries_in_top_block": 229,
+        "query_coverage": 1.0,
+        "gold_rows_in_top_block": 169,
+        "top_block_precision": 0.3885,
+        "queries_with_a_gold_row_in_top_block": 151,
+        "refit_curve_blocks": 250,
+        "refit_top_block": 0.388506,
+        "composition": {
+          "rank1_rows_in_top_block": 229,
+          "non_rank1_rows_in_top_block": 206,
+          "gold_among_the_rank1_rows": 129,
+          "gold_among_the_rest": 40,
+          "cue_r_at_1_on_this_population": 0.5633,
+          "top_block_precision_predicted_from_cue_r_at_1": 0.2966
+        }
+      },
+      "dense_margin": {
+        "top_block_rows": 435,
+        "distinct_queries_in_top_block": 229,
+        "query_coverage": 1.0,
+        "gold_rows_in_top_block": 154,
+        "top_block_precision": 0.354,
+        "queries_with_a_gold_row_in_top_block": 136,
+        "refit_curve_blocks": 63,
+        "refit_top_block": 0.354023,
+        "composition": {
+          "rank1_rows_in_top_block": 229,
+          "non_rank1_rows_in_top_block": 206,
+          "gold_among_the_rank1_rows": 106,
+          "gold_among_the_rest": 48,
+          "cue_r_at_1_on_this_population": 0.4629,
+          "top_block_precision_predicted_from_cue_r_at_1": 0.2437
+        }
+      }
+    }
+  },
+  "arm_b_conformal": {
+    "shipped": {
+      "model": "ms-marco-MiniLM-L-2-v2-int8",
+      "seq": 256,
+      "arm": "7a_control",
+      "strength": 0.0,
+      "r_at_1": {
+        "fit": 0.6201,
+        "heldout": 0.5764,
+        "fit_n": 229,
+        "heldout_n": 229
+      },
+      "conformal_tau": {
+        "0.05": {
+          "alpha": 0.05,
+          "risk_control": {
+            "tau": 4.21411657333374,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 87,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.05. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 9.483574151992798,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.2009,
+            "injected": 46,
+            "precision": 0.8696,
+            "ci95": [
+              0.7374,
+              0.9506
+            ],
+            "false_injection_rate_among_wrong_queries": 0.0619,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.1": {
+          "alpha": 0.1,
+          "risk_control": {
+            "tau": 3.39068341255188,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 87,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.1. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 6.688298285007477,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.2576,
+            "injected": 59,
+            "precision": 0.8305,
+            "ci95": [
+              0.7103,
+              0.9156
+            ],
+            "false_injection_rate_among_wrong_queries": 0.1031,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.2": {
+          "alpha": 0.2,
+          "risk_control": {
+            "tau": 2.694828987121582,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 87,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.2. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 4.53681093454361,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.345,
+            "injected": 79,
+            "precision": 0.7848,
+            "ci95": [
+              0.678,
+              0.8694
+            ],
+            "false_injection_rate_among_wrong_queries": 0.1753,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.3": {
+          "alpha": 0.3,
+          "risk_control": {
+            "tau": 2.0610287189483643,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 87,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.3. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 3.2443477511405945,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.4323,
+            "injected": 99,
+            "precision": 0.7273,
+            "ci95": [
+              0.6285,
+              0.812
+            ],
+            "false_injection_rate_among_wrong_queries": 0.2784,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        }
+      },
+      "precision_coverage_heldout": [
+        {
+          "target_coverage": 1.0,
+          "actual_coverage": 1.0,
+          "threshold": 0.001948,
+          "injected": 229,
+          "correct": 132,
+          "precision": 0.5764,
+          "ci95_low": 0.5096,
+          "ci95_high": 0.6412,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.95,
+          "actual_coverage": 0.952,
+          "threshold": 0.167377,
+          "injected": 218,
+          "correct": 131,
+          "precision": 0.6009,
+          "ci95_low": 0.5326,
+          "ci95_high": 0.6664,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.9,
+          "actual_coverage": 0.8996,
+          "threshold": 0.354241,
+          "injected": 206,
+          "correct": 127,
+          "precision": 0.6165,
+          "ci95_low": 0.5464,
+          "ci95_high": 0.6832,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.85,
+          "actual_coverage": 0.8515,
+          "threshold": 0.5783,
+          "injected": 195,
+          "correct": 120,
+          "precision": 0.6154,
+          "ci95_low": 0.5432,
+          "ci95_high": 0.684,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.8,
+          "actual_coverage": 0.7991,
+          "threshold": 0.674121,
+          "injected": 183,
+          "correct": 111,
+          "precision": 0.6066,
+          "ci95_low": 0.5318,
+          "ci95_high": 0.6778,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.75,
+          "actual_coverage": 0.7511,
+          "threshold": 0.757373,
+          "injected": 172,
+          "correct": 109,
+          "precision": 0.6337,
+          "ci95_low": 0.557,
+          "ci95_high": 0.7057,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.7,
+          "actual_coverage": 0.6987,
+          "threshold": 0.955786,
+          "injected": 160,
+          "correct": 102,
+          "precision": 0.6375,
+          "ci95_low": 0.5579,
+          "ci95_high": 0.7119,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.65,
+          "actual_coverage": 0.6507,
+          "threshold": 1.154565,
+          "injected": 149,
+          "correct": 97,
+          "precision": 0.651,
+          "ci95_low": 0.5687,
+          "ci95_high": 0.7272,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.6,
+          "actual_coverage": 0.5983,
+          "threshold": 1.408973,
+          "injected": 137,
+          "correct": 90,
+          "precision": 0.6569,
+          "ci95_low": 0.571,
+          "ci95_high": 0.7359,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.55,
+          "actual_coverage": 0.5502,
+          "threshold": 1.578725,
+          "injected": 126,
+          "correct": 85,
+          "precision": 0.6746,
+          "ci95_low": 0.5854,
+          "ci95_high": 0.7554,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.5,
+          "actual_coverage": 0.4978,
+          "threshold": 1.807827,
+          "injected": 114,
+          "correct": 81,
+          "precision": 0.7105,
+          "ci95_low": 0.6181,
+          "ci95_high": 0.7916,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.45,
+          "actual_coverage": 0.4498,
+          "threshold": 1.962844,
+          "injected": 103,
+          "correct": 75,
+          "precision": 0.7282,
+          "ci95_low": 0.6316,
+          "ci95_high": 0.8112,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.4,
+          "actual_coverage": 0.4017,
+          "threshold": 2.266946,
+          "injected": 92,
+          "correct": 69,
+          "precision": 0.75,
+          "ci95_low": 0.6489,
+          "ci95_high": 0.8345,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.35,
+          "actual_coverage": 0.3493,
+          "threshold": 2.64522,
+          "injected": 80,
+          "correct": 63,
+          "precision": 0.7875,
+          "ci95_low": 0.6817,
+          "ci95_high": 0.8711,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.3,
+          "actual_coverage": 0.3013,
+          "threshold": 3.049221,
+          "injected": 69,
+          "correct": 57,
+          "precision": 0.8261,
+          "ci95_low": 0.7159,
+          "ci95_high": 0.9068,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.25,
+          "actual_coverage": 0.2489,
+          "threshold": 3.527699,
+          "injected": 57,
+          "correct": 48,
+          "precision": 0.8421,
+          "ci95_low": 0.7213,
+          "ci95_high": 0.9252,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.2,
+          "actual_coverage": 0.2009,
+          "threshold": 4.367089,
+          "injected": 46,
+          "correct": 40,
+          "precision": 0.8696,
+          "ci95_low": 0.7374,
+          "ci95_high": 0.9506,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.15,
+          "actual_coverage": 0.1485,
+          "threshold": 5.143856,
+          "injected": 34,
+          "correct": 30,
+          "precision": 0.8824,
+          "ci95_low": 0.7255,
+          "ci95_high": 0.967,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.1,
+          "actual_coverage": 0.1004,
+          "threshold": 6.108892,
+          "injected": 23,
+          "correct": 22,
+          "precision": 0.9565,
+          "ci95_low": 0.7805,
+          "ci95_high": 0.9989,
+          "clears_threshold_point_estimate": true,
+          "clears_threshold_interval": false
+        }
+      ],
+      "group_conditional": {
+        "knowledge-update": {
+          "fit_n": 36,
+          "fit_n_wrong": 14,
+          "heldout_n": 36,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "multi-session": {
+          "fit_n": 61,
+          "fit_n_wrong": 22,
+          "heldout_n": 60,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-assistant": {
+          "fit_n": 28,
+          "fit_n_wrong": 11,
+          "heldout_n": 27,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-preference": {
+          "fit_n": 15,
+          "fit_n_wrong": 11,
+          "heldout_n": 15,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-user": {
+          "fit_n": 32,
+          "fit_n_wrong": 8,
+          "heldout_n": 32,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "temporal-reasoning": {
+          "fit_n": 57,
+          "fit_n_wrong": 21,
+          "heldout_n": 59,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        }
+      },
+      "k1_verdict": {
+        "any_coverage_clears_point_estimate": true,
+        "any_coverage_clears_interval": false
+      }
+    },
+    "ft-L2-raw": {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "seq": 256,
+      "arm": "7a_control",
+      "strength": 0.0,
+      "r_at_1": {
+        "fit": 0.7555,
+        "heldout": 0.6725,
+        "fit_n": 229,
+        "heldout_n": 229
+      },
+      "conformal_tau": {
+        "0.05": {
+          "alpha": 0.05,
+          "risk_control": {
+            "tau": 1.4639272689819336,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 56,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.05. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 1.8002400398254395,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.0655,
+            "injected": 15,
+            "precision": 0.9333,
+            "ci95": [
+              0.6805,
+              0.9983
+            ],
+            "false_injection_rate_among_wrong_queries": 0.0133,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.1": {
+          "alpha": 0.1,
+          "risk_control": {
+            "tau": 0.9568729400634766,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 56,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.1. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 1.4849681854248047,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.1572,
+            "injected": 36,
+            "precision": 0.8611,
+            "ci95": [
+              0.705,
+              0.9533
+            ],
+            "false_injection_rate_among_wrong_queries": 0.0667,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.2": {
+          "alpha": 0.2,
+          "risk_control": {
+            "tau": 0.5846343040466309,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 56,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.2. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 1.038684368133545,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.3537,
+            "injected": 81,
+            "precision": 0.8148,
+            "ci95": [
+              0.713,
+              0.8925
+            ],
+            "false_injection_rate_among_wrong_queries": 0.2,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        },
+        "0.3": {
+          "alpha": 0.3,
+          "risk_control": {
+            "tau": 0.4679994583129883,
+            "calibrated_on": "fit queries whose rank 1 is NOT gold",
+            "n_calibration": 56,
+            "guarantee": "for an exchangeable new query whose rank 1 is not gold, P(margin >= tau) <= 0.3. A bound on the FALSE-INJECTION RATE AMONG WRONG QUERIES. Distribution-free, finite-sample, marginal over the calibration draw.",
+            "what_it_is_not": "this is NOT precision. K1 asks for P(correct | injected), a selective risk the marginal bound does not cover."
+          },
+          "coverage_control": {
+            "tau": 0.7702879905700684,
+            "calibrated_on": "ALL fit queries",
+            "n_calibration": 229,
+            "_what_it_controls": "coverage, not risk. The (1-alpha)(1+1/n) quantile over every query selects roughly the top alpha fraction by margin."
+          },
+          "measured_on_heldout": {
+            "coverage": 0.4367,
+            "injected": 100,
+            "precision": 0.74,
+            "ci95": [
+              0.6427,
+              0.8226
+            ],
+            "false_injection_rate_among_wrong_queries": 0.3467,
+            "_the_guarantee_bounds_the_last_line_only": true
+          }
+        }
+      },
+      "precision_coverage_heldout": [
+        {
+          "target_coverage": 1.0,
+          "actual_coverage": 1.0,
+          "threshold": 0.000371,
+          "injected": 229,
+          "correct": 154,
+          "precision": 0.6725,
+          "ci95_low": 0.6076,
+          "ci95_high": 0.7329,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.95,
+          "actual_coverage": 0.952,
+          "threshold": 0.033245,
+          "injected": 218,
+          "correct": 147,
+          "precision": 0.6743,
+          "ci95_low": 0.6077,
+          "ci95_high": 0.7361,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.9,
+          "actual_coverage": 0.8996,
+          "threshold": 0.067897,
+          "injected": 206,
+          "correct": 143,
+          "precision": 0.6942,
+          "ci95_low": 0.6264,
+          "ci95_high": 0.7563,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.85,
+          "actual_coverage": 0.8515,
+          "threshold": 0.091672,
+          "injected": 195,
+          "correct": 137,
+          "precision": 0.7026,
+          "ci95_low": 0.6331,
+          "ci95_high": 0.7658,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.8,
+          "actual_coverage": 0.7991,
+          "threshold": 0.140874,
+          "injected": 183,
+          "correct": 132,
+          "precision": 0.7213,
+          "ci95_low": 0.6504,
+          "ci95_high": 0.7849,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.75,
+          "actual_coverage": 0.7511,
+          "threshold": 0.180744,
+          "injected": 172,
+          "correct": 127,
+          "precision": 0.7384,
+          "ci95_low": 0.666,
+          "ci95_high": 0.8023,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.7,
+          "actual_coverage": 0.6987,
+          "threshold": 0.212291,
+          "injected": 160,
+          "correct": 117,
+          "precision": 0.7312,
+          "ci95_low": 0.6555,
+          "ci95_high": 0.7982,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.65,
+          "actual_coverage": 0.6507,
+          "threshold": 0.258781,
+          "injected": 149,
+          "correct": 108,
+          "precision": 0.7248,
+          "ci95_low": 0.6457,
+          "ci95_high": 0.7947,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.6,
+          "actual_coverage": 0.5983,
+          "threshold": 0.314685,
+          "injected": 137,
+          "correct": 97,
+          "precision": 0.708,
+          "ci95_low": 0.6243,
+          "ci95_high": 0.7825,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.55,
+          "actual_coverage": 0.5502,
+          "threshold": 0.339527,
+          "injected": 126,
+          "correct": 88,
+          "precision": 0.6984,
+          "ci95_low": 0.6103,
+          "ci95_high": 0.7769,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.5,
+          "actual_coverage": 0.4978,
+          "threshold": 0.40926,
+          "injected": 114,
+          "correct": 83,
+          "precision": 0.7281,
+          "ci95_low": 0.6367,
+          "ci95_high": 0.8072,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.45,
+          "actual_coverage": 0.4498,
+          "threshold": 0.458596,
+          "injected": 103,
+          "correct": 76,
+          "precision": 0.7379,
+          "ci95_low": 0.642,
+          "ci95_high": 0.8196,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.4,
+          "actual_coverage": 0.4017,
+          "threshold": 0.516652,
+          "injected": 92,
+          "correct": 71,
+          "precision": 0.7717,
+          "ci95_low": 0.6725,
+          "ci95_high": 0.8528,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.35,
+          "actual_coverage": 0.3493,
+          "threshold": 0.588052,
+          "injected": 80,
+          "correct": 65,
+          "precision": 0.8125,
+          "ci95_low": 0.7097,
+          "ci95_high": 0.8911,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.3,
+          "actual_coverage": 0.3013,
+          "threshold": 0.641206,
+          "injected": 69,
+          "correct": 56,
+          "precision": 0.8116,
+          "ci95_low": 0.6994,
+          "ci95_high": 0.8957,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.25,
+          "actual_coverage": 0.2489,
+          "threshold": 0.736774,
+          "injected": 57,
+          "correct": 47,
+          "precision": 0.8246,
+          "ci95_low": 0.7009,
+          "ci95_high": 0.9125,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.2,
+          "actual_coverage": 0.2009,
+          "threshold": 0.881739,
+          "injected": 46,
+          "correct": 40,
+          "precision": 0.8696,
+          "ci95_low": 0.7374,
+          "ci95_high": 0.9506,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.15,
+          "actual_coverage": 0.1485,
+          "threshold": 1.005267,
+          "injected": 34,
+          "correct": 30,
+          "precision": 0.8824,
+          "ci95_low": 0.7255,
+          "ci95_high": 0.967,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        },
+        {
+          "target_coverage": 0.1,
+          "actual_coverage": 0.1004,
+          "threshold": 1.165071,
+          "injected": 23,
+          "correct": 21,
+          "precision": 0.913,
+          "ci95_low": 0.7196,
+          "ci95_high": 0.9893,
+          "clears_threshold_point_estimate": false,
+          "clears_threshold_interval": false
+        }
+      ],
+      "group_conditional": {
+        "knowledge-update": {
+          "fit_n": 36,
+          "fit_n_wrong": 10,
+          "heldout_n": 36,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "multi-session": {
+          "fit_n": 61,
+          "fit_n_wrong": 12,
+          "heldout_n": 60,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-assistant": {
+          "fit_n": 28,
+          "fit_n_wrong": 6,
+          "heldout_n": 27,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-preference": {
+          "fit_n": 15,
+          "fit_n_wrong": 10,
+          "heldout_n": 15,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "single-session-user": {
+          "fit_n": 32,
+          "fit_n_wrong": 6,
+          "heldout_n": 32,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        },
+        "temporal-reasoning": {
+          "fit_n": 57,
+          "fit_n_wrong": 12,
+          "heldout_n": 59,
+          "eligible": false,
+          "_rule": "group-conditional tau only where the wrong-query calibration set has n >= 40; below that the quantile is simply the maximum"
+        }
+      },
+      "k1_verdict": {
+        "any_coverage_clears_point_estimate": false,
+        "any_coverage_clears_interval": false
+      }
+    }
+  }
+}

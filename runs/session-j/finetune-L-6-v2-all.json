@@ -1,0 +1,54 @@
+{
+  "_what": "Session J Part 2 \u2014 fine-tuning on same-session hard negatives.",
+  "base": "ms-marco-MiniLM-L-6-v2",
+  "hf_repo": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+  "device": "cuda",
+  "hyperparameters": {
+    "epochs": 3,
+    "lr": 2e-05,
+    "batch": 32,
+    "max_len": 256,
+    "seed": 7
+  },
+  "loss": {
+    "form": "hard-label MarginMSE",
+    "target_margin_delta": 2.623647,
+    "delta_source": "median margin over fit cases the BASE model already ranks first"
+  },
+  "negative_classes": [
+    "all"
+  ],
+  "training_pairs": 5612,
+  "comparability_check": {
+    "xenova_onnx_r_at_1": 0.6114,
+    "pytorch_r_at_1": 0.6114,
+    "pearson": 1.0,
+    "max_abs_logit_difference": 1.4e-05,
+    "agree": true,
+    "baseline_the_delta_is_reported_against": "xenova_onnx"
+  },
+  "fit_val_history": [
+    {
+      "epoch": 0,
+      "val_r_at_1": 0.6383,
+      "train_loss": null
+    },
+    {
+      "epoch": 1,
+      "val_r_at_1": 0.766,
+      "train_loss": 3.0338
+    },
+    {
+      "epoch": 2,
+      "val_r_at_1": 0.7234,
+      "train_loss": 0.8683
+    },
+    {
+      "epoch": 3,
+      "val_r_at_1": 0.7234,
+      "train_loss": 0.5963
+    }
+  ],
+  "best_epoch": 1,
+  "exported_model": "ms-marco-MiniLM-L-6-v2-ft-session-j"
+}

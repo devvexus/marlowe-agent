@@ -1,0 +1,46 @@
+{
+  "models": [
+    {
+      "name": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "digests": {
+        "model.onnx": "78dcc7c1834b2e0cfc67d58a2735b9bc27900f46d5b5ccada99e8ee610c724f6",
+        "tokenizer.json": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963"
+      },
+      "base": "ms-marco-MiniLM-L-6-v2",
+      "hf_repo": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+      "arch": "BERT (fine-tuned, Session J)",
+      "params_m": 22,
+      "max_seq": 512,
+      "trained_on": "fit split only, same-session hard negatives",
+      "loss": "hard-label MarginMSE",
+      "target_margin_delta": 2.623647,
+      "best_epoch": 1,
+      "fit_val_r_at_1": 0.766,
+      "classes": [
+        "all"
+      ],
+      "_export_gap": "SELF-VALIDATED ONLY. A PyTorch-to-ONNX export produced in this session cannot be checked against an external authority, because none exists for a model this session trained. Digest pinning, torch-vs-ORT fixture agreement, and per-graph determinism / batch / padding invariance are what stand behind it."
+    },
+    {
+      "name": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "digests": {
+        "model.onnx": "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0",
+        "tokenizer.json": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963"
+      },
+      "base": "ms-marco-MiniLM-L-2-v2",
+      "hf_repo": "cross-encoder/ms-marco-MiniLM-L-2-v2",
+      "arch": "BERT (fine-tuned, Session J)",
+      "params_m": 15,
+      "max_seq": 512,
+      "trained_on": "fit split only, same-session hard negatives",
+      "loss": "hard-label MarginMSE",
+      "target_margin_delta": 2.926574,
+      "best_epoch": 2,
+      "fit_val_r_at_1": 0.7447,
+      "classes": [
+        "all"
+      ],
+      "_export_gap": "SELF-VALIDATED ONLY. A PyTorch-to-ONNX export produced in this session cannot be checked against an external authority, because none exists for a model this session trained. Digest pinning, torch-vs-ORT fixture agreement, and per-graph determinism / batch / padding invariance are what stand behind it."
+    }
+  ]
+}
