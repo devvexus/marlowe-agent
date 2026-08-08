@@ -22,6 +22,7 @@ use crate::cue::dense::{self, vectors::VectorStore};
 use crate::cue::lexical;
 use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
+use crate::probe::{Stage, StageProbe};
 use crate::rerank::CrossEncoder;
 use crate::store::BeliefStore;
 
@@ -325,23 +326,64 @@ pub fn select_for_injection<'a>(
     query_vector: Option<&[f32]>,
     rerank: &mut Rerank<'_>,
 ) -> Selection<'a> {
+    select_for_injection_probed(
+        beliefs,
+        session_id,
+        query_text,
+        now_ms,
+        max_tokens,
+        scoring,
+        vectors,
+        query_vector,
+        rerank,
+        &mut (),
+    )
+}
+
+/// [`select_for_injection`], with stage boundaries announced to `probe`.
+///
+/// **One implementation, not two.** The un-probed entry point above delegates here with `()`,
+/// which monomorphizes to the identical machine code — so the profile is taken of the shipped
+/// path rather than of a parallel copy that could drift from it. A second `select_for_injection`
+/// written "for profiling" is the two-sides-silently-disagree pattern applied to a measurement.
+///
+/// See [`crate::probe`] for why the clock read is not in this crate.
+#[allow(clippy::too_many_arguments)]
+pub fn select_for_injection_probed<'a, P: StageProbe>(
+    beliefs: &'a BeliefStore,
+    session_id: &str,
+    query_text: &str,
+    now_ms: i64,
+    max_tokens: u32,
+    scoring: &Scoring<'_>,
+    vectors: &VectorStore,
+    query_vector: Option<&[f32]>,
+    rerank: &mut Rerank<'_>,
+    probe: &mut P,
+) -> Selection<'a> {
+    probe.enter(Stage::Candidates);
     let candidates = beliefs.injection_candidates(now_ms);
     let considered = candidates.len() as u32;
 
     // Session scoping. Note what this is not: a relevance judgment. It is the scope the
     // request names, and the cue is what judges relevance inside it.
+    probe.enter(Stage::Scope);
     let scoped: Vec<&MemoryEntry> = candidates
         .into_iter()
         .filter(|e| e.source_session_id == session_id)
         .collect();
 
+    probe.enter(Stage::Lexical);
     let raw_scores = lexical::score_all(&scoped, query_text);
+    probe.enter(Stage::Dense);
     let dense_scores = dense_for(&scoped, query_vector, vectors);
 
     // **Set-level, not per-candidate.** Rank, margin and z do not exist for a candidate in
     // isolation, and this is the call that makes the calibration's question query-local.
+    probe.enter(Stage::Features);
     let vectors = features::extract_all(&scoped, &raw_scores, &dense_scores);
 
+    probe.enter(Stage::Gate);
     let mut scored: Vec<ScoredCandidate<'a>> = scoped
         .iter()
         .zip(vectors.into_iter())
@@ -393,6 +435,7 @@ pub fn select_for_injection<'a>(
     // consequence is that **the ceiling cannot rise**: the max over a subset can only equal or
     // fall below the max over the whole. Refitting the gate on pruned pools is the named next
     // lever and needs its own registration.
+    probe.enter(Stage::Prune);
     let mut pruning_applied = false;
     if matches!(scoring, Scoring::Gated(_)) {
         let keys = session_keys(&scoped, SESSION_GAP_MS);
@@ -407,6 +450,7 @@ pub fn select_for_injection<'a>(
         }
     }
 
+    probe.enter(Stage::Rerank);
     if let Rerank::CrossEncoder { encoder, budget } = rerank {
         // The slate: the top `budget` survivors under the EXISTING ranking key. Drawing the slate
         // with the key the reranker then replaces is what makes this a rerank stage rather than a
@@ -433,6 +477,7 @@ pub fn select_for_injection<'a>(
         }
     }
 
+    probe.enter(Stage::Assemble);
     let mut order: Vec<usize> = (0..scored.len()).collect();
     match scoring {
         Scoring::Gated(_) => {
@@ -525,6 +570,7 @@ pub fn select_for_injection<'a>(
         .map(|c| c.session_key)
         .collect::<std::collections::BTreeSet<_>>()
         .len() as u32;
+    probe.finish();
 
     Selection {
         injected,

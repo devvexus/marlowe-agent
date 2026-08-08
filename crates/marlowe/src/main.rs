@@ -8,6 +8,7 @@ mod adapter;
 mod dump;
 mod elapsed;
 mod launcher;
+mod profile;
 mod tui;
 
 use std::io::{self, BufReader};
@@ -22,6 +23,7 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
         [--embedding-cache <DIR>] [--embedder-workers <N>]
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
+        [--profile-retrieval <FILE>]
 
   --tui                         The terminal interface. Requires at least 120x30; below that it
                                 prints one line naming the current and required size and offers
@@ -102,6 +104,15 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 `calibrated_precision` and `passes` -- which is what a scoring
                                 run reads when the gate abstains and the response therefore
                                 carries no injected memories at all.
+
+  --profile-retrieval <FILE>    Write one NDJSON row per §4.2 call with the per-stage breakdown:
+                                query embedding, the full-store candidate scan, session scoping,
+                                lexical, dense, features, gate, pruning, rerank and assembly, in
+                                MICROSECONDS, plus the span they were taken inside and the
+                                RESIDUAL between the two. Diagnostic only: the §4.2 response is
+                                byte-identical with or without it, and the write happens AFTER
+                                `cost.latency_ms` is read, so profiling cannot inflate the number
+                                it exists to explain. Read it with `tools/profile_retrieval.py`.
 
   --dump-consolidation <FILE>   Write one NDJSON row per INGESTED SESSION describing what §5.3
                                 consolidation merged. A diagnostic side channel: the §4.6
@@ -275,7 +286,19 @@ fn main() {
         std::process::exit(2);
     }
 
+    // Same rule again: present-but-empty is a typo, not a request for a default path. A default
+    // here would let a profile land in a file from an earlier run and produce a P95 that mixes
+    // two configurations -- which is the one thing a latency comparison must never do.
+    if args.iter().any(|a| a == "--profile-retrieval")
+        && flag_value(&args, "--profile-retrieval").is_none()
+    {
+        eprintln!("{USAGE}");
+        eprintln!("error: --profile-retrieval requires a path and has no default.");
+        std::process::exit(2);
+    }
+
     let dump_path = flag_value(&args, "--dump-gate-features").map(std::path::Path::new);
+    let profile_path = flag_value(&args, "--profile-retrieval").map(std::path::Path::new);
     let fit_mode = args.iter().any(|a| a == "--fit-mode");
     let consolidation_dump = flag_value(&args, "--dump-consolidation").map(std::path::Path::new);
     let consolidation = if args.iter().any(|a| a == "--consolidation-dry-run") {
@@ -363,9 +386,14 @@ fn main() {
         dump_path: consolidation_dump,
     };
     let started = match (fit_mode, dump_path) {
-        (true, Some(path)) => {
-            adapter::Adapter::start_for_fit(&profile_root, embedder, path, consolidation, cross_encoder)
-        }
+        (true, Some(path)) => adapter::Adapter::start_for_fit(
+            &profile_root,
+            embedder,
+            path,
+            consolidation,
+            cross_encoder,
+            profile_path,
+        ),
         (true, None) => {
             eprintln!("{USAGE}");
             // Refused rather than defaulted to a path. Fit mode with nowhere to write is a run
@@ -373,9 +401,13 @@ fn main() {
             eprintln!("error: --fit-mode requires --dump-gate-features.");
             std::process::exit(2);
         }
-        (false, path) => {
-            adapter::Adapter::start(&profile_root, embedder, path, consolidation, cross_encoder)
-        }
+        (false, path) => adapter::Adapter::start(
+            &profile_root,
+            embedder,
+            adapter::Diagnostics { gate_features: path, retrieval_profile: profile_path },
+            consolidation,
+            cross_encoder,
+        ),
     };
 
     let mut adapter = match started {

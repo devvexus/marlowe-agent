@@ -23,12 +23,13 @@ use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::rerank::CrossEncoder;
 use marlowe_memory::retrieve::{
-    debug_assert_injection_valid, select_for_injection, Rerank, Scoring, RERANK_BUDGET,
+    debug_assert_injection_valid, select_for_injection_probed, Rerank, Scoring, RERANK_BUDGET,
 };
 use marlowe_memory::{ingest, BeliefStore};
 
 use crate::dump::{ConsolidationDump, FeatureDump};
-use crate::elapsed::Stopwatch;
+use crate::elapsed::{StageTimer, Stopwatch};
+use crate::profile::RetrievalProfile;
 
 /// How this process scores.
 ///
@@ -49,6 +50,19 @@ enum Mode {
 pub struct Consolidation<'a> {
     pub policy: Consolidate,
     pub dump_path: Option<&'a Path>,
+}
+
+/// Where the two diagnostic side channels write, if anywhere.
+///
+/// Bundled for the same reason `Consolidation` is: two bare `Option<&Path>` arguments of the same
+/// type, adjacent in a call, is one transposition away from writing the retrieval profile into the
+/// gate-feature dump. Both would still be created, both would still be written, and the fit would
+/// silently read a file of latency rows.
+pub struct Diagnostics<'a> {
+    /// §4.2's per-candidate feature dump. `tools/fit_gate.py` and the scoring drivers read it.
+    pub gate_features: Option<&'a Path>,
+    /// The per-query retrieval stage profile. Read by `tools/profile_retrieval.py`.
+    pub retrieval_profile: Option<&'a Path>,
 }
 
 /// The CLI's request, before the artifact is read.
@@ -86,6 +100,13 @@ pub struct Adapter {
     /// Session H's rerank stage. `None` is an EXPLICIT choice made at the command line
     /// (`--reranking off`), never a default -- see `main.rs`'s USAGE.
     cross_encoder: Option<CrossEncoder>,
+    /// The retrieval stage profile, when `--profile-retrieval` named a path.
+    ///
+    /// `None` is the shipped configuration, and it is what makes an unprofiled run a **true
+    /// baseline**: the probe is `Option<&mut StageTimer>`, so with no profile installed the only
+    /// per-query cost is one `Instant::now()` and nine null checks. The profiled and unprofiled
+    /// runs go through one call site, so they cannot be two different pipelines.
+    profile: Option<RetrievalProfile>,
 }
 
 impl Adapter {
@@ -105,13 +126,20 @@ impl Adapter {
     pub fn start(
         profile_root: &Path,
         embedder: Embedder,
-        dump_path: Option<&Path>,
+        diagnostics: Diagnostics<'_>,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
-        let dump = dump_path.map(FeatureDump::create).transpose()?;
-        Self::start_with(profile_root, embedder, Mode::Gated(gate, dump), consolidation, cross_encoder)
+        let dump = diagnostics.gate_features.map(FeatureDump::create).transpose()?;
+        Self::start_with(
+            profile_root,
+            embedder,
+            Mode::Gated(gate, dump),
+            consolidation,
+            cross_encoder,
+            diagnostics.retrieval_profile,
+        )
     }
 
     /// Start in feature-dump mode. Used only by `tools/fit_gate.py`; loads no gate.
@@ -125,6 +153,7 @@ impl Adapter {
         dump_path: &Path,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        retrieval_profile: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         Self::start_with(
             profile_root,
@@ -132,6 +161,7 @@ impl Adapter {
             Mode::FitDump(FeatureDump::create(dump_path)?),
             consolidation,
             cross_encoder,
+            retrieval_profile,
         )
     }
 
@@ -141,6 +171,7 @@ impl Adapter {
         mode: Mode,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        retrieval_profile: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
@@ -164,6 +195,7 @@ impl Adapter {
                 .map(ConsolidationDump::create)
                 .transpose()?,
             cross_encoder,
+            profile: retrieval_profile.map(RetrievalProfile::create).transpose()?,
         })
     }
 
@@ -344,6 +376,13 @@ impl Adapter {
         // request failing: retrieval that returns nothing is a worse answer than retrieval that
         // returns what the lexical cue found, and `dense_for` scores a missing query vector as
         // no evidence rather than skipping candidates.
+        //
+        // **Timed separately from every other stage, deliberately.** This is the one stage a warm
+        // embedding cache deletes from the run, so folding it into the pipeline's span would make
+        // a cold profile and a warm profile the same shape with different totals -- the trap
+        // STATE.md records by name. `hits_before` is what tells the two apart afterwards.
+        let embed_watch = Stopwatch::start();
+        let hits_before = self.embedder.cache_stats().map(|(hits, _)| hits);
         let query_vector = match self.embedder.embed(&request.query_text) {
             Ok(v) => Some(v),
             Err(e) => {
@@ -351,12 +390,25 @@ impl Adapter {
                 None
             }
         };
+        let embed_us = embed_watch.elapsed_us();
+        let embed_was_cached = match (hits_before, self.embedder.cache_stats()) {
+            (Some(before), Some((after, _))) => after > before,
+            // No cache is configured, so nothing was served from one. Distinct from "the cache
+            // missed", which is why the profile carries the flag rather than inferring it from a
+            // small `embed_us`.
+            _ => false,
+        };
 
         let scoring = match &self.mode {
             Mode::Gated(gate, _) => Scoring::Gated(gate),
             Mode::FitDump(_) => Scoring::FitDump,
         };
-        let selection = select_for_injection(
+        // One call site for both configurations. See `Adapter::profile` and
+        // `marlowe_memory::probe`: the timer is installed only when a profile path was given, and
+        // the probe is `Option<&mut _>` so there is no second copy of this call to drift from.
+        let mut timer = StageTimer::start();
+        let mut probe = self.profile.as_ref().map(|_| &mut timer);
+        let selection = select_for_injection_probed(
             &self.beliefs,
             &request.session_id,
             &request.query_text,
@@ -369,7 +421,12 @@ impl Adapter {
                 Some(encoder) => Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET },
                 None => Rerank::Off,
             },
+            &mut probe,
         );
+        // Captured HERE, the instant the pipeline returns. Reading it later — inside the profile
+        // write, which is where the first draft read it — folds the gate-feature dump's ~1.5 ms
+        // into the span and reports it as retrieval residual. See `RetrievalProfile::write`.
+        let span_us = timer.span();
         let cues_ms = cue_watch.stop().as_cost_ms();
         debug_assert_injection_valid(&selection.injected);
 
@@ -416,6 +473,38 @@ impl Adapter {
             }
         }
 
+        // **The wire's latency is read HERE, before the profile is written.**
+        //
+        // The gate-feature dump above is inside the span and stays inside it — every published
+        // latency in this project was measured with it there, and moving it now would change the
+        // baseline as a side effect of adding an instrument. The profile write is deliberately
+        // outside, so `--profile-retrieval` cannot inflate the number it exists to explain. That
+        // asymmetry is the point, not an oversight.
+        //
+        // `total_us` is the same span at microsecond resolution, read a few nanoseconds earlier
+        // off the same `Instant`. It is what the profile reconciles its stages against: the wire
+        // reports whole milliseconds, and a 200 ms span rounded to milliseconds cannot tell a
+        // complete breakdown from one missing 400 us.
+        let total_us = stopwatch.elapsed_us();
+        let total_ms = stopwatch.stop().as_cost_ms();
+
+        if let Some(profile) = self.profile.as_mut() {
+            if let Err(e) = profile.write(
+                &request.query_id,
+                embed_us,
+                embed_was_cached,
+                &timer,
+                span_us,
+                total_us,
+                &selection,
+            ) {
+                // Loud, for the same reason a truncated feature dump is: a profile missing rows
+                // is a P95 over a population nobody chose, and nothing downstream could tell.
+                eprintln!("marlowe: retrieval profile write failed: {e}");
+                std::process::exit(1);
+            }
+        }
+
         RetrievalResponse {
             contract_version: ContractVersion,
             query_id: request.query_id.clone(),
@@ -433,7 +522,7 @@ impl Adapter {
             cost: RetrievalCost {
                 retrieval_tokens: selection.retrieval_tokens,
                 latency_ms: RetrievalLatency {
-                    total: stopwatch.stop().as_cost_ms(),
+                    total: total_ms,
                     cues: Some(cues_ms),
                     // Still absent, and still omitted rather than zeroed: there is no embedder
                     // (ADR-004 is unwired) and nothing to fuse with one cue. A zero would read

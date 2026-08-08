@@ -63,6 +63,16 @@ _cache_dir = CACHE_DIR
 # string as the literal "None" and the binary refuses to start -- loud, immediate, and impossible
 # to mistake for a measurement.
 _reranking = None
+# Whether each pass also writes `retrieval-profile.ndjson` beside its candidate dump. Set from
+# --profile-retrieval.
+#
+# A bare boolean here where `--reranking` is deliberately not one, and the difference is the whole
+# reason it is allowed to be: `--reranking` names WHICH SCORER RUNS, so a forgotten default
+# measures one configuration under another's label. This names only whether a diagnostic side file
+# is written. The wire is byte-identical either way, and the flag cannot make a run measure a
+# system other than the one it says it is measuring -- it is the profile that would be missing,
+# loudly, rather than a number that would be wrong, quietly.
+_profile_retrieval = False
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -642,11 +652,16 @@ def score_one(
     # pinned cross-encoder directory; passing `off` measures the pruning-only ablation, and the
     # value is echoed into the run's summary so a number can never be read without knowing which
     # configuration produced it.
+    # Per-pass, beside the candidate dump, for the same reason the dump is: the harness spawns a
+    # fresh process per suite and every spawn opens the file with truncate, so one shared path
+    # would leave the profile holding the LAST pass's rows under the first pass's name.
+    profile = out_dir / "retrieval-profile.ndjson"
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
         f"--embedder-model {MODEL_DIR} --embedding-cache {_cache_dir} "
         f"--reranking {_reranking} "
-        f"--dump-gate-features {dump}"
+        + (f"--profile-retrieval {profile} " if _profile_retrieval else "")
+        + f"--dump-gate-features {dump}"
     )
     result = run(
         lambda c: build_target(target, c),
@@ -853,6 +868,15 @@ def main() -> int:
         "curve is measured through. Writes no summary.json and produces no quality number -- the "
         "gate's parameters have seen this split, so a number from it is not a held-out number.",
     )
+    parser.add_argument(
+        "--profile-retrieval",
+        action="store_true",
+        help="also write `retrieval-profile.ndjson` beside each pass's candidate dump: one row "
+        "per section 4.2 call with the per-stage breakdown in microseconds. Diagnostic only -- "
+        "the wire is byte-identical with or without it, and the binary writes the row AFTER "
+        "reading `cost.latency_ms`, so it cannot inflate the number it explains. Read it with "
+        "`tools/profile_retrieval.py`.",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -878,9 +902,10 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
-    global _cache_dir, _reranking
+    global _cache_dir, _reranking, _profile_retrieval
     _cache_dir = Path(args.embedding_cache)
     _reranking = args.reranking
+    _profile_retrieval = args.profile_retrieval
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

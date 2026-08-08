@@ -23,6 +23,7 @@ pub mod entry;
 pub mod error;
 pub mod gate;
 pub mod ingest;
+pub mod probe;
 pub mod rerank;
 pub mod retrieve;
 pub mod store;
