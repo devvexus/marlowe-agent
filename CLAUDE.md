@@ -114,7 +114,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 188 passing
+cargo test --workspace                       # 190 passing
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 
@@ -131,9 +131,12 @@ cd eval
 # a model directory or the literal `off`. It is deliberately not a bare boolean — a default-off
 # switch forgotten in a target string measures the un-reranked system under a reranked label.
 # `off` is the pruning-only ablation and is a recorded choice; omitting the flag refuses to start.
+#
+# THE PINNED GRAPH IS THE SESSION J FINE-TUNE, f32 (Session K, ADR-018/ADR-020). The old int8
+# directory is refused BY NAME — a stale path gets an error naming the swap, not "file not found".
 TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root} \
         --embedder-model ../models/jina-embeddings-v2-small-en \
-        --reranking ../models/ms-marco-MiniLM-L-2-v2-int8"
+        --reranking ../models/ms-marco-MiniLM-L-2-v2-ft-session-j"
 
 PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # section 4 + clock probe
 PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
@@ -155,18 +158,42 @@ python tools/dump_consolidation.py      # the dry-run sweep; APPLIES NOTHING
 python tools/preregister_session_f.py   # this session's bands, BEFORE any fit
 python tools/fit_gate.py                # refuses without the split OR the pre-registration
 cargo build --release                   # embeds the artifact via include_str!
-python tools/score_longmemeval.py --out runs/session-f
+python tools/score_longmemeval.py --out runs/session-f \
+       --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j   # REQUIRED since Session K
 python tools/analyze_cue_overlap.py --run runs/session-f/heldout --record-verdict
 ```
 
-**Session H's rerank stage has a second pinned model and its own fixture.** The cross-encoder is
-digest-pinned at load exactly as the embedder is, and the hand-rolled BERT *pair* encoder is a
-second implementation of a scored-path component, so the standing check applies to it:
+**`--reranking` is required in `score_longmemeval.py` too, and that is a Session K change with a
+reason.** It defaulted to the int8 directory. The moment the shipped graph moved, that default
+would have scored the **old** graph and written the result under the shipped label, with nothing
+observing the mismatch — the exact pattern this file warns about four paragraphs down.
+
+**The precision/coverage curve is a published artifact, not a run output.** The amended K1 (2026-08-08)
+requires it to ship with the product:
 
 ```bash
-python tools/make_cross_encoder_fixtures.py   # HF tokenizers + ONNX reference; NEVER regenerated
-                                              # to make the Rust test pass
-cargo test -p marlowe-memory --test cross_encoder_reference
+python tools/score_longmemeval.py --out runs/session-k --fit-only --reranking <DIR>   # tau calibration
+python tools/publish_precision_coverage.py --run runs/session-k --reranking-label <NAME>
+# -> crates/marlowe-memory/artifacts/precision-coverage-heldout-v1.json
+# -> docs/design/PRECISION-COVERAGE.md
+```
+
+**The conformal guarantee and the measured precision are two different quantities and are never
+conflated.** The marginal bound covers `P(inject | wrong)`; K1 asks for `P(correct | injected)`,
+a selective risk it does not cover. Both are reported, on separate lines, always.
+
+**Session H's rerank stage has a second pinned model and its own fixture.** The cross-encoder is
+digest-pinned at load exactly as the embedder is, and the hand-rolled BERT *pair* encoder is a
+second implementation of a scored-path component, so the standing check applies to it. **Every
+argument is required — Session K made the fixture a per-graph artifact, and a default `--model-dir`
+would regenerate one graph's reference from another graph's weights:**
+
+```bash
+python tools/make_cross_encoder_fixtures.py \
+    --model-dir models/ms-marco-MiniLM-L-2-v2-ft-session-j \
+    --model-file model.onnx \
+    --out crates/marlowe-memory/tests/fixtures/cross-encoder-reference-ft-session-j.json
+cargo test -p marlowe-memory --test cross_encoder_reference   # NEVER regenerate to make it pass
 ```
 
 **Pin the ONNX graph optimization level on both sides.** `ort` builds at `Level1`; Python's default
@@ -181,6 +208,13 @@ nothing but the shape: int8 moved by a median **0.0109** logits and **padding al
 15% of cases**, while all eight f32 graphs were invariant to **0.000000**. **Any sweep that varies
 sequence length runs f32, or its cells are different scorers.** This also corrects ADR-014's
 neighbourhood: the batch-invariance failure was *quantization*, not architecture. See ADR-015.
+
+**The SHIPPED path is f32 as of Session K, so it no longer carries that hazard — and the check is
+still per-graph.** Moving to the fine-tuned graph (ADR-018) removed quantization from the scored
+path: batch invariance **0.000000**, padding invariance **0.000000**, re-measured on the shipped
+graph rather than inherited. **Batch stays 1 structurally anyway**, because invariance is a
+measurement a re-pin does not inherit. Any future re-quantization re-opens ADR-015 on a graph
+nobody has measured that way, and `[1, 256]` would have to be re-verified, not assumed.
 
 **The cache-cold latency read cannot be taken over the full split, and the reason is measured.** On
 a cold cache the implementation must embed a whole session's turns inside one §4.6 ingest call, and

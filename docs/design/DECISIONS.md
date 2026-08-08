@@ -1615,3 +1615,571 @@ session resumes at Phase 2 and does not repeat Phase 0 or Phase 1.**
 **Arm 6 is reclassified rather than deferred: per-query normalization CANNOT move R@1** — a strictly
 increasing within-query transform against a within-query ordering read is an identity, the same
 defect as ADR-011 and ADR-013. It belongs to the coverage curve, where the decision is cross-query.
+
+---
+
+## ADR-016 · The 0.95 injection threshold was unreachable by construction, and 0.3739 never measured retrieval quality
+
+**Status: measured in Session J Part 0, before any band was registered. This is an ADR-010
+reachability check that came back NEGATIVE, and it reframes nine sessions retroactively.**
+
+`runs/session-j/gate-resolution.json`. Licensed by the standing reconstruction fidelity gate —
+lexical 0.5415, dense 0.4454, either-cue 0.6463, all reproduced exactly.
+
+### The decision
+
+> **A perfect retrieval system scores 0.8483 on this gate, against a threshold of 0.95.**
+>
+> `max_calibrated_precision >= 0.95` is therefore unreachable at `CALIBRATION_BLOCKS = 256` for
+> **any** feature, including a perfect one. The gap between 0.3739 and 0.95 was
+> never a quality gap and could not have been closed by improving retrieval. **Do not read any
+> historical statement of the form "max calibrated precision 0.3739 against a 0.95 threshold" as
+> evidence about the retrieval system.** It is a statement about the calibration's resolution.
+
+### The mechanism, in three steps
+
+**1. The calibration cannot express an operating point smaller than one block.** `fit_isotonic`
+buckets fit rows into 256 **equal-count** blocks and then pools — adjacent blocks sharing a score
+bound, then adjacent PAVA violators. Every one of those operations makes a block *larger*. On the
+licensed gated fit population (111510 rows, 445 gold, 229 cases) the smallest expressible block is
+**435 rows = 1.90 candidates per query**.
+
+**2. That block is forced to span every query, so the only operating point is FULL COVERAGE.**
+The calibrated features are `{cue}_margin` — the candidate's lead over its own query's runner-up —
+so **exactly one candidate per query has a positive value**. The global top block is therefore
+structurally "one row from every query, then the least-negative rank-2s". Measured, not asserted:
+
+| | rows in top block | of which their query's rank-1 | distinct queries touched |
+|---|---|---|---|
+| `lexical_margin` | 435 | **229 — one per query** | **229 of 229 = 100%** |
+| `dense_margin` | 435 | **229 — one per query** | **229 of 229 = 100%** |
+
+**A precision threshold is a request for a confident SUBSET. The gate has no vocabulary for
+subsets.** It can only answer at 100% coverage.
+
+**3. At full coverage the value is a diluted single-cue R@1.** The 206 non-rank-1 rows are forced
+into the block and are almost all negative:
+
+| | gold among the 229 rank-1 rows | cue R@1 | gold among the other 206 | top block |
+|---|---|---|---|---|
+| `lexical_margin` | 129 | 0.5633 | 40 | **0.3885** |
+| `dense_margin` | 106 | 0.4629 | 48 | **0.3540** |
+
+### The oracle, which is the number that closes it
+
+The naive bound `min(positives, block) / block` is **1.0000 here and is vacuous** — it ignores
+*where* gold rows can be. Under the forced composition a query contributes a gold row at rank 2
+only if it *has* a second gold row, and **89 of 229 fit queries have exactly one**:
+
+| gold rows per query | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| queries | **89** | 99 | 21 | 9 | 7 | 4 |
+
+    perfect cue:  229 rank-1 rows all gold
+                + min(206 rank-2 slots, 140 queries with a second gold) = 140
+                = 369 / 435  =  0.8483   <   0.95
+
+**A perfect retrieval system scores 0.8483 on this gate.** The threshold is 0.95.
+
+### Scope of the claim, stated exactly
+
+- **The resolution bound is general**: at 256 equal-count blocks over ~111k rows, no operating
+  point narrower than ~435 rows exists, whatever is calibrated.
+- **The 0.8483 oracle is specific to the `{cue}_margin` composition** — one positive per query.
+  A gate calibrating a feature that is *not* query-local would fill its top block differently.
+  That is a different gate design, and it is not what has been shipped since v4.
+- **`THRESHOLD = 0.95` is untouched and stays untouched.** This ADR does not lower it; it records
+  that the quantity being compared to it does not mean what nine sessions took it to mean.
+
+### What this does and does not change
+
+**Does not change:** any R@1, R@5 or R@10 number. Those are within-query ordering reads computed
+from the ranking, never from the calibration, and none of them passes through a block.
+
+**Does change, retroactively:** every statement that the gate "abstains on every query" *because
+retrieval is not good enough*. It abstains because the only operating point it can express is full
+coverage, where no achievable value clears 0.95. The §4.3 maturation gap's closing condition — "the
+gate begins injecting" — was therefore not reachable through the work Sessions B through I did.
+
+**Consequence for Session J:** Part 3(a) reports this bound and stops, as instructed. **Conformal
+risk control is the K1 answer**, and the reason is now mechanical rather than preferential: it
+thresholds a per-query margin and abstains per query, so its operating point has resolution 1/229
+instead of 435 rows, and it can name a confident subset at all.
+
+### A constraint for whoever owns the gate design after M0b — recorded, not discovered
+
+**This is not Session J's scope and re-tuning the calibration resolution stays forbidden.** But the
+0.8483 oracle is now a measured fact and it forecloses something, so it is written down here rather
+than left to be rediscovered by the session that tries.
+
+> **If a perfect cue cannot reach the operating point, isotonic gating in its current shape cannot
+> be made viable by better retrieval. Either the resolution rule or the margin feature's
+> one-positive-per-query property has to change.**
+
+The two are the only load-bearing inputs to the bound, and they fail differently:
+
+- **The resolution rule** (`CALIBRATION_BLOCKS = 256`, equal-count) sets the block at ~1.9
+  candidates per query. Finer blocks raise the reachable precision — which is exactly why
+  `fit_gate.py` fixes the resolution on a stated principle and why choosing it after seeing whether
+  the curve clears 0.95 is tuning the operating point through the back door. **Any future change
+  here must be argued and pre-registered before the fit, not selected against the outcome.**
+- **The one-positive-per-query property** is what forces the top block to span 100% of queries.
+  It is a consequence of calibrating a *within-query margin*, which Session E adopted for a good
+  reason — pooled raw scores ask an incoherent cross-query question (ADR, v4). Changing it means
+  re-opening that decision, not tweaking a constant.
+
+**The claim is bounded and should stay bounded.** The 0.8483 figure is specific to the
+`{cue}_margin` composition on this population. A gate calibrating a feature that is not query-local
+would fill its top block differently — and would inherit Session E's incoherence problem instead.
+Neither escape is free, and this ADR does not pick one.
+
+---
+
+## ADR-017 · Length normalization works, the registered estimator had the wrong sign, and the defect closes only on a model that cannot ship
+
+**Status: measured in Session J Part 1, fit split, five cells.** Pre-registration
+`runs/session-j/PREREGISTRATION.json`; post-hoc addendum `ADDENDUM-post-hoc-length-form.json`,
+written before any held-out read.
+
+### 1. The decision on estimators, and it generalizes past this arm
+
+> **A length-normalization term must be fitted against RELEVANCE, not against the score.** An
+> estimator of the form `E[score | length]` measures the model's length response. The quantity that
+> needs correcting is the model's length response **relative to relevance's**, and on this corpus
+> those two differ by more than an order of magnitude.
+
+Measured on the fit slate, L-2 f32 at seq 256:
+
+| length bin (median word pieces) | 32 | 51 | 68 | 88 | 186 | 368 | 530 | 656 |
+|---|---|---|---|---|---|---|---|---|
+| mean logit | -6.94 | -6.90 | -6.02 | -5.87 | -6.73 | -7.07 | -8.03 | -8.62 |
+| **gold rate** | 0.115 | 0.248 | **0.353** | 0.329 | 0.063 | 0.039 | **0.007** | **0.007** |
+
+**The mean logit moves 2.6 across the whole range and is not even monotone. The gold rate falls
+50-fold.** The model under-penalizes length by a wide margin, and relevance never enters
+`E[s | len]`, so that estimator cannot see the gap it was registered to close.
+
+The consequence was not subtle. The fitted slope came out **-0.5091** logits per log word piece and
+the fitted role coefficient **-0.9352** — on the slate the model *already* scores long and
+assistant-authored candidates lower on average — so subtracting the fitted mean **added** score to
+exactly the candidates that needed penalizing:
+
+| registered arm | best on grid | delta R@1 |
+|---|---|---|
+| 7b subtractive | lambda 0.25 | **-0.0262** |
+| 7d role only | lambda 0.25 | **-0.0088** |
+| 7e both | lambda 0.25 | **-0.0350** |
+| **7c divisive** | alpha 0.5 | **+0.0349** |
+
+Confirmed by the failure profile moving the wrong way: rank-1 on failures goes from 50.0%
+assistant-authored at 157 median word pieces to 71.4% at 430 as lambda rises.
+
+**Ninth instance of the family.** ADR-011: the mechanism could not move the metric. ADR-013: the
+read could not vary. ADR-014: the contrast could not reach significance. **Here: the estimator
+could not have measured the quantity it was registered to correct.**
+
+### 2. Normalization works, and the registered directional prediction is falsified
+
+Fit split, R@1. `7c` is the registered divisive arm; `7f` is the post-hoc `s - 2.0*log(len)` form,
+**selection-biased and not a result** — see the addendum.
+
+| cell | control | 7c registered | delta | discordant | exact p | 7f post-hoc |
+|---|---|---|---|---|---|---|
+| L-2 f32 @256 | 0.5983 | 0.6332 | **+0.0349** | 24 | 0.1516 | 0.6769 |
+| L-2 f32 @512 | 0.5066 | 0.6114 | **+0.1048** | 50 | 0.0009 | 0.6419 |
+| L-6 f32 @256 | 0.6114 | 0.6638 | **+0.0524** | 32 | 0.0501 | 0.6856 |
+| L-6 f32 @512 | 0.6026 | 0.6638 | **+0.0612** | 34 | 0.0243 | 0.6856 |
+| L-2 int8 @256 *(shipped)* | 0.6201 | 0.6463 | +0.0262 | — | — | 0.6681 |
+
+**The registered prediction that L-2 gains MORE than L-6 is wrong.** At the registered comparison
+point — seq 256 — L-2 gains +0.0349 and L-6 gains +0.0524.
+
+**ADR-015's weak-model reading is not overturned, it is bounded.** The length bias is a weak-model
+artifact *when long documents are actually present*: at seq 512, L-2 gains +0.1048 against L-6's
++0.0612. At seq 256 the cap already suppresses most of it, and the residual bias is if anything
+larger on the stronger model. **The correct statement is that the seq-256 cap hides a bias both
+models carry, and hides more of L-2's.**
+
+### 3. The truncation defect closes on a model that cannot ship — and this is the finding
+
+ADR-015 left `MAX_SEQ_LEN = 256` standing as "do not raise on its own", with explicit length
+normalization named as the only route by which raising it becomes viable. That route was tested.
+
+| normalized (7c@0.5) | seq 256 | seq 512 | delta |
+|---|---|---|---|
+| **L-6 f32** | 0.6638 | **0.6638** | **0.0000** |
+| **L-2 f32** | 0.6332 | 0.6114 | **-0.0218** |
+
+The registered closing condition was non-inferiority at `delta >= -0.01`.
+
+> **On L-6 f32 the truncation defect is CLOSED.** Raising the sequence length to 512 alongside
+> length normalization costs exactly 0.0000 R@1 while recovering the 7.86% of gold turns that were
+> being scored on a fragment. The equality is not trivial — the two configurations decide top-1
+> differently on 9 of 229 queries and net to zero. Discordant is 2, so **no significance statement
+> is available in either direction** and the delta carries the verdict, per ADR-014.
+>
+> **On L-2 f32 it is NOT closed**, at -0.0218 against a -0.01 bar.
+
+**And that is the tension, stated as a finding rather than a footnote:**
+
+> **The defect closes on the configuration that cannot ship, and does not close on the one that
+> can.** L-6 f32 costs **57.0 ms/pair = 570 ms/query** at depth 10, against a 300 ms retrieval P95
+> budget and ADR-003's 1-vCPU target. The shipped L-2 int8 costs 8.9 ms/pair. There is no
+> configuration on the table today that both closes the truncation defect and ships.
+
+**This is what makes fine-tuning L-2 load-bearing rather than a completeness exercise.** If domain
+adaptation moves L-2 into the region where normalization holds at seq 512, the defect closes on a
+shippable model. If it does not, then the honest position is that the defect is closed only in
+principle, and `MAX_SEQ_LEN = 256` stays exactly where ADR-015 left it — with the 7.86% gold
+truncation now understood as the price of shipping rather than as an unexamined constant.
+
+### 4. What ships free, and what does not
+
+The `7c` and `7f` forms need only the candidate's word-piece count, which `rerank.rs` already
+computes when it encodes the pair. **No schema change, no `DERIVATION_VERSION` bump.**
+
+The **role arms are a different matter and were flagged before they were measured**: `speaker` is
+carried on the section 4.6 wire (`marlowe-contract/src/wire.rs`) and **discarded by ingest**, so
+`MemoryEntry` has no role field. Shipping 7d or 7e would need the schema addition Session H made
+for `occurred_at_ms`. They failed on their merits, so the question does not arise — but the check
+was made in advance rather than discovered afterwards.
+
+### ADR-017 · AMENDMENT, same session — arm 7 does not survive held-out, and the closure claim is withdrawn
+
+**The sections above were written from fit-split numbers. The held-out read contradicts them, and
+the correction is recorded here rather than by editing them.**
+
+**1. Length normalization is a NULL on held-out, with power.** Every contrast below has alpha
+attainable (discordant 24-43) and none comes close to significance:
+
+| held-out, seq 256 | control | 7c@0.5 | delta | discordant | exact p | 7f@2.0 (post-hoc) | delta |
+|---|---|---|---|---|---|---|---|
+| L-2 int8 *(shipped)* | 0.5764 | 0.5764 | +0.0000 | 24 | 1.0000 | 0.5895 | +0.0131 |
+| L-2 f32 | 0.6026 | 0.5939 | **-0.0087** | 30 | 0.8555 | 0.5983 | -0.0043 |
+| L-6 f32 | 0.6201 | 0.6419 | +0.0218 | 43 | 0.5424 | 0.6201 | +0.0000 |
+
+- **The registered floor of +0.01 FAILS on L-2 f32.** L-6's +0.0218 sits at the top of its
+  registered band but at p = 0.5424 on 43 discordant pairs, so it is not a detected effect.
+- **The post-hoc `s - 2.0*log(len)` form FAILS its registered floor of +0.02 on every cell** - and
+  it is the form that looked *strongest* on fit (+0.0786 on L-2 f32, +0.0742 on L-6). That is
+  exactly what post-hoc selection predicts, and exactly why the addendum pinned its held-out
+  prediction before the read.
+
+**It is not covariate shift.** The gold length distribution is the same on both splits - median 70
+word pieces, p75 84, p95 239 vs 224; assistant-authored gold 8.4% vs 7.0%. The signal the
+normalization exploits is present identically on held-out. The fit gain was 8 net cases of 229 at
+p = 0.1516, which was already not significant, and it does not reproduce.
+
+**2. The truncation-defect closure is WITHDRAWN as stated.** Re-read on held-out:
+
+| normalized 7c@0.5, seq 512 vs 256 | fit delta | held-out delta | discordant |
+|---|---|---|---|
+| **L-6 f32** | 0.0000 | **-0.0087** | 2 |
+| **L-2 f32** | -0.0437 | **-0.0611** | 16 (p = 0.0005) |
+
+L-6 remains numerically inside the registered -0.01 bar on both splits, but the held-out margin
+rests on **2 discordant cases** and the precondition - that normalization works at all - is itself
+a held-out null. **"The defect is CLOSED on L-6" overstates the evidence and is withdrawn.** The
+accurate statement:
+
+> Raising the sequence length is still not viable on the model that ships. On L-6 f32 it is
+> numerically neutral on both splits, but that neutrality rides on a normalization term that shows
+> no held-out effect, so nothing here licenses raising `MAX_SEQ_LEN`. **It stays at 256, and the
+> 7.86% gold truncation stays a known, priced defect.**
+
+**3. What survives from the sections above.** The estimator finding - *fit a normalization term
+against relevance, not against the score* - stands, because it is a statement about the measured
+relationship between length, score and gold rate, and that relationship holds on both splits. What
+does not survive is the claim that any of the resulting arms improves ranking.
+
+**4. The ship/close tension is resolved in the other direction, and by fine-tuning rather than by
+normalization.** See ADR-018.
+
+---
+
+## ADR-018 · Domain adaptation is the lever. Fine-tuning L-2 on same-session hard negatives is +0.0699 R@1 on held-out, significant, and it ships.
+
+**Status: measured in Session J Part 2.** Held-out, paired, alpha attainable.
+`runs/session-j/finetune-*.json`, `export-verification-*.json`.
+
+### The decision
+
+> **Fine-tuning the cross-encoder on same-session hard negatives mined from the fit split moves
+> held-out R@1 from 0.6026 to 0.6725 on L-2 f32 - `+0.0699`, discordant 38 (27 gained, 11 lost),
+> exact McNemar `p = 0.0139`, alpha attainable. It is the first change this project has made to the
+> scored path that is significant on held-out with the power to have detected an effect.**
+
+| held-out, seq 256, depth 10 | R@1 | delta vs own base | discordant | exact p | ms/pair | ms/query |
+|---|---|---|---|---|---|---|
+| L-2 int8 *(shipped today)* | 0.5764 | - | - | - | 8.9 | 89 |
+| L-2 f32 | 0.6026 | - | - | - | 20.1 | 201 |
+| **L-2 f32 FINE-TUNED** | **0.6725** | **+0.0699** | 38 | **0.0139** | **21.4** | **214** |
+| L-6 f32 | 0.6201 | - | - | - | 57.0 | 570 |
+| L-6 f32 fine-tuned | 0.6681 | +0.0480 | 43 | 0.1263 | 74.1 | 741 |
+
+**The registered band was floor +0.02, predicted [+0.02, +0.08], derived from this project's own
+fit-split evidence and explicitly NOT inherited from the research report's +0.06 to +0.10. The
+measured +0.0699 lands inside it.**
+
+### Why this is not the capacity null in disguise
+
+ADR-015 measured capacity as a null WITH power: L-6 vs L-2 f32 gave +0.0131 at p = 0.7011. The
+registration recorded in advance that fine-tuning is capacity-adjacent and that the null therefore
+had to be taken seriously - and also why it does not rule this out. **The measurement now separates
+the two cleanly: tripling depth buys +0.0131 and is noise, while domain-adapting the SMALLER model
+buys +0.0699 and is significant.** The fine-tuned L-2 (16M parameters) beats the un-tuned L-6 (22M)
+by +0.0524 held-out. The gap was never capacity.
+
+### It ships, and that is the point
+
+**L-6 f32 fine-tuned is the better model on fit and the worse deal on every other axis**: 74.1
+ms/pair is 741 ms/query at depth 10, against a 300 ms retrieval P95 budget and ADR-003's 1-vCPU
+target. **L-2 f32 fine-tuned is 21.4 ms/pair = 214 ms/query, inside the budget**, and it is also
+the better model on held-out (0.6725 vs 0.6681).
+
+**This resolves the tension ADR-017 raised** - the defect that closed only on an unshippable
+configuration - though not the way that ADR anticipated. Length normalization did not survive
+held-out at all. Domain adaptation did, on the shippable model, and by a margin that makes the
+un-tuned L-6 irrelevant.
+
+### Discipline, and what it cost
+
+- **Trained on fit only.** Mined and split **by conversation id**, not query id - 3 gold sessions
+  are shared between fit queries, so the two are genuinely different, and queries sharing a
+  conversation are grouped inseparably.
+- **Measured leakage channel, excluded rather than argued about.** 2182 haystack sessions appear in
+  both splits; because negatives come only from the gold turn's own session, exactly **one** fit
+  query collides and it is dropped.
+- **No held-out signal touched training.** Checkpoint chosen on a fit-carved validation slice.
+- **The loss is a REGISTERED DEVIATION.** MarginMSE as published distils teacher margins and this
+  project has no admitted stronger teacher, so the hard-label variant is used with the target
+  margin taken from the base model's own margins on cases it already ranks first. Recorded with its
+  reason in the pre-registration, before training.
+
+### The export gap is bounded, not closed
+
+**The comparability check passed before any training**: the Xenova ONNX baseline and the
+`cross-encoder/...` PyTorch checkpoint agree at Pearson **1.000000**, max |delta logit|
+**0.000014**, identical R@1 - so the fine-tuning delta is measured against the existing baseline
+rather than against a self-export.
+
+All five post-export checks pass on both models: discrimination, determinism, **batch invariance
+0.000000**, **padding invariance 0.000000** (ADR-015), and **torch-vs-ORT** at max |delta|
+0.000003 (L-6) and 0.000001 (L-2). Training itself reproduces bit-identically under its seed.
+
+> **It remains SELF-VALIDATED ONLY.** There is no external authority for a model this session
+> trained, because this session is the publisher. What the checks establish is that the graph is
+> deterministic, shape-invariant, and faithful to the module it was exported from. What they cannot
+> establish is that the module is what its publisher intended. **The unvalidated-export gap is not
+> closed by this - it is bounded by it, and a second instance now exists.**
+
+### Not shipped in this session
+
+Measurement was the deliverable, per Session I's precedent. `rerank.rs` is unchanged. Shipping this
+means a new pinned digest, a `--reranking` path pointing at the fine-tuned graph, a conformance run,
+and a decision about whether an f32 graph at 214 ms/query is the right trade against int8 at 89 -
+including whether the fine-tuned model should be quantized, which would re-open ADR-015's
+shape-binding on a graph nobody has measured that way.
+
+---
+
+## ADR-019 · K1 is judged on a published precision/coverage curve, the threshold is not moved, and a new kill condition is added
+
+**Status: adopted 2026-08-08, M0b Session K.** Pinned text in `ROADMAP.md` → "K1 — amended
+2026-08-08" and in brief §5.7.1. Proposal of record: `docs/requirements/proposed-K1-amendment.md`
+(Part A adopted verbatim; this ADR is Part B). Measurement: `runs/session-j/RESULT.md` Part 3.
+
+### The decision
+
+> **K1 is measured against a published precision/coverage curve rather than a single threshold.**
+> Three conditions bind — the curve ships with the product, the operating point is declared on it,
+> and the abstention path is real. **The 0.95 threshold is NOT lowered**, and a **new** kill
+> condition is added: a flat curve, meaning precision at 10% coverage not materially above
+> precision at 100% coverage, is a project-level finding.
+
+### 1 · The instrument could not have passed
+
+**ADR-016, measured not derived: a perfect retrieval system scores 0.8483 on the shipped gate
+against a 0.95 threshold.** Three steps, each measured on the fit split:
+
+1. Every pooling operation in `fit_isotonic` makes a block larger, never smaller. The smallest
+   expressible block is 435 rows — 1.90 candidates per query.
+2. `{cue}_margin` is positive for exactly one candidate per query, so the top block is forced to be
+   "one row from every query, then the least-negative rank-2s." Measured: the top block spans
+   **229 of 229 queries** for both cues. **The gate has no vocabulary for confident subsets.**
+3. 89 of 229 fit queries have exactly one gold row, so their rank-2 slot is necessarily a
+   distractor. A perfect cue gets 229 rank-1 rows plus at most 140 rank-2 rows: 369/435 = 0.8483.
+
+Sessions B through H each read the 0.3739 ceiling as evidence retrieval was not improving. It was
+reporting a structural property of the calibration shape and would have read approximately the same
+with a flawless retriever. **The honest K1 number was first produced in Session J, from a conformal
+reading at query resolution — the only resolution that can express a subset.**
+
+**This does not invalidate any retrieval measurement.** R@1, R@5, R@10, conditional accuracy, the
+oracle, every closed mechanism and every failure decomposition were measured against gold turns
+**with the gate uninvolved**. It invalidates the *interpretation* of one number.
+
+### 2 · The measured answer is a real negative, not an instrument artifact
+
+The conformal arm is not subject to §1's defect. It operates at query resolution (1/229), sets tau
+at the `(1-alpha)(1+1/n)` quantile of the rank-1 minus rank-2 rerank margin, and produces a genuine
+coverage curve. **It still does not reach 0.95 with a bounded interval.**
+
+The guarantee and the measurement are reported as separate quantities throughout, because they are:
+conformal at alpha=0.05 gives measured `P(inject | wrong) = 0.0133` against the 0.05 marginal bound,
+and **that marginal guarantee does not cover precision conditional on having injected**, which is
+the selective-risk quantity K1 asks about. Reporting one as the other would be the same category
+error the isotonic ceiling was read with for nine sessions.
+
+### 3 · More retrieval quality is not the lever
+
+**Session J's highest-weighted finding: +0.0699 R@1 from fine-tuning bought nothing at the operating
+point.** Fine-tuning dominates the precision/coverage curve from 100% down to roughly 25% coverage
+and stops helping at the head — which is exactly where K1 reads.
+
+So this amendment is not "the target was too hard and we tried our best." Nine sessions of work
+established, with measurements, that the binding constraint is **separability at the head of the
+ranking**, and that the rerank margin is not the signal that provides it. That is a specific
+unsolved problem, not a shortfall.
+
+### 4 · The field context, which is why there was no prior art to borrow
+
+No published system reports injection precision at all. Headline LongMemEval results in the 90s are
+QA accuracy or Recall@k. The closest independent work on admission thresholds tops out near 0.58.
+Every system reaching 90%+ spends materially more than 300 ms, or performs no retrieval and keeps
+the log in context. **K1 set a bar the field does not measure, at a budget the field does not meet.**
+That was a deliberate and defensible choice, and it is why the answer had to be measured.
+
+### 5 · What the amended criterion preserves
+
+The original K1 exists to prevent one specific failure: a memory system that injects confidently and
+wrongly, corrupting reasoning while appearing to work. **The amended criterion prevents the same
+failure by a different route** — the curve makes precision at any chosen coverage a published number
+rather than an assumption, and condition 3 forbids buying coverage with precision.
+
+### What this ADR deliberately does NOT do
+
+**It does not lower a threshold to match a result.** The frozen-gate discipline has held for ten
+sessions specifically to prevent that, and this amendment would be worthless if it were that move
+wearing a longer argument. The threshold is not moved; the *criterion shape* changes, and a kill
+condition is **added**.
+
+**It does not claim K1 was wrong.** K1 was a reasonable bar written before anyone knew what was
+reachable. The measurement is what changed.
+
+**It does not close the two remaining directions.** Both are carried forward as named work rather
+than as preconditions, per the human decision of 2026-08-08 — option (a) with (c)'s directions
+retained:
+
+1. **A separability mechanism at the head.** Something must make the top decile separable and the
+   rerank margin does not. Unexplored candidates: a distinct confidence signal fit against
+   **relevance** rather than against score (ADR-017's rule), and set-wise or listwise scoring that
+   observes candidates jointly rather than independently.
+2. **The human label set.** >=400 judged injections, >=50 per category, judged blind, stratified by
+   score decile. **True injection precision — the quantity K1 actually names — has never been
+   computed.** Every figure to date is a gold-turn proxy. It is drawable now that a conformal
+   operating point exists to sample from.
+
+**It does not authorize skipping the abstention path.** §5.5 is precision-first with recall
+recovered through the explicit `recall` tool. At a 10% operating point the other 90% must abstain
+and the agent must be able to search explicitly. That is M2 work and it is now load-bearing.
+
+---
+
+## ADR-020 · The fine-tuned L-2 ships, the scored path moves from int8 to f32, and the loader accepts exactly one graph
+
+**Status: shipped 2026-08-08, M0b Session K.** `runs/session-k/RESULT.md`,
+`runs/session-k/export-verification-ms-marco-MiniLM-L-2-v2-ft-session-j.json`,
+`runs/session-k/cue-overlap.json`. Supersedes the "measured, NOT shipped" status ADR-018 left.
+
+### The decision
+
+> **`rerank.rs` is re-pinned to `ms-marco-MiniLM-L-2-v2-ft-session-j/model.onnx`, f32, sha256
+> `9c222dac...`. Held-out R@1 moves 0.5764 -> 0.6725 in the binary. `MAX_SEQ_LEN` stays 256,
+> `BATCH` stays 1, and the loader accepts exactly one graph.**
+
+| held-out, n=229, from the BINARY | Session H (int8) | Session K (shipped) |
+|---|---|---|
+| R@1 | 0.5764 | **0.6725** |
+| R@5 | 0.8428 | **0.8865** |
+| R@10 | 0.9039 | 0.9039 |
+| input recall | 0.9039 | 0.9039 |
+| **conditional accuracy** | 0.6377 | **0.7440** |
+| retrieval P95, warm, full split | 149 ms | **211 ms** (budget 300) |
+
+**`R@1 = input_recall x conditional_accuracy` factors exactly, and input recall did not move by one
+case.** A cross-encoder cannot change what is in the slate handed to it, only the order within it.
+The entire gain is conditional accuracy, +0.1063. Lexical, dense, `fitted_gate` and the either-cue
+oracle are **bit-identical** to Session H, which is the control.
+
+### Two deltas, and they answer different questions
+
+**+0.0699** (ADR-018) is fine-tuned L-2 f32 against **un-tuned L-2 f32** — the contrast that
+isolates domain adaptation, with the McNemar test behind it (discordant 38, exact `p = 0.0139`,
+alpha attainable). **+0.0961** is what a user gets, because what was replaced was the **int8** graph.
+
+> **Quote +0.0699 for the effect of fine-tuning and +0.0961 for the effect of this session. Do not
+> quote +0.0961 as the fine-tuning effect** — part of it is the precision change, which ADR-015
+> measured as a separate thing.
+
+### The precision change removes a hazard rather than adding one
+
+ADR-015 measured the shipped int8 graph as **shape-bound in every dimension**: bit-identical token
+ids re-padded to a longer tensor moved the logit by a median 0.0109 and **padding alone flipped
+top-1 in 15% of cases**, while all eight f32 graphs were invariant to 0.000000.
+
+**Re-verified on the shipped graph, not inherited** (ADR-013's rule): discrimination, determinism,
+batch invariance **0.000000**, padding invariance **0.000000**, torch-vs-ORT **0.000001**. The Rust
+graph also reproduces the Python ONNX reference to 1e-3 on 8 fixture cases through a hand-rolled
+pair encoder.
+
+**Do not re-quantize this graph without re-measuring `[1, 256]`.** Shape-binding is a property of
+int8 graphs and the fine-tuned graph has never been measured that way. Quantizing it re-opens
+ADR-015 on an unmeasured graph — which is exactly the trade this ADR declined.
+
+### Batch stays 1, and the REASON changed — which is why the docs were rewritten rather than patched
+
+Session G's original reason was that int8 batch invariance failed at 0.037 logits. **That reason no
+longer applies to the shipped graph.** Leaving it in place would have been a stale comment defending
+a constant nobody had re-examined. Two reasons replace it:
+
+1. **Invariance is a per-graph measurement and is never inherited.** A future re-pin arrives with no
+   invariance result until one is taken, and a batch parameter in the code is a way for that re-pin
+   to silently score candidates against whoever shares their batch.
+2. **Batching buys nothing.** 214 ms/query against a 300 ms budget on a 1-vCPU target.
+
+### The loader accepts exactly ONE graph, deliberately
+
+There is **no table of accepted graphs**. A loader that accepts two lets a target string name one
+scorer and measure another — the failure this project has recorded ten instances of. The superseded
+int8 directory produces a **named** load error pointing at ADR-018, not a missing-file error, because
+a stale `--reranking` path is the most likely way this stage gets loaded wrong. The int8 graph stays
+reachable through the offline tools, which is where ablations belong.
+
+### Two defaults deleted, and one of them had already broken something
+
+1. **`score_longmemeval.py --reranking` defaulted to the int8 directory.** The moment the shipped
+   graph moved, that default would have scored the OLD graph and written the result under the
+   shipped label, with nothing observing the mismatch.
+2. **`session_j_verify_export.py --out-dir` defaulted to `runs/session-j/`** — so re-running it in a
+   later session **silently overwrote Session J's record of what Session J measured**. A
+   verification artifact a re-run can replace is not a record.
+
+### The export gap is bounded, not closed — and it is now on the SHIPPED path
+
+ADR-018 recorded the fine-tuned graphs as self-validated only. **That gap has now moved from an
+offline measurement into the running binary.** There is no external authority for a model this
+project trained, because this project is the publisher. What stands behind the shipped graph is
+digest pinning, torch-vs-ORT agreement at 1e-6, per-graph determinism / batch / padding invariance,
+and a second implementation of the pair encoder reproducing HuggingFace exactly. **What none of that
+establishes is that the module is what its publisher intended.** This is the first time that gap sits
+on the scored path rather than beside it, and it should be stated plainly wherever the number is.
+
+### The tokenizer is a different file, and the difference was measured
+
+The fine-tune carries `cross-encoder/ms-marco-MiniLM-L-2-v2`'s `tokenizer.json`, not the Xenova
+export's. `vocab` (30522), `normalizer`, `pre_tokenizer`, `post_processor`, `decoder` and
+`added_tokens` are byte-identical; they differ only in embedded `padding`/`truncation` blocks that
+`rerank.rs` implements itself and never reads. **Confirmed empirically rather than argued:** token
+ids, attention mask, token type ids and the truncation flag agree on all 8 reference cases across
+both vocabularies, and that agreement is now a test.

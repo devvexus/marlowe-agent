@@ -56,8 +56,13 @@ CACHE_DIR = REPO / ".embedding-cache"
 # pays on a fresh profile -- Session C measured 36 ms cold against 24 ms warm. The fix is to
 # report from a cache-cold run and say so, never to exclude the embedding from the timed span.
 _cache_dir = CACHE_DIR
-# The cross-encoder directory the binary is pointed at, or the literal "off". Set from --reranking.
-_reranking = str(REPO / "models" / "ms-marco-MiniLM-L-2-v2-int8")
+# The cross-encoder directory the binary is pointed at, or the literal "off". Set from --reranking,
+# which is REQUIRED. `None` rather than a model path on purpose: this held the int8 directory, and
+# when the shipped graph moved to the Session J fine-tune that initializer would have quietly
+# scored the OLD graph on any path that forgot to set it. A `None` here formats into the target
+# string as the literal "None" and the binary refuses to start -- loud, immediate, and impossible
+# to mistake for a measurement.
+_reranking = None
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -830,15 +835,34 @@ def main() -> int:
     )
     parser.add_argument(
         "--reranking",
-        default=str(REPO / "models" / "ms-marco-MiniLM-L-2-v2-int8"),
+        required=True,
         help=(
             "the cross-encoder directory, or the literal 'off' for the pruning-only ablation. "
-            "Passed straight through to the binary, which requires the flag and has no default."
+            "Passed straight through to the binary, which requires the flag and has no default. "
+            "REQUIRED here too, since Session K: this defaulted to the int8 directory, and after "
+            "the shipped graph moved to the Session J fine-tune that default would have scored "
+            "the OLD graph and labelled the result shipped. A default whose staleness is "
+            "unobservable is the pattern CLAUDE.md names."
         ),
+    )
+    parser.add_argument(
+        "--fit-only",
+        action="store_true",
+        help="score the FIT split alone and write its dump. Session K, Part 3: the conformal tau "
+        "is calibrated on fit-split margins and must come through the same pipeline the held-out "
+        "curve is measured through. Writes no summary.json and produces no quality number -- the "
+        "gate's parameters have seen this split, so a number from it is not a held-out number.",
     )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
+
+    if args.fit_only and (args.heldout_only or args.max_cases is not None):
+        raise SystemExit(
+            "--fit-only is exclusive with --heldout-only and --max-cases. It scores one split for "
+            "one purpose (the tau calibration dump) and combining it with the latency read would "
+            "produce a subset of the wrong split under either flag's label."
+        )
 
     artifact = json.loads(ARTIFACT_PATH.read_text(encoding="utf-8"))
     if artifact.get("state") != "fitted":
@@ -876,6 +900,24 @@ def main() -> int:
             f"NOTE: scoring a {len(heldout_ids)}-case SUBSET of the held-out split. Latency only; "
             "no quality number from this pass is comparable to a full-split one."
         )
+
+    if args.fit_only:
+        # Session K, Part 3. The conformal tau is calibrated on FIT-split queries whose rank 1 is
+        # not gold, and it has to be calibrated through the same pipeline the held-out curve is
+        # measured through. Carving fit ids out of the `all` pass would NOT do: the `all` pass
+        # ingests all 500 cases' sessions, so a fit query there ranks against a different store
+        # than it does in a fit-only run. Same construction as Session J's per-split caches.
+        fit_ids = set(split["fit"])
+        print(f"scoring fit ({len(fit_ids)} cases) ...")
+        sub = subset(corpus, fit_ids, "-fit")
+        score_one(sub, out / "fit", args.seed, args.clock)
+        print(f"  -> {out / 'fit'}")
+        print(f"\nreranking: {_reranking}")
+        # No summary.json, for the same reason --heldout-only writes none: this pass exists to
+        # produce a dump, and a half-populated summary is how a partial run gets quoted as a full
+        # one. Every published QUALITY number still comes from the held-out split.
+        print("No summary.json written -- this pass produces the fit-split dump only.")
+        return 0
 
     passes = [("heldout", heldout_ids, "-heldout")]
     if not args.heldout_only:

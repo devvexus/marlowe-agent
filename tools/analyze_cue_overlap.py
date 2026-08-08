@@ -75,25 +75,81 @@ def rrf(a: np.ndarray, b: np.ndarray, k: int = 60) -> np.ndarray:
     return 1.0 / (k + 1 + ra) + 1.0 / (k + 1 + rb)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--run", type=Path, default=DEFAULT_RUN, help="a run directory")
-    parser.add_argument("--out", type=Path, default=None, help="where to write the JSON")
-    parser.add_argument(
-        "--record-verdict",
-        action="store_true",
-        help="stamp the measured floor verdict into the gate artifact, then REBUILD. "
-        "`FrozenGate::load` refuses an artifact whose floor verdict is `fail` when its "
-        "calibration would inject, so this is what arms that interlock.",
-    )
-    args = parser.parse_args()
-    run_dir: Path = args.run.resolve()
-    out_path: Path = (args.out.resolve() if args.out else run_dir.parent / "cue-overlap.json")
+# ---------------------------------------------------------------------------------------------
+# The ranking, at module level since Session K so a second tool can import it instead of
+# restating it. Nothing below this line closed over `main`'s locals; the move is a dedent.
+# ---------------------------------------------------------------------------------------------
 
-    split = json.loads((REPO / "tools" / "split.json").read_text(encoding="utf-8"))
-    corpus = longmemeval.load(REPO / split["corpus_path"])
-    gold_map = corpus.gold_map()
 
+def order_of(scores: np.ndarray) -> np.ndarray:
+    """Descending rank order for a single score. Stable, so ties keep the dump's own order,
+    which is entry-id ascending -- the gate's final tiebreak."""
+    return np.argsort(-scores, kind="stable")
+
+
+def gate_order(score: np.ndarray, margin: np.ndarray) -> np.ndarray:
+    """The v4 gate's own ranking key, reproduced exactly.
+
+    `(score desc, margin desc, id asc)` where `score` is the winning cue's within-query z and
+    `margin` is its lead over its own runner-up -- pre-registered before the fit. np.lexsort
+    takes its PRIMARY key last and is stable, so the trailing id-ascending tiebreak comes free
+    from the dump's own row order.
+
+    **No calibrated value appears here, and that is the point.** ADR-010: the ordering that
+    decides the top of the ranking must come from a continuous score. Session D's key led with
+    `calibrated_precision`, which is a step function, and 60.4% of cases ended in a tie at the
+    maximum with the tiebreak deciding top-1 outright.
+    """
+    return np.lexsort((-margin, -score))
+
+
+def shipped_order(
+    score: np.ndarray, margin: np.ndarray, survived: np.ndarray, rerank: np.ndarray
+) -> np.ndarray:
+    """The order the BINARY produces, reproduced from the dump's own columns.
+
+    Five levels, matching `retrieve.rs::select_for_injection` exactly:
+
+      1. survived pruning, survivors first
+      2. rerank score descending, for candidates that were reranked
+      3. score  -- the winning cue's z
+      4. margin -- its lead over its own runner-up
+      5. id     -- free, from the dump's stable row order
+
+    `rerank` carries NaN where a candidate was not reranked (JSON `null`). NaN must sort
+    LAST, and that is the whole subtlety: np.lexsort places NaN last under an ascending key,
+    so the rerank level is expressed as `-rerank` with NaN mapped to +inf rather than by
+    negating a NaN, which stays NaN and would sort unreranked candidates to the TOP.
+
+    **This is module-level since Session K so `publish_precision_coverage.py` imports it rather
+    than restating it.** The precision/coverage curve thresholds the rank-1/rank-2 margin on the
+    order this function produces; a second copy of these five levels sitting beside this one with
+    nothing comparing them is the mismatch pattern this project has recorded nine instances of.
+    """
+    rerank_key = np.where(np.isnan(rerank), np.inf, -rerank)
+    # PRIMARY key last, per np.lexsort.
+    return np.lexsort((-margin, -score, rerank_key, ~survived))
+
+
+def hit(order: np.ndarray, gold: np.ndarray, k: int) -> bool:
+    """Unchanged in meaning from Session C: does the top-k intersect gold?
+
+    It now takes an ORDER rather than a score array, so every ranker -- single-cue, RRF and
+    the four-key gate -- is truncated and intersected by the same code. For a single score
+    `order_of` is exactly what this function used to compute internally, so the lexical,
+    dense and oracle numbers are bit-identical to the ones the floor is judged against.
+    """
+    return bool(set(order[:k].tolist()) & set(np.flatnonzero(gold).tolist()))
+
+
+def read_dump(run_dir: Path, gold_map: dict) -> dict:
+    """Every scored candidate, keyed by query, with gold joined and the ranking columns carried.
+
+    Module-level since Session K, for the same reason `shipped_order` is: the curve publisher
+    needs exactly this join and exactly these columns. `score_longmemeval.read_scored` does a
+    similar join but **drops `survived_pruning` and `rerank_score`**, so a ranker built on it
+    silently falls back to the gate order -- which is how this was caught.
+    """
     attributor = Attributor()
     for frame in iter_ndjson(run_dir / "run.jsonl"):
         body = frame.get("body")
@@ -136,61 +192,46 @@ def main() -> int:
                 row.get("rerank_score"),
             )
         )
+    return per
+
+
+def columns(rows: list[tuple]) -> dict:
+    """The dump's tuples as the arrays every ranker here takes. One place, so `survived`'s
+    None-means-True and `rerank`'s None-means-NaN conventions cannot drift between callers."""
+    return {
+        "lex": np.array([r[0] for r in rows]),
+        "den": np.array([r[1] for r in rows]),
+        "score": np.array([r[2] for r in rows]),
+        "margin": np.array([r[3] for r in rows]),
+        "gold": np.array([r[4] for r in rows]),
+        "survived": np.array([True if r[5] is None else bool(r[5]) for r in rows]),
+        "rerank": np.array([np.nan if r[6] is None else float(r[6]) for r in rows]),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run", type=Path, default=DEFAULT_RUN, help="a run directory")
+    parser.add_argument("--out", type=Path, default=None, help="where to write the JSON")
+    parser.add_argument(
+        "--record-verdict",
+        action="store_true",
+        help="stamp the measured floor verdict into the gate artifact, then REBUILD. "
+        "`FrozenGate::load` refuses an artifact whose floor verdict is `fail` when its "
+        "calibration would inject, so this is what arms that interlock.",
+    )
+    args = parser.parse_args()
+    run_dir: Path = args.run.resolve()
+    out_path: Path = (args.out.resolve() if args.out else run_dir.parent / "cue-overlap.json")
+
+    split = json.loads((REPO / "tools" / "split.json").read_text(encoding="utf-8"))
+    corpus = longmemeval.load(REPO / split["corpus_path"])
+    gold_map = corpus.gold_map()
+
+    per = read_dump(run_dir, gold_map)
 
     cases = {c.query_id: c for c in corpus.cases}
     queries = [q for q in per if q in cases and not cases[q].is_abstention]
-
-    def order_of(scores: np.ndarray) -> np.ndarray:
-        """Descending rank order for a single score. Stable, so ties keep the dump's own order,
-        which is entry-id ascending -- the gate's final tiebreak."""
-        return np.argsort(-scores, kind="stable")
-
-    def gate_order(score: np.ndarray, margin: np.ndarray) -> np.ndarray:
-        """The v4 gate's own ranking key, reproduced exactly.
-
-        `(score desc, margin desc, id asc)` where `score` is the winning cue's within-query z and
-        `margin` is its lead over its own runner-up -- pre-registered before the fit. np.lexsort
-        takes its PRIMARY key last and is stable, so the trailing id-ascending tiebreak comes free
-        from the dump's own row order.
-
-        **No calibrated value appears here, and that is the point.** ADR-010: the ordering that
-        decides the top of the ranking must come from a continuous score. Session D's key led with
-        `calibrated_precision`, which is a step function, and 60.4% of cases ended in a tie at the
-        maximum with the tiebreak deciding top-1 outright.
-        """
-        return np.lexsort((-margin, -score))
-
-    def shipped_order(
-        score: np.ndarray, margin: np.ndarray, survived: np.ndarray, rerank: np.ndarray
-    ) -> np.ndarray:
-        """The order the BINARY produces, reproduced from the dump's own columns.
-
-        Five levels, matching `retrieve.rs::select_for_injection` exactly:
-
-          1. survived pruning, survivors first
-          2. rerank score descending, for candidates that were reranked
-          3. score  -- the winning cue's z
-          4. margin -- its lead over its own runner-up
-          5. id     -- free, from the dump's stable row order
-
-        `rerank` carries NaN where a candidate was not reranked (JSON `null`). NaN must sort
-        LAST, and that is the whole subtlety: np.lexsort places NaN last under an ascending key,
-        so the rerank level is expressed as `-rerank` with NaN mapped to +inf rather than by
-        negating a NaN, which stays NaN and would sort unreranked candidates to the TOP.
-        """
-        rerank_key = np.where(np.isnan(rerank), np.inf, -rerank)
-        # PRIMARY key last, per np.lexsort.
-        return np.lexsort((-margin, -score, rerank_key, ~survived))
-
-    def hit(order: np.ndarray, gold: np.ndarray, k: int) -> bool:
-        """Unchanged in meaning from Session C: does the top-k intersect gold?
-
-        It now takes an ORDER rather than a score array, so every ranker -- single-cue, RRF and
-        the four-key gate -- is truncated and intersected by the same code. For a single score
-        `order_of` is exactly what this function used to compute internally, so the lexical,
-        dense and oracle numbers are bit-identical to the ones the floor is judged against.
-        """
-        return bool(set(order[:k].tolist()) & set(np.flatnonzero(gold).tolist()))
 
     # Is this a dump that carries Session H's columns at all? Decided ONCE over the whole dump
     # rather than per row: a dump where only some rows carry them is a mixed dump, and a
@@ -204,13 +245,9 @@ def main() -> int:
     tally = {k: defaultdict(int) for k in ks}
     n = 0
     for query in queries:
-        lex = np.array([r[0] for r in per[query]])
-        den = np.array([r[1] for r in per[query]])
-        score = np.array([r[2] for r in per[query]])
-        margin = np.array([r[3] for r in per[query]])
-        gold = np.array([r[4] for r in per[query]])
-        survived = np.array([True if r[5] is None else bool(r[5]) for r in per[query]])
-        rerank = np.array([np.nan if r[6] is None else float(r[6]) for r in per[query]])
+        c = columns(per[query])
+        lex, den, score, margin = c["lex"], c["den"], c["score"], c["margin"]
+        gold, survived, rerank = c["gold"], c["survived"], c["rerank"]
         if gold.sum() == 0:
             continue
         n += 1

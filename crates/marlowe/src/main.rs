@@ -31,8 +31,11 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
 
   --reranking <off|DIR>         Session H's in-session cross-encoder rerank stage. REQUIRED, no
                                 default, and it takes an EXPLICIT value -- either the literal
-                                `off` or the directory holding the pinned ms-marco-MiniLM-L-2-v2
-                                int8 graph and tokenizer.
+                                `off` or the directory holding the pinned graph and tokenizer.
+                                The pinned graph is the SESSION J FINE-TUNE, f32:
+                                models/ms-marco-MiniLM-L-2-v2-ft-session-j (ADR-018, held-out
+                                R@1 0.6725 at 214 ms/query). The pre-Session-K int8 directory is
+                                refused BY NAME rather than by a missing-file error.
                                 Deliberately NOT a bare `--rerank` boolean. That is the mistake
                                 the consolidation flag documents below: forget a default-off
                                 switch in the harness target string and the run measures the

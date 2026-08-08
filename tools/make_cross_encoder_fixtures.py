@@ -24,10 +24,27 @@ The cases are chosen to cover where a plausible-but-wrong implementation diverge
   * text carrying U+2028/U+2029 and accented characters, which `score_longmemeval.py` records as
     present in LongMemEval transcripts
   * a document containing a special-token literal, which must match as a literal
+
+## Every argument is required and nothing is defaulted -- Session K
+
+The generator originally hard-coded the Session H int8 graph. Session K ships a **different**
+graph (the fine-tuned f32 L-2, ADR-018) whose `tokenizer.json` is a different file, so the fixture
+became a per-graph artifact rather than a constant. A default `--model-dir` at that point is the
+exact hazard CLAUDE.md names: it would regenerate one graph's fixture from another graph's weights
+and the Rust test would go green against a reference for a model nobody shipped.
+
+    python tools/make_cross_encoder_fixtures.py \\
+        --model-dir models/ms-marco-MiniLM-L-2-v2-ft-session-j \\
+        --model-file model.onnx \\
+        --out crates/marlowe-memory/tests/fixtures/cross-encoder-reference-ft-session-j.json
+
+**The existing int8 fixture is never overwritten.** It is Session H's record of what Session H
+shipped, and a fixture for a new graph is a new file.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import io
 import json
@@ -36,8 +53,6 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
-MODEL_DIR = REPO / "models" / "ms-marco-MiniLM-L-2-v2-int8"
-OUT = REPO / "crates" / "marlowe-memory" / "tests" / "fixtures" / "cross-encoder-reference.json"
 MAX_SEQ_LEN = 256
 
 LONG = (
@@ -69,7 +84,25 @@ def main() -> int:
     from tokenizers import Tokenizer
     import onnxruntime as ort
 
-    tok = Tokenizer.from_file(str(MODEL_DIR / "tokenizer.json"))
+    ap = argparse.ArgumentParser(description=__doc__)
+    # REQUIRED, all three. See the module docstring: a default here regenerates one graph's
+    # fixture from another graph's weights, and the Rust test would still pass.
+    ap.add_argument("--model-dir", required=True,
+                    help="directory holding the graph and its tokenizer.json")
+    ap.add_argument("--model-file", required=True,
+                    help="the graph file inside --model-dir, e.g. model.onnx or model_int8.onnx")
+    ap.add_argument("--out", required=True, help="fixture path to write. NEVER an existing "
+                                                 "fixture for a different graph")
+    args = ap.parse_args()
+
+    model_dir = (REPO / args.model_dir) if not Path(args.model_dir).is_absolute() else Path(args.model_dir)
+    model_path = model_dir / args.model_file
+    out = (REPO / args.out) if not Path(args.out).is_absolute() else Path(args.out)
+    for p in (model_path, model_dir / "tokenizer.json"):
+        if not p.exists():
+            raise SystemExit(f"{p} does not exist. models/ is gitignored and never vendored.")
+
+    tok = Tokenizer.from_file(str(model_dir / "tokenizer.json"))
     tok.enable_truncation(max_length=MAX_SEQ_LEN)
     tok.enable_padding(length=MAX_SEQ_LEN)
 
@@ -83,9 +116,7 @@ def main() -> int:
     # twice the 0.037 batch-invariance failure that blocked adoption in Session G. Two sides
     # silently disagreeing, seventh instance; see runs/session-h/RESULT.md.
     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-    sess = ort.InferenceSession(
-        str(MODEL_DIR / "model_int8.onnx"), opts, providers=["CPUExecutionProvider"]
-    )
+    sess = ort.InferenceSession(str(model_path), opts, providers=["CPUExecutionProvider"])
     active = sess.get_providers()
     if "CPUExecutionProvider" not in active:
         raise SystemExit(f"provider fell back: {active}")
@@ -135,10 +166,12 @@ def main() -> int:
             "Never regenerated to make the Rust test pass."
         ),
         "_generated_by": "tools/make_cross_encoder_fixtures.py",
-        "model": "Xenova/ms-marco-MiniLM-L-2-v2 onnx/model_int8.onnx",
+        "model": f"{model_dir.name} {args.model_file}",
+        "model_dir": model_dir.name,
+        "model_file": args.model_file,
         "digests": {
-            "model_int8.onnx": sha256_file(MODEL_DIR / "model_int8.onnx"),
-            "tokenizer.json": sha256_file(MODEL_DIR / "tokenizer.json"),
+            args.model_file: sha256_file(model_path),
+            "tokenizer.json": sha256_file(model_dir / "tokenizer.json"),
         },
         "max_seq_len": MAX_SEQ_LEN,
         "batch": 1,
@@ -146,9 +179,9 @@ def main() -> int:
         "provider": "CPUExecutionProvider",
         "cases": rows,
     }
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
-    print(f"\nWROTE {OUT.relative_to(REPO)}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
+    print(f"\nWROTE {out.relative_to(REPO)}")
     return 0
 
 

@@ -1,4 +1,4 @@
-//! The cross-encoder rerank stage — Session H.
+//! The cross-encoder rerank stage — Session H, re-pinned to the fine-tuned graph in Session K.
 //!
 //! A **rerank stage, not a cue.** The distinction is ADR-010's and it decides what this is capable
 //! of. A cue produces a score that the gate arbitrates between; a fusion that only arbitrates
@@ -9,24 +9,56 @@
 //! confirmed by measurement before this file was written, not assumed:
 //! `runs/session-h/rerank-fit.json → adr_010_reach_check`.
 //!
-//! ## Batch is 1, and it is structural
+//! ## The shipped graph is the Session J fine-tune, and it is f32 — ADR-018, ADR-020
 //!
-//! Session G re-verified determinism per graph rather than inheriting the spike's result, and
-//! **int8 batch invariance FAILED** — 0.037 logits for L-2, 0.050 for L-6, where the spike's fp32
-//! L-6 passed at exactly `0.000e+00`. Quantization changes the reduction order inside the graph, so
-//! a candidate's score depends on which other candidates share its batch. That breaks
-//! `repro --runs 2`, which is a standing check.
+//! Sessions B–I shipped `Xenova/ms-marco-MiniLM-L-2-v2` `onnx/model_int8.onnx`. What ships now is
+//! that same architecture **domain-adapted on same-session hard negatives mined from the fit
+//! split**, exported to f32: held-out R@1 `0.6026 → 0.6725`, `+0.0699`, discordant 38 (27 gained,
+//! 11 lost), exact McNemar `p = 0.0139` with α attainable. It is the first change this project has
+//! made to the scored path that is significant on held-out with the power to have detected an
+//! effect.
 //!
-//! This module removes the failure mode instead of tolerating it: [`CrossEncoder::score`] takes
-//! **one** pair, builds a `[1, MAX_SEQ_LEN]` tensor, and asserts the leading dimension. There is no
-//! batch parameter to raise and no slice-of-pairs entry point, so a later optimization cannot
-//! reintroduce batching without deleting an assertion and changing a signature. With ~9 ms per pair
-//! against a 300 ms budget at the shipped candidate count, batching buys nothing.
+//! **The precision change from int8 to f32 removes a live hazard rather than adding one.** ADR-015
+//! measured the shipped int8 graph as **shape-bound in every dimension**: bit-identical token ids
+//! re-padded to a longer tensor moved the logit by a median 0.0109 and **padding alone flipped
+//! top-1 in 15% of cases**, while all eight f32 graphs were invariant to `0.000000`. The shipped
+//! f32 graph is re-verified — not inherited — at batch invariance `0.000000` and padding invariance
+//! `0.000000`; see `runs/session-k/export-verification-*.json`.
+//!
+//! ## Batch is 1, and it stays structural even though the reason changed
+//!
+//! Session G's original reason was that **int8 batch invariance FAILED** at 0.037 logits for L-2.
+//! **That reason no longer applies to the shipped graph** — f32 is batch-invariant at exactly
+//! `0.000000` — and leaving the old rationale in place would be a stale comment defending a
+//! constant nobody had re-examined. Two reasons replace it:
+//!
+//! 1. **Invariance is a per-graph measurement and is never inherited.** ADR-013's rule. A future
+//!    re-pin — a re-quantization, a new fine-tune, a different export — arrives with no invariance
+//!    result until one is taken, and a batch parameter sitting in the code is a way for that
+//!    re-pin to silently score candidates against whoever shares their batch.
+//! 2. **Batching buys nothing here.** 21.4 ms/pair × 10 candidates = 214 ms/query against a 300 ms
+//!    P95 budget, on ADR-003's 1-vCPU target.
+//!
+//! So [`CrossEncoder::score`] still takes **one** pair, builds a `[1, MAX_SEQ_LEN]` tensor, and
+//! asserts the leading dimension. There is no batch parameter to raise and no slice-of-pairs entry
+//! point: reintroducing batching means deleting an assertion and changing a signature.
+//!
+//! ## `MAX_SEQ_LEN` is 256 and the 7.86% gold truncation is a PRICED DEFECT
+//!
+//! Not an unexamined constant. ADR-015 measured raising it to 512 as a **−0.0917 R@1 regression**
+//! (`p = 0.0002`, α attainable): the cap is doing two opposing jobs, costing the 7.86% of gold
+//! turns that do not fit and earning more back by capping how much score a long distractor can
+//! accumulate. ADR-017 tested the only named route to raising it — explicit length normalization —
+//! and that route is a **held-out null with power** on every cell. **Do not raise this without a
+//! normalization term fitted against relevance rather than against the score.**
 //!
 //! ## Everything is pinned and nothing is defaulted
 //!
 //! Same rule as [`crate::cue::dense::embedder`], for the same reason: a wrong model, a wrong
-//! vocabulary or a wrong sequence length all produce a plausible number rather than a crash.
+//! vocabulary or a wrong sequence length all produce a plausible number rather than a crash. There
+//! is deliberately **no table of accepted graphs** — a loader that accepts two graphs is a way for
+//! a target string to name one scorer and measure another, which is the failure this project has
+//! now recorded nine instances of.
 
 use std::path::{Path, PathBuf};
 
@@ -38,22 +70,40 @@ use sha2::{Digest, Sha256};
 
 use crate::cue::dense::tokenizer::{encode_pair, EncodedPair, Vocab};
 
-/// `Xenova/ms-marco-MiniLM-L-2-v2`, `onnx/model_int8.onnx`.
+/// `ms-marco-MiniLM-L-2-v2-ft-session-j`, `model.onnx` — the Session J fine-tune, f32.
 ///
-/// Pinned here so a file swapped after download is caught at *load*, not merely at fetch. The same
-/// digest appears in `runs/session-g/cross-encoder-recost.json`, which is where the 92.41 ms
-/// latency figure was measured — so this constant is what ties the shipped graph to the published
-/// number.
-pub const MODEL_SHA256: &str = "1857c1a59b01c1641a46a47fd85b01d98c6e15e1e48588eac1f6a97ff83479c7";
+/// Pinned here so a file swapped after export is caught at *load*, not merely at training time.
+/// The same digest appears in `runs/session-j/finetuned-manifest.json` and in
+/// `runs/session-k/export-verification-ms-marco-MiniLM-L-2-v2-ft-session-j.json`, which is where
+/// the five determinism checks were re-taken on the shipped graph — so this constant is what ties
+/// the running binary to the published `0.6725`.
+///
+/// **The export gap is bounded, not closed.** There is no external authority for a model this
+/// project trained, because this project is the publisher. What stands behind the graph is digest
+/// pinning, torch-vs-ORT fixture agreement at 1e-6, and per-graph determinism / batch / padding
+/// invariance. See ADR-018 and STATE.md's open-gaps section.
+pub const MODEL_SHA256: &str = "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0";
 
-/// The same release's `tokenizer.json`.
+/// The fine-tune's `tokenizer.json`, carried out of `cross-encoder/ms-marco-MiniLM-L-2-v2`.
+///
+/// **A different file than the Xenova export's, and the difference was measured rather than
+/// waved through.** `vocab` (30522 entries), `normalizer`, `pre_tokenizer`, `post_processor`,
+/// `decoder` and `added_tokens` are byte-identical between the two; they differ only in the
+/// embedded `padding` and `truncation` blocks, which this crate implements itself in
+/// [`encode_pair`] and never reads from the file. Confirmed empirically: token ids, attention
+/// mask, token type ids and the truncation flag agree on all 8 reference cases across both
+/// tokenizers. See `tests/fixtures/cross-encoder-reference-ft-session-j.json`.
 pub const TOKENIZER_SHA256: &str =
-    "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66";
+    "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963";
 
-pub const MODEL_FILE: &str = "model_int8.onnx";
+pub const MODEL_FILE: &str = "model.onnx";
 pub const TOKENIZER_FILE: &str = "tokenizer.json";
 
-/// Sequence length, fixed. The same 256 Session G re-costed at.
+/// The graph file the pre-Session-K builds loaded, named here **only** so a stale `--reranking`
+/// path gets an error that says what happened instead of a bare "file not found".
+const SUPERSEDED_INT8_FILE: &str = "model_int8.onnx";
+
+/// Sequence length, fixed. See the module docs — this is a priced defect, not a free constant.
 pub const MAX_SEQ_LEN: usize = 256;
 
 /// The batch size, and it is not a tuning parameter. See the module docs.
@@ -75,13 +125,24 @@ pub enum RerankError {
     )]
     Missing { path: PathBuf, dir: String },
 
+    #[error(
+        "{dir} holds `{superseded}` but no `{expected}`. This is the pre-Session-K int8 graph, and \
+         the shipped reranker moved to the Session J fine-tune (f32) -- held-out R@1 0.6026 -> \
+         0.6725, ADR-018. Point --reranking at models/ms-marco-MiniLM-L-2-v2-ft-session-j. The \
+         int8 graph is NOT loadable here on purpose: a loader that accepts two graphs lets a \
+         target string name one scorer and measure another. It stays reachable through the offline \
+         tools (tools/session_i_rerankers.py), which is where ablations belong"
+    )]
+    SupersededGraph { dir: PathBuf, superseded: &'static str, expected: &'static str },
+
     #[error("reading {path}: {source}")]
     Io { path: PathBuf, source: std::io::Error },
 
     #[error(
         "{path} hashes to {found}, the pinned digest is {expected}. This is a different file than \
-         the one runs/session-g/cross-encoder-recost.json measured 92.41 ms on. A different graph \
-         still scores and still ranks -- it only moves the number, which is why this is a refusal"
+         the one runs/session-k/ took the five determinism checks on and measured held-out R@1 \
+         0.6725 with. A different graph still scores and still ranks -- it only moves the number, \
+         which is why this is a refusal"
     )]
     DigestMismatch { path: PathBuf, found: String, expected: &'static str },
 
@@ -140,13 +201,26 @@ pub struct CrossEncoder {
 }
 
 impl CrossEncoder {
-    /// Load from a directory holding the pinned `model_int8.onnx` and `tokenizer.json`.
+    /// Load from a directory holding the pinned `model.onnx` and `tokenizer.json`.
     ///
     /// Both digests are checked before the graph is constructed, and the execution provider is
     /// required to register rather than being allowed to fall back. See the builder below.
     pub fn load(dir: &Path) -> Result<Self, RerankError> {
         let model_path = dir.join(MODEL_FILE);
         let tokenizer_path = dir.join(TOKENIZER_FILE);
+
+        // Named before the generic `Missing`, so pointing at the pre-Session-K int8 directory
+        // says what actually happened. A stale path in a target string is the most likely way
+        // this stage gets loaded wrong, and "model.onnx does not exist" would send the reader to
+        // the fetch script rather than to ADR-018.
+        if !model_path.exists() && dir.join(SUPERSEDED_INT8_FILE).exists() {
+            return Err(RerankError::SupersededGraph {
+                dir: dir.to_path_buf(),
+                superseded: SUPERSEDED_INT8_FILE,
+                expected: MODEL_FILE,
+            });
+        }
+
         pinned(&model_path, MODEL_SHA256, dir)?;
         pinned(&tokenizer_path, TOKENIZER_SHA256, dir)?;
 
@@ -167,6 +241,14 @@ impl CrossEncoder {
             // registration failure into a hard error instead of a silent fallback to the next
             // provider. So the provider cannot silently differ from the one this stage was
             // measured on -- there is no after-the-fact check to forget to write.
+            //
+            // **And there could not be one here, which is worth stating rather than implying.**
+            // Session K checked: `ort` 2.0.0-rc.10 exposes no way to enumerate a CONSTRUCTED
+            // session's active providers -- no `get_providers`, no `available_providers`, nothing
+            // on `Session`. The Python side asserts `sess.get_providers()` explicitly because it
+            // can (`tools/session_j_models.py`, `session_j_verify_export.py`); Rust states the
+            // requirement at build time instead, which refuses earlier rather than reporting
+            // later. Do not add a comment claiming a post-construction assertion exists here.
             .and_then(|b| {
                 b.with_execution_providers([CPUExecutionProvider::default()
                     .build()

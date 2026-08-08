@@ -235,13 +235,29 @@ Every memory entry carries:
 | LoCoMo (1,540 q) | ≥ 85% | Baseline only; do not treat as sufficient |
 | BEAM-1M / BEAM-10M | Report | Deliberately unsaturated; a low score honestly reported beats a high score on a saturated benchmark |
 | LongMemEval-V2 | Report | 100M+ token multimodal agent histories; the current frontier bar |
-| **Injection precision** | ≥ 0.95 | Fraction of auto-injected memories a human judge rates relevant. **The headline metric.** |
+| **Injection precision** | ≥ 0.95 | Fraction of auto-injected memories a human judge rates relevant. **The headline metric.** **AMENDED 2026-08-08 — see the block below this table.** |
 | **Tokens per query** | ≤ 7,000 | Accuracy without a token budget is not a result. Pair every accuracy number with its cost. |
 | **P95 retrieval latency** | ≤ 300 ms | Non-negotiable for voice (§9) |
 | **Poisoning resistance** | 0% ASR for unsigned writes | Measured against MINJA-, MemoryGraft-, and laundering-style attacks |
 | **Staleness half-life** | Measured | Time before a superseded fact stops being retrieved |
 
 **Report the pair.** Every accuracy number ships with its token cost and latency, or it does not ship. Vendor-reported memory numbers in this space are not comparable across systems; ours must be reproducible with a published harness.
+
+#### 5.7.1 Injection precision — AMENDMENT, 2026-08-08
+
+**The row above is left standing rather than rewritten.** It was a reasonable bar written before anyone knew what was reachable, and a requirements table that quietly changes its own numbers is not a record. What follows amends it; it does not replace the history. Pinned text: `docs/design/ROADMAP.md` → "K1 — amended 2026-08-08". Argument: ADR-019. Measurement: M0b Session J, `runs/session-j/RESULT.md`.
+
+**Measured, held-out, n=229: no coverage level reaches 0.95 injection precision with its confidence interval above the threshold.** Best point estimate 0.9565 (22/23) at 10.0% coverage, Clopper-Pearson [0.7805, 0.9989]. This was the registered prediction, written before the read.
+
+**Injection precision is now judged on a published precision/coverage curve rather than a single threshold**, under three conditions: the curve ships with the product (every level 100% → 10%, each with its binomial interval, on a held-out split the gate's parameters have never seen); the operating point is chosen on the curve and **declared** wherever the capability is described; and the abstention path is real, with **a configuration that injects at low precision to raise coverage failing outright**.
+
+**A new kill condition replaces the old one and it is not weaker.** The project is reconsidered if the curve is **flat** — precision at 10% coverage not materially above precision at 100%. A confidence signal carrying no information is the failure this metric was written to catch, and it remains project-level. **The 0.95 threshold is not lowered.** The criterion's shape changed; its number did not.
+
+**≤7,000 tokens and ≤300 ms P95 are unchanged and still bind.**
+
+**One correction to how the historical numbers in this document were read.** Per ADR-016, the "max calibrated precision 0.3739 against a 0.95 threshold" figure quoted across nine sessions **never measured retrieval quality**: a perfect retrieval system scores **0.8483** on the shipped gate, because the calibration's smallest expressible operating point spans 100% of queries and it has no vocabulary for confident subsets. **This invalidates no retrieval measurement** — R@1, R@5, R@10, conditional accuracy, the oracle and every closed mechanism were measured against gold turns with the gate uninvolved. It invalidates the interpretation of one number.
+
+**The human-judged quantity this row names has still never been computed.** Every figure to date is a gold-turn proxy. The ≥400-judgment blind label set (§5.7, M0a) remains the only path to the real number, and it is now drawable because a conformal operating point exists to sample from.
 
 ---
 
