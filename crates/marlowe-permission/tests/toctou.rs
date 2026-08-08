@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use marlowe_permission::scope::walk::WalkObserver;
-use marlowe_permission::scope::{PathScope, ScopeError, WorkspaceScope};
+use marlowe_permission::scope::{Access, PathScope, ScopeError, WorkspaceScope};
 use marlowe_tools::PathGlob;
 
 const IN_SCOPE: &str = "IN-SCOPE-CONTENT";
@@ -219,6 +219,7 @@ fn the_real_implementation_does_not_escape() {
         &declared(),
         &fx.workspace,
         "a/b/secret.txt",
+        Access::Read,
         &observer,
     );
 
@@ -266,6 +267,7 @@ fn on_windows_the_swap_is_refused_by_the_share_mode_and_the_error_says_so() {
         &declared(),
         &fx.workspace,
         "a/b/secret.txt",
+        Access::Read,
         &observer,
     );
 
@@ -293,7 +295,7 @@ fn the_observer_is_a_no_op_in_production() {
     let fx = Fixture::new("noop");
     let scoped = WorkspaceScope::new()
         .expect("verified platform")
-        .open(&declared(), &fx.workspace, "a/b/secret.txt")
+        .open(&declared(), &fx.workspace, "a/b/secret.txt", Access::Read)
         .expect("an ordinary in-scope read succeeds");
     let mut s = String::new();
     scoped.handle().try_clone().unwrap().read_to_string(&mut s).unwrap();

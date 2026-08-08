@@ -32,7 +32,7 @@ use crate::decision::{
     Reason, RiskTier, Tier,
 };
 use crate::egress::{EgressPolicy, Host};
-use crate::scope::{PathScope, ScopedPath};
+use crate::scope::{Access, PathScope, ScopedPath};
 use crate::taint::TaintSet;
 
 /// One argument's value. Structured, per §12: *"the loop never hands over raw prose for a
@@ -255,11 +255,19 @@ impl<S: PathScope> Adjudicator<S> {
         // one asks whether the path is inside what the tool declared. An Inert read outside
         // scope is a data-exfiltration source, so the Inert exemption does not reach here.
         let mut handles = BTreeMap::new();
-        for spec in manifest.params().iter().filter(|p| p.ty == ParamType::Path) {
+        for spec in manifest.params().iter() {
+            // The access mode is DECLARED on the parameter, never derived from the tool's
+            // consequence level: `bash`'s `cwd` is Irreversible and must exist, `edit`'s `path`
+            // is Reversible and may not. One number cannot answer both.
+            let access = match spec.ty {
+                ParamType::Path => Access::Read,
+                ParamType::WritePath => Access::CreateOrOpen,
+                _ => continue,
+            };
             let Some(value) = req.args.get(&spec.name).and_then(ArgValue::as_text) else {
                 continue;
             };
-            match self.scope.open(manifest.paths(), req.workspace, value) {
+            match self.scope.open(manifest.paths(), req.workspace, value, access) {
                 Ok(h) => {
                     handles.insert(spec.name.clone(), h);
                 }

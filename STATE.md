@@ -132,7 +132,45 @@ coverage. The bound covers the false-injection rate among wrong queries; K1 asks
 `P(correct | injected)`, a selective risk it does not cover. **Global τ only** — largest wrong-query
 calibration set is 12 against a floor of 40.
 
-## Next action — M2 Session C: tool executors, skills, MCP, a provider client
+## Next action — M2 Session C2: the Ollama adapter
+
+**ADR-028 (the human's decision): Marlowe runs against a LOCAL OLLAMA ENDPOINT first.** Hosted
+providers register later. This dissolves the K6 tension rather than trading against it — an env
+var, a first-run prompt and a bundled key all put *something* in front of the first run, and K6
+measures whether that something is there, not whether it is small.
+
+**Build the provider adapter; do NOT build the credential broker.** Ollama needs the first and none
+of the second. Three requirements from ADR-028: degrade honestly when Ollama is absent (invariant 4
+— a declared value on the run, surfaced in the status band, naming the remedy); record the
+capability difference, tool-call reliability especially, so a debugging session can tell a harness
+bug from a 7B model; and keep ADR-008's routing as a table over local models whose shape survives
+hosted models arriving. `CapabilityProfile::model_route` already names a task role, never a model.
+
+**Still owed from C1: the four executors** (`read`, `edit`, `find`, `bash`). The scope work they
+need is done — see below. `bash`'s `cwd` needs its own assertion: `CreateProcess` takes a cwd
+*string*, not a handle, so Windows relies on the walk's pinning a **second** time. That argument
+must earn a test rather than inherit the walk's.
+
+### M2 Session C1 — 2026-08-08. The platform gate and the write path.
+
+**421 cargo tests on Windows, 65 on Linux under `MARLOWE_TRAVERSAL_STRICT=1`.**
+
+- **`WorkspaceScope::new()` refuses at construction on an unverified platform.**
+  `VERIFIED_PLATFORMS = ["windows", "linux"]` — what has been *executed*, not what compiles.
+  **macOS is deliberately absent**: case-insensitive and NFD-normalizing, which is exactly where
+  `glob`'s matching and `request`'s NFC handling would diverge.
+- **`ParamType::WritePath`, declared per parameter.** `edit`'s `path` may create; `bash`'s `cwd` and
+  `read`/`find`'s `path` must exist. Deriving access from consequence level would make two
+  different requirements take their behaviour from the same number.
+- **`Access` threaded through the walk.** It applies to the **final component only** — every
+  directory on the way is opened read-only and refused if it is a reparse point, whatever the
+  caller intends at the end. Creation happens *inside the already-verified parent*, which is why it
+  is safe: the parent is still held open (pinned on Windows, an `openat` descriptor on POSIX).
+- **A create positive control**, because a scope that only opened existing files would pass every
+  other test in the suite and make `edit` impossible. It also asserts the negatives: a refused
+  create must not create, and a create through a junction must not land outside.
+
+### Superseded — M2 Session C's original framing
 
 **Scope: `ROADMAP.md` §M2.** Sessions A and B are done. C builds the executors behind
 `driver::ToolHost` (and they must take the handle from `Adjudication::handles`, **never re-open a

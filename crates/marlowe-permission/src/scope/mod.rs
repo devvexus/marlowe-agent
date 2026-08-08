@@ -169,6 +169,7 @@ pub trait PathScope: fmt::Debug + Send + Sync {
         declared: &[PathGlob],
         workspace: &Path,
         requested: &str,
+        access: Access,
     ) -> Result<ScopedPath, ScopeError>;
 }
 
@@ -188,6 +189,7 @@ impl PathScope for Unavailable {
         _declared: &[PathGlob],
         _workspace: &Path,
         requested: &str,
+        _access: Access,
     ) -> Result<ScopedPath, ScopeError> {
         Err(ScopeError::Unavailable { requested: requested.to_string() })
     }
@@ -227,6 +229,7 @@ impl WorkspaceScope {
         declared: &[PathGlob],
         workspace: &Path,
         requested: &str,
+        access: Access,
         observer: &dyn WalkObserver,
     ) -> Result<ScopedPath, ScopeError> {
         // 1. Refuse ambiguous spellings, before any syscall.
@@ -242,7 +245,7 @@ impl WorkspaceScope {
 
         // 3. Walk it open. Nothing above this line touched the filesystem, and nothing below it
         //    resolves a string the kernel will resolve again.
-        let opened = walk::open_within(workspace, &parsed, observer)?;
+        let opened = walk::open_within(workspace, &parsed, access, observer)?;
         Ok(ScopedPath {
             handle: opened.handle,
             resolved: opened.resolved,
@@ -257,8 +260,9 @@ impl PathScope for WorkspaceScope {
         declared: &[PathGlob],
         workspace: &Path,
         requested: &str,
+        access: Access,
     ) -> Result<ScopedPath, ScopeError> {
-        self.open_observed(declared, workspace, requested, &())
+        self.open_observed(declared, workspace, requested, access, &())
     }
 }
 
@@ -303,7 +307,7 @@ mod tests {
     #[test]
     fn the_refusing_scope_still_refuses_and_says_why() {
         let e = Unavailable
-            .open(&[PathGlob::new("./**")], Path::new("/ws"), "src/main.rs")
+            .open(&[PathGlob::new("./**")], Path::new("/ws"), "src/main.rs", Access::Read)
             .unwrap_err();
         assert!(matches!(e, ScopeError::Unavailable { .. }));
         assert!(e.to_string().contains("ship together"), "{e}");
@@ -332,6 +336,7 @@ mod tests {
                 &[PathGlob::new("./out/**")],
                 Path::new("/nonexistent-workspace-xyzzy"),
                 "src/secret.rs",
+                Access::Read,
             )
             .unwrap_err();
         assert!(matches!(e, ScopeError::Undeclared { .. }), "{e:?}");
@@ -341,7 +346,7 @@ mod tests {
     fn a_malformed_request_is_refused_before_the_declaration_is_consulted() {
         let e = WorkspaceScope::new()
             .expect("verified platform")
-            .open(&[PathGlob::new("./**")], Path::new("/nonexistent-xyzzy"), "../../etc/passwd")
+            .open(&[PathGlob::new("./**")], Path::new("/nonexistent-xyzzy"), "../../etc/passwd", Access::Read)
             .unwrap_err();
         assert!(matches!(e, ScopeError::Malformed { .. }), "{e:?}");
     }

@@ -98,8 +98,17 @@ pub enum ArgumentRole {
 #[serde(rename_all = "snake_case")]
 pub enum ParamType {
     Text,
-    /// Routed to path scoping. See `marlowe_permission::scope`.
+    /// Routed to path scoping, **read-only, and the target must already exist**.
+    /// `read`, `find`, and `bash`'s `cwd`.
     Path,
+    /// Routed to path scoping, **read-write, and the target may not exist yet** — it is created
+    /// inside the verified parent directory if absent. `edit`.
+    ///
+    /// Declared per parameter rather than inferred from the tool's consequence level, and that
+    /// distinction is load-bearing: `bash`'s `cwd` is `Irreversible` and must exist, `edit`'s
+    /// `path` is `Reversible` and may not. Deriving access from consequence would make two
+    /// different requirements take their behaviour from the same number.
+    WritePath,
     /// Routed to egress allowlisting. Carries a full URL, not a bare host.
     Url,
     /// A money amount, in micros of the profile's currency.

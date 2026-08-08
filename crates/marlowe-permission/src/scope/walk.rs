@@ -44,7 +44,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use super::request::RequestedPath;
-use super::ScopeError;
+use super::{Access, ScopeError};
 
 /// Called between components during a walk. Production is `()`.
 pub trait WalkObserver {
@@ -60,12 +60,22 @@ pub struct Opened {
 }
 
 /// Open `request` beneath `root`, refusing anything that leaves it.
+///
+/// `access` applies **only to the final component**. Every directory on the way is opened
+/// read-only and refused if it is a reparse point, whatever the caller intends to do at the end
+/// — a write request is not a licence to traverse differently.
+///
+/// [`Access::CreateOrOpen`] creates the final component **inside the already-verified parent**,
+/// which is why creation is safe: the parent was walked under the same discipline and is still
+/// held open (pinned on Windows, an `openat` descriptor on POSIX), so the prefix cannot have
+/// been swapped between the walk and the create.
 pub fn open_within(
     root: &Path,
     request: &RequestedPath,
+    access: Access,
     observer: &dyn WalkObserver,
 ) -> Result<Opened, ScopeError> {
-    imp::open_within(root, request, observer)
+    imp::open_within(root, request, access, observer)
 }
 
 #[cfg(windows)]
@@ -85,13 +95,27 @@ mod imp {
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
     const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0000_0010;
 
-    fn open_component(path: &Path, follow_reparse: bool) -> std::io::Result<File> {
+    fn open_component(
+        path: &Path,
+        follow_reparse: bool,
+        access: Access,
+    ) -> std::io::Result<File> {
         let mut flags = FILE_FLAG_BACKUP_SEMANTICS;
         if !follow_reparse {
             flags |= FILE_FLAG_OPEN_REPARSE_POINT;
         }
-        OpenOptions::new()
-            .read(true)
+        let mut o = OpenOptions::new();
+        o.read(true);
+        match access {
+            Access::Read => {}
+            Access::ReadWrite => {
+                o.write(true);
+            }
+            Access::CreateOrOpen => {
+                o.write(true).create(true);
+            }
+        }
+        o
             // No FILE_SHARE_DELETE: while this handle is open the object cannot be renamed or
             // deleted, so the prefix we have walked cannot be swapped underneath us.
             .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
@@ -112,13 +136,14 @@ mod imp {
     pub fn open_within(
         root: &Path,
         request: &RequestedPath,
+        access: Access,
         observer: &dyn WalkObserver,
     ) -> Result<Opened, ScopeError> {
         let requested = request.as_relative();
 
         // The root itself may legitimately be reached through a link the operator set up, so it
         // is opened following reparse points. Everything BELOW it is not.
-        let root_handle = open_component(root, true).map_err(|e| ScopeError::Unopenable {
+        let root_handle = open_component(root, true, Access::Read).map_err(|e| ScopeError::Unopenable {
             requested: root.display().to_string(),
             detail: e.to_string(),
         })?;
@@ -135,9 +160,15 @@ mod imp {
         let components = request.components();
         for (i, component) in components.iter().enumerate() {
             accumulated.push(component);
-            let handle = open_component(&accumulated, false).map_err(|e| ScopeError::Unopenable {
-                requested: requested.clone(),
-                detail: format!("{}: {e}", accumulated.display()),
+            let is_last = i + 1 == components.len();
+            // Directories on the way are always read-only. A write request is not a licence to
+            // traverse differently.
+            let component_access = if is_last { access } else { Access::Read };
+            let handle = open_component(&accumulated, false, component_access).map_err(|e| {
+                ScopeError::Unopenable {
+                    requested: requested.clone(),
+                    detail: format!("{}: {e}", accumulated.display()),
+                }
             })?;
             let meta = handle.metadata().map_err(|e| ScopeError::Unopenable {
                 requested: requested.clone(),
@@ -150,7 +181,6 @@ mod imp {
                 return Err(ScopeError::OutsideScope { requested: requested.clone() });
             }
 
-            let is_last = i + 1 == components.len();
             if !is_last && meta.file_attributes() & FILE_ATTRIBUTE_DIRECTORY == 0 {
                 return Err(ScopeError::Unopenable {
                     requested: requested.clone(),
@@ -196,6 +226,7 @@ mod imp {
     pub fn open_within(
         root: &Path,
         request: &RequestedPath,
+        access: Access,
         observer: &dyn WalkObserver,
     ) -> Result<Opened, ScopeError> {
         let requested = request.as_relative();
@@ -221,11 +252,24 @@ mod imp {
             // O_NOFOLLOW is the containment: a symlink in this position fails the open with
             // ELOOP rather than being traversed. openat means there is no string for anyone to
             // swap — the component is named relative to a descriptor already held.
-            let mut flags = OFlags::NOFOLLOW | OFlags::CLOEXEC | OFlags::RDONLY;
+            let mut flags = OFlags::NOFOLLOW | OFlags::CLOEXEC;
             if !is_last {
-                flags |= OFlags::DIRECTORY;
+                flags |= OFlags::DIRECTORY | OFlags::RDONLY;
+            } else {
+                match access {
+                    Access::Read => flags |= OFlags::RDONLY,
+                    Access::ReadWrite => flags |= OFlags::RDWR,
+                    // O_CREAT with O_NOFOLLOW: if the final component is a symlink the open
+                    // fails with ELOOP rather than creating through it.
+                    Access::CreateOrOpen => flags |= OFlags::RDWR | OFlags::CREATE,
+                }
             }
-            let opened = rustix::fs::openat(&dir, component.as_str(), flags, Mode::empty())
+            let mode = if matches!(access, Access::CreateOrOpen) {
+                Mode::RUSR | Mode::WUSR | Mode::RGRP | Mode::ROTH
+            } else {
+                Mode::empty()
+            };
+            let opened = rustix::fs::openat(&dir, component.as_str(), flags, mode)
                 .map_err(|e| {
                     if e == rustix::io::Errno::LOOP || e == rustix::io::Errno::MLINK {
                         ScopeError::OutsideScope { requested: requested.clone() }

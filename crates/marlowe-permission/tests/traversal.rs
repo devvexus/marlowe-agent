@@ -21,7 +21,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use marlowe_permission::scope::{PathScope, ScopeError, WorkspaceScope};
+use marlowe_permission::scope::{Access, PathScope, ScopeError, WorkspaceScope};
 use marlowe_tools::PathGlob;
 
 const SECRET: &str = "WORKSPACE-FILE";
@@ -62,7 +62,7 @@ impl Fixture {
         let declared: Vec<PathGlob> = globs.iter().map(|g| PathGlob::new(*g)).collect();
         let scoped = WorkspaceScope::new()
             .expect("verified platform")
-            .open(&declared, &self.workspace, requested)?;
+            .open(&declared, &self.workspace, requested, Access::Read)?;
         let mut s = String::new();
         scoped
             .handle()
@@ -73,6 +73,18 @@ impl Fixture {
                 detail: e.to_string(),
             })?;
         Ok(s)
+    }
+
+    /// Open with `CreateOrOpen`, as `edit`'s `WritePath` parameter does.
+    fn create(&self, globs: &[&str], requested: &str) -> Result<PathBuf, ScopeError> {
+        let declared: Vec<PathGlob> = globs.iter().map(|g| PathGlob::new(*g)).collect();
+        let scoped = WorkspaceScope::new().expect("verified platform").open(
+            &declared,
+            &self.workspace,
+            requested,
+            Access::CreateOrOpen,
+        )?;
+        Ok(scoped.resolved().to_path_buf())
     }
 }
 
@@ -106,6 +118,33 @@ fn a_name_that_merely_looks_dangerous_still_opens() {
             SECRET,
             "`{name}` is a legal filename and must open"
         );
+    }
+}
+
+#[test]
+fn a_write_target_may_be_created_inside_the_verified_parent() {
+    // The positive control for `Access::CreateOrOpen`, which is what `edit`'s WritePath
+    // parameter asks for. A scope that only ever opened existing files would pass every other
+    // test in this suite and make `edit` impossible.
+    let fx = Fixture::new("create");
+    let made = fx.create(&["./**"], "out/new-report.txt").expect("a new file in scope");
+    assert!(made.exists(), "the file was not created: {}", made.display());
+    assert!(made.starts_with(&fx.workspace));
+
+    // Creation obeys the declaration exactly as reading does.
+    let e = fx.create(&["./out/**"], "src/sneaky.txt").unwrap_err();
+    assert!(matches!(e, ScopeError::Undeclared { .. }), "{e:?}");
+    assert!(!fx.workspace.join("src").join("sneaky.txt").exists(), "a refused create must not create");
+
+    // ...and it cannot create through a link that leaves the workspace.
+    let link = fx.workspace.join("escape");
+    if make_junction(&link, &fx.outside).is_ok() {
+        let e = fx.create(&["./**"], "escape/planted.txt").unwrap_err();
+        assert!(
+            matches!(e, ScopeError::OutsideScope { .. } | ScopeError::Unopenable { .. }),
+            "{e:?}"
+        );
+        assert!(!fx.outside.join("planted.txt").exists(), "a file was created outside the workspace");
     }
 }
 
@@ -281,6 +320,7 @@ fn every_traversal_class_is_accounted_for() {
     manifest.push(("unicode normalization", run_class(|| { unicode_normalization_is_matched_not_dodged(); Ok(()) })));
     manifest.push(("positive control: legitimate read", run_class(|| { a_legitimate_in_scope_read_succeeds(); Ok(()) })));
     manifest.push(("positive control: lookalike names", run_class(|| { a_name_that_merely_looks_dangerous_still_opens(); Ok(()) })));
+    manifest.push(("positive control: create in scope", run_class(|| { a_write_target_may_be_created_inside_the_verified_parent(); Ok(()) })));
 
     // The two that can be unrunnable.
     manifest.push(("junction escape", run_class(|| link_escape(make_junction, "manifest-junction"))));

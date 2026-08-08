@@ -2821,3 +2821,80 @@ to 13.0%**. Either removes the protection with no component reporting a change.
 > And **`0 of 23` is reported with its interval every time.** Its Clopper-Pearson upper bound is
 > **0.1482**. Three configurations agreeing on zero is three configurations agreeing on a number
 > that cannot distinguish zero from one in seven.
+
+## ADR-028 · Marlowe runs against a local Ollama endpoint first; hosted providers register later
+
+**Decision by the human, 2026-08-08, at the start of M2 Session C.**
+
+**Context.** C2 introduces the first real model call. Everything before it runs against a scripted
+stub. The obvious path — a hosted provider client — collides head-on with two constraints:
+ARCHITECTURE §5's *"no configuration file is read on first run"*, and **K6**, which measures time
+from install to first useful output with **zero config**.
+
+Three ways to source a hosted key were available and **all three fail K6 for the same reason**: an
+environment variable, a first-run prompt, and a bundled key each put *something* in front of the
+first run. K6 does not measure whether that something is small; it measures whether it is there.
+
+**Decision. The default provider is a local Ollama endpoint. Hosted providers are a later,
+separately-registered capability.**
+
+This **dissolves** the tension rather than trading against it. Install, run, ask, answer — no
+account, no key, no network. It is the strongest available reading of §4's zero-config constraint
+*and* of §15's anti-requirement against a cloud dependency for core function, and it satisfies both
+at once rather than choosing between them.
+
+### It also separates two things C2 was about to conflate
+
+| | What it is | Ollama needs it? |
+|---|---|---|
+| **Provider adapter** | normalizes what a model speaks across API shapes (§12) | **yes** |
+| **Credential broker** | how a hosted key arrives, is stored, and reaches the transport without entering model context (§2.13, ADR-005) | **no** |
+
+**Build the adapter properly and do not build the broker.** The adapter is the seam hosted
+providers plug into later, so its shape has to be right now; the broker is M5's work and has no
+consumer until a hosted provider exists. Building it here would be a component with no user, whose
+first real exercise is months away — which is how a credential path gets written once and reviewed
+never.
+
+### Three requirements, from the same decision
+
+**1. Degrade honestly when Ollama is absent.** Invariant 4: no dependency is fatal, and a degraded
+state is a **declared value on the run object** surfaced in the status band (§B5, amber), not a
+crash and not a log line. The message says what is unavailable and how to fix it — `ollama serve`,
+or the model that is missing — because "no model available" with no remedy is a failure the user
+cannot act on. `DegradedPath` already exists in `TurnEvent`; this adds a variant rather than a
+special case.
+
+**2. Record the capability difference, and keep recording it.** A local 7B model is materially
+weaker than a frontier one, and §12 already requires that difference be disclosed honestly rather
+than papered over. It bites hardest on **tool-call reliability**, which is precisely where a
+debugging session cannot tell a harness bug from a model that cannot follow a schema. So the model
+in use, its size, and its measured tool-call success rate travel with the run and appear in
+`--dev` — and any benchmark number produced against a local model is labelled with it. A number
+quoted without the model that produced it is the same defect as a number quoted without its token
+cost (§5.7).
+
+**3. ADR-008's tiered routing survives the change.** Strong model for orchestration and synthesis,
+cheap models for extraction, classification and consolidation. With Ollama this becomes a routing
+table over **local models** rather than over providers — and the table's shape must be the one
+hosted models slot into unchanged, because a routing design that has to be rewritten when the first
+hosted provider arrives was a routing design that encoded the provider.
+
+`CapabilityProfile::model_route` (`Orchestrator | Worker | Summarizer`) is already the right shape:
+it names a **task role**, never a model and never a provider. The table maps role → model, and it
+is the only place a model name appears.
+
+### Rejected
+
+- **A hosted provider first, with any key-sourcing mechanism.** Fails K6, as above.
+- **A bundled local model in the installer.** Also zero-config, and it makes the artifact enormous,
+  pins one model into the build, and duplicates what Ollama already does well.
+- **Building the credential broker now "since we are here".** No consumer until M5.
+
+### Cost accepted
+
+Out-of-the-box quality is bounded by what the user's machine can run, and the first impression of
+the product is a local model's tool-calling. That is a real cost and it is the reason requirement 2
+exists: the number is disclosed rather than discovered. The mitigation is that hosted providers are
+a registration away, not a rebuild away — which is what makes the adapter's shape the load-bearing
+part of C2.

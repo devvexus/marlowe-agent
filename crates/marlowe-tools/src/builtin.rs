@@ -138,7 +138,8 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[WORKSPACE],
             &[],
             vec![
-                target("path", ParamType::Path),
+                // WritePath, not Path: `edit` is the one builtin that may create its target.
+                target("path", ParamType::WritePath),
                 // Content is Payload by design: §9 is explicit that untrusted prose may fill
                 // an inert body freely. The danger is the pair, not the text.
                 payload("content", Text),
