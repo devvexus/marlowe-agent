@@ -1,12 +1,18 @@
-# M0c Session A — head separability. Six arms, no gain, and one target retired.
+# M0c Session A — head separability, and then the metric itself
 
 **R@1 is 0.6725 on held-out. It was 0.6725 before this session and nothing shipped.** Both named
 candidates were built and measured, four learned architectures were cross-validated, a seventh
 mechanism was found mid-session and taken to a held-out read, and every one of them is a null or a
 loss. The session's output is measurement, not a model.
 
+**Then the question changed, and Part 6 is the largest finding here.** R@1 treats every failure as
+equal; §5.7 does not. Measuring the difference showed that **R@1 counts the superseded fact as a
+hit** — the metric three sessions have optimized is inflated by **+0.0437** overall and by **28
+points on knowledge-update**, the category §5.7 was written about. Read Part 6 first.
+
 | | |
 |---|---|
+| **0. R@1 HAS BEEN COUNTING THE HARMFUL CASE AS A SUCCESS** | LongMemEval marks *both* the stale and the current turn `has_answer`. Held-out R@1 0.6725 → **0.6288** counting only the current value; on knowledge-update 0.7222 → **0.4444**, with **10 of 26 apparent hits being the stale fact**. See Part 6 and `docs/design/HARM-WEIGHTED-PRECISION.md`. |
 | **1. K1's interval reading is arithmetically unreachable at the declared operating point** | A **perfect** selector — 23 of 23 — has a Clopper-Pearson lower bound of **0.8518** at 10% coverage on n=229. No mechanism clears 0.95 there, ever. This retires a target, in the same way ADR-016 retired the 0.3739 ceiling. |
 | **2. Candidate A — a relevance-fitted confidence signal — is NEGATIVE** | No query-time feature beats the rerank margin at the head, and the features with *better overall AUC are worse at the head*. |
 | **3. Candidate B — set-wise / listwise scoring — is a NULL across four architectures** | +0.0044, −0.0131, +0.0000, +0.0000 out-of-fold. From a 384-d pooled bottleneck to full token-level cross-attention. |
@@ -255,3 +261,115 @@ logits before writing. Twelfth instance of two-sides-silently-disagree.
 5. **Batch invariance was measured at 0.000000 on the shipped f32 graph in Session K.** Batching
    the depth-10 rerank is available and would buy latency headroom, which is the only currency that
    buys depth. Untested.
+
+---
+
+# Part 6 — R@1 was the wrong number, and here is how wrong
+
+**Added after the sections above, at the human's direction.** The observation: §5.7's argument is
+about *harm*, not accuracy, and every arm since Session H has optimized R@1, which treats all
+failures as equal. The criticism lands, and measuring it changes what this session concludes.
+
+Full record: `docs/design/HARM-WEIGHTED-PRECISION.md`. Artifacts:
+`runs/session-m0c/reach-r5-harm-classes.json`, `harm-weighted-curve.json`,
+`harm-weighted-curve-fit.json`.
+
+## 6.1 The structural fact, and it needs no new labels
+
+LongMemEval's knowledge-update cases carry **exactly two answer sessions** (78 of 78). One states an
+old value; the other states the value `answer` holds. **Both are marked `has_answer: true`**, and
+`longmemeval.py:144` puts every such turn into `gold_turn_ids`.
+
+> **Retrieving the stale fact scores as an R@1 hit.** The harmful case has been counted as a success
+> in every R@1 this project has published, including this session's.
+
+**ADR-010 reachability: PASS.** 13 harmful rank-1 injections on held-out, 17 on fit, against a floor
+of 10. Of those, 10 (held-out) and 15 (fit) are gold-marked stale turns R@1 scores as correct.
+
+## 6.2 The classifier does not use an ordering, and that was a correction mid-flight
+
+A first version ranked the two answer sessions by `haystack_dates` and called the later one current.
+Its own diagnostic killed it: date order agreed with the `_N` suffix on only **166 of 250**
+two-answer-session cases, and this corpus dates 76 of 500 cases *after* their own question. Both
+orderings are proxies. The quantity wanted is *which gold turn states the value the answer holds*,
+which is directly checkable. Measured: the answer-bearing session is the later one by suffix in
+**86.4%** and by date in **84.7%** of the 59 decisive knowledge-update cases. Neither is used.
+11 cases fall back to suffix order and are flagged; held-out harmful goes 13 → 12 without them.
+
+## 6.3 The answer to the question as asked
+
+**Of the injections that are not the current value:**
+
+| | held-out | fit |
+|---|---|---|
+| **harmful** (superseded + stale_session) | **13 of 85 — 15.3%** | 17 of 71 — 23.9% |
+| merely useless (on_topic_wrong + irrelevant) | 72 of 85 — 84.7% | 54 of 71 — 76.1% |
+
+**Roughly five in six wrong injections cost tokens rather than corrupt reasoning. §5.7's premise is
+weaker than assumed on the failure side**, and that is a real finding about the design.
+
+## 6.4 But R@1 is inflated, and worst exactly where §5.7 reads
+
+| | held-out | fit |
+|---|---|---|
+| R@1 as published | 0.6725 | 0.7555 |
+| **R@1 counting only the current value** | **0.6288** | **0.6900** |
+| inflation | **+0.0437** | +0.0655 |
+
+**Knowledge-update alone (n = 36 per split):**
+
+| | held-out | fit |
+|---|---|---|
+| R@1 as published | 0.7222 | 0.7222 |
+| **R@1 current only** | **0.4444** | **0.3056** |
+| **stale hits among apparent hits** | **10 of 26 (38.5%)** | **15 of 26 (57.7%)** |
+
+**At the declared operating point the two precisions are identical** — published 0.9130, current
+0.9130, harm 0 of 23, on both splits. `PRECISION-COVERAGE.md` needs no correction at 10% coverage
+and a −0.0437 correction at 100%.
+
+## 6.5 Harm is zero at the head for the wrong reason
+
+The naive reading is "abstention suppresses harm". **That is a proxy conclusion and it is wrong.**
+
+| | fit | held-out |
+|---|---|---|
+| median margin, knowledge-update vs all | 0.3548 vs 0.4254 | **0.2782 vs 0.4020** |
+| knowledge-update share of the top-10% slice | 4.3% (1/23) | **0.0% (0/23)** |
+| base rate | 15.7% | 15.7% |
+| **within** knowledge-update, harm top-half vs bottom-half by margin | 0.389 vs 0.556 | **0.444 vs 0.278** |
+
+**The head is harm-free because it contains almost no knowledge-update queries**, not because the
+confidence signal discriminates harm — and *within* knowledge-update the margin's relationship to
+harm **flips sign between splits**. The protection is a category-exclusion side effect and it is
+fragile: anything raising coverage, or improving confidence on knowledge-update, removes it silently.
+`0.0000` on n = 23 has a Clopper-Pearson upper bound of **0.1482** and is not evidence of zero.
+
+## 6.6 Does the machinery already fix it? No — live and blind
+
+**The §4.3 exclusion exists and is correct.** `entry.rs:124` — `superseded_by.is_none()` is exclusion
+(2) of `is_injection_candidate`, called at `retrieve.rs:328`, unit-tested per exclusion. **Not a
+wiring defect.**
+
+**The trigger is missing.** The only writer of `superseded_by` is consolidation's near-duplicate
+merge at `consolidate.rs:697`, thresholded at **cosine ≥ 0.98**. `ingest.rs:142` hardcodes `None`;
+§4.6's `IngestRequest` has no supersession field and forbids extras, so **a caller cannot assert it**;
+`store.rs:133` defers the contradiction detector explicitly. ADR-012 already measured pairs at
+≥ 0.98 as **0.0086%** of 30,587,870 and recorded why — LongMemEval distractors are "topically related
+rather than textually duplicated".
+
+> Neither "supersession is not detected" nor "the exclusion is not firing" is quite right. The filter
+> fires correctly on every edge it is given — ~1.19% of the pool — and nothing gives it the edges
+> that matter. **A missing component, not a tuning opportunity, and it is the component §5.7's
+> argument assumes exists.**
+
+## 6.7 What changes as a result
+
+1. **`R@1_current` should be reported beside R@1 from now on.** A configuration that trades a
+   merely-useless injection for a superseded one is a regression under §5.7 and invisible under R@1.
+   This session's own slate arm was evaluated only on R@1 and that was insufficient.
+2. **The three sessions of R@1 optimization were measuring a number inflated by 4.4 points**, and by
+   28 points on knowledge-update. None of the conclusions reverse — the arms were null against the
+   inflated number and are null against the corrected one — but the baseline was never what it said.
+3. **The named next lever is a contradiction detector**, not a ranking mechanism. It is the one
+   thing that would let a live, correct, already-wired exclusion do the job §5.7 assumes it does.

@@ -1,0 +1,3762 @@
+{
+  "_what": "R5 ADR-010 reachability for harm-weighted precision",
+  "_the_structural_fact": "LongMemEval knowledge-update cases carry two answer sessions and BOTH are marked has_answer, so gold_turn_ids contains the stale turn. Every R@1 in this project scores a hit on the superseded fact.",
+  "answer_sessions_by_category": {
+    "single-session-user": {
+      "1": 70
+    },
+    "multi-session": {
+      "3": 26,
+      "4": 17,
+      "2": 84,
+      "5": 6
+    },
+    "single-session-preference": {
+      "1": 30
+    },
+    "temporal-reasoning": {
+      "2": 88,
+      "3": 15,
+      "1": 20,
+      "4": 2,
+      "6": 3,
+      "5": 5
+    },
+    "knowledge-update": {
+      "2": 78
+    },
+    "single-session-assistant": {
+      "1": 56
+    }
+  },
+  "fit": {
+    "n": 229,
+    "classified_by_fallback": 6,
+    "harmful_excluding_fallback": 14,
+    "classes": {
+      "current": 158,
+      "superseded": 15,
+      "stale_session": 2,
+      "on_topic_wrong": 31,
+      "irrelevant": 23
+    },
+    "r_at_1_published": 0.7555,
+    "r_at_1_current_only": 0.69,
+    "stale_hits_counted_as_correct": 15,
+    "harmful_rank1": 17,
+    "harm_rate": 0.0742,
+    "knowledge_update_only": {
+      "superseded": 15,
+      "current": 11,
+      "on_topic_wrong": 6,
+      "irrelevant": 2,
+      "stale_session": 2
+    },
+    "_rows": [
+      {
+        "query_id": "51a45a95",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 3.596602439880371,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "58bf7951",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 1.4639272689819336,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1e043500",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.3068580627441406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c5e8278d",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.1322884559631348,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6f9b354f",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.8026762008666992,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "58ef2f1c",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.5846343040466309,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "5d3d2817",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.4977989196777344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "c960da58",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.7367362976074219,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3b6f954b",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.0108537673950195,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "94f70d80",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.3981056213378906,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ad7109d1",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.277008056640625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "dccbc061",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.500563144683838,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "21436231",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.3258142471313477,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "95bcc1c8",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.637955665588379,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a06e4cfe",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.9935097694396973,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "37d43f65",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.1921567916870117,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b86304ba",
+        "category": "single-session-user",
+        "class": "irrelevant",
+        "margin": 0.09656715393066406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "25e5aa4f",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 1.0402565002441406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "caf9ead2",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.8861026763916016,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "8550ddae",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.705355167388916,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "60d45044",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.7370948791503906,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3f1e9474",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.34742069244384766,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "577d4d32",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.8402919769287109,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ec81a493",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.2770051956176758,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "15745da0",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.4432425498962402,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e01b8e2f",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.12895917892456055,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "001be529",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.5108137130737305,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "19b5f2b3",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.8584098815917969,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4fd1909e",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.1123785972595215,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8e9d538c",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.5547609329223633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4100d0a0",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.6269540786743164,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c14c00dd",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.4934978485107422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6d550036",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 0.47397613525390625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_59c863d7",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5790877342224121,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e831120c",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.38813161849975586,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_f2262a51",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.43082141876220703,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_a56e767c",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.06562566757202148,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6cb6f249",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.5791940689086914,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "46a3abf7",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.2738304138183594,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "36b9f61e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.14931297302246094,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "28dc39ac",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7552471160888672,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2f8be40d",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 0.3809051513671875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_15e38248",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.42113494873046875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "88432d0a",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.1182088851928711,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d682f1a2",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.07499837875366211,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2ba83207",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7865796089172363,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2ce6a0f2",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.0340032577514648,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_d12ceb0e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.8092145919799805,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_31ff4165",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.3959832191467285,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "129d1232",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.14720773696899414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a9f6b44c",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.47014713287353516,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "d851d5ba",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.11456298828125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_ab202e7f",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.27120018005371094,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_e05b82a6",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.20399188995361328,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_731e37d7",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.23703861236572266,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "edced276",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.6232333183288574,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "10d9b85a",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.2506566047668457,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e3038f8c",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 0.056336402893066406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "2b8f3739",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.02861785888671875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c2ac3c61",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.2227344512939453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bf659f65",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7155733108520508,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_372c3eed",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5199642181396484,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8a2466db",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.39441728591918945,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "35a27287",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.19783973693847656,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "195a1a1b",
+        "category": "single-session-preference",
+        "class": "on_topic_wrong",
+        "margin": 0.1344776153564453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "afdc33df",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.27288150787353516,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "54026fce",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.4761466979980469,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1a1907b4",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.13088369369506836,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "09d032c9",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.05464363098144531,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "57f827a0",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.004670619964599609,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "505af2f5",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.3080024719238281,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "75f70248",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.7469077110290527,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d6233ab6",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.1677722930908203,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1da05512",
+        "category": "single-session-preference",
+        "class": "on_topic_wrong",
+        "margin": 0.35186052322387695,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "b6025781",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.21367645263671875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "a89d7624",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.3565635681152344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "b0479f84",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 1.038684368133545,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "d3ab962e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.24974441528320312,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "cc06de0d",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.23049020767211914,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a11281a2",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7311043739318848,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "9aaed6a3",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.521662712097168,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1f2b8d4f",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.12516546249389648,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "d905b33f",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.549990177154541,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "f35224e0",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.4640350341796875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6456829e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.38059043884277344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a4996e51",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.42345333099365234,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3c1045c8",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 2.039422035217285,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "60036106",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.37082481384277344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "681a1674",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.12772274017333984,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e25c3b8d",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.9086451530456543,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4adc0475",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7246875762939453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4bc144e2",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.10568761825561523,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3fdac837",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.16640663146972656,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "91b15a6e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.25664615631103516,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "720133ac",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.17225217819213867,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "77eafa52",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.2387089729309082,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0100672e",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.9613986015319824,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "92a0aa75",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 0.09154224395751953,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "3fe836c9",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7746992111206055,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6c49646a",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.32354068756103516,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "61f8c8f8",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.1538138389587402,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ef9cf60a",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5103945732116699,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "09ba9854",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.1197509765625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "157a136e",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.014529705047607422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "a3332713",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.4817466735839844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a08a253f",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.580479621887207,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "078150f1",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.032498836517333984,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a346bb18",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.4634690284729004,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_f49edff3",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.15544605255126953,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b46e15ed",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.14850234985351562,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_fa19884c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.3841438293457031,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_4929293a",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1436290740966797,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_b5700ca9",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.8496294021606445,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "9a707b81",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.4654054641723633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_1d4ab0c9",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.4561958312988281,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0db4c65d",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.49269866943359375,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_6dc9b45b",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.4849681854248047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_18c2b244",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.3179354667663574,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_a1b77f9c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.051375389099121094,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_468eb063",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.009886741638183594,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_7abb270c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.2630887031555176,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_4fc4f797",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.28169822692871094,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_45189cb4",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.919374942779541,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_e061b84f",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 1.6881885528564453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "370a8ff4",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 2.4318695068359375e-05,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_d6585ce8",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.09407234191894531,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8077ef71",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.8450131416320801,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_8e165409",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.7842187881469727,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bcbe585f",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.5754399299621582,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_98f46fc6",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.08824396133422852,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "eac54adc",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.6590776443481445,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_a2d1d1f6",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.8041553497314453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_85da3956",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.016603469848632812,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_b0863698",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.43067455291748047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_68e94287",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.23316383361816406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7ca326fa",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.35855579376220703,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2ebe6c92",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.5951781272888184,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_d6585ce9",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.30000734329223633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_e414231f",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.4679994583129883,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_468eb064",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.9354314804077148,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "9a707b82",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.3107161521911621,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "eac54add",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.4755082130432129,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "4dfccbf8",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.24210166931152344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6e984302",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.43999195098876953,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_2655b836",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.15837335586547852,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "08f4fc43",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1304006576538086,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_385a5000",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.7691707611083984,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bbf86515",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1457352638244629,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_5dcc0aab",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.18583106994628906,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_0b2f1d21",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1233205795288086,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_70e84552",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.5887808799743652,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "982b5123",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.4127025604248047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c8090214",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.250762939453125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_483dd43c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.03600740432739258,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2c50253f",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.8858880996704102,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "cc6d1ec1",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.12381219863891602,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_8c8961ae",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.29640626907348633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "d01c6aa8",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.24843120574951172,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a3045048",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.30110788345336914,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_d31cdae3",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.7736263275146484,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_cd90e484",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.004862308502197266,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b29f3365",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.11952638626098633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_78cf46a3",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.213775634765625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2f584639",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.3070669174194336,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_5438fa52",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.7159557342529297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "830ce83f",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.014101028442382812,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "852ce960",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.7018618583679199,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "945e3d21",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.1711716651916504,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "d7c942c3",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.934107780456543,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "07741c44",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.057407379150390625,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "a1eacc2a",
+        "category": "knowledge-update",
+        "class": "irrelevant",
+        "margin": 0.012369632720947266,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "031748ae",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.598881721496582,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4d6b87c8",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.17859649658203125,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0f05491a",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.3077092170715332,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "08e075c7",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.922297477722168,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "41698283",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 1.2343173027038574,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2698e78f",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.5977058410644531,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "45dc21b6",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.3794851303100586,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "5a4f22c0",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.053985595703125,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6071bd76",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.21809101104736328,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e493bb7c",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.5755691528320312,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "72e3ee87",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.5725083351135254,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c4ea545c",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.28349828720092773,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "01493427",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.3472752571105957,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ed4ddc30",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.4000368118286133,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8fb83627",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.5463075637817383,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "22d2cb42",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.3623471260070801,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "eace081b",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.13808822631835938,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "affe2881",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.12653732299804688,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0ddfec37",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.04220151901245117,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "dfde3500",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 1.488194465637207,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "69fee5aa",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.5097441673278809,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "06db6396",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.14059734344482422,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3ba21379",
+        "category": "knowledge-update",
+        "class": "stale_session",
+        "margin": 0.08382034301757812,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "9bbe84a2",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.7702879905700684,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "dad224aa",
+        "category": "knowledge-update",
+        "class": "irrelevant",
+        "margin": 0.9568729400634766,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "ba61f0b9",
+        "category": "knowledge-update",
+        "class": "stale_session",
+        "margin": 0.0628819465637207,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "5c40ec5b",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.5049529075622559,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "c6853660",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.31603527069091797,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0977f2af",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.21076107025146484,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "07741c45",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.6107769012451172,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "c4f10528",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.12295341491699219,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "89527b6b",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.2893028259277344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "e9327a54",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.6016826629638672,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "f523d9fe",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.0891461372375488,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "fea54f57",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.3093118667602539,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "cc539528",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.21660852432250977,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "18dcd5a5",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.3719158172607422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "488d3006",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.7854743003845215,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8cf51dda",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.3310108184814453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8aef76bc",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 2.638723373413086,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "71a3fd6b",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.1961479187011719,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "70b3e69b",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.4016571044921875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3249768e",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.2891726493835449,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1b9b7252",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.8285069465637207,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6222b6eb",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.8127579689025879,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "e8a79c70",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.10467338562011719,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d596882b",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.3127450942993164,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e3fc4d6e",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.35155582427978516,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "e982271f",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.8002400398254395,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "fca762bc",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.389291763305664,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7a8d0b71",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.8260655403137207,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8b9d4367",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 2.2091493606567383,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "41275add",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.42067813873291016,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4baee567",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.42543649673461914,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "28bcfaac",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.361496925354004,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "16c90bf4",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.0900506973266602,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e48988bc",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.24220943450927734,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "778164c6",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.0450339317321777,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      }
+    ]
+  },
+  "heldout": {
+    "n": 229,
+    "classified_by_fallback": 5,
+    "harmful_excluding_fallback": 12,
+    "classes": {
+      "current": 144,
+      "superseded": 10,
+      "stale_session": 3,
+      "on_topic_wrong": 46,
+      "irrelevant": 26
+    },
+    "r_at_1_published": 0.6725,
+    "r_at_1_current_only": 0.6288,
+    "stale_hits_counted_as_correct": 10,
+    "harmful_rank1": 13,
+    "harm_rate": 0.0568,
+    "knowledge_update_only": {
+      "current": 16,
+      "on_topic_wrong": 6,
+      "stale_session": 3,
+      "irrelevant": 1,
+      "superseded": 10
+    },
+    "_rows": [
+      {
+        "query_id": "e47becba",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.0480880737304688,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "118b2229",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.493472099304199,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6ade9755",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.35997676849365234,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "f8c5f88b",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.5417585372924805,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7527f7e2",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.0270214080810547,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "726462e0",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.292529582977295,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "66f24dbb",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.26610469818115234,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "af8d2e46",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.6029167175292969,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c8c3f81d",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.0943851470947266,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8ebdbe50",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.29077768325805664,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6b168ec8",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.0721883773803711,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "75499fd8",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.6507244110107422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0862e8bf",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.7199716567993164,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "853b0a1d",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.871917724609375,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d52b4f67",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.7794227600097656,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "86b68151",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.2077312469482422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bc8a6e93",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.325510025024414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ccb36322",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.18074417114257812,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b320f3f8",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.3931055068969727,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "545bd2b5",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.077434539794922,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8a137a7f",
+        "category": "single-session-user",
+        "class": "on_topic_wrong",
+        "margin": 0.6412062644958496,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "76d63226",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.5956897735595703,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "86f00804",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.01722860336303711,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "311778f1",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.2490110397338867,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c19f7a0b",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.1854519844055176,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "29f2956b",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.6618270874023438,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1faac195",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.969860076904297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "faba32e5",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.5945549011230469,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "f4f1d8a4",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 2.1145424842834473,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "36580ce8",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 0.9173154830932617,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3d86fd0a",
+        "category": "single-session-user",
+        "class": "current",
+        "margin": 1.3123292922973633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a82c026e",
+        "category": "single-session-user",
+        "class": "irrelevant",
+        "margin": 0.3633861541748047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0a995998",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 3.13570499420166,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b5ef892d",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.3861093521118164,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3a704032",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.27124500274658203,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_d84a3211",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.18275737762451172,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "aae3761f",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.0003714561462402344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "dd2973ad",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.17097854614257812,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "c4a1ceb8",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.8938083648681641,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2e6d26dc",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.6298189163208008,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "80ec1f4f",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.07711219787597656,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d23cf73b",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.3343338966369629,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7fce9456",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.19054698944091797,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "7024f17c",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.35480499267578125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_5501fe77",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.19069623947143555,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2318644b",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.0052666664123535,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "00ca467f",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 1.1650705337524414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "b3c15d39",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.4376201629638672,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "eeda8a6d",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.6622858047485352,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2788b940",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7467174530029297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "60bf93ed",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.6663022041320801,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "9d25d4e0",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7648186683654785,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "60472f9c",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.7725100517272949,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_194be4b3",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.3546142578125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "5a7937c8",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.0034618377685546875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1a8a66a6",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.3172292709350586,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2f91af09",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.21432876586914062,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "81507db6",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.6438531875610352,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "06878be2",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.16101646423339844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "75832dbd",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.4218101501464844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0edc2aef",
+        "category": "single-session-preference",
+        "class": "on_topic_wrong",
+        "margin": 0.08869552612304688,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "32260d93",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.1298503875732422,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "caf03d32",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.15925884246826172,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "06f04340",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.5354952812194824,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "6b7dfb22",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.25269651412963867,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "38146c39",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.1045236587524414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d24813b1",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.19252824783325195,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "95228167",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.16995811462402344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "fca70973",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.3879413604736328,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1d4e3b97",
+        "category": "single-session-preference",
+        "class": "current",
+        "margin": 0.7065114974975586,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "07b6f563",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.17276763916015625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1c0ddc50",
+        "category": "single-session-preference",
+        "class": "irrelevant",
+        "margin": 0.06789684295654297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0a34ad58",
+        "category": "single-session-preference",
+        "class": "on_topic_wrong",
+        "margin": 0.11475181579589844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "2311e44b",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.716860294342041,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4f54b7c9",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.08948040008544922,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "85fa3a3f",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.1058816909790039,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e6041065",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.31624317169189453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "51c32626",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7028608322143555,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7405e8b1",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.49420642852783203,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ef66a6e5",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.1551804542541504,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "5025383b",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.17448139190673828,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "a1cc6108",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5148639678955078,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "9ee3ecd6",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.42534923553466797,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "27016adc",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.4692707061767578,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "8979f9ec",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.1627635955810547,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a96c20ee",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.8362998962402344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1c549ce4",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5880517959594727,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1192316e",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.24785566329956055,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0ea62687",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.5341558456420898,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "67e0d0f2",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.12133407592773438,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bb7c3b45",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.24226951599121094,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "ba358f49",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 1.8400821685791016,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "60159905",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.4590415954589844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "73d42213",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.22431659698486328,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "bc149d6b",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.26349353790283203,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "099778bb",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.5949063301086426,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "d6062bb9",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.8147978782653809,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c18a7dc8",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 1.0433120727539062,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "55241a1f",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.31749725341796875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "f0e564bc",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.561279296875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8cf4d046",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7300410270690918,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "37f165cf",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.7367744445800781,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8e91e7d9",
+        "category": "multi-session",
+        "class": "irrelevant",
+        "margin": 0.3241281509399414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "87f22b4a",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.1944904327392578,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e56a43b9",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.12439155578613281,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "efc3f7c2",
+        "category": "multi-session",
+        "class": "on_topic_wrong",
+        "margin": 0.5719947814941406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "21d02d0d",
+        "category": "multi-session",
+        "class": "current",
+        "margin": 0.4298067092895508,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_59149c77",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.06524944305419922,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "71017276",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.3146853446960449,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0bc8ad92",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.030338287353515625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "af082822",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.45859622955322266,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_e072b769",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.4780740737915039,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_1d80365e",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.1021018028259277,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7f6b06db",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.5293965339660645,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_8279ba02",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.04366874694824219,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_1916e0ea",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.5463800430297852,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7a0daae1",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.18463468551635742,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_1e4a8aeb",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.6593694686889648,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4dfccbf7",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.08427953720092773,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_61e13b3c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.25552940368652344,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2ebe6c90",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.01955890655517578,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_4ef30696",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.11548042297363281,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_ec93e27f",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.23517084121704102,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "6e984301",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.9509053230285645,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_f420262c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.08558368682861328,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_74aed68e",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.4092597961425781,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_21adecb5",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.5860414505004883,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "5e1b23de",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.03972482681274414,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_af6db32f",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.6700921058654785,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_7ddcf75f",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.4076299667358398,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_e414231e",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.3216991424560547,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7bc6cf22",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.1071462631225586,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_e061b84g",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.48488473892211914,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "71017277",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.02366352081298828,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "b46e15ee",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.06380844116210938,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_1e4a8aec",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.1200714111328125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_f420262d",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.3559436798095703,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_59149c78",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.7692422866821289,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_4929293b",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.18212890625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_fa19884d",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.5224294662475586,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "0bc8ad93",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.03324460983276367,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_8279ba03",
+        "category": "temporal-reasoning",
+        "class": "irrelevant",
+        "margin": 0.09167194366455078,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_b5700ca0",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.5027399063110352,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_68e94288",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 1.1059646606445312,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_2487a7cb",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 1.0466384887695312,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0bb5a684",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.26150035858154297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2c63a862",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.059790611267089844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "2a1811e2",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.2162485122680664,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "f0853d11",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.012732982635498047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_6ed717ea",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.030347824096679688,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_93159ced",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.9500370025634766,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_2d58bcd6",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 0.15554475784301758,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "gpt4_65aabe59",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.44881629943847656,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b9cfe692",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.5902366638183594,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "e4e14d04",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.26497411727905273,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "dcfa8644",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.6216554641723633,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_7de946e7",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1926593780517578,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "993da5e2",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.28209686279296875,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_88806d6e",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.32450103759765625,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_93f6379c",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.3048515319824219,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6613b389",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.08118724822998047,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_1a1dc16d",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.29982471466064453,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_213fd887",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.9048833847045898,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_c27434e8",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.1032404899597168,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "gpt4_fe651585",
+        "category": "temporal-reasoning",
+        "class": "on_topic_wrong",
+        "margin": 2.235477924346924,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "8c18457d",
+        "category": "temporal-reasoning",
+        "class": "current",
+        "margin": 0.15252304077148438,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6a1eabeb",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.004120349884033203,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6aeb4375",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.402008056640625,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "71315a70",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.48704004287719727,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "89941a93",
+        "category": "knowledge-update",
+        "class": "stale_session",
+        "margin": 0.48199939727783203,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "ce6d2d27",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.41152334213256836,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "9ea5eabc",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.04392099380493164,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "184da446",
+        "category": "knowledge-update",
+        "class": "irrelevant",
+        "margin": 0.005301475524902344,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "f9e8c073",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.6040582656860352,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b6019101",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.2640547752380371,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "618f13b2",
+        "category": "knowledge-update",
+        "class": "stale_session",
+        "margin": 0.08233118057250977,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "6a27ffc2",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.14087390899658203,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "2133c1b5",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.5975003242492676,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "18bc8abd",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.2501716613769531,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "db467c8c",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.9024105072021484,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "7a87bd0c",
+        "category": "knowledge-update",
+        "class": "stale_session",
+        "margin": 0.3395271301269531,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "e61a7584",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.7487244606018066,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1cea1afa",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.5166516304016113,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "b01defab",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.07137823104858398,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0e4e4c46",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.9804763793945312,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4b24c848",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.20883989334106445,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7e974930",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.8817386627197266,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "603deb26",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.11920642852783203,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "59524333",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.31787633895874023,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "5831f84d",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.05007314682006836,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "50635ada",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.5744786262512207,
+        "identified_by": "verbatim",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "e66b632c",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.25878095626831055,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "f685340e",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.18340826034545898,
+        "identified_by": "token_overlap",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "cc5ded98",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.32680368423461914,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7401057b",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.292264461517334,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "cf22b7bf",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.9316740036010742,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a2f3aa27",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.06555747985839844,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c7dc5443",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.008722305297851562,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "10e09553",
+        "category": "knowledge-update",
+        "class": "on_topic_wrong",
+        "margin": 0.1296539306640625,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "42ec0761",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.21229076385498047,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "26bdc477",
+        "category": "knowledge-update",
+        "class": "superseded",
+        "margin": 0.6126937866210938,
+        "identified_by": "verbatim",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "89941a94",
+        "category": "knowledge-update",
+        "class": "current",
+        "margin": 0.04916095733642578,
+        "identified_by": "fallback_suffix_order",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7161e7e2",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.44579648971557617,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4c36ccef",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.42322349548339844,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "6ae235be",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.6284646987915039,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "7e00a6cb",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.04464912414550781,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1903aded",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.3999309539794922,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "ceb54acb",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.36620521545410156,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "0e5e2d1a",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.9087629318237305,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "dc439ea3",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.03686094284057617,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "58470ed2",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.0261859893798828,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1d4da289",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.8907680511474609,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8464fc84",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.692702293395996,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "8752c811",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.5730352401733398,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "1568498a",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.991307258605957,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "51b23612",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.25025177001953125,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "3e321797",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.9109020233154297,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "352ab8bd",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.6340422630310059,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "a40e080f",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.6525335311889648,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "5809eb10",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.33116817474365234,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "4388e9dd",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.44119882583618164,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "561fabcd",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.3695206642150879,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "b759caee",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.742680549621582,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "ac031881",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.6158924102783203,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "c8f1aeed",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.1620826721191406,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "eaca4986",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.08201742172241211,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      },
+      {
+        "query_id": "c7cf7dfd",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 1.1377243995666504,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "1de5cff2",
+        "category": "single-session-assistant",
+        "class": "current",
+        "margin": 0.457639217376709,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": true
+      },
+      {
+        "query_id": "65240037",
+        "category": "single-session-assistant",
+        "class": "on_topic_wrong",
+        "margin": 0.45905256271362305,
+        "identified_by": "not_applicable",
+        "r_at_1_correct": false
+      }
+    ]
+  },
+  "adr_010_verdict": {
+    "fit": {
+      "harmful": 17,
+      "floor": 10,
+      "can_vary": true,
+      "stale_hits_counted_as_correct": 15
+    },
+    "heldout": {
+      "harmful": 13,
+      "floor": 10,
+      "can_vary": true,
+      "stale_hits_counted_as_correct": 10
+    }
+  }
+}

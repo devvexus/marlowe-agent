@@ -1,0 +1,528 @@
+{
+  "_what": "harm-weighted precision beside the published precision/coverage curve",
+  "_why": "brief Sec 5.7 is about harm, not accuracy; R@1 treats all failures as equal",
+  "_the_classifier": "the CURRENT gold turn is the one whose text states the `answer`. No date or suffix ordering is used -- see reach_harm_r5_classes.load_case_structure for why.",
+  "split": "heldout",
+  "n": 229,
+  "configuration": "ms-marco-MiniLM-L-2-v2-ft-session-j (f32, seq 256, depth 10)",
+  "control_reproduces_published_r_at_1": true,
+  "rank1_classes": {
+    "current": 144,
+    "superseded": 10,
+    "stale_session": 3,
+    "on_topic_wrong": 46,
+    "irrelevant": 26
+  },
+  "r_at_1_published": 0.6725,
+  "r_at_1_current_only": 0.6288,
+  "harm_rate_overall": 0.0568,
+  "curve": [
+    {
+      "target_coverage": 1.0,
+      "actual_coverage": 1.0,
+      "margin_threshold": 0.000371,
+      "injected": 229,
+      "precision_published": 0.6725,
+      "ci95_published": [
+        0.6076,
+        0.7329
+      ],
+      "precision_current": 0.6288,
+      "ci95_current": [
+        0.5627,
+        0.6915
+      ],
+      "harm_count": 13,
+      "harm_rate": 0.0568,
+      "ci95_harm": [
+        0.0306,
+        0.0951
+      ],
+      "inflation_published_minus_current": 0.0437
+    },
+    {
+      "target_coverage": 0.95,
+      "actual_coverage": 0.952,
+      "margin_threshold": 0.033245,
+      "injected": 218,
+      "precision_published": 0.6743,
+      "ci95_published": [
+        0.6077,
+        0.7361
+      ],
+      "precision_current": 0.6284,
+      "ci95_current": [
+        0.5606,
+        0.6927
+      ],
+      "harm_count": 13,
+      "harm_rate": 0.0596,
+      "ci95_harm": [
+        0.0321,
+        0.0998
+      ],
+      "inflation_published_minus_current": 0.0459
+    },
+    {
+      "target_coverage": 0.9,
+      "actual_coverage": 0.8996,
+      "margin_threshold": 0.067897,
+      "injected": 206,
+      "precision_published": 0.6942,
+      "ci95_published": [
+        0.6264,
+        0.7563
+      ],
+      "precision_current": 0.6456,
+      "ci95_current": [
+        0.5762,
+        0.7108
+      ],
+      "harm_count": 13,
+      "harm_rate": 0.0631,
+      "ci95_harm": [
+        0.034,
+        0.1055
+      ],
+      "inflation_published_minus_current": 0.0485
+    },
+    {
+      "target_coverage": 0.85,
+      "actual_coverage": 0.8515,
+      "margin_threshold": 0.091672,
+      "injected": 195,
+      "precision_published": 0.7026,
+      "ci95_published": [
+        0.6331,
+        0.7658
+      ],
+      "precision_current": 0.6513,
+      "ci95_current": [
+        0.5799,
+        0.718
+      ],
+      "harm_count": 12,
+      "harm_rate": 0.0615,
+      "ci95_harm": [
+        0.0322,
+        0.105
+      ],
+      "inflation_published_minus_current": 0.0513
+    },
+    {
+      "target_coverage": 0.8,
+      "actual_coverage": 0.7991,
+      "margin_threshold": 0.140874,
+      "injected": 183,
+      "precision_published": 0.7213,
+      "ci95_published": [
+        0.6504,
+        0.7849
+      ],
+      "precision_current": 0.6667,
+      "ci95_current": [
+        0.5933,
+        0.7345
+      ],
+      "harm_count": 12,
+      "harm_rate": 0.0656,
+      "ci95_harm": [
+        0.0343,
+        0.1117
+      ],
+      "inflation_published_minus_current": 0.0546
+    },
+    {
+      "target_coverage": 0.75,
+      "actual_coverage": 0.7511,
+      "margin_threshold": 0.180744,
+      "injected": 172,
+      "precision_published": 0.7384,
+      "ci95_published": [
+        0.666,
+        0.8023
+      ],
+      "precision_current": 0.686,
+      "ci95_current": [
+        0.611,
+        0.7545
+      ],
+      "harm_count": 11,
+      "harm_rate": 0.064,
+      "ci95_harm": [
+        0.0324,
+        0.1115
+      ],
+      "inflation_published_minus_current": 0.0523
+    },
+    {
+      "target_coverage": 0.7,
+      "actual_coverage": 0.6987,
+      "margin_threshold": 0.212291,
+      "injected": 160,
+      "precision_published": 0.7312,
+      "ci95_published": [
+        0.6555,
+        0.7982
+      ],
+      "precision_current": 0.6813,
+      "ci95_current": [
+        0.603,
+        0.7526
+      ],
+      "harm_count": 10,
+      "harm_rate": 0.0625,
+      "ci95_harm": [
+        0.0304,
+        0.1119
+      ],
+      "inflation_published_minus_current": 0.05
+    },
+    {
+      "target_coverage": 0.65,
+      "actual_coverage": 0.6507,
+      "margin_threshold": 0.258781,
+      "injected": 149,
+      "precision_published": 0.7248,
+      "ci95_published": [
+        0.6457,
+        0.7947
+      ],
+      "precision_current": 0.6711,
+      "ci95_current": [
+        0.5895,
+        0.7458
+      ],
+      "harm_count": 10,
+      "harm_rate": 0.0671,
+      "ci95_harm": [
+        0.0327,
+        0.12
+      ],
+      "inflation_published_minus_current": 0.0537
+    },
+    {
+      "target_coverage": 0.6,
+      "actual_coverage": 0.5983,
+      "margin_threshold": 0.314685,
+      "injected": 137,
+      "precision_published": 0.708,
+      "ci95_published": [
+        0.6243,
+        0.7825
+      ],
+      "precision_current": 0.6715,
+      "ci95_current": [
+        0.5862,
+        0.7493
+      ],
+      "harm_count": 7,
+      "harm_rate": 0.0511,
+      "ci95_harm": [
+        0.0208,
+        0.1024
+      ],
+      "inflation_published_minus_current": 0.0365
+    },
+    {
+      "target_coverage": 0.55,
+      "actual_coverage": 0.5502,
+      "margin_threshold": 0.339527,
+      "injected": 126,
+      "precision_published": 0.6984,
+      "ci95_published": [
+        0.6103,
+        0.7769
+      ],
+      "precision_current": 0.6667,
+      "ci95_current": [
+        0.5772,
+        0.7481
+      ],
+      "harm_count": 6,
+      "harm_rate": 0.0476,
+      "ci95_harm": [
+        0.0177,
+        0.1008
+      ],
+      "inflation_published_minus_current": 0.0317
+    },
+    {
+      "target_coverage": 0.5,
+      "actual_coverage": 0.4978,
+      "margin_threshold": 0.40926,
+      "injected": 114,
+      "precision_published": 0.7281,
+      "ci95_published": [
+        0.6367,
+        0.8072
+      ],
+      "precision_current": 0.693,
+      "ci95_current": [
+        0.5997,
+        0.776
+      ],
+      "harm_count": 5,
+      "harm_rate": 0.0439,
+      "ci95_harm": [
+        0.0144,
+        0.0994
+      ],
+      "inflation_published_minus_current": 0.0351
+    },
+    {
+      "target_coverage": 0.45,
+      "actual_coverage": 0.4498,
+      "margin_threshold": 0.458596,
+      "injected": 103,
+      "precision_published": 0.7379,
+      "ci95_published": [
+        0.642,
+        0.8196
+      ],
+      "precision_current": 0.699,
+      "ci95_current": [
+        0.6008,
+        0.7855
+      ],
+      "harm_count": 5,
+      "harm_rate": 0.0485,
+      "ci95_harm": [
+        0.0159,
+        0.1097
+      ],
+      "inflation_published_minus_current": 0.0388
+    },
+    {
+      "target_coverage": 0.4,
+      "actual_coverage": 0.4017,
+      "margin_threshold": 0.516652,
+      "injected": 92,
+      "precision_published": 0.7717,
+      "ci95_published": [
+        0.6725,
+        0.8528
+      ],
+      "precision_current": 0.7283,
+      "ci95_current": [
+        0.6255,
+        0.8158
+      ],
+      "harm_count": 4,
+      "harm_rate": 0.0435,
+      "ci95_harm": [
+        0.012,
+        0.1076
+      ],
+      "inflation_published_minus_current": 0.0435
+    },
+    {
+      "target_coverage": 0.35,
+      "actual_coverage": 0.3493,
+      "margin_threshold": 0.588052,
+      "injected": 80,
+      "precision_published": 0.8125,
+      "ci95_published": [
+        0.7097,
+        0.8911
+      ],
+      "precision_current": 0.7625,
+      "ci95_current": [
+        0.6542,
+        0.8505
+      ],
+      "harm_count": 4,
+      "harm_rate": 0.05,
+      "ci95_harm": [
+        0.0138,
+        0.1231
+      ],
+      "inflation_published_minus_current": 0.05
+    },
+    {
+      "target_coverage": 0.3,
+      "actual_coverage": 0.3013,
+      "margin_threshold": 0.641206,
+      "injected": 69,
+      "precision_published": 0.8116,
+      "ci95_published": [
+        0.6994,
+        0.8957
+      ],
+      "precision_current": 0.7971,
+      "ci95_current": [
+        0.6831,
+        0.8844
+      ],
+      "harm_count": 1,
+      "harm_rate": 0.0145,
+      "ci95_harm": [
+        0.0004,
+        0.0781
+      ],
+      "inflation_published_minus_current": 0.0145
+    },
+    {
+      "target_coverage": 0.25,
+      "actual_coverage": 0.2489,
+      "margin_threshold": 0.736774,
+      "injected": 57,
+      "precision_published": 0.8246,
+      "ci95_published": [
+        0.7009,
+        0.9125
+      ],
+      "precision_current": 0.807,
+      "ci95_current": [
+        0.6809,
+        0.8995
+      ],
+      "harm_count": 1,
+      "harm_rate": 0.0175,
+      "ci95_harm": [
+        0.0004,
+        0.0939
+      ],
+      "inflation_published_minus_current": 0.0175
+    },
+    {
+      "target_coverage": 0.2,
+      "actual_coverage": 0.2009,
+      "margin_threshold": 0.881739,
+      "injected": 46,
+      "precision_published": 0.8696,
+      "ci95_published": [
+        0.7374,
+        0.9506
+      ],
+      "precision_current": 0.8478,
+      "ci95_current": [
+        0.7113,
+        0.9366
+      ],
+      "harm_count": 1,
+      "harm_rate": 0.0217,
+      "ci95_harm": [
+        0.0006,
+        0.1153
+      ],
+      "inflation_published_minus_current": 0.0217
+    },
+    {
+      "target_coverage": 0.15,
+      "actual_coverage": 0.1485,
+      "margin_threshold": 1.005267,
+      "injected": 34,
+      "precision_published": 0.8824,
+      "ci95_published": [
+        0.7255,
+        0.967
+      ],
+      "precision_current": 0.8824,
+      "ci95_current": [
+        0.7255,
+        0.967
+      ],
+      "harm_count": 0,
+      "harm_rate": 0.0,
+      "ci95_harm": [
+        0.0,
+        0.1028
+      ],
+      "inflation_published_minus_current": 0.0
+    },
+    {
+      "target_coverage": 0.1,
+      "actual_coverage": 0.1004,
+      "margin_threshold": 1.165071,
+      "injected": 23,
+      "precision_published": 0.913,
+      "ci95_published": [
+        0.7196,
+        0.9893
+      ],
+      "precision_current": 0.913,
+      "ci95_current": [
+        0.7196,
+        0.9893
+      ],
+      "harm_count": 0,
+      "harm_rate": 0.0,
+      "ci95_harm": [
+        0.0,
+        0.1482
+      ],
+      "inflation_published_minus_current": 0.0
+    }
+  ],
+  "at_100_coverage": {
+    "target_coverage": 1.0,
+    "actual_coverage": 1.0,
+    "margin_threshold": 0.000371,
+    "injected": 229,
+    "precision_published": 0.6725,
+    "ci95_published": [
+      0.6076,
+      0.7329
+    ],
+    "precision_current": 0.6288,
+    "ci95_current": [
+      0.5627,
+      0.6915
+    ],
+    "harm_count": 13,
+    "harm_rate": 0.0568,
+    "ci95_harm": [
+      0.0306,
+      0.0951
+    ],
+    "inflation_published_minus_current": 0.0437
+  },
+  "at_10_coverage": {
+    "target_coverage": 0.1,
+    "actual_coverage": 0.1004,
+    "margin_threshold": 1.165071,
+    "injected": 23,
+    "precision_published": 0.913,
+    "ci95_published": [
+      0.7196,
+      0.9893
+    ],
+    "precision_current": 0.913,
+    "ci95_current": [
+      0.7196,
+      0.9893
+    ],
+    "harm_count": 0,
+    "harm_rate": 0.0,
+    "ci95_harm": [
+      0.0,
+      0.1482
+    ],
+    "inflation_published_minus_current": 0.0
+  },
+  "harm_concentration": {
+    "at_100": 0.0568,
+    "at_10": 0.0,
+    "reading": "FALLS at the head -- abstention already suppresses the harmful class"
+  },
+  "non_current_partition": {
+    "superseded": 10,
+    "stale_session": 3,
+    "on_topic_wrong": 46,
+    "irrelevant": 26
+  },
+  "knowledge_update": {
+    "n": 36,
+    "r_at_1_published": 0.7222,
+    "r_at_1_current_only": 0.4444,
+    "harm_rate": 0.3611,
+    "stale_hits_among_apparent_hits": "10/26"
+  },
+  "the_machinery": {
+    "sec_4_3_exclusion_exists": true,
+    "where": "entry.rs:124 is_injection_candidate -> superseded_by.is_none(); called at retrieve.rs:328",
+    "can_it_fire_on_this_corpus": "only via consolidation's 0.98-cosine near-duplicate merge (consolidate.rs:697). ingest.rs:142 hardcodes None and the Sec 4.6 wire has no supersession field, so a caller cannot assert it.",
+    "verdict": "the exclusion is LIVE and BLIND. Not a wiring defect -- a missing contradiction detector, which store.rs:133 defers explicitly. ADR-012 measured pairs at >=0.98 cosine as 0.0086% of 30.6M."
+  }
+}

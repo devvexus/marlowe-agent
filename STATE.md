@@ -14,6 +14,13 @@ R@1 stays 0.6725.** Both named candidates are measured and closed; K1's 10%-cove
 retired as arithmetically unreachable. See "M0c Session A" below and `runs/session-m0c/RESULT.md`
 before proposing any retrieval work.
 
+> ### R@1 COUNTS THE SUPERSEDED FACT AS A HIT. Every R@1 in this project is inflated.
+> LongMemEval marks **both** the stale and the current turn `has_answer`, so returning the outdated
+> value scores as correct. Held-out **0.6725 → 0.6288** counting only the current value; on
+> **knowledge-update 0.7222 → 0.4444**, where **10 of 26 apparent hits (38.5%) are the stale fact**
+> (fit: 15 of 26, 57.7%). **Report `R@1_current` beside R@1 from now on.**
+> `docs/design/HARM-WEIGHTED-PRECISION.md`.
+
 ## The shipped configuration
 
 `--reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j` — **f32**, seq 256, batch 1, depth 10,
@@ -46,9 +53,11 @@ these budgets — a violation makes them void, not caveated.
 
 ## READ THIS FIRST — three things that must not be re-derived wrong
 
-**0. A CAPABILITY REPORT IS NOT AN EMISSION REPORT.** This is the standing lesson, and it is the
+**0. A CAPABILITY REPORT IS NOT AN EMISSION REPORT.** This is the standing lesson, and it was the
 **eleventh** instance of the pattern this file has recorded — the first where *the harness disabled
-the very thing it was verifying*.
+the very thing it was verifying*. **The twelfth is in Standing checks below, and it is the first the
+family caught prospectively**: `Deserialize` routed around a validating constructor, closed before
+it existed rather than found after it shipped.
 
 M1's frame rendered entirely achromatic in Windows Terminal for four rounds of screenshots while the
 startup record printed `tier=truecolor`. Nothing was wrong with the detection: the terminal really
@@ -335,9 +344,39 @@ R@5**. Marlowe measures **0.9738 session R@5 shipped, 0.9869 on its dense cue al
 behind on that metric, it reports a far harder one (turn-level R@1 out of ~490 candidates). Never
 quote one against the other.
 
+**7. HARM-WEIGHTED PRECISION, measured for the first time. `docs/design/HARM-WEIGHTED-PRECISION.md`.**
+§5.7 is about harm, not accuracy, and R@1 treats every failure as equal. Partitioning rank-1 into
+harm classes — no new labels, LongMemEval's knowledge-update annotation carries it:
+
+  - **Of the injections that are not the current value, 13 of 85 (15.3%) are HARMFUL and 72 (84.7%)
+    are merely useless.** §5.7's premise is *weaker* than assumed on the failure side. Five in six
+    wrong injections cost tokens rather than corrupt reasoning.
+  - **But R@1 counts the stale fact as a hit** — see the box at the top of this file.
+  - **At the declared operating point the two precisions are IDENTICAL**: published 0.9130, current
+    0.9130, harm 0 of 23, on both splits. `PRECISION-COVERAGE.md` needs no correction at 10%
+    coverage and a −0.0437 correction at 100%.
+  - **Harm is zero at the head FOR THE WRONG REASON, and this is the part not to re-derive wrong.**
+    Not "abstention suppresses harm" — that is a proxy conclusion. Knowledge-update queries are
+    simply low-confidence (median margin **0.2782 vs 0.4020**) and make up **0.0% of the held-out
+    top-10% slice against a 15.7% base rate**. *Within* knowledge-update the margin's relation to
+    harm **flips sign between splits** (top-half harm 0.444 held-out vs 0.389 fit). The protection is
+    a **category-exclusion side effect and it is fragile** — raising coverage, or improving
+    confidence on knowledge-update, removes it with nothing reporting a change.
+  - **§4.3's supersession exclusion is LIVE AND BLIND.** `entry.rs:124` is correct and called at
+    `retrieve.rs:328` — not a wiring defect. But the only writer of `superseded_by` is
+    consolidation's **≥0.98-cosine** near-duplicate merge (`consolidate.rs:697`); `ingest.rs:142`
+    hardcodes `None`, §4.6's wire has no supersession field and forbids extras, and `store.rs:133`
+    defers the contradiction detector. ADR-012 measured ≥0.98 pairs at **0.0086%** of 30.6M.
+    **A missing component, not a tuning opportunity — and it is the component §5.7 assumes exists.**
+
 **THE HUMAN LABEL SET is now the highest-value open item** — ≥400 judged injections, ≥50 per
 category, judged blind, stratified by score decile. **True injection precision has never been
-computed**; every figure is a gold-turn proxy. It is drawable and it is the human's deliverable.
+computed**; every figure is a gold-turn proxy, including the harm classes above. It is drawable and
+it is the human's deliverable.
+
+**THE NAMED NEXT LEVER IS A CONTRADICTION DETECTOR**, not a ranking mechanism. It is the one thing
+that would let a live, correct, already-wired exclusion do the job §5.7 assumes it does. Everything
+downstream of it — the exclusion, the journal event, the replay fold — already exists and is tested.
 
 **Also still open:** the gate-design constraint (ADR-016's closing section — either the resolution
 rule or the margin feature's one-positive-per-query property must change; **re-tuning the resolution
@@ -370,7 +409,10 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **A validating constructor must be the ONLY way in, `serde` included.** `ExposedSet`,
   `CapabilityManifest` and `CapabilityProfile` route `Deserialize` through theirs. A field-wise
   deserialize leaves every in-code test green while the one path that reads outside input skips the
-  check — the same shape as a stale default, arriving through a different door.
+  check — the same shape as a stale default, arriving through a different door. **This is the
+  TWELFTH instance of the family in item 0, and the FIRST caught by design rather than by failure**
+  — the other eleven were found after they shipped; this one was closed before it could exist,
+  because the family's question was asked of the serde path specifically.
 
 ## Known issues
 
