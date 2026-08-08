@@ -215,7 +215,7 @@ fn the_real_implementation_does_not_escape() {
         report: Mutex::new(SwapReport::default()),
     };
 
-    let opened = WorkspaceScope::new().open_observed(
+    let opened = WorkspaceScope::new().expect("verified platform").open_observed(
         &declared(),
         &fx.workspace,
         "a/b/secret.txt",
@@ -262,7 +262,7 @@ fn on_windows_the_swap_is_refused_by_the_share_mode_and_the_error_says_so() {
         report: Mutex::new(SwapReport::default()),
     };
 
-    let _ = WorkspaceScope::new().open_observed(
+    let _ = WorkspaceScope::new().expect("verified platform").open_observed(
         &declared(),
         &fx.workspace,
         "a/b/secret.txt",
@@ -292,6 +292,7 @@ fn the_observer_is_a_no_op_in_production() {
     // implementation does nothing, and the same walk with `()` reads the in-scope file.
     let fx = Fixture::new("noop");
     let scoped = WorkspaceScope::new()
+        .expect("verified platform")
         .open(&declared(), &fx.workspace, "a/b/secret.txt")
         .expect("an ordinary in-scope read succeeds");
     let mut s = String::new();

@@ -60,7 +60,9 @@ impl Fixture {
 
     fn open(&self, globs: &[&str], requested: &str) -> Result<String, ScopeError> {
         let declared: Vec<PathGlob> = globs.iter().map(|g| PathGlob::new(*g)).collect();
-        let scoped = WorkspaceScope::new().open(&declared, &self.workspace, requested)?;
+        let scoped = WorkspaceScope::new()
+            .expect("verified platform")
+            .open(&declared, &self.workspace, requested)?;
         let mut s = String::new();
         scoped
             .handle()

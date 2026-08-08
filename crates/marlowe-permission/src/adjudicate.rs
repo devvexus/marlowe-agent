@@ -607,7 +607,9 @@ mod tests {
         let args = Args::new().text("path", "src/main.rs");
         let taint = TaintSet::new().with("path", TrustClass::UserAsserted);
         let egress = EgressPolicy::DenyAll;
-        let mut a = Adjudicator::new(crate::scope::WorkspaceScope::new());
+        let mut a = Adjudicator::new(crate::scope::WorkspaceScope::new().expect(
+            "this platform is in VERIFIED_PLATFORMS or the suite should not be running here",
+        ));
         let adjudication = a.adjudicate(Request {
             manifest: r.manifest(&ToolId::new("read")).unwrap(),
             args: &args,

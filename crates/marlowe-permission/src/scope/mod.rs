@@ -115,6 +115,47 @@ pub enum ScopeError {
          object that was checked, so it is refused"
     )]
     IdentityChanged { requested: String },
+
+    #[error(
+        "path scoping refuses to run on `{platform}`: the traversal suite and the TOCTOU race have \
+         never been EXECUTED there. Verified platforms are {verified:?}. macOS in particular is \
+         case-insensitive and NFD-normalizing, which is exactly where the glob matcher and the NFC \
+         handling would diverge — run the suite there before trusting this wall"
+    )]
+    PlatformUnverified { platform: &'static str, verified: &'static [&'static str] },
+}
+
+/// Platforms on which the traversal suite and the TOCTOU race have actually been **executed**.
+///
+/// Not "platforms the code compiles for" and not "platforms we believe are POSIX". ADR-027's
+/// closing requirement is that both halves of the wall are exercised where they run, and the
+/// halves do not overlap: Windows never executes `openat`, Linux never exercises the share-mode
+/// pinning.
+///
+/// **macOS is deliberately absent.** It is the platform most likely to diverge and least like the
+/// one it would be assumed to resemble: case-insensitive by default, and NFD-normalizing, which is
+/// exactly where `scope::glob`'s matching and `scope::request`'s NFC handling would disagree.
+/// "POSIX is POSIX" is the assumption this project has paid for repeatedly.
+pub const VERIFIED_PLATFORMS: &[&str] = &["windows", "linux"];
+
+#[cfg(any(windows, target_os = "linux"))]
+const THIS_PLATFORM_VERIFIED: bool = true;
+#[cfg(not(any(windows, target_os = "linux")))]
+const THIS_PLATFORM_VERIFIED: bool = false;
+
+/// What the walk should open the final component as.
+///
+/// Declared per parameter in the manifest via [`marlowe_tools::ParamType`], not inferred from the
+/// tool's consequence level. Inferring it would mean `bash`'s `cwd` — a directory that must exist
+/// — and `edit`'s `path` — a file that may not — take their behaviour from the same number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    /// Must exist. Opened read-only.
+    Read,
+    /// Must exist. Opened read-write.
+    ReadWrite,
+    /// May not exist. Created inside the verified parent directory if absent.
+    CreateOrOpen,
 }
 
 /// Resolve a requested path against a tool's declared globs, and open it.
@@ -153,12 +194,28 @@ impl PathScope for Unavailable {
 }
 
 /// The real one.
-#[derive(Debug, Default)]
-pub struct WorkspaceScope;
+#[derive(Debug)]
+pub struct WorkspaceScope {
+    /// Zero-sized proof that [`WorkspaceScope::new`] ran and the platform check passed. Having a
+    /// private field is what stops `WorkspaceScope {}` being written at a call site, which would
+    /// be a construction that skipped the gate.
+    _gated: (),
+}
 
 impl WorkspaceScope {
-    pub fn new() -> Self {
-        Self
+    /// **Refuses at construction on any platform whose suite has never been executed.**
+    ///
+    /// Not at first use: a wall that refuses only when someone happens to open a path would let a
+    /// process start, report healthy, and fail on the first file — which reads as a bug in the
+    /// tool rather than as an unverified boundary. See [`VERIFIED_PLATFORMS`].
+    pub fn new() -> Result<Self, ScopeError> {
+        if !THIS_PLATFORM_VERIFIED {
+            return Err(ScopeError::PlatformUnverified {
+                platform: std::env::consts::OS,
+                verified: VERIFIED_PLATFORMS,
+            });
+        }
+        Ok(Self { _gated: () })
     }
 
     /// The same walk, with an observer. **Test-facing**, and the reason it is `pub` is stated
@@ -210,6 +267,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn construction_succeeds_only_on_a_platform_whose_suite_has_been_executed() {
+        // The invariant, asserted the only way it can be from inside one platform: whenever
+        // construction succeeds, this OS is on the verified list. A test that merely called
+        // `new()` and unwrapped would pass identically with the gate deleted.
+        match WorkspaceScope::new() {
+            Ok(_) => assert!(
+                VERIFIED_PLATFORMS.contains(&std::env::consts::OS),
+                "constructed on `{}`, which is not in {VERIFIED_PLATFORMS:?}",
+                std::env::consts::OS
+            ),
+            Err(ScopeError::PlatformUnverified { platform, .. }) => assert!(
+                !VERIFIED_PLATFORMS.contains(&platform),
+                "refused on `{platform}`, which IS in {VERIFIED_PLATFORMS:?}"
+            ),
+            Err(other) => panic!("unexpected error from construction: {other}"),
+        }
+    }
+
+    #[test]
+    fn macos_is_not_verified_and_the_refusal_says_why() {
+        // Named rather than left implicit. macOS is the platform a reader is most likely to
+        // assume is covered by "POSIX", and it is the one where case-insensitivity and NFD
+        // normalization would make `glob` and `request` disagree.
+        assert!(
+            !VERIFIED_PLATFORMS.contains(&"macos"),
+            "macOS is listed as verified; has the suite actually been executed there?"
+        );
+        let e = ScopeError::PlatformUnverified { platform: "macos", verified: VERIFIED_PLATFORMS };
+        let msg = e.to_string();
+        assert!(msg.contains("never been EXECUTED"), "{msg}");
+        assert!(msg.contains("NFD"), "the refusal must name the specific divergence: {msg}");
+    }
+
+    #[test]
     fn the_refusing_scope_still_refuses_and_says_why() {
         let e = Unavailable
             .open(&[PathGlob::new("./**")], Path::new("/ws"), "src/main.rs")
@@ -236,6 +327,7 @@ mod tests {
         // workspace still produces `Undeclared` rather than an io error. That ordering is what
         // keeps an undeclared probe from being answerable by timing.
         let e = WorkspaceScope::new()
+            .expect("verified platform")
             .open(
                 &[PathGlob::new("./out/**")],
                 Path::new("/nonexistent-workspace-xyzzy"),
@@ -248,6 +340,7 @@ mod tests {
     #[test]
     fn a_malformed_request_is_refused_before_the_declaration_is_consulted() {
         let e = WorkspaceScope::new()
+            .expect("verified platform")
             .open(&[PathGlob::new("./**")], Path::new("/nonexistent-xyzzy"), "../../etc/passwd")
             .unwrap_err();
         assert!(matches!(e, ScopeError::Malformed { .. }), "{e:?}");

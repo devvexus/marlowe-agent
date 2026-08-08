@@ -621,11 +621,16 @@ by string manipulation is the whole protection gone** — there is nothing behin
 **AMENDED 2026-08-08, at the close of M2 Session B.** The original wording is kept, because a
 future session must be able to see what was strengthened and why.
 
-> **Original:** *"Canonicalize first, then check. Never check, then canonicalize. Every comparison
-> happens on the fully resolved path: symlinks and reparse points followed, relative segments
-> collapsed, case folded on case-insensitive volumes, extended-length and UNC forms normalized. A
-> check performed against the string the model supplied is a check against an attacker-chosen
-> encoding of a path, not against the path."*
+> **Original — SUPERSEDED. An implementation that satisfies this wording exactly is still
+> vulnerable: it produces a resolved path, compares it, and then opens it, and a link planted
+> between the comparison and the open defeats it. Do not implement to this paragraph. The binding
+> rule is the amended one below.**
+>
+> *"Canonicalize first, then check. Never check, then canonicalize. Every comparison happens on the
+> fully resolved path: symlinks and reparse points followed, relative segments collapsed, case
+> folded on case-insensitive volumes, extended-length and UNC forms normalized. A check performed
+> against the string the model supplied is a check against an attacker-chosen encoding of a path,
+> not against the path."*
 
 **The amended rule: the hostile string is never canonicalized at all.**
 
