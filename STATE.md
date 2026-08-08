@@ -210,9 +210,16 @@ whether a native window is ever worth a milestone, so they are recorded as data,
    drag and close, and `WS_CAPTION`/`WS_SYSMENU` are **already set** (style `0x14CF0000`), so no
    window-style trick restores them — WT draws over the caption itself.
 
-**Still open in M1:** the live 9-line checklist run end to end; `runs/m1-session-a/RESULT.md`
-marking **every §B13 row live or headless** — a headless pass on a row about keystrokes, flicker,
-colour or terminal state is **not a pass**, and that is the finding of this milestone.
+**The 9-line interaction checklist PASSED**, driven by hand by the human in one live Windows
+Terminal session, 2026-08-08: every region hotkey, all five dropdowns opened and selected from, the
+full Tab cycle and back, conversation scrolling, all seven status states, the approval overlay,
+`Ctrl-C` handled by the app, a forced panic, and quit. `RESULT.md` records it attributed to the
+human rather than as an unattributed "verified".
+
+**ONE ROW LEFT BEFORE M1 IS ACCEPTED:** accent legibility on a **light** terminal background. §B13
+asks for the eye, on each; it has a contrast number (3.26:1, which clears AA for large text and UI
+components but not AA body) and has never been looked at. Open it once on a light background and
+either accept it or move the accent.
 
 ### The two M0b directions, carried as named work rather than preconditions
 
