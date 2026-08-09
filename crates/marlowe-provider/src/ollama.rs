@@ -552,7 +552,29 @@ impl ModelDriver for OllamaDriver {
         // `closed` starts false because the OPENING tag is emitted by the chat template and
         // consumed before the stream begins: `<think>` never appears on the wire, only its close.
         let mut held = String::new();
-        let mut closed = false;
+        // **What "known shut" means, measured on this endpoint.**
+        //
+        // Ollama parses the think block itself and hands reasoning over in `message.thinking`.
+        // The moment a `thinking` delta arrives, the block is *its* to close and `content` is
+        // outside it — so content streams, and the rule is not violated because the model is not
+        // in the container any more.
+        //
+        // The tagged case this held for — 454 content frames and a `</think>` at frame 846 — was
+        // produced by a MALFORMED conversation: no assistant `tool_calls`, no `tool_name`, so the
+        // template left a block open and the model continued it in `content`. With the wire shape
+        // corrected, the same prompt measures:
+        //
+        //     call 0: native_thinking=235B  content=  0B  close_tag_in_content=false
+        //     call 1: native_thinking=450B  content= 31B  close_tag_in_content=false
+        //
+        // Clean, both calls. Holding every byte to the end of the call made the reply appear in
+        // one lump instead of streaming, which is what it was reported as.
+        //
+        // Starting `closed` at `!self.thinking` covers the other direction: with thinking off
+        // there is no block to be inside, so nothing should ever be held. An explicit `<think>`
+        // in content still puts the splitter `inside` regardless, and a bare `</think>` still
+        // retracts — both backstops stay.
+        let mut closed = !self.thinking;
         let mut tool_calls: Vec<serde_json::Value> = Vec::new();
         let mut usage = Usage { prompt_tokens: 0, completion_tokens: 0, micros_usd: 0, wall_ms: 0 };
 
@@ -579,6 +601,9 @@ impl ModelDriver for OllamaDriver {
                     if let Some(r) = msg.get(field).and_then(|r| r.as_str()) {
                         if !r.is_empty() {
                             on_reasoning(r);
+                            // The provider is separating the channels, so whatever arrives in
+                            // `content` is outside the block. See `closed`'s header.
+                            closed = true;
                         }
                     }
                 }
@@ -586,12 +611,20 @@ impl ModelDriver for OllamaDriver {
                     if !c.is_empty() {
                         let split = splitter.feed(c);
                         if split.retract_speech {
-                            // A `</think>` proved the buffer was reasoning. Nothing was rendered
-                            // as speech, so there is nothing to take back from the screen — it is
-                            // routed to the channel it belonged in all along.
+                            // A `</think>` proved everything before it was reasoning.
                             if !held.is_empty() {
+                                // Held, never rendered — route it and move on, nothing to undo.
                                 on_reasoning(&held);
                                 held.clear();
+                            }
+                            if !text.is_empty() {
+                                // **Already streamed, so it must be taken back.** Reachable when
+                                // the channels looked separated and the model then closed a block
+                                // in `content` anyway. Measured as not occurring once the wire
+                                // shape was fixed — kept because "measured as not occurring" is a
+                                // statement about one model on one day.
+                                text.clear();
+                                on_retract();
                             }
                             closed = true;
                         }
@@ -663,11 +696,6 @@ impl ModelDriver for OllamaDriver {
             }
             held.clear();
         }
-        // **`on_retract` is deliberately unused on this path now.** Holding removed the need to
-        // take anything back: nothing reaches the response colour before the block is known shut,
-        // so there is never rendered speech to withdraw. The callback stays on the trait because
-        // the surface's handling of it is tested and a future provider may still need it.
-        let _ = &on_retract;
 
         // Reassembled into the same shape the non-streaming path produced, so `parse_step` is
         // unchanged and the four loop-control tools keep their routing.

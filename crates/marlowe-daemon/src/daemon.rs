@@ -497,11 +497,19 @@ impl Daemon {
             let mut n: u64 = 0;
             driver = driver.with_raw_frames(Box::new(move |frame| {
                 n += 1;
+                let think = frame
+                    .get("message")
+                    .and_then(|m| m.get("thinking"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("");
                 let text = frame
                     .get("message")
                     .and_then(|m| m.get("content"))
                     .and_then(|c| c.as_str())
                     .unwrap_or("");
+                if !think.is_empty() {
+                    eprintln!("[dev] frame {n:>4}  THINK {:>4} bytes", think.len());
+                }
                 let done = frame.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
                 eprintln!(
                     "[dev] frame {n:>4}  {:>5} bytes  done={done}  {:?}",

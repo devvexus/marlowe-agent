@@ -428,3 +428,76 @@ mod hold_rule {
         assert_eq!(reasoning, "");
     }
 }
+
+
+#[cfg(test)]
+mod streaming_rule {
+    use super::*;
+
+    /// **The reply must stream, and it stopped.**
+    ///
+    /// Reported live: "streaming works fine on everything BUT the final response". Holding every
+    /// content byte until a `</think>` arrived was correct while the model was fencing its
+    /// reasoning inside `content` — and once the conversation shape was fixed, Ollama parsed the
+    /// block itself and no closing tag ever came. So the hold never resolved until end-of-call and
+    /// the answer landed in one lump.
+    ///
+    /// This drives the resolved rule: **a `thinking` delta means the provider is separating the
+    /// channels, so `content` is outside the block and streams.**
+    fn drive(native_thinking: bool, chunks: &[&str], thinking_setting: bool) -> Vec<String> {
+        let mut s = ThinkSplitter::new();
+        let mut closed = !thinking_setting;
+        if native_thinking {
+            closed = true;
+        }
+        let mut emitted = Vec::new();
+        let mut held = String::new();
+        for c in chunks {
+            let split = s.feed(c);
+            if split.retract_speech {
+                held.clear();
+                emitted.clear();
+                closed = true;
+            }
+            for seg in &split.segments {
+                if let Segment::Speech(t) = seg {
+                    if closed {
+                        emitted.push(t.clone());
+                    } else {
+                        held.push_str(t);
+                    }
+                }
+            }
+        }
+        if !held.is_empty() {
+            emitted.push(held);
+        }
+        emitted
+    }
+
+    #[test]
+    fn the_reply_streams_chunk_by_chunk_once_the_provider_separates_the_channels() {
+        let out = drive(true, &["The ", "first ", "heading ", "is ", "`# State`."], true);
+        assert_eq!(
+            out.len(),
+            5,
+            "the reply arrived in {} piece(s); it must stream as it did before the hold: {out:?}",
+            out.len()
+        );
+        assert_eq!(out.concat(), "The first heading is `# State`.");
+    }
+
+    /// The hold still applies when there is no evidence the block is shut.
+    #[test]
+    fn content_with_no_native_thinking_is_held_until_the_tag() {
+        let out = drive(false, &["still reasoning here", " and more"], true);
+        assert_eq!(out.len(), 1, "unresolved content must not stream: {out:?}");
+    }
+
+    /// Thinking off: there is no block, so nothing is ever held.
+    #[test]
+    fn with_thinking_off_the_reply_streams_immediately() {
+        let out = drive(false, &["4", "2"], false);
+        assert_eq!(out.len(), 2, "no think channel means no hold: {out:?}");
+    }
+}
