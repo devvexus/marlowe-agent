@@ -491,9 +491,21 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
     let w = width.max(20) as usize;
     for entry in &app.view().transcript {
         match entry {
+            // **Weight 1 — the terminal's own foreground.** What the user typed is not chrome and
+            // not the machine's own noise; it is the other half of the conversation.
+            //
+            // This rendered at `theme.dim()`, weight 2, which is the same weight the reasoning
+            // block uses — so a question the user asked and a chain of thought they did not write
+            // were the same colour. Reported live as *"user messages are indistinguishable from
+            // thinking"*, and the theme had already said otherwise: `speech`'s own doc comment
+            // reads *"the user's words stay in the terminal's foreground (weight 1) and Marlowe's
+            // take this"*. The renderer was contradicting the scheme it was built on.
+            //
+            // The three weights now say three different things: the user is weight 1, the model's
+            // reasoning is weight 2, and Marlowe's voice is the accent tint.
             Entry::User(text) => {
                 for l in wrap(text, w) {
-                    out.push(Line::from(Span::styled(l, theme.dim())));
+                    out.push(Line::from(Span::styled(l, Style::default())));
                 }
                 out.push(Line::from(""));
             }

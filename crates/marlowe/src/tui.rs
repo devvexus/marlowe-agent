@@ -322,6 +322,28 @@ fn run_with(
     )?;
     terminal::disable_raw_mode()?;
 
+    // **Closing the window stops the daemon.** Invariant 6 says a RUN survives the client that
+    // started it, not that the daemon is immortal — and with no way to stop one, a closed window
+    // left a process listening that the next launch silently reconnected to. That is how a fixed
+    // build gets tested against a stale one, which happened three times in one session.
+    //
+    // The daemon refuses while a run is in flight, which is the case the invariant is actually
+    // about. Printed here rather than in the band because the alternate screen is already down.
+    if let Some(port) = connect_port {
+        let client = marlowe_daemon::Client::new("tui").with_port(port);
+        match client.shutdown() {
+            Ok(events) => {
+                for e in events {
+                    if let marlowe_daemon::Event::Error { detail } = e {
+                        println!("marlowe: daemon still running — {detail}");
+                    }
+                }
+            }
+            // Already gone, or never ours. Neither is worth a line.
+            Err(_) => {}
+        }
+    }
+
     if let Some((first_frame_ms, interactive_ms)) = result? {
         println!("raw_mode                {}", on_off(raw_mode));
         println!("alternate_screen        on");

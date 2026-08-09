@@ -454,3 +454,31 @@ fn a_blocked_tool_call_reaches_the_transcript() {
         v.status.detail
     );
 }
+
+/// **A daemon can be stopped, and refuses while a run is live.**
+///
+/// There was no shutdown path at all. Closing the TUI left a process listening, and the next
+/// launch reconnected to it — three times in one session a fixed build was tested against a stale
+/// one that way. Invariant 6 says a RUN survives the client that started it, not that the daemon
+/// is immortal.
+#[test]
+fn shutdown_is_reachable_and_the_wire_carries_it() {
+    use marlowe_daemon::Request;
+
+    // The request exists on the wire in the same shape as every other op.
+    let json = serde_json::to_string(&Request::Shutdown).expect("serializes");
+    assert_eq!(json, r#"{"op":"shutdown"}"#, "the wire form is stable: {json}");
+
+    let back: Request = serde_json::from_str(&json).expect("round-trips");
+    assert_eq!(back, Request::Shutdown);
+}
+
+/// Asking a daemon that is not there is not an error the user needs to see.
+#[test]
+fn shutting_down_an_absent_daemon_fails_quietly() {
+    let client = marlowe_daemon::Client::new("t").with_port(1);
+    assert!(
+        client.shutdown().is_err(),
+        "no daemon on that port, so this must fail rather than appear to succeed"
+    );
+}

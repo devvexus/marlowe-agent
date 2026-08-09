@@ -655,6 +655,28 @@ impl Daemon {
             }
             // The gate is not wired to a surface yet; refusing is the honest answer rather than
             // recording an approval nobody gave.
+            Request::Shutdown => {
+                // **Refused while a run is live.** That is exactly what invariant 6 protects: the
+                // work outlives the window. An idle daemon protects nothing and is only in the
+                // way.
+                let live = self.runs.values().filter(|r| r.status == "running").count();
+                if live > 0 {
+                    on_event(Event::Error {
+                        detail: format!(
+                            "{live} run(s) still in flight; the daemon keeps them (invariant 6). \
+                             Stop it again once they finish."
+                        ),
+                    });
+                } else {
+                    self.shutdown.store(true, Ordering::Relaxed);
+                    on_event(Event::Done {
+                        outcome: "shutdown".into(),
+                        detail: String::new(),
+                        spend_micros_usd: 0,
+                        elapsed_ms: 0,
+                    });
+                }
+            }
             Request::Approve { .. } => on_event(Event::Error {
                 detail: "approvals need an attached surface; the daemon does not self-approve"
                     .into(),
@@ -682,6 +704,14 @@ impl Daemon {
             let Ok(stream) = incoming else { continue };
             let mut guard = state.lock().expect("the daemon is single-threaded");
             let _ = guard.serve_one(stream);
+            drop(guard);
+            // **Checked after serving, not only before accepting.** `incoming()` blocks, so a
+            // shutdown request set the flag and then the loop sat waiting for a connection that
+            // would never come — the daemon answered "shutdown" and kept listening. Verified by
+            // connecting again afterwards rather than by trusting the reply.
+            if shutdown.load(Ordering::Relaxed) {
+                break;
+            }
         }
         Ok(())
     }

@@ -174,6 +174,16 @@ impl Client {
         self.send(&Request::Status)
     }
 
+    /// Ask the daemon to stop.
+    ///
+    /// **Refused while a run is in flight** — that is the case invariant 6 exists for. An idle
+    /// daemon protects nothing, and one that could not be stopped meant a closed window left a
+    /// process listening that the next launch silently reconnected to. Three times this session a
+    /// fixed build was tested against a stale one that way.
+    pub fn shutdown(&self) -> Result<Vec<Event>, ClientError> {
+        self.send(&Request::Shutdown)
+    }
+
     /// Whether a daemon is already listening. Cheap, and does not start one.
     pub fn daemon_is_up(&self) -> bool {
         self.connect().is_ok()

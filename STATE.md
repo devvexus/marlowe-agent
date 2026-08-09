@@ -1,5 +1,63 @@
 # State
 
+## M2 C2e addendum - two interface fixes, both reported from use. `550 tests`.
+
+### The user's own words rendered at the same weight as the model's reasoning
+
+Reported as *"user messages are indistinguishable colour-wise from thinking/reasoning."*
+
+`Entry::User` rendered with `theme.dim()` - foreground weight 2, which is the weight the
+reasoning block uses. A question the user typed and a chain of thought they did not write were the
+same colour.
+
+**The theme had already stated the intended scheme and the renderer contradicted it.** `speech`'s
+own doc comment in `marlowe-surface/src/theme.rs` reads: *"The user's words stay in the terminal's
+foreground (weight 1) and Marlowe's take this, which is the one place in the design where colour
+marks WHO is speaking rather than state."* Nothing caught it because every colour in use was a
+legitimate colour - the defect was two roles sharing one.
+
+Three speakers now hold three weights:
+
+| Who | Style |
+|---|---|
+| The user | weight 1, the terminal's own foreground |
+| The model's reasoning | weight 2, `theme.dim()` |
+| Marlowe's voice | `theme.speech()`, the accent tinted toward white |
+
+Guarded by `b13_rendering.rs::the_user_the_reasoning_and_marlowe_do_not_share_a_colour`, which
+reads the foreground of the rendered cells rather than inspecting the style the code asked for.
+
+### The daemon could not be stopped
+
+Reported as *"make closing the window shutdown the daemon. Otherwise I cant ever close the
+daemon."*
+
+There was no shutdown path at all - `Request` had `Status`, `Ask`, `Runs` and `Approve`. Closing
+the TUI left the daemon listening, and the next launch reconnected to it, so a rebuilt binary was
+never the one being exercised. **That happened three times in this session**: a fix was reported as
+not working, twice, because the running daemon predated it.
+
+`Request::Shutdown` now exists, `Client::shutdown()` sends it, and the TUI sends it on exit after
+leaving the alternate screen.
+
+**Invariant 6 is unchanged and this is not a weakening of it.** The invariant says a RUN survives
+the client that started it; it does not say the daemon is immortal. The daemon **refuses to stop
+while a run is in flight** and says how many are holding it. An idle daemon protects nothing and
+was only ever in the way.
+
+**One defect in the first version of this, found by checking rather than by reading.** Setting the
+flag was not enough: `listener.incoming()` blocks, and the loop only tested the flag at the top of
+the next iteration - so the daemon replied `{"outcome":"shutdown"}` and kept listening for a
+connection that would never come. The reply was correct and the process was still there. The check
+now also runs after serving a request, and the fix was verified by reconnecting afterwards rather
+than by trusting the reply:
+
+```
+reply: {"event":"done","outcome":"shutdown",...}
+connect after shutdown: refused - daemon stopped
+```
+
+
 ## M2 C2e - the agent loop is honest about what it sends and what it shows. `2be2179`.
 
 **542 tests. `cargo build --release` clean. Seven commits, and not one of these defects was found

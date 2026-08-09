@@ -548,3 +548,50 @@ fn every_inspector_tab_rect_covers_its_own_label_in_the_rendered_frame() {
     }
     println!("inspector tabs clickable: 6/6, targets disjoint, verified against the drawn buffer");
 }
+
+/// **Three speakers, three weights.** The user, the model's reasoning, and Marlowe's voice must
+/// not share a colour.
+///
+/// Reported live: *"user messages are indistinguishable colour-wise from thinking/reasoning."*
+/// `Entry::User` rendered at `theme.dim()` — weight 2, the same weight the reasoning block uses —
+/// so a question the user typed and a chain of thought they did not write looked identical.
+///
+/// The theme had already stated the intended scheme: `speech`'s doc comment says *"the user's
+/// words stay in the terminal's foreground (weight 1) and Marlowe's take this"*. The renderer was
+/// contradicting the design it was built on, which is why nothing caught it — every colour in use
+/// was a legitimate colour.
+#[test]
+fn the_user_the_reasoning_and_marlowe_do_not_share_a_colour() {
+    use marlowe_view::{Entry, Speech};
+
+    let mut view = common::rig().producer.view().clone();
+    view.transcript.clear();
+    view.transcript.push(Entry::User("what tools do you have".into()));
+    view.transcript.push(Entry::Reasoning { text: "weighing the options".into(), done: true });
+    view.transcript.push(Entry::Said(Speech::Model("seven of them.".into())));
+
+    let mut app = marlowe_surface::App::new(view).expect("the shipped key set has no conflicts");
+    app.reasoning_expanded = true;
+
+    let buf = common::frame(&app, 120, 30);
+    // The foreground of the first cell of each line that carries one of the three texts.
+    let colour_of = |needle: &str| -> Option<ratatui::style::Color> {
+        (0..buf.area.height).find_map(|y| {
+            let row = common::row_text(&buf, y);
+            let at = row.find(needle)?;
+            Some(buf[(at as u16, y)].style().fg.unwrap_or(ratatui::style::Color::Reset))
+        })
+    };
+
+    let user = colour_of("what tools do you have").expect("the user's line is on the frame");
+    let reasoning = colour_of("weighing the options").expect("the reasoning is on the frame");
+    let marlowe = colour_of("seven of them.").expect("Marlowe's reply is on the frame");
+
+    assert_ne!(
+        user, reasoning,
+        "the user's own words and the model's reasoning render in the same colour ({user:?}) — \
+         the two are indistinguishable on screen"
+    );
+    assert_ne!(user, marlowe, "the user and Marlowe must not share a colour");
+    assert_ne!(reasoning, marlowe, "reasoning and Marlowe's voice must not share a colour");
+}

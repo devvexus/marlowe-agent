@@ -31,6 +31,14 @@ pub enum Request {
     /// Approve or decline a pending decision (§B9). The harness enforces; the model never sees
     /// this path.
     Approve { decision: u64, granted: bool },
+    /// Stop the daemon.
+    ///
+    /// **Invariant 6 says a run survives the client that started it, not that the daemon is
+    /// immortal.** Without this there is no way to stop one at all: closing the TUI leaves it
+    /// listening, and the next launch reconnects to it — which is how a fixed build gets tested
+    /// against a stale binary. It refuses while a run is live, so the invariant still holds where
+    /// it means something.
+    Shutdown,
 }
 
 /// Daemon → client. Render-only, mirroring `TurnEvent` plus the frames a client needs to know
