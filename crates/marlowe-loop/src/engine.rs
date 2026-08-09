@@ -223,7 +223,23 @@ impl<S: PathScope> Engine<S> {
 
             // ── the model call, with failover ────────────────────────────────────────
             let limits = run.budget.call_limits(&run.spent);
-            let call = match ports.driver.call(&view, run.profile.exposed_tools(), limits) {
+            // **Deltas go out as they arrive.** The sink is borrowed for the duration of the
+            // call, so the chunks reach the surface while the model is still producing them —
+            // which is the whole of what "streaming" means above the transport.
+            let streamed = ports.driver.streams();
+            let sink = &mut *ports.sink;
+            let call = {
+                let mut on_delta = |chunk: &str| {
+                    sink.emit(TurnEvent::TextDelta(chunk.to_string()));
+                };
+                ports.driver.call_streaming(
+                    &view,
+                    run.profile.exposed_tools(),
+                    limits,
+                    &mut on_delta,
+                )
+            };
+            let call = match call {
                 Ok(c) => c,
                 Err(e) => {
                     if e.retriable && ports.driver.failover(&e) {
@@ -267,7 +283,15 @@ impl<S: PathScope> Engine<S> {
 
             match call.step {
                 ModelStep::Say(text) => {
-                    ports.sink.emit(TurnEvent::TextDelta(text.clone()));
+                    // **Emitted only if the driver did not already stream it.** A streaming driver
+                    // has handed every chunk to `on_delta` above, and re-emitting the assembled
+                    // string here would deliver the reply twice — visibly, in the transcript.
+                    // `streams()` is asked rather than inferred from "did any delta arrive",
+                    // because an empty reply from a streaming driver is not the same as a
+                    // non-streaming one.
+                    if !streamed {
+                        ports.sink.emit(TurnEvent::TextDelta(text.clone()));
+                    }
                     state.push(Block::new(
                         SourceKind::History,
                         text,

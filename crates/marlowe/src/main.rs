@@ -16,8 +16,8 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
-marlowe --ask <question> [--workspace <DIR>]
-marlowe --serve [--workspace <DIR>]
+marlowe --ask <question> [--workspace <DIR>] [--dev] [--context <TOKENS>]
+marlowe --serve [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKENS>]
 marlowe --status
 marlowe --launch
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
@@ -211,6 +211,31 @@ fn main() {
     }
 
     // ── ARCHITECTURE §6: the two roles ────────────────────────────────────────────────────
+    // **`--context` refuses rather than falling back.** A value that cannot be resolved must be a
+    // load-time error: Ollama silently applies 2048 to a 262,144-token model when `num_ctx` is
+    // omitted, and that permissive default was live for the whole of M2. A typo must not reach it.
+    let context: Option<u32> = match flag_value(&args, "--context") {
+        None if args.iter().any(|a| a == "--context") => {
+            eprintln!("error: --context requires a value in tokens, e.g. `--context 32768`.");
+            std::process::exit(2);
+        }
+        None => None,
+        Some(v) => match v.parse::<u32>() {
+            Ok(n) if (1_024..=marlowe_provider::MODEL_CONTEXT_CEILING).contains(&n) => Some(n),
+            Ok(n) => {
+                eprintln!(
+                    "error: --context {n} is outside 1024..={}. The upper bound is what the                      pinned model reports it supports; a larger window is a KV-cache commitment                      the model cannot honour.",
+                    marlowe_provider::MODEL_CONTEXT_CEILING
+                );
+                std::process::exit(2);
+            }
+            Err(_) => {
+                eprintln!("error: --context {v:?} is not a number of tokens.");
+                std::process::exit(2);
+            }
+        },
+    };
+
     if matches!(modes[0], "--serve" | "--ask" | "--status") {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
@@ -225,10 +250,18 @@ fn main() {
                 workspace,
                 profile_root,
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+                args.iter().any(|a| a == "--dev"),
+                context,
             ),
             "--status" => agent::status(workspace, profile_root),
             _ => match flag_value(&args, "--ask") {
-                Some(message) => agent::ask(message, workspace, profile_root),
+                Some(message) => agent::ask(
+                    message,
+                    workspace,
+                    profile_root,
+                    args.iter().any(|a| a == "--dev"),
+                    context,
+                ),
                 None => Err("--ask requires a question, e.g. `marlowe --ask \"read notes.md\"`"
                     .to_string()),
             },

@@ -48,6 +48,12 @@ pub struct DaemonConfig {
     /// ADR-029: the active rerank provider, **announced** rather than silently chosen. Read from
     /// the field the profile row stamps; this crate does not derive a second one.
     pub rerank_provider: String,
+    /// `--dev`: write raw provider frames and the outbound request to stderr.
+    pub dev: bool,
+    /// The context window in tokens. **One number**: it becomes both `num_ctx` on every request
+    /// and the assembler's window, so §6's 70% compaction trigger is computed against the window
+    /// the provider actually has.
+    pub context_tokens: u32,
 }
 
 impl DaemonConfig {
@@ -61,6 +67,8 @@ impl DaemonConfig {
             // value here would be the second source ADR-029 forbids. The honest value is that
             // nothing has announced one yet.
             rerank_provider: "not-wired".to_string(),
+            dev: false,
+            context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,
         }
     }
 }
@@ -74,16 +82,81 @@ pub struct RunSummary {
     pub depth: u8,
 }
 
-/// Collects turn events for one connection. Render-only.
-#[derive(Default)]
-struct Collector {
-    events: Vec<Event>,
+/// Whether the running binary predates the source it was built from.
+///
+/// # Why a daemon needs this and a CLI does not
+///
+/// A daemon is long-lived. It loads a binary once and serves from it until something stops it —
+/// so a rebuild changes the source, the tests and the developer's mental model while the process
+/// keeps answering from the old code. **This cost M2 C2e two turns**: the persona was wired,
+/// committed and unit-tested, and the daemon had been serving pre-persona code for an hour. The
+/// symptom was "the persona does not work", which is a true observation about a false cause.
+///
+/// That is the same family as everything else in CLAUDE.md's table — a reading that is correct
+/// about a system other than the one being asked about — so it gets an instrument rather than a
+/// habit. Returns the newest source mtime when it is newer than the executable's.
+///
+/// **Absent outside a source tree**, which is correct: an installed binary has no `crates/` to be
+/// stale against, and inventing a warning there would be noise.
+fn stale_against_source() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let exe_time = exe.metadata().ok()?.modified().ok()?;
+
+    // Walk up from the executable looking for the workspace's `crates/`.
+    let mut root = exe.parent()?;
+    let crates = loop {
+        // LOOP-EXEMPT: walking up a path, not a driving loop.
+        let candidate = root.join("crates");
+        if candidate.is_dir() {
+            break candidate;
+        }
+        root = root.parent()?;
+    };
+
+    let mut newest: Option<std::time::SystemTime> = None;
+    let mut stack = vec![crates];
+    while let Some(dir) = stack.pop() {
+        // LOOP-EXEMPT: a filesystem walk, not a driving loop.
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                if p.file_name().is_some_and(|n| n == "target") {
+                    continue;
+                }
+                stack.push(p);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                if let Ok(t) = p.metadata().and_then(|m| m.modified()) {
+                    if newest.is_none_or(|n| t > n) {
+                        newest = Some(t);
+                    }
+                }
+            }
+        }
+    }
+
+    let newest = newest?;
+    if newest <= exe_time {
+        return None;
+    }
+    let behind = newest.duration_since(exe_time).ok()?;
+    let mins = behind.as_secs() / 60;
+    Some(format!(
+        "this daemon's binary is {} older than the source it was built from — rebuild with          `cargo build --release` and restart it, or it will keep serving the old code",
+        if mins >= 1 { format!("{mins} min") } else { format!("{} s", behind.as_secs()) }
+    ))
 }
 
-impl TurnSink for Collector {
-    fn emit(&mut self, event: TurnEvent) {
-        let e = match event {
-            TurnEvent::TextDelta(t) => Event::Text { delta: t },
+/// Turns a loop event into a wire event. Render-only.
+///
+/// `TurnEvent::Done` returns `None`: the loop's own Done carries no outcome, and the daemon emits
+/// a richer one after `engine.run` returns. Under the old collecting sink that was fixed up by
+/// `retain`ing it out of the vector afterwards — **which streaming makes impossible**, because a
+/// written event cannot be recalled. Filtering at the point of emission is the same correction
+/// made where it still works.
+fn to_wire(event: TurnEvent) -> Option<Event> {
+    Some(match event {
+        TurnEvent::TextDelta(t) => Event::Text { delta: t },
             TurnEvent::ToolLine { id, verb, target, state } => {
                 let (state, summary) = match state {
                     ToolLineState::Running { elapsed_ms } => {
@@ -106,14 +179,30 @@ impl TurnSink for Collector {
                 scope: br.scope,
                 reversible: br.reversible,
             },
-            TurnEvent::Done { spend_micros_usd, elapsed_ms, .. } => Event::Done {
-                outcome: "completed".into(),
-                detail: String::new(),
-                spend_micros_usd,
-                elapsed_ms,
-            },
-        };
-        self.events.push(e);
+        TurnEvent::Done { .. } => return None,
+    })
+}
+
+/// A sink that hands each event to a callback **as the loop produces it**.
+///
+/// # This is the structural half of streaming
+///
+/// The previous sink was `struct Collector { events: Vec<Event> }`, and `Daemon::ask` returned
+/// that vector — so the daemon computed every model call and every tool execution before writing
+/// a single byte to the socket. Layers 1 and 4 could stream perfectly and the user would still see
+/// nothing until the turn was over, because the middle held everything.
+///
+/// The callback is what lets `serve_one` write-and-flush per event and `ask` collect into a `Vec`
+/// for the in-process path, without two sinks that could drift.
+struct CallbackSink<F: FnMut(Event)> {
+    on_event: F,
+}
+
+impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
+    fn emit(&mut self, event: TurnEvent) {
+        if let Some(e) = to_wire(event) {
+            (self.on_event)(e);
+        }
     }
 }
 
@@ -199,6 +288,10 @@ impl Daemon {
                 (!a.is_ready()).then(|| a.remedy())
             }
         };
+        // **Announced, loudly, and ahead of everything else.** A daemon serving stale code
+        // produces symptoms that look like bugs in whatever was just changed, and the reflex is to
+        // debug the change. Invariant 4's rule applies: degrade visibly, and name the remedy.
+        let degraded = stale_against_source().or(degraded);
         StatusReport {
             version: env!("CARGO_PKG_VERSION").to_string(),
             workspace: self.config.workspace.display().to_string(),
@@ -211,7 +304,21 @@ impl Daemon {
     }
 
     /// One turn, start to finish. The daemon owns the run for its whole life.
+    /// One turn, collecting every event. The in-process path (`marlowe --ask` with no daemon)
+    /// and the tests use this; `serve_one` uses [`Self::ask_streaming`].
     pub fn ask(&mut self, session: &str, message: &str) -> Vec<Event> {
+        let mut out = Vec::new();
+        self.ask_streaming(session, message, |e| out.push(e));
+        out
+    }
+
+    /// One turn, emitting each event **as it is produced**.
+    pub fn ask_streaming(
+        &mut self,
+        session: &str,
+        message: &str,
+        mut on_event: impl FnMut(Event),
+    ) {
         // The run is recorded FIRST, before anything can fail. The daemon accepted the work, so
         // the record is the daemon's from that moment — a turn that degraded is still a turn
         // that happened, and a client asking `runs` after one must not be told nothing occurred.
@@ -233,7 +340,8 @@ impl Daemon {
             Ok(r) => r,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
-                return vec![Event::Error { detail: e.to_string() }];
+                on_event(Event::Error { detail: e.to_string() });
+                return;
             }
         };
 
@@ -241,39 +349,46 @@ impl Daemon {
         if !availability.is_ready() {
             mark(&mut self.runs, "degraded", 0);
             // Invariant 4: a declared, actionable state — not a crash and not a silent stub.
-            return vec![
-                Event::Degraded {
-                    what: "no model available".into(),
-                    remedy: availability.remedy(),
-                },
-                Event::Done {
-                    outcome: "degraded".into(),
-                    detail: availability.remedy(),
-                    spend_micros_usd: 0,
-                    elapsed_ms: 0,
-                },
-            ];
+            on_event(Event::Degraded {
+                what: "no model available".into(),
+                remedy: availability.remedy(),
+            });
+            on_event(Event::Done {
+                outcome: "degraded".into(),
+                detail: availability.remedy(),
+                spend_micros_usd: 0,
+                elapsed_ms: 0,
+            });
+            return;
         }
 
         let registry = match builtin_registry() {
             Ok(r) => r,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
-                return vec![Event::Error { detail: e.to_string() }];
+                on_event(Event::Error { detail: e.to_string() });
+                return;
             }
         };
         let scope = match WorkspaceScope::new() {
             Ok(s) => s,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
-                return vec![Event::Error { detail: e.to_string() }];
+                on_event(Event::Error { detail: e.to_string() });
+                return;
             }
         };
+        // **Derived, not restated.** The assembler's window is the same number the driver sends
+        // as `num_ctx`. Before C2e these were 32_000 and (unset -> 2048): the assembler packed
+        // 32k of context into a 2k window and §6's trigger fired against a window that did not
+        // exist. `tests/context_window.rs` fails if they ever diverge again.
+        let window = self.config.context_tokens;
+        let reserve = (window / 16).max(512);
         let mut engine = Engine::new(
             registry,
             scope,
-            32_000,
-            2_000,
+            window,
+            reserve,
             self.config.workspace.clone(),
             Tier::Act,
         );
@@ -283,18 +398,78 @@ impl Daemon {
             routing,
             builtin_registry().expect("the builtins loaded a moment ago"),
         )
-        .with_capability(default_capability());
+        .with_capability(default_capability())
+        .with_context_tokens(self.config.context_tokens);
+
+        // **`--dev`: the provider's own wire, before interpretation.**
+        //
+        // A slow turn and a hung one look identical from outside, and this is the only view that
+        // separates *the model is emitting slowly* from *nothing is arriving*. It writes to the
+        // daemon's stderr rather than the transcript: it is a diagnostic, and §B1's rule that
+        // instrumentation lives under `--dev` applies to the provider seam as much as to memory.
+        if self.config.dev {
+            // The outbound request, once per model call. This is the reading that settles whether
+            // the persona reached the model — the constructed-body test cannot.
+            driver = driver.with_request_dump(Box::new(|body| {
+                let system: Vec<&str> = body
+                    .get("messages")
+                    .and_then(|m| m.as_array())
+                    .map(|ms| {
+                        ms.iter()
+                            .filter(|m| m.get("role").and_then(|r| r.as_str()) == Some("system"))
+                            .filter_map(|m| m.get("content").and_then(|c| c.as_str()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                eprintln!("[dev] ===== OUTBOUND REQUEST =====");
+                eprintln!(
+                    "[dev] model={} num_ctx={} num_predict={}",
+                    body.get("model").and_then(|m| m.as_str()).unwrap_or("?"),
+                    body.pointer("/options/num_ctx")
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "UNSET (Ollama defaults to 2048)".into()),
+                    body.pointer("/options/num_predict")
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "unset".into()),
+                );
+                eprintln!("[dev] system messages: {}", system.len());
+                for (i, sys) in system.iter().enumerate() {
+                    eprintln!("[dev] --- system[{i}] ({} chars) ---", sys.len());
+                    for line in sys.lines() {
+                        eprintln!("[dev] | {line}");
+                    }
+                }
+                eprintln!("[dev] ===== END REQUEST =====");
+            }));
+
+            let mut n: u64 = 0;
+            driver = driver.with_raw_frames(Box::new(move |frame| {
+                n += 1;
+                let text = frame
+                    .get("message")
+                    .and_then(|m| m.get("content"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or("");
+                let done = frame.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
+                eprintln!(
+                    "[dev] frame {n:>4}  {:>5} bytes  done={done}  {:?}",
+                    text.len(),
+                    text.chars().take(60).collect::<String>()
+                );
+            }));
+        }
         let tool_scope = match WorkspaceScope::new() {
             Ok(s) => s,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
-                return vec![Event::Error { detail: e.to_string() }];
+                on_event(Event::Error { detail: e.to_string() });
+                return;
             }
         };
         let mut tools = FileSystemTools::new(tool_scope, self.config.workspace.clone());
         let mut summarizer = PassthroughSummarizer;
         let mut approvals = DenyUnattended;
-        let mut sink = Collector::default();
+        let mut sink = CallbackSink { on_event: &mut on_event };
         let mut control = NoControl;
         let mut clock = SystemClock;
 
@@ -342,6 +517,7 @@ impl Daemon {
             };
             engine.run(&mut run, &mut state, &mut provenance, &mut ports)
         };
+        drop(sink);
 
         let (status, detail) = match &outcome {
             LoopOutcome::Completed(r) => ("completed", r.render()),
@@ -352,15 +528,13 @@ impl Daemon {
         };
         mark(&mut self.runs, status, run.spent.tokens);
 
-        let mut events = sink.events;
-        events.retain(|e| !matches!(e, Event::Done { .. }));
-        events.push(Event::Done {
+        // The loop's own Done was filtered at emission (`to_wire`), so this is the only one.
+        on_event(Event::Done {
             outcome: status.into(),
             detail,
             spend_micros_usd: run.spent.micros_usd,
             elapsed_ms: run.spent.wall_ms,
         });
-        events
     }
 
     pub fn runs(&self) -> Vec<Event> {
@@ -375,17 +549,26 @@ impl Daemon {
             .collect()
     }
 
-    fn handle(&mut self, request: Request) -> Vec<Event> {
+    /// Answer a request, emitting each event **as it is produced**.
+    ///
+    /// `Ask` streams; everything else is a single frame and has nothing to stream.
+    fn handle(&mut self, request: Request, mut on_event: impl FnMut(Event)) {
         match request {
-            Request::Status => vec![Event::Status(self.status())],
-            Request::Ask { session, message } => self.ask(&session, &message),
-            Request::Runs => self.runs(),
+            Request::Status => on_event(Event::Status(self.status())),
+            Request::Ask { session, message } => {
+                self.ask_streaming(&session, &message, on_event)
+            }
+            Request::Runs => {
+                for e in self.runs() {
+                    on_event(e);
+                }
+            }
             // The gate is not wired to a surface yet; refusing is the honest answer rather than
             // recording an approval nobody gave.
-            Request::Approve { .. } => vec![Event::Error {
+            Request::Approve { .. } => on_event(Event::Error {
                 detail: "approvals need an attached surface; the daemon does not self-approve"
                     .into(),
-            }],
+            }),
         }
     }
 
@@ -430,10 +613,27 @@ impl Daemon {
                 return Ok(());
             }
         };
-        for event in self.handle(request) {
-            crate::protocol::write_line(&mut writer, &event)?;
+        // **Write and flush per event.** `write_line` already flushes — §4.0.2's rule that a
+        // response sitting in a buffer is indistinguishable from a hang, which is exactly what the
+        // whole turn used to be.
+        //
+        // A write failure means the client hung up. It cannot be propagated out of the callback,
+        // so it is captured and returned after the turn: aborting mid-turn would leave the run
+        // half-recorded, and the daemon owns the run whether or not anyone is listening
+        // (invariant 6).
+        let mut write_err: Option<std::io::Error> = None;
+        self.handle(request, |event| {
+            if write_err.is_some() {
+                return;
+            }
+            if let Err(e) = crate::protocol::write_line(&mut writer, &event) {
+                write_err = Some(e);
+            }
+        });
+        match write_err {
+            Some(e) => Err(e),
+            None => writer.flush(),
         }
-        writer.flush()
     }
 }
 

@@ -111,6 +111,36 @@ pub trait ModelDriver {
         limits: CallLimits,
     ) -> Result<ModelCall, ProviderError>;
 
+    /// The same call, handing each text chunk to `on_delta` **as it arrives**.
+    ///
+    /// # Why this is a second method with a default rather than a change to `call`
+    ///
+    /// `call` returns a completed `ModelCall`, so a provider that streams has nowhere to put the
+    /// partial text — which is why M2's turns arrived as one block however well the transport
+    /// streamed. Adding a parameter to `call` would break every implementation for the benefit of
+    /// the one that can stream; a defaulted sibling breaks none, and a provider that cannot stream
+    /// is *correct* to deliver its text once at the end.
+    ///
+    /// **The contract is that `on_delta` receives exactly the text that ends up in the returned
+    /// `ModelStep::Say`, in order.** A caller that emits the deltas must therefore not also emit
+    /// the finished string — see `engine.rs`, where doing both would double every reply.
+    fn call_streaming(
+        &mut self,
+        view: &ContextView,
+        tools: &ExposedSet,
+        limits: CallLimits,
+        _on_delta: &mut dyn FnMut(&str),
+    ) -> Result<ModelCall, ProviderError> {
+        self.call(view, tools, limits)
+    }
+
+    /// Whether this driver actually streams. **Announced, not inferred**: the engine has to know
+    /// whether the deltas it saw were the whole reply or nothing at all, and guessing from "did I
+    /// receive any" would be wrong for an empty response.
+    fn streams(&self) -> bool {
+        false
+    }
+
     /// Whether another provider can take this run. Returning `true` means run state is
     /// preserved across the switch — invariant 4's *degrade, never break*.
     fn failover(&mut self, _error: &ProviderError) -> bool {

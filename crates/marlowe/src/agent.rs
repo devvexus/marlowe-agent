@@ -29,11 +29,26 @@ pub fn default_profile_root() -> PathBuf {
     base.join("marlowe").join("default-profile")
 }
 
-pub fn serve(workspace: PathBuf, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+pub fn serve(
+    workspace: PathBuf,
+    profile_root: PathBuf,
+    port: Option<u16>,
+    dev: bool,
+    context: Option<u32>,
+) -> Result<(), String> {
     let mut config = DaemonConfig::new(profile_root, workspace);
     if let Some(p) = port {
         config.port = p;
     }
+    config.dev = dev;
+    if let Some(n) = context {
+        config.context_tokens = n;
+    }
+    eprintln!(
+        "marlowe: context window {} tokens (model ceiling {})",
+        config.context_tokens,
+        marlowe_provider::MODEL_CONTEXT_CEILING
+    );
     let port = config.port;
     let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
     eprintln!("marlowe: daemon listening on 127.0.0.1:{port}");
@@ -42,14 +57,24 @@ pub fn serve(workspace: PathBuf, profile_root: PathBuf, port: Option<u16>) -> Re
 }
 
 /// One question, one answer. Auto-spawns a daemon if none is up.
-pub fn ask(message: &str, workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
+pub fn ask(
+    message: &str,
+    workspace: PathBuf,
+    profile_root: PathBuf,
+    dev: bool,
+    context: Option<u32>,
+) -> Result<(), String> {
     let client = Client::new("cli");
 
     if !client.daemon_is_up() {
         // Announced, never silent.
         eprintln!("marlowe: no daemon running — starting one in this process for this question.");
         eprintln!("marlowe: run `marlowe --serve` for a daemon that outlives the command.");
-        let config = DaemonConfig::new(profile_root, workspace);
+        let mut config = DaemonConfig::new(profile_root, workspace);
+        config.dev = dev;
+        if let Some(n) = context {
+            config.context_tokens = n;
+        }
         let mut daemon = Daemon::open(config).map_err(|e| e.to_string())?;
         render(&daemon.ask("cli", message));
         return Ok(());

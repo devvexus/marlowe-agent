@@ -105,17 +105,15 @@ pub fn run(opts: Options) -> io::Result<()> {
     // the interaction demo. Whichever is live is announced rather than inferred.
     if opts.scripted {
         let mut session = marlowe_stub::Session::new();
-        return run_with(&mut session, opts, theme, clock);
+        return run_with(&mut session, opts, theme, clock, None);
     }
+    // **Nothing here talks to a daemon.** §6: the header paints before the connection resolves,
+    // and §B13 budgets 150 ms to it. The handshake happens after the first frame — see
+    // `event_loop`'s first iteration — because a cold start otherwise shows a themed window with a
+    // blinking cursor and nothing in it for as long as the daemon and Ollama take to wake up.
     let port = opts.daemon_port.unwrap_or(marlowe_daemon::DEFAULT_DAEMON_PORT);
-    ensure_daemon(port);
-    let mut session = marlowe_daemon::LiveSession::connect_on("tui", port);
-    if !session.is_connected() {
-        // Not fatal. Invariant 4: degrade visibly and name the remedy. The band says the same
-        // thing, so this line is for the case where the frame never appears at all.
-        eprintln!("marlowe: no daemon answered; the band will say so. Start one with `marlowe --serve`.");
-    }
-    run_with(&mut session, opts, theme, clock)
+    let mut session = marlowe_daemon::LiveSession::connecting("tui", port);
+    run_with(&mut session, opts, theme, clock, Some(port))
 }
 
 /// Start a daemon if none is listening. **§5's zero-config first run**: the user types `marlowe`
@@ -184,6 +182,7 @@ fn run_with(
     opts: Options,
     theme: Theme,
     clock: Clock,
+    connect_port: Option<u16>,
 ) -> io::Result<()> {
     let mut app = match App::new(session.view().clone()) {
         Ok(a) => a,
@@ -278,7 +277,7 @@ fn run_with(
     }
 
     let mut term = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-    let result = event_loop(&mut term, session, &mut app, &theme, &clock, &opts);
+    let result = event_loop(&mut term, session, &mut app, &theme, &clock, &opts, connect_port);
 
     if opts.ground {
         // OSC 110/111 reset fore/background to the terminal's configured defaults. A program that
@@ -356,10 +355,20 @@ fn event_loop(
     theme: &Theme,
     clock: &Clock,
     opts: &Options,
+    connect_port: Option<u16>,
 ) -> io::Result<Option<(u64, u64)>> {
     advance(session, app, clock.now_ms());
     term.draw(|f| render::draw(app, theme, f.area(), f.buffer_mut()))?;
     let first_frame_ms = clock.now_ms();
+
+    // **The frame is up; now talk to the daemon.** Spawning it and doing the `Status` round-trip
+    // costs whatever a cold Ollama costs, and none of it is in front of the first paint.
+    if let Some(port) = connect_port {
+        ensure_daemon(port);
+        session.connect_now();
+        app.update(session.view().clone());
+        term.draw(|f| render::draw(app, theme, f.area(), f.buffer_mut()))?;
+    }
 
     // The window title, kept current with session state via OSC 0. Tracked rather than re-emitted
     // every frame: at the animation tick that would be twenty title writes a second, and some

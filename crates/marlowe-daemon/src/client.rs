@@ -77,6 +77,49 @@ impl Client {
         })
     }
 
+    /// Send one request and hand each event to `on_event` **as it arrives**.
+    ///
+    /// **Layer 4 of the streaming path.** `send` reads to EOF and returns a `Vec`, which is
+    /// correct for `Status` and fatal for a turn: it re-buffers everything the daemon streamed.
+    /// This is the same loop with the accumulation replaced by a callback, so a caller can put
+    /// tokens on screen at the rate they land.
+    pub fn send_streaming(
+        &self,
+        request: &Request,
+        mut on_event: impl FnMut(Event),
+    ) -> Result<(), ClientError> {
+        let stream = self.connect()?;
+        // No whole-turn deadline. A model that takes two minutes is working, and a deadline here
+        // would kill exactly the long turns streaming exists to make bearable. The per-read
+        // timeout is what distinguishes slow from dead.
+        stream.set_read_timeout(Some(Duration::from_secs(600))).ok();
+        let mut writer = stream
+            .try_clone()
+            .map_err(|e| ClientError::Closed { detail: e.to_string() })?;
+        crate::protocol::write_line(&mut writer, request)
+            .map_err(|e| ClientError::Closed { detail: e.to_string() })?;
+
+        let mut reader = BufReader::new(stream);
+        loop {
+            // LOOP-EXEMPT: reading a response stream, not a driving loop.
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    match serde_json::from_str::<Event>(line.trim()) {
+                        Ok(e) => on_event(e),
+                        Err(e) => return Err(ClientError::Closed { detail: e.to_string() }),
+                    }
+                }
+                Err(e) => return Err(ClientError::Closed { detail: e.to_string() }),
+            }
+        }
+        Ok(())
+    }
+
     /// Send one request, read every event until the daemon closes.
     pub fn send(&self, request: &Request) -> Result<Vec<Event>, ClientError> {
         let stream = self.connect()?;
@@ -113,6 +156,18 @@ impl Client {
 
     pub fn ask(&self, message: &str) -> Result<Vec<Event>, ClientError> {
         self.send(&Request::Ask { session: self.session.clone(), message: message.to_string() })
+    }
+
+    /// Ask, streaming each event to the callback as it arrives.
+    pub fn ask_streaming(
+        &self,
+        message: &str,
+        on_event: impl FnMut(Event),
+    ) -> Result<(), ClientError> {
+        self.send_streaming(
+            &Request::Ask { session: self.session.clone(), message: message.to_string() },
+            on_event,
+        )
     }
 
     pub fn status(&self) -> Result<Vec<Event>, ClientError> {

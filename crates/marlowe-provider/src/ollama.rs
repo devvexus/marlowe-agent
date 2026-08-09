@@ -138,12 +138,58 @@ impl Availability {
     }
 }
 
+/// The context window used when none is given, in tokens.
+///
+/// **Declared and always sent, never inferred.** Ollama's own default is 2048 whatever the model
+/// supports; a request that omits `num_ctx` gets it silently. Measured on this machine before
+/// pinning — see STATE.md.
+pub const DEFAULT_CONTEXT_TOKENS: u32 = 32_768;
+
+/// What `qwen3.5:9b` reports it supports, recorded so a model swap has something to compare to.
+///
+/// **Not the default**: the whole window is a KV-cache commitment and 262k on a 9B model is far
+/// more memory than a terminal session should take. Recorded, not used.
+pub const MODEL_CONTEXT_CEILING: u32 = 262_144;
+
+/// A sink for raw provider frames, before any interpretation.
+///
+/// **`--dev` only.** A slow turn and a hung one are indistinguishable from the outside, and the
+/// pre-parse frames are the only view that separates *the model is emitting slowly* from *nothing
+/// is arriving*. That is a diagnostic, not conversation, so it does not go near the transcript.
+pub type RawFrameSink = Box<dyn FnMut(&serde_json::Value) + Send>;
+
+/// A sink for the **outbound request body**, as it goes over the wire.
+///
+/// # This closes a blind spot a source-level test cannot see
+///
+/// `persona_emission.rs` asserts that `request_body` places the persona in the system role. It
+/// passes whether the deployed binary is current or six commits stale — and in M2 C2e it did
+/// exactly that: the persona was correctly wired, the test was green, and the daemon had been
+/// serving pre-persona code for an hour because the release binary was never rebuilt.
+///
+/// **Source-verified is weaker than deployment-verified.** The only reading that settles "is the
+/// persona reaching the model" is the bytes the running process sent, so this exists to produce
+/// them. Fourth instance of one shape; see CLAUDE.md's table.
+pub type RequestSink = Box<dyn FnMut(&serde_json::Value) + Send>;
+
 pub struct OllamaDriver {
     endpoint: LocalEndpoint,
     routing: Routing,
     registry: ToolRegistry,
     capability: ModelCapability,
     timeout: Duration,
+    raw_frames: Option<RawFrameSink>,
+    request_dump: Option<RequestSink>,
+    /// The context window, in tokens, carried on **every** request as `num_ctx`.
+    ///
+    /// **Ollama defaults this to 2048 regardless of what the model supports**, and until M2 C2e
+    /// nothing set it — so a 262,144-token model ran in a 2,048-token window and silently
+    /// truncated history, injected memory and tool results. Worse, the assembler was packing to
+    /// 32,000: two numbers, disagreeing, with §6's compaction trigger computed from the wrong one.
+    ///
+    /// **This is the single source.** `Engine`'s assembler window is derived from the same value;
+    /// see `marlowe-daemon`'s `Daemon::ask` and `tests/context_window.rs`.
+    context_tokens: u32,
 }
 
 impl OllamaDriver {
@@ -151,7 +197,16 @@ impl OllamaDriver {
         let capability = ModelCapability::unmeasured(routing.model_for(
             marlowe_loop::ModelRoute::Orchestrator,
         ));
-        Self { endpoint, routing, registry, capability, timeout: DEFAULT_TIMEOUT }
+        Self {
+            endpoint,
+            routing,
+            registry,
+            capability,
+            timeout: DEFAULT_TIMEOUT,
+            raw_frames: None,
+            request_dump: None,
+            context_tokens: DEFAULT_CONTEXT_TOKENS,
+        }
     }
 
     pub fn with_capability(mut self, capability: ModelCapability) -> Self {
@@ -239,13 +294,41 @@ impl OllamaDriver {
             "model": model,
             "messages": messages,
             "tools": self.tool_schema(tools),
-            "stream": false,
+            "stream": true,
             "options": {
                 // The budget's hard cap, handed to the provider. `budget` is explicit that this
                 // is the mechanism and the top-of-loop check is only the backstop.
                 "num_predict": limits.max_output_tokens.min(i32::MAX as u64) as i64,
+                // **Never omitted.** Omitting it is Ollama's 2048, which is the permissive
+                // default this project keeps deleting — and it was live the whole time.
+                "num_ctx": self.context_tokens,
             }
         })
+    }
+}
+
+impl OllamaDriver {
+    /// Attach a raw-frame sink. `--dev` wires this; nothing else does.
+    pub fn with_raw_frames(mut self, sink: RawFrameSink) -> Self {
+        self.raw_frames = Some(sink);
+        self
+    }
+
+    /// Attach an outbound-request sink. `--dev` wires this; nothing else does.
+    pub fn with_request_dump(mut self, sink: RequestSink) -> Self {
+        self.request_dump = Some(sink);
+        self
+    }
+
+    /// Set the context window. **The same number must reach the assembler** — see
+    /// [`DEFAULT_CONTEXT_TOKENS`].
+    pub fn with_context_tokens(mut self, tokens: u32) -> Self {
+        self.context_tokens = tokens;
+        self
+    }
+
+    pub fn context_tokens(&self) -> u32 {
+        self.context_tokens
     }
 }
 
@@ -256,31 +339,91 @@ impl ModelDriver for OllamaDriver {
         tools: &ExposedSet,
         limits: CallLimits,
     ) -> Result<ModelCall, ProviderError> {
+        self.call_streaming(view, tools, limits, &mut |_| {})
+    }
+
+    /// This driver streams, so the engine must not re-emit the assembled reply.
+    fn streams(&self) -> bool {
+        true
+    }
+
+    fn call_streaming(
+        &mut self,
+        view: &ContextView,
+        tools: &ExposedSet,
+        limits: CallLimits,
+        on_delta: &mut dyn FnMut(&str),
+    ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
 
-        let response = http::post_json(&self.endpoint, "/api/chat", &body, self.timeout).map_err(
-            |e| ProviderError {
+        // **The bytes that actually go out**, dumped before they are sent. Not the same claim as
+        // a test asserting on a body built in a test process — see `RequestSink`.
+        if let Some(sink) = self.request_dump.as_mut() {
+            sink(&body);
+        }
+
+        // **Streamed, and the frames are folded as they land.** Layer 2 of the loop still emits
+        // one `TextDelta` per `Say`, so this alone does not put tokens on screen — what it does
+        // is make them exist incrementally at all, and feed `--dev`'s raw view.
+        let mut stream = http::post_ndjson(&self.endpoint, "/api/chat", &body, self.timeout)
+            .map_err(|e| ProviderError {
                 detail: format!("{e}"),
                 // Unreachable is worth a failover attempt; a malformed body is not — it will be
                 // malformed on the next provider too.
                 retriable: matches!(e, HttpError::Unreachable { .. }),
-            },
-        )?;
+            })?;
 
-        let usage = Usage {
-            prompt_tokens: response.get("prompt_eval_count").and_then(|v| v.as_u64()).unwrap_or(0),
-            completion_tokens: response.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0),
-            // A local model costs no money. Recorded as zero rather than omitted, so the budget
-            // dimension still exists and still fires when a hosted provider arrives.
-            micros_usd: 0,
-            wall_ms: response
-                .get("total_duration")
-                .and_then(|v| v.as_u64())
-                .map(|ns| ns / 1_000_000)
-                .unwrap_or(0),
-        };
+        let mut text = String::new();
+        let mut tool_calls: Vec<serde_json::Value> = Vec::new();
+        let mut usage = Usage { prompt_tokens: 0, completion_tokens: 0, micros_usd: 0, wall_ms: 0 };
 
-        let message = response.get("message").cloned().unwrap_or(serde_json::Value::Null);
+        while let Some(frame) = stream.next_value() {
+            // LOOP-EXEMPT: consuming a response stream, not a driving loop.
+            let frame = frame.map_err(|e| ProviderError {
+                detail: format!("{e}"),
+                retriable: matches!(e, HttpError::Unreachable { .. }),
+            })?;
+
+            // **The raw frame, before any interpretation.** §B1 keeps memory out of the
+            // interface; this is not memory, it is the provider's own wire, and it is the only
+            // view that separates "the model is emitting slowly" from "nothing is arriving".
+            // Behind `--dev` because it is diagnostic, not conversation.
+            if let Some(sink) = self.raw_frames.as_mut() {
+                sink(&frame);
+            }
+
+            if let Some(msg) = frame.get("message") {
+                if let Some(c) = msg.get("content").and_then(|c| c.as_str()) {
+                    if !c.is_empty() {
+                        // Out to the surface immediately, and kept for the assembled `Say`.
+                        on_delta(c);
+                    }
+                    text.push_str(c);
+                }
+                if let Some(calls) = msg.get("tool_calls").and_then(|t| t.as_array()) {
+                    tool_calls.extend(calls.iter().cloned());
+                }
+            }
+            // Ollama sends the counters on the final frame only.
+            if frame.get("done").and_then(|d| d.as_bool()) == Some(true) {
+                usage.prompt_tokens =
+                    frame.get("prompt_eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                usage.completion_tokens =
+                    frame.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                usage.wall_ms = frame
+                    .get("total_duration")
+                    .and_then(|v| v.as_u64())
+                    .map(|ns| ns / 1_000_000)
+                    .unwrap_or(0);
+            }
+        }
+
+        // Reassembled into the same shape the non-streaming path produced, so `parse_step` is
+        // unchanged and the four loop-control tools keep their routing.
+        let mut message = serde_json::json!({ "content": text });
+        if !tool_calls.is_empty() {
+            message["tool_calls"] = serde_json::Value::Array(tool_calls);
+        }
         let step = parse_step(&message);
         Ok(ModelCall { usage, step })
     }

@@ -38,6 +38,8 @@ pub struct LiveSession {
     inbox: Option<Receiver<Event>>,
     /// Set when the daemon could not be reached at all. Invariant 4: degrade visibly.
     unreachable: Option<String>,
+    /// Whether the `Status`/`Runs` handshake has run. False until after the first frame.
+    connected: bool,
 }
 
 impl LiveSession {
@@ -49,6 +51,51 @@ impl LiveSession {
     /// which is invariant 4, and is strictly better than refusing to start.
     pub fn connect(session: &str) -> Self {
         Self::connect_with(Client::new(session))
+    }
+
+    /// A session that has **not** talked to a daemon yet, for the first frame.
+    ///
+    /// §6: *"the client has almost nothing to initialize, and the header paints before the daemon
+    /// connection resolves."* §B13 budgets 150 ms to that frame. C2d put `ensure_daemon` and a
+    /// `Status` round-trip **in front of** it, so a cold start — no daemon, Ollama not warm —
+    /// showed a themed window with a blinking cursor and nothing else for several seconds.
+    ///
+    /// **The measurements that said 7 ms / 52 ms / 134 ms could not see it**: every one was taken
+    /// with Ollama already running. The cold path, which is the one a shortcut click takes, was
+    /// never measured.
+    ///
+    /// This constructs the view the first frame is drawn from. [`Self::finish_connect`] does the
+    /// round-trips afterwards.
+    pub fn connecting(session: &str, port: u16) -> Self {
+        let client = Client::new(session).with_port(port);
+        let mut view = project::view_from_status(&crate::protocol::StatusReport {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            workspace: String::new(),
+            model: "…".into(),
+            model_disclosure: "connecting".into(),
+            degraded: None,
+            rerank_provider: "…".into(),
+            live_runs: 0,
+        });
+        view.status.detail = "connecting to the daemon".into();
+        // Not `degraded`: nothing has failed yet, and saying so would be a claim about a
+        // connection that has not been attempted. Invariant 4 is about degrading VISIBLY, not
+        // about calling every unfinished thing a degradation.
+        view.status.degraded = None;
+        Self { client, view, inbox: None, unreachable: None, connected: false }
+    }
+
+    /// Do the handshake. Called after the first frame is on screen.
+    pub fn finish_connect(&mut self) {
+        let resolved = Self::connect_with(self.client.clone());
+        self.view = resolved.view;
+        self.unreachable = resolved.unreachable;
+        self.connected = true;
+    }
+
+    /// Whether the handshake has run at all. The driver polls this to know when to do it.
+    pub fn handshake_done(&self) -> bool {
+        self.connected
     }
 
     /// Connect on a chosen port. **The isolation lever**: two sessions on one machine share the
@@ -75,7 +122,7 @@ impl LiveSession {
                         if let Ok(runs) = client.send(&crate::protocol::Request::Runs) {
                             project::apply_events(&mut view, &runs);
                         }
-                        Self { view, client, inbox: None, unreachable: None }
+                        Self { view, client, inbox: None, unreachable: None, connected: true }
                     }
                     None => Self::degraded(client, "the daemon answered without a status frame"),
                 }
@@ -95,7 +142,7 @@ impl LiveSession {
             live_runs: 0,
         });
         view.status.detail = format!("{detail} · start one with `marlowe --serve`");
-        Self { client, view, inbox: None, unreachable: Some(detail.to_string()) }
+        Self { client, view, inbox: None, unreachable: Some(detail.to_string()), connected: true }
     }
 
     /// Whether a daemon answered. Printed at startup — ADR-029's rule generalised: **the active
@@ -115,17 +162,14 @@ impl LiveSession {
         let client = self.client.clone();
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
-            match client.ask(&message) {
-                Ok(events) => {
-                    for e in events {
-                        if tx.send(e).is_err() {
-                            return;
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = tx.send(Event::Error { detail: e.to_string() });
-                }
+            // **Streamed, not collected.** `ask` returns a `Vec` once the daemon closes the
+            // connection; `ask_streaming` pushes each event into the channel as the line lands,
+            // which is what lets `tick()` draw partial output.
+            let tx_err = tx.clone();
+            if let Err(e) = client.ask_streaming(&message, |event| {
+                let _ = tx.send(event);
+            }) {
+                let _ = tx_err.send(Event::Error { detail: e.to_string() });
             }
         });
         self.inbox = Some(rx);
@@ -215,6 +259,12 @@ impl Produce for LiveSession {
     /// A turn is in flight, so the loop should keep repainting rather than blocking on input.
     fn next_beat_in(&self, _now_ms: u64) -> Option<u64> {
         self.inbox.as_ref().map(|_| 50)
+    }
+
+    fn connect_now(&mut self) {
+        if !self.connected {
+            self.finish_connect();
+        }
     }
 }
 

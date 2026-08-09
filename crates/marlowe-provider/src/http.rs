@@ -240,3 +240,186 @@ mod tests {
         assert!(matches!(e, HttpError::Unreachable { .. }), "{e}");
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// Streaming NDJSON — M2 C2e
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/// A response body decoded **as it arrives**, one NDJSON value per line.
+///
+/// # Why this exists rather than a flag on `post_json`
+///
+/// `post_json` reads the whole body and then parses it. That is correct for `/api/tags` and it is
+/// the reason a turn produced nothing until it was finished: with `"stream": false` the adapter
+/// waits for the model to complete, and with `"stream": true` the same reader would still wait for
+/// EOF. **The blocking is in the reader, not only in the request.**
+///
+/// This type keeps the socket open and yields each line as the bytes land, so the caller sees the
+/// model's output at the rate the model produces it.
+///
+/// # Chunked framing is decoded incrementally, and that is the whole trick
+///
+/// Ollama streams with `Transfer-Encoding: chunked`. The existing decoder collects every chunk
+/// into a `Vec` before returning a `String` — correct, and fatal to streaming. [`ChunkedBody`]
+/// implements `Read` over the same framing so a `BufReader` can pull lines through it without ever
+/// holding the whole body.
+pub struct NdjsonStream {
+    reader: Box<dyn BufRead + Send>,
+    endpoint: String,
+    done: bool,
+}
+
+impl NdjsonStream {
+    /// The next value, or `None` at end of stream. Blocks until a line is available.
+    pub fn next_value(&mut self) -> Option<Result<serde_json::Value, HttpError>> {
+        if self.done {
+            return None;
+        }
+        let mut line = String::new();
+        // LOOP-EXEMPT: skipping blank framing lines, not a driving loop.
+        loop {
+            line.clear();
+            match self.reader.read_line(&mut line) {
+                Ok(0) => {
+                    self.done = true;
+                    return None;
+                }
+                Ok(_) => {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    return Some(serde_json::from_str(line.trim()).map_err(|e| {
+                        HttpError::Malformed {
+                            endpoint: self.endpoint.clone(),
+                            detail: format!("{e}; line began: {}", line.chars().take(120).collect::<String>()),
+                        }
+                    }));
+                }
+                Err(e) => {
+                    self.done = true;
+                    return Some(Err(HttpError::Unreachable {
+                        endpoint: self.endpoint.clone(),
+                        detail: e.to_string(),
+                    }));
+                }
+            }
+        }
+    }
+}
+
+/// `Transfer-Encoding: chunked`, decoded on the fly.
+struct ChunkedBody<R: BufRead> {
+    inner: R,
+    remaining: usize,
+    finished: bool,
+}
+
+impl<R: BufRead> Read for ChunkedBody<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.finished {
+            return Ok(0);
+        }
+        if self.remaining == 0 {
+            // Consume the CRLF that terminated the previous chunk, then the next size line.
+            let mut size_line = String::new();
+            self.inner.read_line(&mut size_line)?;
+            if size_line.trim().is_empty() {
+                size_line.clear();
+                self.inner.read_line(&mut size_line)?;
+            }
+            let size = usize::from_str_radix(
+                size_line.trim().split(';').next().unwrap_or("").trim(),
+                16,
+            )
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            if size == 0 {
+                self.finished = true;
+                return Ok(0);
+            }
+            self.remaining = size;
+        }
+        let want = buf.len().min(self.remaining);
+        let n = self.inner.read(&mut buf[..want])?;
+        self.remaining -= n;
+        Ok(n)
+    }
+}
+
+/// POST a JSON body and read an NDJSON response **incrementally**.
+///
+/// The read timeout applies per read, not to the whole turn — a model that takes two minutes is
+/// working, not hung, and a whole-turn deadline would kill exactly the long turns streaming exists
+/// to make bearable.
+pub fn post_ndjson(
+    endpoint: &LocalEndpoint,
+    path: &str,
+    body: &serde_json::Value,
+    read_timeout: Duration,
+) -> Result<NdjsonStream, HttpError> {
+    let unreachable = |detail: String| HttpError::Unreachable {
+        endpoint: endpoint.to_string(),
+        detail,
+    };
+
+    let mut stream =
+        TcpStream::connect(endpoint.authority()).map_err(|e| unreachable(e.to_string()))?;
+    stream.set_read_timeout(Some(read_timeout)).map_err(|e| unreachable(e.to_string()))?;
+    stream.set_write_timeout(Some(read_timeout)).map_err(|e| unreachable(e.to_string()))?;
+
+    let serialized = body.to_string();
+    let head = format!(
+        "POST {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/x-ndjson\r\n\
+         Content-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        endpoint.authority(),
+        serialized.len()
+    );
+    stream.write_all(head.as_bytes()).map_err(|e| unreachable(e.to_string()))?;
+    stream.write_all(serialized.as_bytes()).map_err(|e| unreachable(e.to_string()))?;
+    stream.flush().map_err(|e| unreachable(e.to_string()))?;
+
+    let mut reader = BufReader::new(stream);
+    let mut status_line = String::new();
+    reader.read_line(&mut status_line).map_err(|e| unreachable(e.to_string()))?;
+    let status: u16 = status_line
+        .split_whitespace()
+        .nth(1)
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| HttpError::Malformed {
+            endpoint: endpoint.to_string(),
+            detail: format!("no status in {status_line:?}"),
+        })?;
+
+    let mut chunked = false;
+    loop {
+        // LOOP-EXEMPT: header parsing, not a driving loop.
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| unreachable(e.to_string()))?;
+        if line.trim().is_empty() {
+            break;
+        }
+        if let Some((name, value)) = line.split_once(':') {
+            if name.trim().eq_ignore_ascii_case("transfer-encoding")
+                && value.trim().eq_ignore_ascii_case("chunked")
+            {
+                chunked = true;
+            }
+        }
+    }
+
+    if !(200..300).contains(&status) {
+        let mut body = String::new();
+        let _ = reader.read_to_string(&mut body);
+        return Err(HttpError::Status {
+            endpoint: endpoint.to_string(),
+            status,
+            body: body.chars().take(400).collect(),
+        });
+    }
+
+    let boxed: Box<dyn BufRead + Send> = if chunked {
+        Box::new(BufReader::new(ChunkedBody { inner: reader, remaining: 0, finished: false }))
+    } else {
+        Box::new(reader)
+    };
+    Ok(NdjsonStream { reader: boxed, endpoint: endpoint.to_string(), done: false })
+}

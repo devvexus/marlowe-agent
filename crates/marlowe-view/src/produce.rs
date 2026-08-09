@@ -40,6 +40,12 @@ pub trait Produce {
     fn next_beat_in(&self, _now_ms: u64) -> Option<u64> {
         None
     }
+
+    /// Do any deferred connection work. **Called after the first frame is on screen**, never
+    /// before: §6 says the header paints before the daemon connection resolves, and a producer
+    /// that did its handshake in its constructor would put a network round-trip in front of the
+    /// first paint. The scripted producer has nothing to do here.
+    fn connect_now(&mut self) {}
 }
 
 /// A monotonic millisecond time base, supplied to a surface rather than read by one.

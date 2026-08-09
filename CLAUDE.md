@@ -111,7 +111,7 @@ requirements only when the design docs do not answer the question.
   question "what would this read if the property were broken?" was asked of the serde path
   specifically. That is what naming a failure family is *for*; recognising it only in hindsight is
   the cheaper half.
-- **A pipe-tested guard is not a verified guard, and the same shape has now appeared in three
+- **A pipe-tested guard is not a verified guard, and the same shape has now appeared in FOUR
   subsystems.** The weaker claim is always true, cheap, and adjacent:
 
   | Weaker, and what it actually proves | Stronger, and what the question was |
@@ -119,9 +119,18 @@ requirements only when the design docs do not answer the question.
   | `get_providers()` lists CUDA as **registered** | where the nodes **ran** (M0c L) |
   | the §13 hook's matcher recognises a path string | an **observed prompt** on a real edit |
   | `persona/v1.md` **loaded** | the persona text is **in the request body** (M2 C2d) |
+  | **the source emits it** | **the running process emits it** (M2 C2e) |
 
-  **The third instance is why the rule is stated here rather than in a session note.** Each was
-  found separately, in a different subsystem, by someone who had read the previous one.
+  **The fourth is the one that cost a session two turns.** `persona_emission.rs` asserts on a body
+  built inside the test process. It passed while the deployed daemon served a binary from before
+  the persona commit — so the persona was correct, the test was green, and the model had never seen
+  it. A test on the source cannot see a stale deployment.
+
+  **The instrument that closes it is `--dev`'s outbound-request dump**: the bytes the *running*
+  process sent. Any future prompt or persona change is verified there, not in a unit test.
+
+  **Each was found separately, in a different subsystem, by someone who had read the previous one.**
+  That is why the rule is stated here rather than in a session note.
 
   **And it was committed again, mid-session, on this exact subject.** C2d pipe-tested the hook with
   a shell-escaped Windows path, got silence, and reported *"the §13 boundary is decorative on
