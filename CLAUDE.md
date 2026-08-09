@@ -130,6 +130,26 @@ requirements only when the design docs do not answer the question.
   path is still there.** Ask of any protective mechanism — what would this report if its subject
   moved? If the answer is "nothing", the mechanism is a comment.
 
+- **A boundary is not verified until something crosses it. M2 produced this a second time, and
+  the first real run is what found it.** Four of the eleven tools — `done`, `ask`, `remember`,
+  `run` — are **loop control**, not tool-host executions: they are `ModelStep` variants in
+  ARCHITECTURE §3's match. The Ollama adapter mapped every tool call to `ModelStep::ToolCall`, so
+  `done` went to the tool host, which has no executor for it, and failed.
+
+  The model then spent **155 seconds** trying to act on a failure it could not interpret, until
+  the token budget paused it. **Every unit test passed throughout** — `parse_step` correctly turned
+  a tool call into a `ToolCall`, and the tool host correctly reported no executor. Each half was
+  right in isolation; the seam between them was wrong, and nothing that tests halves can see a
+  seam.
+
+  This is the same lesson M1 produced with scroll, double-dimming and `NO_COLOR`: three bugs found
+  by *using* it that no test caught. **Budget one real end-to-end run per milestone as
+  verification, not as a demo.**
+
+  **The budget backstop worked on its first real encounter.** `Budget::exhausted` paused the run
+  rather than letting it spend indefinitely — the mechanism `budget.rs` was written for, now
+  **exercised rather than assumed**. A cap that has never fired is a cap nobody has tested.
+
 ## Parallel sessions share a checkout until they do not
 
 **Use `git worktree`.** Two sessions in one checkout share one `HEAD`, and this project has now

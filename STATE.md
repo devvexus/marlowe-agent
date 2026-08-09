@@ -191,7 +191,36 @@ coverage. The bound covers the false-injection rate among wrong queries; K1 asks
 `P(correct | injected)`, a selective risk it does not cover. **Global τ only** — largest wrong-query
 calibration set is 12 against a floor of 40.
 
-## Next action — M2 Session C2: the Ollama adapter
+## Next action — M2 C2d: promote the view models, then M2 closes
+
+**`marlowe --tui` still drives M1's scripted stub.** `App::new(session: marlowe_stub::Session)` —
+the whole surface is built on the stub's view models (`StatusBand`, `ControlStrip`, `Entry`,
+`Pager`, `Tab`, `Item`, `Ambient`, `Picker`). `marlowe-stub/src/model.rs` says in its own header
+that **M2 must pin them**, and this is that work: move them to a real crate the **daemon**
+produces, and point `marlowe-surface` at it.
+
+**Treat M1's 87 tests as the acceptance, not as an obstacle** (the human's direction). If one
+breaks, a view model changed shape and that is the thing to look at — **a green suite after a
+refactor of that size is more suspicious than a few honest failures.**
+
+**What is already done and must not be re-derived:** `marlowe --ask` works end to end against a
+real model through the real loop and the real wall. The daemon protocol already carries everything
+§B5's band needs (`StatusReport`: workspace, model disclosure with its denominator, `degraded` with
+its remedy, `rerank_provider`, `live_runs`). The TUI does not need a new data source — it needs to
+read that one instead of the stub.
+
+### What M3 inherits from M2, stated precisely
+
+| | Status |
+|---|---|
+| **Invariant 6, first half** — a run outlives the **client** | **Done.** `tests/split.rs` asks, disconnects, and a different client still sees the run |
+| **Invariant 6, second half** — a run outlives the **daemon** | **NOT claimed.** No WAL, no checkpoint resume. A daemon restart loses in-flight runs |
+| `RunControl::resume` | **Refuses by name** — `ResumeError::NotDurable`, naming M3 and K5. It has never silently succeeded |
+| `Run`, `CapabilityProfile`, `Budget`, `OrphanPolicy` | Implemented in full. `OrphanPolicy` is **recorded in the `RunSpawned` payload from the first spawn** and unused, which is what makes M3 an extension rather than a migration |
+| Spawn lifecycle | Ephemeral: the parent blocks, the child returns, the child dies with the parent. The recursion is `Engine::run` re-entered; M3 replaces it with a scheduler and the data is already shaped for one |
+| Concurrency | **One connection at a time.** A second client is an M3 concern and pretending to handle it now would be a concurrency story nobody tested |
+
+## Superseded — M2 Session C2: the Ollama adapter
 
 **ADR-028 (the human's decision): Marlowe runs against a LOCAL OLLAMA ENDPOINT first.** Hosted
 providers register later. This dissolves the K6 tension rather than trading against it — an env
