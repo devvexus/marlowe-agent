@@ -171,6 +171,14 @@ pub struct WireTurn {
     pub tool_calls: Vec<WireToolCall>,
     /// Which tool produced this result. Tool blocks only.
     pub tool_name: Option<String>,
+    /// The §B6 line's right-hand side, as it was rendered when the call ran.
+    ///
+    /// **Kept rather than recovered.** A replay that re-derived it from the block's prose would
+    /// be parsing `"983 lines · 69630 B · <the file>"` back apart, and the separator is also
+    /// legal inside file contents. Storing it is smaller than the bug that would eventually be.
+    pub tool_summary: Option<String>,
+    /// Whether that call failed. Decides the colour of a replayed line.
+    pub tool_failed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -199,14 +207,30 @@ impl Block {
         tool_calls: Vec<WireToolCall>,
     ) -> Self {
         let mut b = Self::new(SourceKind::History, text, TrustClass::AgentInferred);
-        b.wire = Some(WireTurn { thinking, tool_calls, tool_name: None });
+        b.wire = Some(WireTurn { thinking, tool_calls, ..WireTurn::default() });
         b
     }
 
+    /// A refusal, which is a tool result that failed before it ran.
+    pub fn tool_result_blocked(text: impl Into<String>, tool: &str, trust: TrustClass) -> Self {
+        Self::tool_result(text, tool, trust, Some("blocked".to_string()), true)
+    }
+
     /// A tool result, attributed to the tool that produced it.
-    pub fn tool_result(text: impl Into<String>, tool: &str, trust: TrustClass) -> Self {
+    pub fn tool_result(
+        text: impl Into<String>,
+        tool: &str,
+        trust: TrustClass,
+        summary: Option<String>,
+        failed: bool,
+    ) -> Self {
         let mut b = Self::new(SourceKind::ToolResults, text, trust);
-        b.wire = Some(WireTurn { tool_name: Some(tool.to_string()), ..WireTurn::default() });
+        b.wire = Some(WireTurn {
+            tool_name: Some(tool.to_string()),
+            tool_summary: summary,
+            tool_failed: failed,
+            ..WireTurn::default()
+        });
         b
     }
 }

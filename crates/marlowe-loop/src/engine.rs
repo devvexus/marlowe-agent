@@ -577,7 +577,16 @@ impl<S: PathScope> Engine<S> {
                 }
 
                 ModelStep::ToolCall { tool, args } => {
-                    self.tool_call(run, state, provenance, ports, &view, tool, args);
+                    self.tool_call(
+                        run,
+                        state,
+                        provenance,
+                        ports,
+                        &view,
+                        tool,
+                        args,
+                        &last_reasoning,
+                    );
                 }
 
                 ModelStep::MemoryWrite(claim) => {
@@ -635,6 +644,10 @@ impl<S: PathScope> Engine<S> {
         view: &crate::context::ContextView,
         tool: ToolId,
         args: Args,
+        // This model call's reasoning. Stored on the turn that made the call so a replay can
+        // show it — only the FINAL call's reasoning used to survive, on the reply block, so every
+        // thinking block from a multi-step turn was lost the moment the window closed.
+        reasoning: &str,
     ) {
         let call_id = self.next_call_id;
         self.next_call_id += 1;
@@ -687,7 +700,7 @@ impl<S: PathScope> Engine<S> {
         // An attempt is a turn whether or not it was permitted.
         state.push(Block::assistant_turn(
             String::new(),
-            None,
+            (!reasoning.is_empty()).then(|| reasoning.to_string()),
             vec![crate::context::WireToolCall {
                 name: tool.to_string(),
                 arguments: args.to_json(),
@@ -815,7 +828,13 @@ impl<S: PathScope> Engine<S> {
                 None => format!("{} · ref {hash} ({bytes} B)", outcome.summary.render()),
             },
         };
-        state.push(Block::tool_result(text, tool.as_str(), outcome.trust));
+        state.push(Block::tool_result(
+            text,
+            tool.as_str(),
+            outcome.trust,
+            Some(outcome.summary.render()),
+            outcome.failed,
+        ));
     }
 
     /// §10.1's ad-hoc spawn. **The parent blocks; the child returns findings.**
@@ -988,7 +1007,7 @@ impl<S: PathScope> Engine<S> {
     }
 
     fn tool_error(&mut self, state: &mut SessionState, tool: &ToolId, why: &str) {
-        state.push(Block::tool_result(
+        state.push(Block::tool_result_blocked(
             format!("[{tool} blocked] {why}"),
             tool.as_str(),
             // The harness computed this, so it is agent-observed. A blocked-call notice that

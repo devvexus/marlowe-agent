@@ -46,6 +46,56 @@ store is a `BTreeMap` on `Daemon`; with shutdown-on-close now landed, closing th
 conversation for real. Replay only helps while a daemon outlives a window - a manual `--serve`, or
 a second client. **Durable conversations across restarts are unbuilt.**
 
+### Closing the window MID-TURN destroyed the conversation
+
+Reported as: reasoning was in progress, the window was closed, and on reopening the reply was
+`<tool_code>none</tool_code>`. *"This only happened when closing him mid reason."*
+
+**The daemon is serial.** A shutdown request sent during a turn waits in the accept backlog until
+that turn finishes - and by then the run is marked complete, so the daemon's own *"refuse while a
+run is live"* check inspects a run table that is already quiet and **always agrees to stop**. The
+guard could never fire. The turn completed, the daemon exited, and the conversation went with it.
+Reopening produced a fresh session, and a first turn with no grounding produced the artifact.
+
+Reproduced directly: hang up three reasoning deltas into a turn, send shutdown, and the daemon
+finishes the turn and stops.
+
+**The client is the only party that knows.** `tui.rs` now reads `session.is_busy()` before the
+teardown and does not send shutdown when a turn was in flight. That is what honouring invariant 6
+looks like from the client side: work that was running keeps running, and the conversation is
+there on the way back in.
+
+Verified end to end:
+
+```
+closed the window 3 reasoning deltas in
+daemon ALIVE - the run survived its client
+user    'Think carefully then tell me what 17*23 is.'
+think   495 chars
+marlowe '391.'
+```
+
+**One wrong guess on the way, recorded because the method matters.** The first hypothesis was that
+adding `thinking` to assistant tool-call turns had broken the template - a plausible story, since
+an empty assistant turn carrying only `thinking` had been measured earlier as making the model
+return nothing. Measured instead of assumed: both shapes answer correctly. The change was innocent
+and the real cause was elsewhere.
+
+**Replay now reconstructs the whole turn, not a summary of it.** The first version emitted prose
+and a bare tool verb, so a reopened window lost every thinking block and every tool line's target
+and result. `WireTurn` carries `tool_summary` and `tool_failed`; `Engine::tool_call` stores each
+model call's reasoning on the assistant turn that made it, so a multi-step turn keeps every
+thinking block rather than only the last one. Ordering needs no buffering: an assistant turn is
+pushed before the result it produced, so reasoning precedes its tool line exactly as it did live.
+
+### Still open from this
+
+- **`<tool_code>` is a leaked tool call we do not recover.** `recover_leaked_call` handles
+  `<function=...>` only. A model emitting some other syntax renders it as prose.
+- **The daemon serves one request at a time.** A second client cannot attach to a turn already in
+  flight - reopening mid-turn shows the conversation up to the last completed turn and then waits.
+  Live attach needs concurrency in the accept loop.
+
 ### NEXT SESSION - past sessions in the TUI
 
 The control strip already has the affordance and it is a stub: `project.rs` builds

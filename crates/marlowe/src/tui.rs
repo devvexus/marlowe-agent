@@ -303,6 +303,8 @@ fn run_with(
 
     let mut term = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let result = event_loop(&mut term, session, &mut app, &theme, &clock, &opts, connect_port);
+    // **Read before the teardown, because a turn in flight changes what closing means.**
+    let was_mid_turn = session.is_busy();
 
     if opts.ground {
         // OSC 110/111 reset fore/background to the terminal's configured defaults. A program that
@@ -329,7 +331,21 @@ fn run_with(
     //
     // The daemon refuses while a run is in flight, which is the case the invariant is actually
     // about. Printed here rather than in the band because the alternate screen is already down.
-    if let Some(port) = connect_port {
+    //
+    // **Not while a turn is in flight, and the CLIENT is the only one who can tell.** The daemon
+    // is serial: a shutdown request sent during a turn waits in the accept backlog until that turn
+    // finishes, and by then the run is marked complete — so the daemon's own "refuse while a run
+    // is live" check inspects a run table that is already quiet and always agrees to stop.
+    //
+    // Reproduced: hang up three reasoning deltas into a turn, send shutdown, and the daemon
+    // finishes the turn and then exits, taking the conversation with it. Reopening gave a fresh
+    // session, which is why closing mid-reason and coming back looked like Marlowe had lost his
+    // mind — he had lost the conversation.
+    //
+    // Invariant 6 is the rule and this is what honouring it looks like from the client side: if
+    // work was running when the window closed, the daemon keeps running and the conversation is
+    // there on the way back in.
+    if let Some(port) = connect_port.filter(|_| !was_mid_turn) {
         let client = marlowe_daemon::Client::new("tui").with_port(port);
         match client.shutdown() {
             Ok(events) => {

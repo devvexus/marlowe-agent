@@ -656,37 +656,63 @@ impl Daemon {
             // The gate is not wired to a surface yet; refusing is the honest answer rather than
             // recording an approval nobody gave.
             Request::Replay { session } => {
-                // Blocks back into the frames that produced them. Nothing here is state the
-                // client gets to keep: the next `Status` or `Ask` still comes from the daemon.
+                // **The turn is reconstructed, not summarised.** A first version emitted only the
+                // prose and a bare tool verb, so a reopened window lost every thinking block and
+                // every tool line's target and result — the conversation came back and the work
+                // behind it did not.
+                //
+                // Order falls out of the block order and does not need buffering: each assistant
+                // turn is pushed BEFORE the result it produced, so reasoning precedes its tool
+                // line exactly as it did live.
                 if let Some(mem) = self.sessions.get(&session) {
+                    // The call an upcoming tool result belongs to, so its line can name a target.
+                    let mut pending: Option<(String, String)> = None;
                     for block in mem.state.volatile.iter() {
-                        let name = block
-                            .wire
-                            .as_ref()
-                            .and_then(|w| w.tool_name.clone())
-                            .unwrap_or_else(|| "tool".to_string());
+                        let wire = block.wire.as_ref();
                         match block.source {
                             marlowe_loop::SourceKind::History => {
-                                if block.text.is_empty() {
-                                    continue;
+                                if let Some(t) = wire.and_then(|w| w.thinking.as_ref()) {
+                                    on_event(Event::Reasoning { delta: t.clone() });
                                 }
-                                if block.trust == TrustClass::AgentInferred {
-                                    on_event(Event::Text { delta: block.text.clone() });
-                                } else {
-                                    on_event(Event::User { text: block.text.clone() });
+                                if let Some(c) =
+                                    wire.and_then(|w| w.tool_calls.first())
+                                {
+                                    // The first string argument is what §B6 shows as the target,
+                                    // which is the same thing `blast_radius` reads.
+                                    let target = c
+                                        .arguments
+                                        .as_object()
+                                        .and_then(|o| {
+                                            o.values().find_map(|v| v.as_str().map(String::from))
+                                        })
+                                        .unwrap_or_default();
+                                    pending = Some((c.name.clone(), target));
+                                }
+                                if !block.text.is_empty() {
+                                    if block.trust == TrustClass::AgentInferred {
+                                        on_event(Event::Text { delta: block.text.clone() });
+                                    } else {
+                                        on_event(Event::User { text: block.text.clone() });
+                                    }
                                 }
                             }
                             marlowe_loop::SourceKind::ToolResults => {
+                                let (verb, target) = pending.take().unwrap_or_else(|| {
+                                    (
+                                        wire.and_then(|w| w.tool_name.clone())
+                                            .unwrap_or_else(|| "tool".into()),
+                                        String::new(),
+                                    )
+                                });
+                                let failed = wire.is_some_and(|w| w.tool_failed);
                                 on_event(Event::Tool {
                                     id: 0,
-                                    verb: name,
-                                    target: String::new(),
-                                    state: if block.text.contains("blocked") {
-                                        "failed".into()
-                                    } else {
-                                        "ok".into()
-                                    },
-                                    summary: String::new(),
+                                    verb,
+                                    target,
+                                    state: if failed { "failed".into() } else { "ok".into() },
+                                    summary: wire
+                                        .and_then(|w| w.tool_summary.clone())
+                                        .unwrap_or_default(),
                                 });
                             }
                             _ => {}
