@@ -206,13 +206,23 @@ impl OllamaDriver {
     }
 }
 
-impl ModelDriver for OllamaDriver {
-    fn call(
-        &mut self,
+impl OllamaDriver {
+    /// The outbound request, built and returned rather than sent.
+    ///
+    /// **Extracted so the persona can be asserted where it actually matters.** Addendum C §C6 puts
+    /// the persona in the stable tier of the system prompt, and the only check worth having is
+    /// that it reaches *this* value — the bytes that go to the provider. A test that loaded
+    /// `persona/v1.md` and asserted it was non-empty would prove the file loaded and nothing else.
+    ///
+    /// That is the same distinction as `get_providers()` reporting *registered* execution
+    /// providers versus where nodes actually ran (M0c Session L), and as a pipe-tested hook
+    /// matcher versus an observed permission prompt. Three subsystems, one shape.
+    pub fn request_body(
+        &self,
         view: &ContextView,
         tools: &ExposedSet,
         limits: CallLimits,
-    ) -> Result<ModelCall, ProviderError> {
+    ) -> serde_json::Value {
         let model = self.routing.model_for(marlowe_loop::ModelRoute::Orchestrator).to_string();
 
         // The three tiers become three messages in order, so the stable prefix stays stable and
@@ -225,7 +235,7 @@ impl ModelDriver for OllamaDriver {
             messages.push(serde_json::json!({ "role": "user", "content": block.text }));
         }
 
-        let body = serde_json::json!({
+        serde_json::json!({
             "model": model,
             "messages": messages,
             "tools": self.tool_schema(tools),
@@ -235,7 +245,18 @@ impl ModelDriver for OllamaDriver {
                 // is the mechanism and the top-of-loop check is only the backstop.
                 "num_predict": limits.max_output_tokens.min(i32::MAX as u64) as i64,
             }
-        });
+        })
+    }
+}
+
+impl ModelDriver for OllamaDriver {
+    fn call(
+        &mut self,
+        view: &ContextView,
+        tools: &ExposedSet,
+        limits: CallLimits,
+    ) -> Result<ModelCall, ProviderError> {
+        let body = self.request_body(view, tools, limits);
 
         let response = http::post_json(&self.endpoint, "/api/chat", &body, self.timeout).map_err(
             |e| ProviderError {

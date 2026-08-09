@@ -306,7 +306,7 @@ impl Daemon {
             Budget::interactive(),
             OutputContract::answer(),
         );
-        let mut state = SessionState::new(session_id, IDENTITY);
+        let mut state = SessionState::new(session_id, identity_block());
         // §6: governance lives in the stable tier and is re-asserted structurally. The workspace
         // scope is a user-visible constraint, so it is stated to the model as one.
         state.assert_governance(GovernanceConstraint::asserted(&format!(
@@ -437,10 +437,28 @@ impl Daemon {
     }
 }
 
-/// The identity block. Carries the persona (Addendum C) — including here, where the first real
-/// model call reads it.
-const IDENTITY: &str = "You are Marlowe, a terminal-native agent harness. You are precise, you \
-say what you did and what you did not, and you never claim a result you did not produce.";
+/// **The persona, from the artifact.** Addendum C §C6: *"Versioned as an artifact, `persona/vN.md`
+/// … **not a string in the code** and not a user setting."*
+///
+/// Until M2 C2d this was a 40-word `const` whose doc comment claimed it "carries the persona
+/// (Addendum C)". It carried no part of Addendum C, and nothing tested the claim. `include_str!`
+/// makes the artifact the single source and a change to it a reviewable diff.
+///
+/// **The check that matters is emission, not loading.** See
+/// `marlowe-provider/tests/persona_emission.rs`.
+const PERSONA: &str = include_str!("../../../persona/v1.md");
+
+/// The run's identity, which §C6 places in the stable tier *alongside* the persona rather than as
+/// part of it. Kept separate so the artifact stays deployment-independent: a persona that named
+/// the workspace would not be the same artifact across two runs.
+const IDENTITY_FACTS: &str =
+    "You are running as a terminal-native agent harness. Say what you did and what you did not, \
+     and never claim a result you did not produce.";
+
+/// What reaches the stable tier: persona first, then the run's facts.
+fn identity_block() -> String {
+    format!("{PERSONA}\n{IDENTITY_FACTS}")
+}
 
 /// A recorder for a daemon with no journal on disk — used by tests, never by `serve`.
 pub fn memory_recorder() -> MemoryRecorder {

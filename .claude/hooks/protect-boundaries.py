@@ -94,8 +94,16 @@ def reason_for(path: str) -> str | None:
     for suffix, why in PROTECTED.items():
         if normalized.endswith(suffix):
             return why
+    # A leading "/" is prepended before the directory check so a REPO-RELATIVE path matches too.
+    #
+    # `PROTECTED_DIRS` keys are written as `/persona/` — bounded on both sides so `personal/` and
+    # `my-persona-notes/` do not match. Without this line, `persona/v1.md` (relative) was SILENT
+    # while `C:\...\persona1.md` (absolute) fired, because only the second contains a slash
+    # before the fragment. The `crates/...` entries in PROTECTED are `endswith` suffixes and never
+    # had the asymmetry; only the directory fragments did.
+    rooted = normalized if normalized.startswith("/") else "/" + normalized
     for fragment, why in PROTECTED_DIRS.items():
-        if fragment in normalized:
+        if fragment in rooted:
             return why
     return None
 

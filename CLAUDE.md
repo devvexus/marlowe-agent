@@ -111,6 +111,25 @@ requirements only when the design docs do not answer the question.
   question "what would this read if the property were broken?" was asked of the serde path
   specifically. That is what naming a failure family is *for*; recognising it only in hindsight is
   the cheaper half.
+- **A pipe-tested guard is not a verified guard, and the same shape has now appeared in three
+  subsystems.** The weaker claim is always true, cheap, and adjacent:
+
+  | Weaker, and what it actually proves | Stronger, and what the question was |
+  |---|---|
+  | `get_providers()` lists CUDA as **registered** | where the nodes **ran** (M0c L) |
+  | the §13 hook's matcher recognises a path string | an **observed prompt** on a real edit |
+  | `persona/v1.md` **loaded** | the persona text is **in the request body** (M2 C2d) |
+
+  **The third instance is why the rule is stated here rather than in a session note.** Each was
+  found separately, in a different subsystem, by someone who had read the previous one.
+
+  **And it was committed again, mid-session, on this exact subject.** C2d pipe-tested the hook with
+  a shell-escaped Windows path, got silence, and reported *"the §13 boundary is decorative on
+  Windows"* as the session's biggest finding. The hook was fine; the `\` never survived `echo`.
+  **The measurement was of bash's escaping, read as a property of the hook.** Testing `reason_for`
+  directly took one command and would have caught it before the claim. Ask of any probe: *what else
+  could produce this reading?*
+
 - **A guarded path that moved is unguarded, and the guard says nothing.** The **fourteenth**
   instance, and the first where *the guard itself* is what quietly stopped existing.
 
@@ -216,8 +235,17 @@ behind that is a test, not the hook:
 `marlowe-loop/tests/spawn_and_budget.rs::a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop`
 drives a real blocked call **through the loop**. If the call site goes, that test fails.
 
-Verified live on 2026-08-08: each new path above was pipe-tested against the hook, and
-`engine.rs` was confirmed to return no decision — so the gap is measured, not assumed.
+**PIPE-VERIFIED, which is weaker than live-verified (downgraded 2026-08-09).** On 2026-08-08 each
+path above was *pipe-tested* — JSON fed to the hook's stdin, decision read from stdout — and
+`engine.rs` confirmed to return no decision. **A pipe test proves the matcher recognises a string.
+It does not prove the hook fires when the agent edits the file.** Those are different questions and
+only an **observed permission prompt on a real edit** answers the second: the wiring in
+`settings.json`, the matcher, the harness's permission mode and the path format it passes all sit
+between the two, and a pipe test sees none of them.
+
+Every claim in this table is currently pipe-verified only. **Downgrade each to live-verified
+individually, by editing the file and observing the prompt** — not in a batch, because one observed
+prompt says nothing about the other entries.
 
 **As each component lands, add its path to the hook.** A component with no entry is unguarded
 regardless of what this list says — the entry is the enforcement, and the list is only a map of it.
@@ -227,8 +255,8 @@ its own initiative, not against the project evolving it; a human who reads the r
 has made the decision the boundary exists to require. A change here should arrive with a
 `DECISIONS.md` entry.
 
-Verified live on 2026-08-03: the blocking logic was pipe-tested against each protected path, and
-the hook was shown to fire on a real `Edit`.
+**Pipe-verified 2026-08-03**, with one entry shown to fire on a real `Edit`. The rest are matcher
+checks — see the downgrade above.
 
 **Building a listed component in its assigned milestone is not "touching" it.** The boundary is
 against a later session — or the agent's own self-improvement at M9 — modifying safety machinery
