@@ -137,6 +137,14 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         // M1: the stub owns the time base because ARCHITECTURE.md §2.14 says a surface holds no
         // state the daemon lacks, and time is state. Not on any contract path.
         "frame_clock.rs",
+        // M2 C2c: the PRODUCTION harness clock. §4.5 forbids a system clock on the contract
+        // paths and names the legitimate case in the same paragraph — "in production the harness
+        // supplies the real clock". The daemon is that harness, so real time enters the system
+        // here, once. It is a whole file holding one struct so this fence stays narrow:
+        // exempting `daemon.rs` would blind the guard to every future clock read in it, which is
+        // the failure this test's own header warns about for directories. The eval adapter never
+        // constructs a `Daemon` and still supplies M0a's synthetic clock.
+        "clock.rs",
     ];
 
     /// The engine spike — a **temporary** measurement crate, exempt with an expiry.

@@ -1018,8 +1018,10 @@ version = "0.1.0"
 dependencies = [
  "crossterm",
  "marlowe-contract",
+ "marlowe-daemon",
  "marlowe-journal",
  "marlowe-memory",
+ "marlowe-provider",
  "marlowe-stub",
  "marlowe-surface",
  "ratatui",
@@ -1035,6 +1037,23 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.19",
+]
+
+[[package]]
+name = "marlowe-daemon"
+version = "0.1.0"
+dependencies = [
+ "marlowe-contract",
+ "marlowe-exec",
+ "marlowe-journal",
+ "marlowe-loop",
+ "marlowe-permission",
+ "marlowe-provider",
+ "marlowe-tools",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "uuid",
 ]
 
 [[package]]

@@ -1,0 +1,21 @@
+[package]
+name = "marlowe-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+marlowe-contract.workspace = true
+marlowe-exec.workspace = true
+marlowe-journal.workspace = true
+marlowe-loop.workspace = true
+marlowe-permission.workspace = true
+marlowe-provider.workspace = true
+marlowe-tools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+marlowe-provider.workspace = true

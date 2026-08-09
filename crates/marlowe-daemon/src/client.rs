@@ -1,0 +1,159 @@
+//! The thin client. ARCHITECTURE §6.
+//!
+//! > **`marlowe`** — thin client. Holds no run state. Renders. Auto-spawns the daemon if absent.
+//!
+//! # It holds no run state, and that is checkable rather than asserted
+//!
+//! [`Client`] has three fields: an address, a session name, and a connect timeout. There is no
+//! run table, no transcript, no checkpoint. `tests/split.rs` asserts the type's whole serialized
+//! surface, because "the client is thin" is the kind of claim that stays true until someone adds
+//! a cache.
+//!
+//! # Auto-spawn, and why it is not silent
+//!
+//! §5's zero-config first run means the user types `marlowe` and it works. So a client that finds
+//! no daemon **starts one** — and says so, because a process appearing on a machine without the
+//! user being told is exactly what a well-behaved tool does not do.
+
+use std::io::{BufRead, BufReader};
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::time::Duration;
+
+use crate::protocol::{Event, Request};
+use crate::DEFAULT_DAEMON_PORT;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ClientError {
+    #[error("no daemon on 127.0.0.1:{port}: {detail}")]
+    NoDaemon { port: u16, detail: String },
+    #[error("the daemon closed the connection: {detail}")]
+    Closed { detail: String },
+    #[error("could not start a daemon: {detail}")]
+    Spawn { detail: String },
+}
+
+/// Everything the client holds. **Three fields, none of them run state.**
+#[derive(Debug, Clone)]
+pub struct Client {
+    port: u16,
+    session: String,
+    connect_timeout: Duration,
+}
+
+impl Client {
+    pub fn new(session: impl Into<String>) -> Self {
+        Self {
+            port: DEFAULT_DAEMON_PORT,
+            session: session.into(),
+            // §B13 budgets 150 ms to FIRST FRAME, and §6 says the split is what buys it. A
+            // 400 ms connect probe spent the whole budget discovering there was no daemon — the
+            // first measured version of this did exactly that. Loopback either answers at once
+            // or is not there, so the probe is short by design.
+            connect_timeout: Duration::from_millis(40),
+        }
+    }
+
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.port = port;
+        self
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+
+    /// The bound the first frame is protected by. Exposed so a test can assert the **configured**
+    /// property rather than time a connection: a wall-clock assertion would be flaky on a loaded
+    /// machine, and a parallel build inflating it is exactly the failure the shared-checkout
+    /// ledger records as its sixth form.
+    pub fn connect_timeout(&self) -> Duration {
+        self.connect_timeout
+    }
+
+    fn connect(&self) -> Result<TcpStream, ClientError> {
+        let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, self.port));
+        TcpStream::connect_timeout(&addr, self.connect_timeout).map_err(|e| {
+            ClientError::NoDaemon { port: self.port, detail: e.to_string() }
+        })
+    }
+
+    /// Send one request, read every event until the daemon closes.
+    pub fn send(&self, request: &Request) -> Result<Vec<Event>, ClientError> {
+        let stream = self.connect()?;
+        stream.set_read_timeout(Some(Duration::from_secs(600))).ok();
+        let mut writer = stream.try_clone().map_err(|e| ClientError::Closed {
+            detail: e.to_string(),
+        })?;
+        crate::protocol::write_line(&mut writer, request)
+            .map_err(|e| ClientError::Closed { detail: e.to_string() })?;
+
+        let mut reader = BufReader::new(stream);
+        let mut events = Vec::new();
+        loop {
+            // LOOP-EXEMPT: reading a response stream, not a driving loop.
+            let mut line = String::new();
+            match reader.read_line(&mut line) {
+                Ok(0) => break,
+                Ok(_) => {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    match serde_json::from_str::<Event>(line.trim()) {
+                        Ok(e) => events.push(e),
+                        Err(e) => {
+                            return Err(ClientError::Closed { detail: e.to_string() });
+                        }
+                    }
+                }
+                Err(e) => return Err(ClientError::Closed { detail: e.to_string() }),
+            }
+        }
+        Ok(events)
+    }
+
+    pub fn ask(&self, message: &str) -> Result<Vec<Event>, ClientError> {
+        self.send(&Request::Ask { session: self.session.clone(), message: message.to_string() })
+    }
+
+    pub fn status(&self) -> Result<Vec<Event>, ClientError> {
+        self.send(&Request::Status)
+    }
+
+    /// Whether a daemon is already listening. Cheap, and does not start one.
+    pub fn daemon_is_up(&self) -> bool {
+        self.connect().is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_client_holds_no_run_state() {
+        // §2.14 and §6: surfaces hold no state the daemon lacks, because if the client owned the
+        // run then closing the terminal would end it. The assertion is on the type's whole
+        // surface — a `Debug` of every field — rather than on a comment, because "thin" is the
+        // kind of claim that stays true until somebody adds a cache.
+        let c = Client::new("s");
+        let debug = format!("{c:?}");
+        for forbidden in ["run", "transcript", "checkpoint", "history", "context", "cache"] {
+            assert!(
+                !debug.to_lowercase().contains(forbidden),
+                "the client holds `{forbidden}`: {debug}"
+            );
+        }
+        assert!(debug.contains("port") && debug.contains("session"));
+    }
+
+    #[test]
+    fn an_absent_daemon_is_a_named_error_not_a_hang() {
+        // Port 1: nothing listens. The client must fail fast and say what is missing, because
+        // this is the path a first run takes before a daemon exists.
+        let c = Client::new("s").with_port(1);
+        assert!(!c.daemon_is_up());
+        let e = c.status().unwrap_err();
+        assert!(matches!(e, ClientError::NoDaemon { .. }), "{e}");
+        assert!(e.to_string().contains("no daemon"), "{e}");
+    }
+}

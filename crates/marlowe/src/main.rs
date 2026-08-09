@@ -5,6 +5,7 @@
 //! `--tui` (Addendum B v2) and `--classic` (§B11). M0b's eval adapter is unchanged.
 
 mod adapter;
+mod agent;
 mod dump;
 mod elapsed;
 mod launcher;
@@ -15,6 +16,9 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
+marlowe --ask <question> [--workspace <DIR>]
+marlowe --serve [--workspace <DIR>]
+marlowe --status
 marlowe --launch
 marlowe --tui [--timing-probe] [--color-depth <truecolor|256|16>] [--ground]
 marlowe --classic
@@ -25,6 +29,24 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
         [--profile-retrieval <FILE>]
         [--rerank-threads <N>] [--rerank-batch <on|off>] [--rerank-provider <cpu|cuda>]
+
+  --ask <question>              Ask one question and print the answer. The thin client of
+                                ARCHITECTURE §6: it holds no run state, so the run belongs to the
+                                daemon and outlives this process. Auto-spawns a daemon if none is
+                                listening, and says so.
+
+  --serve                       Run the daemon. It owns the journal, the engine and the runs.
+                                Runs survive the client that started them (invariant 6); they do
+                                NOT yet survive the daemon itself — that is M3 and K5.
+
+  --status                      What the daemon is, what model it routes to with that model's
+                                MEASURED tool-call reliability, which rerank provider is active
+                                (announced, never inferred — ADR-029), and whether anything is
+                                degraded with the command that fixes it.
+
+  --workspace <DIR>             The directory tools are scoped to. Defaults to the current
+                                directory. Every path the model names is resolved relative to it
+                                and refused if it escapes.
 
   --tui                         The terminal interface. Requires at least 120x30; below that it
                                 prints one line naming the current and required size and offers
@@ -162,7 +184,8 @@ fn main() {
     // Modes are mutually exclusive and named. There is deliberately no default mode: a bare
     // `marlowe` becomes the thin client at M2, and guessing one now would mean changing what an
     // existing command does later.
-    let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch"]
+    let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch",
+                            "--serve", "--ask", "--status"]
         .into_iter()
         .filter(|m| args.iter().any(|a| a == m))
         .collect();
@@ -171,7 +194,7 @@ fn main() {
         0 => {
             eprintln!("{USAGE}");
             eprintln!(
-                "error: no mode selected. One of --launch, --tui, --classic, --doctor, --eval-adapter."
+                "error: no mode selected. One of --serve, --ask, --status, --launch, --tui, --classic, --doctor, --eval-adapter."
             );
             std::process::exit(2);
         }
@@ -184,6 +207,32 @@ fn main() {
             );
             std::process::exit(2);
         }
+    }
+
+    // ── ARCHITECTURE §6: the two roles ────────────────────────────────────────────────────
+    if matches!(modes[0], "--serve" | "--ask" | "--status") {
+        let workspace = flag_value(&args, "--workspace")
+            .map(PathBuf::from)
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let profile_root = flag_value(&args, "--profile-root")
+            .map(PathBuf::from)
+            .unwrap_or_else(agent::default_profile_root);
+
+        let result = match modes[0] {
+            "--serve" => agent::serve(workspace, profile_root),
+            "--status" => agent::status(workspace, profile_root),
+            _ => match flag_value(&args, "--ask") {
+                Some(message) => agent::ask(message, workspace, profile_root),
+                None => Err("--ask requires a question, e.g. `marlowe --ask \"read notes.md\"`"
+                    .to_string()),
+            },
+        };
+        if let Err(e) = result {
+            eprintln!("marlowe: {e}");
+            std::process::exit(1);
+        }
+        return;
     }
 
     // §B17. Opens a terminal Marlowe controls, rather than assuming this one is suitable.
