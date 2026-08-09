@@ -630,6 +630,11 @@ impl<S: PathScope> Engine<S> {
                 // Appending the tool's actual parameter list turns a dead end into a correction.
                 let why = format!("{reason:?}{}", self.expected_params(&tool));
                 self.tool_error(state, &tool, &why);
+                // **The user sees the refusal too.** Both refusal paths used to return here,
+                // before the `ToolLine` below — so the model was told and the screen was not.
+                // A run that refuses three calls and then answers looked like a model that never
+                // tried, which is the opposite of what happened and unfalsifiable from outside.
+                self.refused_line(ports, call_id, &tool, &adjudication, "blocked", &why);
                 return;
             }
             Outcome::NeedsApproval { .. } => {
@@ -647,6 +652,7 @@ impl<S: PathScope> Engine<S> {
                     self.record(ports, EventKind::ApprovalDenied, run, state, json!({}));
                     // The loop continues; it does not retry around a refusal.
                     self.tool_error(state, &tool, "declined");
+                    self.refused_line(ports, call_id, &tool, &adjudication, "declined", "declined");
                     return;
                 }
                 self.record(ports, EventKind::ApprovalGranted, run, state, json!({}));
@@ -842,6 +848,31 @@ impl<S: PathScope> Engine<S> {
             })
             .collect();
         format!(" — `{tool}` takes: {}", list.join(", "))
+    }
+
+    /// §B6's line for a call that never ran.
+    ///
+    /// The blast radius is already computed by the time either refusal fires, so the line names
+    /// the same target an allowed call would have — the user can see *what* was refused, not only
+    /// that something was.
+    fn refused_line(
+        &mut self,
+        ports: &mut Ports<'_>,
+        call_id: u64,
+        tool: &ToolId,
+        adjudication: &marlowe_permission::Adjudication,
+        state: &'static str,
+        detail: &str,
+    ) {
+        ports.sink.emit(TurnEvent::ToolLine {
+            id: call_id,
+            verb: tool.to_string(),
+            target: adjudication.decision.blast_radius.scope.clone(),
+            state: ToolLineState::Failed(marlowe_tools::ResultSummary::with_detail(
+                vec![marlowe_tools::Metric::State(state)],
+                detail.to_string(),
+            )),
+        });
     }
 
     fn tool_error(&mut self, state: &mut SessionState, tool: &ToolId, why: &str) {

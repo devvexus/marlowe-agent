@@ -1036,3 +1036,73 @@ fn the_guard_names_a_tool_that_has_no_executor() {
     assert_eq!(err.0, vec!["web".to_string()], "`ask` is loop control and is exempt");
     assert!(err.to_string().contains("web"), "the error must name the tool: {err}");
 }
+
+/// **A refused tool call is still a visible tool call.**
+///
+/// Both refusal paths — adjudication `Blocked` and a denied approval — returned before the
+/// `ToolLine` emit, so the model was told and the user was not. A run that tried three times and
+/// was refused three times rendered as a run that never tried: no line, no failure, just an
+/// answer that mentioned restrictions. Reported live as "tool calls are now missing".
+#[test]
+fn a_blocked_tool_call_still_emits_a_tool_line() {
+    use marlowe_loop::{ToolLineState, TurnEvent};
+
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::ToolCall {
+                tool: ToolId::new("read"),
+                // Path scoping is `Unavailable` in this engine, so this is refused.
+                args: marlowe_permission::Args::new().text("path", "/etc/passwd"),
+            },
+            10,
+        ),
+        say("could not read it", 10),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    assert!(tools.calls.is_empty(), "the call must actually have been refused, or this is vacuous");
+
+    let lines: Vec<&TurnEvent> = sink
+        .events
+        .iter()
+        .filter(|ev| matches!(ev, TurnEvent::ToolLine { .. }))
+        .collect();
+    assert_eq!(
+        lines.len(),
+        1,
+        "a refused call must still produce exactly one §B6 line; got {lines:?}"
+    );
+    match lines[0] {
+        TurnEvent::ToolLine { verb, state, .. } => {
+            assert_eq!(verb, "read");
+            assert!(
+                matches!(state, ToolLineState::Failed(_)),
+                "the line must read as a failure, not as a call that succeeded: {state:?}"
+            );
+        }
+        other => panic!("not a tool line: {other:?}"),
+    }
+}
