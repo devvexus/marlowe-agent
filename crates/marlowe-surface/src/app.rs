@@ -29,7 +29,8 @@
 //! keys never suspend. `tests/keyboard_reachability.rs` proves it from the default focus rather
 //! than from a convenient one.
 
-use marlowe_view::{ClientLine, ControlId, Intent, PendingLine, SessionView, StatusState, Tab, Tone};
+use marlowe_view::notice::{Capability, Milestone, Notice, Refusal};
+use marlowe_view::{ClientLine, ControlId, Echo, Intent, PendingLine, SessionView, StatusState, Tab, Tone};
 
 use crate::commands::{self, Outcome};
 use crate::keys::{Binding, KeyRegistry};
@@ -91,6 +92,8 @@ pub struct App {
     /// Command output, rejections and notices. **The client talking, not Marlowe** — these are not
     /// conversation and never enter the transcript or a `Y` copy.
     pub client_lines: Vec<ClientLine>,
+    /// The last `/doctor` report. Diagnostic output, deliberately outside the Notice vocabulary.
+    pub diagnostic_lines: Vec<String>,
     /// Requests waiting for the driver to hand to a producer. Drained by [`App::drain_intents`].
     outbox: Vec<Intent>,
     /// Which control-strip dropdown is open. Was `Picker::open` on the producer's side; open-ness
@@ -236,6 +239,7 @@ impl App {
             view,
             pending: None,
             client_lines: Vec::new(),
+            diagnostic_lines: Vec::new(),
             outbox: Vec::new(),
             picker_open: None,
             picker_cursor: 0,
@@ -319,6 +323,16 @@ impl App {
     /// Ask the producer for something. **The only way this surface causes anything.**
     fn ask(&mut self, intent: Intent) {
         self.outbox.push(intent);
+    }
+
+    /// Show a producer's refusal. **Persistent, not a transient notice.**
+    ///
+    /// `notice` is cleared by the next keystroke, which is right for "copied 412 characters" and
+    /// wrong for "that action was refused and here is why" — a user who looks away for a second
+    /// would see a blocked action with no explanation, which is the silent no-op wearing a hat.
+    /// So it lands in the conversation as a client line and stays there.
+    pub fn refused(&mut self, e: &marlowe_view::IntentError) {
+        self.client_note(e.as_notice(), Tone::Amber);
     }
 
     pub fn tab(&self) -> TabId {
@@ -645,20 +659,25 @@ impl App {
                 self.scroll = None;
                 self.client_lines.clear();
                 self.client_note(
-                    "A new session is daemon-owned and lands with /sessions in M2. Cleared the                      message field; the conversation is still here.",
+                    Notice::NotBuilt {
+                        capability: Capability::NewSession,
+                        arrives: Milestone::M2SessionD,
+                    },
                     Tone::Dim,
                 );
-                Action::Redraw
+Action::Redraw
             }
             'r' => self.switch_tab(Tab::Runs),
             't' => self.switch_tab(Tab::Trust),
             'l' => {
-                self.client_note(format!(
-                    "lineage {} deep · {} turns compacted. Walking it is M2 — the generations \
-                     exist, the walk needs sessions behind it.",
-                    self.view.pager.lineage, self.view.pager.compacted
-                ), Tone::Dim);
-                Action::Redraw
+                self.client_note(
+                    Notice::NotBuilt {
+                        capability: Capability::LineageWalk,
+                        arrives: Milestone::M2SessionD,
+                    },
+                    Tone::Dim,
+                );
+Action::Redraw
             }
             'u' => {
                 self.run_command("undo", &["1"]);
@@ -669,12 +688,13 @@ impl App {
                 // None exist. Saying so is the honest surface; a palette over a stub index would
                 // look like a feature and measure nothing.
                 self.client_note(
-                    "The palette lands in M2 — it indexes sessions, skills and models, and none \
-                     of those exist yet. /help lists what does."
-                        .to_string(),
+                    Notice::NotBuilt {
+                        capability: Capability::CommandPalette,
+                        arrives: Milestone::M2C3,
+                    },
                     Tone::Dim,
                 );
-                Action::Redraw
+Action::Redraw
             }
             'c' => Action::Quit,
             _ => Action::None,
@@ -896,7 +916,10 @@ impl App {
                     if !text.trim().is_empty() {
                         // v1.0 §10.1: injected into a RUNNING child without killing it.
                         self.client_note(
-                            format!("Steer requested: {}", text.trim()),
+                            Notice::NotBuilt {
+                                capability: Capability::Steer,
+                                arrives: Milestone::M3,
+                            },
                             Tone::Normal,
                         );
                     }
@@ -942,10 +965,10 @@ impl App {
                     "shell runs through the approval path, which lands in M2".into(),
                 ),
             });
-            self.client_note(format!(
-                "Shell runs through the approval path, and that path lands in M2. {cmd:?} was not \
-                 run."
-            ), Tone::Amber);
+            self.client_note(
+                Notice::NotBuilt { capability: Capability::Shell, arrives: Milestone::M2C3 },
+                Tone::Amber,
+            );
             return Action::Redraw;
         }
 
@@ -963,10 +986,12 @@ impl App {
     pub fn run_command(&mut self, name: &str, args: &[&str]) -> Outcome {
         let outcome = commands::dispatch(&self.view, name, args);
         match &outcome {
-            Outcome::Lines(lines) => {
-                for line in lines {
-                    self.client_note(line.clone(), Tone::Normal);
-                }
+            Outcome::Say(notice) => self.client_note(notice.clone(), Tone::Normal),
+            // Diagnostics are not speech and do not go through the Notice vocabulary. They render
+            // dim, because a capability report needing nothing from the user should not pull the
+            // eye (§B2).
+            Outcome::Diagnostic(lines) => {
+                self.diagnostic_lines = lines.clone();
             }
             Outcome::Tab(tab, said) => {
                 // §B7's rule, and the whole argument for a TUI over a chat log: the inspector
@@ -977,21 +1002,24 @@ impl App {
             }
             // A command that asks for something: show what was asked, queue the request. The
             // producer's next view is what says whether it happened.
-            Outcome::Ask(intent, lines) => {
-                for line in lines {
-                    self.client_note(line.clone(), Tone::Dim);
-                }
+            // A request carries no line of its own: the confirmation is the view coming back
+            // changed. A surface narrating what it asked for was reporting a result it did not have.
+            Outcome::Ask(intent) => {
                 let intent = intent.clone();
                 self.ask(intent);
             }
-            Outcome::Rejected(why) => self.client_note(why.clone(), Tone::Amber),
+            Outcome::Rejected(refusal) => {
+                self.client_note(Notice::Refused(refusal.clone()), Tone::Amber)
+            }
             Outcome::Unknown(name) => {
-                let near = commands::complete(name);
-                let msg = match near.first() {
-                    Some(c) => format!("No /{name}. Closest is /{}.", c.name),
-                    None => format!("No /{name}. /help lists what there is."),
-                };
-                self.client_note(msg, Tone::Amber);
+                let nearest = commands::complete(name).first().map(|c| c.name);
+                self.client_note(
+                    Notice::Refused(Refusal::UnknownCommand {
+                        name: Echo::new(name.clone()),
+                        nearest,
+                    }),
+                    Tone::Amber,
+                );
             }
             Outcome::Quit => {}
         }
@@ -1005,10 +1033,12 @@ impl App {
     /// conversation. That broke two rules at once: a surface authoring session state
     /// (ARCHITECTURE 2.14) and a surface authoring persona-bearing prose (CLAUDE.md's third fixed
     /// decision). A `/help` listing is the tool answering, and it is not part of the conversation.
-    fn client_note(&mut self, text: impl Into<String>, tone: Tone) {
+    /// **The signature is the enforcement.** There is no `String` in it, so a surface cannot send
+    /// prose — it can only name a [`Notice`] variant, and the variants are closed. That is
+    /// stronger than a rule saying it shouldn't: `client_note("whatever I like")` does not compile.
+    fn client_note(&mut self, notice: Notice, tone: Tone) {
         let after = self.view.transcript.len();
-        self.client_lines
-            .push(ClientLine::new(text, tone, after));
+        self.client_lines.push(ClientLine::new(notice, tone, after));
     }
 
     /// The next state in B5's order -- what `^v` and Enter-on-the-status-band ask for.
@@ -1048,7 +1078,12 @@ impl App {
                 // actually been declined -- a surface deciding an approval outcome, which is the
                 // one thing 8.2 says it must never do.
                 self.ask(Intent::Approve { granted: false });
-                self.client_note("Opened for editing. Nothing sent.", Tone::Normal);
+                self.client_note(
+                    Notice::ApprovalResolved {
+                        disposition: marlowe_view::Disposition::OpenedForEditing,
+                    },
+                    Tone::Normal,
+                );
                 Action::Redraw
             }
             Key::Char('s') => {
@@ -1060,7 +1095,10 @@ impl App {
                 // producer that can perform it, which is Session E.
                 self.ask(Intent::Approve { granted: false });
                 self.client_note(
-                    "Send-as-Marlowe needs a producer that can perform it, which lands in                      Session E. The impersonating send was declined; nothing was sent.",
+                    Notice::NotBuilt {
+                        capability: Capability::SendAsMarlowe,
+                        arrives: Milestone::M2SessionE,
+                    },
                     Tone::Amber,
                 );
                 Action::Redraw

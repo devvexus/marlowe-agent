@@ -101,9 +101,23 @@ fn the_two_surfaces_produce_the_same_data_for_a_pane() {
 fn approvals_reach_the_classic_cli_too() {
     let out = classic("send the email\n");
     assert!(out.contains("approval"), "the classic CLI must surface approvals");
+    // **Asserted as the property, not as a fixture string.** This used to check for the literal
+    // "Not recallable", which was one of M1's hand-written blast-radius strings — so it was really
+    // testing that a particular fixture had not been reworded. The blast radius is computed from
+    // typed facts now, and what §B9 actually requires is that the consequence is stated and the
+    // command is not.
     assert!(
-        out.contains("Not recallable"),
-        "§B9: states blast radius, not the command"
+        out.contains("not recoverable"),
+        "§B9: the consequence must be stated. Got:\n{out}"
+    );
+    // Scoped to the approval block. The transcript legitimately echoes the user's own turn, so
+    // asserting over the whole output would have been testing something adjacent — the first
+    // version of this check did exactly that and failed on `> send the email` in the transcript.
+    let block = &out[out.find("approval —").expect("an approval block")..];
+    assert!(
+        !block.contains("send the email"),
+        "§B9 states blast radius, NOT the command — the user's text reached the approval \
+         prompt:\n{block}"
     );
     assert!(
         out.contains("send as marlowe"),

@@ -26,7 +26,9 @@
 
 #![forbid(unsafe_code)]
 
+pub mod approval;
 pub mod meter;
+pub mod notice;
 pub mod model;
 pub mod produce;
 pub mod turn;
@@ -34,9 +36,16 @@ pub mod view;
 
 pub use meter::{Frame, MeterSource, BASELINE, LEVELS, SAMPLES};
 pub use produce::{ClockRead, Produce};
+pub use approval::{
+    BlastRadius, Ceiling, Deviation, Effect, FirstTime, Medium, Novelty, Offered, PathLabel,
+    RiskTier,
+};
 pub use model::{
-    Ambient, BlastRadius, ControlStrip, Entry, Item, Pager, Picker, RiskTier, StatusBand,
-    StatusState, Tab, Tone, ToolCall,
+    Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tab, Tone, ToolCall,
+};
+pub use notice::{
+    Capability, Disposition, Echo, Listing, Milestone, Notice, PaneSummary, Refusal, RenderContext,
+    Speech,
 };
 pub use turn::{DegradedPath, Metric, ResultSummary, ToolLineState, TurnEvent};
 pub use view::{

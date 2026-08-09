@@ -18,7 +18,7 @@ use crossterm::event::{
     MouseButton, MouseEventKind,
 };
 use crossterm::{execute, terminal};
-use marlowe_stub::{Clock, Session};
+use marlowe_stub::Clock;
 use marlowe_view::Produce;
 use marlowe_surface::app::{Action, App, Key};
 use marlowe_surface::{render, Theme, MIN_COLS, MIN_ROWS};
@@ -64,6 +64,19 @@ pub struct Options {
     /// becomes the default, stays a flag, or is replaced by a shipped colour scheme is a decision
     /// this does not pre-empt — it exists so the choice can be made by looking at it.
     pub ground: bool,
+    /// Drive M1's scripted stub instead of the real engine.
+    ///
+    /// **`--tui` is live by default and this is the opt-out, not the other way round.** The
+    /// producer in use is printed at startup and named in the status band: ADR-029's rule
+    /// generalised — the active producer is announced, never silently chosen, because an
+    /// unannounced fallback is indistinguishable from the failure mode it resembles.
+    pub scripted: bool,
+    /// Point the client at a non-default daemon port.
+    ///
+    /// **Isolation, not configuration.** Two sessions on one machine share `DEFAULT_DAEMON_PORT`,
+    /// and the reflex when one is in the way — stopping it — takes the other session's daemon with
+    /// it. A scratch port is how a clean daemon is obtained without touching anyone else's.
+    pub daemon_port: Option<u16>,
     /// Enter raw mode and the alternate screen, draw one frame, then **panic on purpose**.
     ///
     /// The panic hook is the one piece of teardown that cannot be exercised by quitting normally,
@@ -88,10 +101,90 @@ pub fn run(opts: Options) -> io::Result<()> {
         }
     };
 
-    // C2d: the driver owns the producer; the surface is handed its view. `--tui` still drives the
-    // scripted producer -- swapping in the daemon is Session E ("the TUI against the real loop"),
-    // and doing it here would mean shipping a half-wired event stream under the same flag.
-    let mut session = Session::new();
+    // **M2 C2d's deliverable: the TUI drives the real engine.** `--scripted` keeps M1's stub for
+    // the interaction demo. Whichever is live is announced rather than inferred.
+    if opts.scripted {
+        let mut session = marlowe_stub::Session::new();
+        return run_with(&mut session, opts, theme, clock);
+    }
+    let port = opts.daemon_port.unwrap_or(marlowe_daemon::DEFAULT_DAEMON_PORT);
+    ensure_daemon(port);
+    let mut session = marlowe_daemon::LiveSession::connect_on("tui", port);
+    if !session.is_connected() {
+        // Not fatal. Invariant 4: degrade visibly and name the remedy. The band says the same
+        // thing, so this line is for the case where the frame never appears at all.
+        eprintln!("marlowe: no daemon answered; the band will say so. Start one with `marlowe --serve`.");
+    }
+    run_with(&mut session, opts, theme, clock)
+}
+
+/// Start a daemon if none is listening. **§5's zero-config first run**: the user types `marlowe`
+/// (or clicks the shortcut) and it works.
+///
+/// **Announced, never silent** — a process appearing on a machine without the user being told is
+/// exactly what a well-behaved tool does not do. It is spawned DETACHED rather than run in-process
+/// because invariant 6 is the whole reason for the split: a daemon inside the TUI would die with
+/// the terminal, which is the thing §6 exists to prevent.
+fn ensure_daemon(port: u16) {
+    let client = marlowe_daemon::Client::new("tui").with_port(port);
+    if client.daemon_is_up() {
+        return;
+    }
+    let Ok(exe) = std::env::current_exe() else { return };
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    eprintln!("marlowe: no daemon running — starting one. It outlives this window (invariant 6).");
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("--serve").arg("--workspace").arg(&cwd);
+    if port != marlowe_daemon::DEFAULT_DAEMON_PORT {
+        cmd.arg("--daemon-port").arg(port.to_string());
+    }
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+
+    // **The daemon must not inherit this console, and nulling stdio is not enough.**
+    //
+    // Found by running it: `--timing-probe` returned in 56 ms and the shell hung anyway. A child
+    // process on Windows inherits the parent's console handle, so a daemon that runs forever holds
+    // the console open forever — the pipeline never sees end-of-output, and a terminal, a shell
+    // pipeline or a double-clicked shortcut all appear to hang. Nothing on the Marlowe side is
+    // wrong at that point; the process that finished simply cannot say so.
+    //
+    // DETACHED_PROCESS (0x8) gives the daemon no console at all, which is what a daemon should
+    // have. CREATE_NEW_PROCESS_GROUP (0x200) keeps a Ctrl-C in the launching terminal from
+    // reaching it — invariant 6 says the run outlives the client, and it would not survive
+    // inheriting the client's interrupt.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+
+    let spawned = cmd.spawn();
+    if spawned.is_err() {
+        eprintln!("marlowe: could not start one; the band will say so.");
+        return;
+    }
+    // Wait for the socket rather than sleeping a fixed amount. §B13 budgets 150 ms to first frame
+    // and a fixed sleep would spend it whether or not it was needed.
+    for _ in 0..40 {
+        // LOOP-EXEMPT: waiting on a socket to come up, not a driving loop.
+        if client.daemon_is_up() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    eprintln!("marlowe: the daemon did not answer in time; the band will say so.");
+}
+
+fn run_with(
+    session: &mut impl Produce,
+    opts: Options,
+    theme: Theme,
+    clock: Clock,
+) -> io::Result<()> {
     let mut app = match App::new(session.view().clone()) {
         Ok(a) => a,
         Err(conflict) => {
@@ -185,7 +278,7 @@ pub fn run(opts: Options) -> io::Result<()> {
     }
 
     let mut term = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-    let result = event_loop(&mut term, &mut session, &mut app, &theme, &clock, &opts);
+    let result = event_loop(&mut term, session, &mut app, &theme, &clock, &opts);
 
     if opts.ground {
         // OSC 110/111 reset fore/background to the terminal's configured defaults. A program that
@@ -258,7 +351,7 @@ fn install_panic_hook() {
 /// Returns `Some((first_frame_ms, interactive_ms))` under `--timing-probe`.
 fn event_loop(
     term: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    session: &mut Session,
+    session: &mut impl Produce,
     app: &mut App,
     theme: &Theme,
     clock: &Clock,
@@ -444,10 +537,12 @@ fn event_loop(
 /// goes out as an `Intent` and comes back as a whole new view; nothing on the surface's side is
 /// edited in place. A refusal is printed rather than dropped -- a producer that silently ignored
 /// an intent would make a working build and a broken one look identical.
-fn advance(session: &mut Session, app: &mut App, now_ms: u64) {
+fn advance(session: &mut impl Produce, app: &mut App, now_ms: u64) {
     for intent in app.drain_intents() {
         if let Err(e) = session.apply(intent) {
-            app.notice = Some(e.to_string());
+            // Shown in the conversation and kept there. A refusal that vanished on the next
+            // keystroke would leave a blocked action with no explanation.
+            app.refused(&e);
         }
     }
     session.tick(now_ms);

@@ -497,7 +497,17 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                 }
                 out.push(Line::from(""));
             }
-            Entry::Said(text) => {
+            Entry::Said(speech) => {
+                // Both halves render identically — the user must not see a seam between the model
+                // talking and the harness talking. The TYPE records who composed it; the frame
+                // does not, because that is not the user's problem.
+                let text = &match speech {
+                    marlowe_view::Speech::Model(t) => t.clone(),
+                    marlowe_view::Speech::Harness(n) => {
+                        crate::commands::render_notice(app.view(), n).join("
+")
+                    }
+                };
                 // The one place colour marks WHO is speaking rather than state. White prose read
                 // as terminal output rather than as somebody talking.
                 for l in wrap(text, w) {

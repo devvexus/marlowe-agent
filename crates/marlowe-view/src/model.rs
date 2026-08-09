@@ -183,8 +183,13 @@ impl Picker {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Entry {
     User(String),
-    /// Marlowe's prose. Carries the persona (Addendum C) — **including here, in a stub**.
-    Said(String),
+    /// Marlowe's prose. Carries the persona (Addendum C).
+    ///
+    /// **The payload is [`crate::notice::Speech`], not a `String`.** A free string here is what let
+    /// M1's surface author Marlowe's voice and would have let any producer do the same; the model
+    /// half stays a `String` because model output is one, and the harness half is a closed
+    /// vocabulary. ADR-030.
+    Said(crate::notice::Speech),
     /// A group of consecutive tool calls. §B6's same-verb collapse operates within a group.
     Tools(Vec<ToolCall>),
     /// `─ compacted · 47 turns → summary ─`. Announces itself inline and does not interrupt.
@@ -356,44 +361,6 @@ impl Item {
             lines: vec![(placeholder.to_string(), Tone::Dim)],
             tone: Tone::Normal,
             editable: true,
-        }
-    }
-}
-
-/// §B9's approval overlay content.
-///
-/// **States blast radius, not the command.** Not `Run: rm -rf ./build?` but `Delete 1,204 files in
-/// ./build · not recoverable`. The type has no field for the command string, which is the point:
-/// a surface cannot show what it was never given.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlastRadius {
-    /// What will happen, in the user's terms.
-    pub headline: String,
-    /// The consequence. Renders in the risk tier's colour.
-    pub consequence: String,
-    /// Novelty gating explained in one line: `unusual · first send to this recipient`. Ceilings
-    /// stated: `this class sits at its ceiling and cannot be promoted`.
-    pub why: String,
-    pub tier: RiskTier,
-    /// The keys, including **the delegation escape hatch** — sending *as Marlowe* is the path that
-    /// avoids impersonation entirely (Addendum A §A3).
-    pub options: Vec<(char, &'static str)>,
-}
-
-/// §B9 is risk-tiered per v1.0 §8.2. The tier picks the doubled border's colour.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RiskTier {
-    /// Routine writes, batched.
-    Routine,
-    /// Irreversible. Blocking.
-    Irreversible,
-}
-
-impl RiskTier {
-    pub fn tone(self) -> Tone {
-        match self {
-            RiskTier::Routine => Tone::Amber,
-            RiskTier::Irreversible => Tone::Red,
         }
     }
 }

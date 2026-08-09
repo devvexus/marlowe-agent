@@ -49,21 +49,27 @@ pub fn run(
             let mut parts = rest.split_whitespace();
             let name = parts.next().unwrap_or("");
             let args: Vec<&str> = parts.collect();
-            match commands::dispatch(session.view(), name, &args) {
+            let outcome = commands::dispatch(session.view(), name, &args);
+            // One renderer, both surfaces. §B11 is command parity, and parity of the WORDS is the
+            // half a checklist would miss.
+            let say = |out: &mut dyn Write, v: &SessionView, n: &marlowe_view::Notice| {
+                for l in commands::render_notice(v, n) {
+                    let _ = writeln!(out, "{l}");
+                }
+            };
+            match outcome {
                 Outcome::Quit => return Ok(()),
-                Outcome::Lines(lines) => {
+                Outcome::Say(n) => say(&mut out, session.view(), &n),
+                Outcome::Diagnostic(lines) => {
                     for l in lines {
                         writeln!(out, "{l}")?;
                     }
                 }
-                // Same request path as the TUI. The producer acts; a refusal is printed by
-                // name rather than swallowed, so the CLI cannot look like it worked.
-                Outcome::Ask(intent, lines) => {
-                    for l in lines {
-                        writeln!(out, "{l}")?;
-                    }
+                // Same request path as the TUI. The producer acts; a refusal is printed by name
+                // rather than swallowed, so the CLI cannot look like it worked.
+                Outcome::Ask(intent) => {
                     if let Err(e) = session.apply(intent) {
-                        writeln!(out, "{e}")?;
+                        say(&mut out, session.view(), &e.as_notice());
                     }
                     drain(session, &mut out, &mut shown, clock)?;
                 }
@@ -71,18 +77,24 @@ pub fn run(
                     // The same rule as the TUI (§B7): the region carries the data, the transcript
                     // carries the judgment. Without a grid they arrive one after the other rather
                     // than side by side — that is the layout half of "parity, not layout parity".
-                    writeln!(out, "{said}")?;
+                    say(&mut out, session.view(), &said);
                     for l in commands::render_pane_linear(session.view(), tab) {
                         writeln!(out, "{l}")?;
                     }
                 }
-                Outcome::Rejected(why) => writeln!(out, "{why}")?,
+                Outcome::Rejected(r) => {
+                    say(&mut out, session.view(), &marlowe_view::Notice::Refused(r))
+                }
                 Outcome::Unknown(name) => {
-                    let near = commands::complete(&name);
-                    match near.first() {
-                        Some(c) => writeln!(out, "No /{name}. Closest is /{}.", c.name)?,
-                        None => writeln!(out, "No /{name}. /help lists what there is.")?,
-                    }
+                    let nearest = commands::complete(&name).first().map(|c| c.name);
+                    say(
+                        &mut out,
+                        session.view(),
+                        &marlowe_view::Notice::Refused(marlowe_view::Refusal::UnknownCommand {
+                            name: marlowe_view::Echo::new(name),
+                            nearest,
+                        }),
+                    );
                 }
             }
             shown = session.view().transcript.len();
@@ -102,7 +114,12 @@ pub fn run(
         }
 
         // Asked, not assigned -- exactly as the TUI does it.
-        let _ = session.apply(Intent::Send(text.to_string()));
+        if let Err(e) = session.apply(Intent::Send(text.to_string())) {
+            let n = e.as_notice();
+            for l in commands::render_notice(session.view(), &n) {
+                writeln!(out, "{l}")?;
+            }
+        }
         drain(session, &mut out, &mut shown, clock)?;
 
         print_approval(session.view(), &mut out)?;
@@ -119,11 +136,11 @@ fn print_approval(view: &SessionView, out: &mut impl Write) -> std::io::Result<(
     let Some(radius) = &view.approval else {
         return Ok(());
     };
-    writeln!(out, "\n  approval — {}", radius.headline)?;
-    writeln!(out, "  {}", radius.consequence)?;
-    writeln!(out, "  {}", radius.why)?;
+    writeln!(out, "\n  approval — {}", radius.headline())?;
+    writeln!(out, "  {}", radius.consequence())?;
+    writeln!(out, "  {}", radius.why())?;
     let keys: Vec<String> = radius
-        .options
+        .keys()
         .iter()
         .map(|(k, what)| {
             let key = match k {
@@ -169,7 +186,16 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
     while *shown < view.transcript.len() {
         match &view.transcript[*shown] {
             Entry::User(t) => writeln!(out, "> {t}")?,
-            Entry::Said(t) => writeln!(out, "{t}")?,
+            Entry::Said(t) => match t {
+                // The classic surface renders both halves identically -- a user must not see a
+                // seam between the model talking and the harness talking.
+                marlowe_view::Speech::Model(text) => writeln!(out, "{text}")?,
+                marlowe_view::Speech::Harness(n) => {
+                    for line in crate::commands::render_notice(view, n) {
+                        writeln!(out, "{line}")?;
+                    }
+                }
+            },
             Entry::Compacted { turns } => writeln!(out, "-- compacted · {turns} turns → summary")?,
             Entry::Tools(calls) => {
                 for c in calls {

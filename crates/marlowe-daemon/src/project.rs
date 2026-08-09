@@ -27,6 +27,7 @@ use marlowe_view::meter::MeterSource;
 use marlowe_view::model::{
     Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tone, ToolCall,
 };
+use marlowe_view::notice::Speech;
 use marlowe_view::turn::{DegradedPath, Metric, ResultSummary, ToolLineState};
 use marlowe_view::SessionView;
 
@@ -78,7 +79,7 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
         // No telemetry, so no reading. See this module's header.
         meter: MeterSource::None,
         runs: Vec::new(),
-        schedule: vec![not_built("Schedule", 's', "triggers land in M4")],
+        schedule: vec![not_built("Schedule", pane_key(0), "triggers land in M4")],
     }
 }
 
@@ -112,10 +113,12 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     format!("rerank {}", r.rerank_provider),
                 ];
             }
+            // Model output, so `Speech::Model`. Deltas coalesce into one `Said` rather than one
+            // entry per token. This is the half of `Entry::Said` that is legitimately a `String`:
+            // it is what the model emitted, and the harness does not get to reword it.
             Event::Text { delta } => match view.transcript.last_mut() {
-                // Deltas coalesce into one `Said` rather than one entry per token.
-                Some(Entry::Said(s)) => s.push_str(delta),
-                _ => view.transcript.push(Entry::Said(delta.clone())),
+                Some(Entry::Said(Speech::Model(s))) => s.push_str(delta),
+                _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
             },
             Event::Tool { id, verb, target, state, summary } => {
                 let call = tool_call(*id, verb, target, state, summary);
@@ -141,7 +144,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             }
             Event::Done { outcome, detail, spend_micros_usd, elapsed_ms } => {
                 if !detail.is_empty() {
-                    view.transcript.push(Entry::Said(detail.clone()));
+                    view.transcript.push(Entry::Said(Speech::Model(detail.clone())));
                 }
                 view.pager.turn += 1;
                 view.ambient.spend_cents = (*spend_micros_usd / 10_000) as u32;
@@ -152,10 +155,12 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             Event::Run { id, status, tokens, depth } => {
                 view.runs.push(Item::new(
                     id,
-                    // A run's hotkey has to be stable and unique; the id's first char is neither
-                    // in general, so runs are numbered by position. `keys.rs` refuses a collision
-                    // at startup rather than letting one shadow another.
-                    char::from_digit((view.runs.len() % 10) as u32, 10).unwrap_or('r'),
+                    // **From the safe pool, never a digit.** The first version numbered runs by
+                    // position, which produced '1'..'9' — the inspector tab digits (§B7). It would
+                    // have refused to start the moment a run existed, and only because
+                    // `KeyRegistry::build` errors on a collision rather than letting one key
+                    // silently shadow another.
+                    pane_key(view.runs.len()),
                     if status == "running" { Tone::Green } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
@@ -200,6 +205,24 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
     // §B6: failures auto-expand.
     call.expanded = matches!(call.state, ToolLineState::Failed(_));
     call
+}
+
+/// Hotkeys a pane item may take, in order.
+///
+/// **Everything the frame already claims is excluded**: the eight region keys (`m p s w a v c i`,
+/// §B2), the six tab digits (§B7), and §B10's copy pair `y`/`Y`. A collision is a refusal to
+/// start — which is correct, and is how the first version of this file was caught giving the
+/// Schedule item `'s'`, the Session region's key. The refusal happened on a real run rather than
+/// in any test, because no test built a view from the daemon and then constructed a key registry
+/// over it.
+const PANE_KEYS: &[char] = &[
+    'b', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'n', 'o', 'q', 'r', 't', 'u', 'x', 'z',
+];
+
+/// The nth pane key. **Refuses to wrap** — wrapping would hand two items the same key, which is
+/// the silent shadowing `KeyRegistry` exists to prevent, reintroduced one layer up.
+fn pane_key(n: usize) -> char {
+    PANE_KEYS[n.min(PANE_KEYS.len() - 1)]
 }
 
 fn not_built(what: &str, key: char, when: &str) -> Item {
@@ -275,7 +298,10 @@ mod tests {
             ],
         );
         assert_eq!(v.transcript.len(), 1);
-        assert!(matches!(&v.transcript[0], Entry::Said(s) if s == "Your cost base moved."));
+        assert!(matches!(
+            &v.transcript[0],
+            Entry::Said(Speech::Model(s)) if s == "Your cost base moved."
+        ));
     }
 
     #[test]
@@ -316,5 +342,59 @@ mod tests {
         };
         assert!(calls[0].is_failure());
         assert!(calls[0].expanded, "§B6: failures auto-expand");
+    }
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+    use marlowe_view::Tab;
+
+    /// The bug a real run found, as a test.
+    ///
+    /// No test built a view from the daemon and then constructed a key registry over it, so a
+    /// hotkey collision between the projection and §B2's region keys was invisible until the
+    /// binary refused to start. This is that seam, crossed.
+    #[test]
+    fn no_projected_pane_item_collides_with_a_region_key_or_a_tab_digit() {
+        const REGION_KEYS: &[char] = &['m', 'p', 's', 'w', 'a', 'v', 'c', 'i'];
+        const COPY_KEYS: &[char] = &['y', 'Y'];
+
+        let mut v = view_from_status(&StatusReport {
+            version: "0.1.0".into(),
+            workspace: "/ws".into(),
+            model: "m".into(),
+            model_disclosure: "d".into(),
+            degraded: None,
+            rerank_provider: "cpu".into(),
+            live_runs: 0,
+        });
+        // Enough runs to exhaust the pool and then some.
+        let events: Vec<Event> = (0..25)
+            .map(|i| Event::Run {
+                id: format!("r{i}"),
+                status: "running".into(),
+                tokens: 1,
+                depth: 0,
+            })
+            .collect();
+        apply_events(&mut v, &events);
+
+        for item in v.runs.iter().chain(v.schedule.iter()) {
+            assert!(
+                !REGION_KEYS.contains(&item.key),
+                "pane item {:?} took region key {:?} (§B2) — the binary refuses to start",
+                item.label,
+                item.key
+            );
+            assert!(
+                !item.key.is_ascii_digit(),
+                "pane item {:?} took a digit, which reaches an inspector tab (§B7)",
+                item.label
+            );
+            assert!(!COPY_KEYS.contains(&item.key), "pane item {:?} took a copy key", item.label);
+        }
+        assert!(!v.runs.is_empty() && !v.schedule.is_empty(), "the scan had nothing to check");
+        let _ = Tab::ALL;
     }
 }

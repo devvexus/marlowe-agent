@@ -162,7 +162,7 @@ pub enum TurnEvent {
         what: DegradedPath,
     },
     /// The only element permitted to DIM the frame, §B9.
-    ApprovalPrompt(crate::model::BlastRadius),
+    ApprovalPrompt(crate::approval::BlastRadius),
     Done {
         spend_cents: u32,
         elapsed_ms: u64,

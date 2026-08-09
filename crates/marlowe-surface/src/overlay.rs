@@ -55,18 +55,18 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
 
     let w = 64.min(area.width.saturating_sub(4));
     let lines: Vec<Line> = vec![
-        Line::from(Span::styled(radius.headline.clone(), theme.bright())),
+        Line::from(Span::styled(radius.headline(), theme.bright())),
         Line::from(""),
         Line::from(Span::styled(
-            radius.consequence.clone(),
+            radius.consequence(),
             theme.style(radius.tier.tone()),
         )),
         Line::from(""),
-        Line::from(Span::styled(radius.why.clone(), theme.dim())),
+        Line::from(Span::styled(radius.why(), theme.dim())),
         Line::from(""),
         Line::from(
             radius
-                .options
+                .keys()
                 .iter()
                 .flat_map(|(k, what)| {
                     let key = match k {

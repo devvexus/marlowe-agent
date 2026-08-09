@@ -20,7 +20,8 @@ marlowe --ask <question> [--workspace <DIR>]
 marlowe --serve [--workspace <DIR>]
 marlowe --status
 marlowe --launch
-marlowe --tui [--timing-probe] [--color-depth <truecolor|256|16>] [--ground]
+marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
+        [--ground]
 marlowe --classic
 marlowe --doctor
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
@@ -220,7 +221,11 @@ fn main() {
             .unwrap_or_else(agent::default_profile_root);
 
         let result = match modes[0] {
-            "--serve" => agent::serve(workspace, profile_root),
+            "--serve" => agent::serve(
+                workspace,
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
             "--status" => agent::status(workspace, profile_root),
             _ => match flag_value(&args, "--ask") {
                 Some(message) => agent::ask(message, workspace, profile_root),
@@ -270,6 +275,8 @@ fn main() {
                         color_depth: None,
                         ground: true,
                         panic_probe: false,
+                        scripted: args.iter().any(|a| a == "--scripted"),
+                        daemon_port: None,
                     }) {
                         eprintln!("error: {e}");
                         std::process::exit(1);
@@ -291,6 +298,8 @@ fn main() {
             color_depth: flag_value(&args, "--color-depth").map(str::to_string),
             ground: args.iter().any(|a| a == "--ground"),
             panic_probe: args.iter().any(|a| a == "--panic-probe"),
+            scripted: args.iter().any(|a| a == "--scripted"),
+            daemon_port: flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
         };
         if args.iter().any(|a| a == "--color-depth") && opts.color_depth.is_none() {
             eprintln!("error: --color-depth requires a value: truecolor, 256 or 16.");

@@ -27,7 +27,8 @@
 //! real and that no journal has a record of.
 
 use crate::meter::MeterSource;
-use crate::model::{Ambient, BlastRadius, ControlStrip, Entry, Item, Pager, StatusBand};
+use crate::approval::BlastRadius;
+use crate::model::{Ambient, ControlStrip, Entry, Item, Pager, StatusBand};
 
 /// Everything a producer owns and a surface draws.
 ///
@@ -121,7 +122,10 @@ impl PendingLine {
 /// and must not appear in a transcript copied with `Y`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientLine {
-    pub text: String,
+    /// **A [`crate::notice::Notice`], never a string.** The first version of this type carried
+    /// `text: String`, which meant the surface still composed prose — `say(String)` renamed. The
+    /// signature is the enforcement: there is no way to pass a sentence in.
+    pub notice: crate::notice::Notice,
     pub tone: crate::model::Tone,
     /// The transcript length when this was emitted, so it renders in the place it happened rather
     /// than always at the bottom. Without it, a command run three turns ago would drift down the
@@ -130,12 +134,8 @@ pub struct ClientLine {
 }
 
 impl ClientLine {
-    pub fn new(text: impl Into<String>, tone: crate::model::Tone, after: usize) -> Self {
-        Self {
-            text: text.into(),
-            tone,
-            after,
-        }
+    pub fn new(notice: crate::notice::Notice, tone: crate::model::Tone, after: usize) -> Self {
+        Self { notice, tone, after }
     }
 }
 
@@ -188,7 +188,33 @@ pub enum IntentError {
     /// The argument did not name anything. Carries what the options were.
     NoSuchOption { control: ControlId, given: String },
     /// The producer cannot do this yet, and says which milestone owns it.
-    NotBuilt { what: String, milestone: &'static str },
+    ///
+    /// **Typed, not a `String`** — for the same reason `Notice` is (ADR-030 §5), and so a refusal
+    /// can be rendered through the one persona renderer rather than formatted at a call site.
+    NotBuilt { capability: crate::notice::Capability, arrives: crate::notice::Milestone },
+}
+
+impl IntentError {
+    /// The refusal as harness speech. **A refused intent is shown, never swallowed** — a blocked
+    /// action with no explanation is the silent-no-op failure wearing a different hat.
+    pub fn as_notice(&self) -> crate::notice::Notice {
+        use crate::notice::{Capability, Milestone, Notice};
+        match self {
+            IntentError::NotBuilt { capability, arrives } => {
+                Notice::NotBuilt { capability: *capability, arrives: *arrives }
+            }
+            IntentError::NotADemo(_) => Notice::NotBuilt {
+                capability: Capability::ScriptedStateDriving,
+                arrives: Milestone::M2SessionE,
+            },
+            IntentError::NoSuchOption { control, given } => {
+                Notice::Refused(crate::notice::Refusal::NoSuchOption {
+                    control: *control,
+                    given: crate::notice::Echo::new(given.clone()),
+                })
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for IntentError {
@@ -201,9 +227,12 @@ impl std::fmt::Display for IntentError {
             IntentError::NoSuchOption { control, given } => {
                 write!(f, "{} has no option {given:?}", control.name())
             }
-            IntentError::NotBuilt { what, milestone } => {
-                write!(f, "{what} is not built yet — {milestone}")
-            }
+            IntentError::NotBuilt { capability, arrives } => write!(
+                f,
+                "{} is not built. It lands in {}.",
+                capability.subject(),
+                arrives.name()
+            ),
         }
     }
 }
@@ -288,7 +317,9 @@ mod tests {
         let p = PendingLine::awaiting("read notes.md");
         assert!(!p.is_acknowledged_by(&view(Vec::new())));
         // Marlowe answering is NOT acknowledgement of the user's line.
-        assert!(!p.is_acknowledged_by(&view(vec![Entry::Said("ok".into())])));
+        assert!(!p.is_acknowledged_by(&view(vec![Entry::Said(
+            crate::notice::Speech::Model("ok".into()),
+        )])));
         // Only the producer's own record of the user turn retires it.
         assert!(p.is_acknowledged_by(&view(vec![Entry::User("read notes.md".into())])));
     }

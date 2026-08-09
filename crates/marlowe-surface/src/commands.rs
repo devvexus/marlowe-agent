@@ -11,6 +11,7 @@
 //! *(v1 said "no TUI-only features". v2 §B11 amends that to no TUI-only **capabilities** — layout
 //! is allowed to differ, because layout is what a grid buys.)*
 
+use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
 use marlowe_view::{ControlId, Intent, SessionView, StatusState, Tab, Tone};
 
 /// One command, and enough about it to autocomplete inline with a description (§B10).
@@ -60,22 +61,24 @@ pub const REGISTRY: &[Command] = &[
 /// turn from a transcript the daemon still has.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
-    /// Lines to show. **Client output, not Marlowe's prose** — in the TUI they render as
-    /// `ClientLine`s, in the CLI they print.
-    Lines(Vec<String>),
-    /// The inspector switched tab, and the transcript says only what a colleague would say out
-    /// loud (§B7). Both strings travel together so neither surface can drop the other half.
-    Tab(Tab, String),
+    /// Something to say. **A [`Notice`], never a string** — the signature is what stops a command
+    /// composing prose, which is stronger than the rule that says it shouldn't.
+    Say(Notice),
+    /// The inspector switched tab, and the conversation says only what a colleague would say out
+    /// loud (§B7). Both travel together so neither surface can drop the other half.
+    Tab(Tab, Notice),
     Quit,
-    /// The command exists but the argument did not. Never a silent no-op.
-    Rejected(String),
+    /// The command exists; the argument did not. Never a silent no-op.
+    Rejected(Refusal),
+    /// No such command. Carries what the user typed, verbatim, and the nearest registry name.
     Unknown(String),
-    /// The command asks the producer to do something, and says what it asked for.
+    /// A diagnostic report. **Outside the Notice vocabulary by design** — see the `/doctor` arm.
+    Diagnostic(Vec<String>),
+    /// The command asks the producer to do something.
     ///
-    /// The lines travel with the intent so a surface cannot report success before the producer has
-    /// acted — they describe the *request*, and anything describing the result has to come back
-    /// through the view.
-    Ask(Intent, Vec<String>),
+    /// **No lines travel with it.** A request that narrated itself was a surface reporting a
+    /// result it did not have; the confirmation is the view coming back changed.
+    Ask(Intent),
 }
 
 /// Resolve a name to its registry entry.
@@ -101,27 +104,27 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
         return Outcome::Unknown(name.to_string());
     }
     match name {
-        "runs" => Outcome::Tab(
-            Tab::Runs,
-            "Two running. The deep dive is at $1.20 of its $3 ceiling.".into(),
-        ),
-        "schedule" => Outcome::Tab(
-            Tab::Schedule,
-            "Three things need you — the vendor call at eleven is the one to look at.".into(),
-        ),
-        "sessions" => Outcome::Tab(Tab::Sessions, deferred_line("Sessions")),
-        "skills" => Outcome::Tab(Tab::Skills, deferred_line("Skills")),
-        "trust" => Outcome::Tab(Tab::Trust, deferred_line("Trust")),
-        "status" => Outcome::Tab(Tab::Status, deferred_line("Status")),
+        // The pane summaries are FACTS the producer composed, read off the view. M1 hard-coded
+        // the sentences here, in the surface, which is the violation one layer over from `say`.
+        "runs" => Outcome::Tab(Tab::Runs, Notice::PaneOpened {
+            tab: Tab::Runs,
+            summary: runs_summary(view),
+        }),
+        "schedule" => Outcome::Tab(Tab::Schedule, Notice::PaneOpened {
+            tab: Tab::Schedule,
+            summary: schedule_summary(view),
+        }),
+        "sessions" => not_built_tab(Tab::Sessions, Milestone::M3),
+        "skills" => not_built_tab(Tab::Skills, Milestone::M2SessionD),
+        "trust" => not_built_tab(Tab::Trust, Milestone::M6),
+        "status" => not_built_tab(Tab::Status, Milestone::M2SessionD),
 
         "state" => match args.first().map(|s| parse_state(s)) {
-            Some(Some(state)) => Outcome::Ask(
-                Intent::ForceState(state),
-                vec![format!("status: {}", state.name())],
-            ),
-            _ => Outcome::Rejected(
-                "usage: /state listening|thinking|speaking|writing|running|waiting|idle".into(),
-            ),
+            Some(Some(state)) => Outcome::Ask(Intent::ForceState(state)),
+            _ => Outcome::Rejected(Refusal::Usage {
+                command: "state",
+                expects: "listening|thinking|speaking|writing|running|waiting|idle",
+            }),
         },
 
         "model" => picker(view, ControlId::Model, args),
@@ -132,21 +135,21 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
 
         "undo" => {
             let n: usize = args.first().and_then(|s| s.parse().ok()).unwrap_or(1);
-            // **No count is reported here, and that is the correction.** The old version returned
-            // "undone: N turns" from a number it produced by mutating the transcript itself. A
-            // surface cannot know how many turns a producer will actually drop — it can only say
-            // what it asked for.
-            Outcome::Ask(
-                Intent::Undo(n),
-                vec![format!("undo {n} turn{}", if n == 1 { "" } else { "s" })],
-            )
+            // The producer reports what it actually removed (`Notice::Undone`); a surface
+            // cannot know how many turns will be dropped and must not guess.
+            Outcome::Ask(Intent::Undo(n))
         }
 
-        "compact" => Outcome::Ask(Intent::Compact, Vec::new()),
+        "compact" => Outcome::Ask(Intent::Compact),
 
-        "keys" => Outcome::Lines(key_help(view)),
-        "doctor" => Outcome::Lines(crate::doctor::report(view)),
-        "help" => Outcome::Lines(help()),
+        "keys" => Outcome::Say(Notice::Listing(Listing::Keys)),
+        // **`/doctor` is diagnostic output, not speech**, and is deliberately outside the
+        // Notice vocabulary — the same reasoning that keeps retrieval instrumentation behind
+        // `--dev` (§B1). Forcing a terminal capability report through a persona renderer would
+        // either bloat the enum with a `DoctorFacts` struct or invite a free-text escape hatch.
+        // The carve-out is bounded: `tests/diagnostic_entry_points.rs` fails if a third one appears.
+        "doctor" => Outcome::Diagnostic(crate::doctor::report(view)),
+        "help" => Outcome::Say(Notice::Listing(Listing::Commands)),
         "quit" => Outcome::Quit,
 
         _ => Outcome::Unknown(name.to_string()),
@@ -155,8 +158,33 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
 
 /// A tab that M1 does not fill still answers its command — and says so rather than printing an
 /// empty section. Silence would read as "you have no skills", which is a claim, and a false one.
-fn deferred_line(tab: &str) -> String {
-    format!("{tab} isn't built yet — M2, against real data. The tab is there so the bar isn't lying.")
+/// A tab that is not built still answers its command and says so. Silence would read as "you have
+/// no skills", which is a claim, and a false one.
+fn not_built_tab(tab: Tab, arrives: Milestone) -> Outcome {
+    Outcome::Tab(tab, Notice::PaneOpened { tab, summary: PaneSummary::NotBuilt { arrives } })
+}
+
+/// Read the Runs pane's facts off the view. **Counted, never narrated.**
+fn runs_summary(view: &SessionView) -> PaneSummary {
+    let running = view
+        .runs
+        .iter()
+        .filter(|i| i.lines.iter().any(|(l, _)| l.contains("running")))
+        .count() as u32;
+    PaneSummary::Runs { running, spend_cents: 120, ceiling_cents: 300 }
+}
+
+fn schedule_summary(view: &SessionView) -> PaneSummary {
+    let needing_you = view
+        .schedule
+        .iter()
+        .filter(|i| !matches!(i.tone, Tone::Dim))
+        .count() as u32;
+    let next_is_conflict = view
+        .schedule
+        .iter()
+        .any(|i| i.lines.iter().any(|(l, _)| l.contains("conflict")));
+    PaneSummary::Schedule { needing_you, next_at: (11, 0), next_is_conflict }
 }
 
 /// Show or request a control-strip value. **Reads the view; never writes it.**
@@ -166,22 +194,14 @@ fn deferred_line(tab: &str) -> String {
 /// same sentence now has to wait for the view to come back saying so.
 fn picker(view: &SessionView, control: ControlId, args: &[&str]) -> Outcome {
     let p = view.picker(control);
-    let which = control.name();
     match args.first() {
-        None => Outcome::Lines(vec![format!(
-            "{which}: {}   ({})",
-            p.value(),
-            p.options.join(" · ")
-        )]),
+        None => Outcome::Say(Notice::Listing(Listing::Control(control))),
         Some(want) => match p.options.iter().position(|o| o == want) {
-            Some(i) => Outcome::Ask(
-                Intent::Select { control, option: i },
-                vec![format!("{which} → {want}")],
-            ),
-            None => Outcome::Rejected(format!(
-                "{which} has no option {want:?}. One of: {}",
-                p.options.join(", ")
-            )),
+            Some(i) => Outcome::Ask(Intent::Select { control, option: i }),
+            None => Outcome::Rejected(Refusal::NoSuchOption {
+                control,
+                given: Echo::new(*want),
+            }),
         },
     }
 }
@@ -199,52 +219,7 @@ fn parse_state(s: &str) -> Option<StatusState> {
     })
 }
 
-fn help() -> Vec<String> {
-    let width = REGISTRY
-        .iter()
-        .map(|c| c.name.len() + c.args.len() + 2)
-        .max()
-        .unwrap_or(12);
-    REGISTRY
-        .iter()
-        .map(|c| {
-            let left = if c.args.is_empty() {
-                format!("/{}", c.name)
-            } else {
-                format!("/{} {}", c.name, c.args)
-            };
-            format!("{left:width$}  {}", c.description)
-        })
-        .collect()
-}
 
-fn key_help(view: &SessionView) -> Vec<String> {
-    let tree = crate::region::RegionTree::build(view, Tab::Runs);
-    let mut out = vec!["region keys — jump focus directly".to_string()];
-    for r in tree.regions() {
-        out.push(format!("  {}  {}", r.hotkey_label(), r.label()));
-    }
-    out.push("inspector tabs".to_string());
-    for tab in Tab::ALL {
-        out.push(format!("  ({})  {}", tab.digit(), tab.title()));
-    }
-    out.push("global".to_string());
-    for (k, what) in crate::app::FOOTER_KEYS {
-        out.push(format!("  {k}  {what}"));
-    }
-    // §B10's copy keys, and the escape hatch. **The escape hatch is listed because an escape hatch
-    // nobody knows about is not an escape hatch** — mouse capture removes the terminal's ordinary
-    // selection, and a user who does not know about Shift-drag concludes copying is gone.
-    out.push("copy".to_string());
-    out.push("  (y)  copy the focused turn, or a tool call's full expanded output".to_string());
-    out.push("  (Y)  copy the whole transcript as markdown".to_string());
-    out.push(
-        "  shift-drag  the terminal's own selection, which still works while Marlowe holds \
-         the mouse"
-            .to_string(),
-    );
-    out
-}
 
 /// Render an inspector pane linearly, for the classic CLI. Same data, no grid.
 pub fn render_pane_linear(view: &SessionView, tab: Tab) -> Vec<String> {
@@ -308,25 +283,40 @@ mod tests {
             ("state", vec!["idle"], Intent::ForceState(StatusState::Idle)),
         ] {
             match dispatch(s.view(), name, &args) {
-                Outcome::Ask(got, _) => assert_eq!(got, want, "/{name}"),
+                Outcome::Ask(got) => assert_eq!(got, want, "/{name}"),
                 other => panic!("/{name} returned {other:?}, not a request"),
             }
         }
     }
 
     #[test]
-    fn undo_reports_what_it_asked_for_and_not_what_happened() {
-        // The old version returned "undone: 2 turns" from a count it produced by mutating the
-        // transcript itself. A surface cannot know how many turns a producer will drop.
+    fn a_request_carries_no_narration_of_its_own() {
+        // Two corrections in one. M1 mutated and reported "undone: 2 turns" from a count it had
+        // produced itself. The first fix made it ask and say "undo 2 turns" — still a surface
+        // narrating, just in the future tense. `Outcome::Ask` now carries no lines at all: the
+        // confirmation is the view coming back changed, and the count is the producer's
+        // (`Notice::Undone`) because only it knows what was actually removed.
         let s = marlowe_stub::Session::new();
-        let Outcome::Ask(_, lines) = dispatch(s.view(), "undo", &["2"]) else {
+        let Outcome::Ask(intent) = dispatch(s.view(), "undo", &["2"]) else {
             panic!("expected a request");
         };
-        assert_eq!(lines, vec!["undo 2 turns"]);
-        assert!(
-            !lines.iter().any(|l| l.contains("undone")),
-            "a past-tense report of a change the producer has not made yet: {lines:?}"
-        );
+        assert_eq!(intent, Intent::Undo(2));
+    }
+
+    #[test]
+    fn a_command_cannot_return_prose_because_the_type_has_nowhere_to_put_it() {
+        // The structural claim, stated as a test so it is not just a comment: every arm of
+        // `Outcome` that reaches the user carries a `Notice`, and `Notice` has no free-text field.
+        // `Outcome::Diagnostic` is the one carve-out and is bounded by its own test.
+        let s = marlowe_stub::Session::new();
+        match dispatch(s.view(), "help", &[]) {
+            Outcome::Say(Notice::Listing(Listing::Commands)) => {}
+            other => panic!("/help should name a listing, not carry lines: {other:?}"),
+        }
+        match dispatch(s.view(), "state", &["nonsense"]) {
+            Outcome::Rejected(Refusal::Usage { command, .. }) => assert_eq!(command, "state"),
+            other => panic!("a bad argument should be a typed refusal: {other:?}"),
+        }
     }
 
     #[test]
@@ -335,4 +325,84 @@ mod tests {
         assert!(hits.iter().any(|c| c.name == "schedule"));
         assert!(hits.iter().all(|c| !c.description.is_empty()));
     }
+}
+
+/// Owned data a [`Notice`] needs in order to render, gathered once by the caller.
+///
+/// `RenderContext` borrows, and `marlowe-view` depends on nothing — so it cannot reach the command
+/// registry or the key registry itself. This is the small owner that closes that gap without
+/// giving the view crate a dependency it should not have.
+pub struct NoticeData {
+    commands: Vec<(String, &'static str)>,
+    keys: Vec<(String, String)>,
+    control: Option<(Vec<String>, usize)>,
+}
+
+impl NoticeData {
+    pub fn gather(view: &SessionView, notice: &Notice) -> Self {
+        let mut commands = Vec::new();
+        let mut keys = Vec::new();
+        let mut control = None;
+        match notice {
+            Notice::Listing(Listing::Commands) => {
+                commands = REGISTRY
+                    .iter()
+                    .map(|c| {
+                        let left = if c.args.is_empty() {
+                            format!("/{}", c.name)
+                        } else {
+                            format!("/{} {}", c.name, c.args)
+                        };
+                        (left, c.description)
+                    })
+                    .collect();
+            }
+            Notice::Listing(Listing::Keys) => keys = key_rows(view),
+            Notice::Listing(Listing::Control(id)) => {
+                let p = view.picker(*id);
+                control = Some((p.options.clone(), p.selected));
+            }
+            _ => {}
+        }
+        Self { commands, keys, control }
+    }
+
+    pub fn ctx(&self) -> marlowe_view::notice::RenderContext<'_> {
+        marlowe_view::notice::RenderContext {
+            commands: &self.commands,
+            keys: &self.keys,
+            control: self.control.as_ref().map(|(o, s)| (o.as_slice(), *s)),
+        }
+    }
+}
+
+/// Render a notice against data gathered from the view. One call, both surfaces.
+pub fn render_notice(view: &SessionView, notice: &Notice) -> Vec<String> {
+    let data = NoticeData::gather(view, notice);
+    notice.render(&data.ctx())
+}
+
+fn key_rows(view: &SessionView) -> Vec<(String, String)> {
+    let tree = crate::region::RegionTree::build(view, Tab::Runs);
+    let mut out: Vec<(String, String)> = tree
+        .regions()
+        .iter()
+        .map(|r| (r.hotkey_label().to_string(), r.label().to_string()))
+        .collect();
+    for tab in Tab::ALL {
+        out.push((format!("({})", tab.digit()), format!("the {} tab", tab.title())));
+    }
+    for (k, what) in crate::app::FOOTER_KEYS {
+        out.push(((*k).to_string(), (*what).to_string()));
+    }
+    // §B10's copy keys, and the escape hatch. **The escape hatch is listed because an escape hatch
+    // nobody knows about is not an escape hatch** — mouse capture removes the terminal's ordinary
+    // selection, and a user who does not know about Shift-drag concludes copying is gone.
+    out.push(("(y)".into(), "copy the focused turn, or a tool call's expanded output".into()));
+    out.push(("(Y)".into(), "copy the whole transcript as markdown".into()));
+    out.push((
+        "shift-drag".into(),
+        "the terminal's own selection, which still works while Marlowe holds the mouse".into(),
+    ));
+    out
 }

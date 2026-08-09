@@ -29,8 +29,11 @@ pub fn default_profile_root() -> PathBuf {
     base.join("marlowe").join("default-profile")
 }
 
-pub fn serve(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
-    let config = DaemonConfig::new(profile_root, workspace);
+pub fn serve(workspace: PathBuf, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+    let mut config = DaemonConfig::new(profile_root, workspace);
+    if let Some(p) = port {
+        config.port = p;
+    }
     let port = config.port;
     let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
     eprintln!("marlowe: daemon listening on 127.0.0.1:{port}");

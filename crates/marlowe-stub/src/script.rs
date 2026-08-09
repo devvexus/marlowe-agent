@@ -22,7 +22,9 @@
 
 use crate::amplitude;
 use marlowe_view::meter::{Frame, MeterSource, BASELINE};
+use marlowe_view::approval::{BlastRadius, Ceiling, Effect, FirstTime, Medium, Novelty, Offered, RiskTier};
 use marlowe_view::model::*;
+use marlowe_view::notice::{Echo, Speech};
 use marlowe_view::turn::{DegradedPath, Metric, ResultSummary, ToolLineState};
 use marlowe_view::SessionView;
 
@@ -190,7 +192,7 @@ impl Session {
             Action::Status(state, detail, figures) => {
                 self.set_state(state, detail, figures, now_ms);
             }
-            Action::Say(text) => self.view.transcript.push(Entry::Said(text.into())),
+            Action::Say(text) => self.view.transcript.push(Entry::Said(Speech::Model(text.into()))),
             Action::StartTools => self.view.transcript.push(Entry::Tools(Vec::new())),
             Action::Tool(call) => self.push_tool(call),
             Action::Finish(id, state) => {
@@ -392,7 +394,7 @@ impl Session {
         } else {
             "Not sent. It stays in drafts."
         };
-        self.view.transcript.push(Entry::Said(line.into()));
+        self.view.transcript.push(Entry::Said(Speech::Model(line.into())));
         self.force_state(StatusState::Idle, now_ms);
     }
 }
@@ -494,27 +496,27 @@ fn opening_transcript() -> Vec<Entry> {
     vec![
         Entry::Compacted { turns: 47 },
         Entry::User("what does my day look like".into()),
-        Entry::Said(
+        Entry::Said(Speech::Model(
             "Three things need you. The vendor call at eleven is the one to look at — you owe them \
              a pricing sheet from March and it was never sent."
                 .into(),
-        ),
+        )),
         Entry::Tools(vec![
             ToolCall::ok(1, "calendar", "thursday", vec![Metric::Count { n: 4, unit: "events" }]),
             ToolCall::ok(2, "recall", "open commitments", vec![Metric::Count { n: 3, unit: "due" }]),
         ]),
         Entry::User("draft the pricing sheet email".into()),
-        Entry::Said(
+        Entry::Said(Speech::Model(
             "Drafted, in your register — short, no apology for the delay since you never promised \
              a date. Waiting on you to send."
                 .into(),
-        ),
+        )),
         Entry::User("what did we agree with them back in march".into()),
-        Entry::Said(
+        Entry::Said(Speech::Model(
             "You quoted tiered pricing at three volume bands and said you'd follow up with the \
              sheet inside a week. They accepted the bands verbally. Nothing was signed."
                 .into(),
-        ),
+        )),
         Entry::Tools(vec![
             ToolCall::ok(
                 3,
@@ -530,17 +532,17 @@ fn opening_transcript() -> Vec<Entry> {
             ),
         ]),
         Entry::User("did anything change since".into()),
-        Entry::Said(
+        Entry::Said(Speech::Model(
             "Your cost base moved. The middle band was priced against the old egress rate and that \
              went up eleven percent in June — the sheet as drafted would lose money at volume."
                 .into(),
-        ),
+        )),
         Entry::User("flag that in the draft".into()),
-        Entry::Said(
+        Entry::Said(Speech::Model(
             "Flagged. I've left the bands as agreed and added a line saying the middle band is \
              under review, so you're not reopening the negotiation by email."
                 .into(),
-        ),
+        )),
         Entry::Tools(vec![ToolCall::ok(
             5,
             "edit",
@@ -548,7 +550,7 @@ fn opening_transcript() -> Vec<Entry> {
             vec![Metric::Diff { added: 3, removed: 0 }],
         )]),
         Entry::User("also start a deep dive on their pricing model".into()),
-        Entry::Said("Running. About twenty minutes and roughly $3 — I'll ping you.".into()),
+        Entry::Said(Speech::Model("Running. About twenty minutes and roughly $3 — I'll ping you.".into())),
         Entry::Tools(vec![ToolCall::ok(
             6,
             "run",
@@ -640,21 +642,24 @@ fn reply_for(text: &str, id: u64) -> Vec<Beat> {
 }
 
 /// §B9's worked example: the irreversible, ceiling-tier case.
+///
+/// **Every field is now a fact rather than a sentence.** That is the change that matters, and it
+/// is the same shape a daemon populates from the permission layer at M2's approval wiring. The
+/// novelty judgment is about history and the ceiling is the trust ledger's — neither is knowledge a
+/// surface has, so M1's hand-written strings were standing in for a producer that did not exist.
 fn send_as_you() -> BlastRadius {
     BlastRadius {
-        headline: "Send email as you — mara@acme.com".into(),
-        consequence: "Sends under your name. Not recallable.".into(),
-        why: "unusual · first send to this recipient · class sits at its ceiling and cannot be \
-              promoted"
-            .into(),
+        effect: Effect::Send {
+            medium: Medium::Email,
+            recipient: Echo::new("mara@acme.com"),
+            impersonating: true,
+        },
         tier: RiskTier::Irreversible,
-        options: vec![
-            ('\n', "send"),
-            ('e', "edit first"),
-            // Addendum A §A3: sending *as Marlowe* is the path that avoids impersonation entirely.
-            ('s', "send as marlowe"),
-            ('\u{1b}', "deny"),
-        ],
+        novelty: Novelty::FirstTime(FirstTime::Recipient),
+        ceiling: Ceiling::AtCeiling,
+        // Addendum A §A3's delegation escape hatch, offered because this producer can "perform"
+        // it. A producer that cannot must withhold it rather than show a key that does nothing.
+        offered: Offered { edit_first: true, send_as_marlowe: true },
     }
 }
 

@@ -122,7 +122,10 @@ pub fn tool_call_text(t: &ToolCall) -> String {
 pub fn entry_text(e: &Entry) -> Option<String> {
     match e {
         Entry::User(t) => Some(t.clone()),
-        Entry::Said(t) => Some(t.clone()),
+        Entry::Said(marlowe_view::Speech::Model(t)) => Some(t.clone()),
+        // Harness speech is not conversation. `y` on a `/help` listing copying the listing would
+        // be a copy of the tool's output masquerading as a turn.
+        Entry::Said(marlowe_view::Speech::Harness(_)) => None,
         Entry::Tools(calls) if calls.is_empty() => None,
         Entry::Tools(calls) => Some(
             calls
@@ -148,9 +151,13 @@ pub fn transcript_markdown(view: &SessionView) -> String {
             Entry::User(t) => {
                 out.push_str(&format!("**You:** {t}\n\n"));
             }
-            Entry::Said(t) => {
+            Entry::Said(marlowe_view::Speech::Model(t)) => {
                 out.push_str(&format!("**Marlowe:** {t}\n\n"));
             }
+            // §B10's `Y` copies the CONVERSATION. Harness lines are the tool answering and are
+            // deliberately absent from the markdown, exactly as a shell's output is absent from a
+            // transcript of what two people said.
+            Entry::Said(marlowe_view::Speech::Harness(_)) => {}
             Entry::Tools(calls) if !calls.is_empty() => {
                 out.push_str("```\n");
                 for c in calls {
