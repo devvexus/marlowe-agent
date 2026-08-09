@@ -356,7 +356,60 @@ impl OllamaDriver {
                 SourceKind::InjectedMemory => "system",
                 _ => "user",
             };
-            messages.push(serde_json::json!({ "role": role, "content": block.text }));
+            let mut msg = serde_json::json!({ "role": role, "content": block.text });
+
+            // ── THE STRUCTURE PROSE CANNOT CARRY ────────────────────────────────────
+            //
+            // `/api/chat` puts `tool_calls` on the **assistant** message, `tool_name` on the
+            // **tool** message, and reasoning in `thinking`. Sending only `content` throws all
+            // three away, and the dump of a real run showed what that costs:
+            //
+            //     [  5] tool  54 chars  tool_calls=0  tool_name=""  "983 lines · ref 225bfe…"
+            //     [  6] tool  54 chars  tool_calls=0  tool_name=""  "983 lines · ref 225bfe…"
+            //
+            // Five results, nothing that called them, no way to tell them apart. Measured against
+            // a live model: given that shape it abandons the task and narrates; given this one it
+            // acts on the result.
+            if let Some(w) = &block.wire {
+                if let Some(t) = &w.thinking {
+                    if !t.is_empty() {
+                        msg["thinking"] = serde_json::Value::String(t.clone());
+                    }
+                }
+                if !w.tool_calls.is_empty() {
+                    msg["tool_calls"] = serde_json::Value::Array(
+                        w.tool_calls
+                            .iter()
+                            .map(|c| {
+                                serde_json::json!({
+                                    "function": { "name": c.name, "arguments": c.arguments }
+                                })
+                            })
+                            .collect(),
+                    );
+                }
+                if let Some(n) = &w.tool_name {
+                    msg["tool_name"] = serde_json::Value::String(n.clone());
+                }
+            }
+            messages.push(msg);
+        }
+
+        // ── SLIDING-WINDOW REASONING ────────────────────────────────────────────────
+        //
+        // Only the most recent assistant turn keeps its `thinking`. Older reasoning is not merely
+        // useless, it **compounds**: three turns of "let me check one more thing" replayed
+        // together read as a standing instruction to keep checking, and that is the tool-farming
+        // spiral. Reasoning is bound to the chain in progress and expires when a new turn begins.
+        let newest_assistant = messages
+            .iter()
+            .rposition(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant"));
+        for (i, m) in messages.iter_mut().enumerate() {
+            if Some(i) != newest_assistant {
+                if let Some(obj) = m.as_object_mut() {
+                    obj.remove("thinking");
+                }
+            }
         }
 
         serde_json::json!({

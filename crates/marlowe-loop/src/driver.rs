@@ -194,6 +194,15 @@ pub struct ToolOutcome {
     pub trust: marlowe_contract::TrustClass,
     pub failed: bool,
     pub wall_ms: u64,
+    /// Head and tail of a body too large to inline.
+    ///
+    /// **A reference the model cannot dereference is not a result.** `read` has no parameter that
+    /// accepts a hash, so a 69 KB file came back as `ref 225bfe8df7bbc044` and the model called
+    /// `read` five times getting the same hash. Until the content store and the reference-reading
+    /// path land at M2 D, this is what actually reaches attention.
+    ///
+    /// `None` when the body was inlined whole — there is nothing to preview.
+    pub preview: Option<String>,
 }
 
 /// §2.8's first axis: inline vs. reference, driven by **size**. Independent of trust.

@@ -125,20 +125,89 @@ pub fn estimate_tokens(text: &str) -> u32 {
     text.len().div_ceil(3) as u32
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// One structured call an assistant turn made.
+///
+/// `/api/chat` carries these on the **assistant** message. Sending a `tool` result with no
+/// assistant turn declaring the call leaves the model unable to see that it called anything —
+/// see [`WireTurn`].
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WireToolCall {
+    pub name: String,
+    pub arguments: serde_json::Value,
+}
+
+/// What a block needs in order to be replayed as a faithful `/api/chat` message.
+///
+/// # The bug this exists for
+///
+/// `--dev`'s conversation dump, on a run that read one file:
+///
+/// ```text
+/// [  4] user    52 chars  tool_calls=0  tool_name=""
+/// [  5] tool    54 chars  tool_calls=0  tool_name=""  "983 lines · 69630 B · ref 225bfe8df7bbc044"
+/// [  6] tool    54 chars  tool_calls=0  tool_name=""  "983 lines · 69630 B · ref 225bfe8df7bbc044"
+/// [  7] tool    54 chars  tool_calls=0  tool_name=""  ...
+/// [  9] assistant 1215 chars  "[your prior reasoning]\nThe user wants me to read..."
+/// ```
+///
+/// Three things are wrong and they compound:
+///
+/// 1. **No assistant turn declares any call.** Tool results appear with nothing that produced
+///    them. Measured against a live model: given this shape it gives up and narrates ("I notice
+///    there's a restriction"); given the documented shape it retries the tool. That is the
+///    difference between an agent and a commentator.
+/// 2. **No `tool_name`.** Five identical results and no way to tell them apart. The model's
+///    on-screen complaint — *"I didn't pass path or range as parameters!"* — was true from where
+///    it sat.
+/// 3. **Reasoning replayed as decorated text.** `[your prior reasoning]` is a marker the model
+///    then *imitated*: the first reported leak contained `[your reasoning continues]`, a string
+///    that appears nowhere in this repository. It came from the model copying our own prefix.
+///    Reasoning belongs in the `thinking` field the endpoint documents.
+#[derive(Debug, Clone, PartialEq, Serialize, Default)]
+pub struct WireTurn {
+    /// The model's reasoning for this turn. Assistant blocks only.
+    pub thinking: Option<String>,
+    /// Calls this assistant turn made. Assistant blocks only.
+    pub tool_calls: Vec<WireToolCall>,
+    /// Which tool produced this result. Tool blocks only.
+    pub tool_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Block {
     pub source: SourceKind,
     pub text: String,
     /// Origin-bound. The assembler never derives this from content — §3.3's rule.
     pub trust: TrustClass,
     pub tokens: u32,
+    /// Structure the provider needs and prose cannot carry. `None` for everything that is
+    /// genuinely just text.
+    pub wire: Option<WireTurn>,
 }
 
 impl Block {
     pub fn new(source: SourceKind, text: impl Into<String>, trust: TrustClass) -> Self {
         let text = text.into();
         let tokens = estimate_tokens(&text);
-        Self { source, text, trust, tokens }
+        Self { source, text, trust, tokens, wire: None }
+    }
+
+    /// An assistant turn, with the reasoning and the calls it made.
+    pub fn assistant_turn(
+        text: impl Into<String>,
+        thinking: Option<String>,
+        tool_calls: Vec<WireToolCall>,
+    ) -> Self {
+        let mut b = Self::new(SourceKind::History, text, TrustClass::AgentInferred);
+        b.wire = Some(WireTurn { thinking, tool_calls, tool_name: None });
+        b
+    }
+
+    /// A tool result, attributed to the tool that produced it.
+    pub fn tool_result(text: impl Into<String>, tool: &str, trust: TrustClass) -> Self {
+        let mut b = Self::new(SourceKind::ToolResults, text, trust);
+        b.wire = Some(WireTurn { tool_name: Some(tool.to_string()), ..WireTurn::default() });
+        b
     }
 }
 

@@ -67,6 +67,28 @@ impl Args {
         Self::default()
     }
 
+    /// The arguments as `/api/chat` carries them on an assistant `tool_calls` entry.
+    ///
+    /// Exists so a recorded assistant turn can be replayed faithfully: without it the model sees
+    /// tool results with nothing that produced them, and stops acting on them.
+    pub fn to_json(&self) -> serde_json::Value {
+        let mut map = serde_json::Map::new();
+        for (name, value) in self.by_name.iter() {
+            map.insert(
+                name.clone(),
+                match value {
+                    ArgValue::Integer(n) => serde_json::Value::from(*n),
+                    ArgValue::Boolean(b) => serde_json::Value::from(*b),
+                    ArgValue::Amount(a) => serde_json::Value::from(*a),
+                    other => serde_json::Value::String(
+                        other.as_text().unwrap_or_default().to_string(),
+                    ),
+                },
+            );
+        }
+        serde_json::Value::Object(map)
+    }
+
     pub fn with(mut self, name: impl Into<String>, value: ArgValue) -> Self {
         self.by_name.insert(name.into(), value);
         self

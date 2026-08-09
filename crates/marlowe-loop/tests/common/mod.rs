@@ -117,6 +117,7 @@ impl ToolHost for ScriptedTools {
             trust: self.trust.unwrap_or(TrustClass::AgentObserved),
             failed: false,
             wall_ms: 1,
+            preview: None,
         }
     }
 }

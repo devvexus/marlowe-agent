@@ -81,20 +81,64 @@ fn failed(verb: &'static str, detail: impl Into<String>) -> ToolOutcome {
         trust: TrustClass::AgentObserved,
         failed: true,
         wall_ms: 0,
+        preview: None,
     }
 }
 
 /// Inline if small, reference if not. §2.8's first axis — **size**, independent of trust.
-fn body_for(text: String) -> (ToolBody, u64) {
+fn body_for(text: String) -> (ToolBody, u64, Option<String>) {
     let bytes = text.len() as u64;
     if text.len() <= MAX_INLINE_BYTES {
-        (ToolBody::Inline(text), bytes)
+        (ToolBody::Inline(text), bytes, None)
     } else {
         // Content-addressed by the store at M2 D; until then the hash names the bytes so the
         // summary is honest about what it is standing in for.
         let hash = format!("{:016x}", fnv1a(text.as_bytes()));
-        (ToolBody::Reference { hash, bytes }, bytes)
+        let preview = Some(head_and_tail(&text));
+        (ToolBody::Reference { hash, bytes }, bytes, preview)
     }
+}
+
+/// How much of an over-large body still reaches the model.
+///
+/// A hash it cannot dereference is not a result — measured live, `read` on a 69 KB file returned
+/// only `ref 225bfe8df7bbc044` and the model called `read` five times chasing the same hash. Head
+/// and tail with the omission **stated in words** is something it can act on.
+const PREVIEW_BYTES: usize = 4_000;
+
+fn head_and_tail(text: &str) -> String {
+    if text.len() <= PREVIEW_BYTES {
+        return text.to_string();
+    }
+    let head_len = floor_boundary(text, PREVIEW_BYTES / 2);
+    let tail_len = floor_boundary(text, PREVIEW_BYTES / 4);
+    let tail_start = ceil_boundary(text, text.len() - tail_len);
+    let omitted = tail_start - head_len;
+    format!(
+        "{}
+…[{omitted} characters omitted from the middle; the tool read the whole file]…
+{}",
+        &text[..head_len],
+        &text[tail_start..]
+    )
+}
+
+fn floor_boundary(s: &str, mut i: usize) -> usize {
+    i = i.min(s.len());
+    while i > 0 && !s.is_char_boundary(i) {
+        // LOOP-EXEMPT: walking back at most three bytes to a UTF-8 boundary.
+        i -= 1;
+    }
+    i
+}
+
+fn ceil_boundary(s: &str, mut i: usize) -> usize {
+    i = i.min(s.len());
+    while i < s.len() && !s.is_char_boundary(i) {
+        // LOOP-EXEMPT: walking forward at most three bytes to a UTF-8 boundary.
+        i += 1;
+    }
+    i
 }
 
 fn fnv1a(bytes: &[u8]) -> u64 {
@@ -129,7 +173,7 @@ impl<S: PathScope> FileSystemTools<S> {
             text = slice_lines(&text, range);
         }
         let lines = text.lines().count() as u64;
-        let (body, bytes) = body_for(text);
+        let (body, bytes, preview) = body_for(text);
         ToolOutcome {
             summary: ResultSummary::new(vec![
                 Metric::Count { n: lines, unit: "lines" },
@@ -142,6 +186,7 @@ impl<S: PathScope> FileSystemTools<S> {
             trust: TrustClass::AgentObserved,
             failed: false,
             wall_ms: 0,
+            preview,
         }
     }
 
@@ -193,6 +238,8 @@ impl<S: PathScope> FileSystemTools<S> {
             trust: TrustClass::AgentObserved,
             failed: false,
             wall_ms: 0,
+            // `edit` reports a diff, not a body; there is nothing to preview.
+            preview: None,
         }
     }
 
@@ -234,7 +281,7 @@ impl<S: PathScope> FileSystemTools<S> {
         }
 
         let found = hits.len() as u64;
-        let (body, _) = body_for(hits.join("\n"));
+        let (body, _, preview) = body_for(hits.join("\n"));
         ToolOutcome {
             summary: ResultSummary::new(vec![
                 Metric::Count { n: found, unit: "results" },
@@ -244,6 +291,7 @@ impl<S: PathScope> FileSystemTools<S> {
             trust: TrustClass::AgentObserved,
             failed: false,
             wall_ms: 0,
+            preview,
         }
     }
 
@@ -271,7 +319,7 @@ impl<S: PathScope> FileSystemTools<S> {
         match out {
             Err(e) => failed("bash", e.to_string()),
             Ok((code, text)) => {
-                let (body, _) = body_for(text);
+                let (body, _, preview) = body_for(text);
                 let lines = text_lines(&body);
                 let mut metrics = vec![Metric::Count { n: lines, unit: "lines" }];
                 if code != 0 {
@@ -286,6 +334,7 @@ impl<S: PathScope> FileSystemTools<S> {
                     failed: code != 0,
                     // Filled in by the loop from its `ClockSource`. See above.
                     wall_ms: 0,
+                    preview,
                 }
             }
         }

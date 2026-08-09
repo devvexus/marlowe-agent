@@ -455,6 +455,42 @@ impl Daemon {
                         eprintln!("[dev] | {line}");
                     }
                 }
+
+                // **Every message, with its role.** The dump printed only the system tier, so the
+                // shape of the conversation — the thing that decides whether the model can see its
+                // own previous tool calls — was the one part of the request `--dev` could not
+                // show. An instrument that omits the interesting half is how a wrong answer looks
+                // authoritative.
+                if let Some(msgs) = body.get("messages").and_then(|m| m.as_array()) {
+                    eprintln!("[dev] --- conversation ({} messages) ---", msgs.len());
+                    for (i, m) in msgs.iter().enumerate() {
+                        let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
+                        let content =
+                            m.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                        let calls = m
+                            .get("tool_calls")
+                            .and_then(|t| t.as_array())
+                            .map(|a| a.len())
+                            .unwrap_or(0);
+                        let name = m.get("tool_name").and_then(|n| n.as_str()).unwrap_or("");
+                        eprintln!(
+                            "[dev] [{i:>3}] {role:<9} {:>5} chars  tool_calls={calls}  tool_name={name:?}  {:?}",
+                            content.len(),
+                            content.chars().take(70).collect::<String>()
+                        );
+                    }
+                }
+                eprintln!(
+                    "[dev] tools offered: {}",
+                    body.get("tools")
+                        .and_then(|t| t.as_array())
+                        .map(|a| a
+                            .iter()
+                            .filter_map(|t| t.pointer("/function/name").and_then(|n| n.as_str()))
+                            .collect::<Vec<_>>()
+                            .join(", "))
+                        .unwrap_or_else(|| "NONE".into())
+                );
                 eprintln!("[dev] ===== END REQUEST =====");
             }));
 

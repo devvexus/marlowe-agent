@@ -269,12 +269,30 @@ impl<S: PathScope> Engine<S> {
             // it is carried in the view rather than in state. Older reasoning is not merely
             // useless — it compounds: three turns of "let me check one more thing" reads as a
             // standing instruction to keep checking.
+            //
+            // **It travels in the `thinking` field of an EXISTING assistant turn**, never as a
+            // block of its own. Two things were learned the hard way here.
+            //
+            // 1. It used to go out as an assistant message beginning `[your prior reasoning]`,
+            //    and the model imitated the marker: the first reported leak contained
+            //    `[your reasoning continues]`, a string that appears nowhere in this repository.
+            // 2. Replacing that with a trailing assistant message carrying only `thinking` and an
+            //    empty `content` made the model return **nothing at all**, three turns running.
+            //    Isolated against the live endpoint: the same conversation answers correctly
+            //    without that trailing block and goes silent with it. An empty assistant turn is
+            //    not a neutral carrier — it reads as a turn already taken.
+            //
+            // So the reasoning is attached where a turn already exists, which is what the loop
+            // does when it records a tool call or a reply. Nothing is appended here.
             if !last_reasoning.is_empty() {
-                view.volatile.push(Block::new(
-                    SourceKind::History,
-                    format!("[your prior reasoning]\n{last_reasoning}"),
-                    TrustClass::AgentInferred,
-                ));
+                if let Some(b) = view.volatile.iter_mut().rev().find(|b| {
+                    b.source == SourceKind::History && b.trust == TrustClass::AgentInferred
+                }) {
+                    let w = b.wire.get_or_insert_with(Default::default);
+                    if w.thinking.is_none() {
+                        w.thinking = Some(last_reasoning.clone());
+                    }
+                }
             }
 
             // ── latch the run's trust floor ──────────────────────────────────────────
@@ -438,10 +456,13 @@ impl<S: PathScope> Engine<S> {
                     if !streamed {
                         ports.sink.emit(TurnEvent::TextDelta(text.clone()));
                     }
-                    state.push(Block::new(
-                        SourceKind::History,
+                    // The reply, with the reasoning that produced it. Kept together because that
+                    // is the unit `/api/chat` replays — and because a `thinking` field with no
+                    // turn to sit on makes the model go silent (see the sliding-window note).
+                    state.push(Block::assistant_turn(
                         text.clone(),
-                        TrustClass::AgentInferred,
+                        (!last_reasoning.is_empty()).then(|| last_reasoning.clone()),
+                        Vec::new(),
                     ));
 
                     // ── COMPLETION IS THE ABSENCE OF AN ACTION ──────────────────────────
@@ -660,6 +681,21 @@ impl<S: PathScope> Engine<S> {
             Outcome::Allowed | Outcome::AllowedBatched { .. } => {}
         }
 
+        // **The assistant turn that made this call, recorded before its result.**
+        //
+        // `/api/chat` carries `tool_calls` on the assistant message, and a `tool` result with no
+        // assistant turn behind it leaves the model unable to see that it called anything. That
+        // was measured, not assumed: given the malformed shape a live model abandons the task and
+        // narrates; given this one it acts on the result. See `WireTurn`.
+        state.push(Block::assistant_turn(
+            String::new(),
+            None,
+            vec![crate::context::WireToolCall {
+                name: tool.to_string(),
+                arguments: args.to_json(),
+            }],
+        ));
+
         ports.sink.emit(TurnEvent::ToolLine {
             id: call_id,
             verb: tool.to_string(),
@@ -698,11 +734,26 @@ impl<S: PathScope> Engine<S> {
         // the trust class. A workspace read can inline *and* carry untrusted_content.
         let text = match &outcome.body {
             ToolBody::Inline(s) => format!("{} · {}", outcome.summary.render(), s),
-            ToolBody::Reference { hash, bytes } => {
-                format!("{} · ref {hash} ({bytes} B)", outcome.summary.render())
-            }
+            // **A reference the model cannot dereference is not a result.**
+            //
+            // Observed live: asked to read a 69 KB file, the model received
+            // `983 lines · 69630 B · ref 225bfe8df7bbc044` — a byte count and a hash. `read` has
+            // no parameter that accepts a reference, so there was no way to ask for the text. It
+            // called `read` five times, got the same hash five times, and gave up.
+            //
+            // The content store lands at M2 D and the `read`-a-reference path with it. Until then
+            // the honest thing is to hand over what will fit: head and tail, with the omission
+            // stated in words the model can act on rather than a hash it cannot.
+            ToolBody::Reference { hash, bytes } => match &outcome.preview {
+                Some(p) => format!(
+                    "{} · {} B total, ref {hash}\n{p}",
+                    outcome.summary.render(),
+                    bytes
+                ),
+                None => format!("{} · ref {hash} ({bytes} B)", outcome.summary.render()),
+            },
         };
-        state.push(Block::new(SourceKind::ToolResults, text, outcome.trust));
+        state.push(Block::tool_result(text, tool.as_str(), outcome.trust));
     }
 
     /// §10.1's ad-hoc spawn. **The parent blocks; the child returns findings.**
@@ -876,9 +927,9 @@ impl<S: PathScope> Engine<S> {
     }
 
     fn tool_error(&mut self, state: &mut SessionState, tool: &ToolId, why: &str) {
-        state.push(Block::new(
-            SourceKind::ToolResults,
+        state.push(Block::tool_result(
             format!("[{tool} blocked] {why}"),
+            tool.as_str(),
             // The harness computed this, so it is agent-observed. A blocked-call notice that
             // inherited the call's own taint would be unreadable by the very next step.
             TrustClass::AgentObserved,
