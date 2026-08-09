@@ -12,6 +12,7 @@ marlowe-memory.workspace = true
 marlowe-daemon.workspace = true
 marlowe-provider.workspace = true
 marlowe-stub.workspace = true
+marlowe-view.workspace = true
 marlowe-surface.workspace = true
 serde.workspace = true
 serde_json.workspace = true

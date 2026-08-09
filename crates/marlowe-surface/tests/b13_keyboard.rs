@@ -15,7 +15,7 @@
 
 mod common;
 
-use marlowe_stub::{Session, Tab};
+use marlowe_view::{SessionView, Tab};
 use marlowe_surface::app::{App, Key};
 use marlowe_surface::region::{RegionId, RegionTree};
 
@@ -25,18 +25,13 @@ fn every_region_is_reachable_from_the_default_focus() {
     let mut total = 0;
 
     for tab in Tab::ALL {
-        let mut session = Session::new();
-        session.tab = tab;
-        let tree = RegionTree::build(&session);
+        let producer = marlowe_stub::Session::new();
+        let tree = RegionTree::build(producer.view(), tab);
 
         for target in tree.regions() {
             total += 1;
-            let mut app = App::new({
-                let mut s = Session::new();
-                s.tab = tab;
-                s
-            })
-            .unwrap();
+            let mut app = App::new(producer.view().clone()).unwrap();
+            app.tab = tab;
             assert_eq!(
                 app.focus,
                 RegionId::Conversation,
@@ -44,7 +39,7 @@ fn every_region_is_reachable_from_the_default_focus() {
             );
 
             // The hotkey the border advertises, and nothing else. No Esc, no Tab, no warm-up.
-            app.on_key(Key::Char(target.hotkey()), 0);
+            app.on_key(Key::Char(target.hotkey()));
 
             if app.focus == target.id() {
                 reached += 1;
@@ -69,14 +64,14 @@ fn tab_and_shift_tab_cycle_every_region_in_reading_order() {
     let tree = app.tree();
     let n = tree.regions().len();
 
-    app.on_key(Key::Esc, 0);
+    app.on_key(Key::Esc);
     let start = app.focus;
     let mut seen = vec![app.focus];
     for _ in 0..n - 1 {
-        app.on_key(Key::Tab, 0);
+        app.on_key(Key::Tab);
         seen.push(app.focus);
     }
-    app.on_key(Key::Tab, 0);
+    app.on_key(Key::Tab);
     assert_eq!(app.focus, start, "Tab must wrap, not stop at the end");
 
     for r in tree.regions() {
@@ -89,7 +84,7 @@ fn tab_and_shift_tab_cycle_every_region_in_reading_order() {
 
     // Shift-Tab walks it back.
     for _ in 0..n {
-        app.on_key(Key::BackTab, 0);
+        app.on_key(Key::BackTab);
     }
     assert_eq!(app.focus, start);
     println!("Tab cycle covers {n}/{n} regions and wraps in both directions");
@@ -98,11 +93,11 @@ fn tab_and_shift_tab_cycle_every_region_in_reading_order() {
 #[test]
 fn every_inspector_tab_is_reachable_by_its_digit() {
     let mut app = common::app();
-    app.on_key(Key::Esc, 0);
+    app.on_key(Key::Esc);
     for tab in Tab::ALL {
-        app.on_key(Key::Char(tab.digit()), 0);
+        app.on_key(Key::Char(tab.digit()));
         assert_eq!(
-            app.session.tab,
+            app.tab,
             tab,
             "'{}' did not reach the {} tab",
             tab.digit(),
@@ -117,13 +112,39 @@ fn every_inspector_tab_is_reachable_by_its_digit() {
 /// every character typed during the stream must land in the message field in order.
 #[test]
 fn no_keystroke_is_dropped_while_the_stub_is_streaming() {
-    let mut app = common::app();
-    app.input = "run the tests".into();
-    app.submit(0);
-    assert!(app.session.is_busy(), "the rig must actually be streaming");
+    let mut r = common::rig();
+    r.app.input = "run the tests".into();
+    r.app.submit();
+    // **Optimistic before the producer has seen it.** §B10: input is never blocked, so the line is
+    // on screen the instant it is typed — as pending, in its own weight.
+    assert!(
+        r.app.pending.is_some(),
+        "the line must show at once rather than waiting for a round trip"
+    );
+    r.settle(0);
+    assert!(
+        marlowe_view::Produce::is_busy(&r.producer),
+        "the rig must actually be streaming"
+    );
+    // **Retired by the producer, and only by the producer.** The scripted producer records the
+    // user's turn synchronously, so acknowledgement is immediate here; what matters is that it is
+    // the producer's transcript that retires it, never a timer on this side.
+    assert!(
+        r.app.pending.is_none(),
+        "the producer recorded the turn, so the optimistic line must retire"
+    );
+    assert!(
+        r.producer
+            .view()
+            .transcript
+            .iter()
+            .any(|e| matches!(e, marlowe_view::Entry::User(t) if t == "run the tests")),
+        "and it retired because the turn is really in the producer's transcript, not because \
+         enough time passed"
+    );
     // `i` enters the message field — the same key the border advertises.
-    app.on_key(Key::Char('i'), 0);
-    assert_eq!(app.focus, RegionId::Message);
+    r.key(Key::Char('i'), 0);
+    assert_eq!(r.app.focus, RegionId::Message);
 
     let typed = "the quick brown fox jumps over the lazy dog 0123456789";
     let mut now = 0u64;
@@ -131,10 +152,11 @@ fn no_keystroke_is_dropped_while_the_stub_is_streaming() {
         now += 7;
         // Ticking between keys is what a real loop does; a key that arrives mid-tick must not be
         // swallowed by the redraw.
-        app.session.tick(now);
-        app.on_key(Key::Char(c), now);
+        r.tick(now);
+        r.key(Key::Char(c), now);
     }
-    app.session.tick(now + 3_000);
+    r.tick(now + 3_000);
+    let app = &r.app;
 
     assert_eq!(
         app.input, typed,
@@ -150,69 +172,74 @@ fn no_keystroke_is_dropped_while_the_stub_is_streaming() {
 
 #[test]
 fn esc_backs_out_one_level_and_interrupt_is_the_outermost() {
-    let mut app = common::app();
+    let mut r = common::rig();
 
     // 3. focus is in a text field -> blur. Reached by `i`, the key the message field's own bottom
     //    border advertises — not assumed, because the default focus is the conversation.
-    app.on_key(Key::Char('i'), 0);
-    assert_eq!(app.focus, RegionId::Message);
-    app.on_key(Key::Esc, 0);
-    assert_eq!(app.focus, RegionId::Conversation);
+    r.key(Key::Char('i'), 0);
+    assert_eq!(r.app.focus, RegionId::Message);
+    r.key(Key::Esc, 0);
+    assert_eq!(r.app.focus, RegionId::Conversation);
 
-    // 2. a dropdown is open -> close it.
-    app.on_key(Key::Char('m'), 0);
-    app.on_key(Key::Enter, 0);
-    assert!(app.session.control.model.open);
-    app.on_key(Key::Esc, 0);
-    assert!(!app.session.control.model.open);
-    assert_eq!(app.focus, RegionId::Model, "closing a dropdown must not also move focus");
+    // 2. a dropdown is open -> close it. Open-ness is the surface's own state now, so this reads
+    //    `app.picker_open` rather than a flag on the producer's picker.
+    r.key(Key::Char('m'), 0);
+    r.key(Key::Enter, 0);
+    assert_eq!(r.app.picker_open, Some(marlowe_view::ControlId::Model));
+    r.key(Key::Esc, 0);
+    assert_eq!(r.app.picker_open, None);
+    assert_eq!(r.app.focus, RegionId::Model, "closing a dropdown must not also move focus");
 
     // 4. otherwise -> interrupt, keeping partial output.
-    app.on_key(Key::Char('c'), 0);
-    app.input = "run the tests".into();
-    app.submit(0);
-    app.session.tick(200);
-    let kept = app.session.transcript.len();
-    app.on_key(Key::Esc, 300);
-    assert!(!app.session.is_busy());
-    assert!(app.session.transcript.len() >= kept, "§B10: partial output is kept");
+    r.key(Key::Char('c'), 0);
+    r.app.input = "run the tests".into();
+    r.app.submit();
+    r.settle(0);
+    r.tick(200);
+    let kept = r.producer.view().transcript.len();
+    r.key(Key::Esc, 300);
+    assert!(!marlowe_view::Produce::is_busy(&r.producer));
+    assert!(
+        r.producer.view().transcript.len() >= kept,
+        "§B10: partial output is kept"
+    );
 
     // 1. the approval overlay outranks all of it.
-    app.session.force_state(marlowe_stub::StatusState::Waiting, 400);
-    assert!(app.session.approval.is_some());
-    app.on_key(Key::Esc, 500);
-    assert!(app.session.approval.is_none(), "Esc on the overlay denies");
+    r.force_state(marlowe_view::StatusState::Waiting, 400);
+    assert!(r.app.view().approval.is_some());
+    r.key(Key::Esc, 500);
+    assert!(r.app.view().approval.is_none(), "Esc on the overlay denies");
 }
 
 #[test]
 fn the_overlay_swallows_unrelated_keys_rather_than_letting_them_through() {
     // §B9's whole subject is a user who has stopped reading. An overlay that let a stray keystroke
     // fall through to the frame behind it would be the rubber-stamping failure with extra steps.
-    let mut app = common::app();
-    app.session.force_state(marlowe_stub::StatusState::Waiting, 0);
-    let before = app.session.tab;
-    app.on_key(Key::Char('3'), 0);
-    app.on_key(Key::Char('c'), 0);
-    app.on_key(Key::Tab, 0);
-    assert_eq!(app.session.tab, before);
-    assert!(app.session.approval.is_some(), "only ↵ e s esc resolve it");
+    let mut r = common::rig();
+    r.force_state(marlowe_view::StatusState::Waiting, 0);
+    let before = r.app.tab;
+    r.key(Key::Char('3'), 0);
+    r.key(Key::Char('c'), 0);
+    r.key(Key::Tab, 0);
+    assert_eq!(r.app.tab, before);
+    assert!(r.app.view().approval.is_some(), "only ↵ e s esc resolve it");
 }
 
 #[test]
 fn ctrl_keys_work_even_from_inside_a_text_field() {
     // This is what makes reachability true from the default focus without any Esc at all.
-    let mut app = common::app();
-    app.on_key(Key::Char('i'), 0);
+    let mut r = common::rig();
+    r.key(Key::Char('i'), 0);
     assert_eq!(
-        app.focus,
+        r.app.focus,
         RegionId::Message,
         "the premise of this test is that focus IS in a text field; if `i` no longer gets there \
          the test below proves nothing"
     );
-    app.on_key(Key::Ctrl('r'), 0);
-    assert_eq!(app.session.tab, Tab::Runs);
-    app.on_key(Key::Ctrl('t'), 0);
-    assert_eq!(app.session.tab, Tab::Trust);
+    r.key(Key::Ctrl('r'), 0);
+    assert_eq!(r.app.tab, Tab::Runs);
+    r.key(Key::Ctrl('t'), 0);
+    assert_eq!(r.app.tab, Tab::Trust);
 
     // ^v drives the status band through all seven states without waiting for a script — with one
     // stop, and the stop is correct. `waiting` raises §B9's overlay, and the overlay is modal: it
@@ -223,11 +250,11 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
     let mut now = 0u64;
     for _ in 0..8 {
         now += 10;
-        seen.push(app.session.status.state);
-        if app.session.approval.is_some() {
-            app.on_key(Key::Esc, now); // deny, and back out of the modal level
+        seen.push(r.app.view().status.state);
+        if r.app.view().approval.is_some() {
+            r.key(Key::Esc, now); // deny, and back out of the modal level
         } else {
-            app.on_key(Key::Ctrl('v'), now);
+            r.key(Key::Ctrl('v'), now);
         }
     }
     let mut distinct: Vec<&str> = seen.iter().map(|s| s.name()).collect();
@@ -244,14 +271,14 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
 #[test]
 fn ctrl_v_does_not_walk_past_a_pending_approval() {
     // The other half of the test above, stated on its own so it cannot be lost in a refactor.
-    let mut app = common::app();
-    app.session.force_state(marlowe_stub::StatusState::Waiting, 0);
+    let mut r = common::rig();
+    r.force_state(marlowe_view::StatusState::Waiting, 0);
     for i in 0..5 {
-        app.on_key(Key::Ctrl('v'), i * 10);
+        r.key(Key::Ctrl('v'), i * 10);
     }
     assert_eq!(
-        app.session.status.state,
-        marlowe_stub::StatusState::Waiting,
+        r.app.view().status.state,
+        marlowe_view::StatusState::Waiting,
         "a global shortcut escaped §B9's overlay; the overlay is the one modal element and \
          answering it is the only way out"
     );

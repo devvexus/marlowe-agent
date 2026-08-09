@@ -40,7 +40,7 @@ pub enum RegionId {
     Message,
 }
 
-/// The inspector's six panes. Mirrors `marlowe_stub::Tab`; kept separate so the surface's region
+/// The inspector's six panes. Mirrors `marlowe_view::Tab`; kept separate so the surface's region
 /// tree does not depend on the stub's enum ordering for its identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TabId {
@@ -52,15 +52,15 @@ pub enum TabId {
     Status,
 }
 
-impl From<marlowe_stub::Tab> for TabId {
-    fn from(t: marlowe_stub::Tab) -> Self {
+impl From<marlowe_view::Tab> for TabId {
+    fn from(t: marlowe_view::Tab) -> Self {
         match t {
-            marlowe_stub::Tab::Runs => TabId::Runs,
-            marlowe_stub::Tab::Schedule => TabId::Schedule,
-            marlowe_stub::Tab::Sessions => TabId::Sessions,
-            marlowe_stub::Tab::Skills => TabId::Skills,
-            marlowe_stub::Tab::Trust => TabId::Trust,
-            marlowe_stub::Tab::Status => TabId::Status,
+            marlowe_view::Tab::Runs => TabId::Runs,
+            marlowe_view::Tab::Schedule => TabId::Schedule,
+            marlowe_view::Tab::Sessions => TabId::Sessions,
+            marlowe_view::Tab::Skills => TabId::Skills,
+            marlowe_view::Tab::Trust => TabId::Trust,
+            marlowe_view::Tab::Status => TabId::Status,
         }
     }
 }
@@ -150,11 +150,11 @@ impl Region {
         &'a self,
         theme: &crate::theme::Theme,
         focus: FocusLevel,
-        tone: marlowe_stub::Tone,
+        tone: marlowe_view::Tone,
     ) -> Block<'a> {
         match tone {
             // Accent/Normal/Dim carry no state; the focus styles already say everything true.
-            marlowe_stub::Tone::Accent | marlowe_stub::Tone::Normal | marlowe_stub::Tone::Dim => {
+            marlowe_view::Tone::Accent | marlowe_view::Tone::Normal | marlowe_view::Tone::Dim => {
                 self.build(theme, focus, None)
             }
             _ => self.build(theme, focus, Some(Style::default().fg(theme.tone(tone)))),
@@ -200,8 +200,8 @@ pub struct RegionTree {
 }
 
 impl RegionTree {
-    pub fn build(session: &marlowe_stub::Session) -> Self {
-        let tab: TabId = session.tab.into();
+    pub fn build(view: &marlowe_view::SessionView, showing: marlowe_view::Tab) -> Self {
+        let tab: TabId = showing.into();
         let mut regions = vec![
             Region::new(RegionId::Model, "Model", 'm'),
             Region::new(RegionId::Profile, "Profile", 'p'),
@@ -211,7 +211,7 @@ impl RegionTree {
             Region::new(RegionId::Status, "Status", 'v'),
             Region::new(RegionId::Conversation, "Conversation", 'c'),
         ];
-        for (i, item) in crate::inspector::items(session).iter().enumerate() {
+        for (i, item) in crate::inspector::items(view, showing).iter().enumerate() {
             regions.push(Region::new(RegionId::Item(tab, i), &item.label, item.key));
         }
         regions.push(Region::new(RegionId::Message, "Message", 'i'));

@@ -20,7 +20,7 @@
 //! probe cannot be avoided — but a silent probe is the mismatch-hiding default this project has
 //! shipped four bugs behind. Here the probe's answer is printed rather than assumed.
 
-use marlowe_stub::Tone;
+use marlowe_view::Tone;
 use ratatui::style::{Color, Modifier, Style};
 
 use crate::region::FocusLevel;

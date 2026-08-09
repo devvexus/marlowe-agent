@@ -1,0 +1,8 @@
+[package]
+name = "marlowe-view"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The view models a producer publishes and a surface renders. Shapes only — nothing here can produce a value."
+
+[dependencies]

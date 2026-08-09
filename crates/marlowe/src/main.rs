@@ -306,7 +306,10 @@ fn main() {
     if modes[0] == "--classic" {
         let stdin = io::stdin();
         let clock = marlowe_stub::Clock::real();
-        if let Err(e) = marlowe_surface::cli::run(stdin.lock(), io::stdout(), &clock) {
+        let mut session = marlowe_stub::Session::new();
+        if let Err(e) =
+            marlowe_surface::cli::run(&mut session, stdin.lock(), io::stdout(), &clock)
+        {
             eprintln!("error: {e}");
             std::process::exit(1);
         }
@@ -314,7 +317,11 @@ fn main() {
     }
 
     if modes[0] == "--doctor" {
-        for line in marlowe_surface::doctor::report(&marlowe_stub::Session::new()) {
+        // `--doctor` reports on a scripted view deliberately: it is a TERMINAL capability
+        // check, and giving it a `SessionView::default()` would have been the permissive default
+        // this project keeps deleting. There is no `Default` on `SessionView` to reach for.
+        let doctor_session = marlowe_stub::Session::new();
+        for line in marlowe_surface::doctor::report(doctor_session.view()) {
             println!("{line}");
         }
         return;

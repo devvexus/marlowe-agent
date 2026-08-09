@@ -72,7 +72,7 @@ pub struct KeyRegistry {
 impl KeyRegistry {
     /// Build and validate. **Every pane, not just the visible one** — a collision in the Trust
     /// pane must be a startup error on a session that never opens Trust, or it ships.
-    pub fn build(session: &marlowe_stub::Session) -> Result<Self, KeyConflict> {
+    pub fn build(view: &marlowe_view::SessionView) -> Result<Self, KeyConflict> {
         let mut reg = KeyRegistry::default();
 
         let region_keys: [(char, RegionId, &str); 8] = [
@@ -99,7 +99,7 @@ impl KeyRegistry {
         for (key, id, name) in region_keys {
             reg.claim_global(key, Binding::Focus(id), name, &mut owner)?;
         }
-        for tab in marlowe_stub::Tab::ALL {
+        for tab in marlowe_view::Tab::ALL {
             reg.claim_global(
                 tab.digit(),
                 Binding::Tab(tab.into()),
@@ -108,9 +108,9 @@ impl KeyRegistry {
             )?;
         }
 
-        for tab in marlowe_stub::Tab::ALL {
+        for tab in marlowe_view::Tab::ALL {
             let mut pane: BTreeMap<char, usize> = BTreeMap::new();
-            for (i, item) in crate::inspector::items_for(session, tab).iter().enumerate() {
+            for (i, item) in crate::inspector::items_for(view, tab).iter().enumerate() {
                 if let Some(existing) = owner.get(&item.key) {
                     return Err(KeyConflict {
                         key: item.key,
@@ -119,7 +119,7 @@ impl KeyRegistry {
                     });
                 }
                 if let Some(prev) = pane.get(&item.key) {
-                    let prev_label = crate::inspector::items_for(session, tab)[*prev].label.clone();
+                    let prev_label = crate::inspector::items_for(view, tab)[*prev].label.clone();
                     return Err(KeyConflict {
                         key: item.key,
                         first: format!("the {} item '{prev_label}'", tab.title()),
@@ -185,12 +185,12 @@ mod tests {
     fn the_shipped_key_set_has_no_conflicts() {
         // If this fails the binary refuses to start, which is the intent — but it should fail here
         // first, with both claimants named.
-        KeyRegistry::build(&marlowe_stub::Session::new()).expect("shipped key set");
+        KeyRegistry::build(marlowe_stub::Session::new().view()).expect("shipped key set");
     }
 
     #[test]
     fn item_keys_are_pane_scoped_and_globals_win_everywhere() {
-        let reg = KeyRegistry::build(&marlowe_stub::Session::new()).unwrap();
+        let reg = KeyRegistry::build(marlowe_stub::Session::new().view()).unwrap();
         assert_eq!(
             reg.resolve('c', TabId::Runs),
             Some(Binding::Focus(RegionId::Conversation))

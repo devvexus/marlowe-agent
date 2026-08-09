@@ -40,8 +40,8 @@
 //! An honest "copied 412 characters" next to an empty clipboard is a bug report; a silent no-op is
 //! a mystery.
 
-use marlowe_stub::{Entry, Session, ToolCall};
-use marlowe_stub::turn::ToolLineState;
+use marlowe_view::{Entry, SessionView, ToolCall};
+use marlowe_view::turn::ToolLineState;
 
 /// Wrap text in an OSC 52 clipboard-write sequence.
 ///
@@ -141,9 +141,9 @@ pub fn entry_text(e: &Entry) -> Option<String> {
 /// Speakers become headings rather than being flattened, because the thing that makes a pasted
 /// transcript useful is knowing who said what. Tool calls become fenced blocks: they are output,
 /// and markdown that renders a diff summary as prose is markdown nobody can read.
-pub fn transcript_markdown(session: &Session) -> String {
+pub fn transcript_markdown(view: &SessionView) -> String {
     let mut out = String::new();
-    for e in &session.transcript {
+    for e in &view.transcript {
         match e {
             Entry::User(t) => {
                 out.push_str(&format!("**You:** {t}\n\n"));
@@ -207,7 +207,7 @@ mod tests {
             1,
             "run",
             "cargo test",
-            vec![marlowe_stub::turn::Metric::Exit { code: 1 }],
+            vec![marlowe_view::turn::Metric::Exit { code: 1 }],
             "thread 'a' panicked at src/lib.rs:42",
         );
         let text = tool_call_text(&t);
@@ -234,8 +234,8 @@ mod tests {
     fn copied_text_carries_no_frame() {
         // The measured failure of native selection, asserted against: no border glyphs, no
         // scrollbar column, nothing from a region that merely shared a row.
-        let s = Session::new();
-        let md = transcript_markdown(&s);
+        let s = marlowe_stub::Session::new();
+        let md = transcript_markdown(s.view());
         for glyph in ['│', '─', '┌', '┐', '└', '┘', '║', '█'] {
             assert!(
                 !md.contains(glyph),

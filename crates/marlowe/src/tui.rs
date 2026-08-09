@@ -19,6 +19,7 @@ use crossterm::event::{
 };
 use crossterm::{execute, terminal};
 use marlowe_stub::{Clock, Session};
+use marlowe_view::Produce;
 use marlowe_surface::app::{Action, App, Key};
 use marlowe_surface::{render, Theme, MIN_COLS, MIN_ROWS};
 use ratatui::backend::CrosstermBackend;
@@ -87,8 +88,11 @@ pub fn run(opts: Options) -> io::Result<()> {
         }
     };
 
-    let session = Session::new();
-    let mut app = match App::new(session) {
+    // C2d: the driver owns the producer; the surface is handed its view. `--tui` still drives the
+    // scripted producer -- swapping in the daemon is Session E ("the TUI against the real loop"),
+    // and doing it here would mean shipping a half-wired event stream under the same flag.
+    let mut session = Session::new();
+    let mut app = match App::new(session.view().clone()) {
         Ok(a) => a,
         Err(conflict) => {
             // §B2's contract, enforced before the first frame. A duplicate hotkey means one
@@ -181,7 +185,7 @@ pub fn run(opts: Options) -> io::Result<()> {
     }
 
     let mut term = Terminal::new(CrosstermBackend::new(io::stdout()))?;
-    let result = event_loop(&mut term, &mut app, &theme, &clock, &opts);
+    let result = event_loop(&mut term, &mut session, &mut app, &theme, &clock, &opts);
 
     if opts.ground {
         // OSC 110/111 reset fore/background to the terminal's configured defaults. A program that
@@ -254,12 +258,13 @@ fn install_panic_hook() {
 /// Returns `Some((first_frame_ms, interactive_ms))` under `--timing-probe`.
 fn event_loop(
     term: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    session: &mut Session,
     app: &mut App,
     theme: &Theme,
     clock: &Clock,
     opts: &Options,
 ) -> io::Result<Option<(u64, u64)>> {
-    app.session.tick(clock.now_ms());
+    advance(session, app, clock.now_ms());
     term.draw(|f| render::draw(app, theme, f.area(), f.buffer_mut()))?;
     let first_frame_ms = clock.now_ms();
 
@@ -286,12 +291,12 @@ fn event_loop(
 
     loop {
         let now = clock.now_ms();
-        app.session.tick(now);
+        advance(session, app, now);
 
-        let timeout = if app.session.status.state.samples_amplitude() {
+        let timeout = if app.view().status.state.samples_amplitude() {
             ANIMATION_TICK_MS
         } else {
-            app.session
+            session
                 .next_beat_in(now)
                 .unwrap_or(IDLE_TICK_MS)
                 .clamp(1, IDLE_TICK_MS)
@@ -301,7 +306,7 @@ fn event_loop(
             match event::read()? {
                 Event::Key(k) if k.kind == KeyEventKind::Press => {
                     if let Some(key) = translate(k.code, k.modifiers) {
-                        if app.on_key(key, clock.now_ms()) == Action::Quit {
+                        if app.on_key(key) == Action::Quit {
                             return Ok(None);
                         }
                     }
@@ -336,7 +341,7 @@ fn event_loop(
                                     app.choose_option(opt);
                                 } else {
                                     // Outside the popup: dismiss without choosing.
-                                    app.on_key(Key::Esc, clock.now_ms());
+                                    app.on_key(Key::Esc);
                                     // **And if the click landed on ANOTHER control cell, open that
                                     // one in the same click.** Requiring a first click to dismiss
                                     // and a second to open is the behaviour of a modal nobody
@@ -352,7 +357,7 @@ fn event_loop(
                                 // Tabs are selectable by pointer as well as by digit. Routed
                                 // through the same key the tab bar advertises, so there is one
                                 // switch path rather than two.
-                                app.on_key(Key::Char(tab.digit()), clock.now_ms());
+                                app.on_key(Key::Char(tab.digit()));
                             } else if let Some(id) = hit {
                                 app.focus = id;
                                 // Clicking a control cell opens it. Focusing without opening is
@@ -378,7 +383,7 @@ fn event_loop(
                                 } else {
                                     (app.inspector_scroll + 1).min(max)
                                 };
-                                app.session.tick(clock.now_ms());
+                                advance(session, app, clock.now_ms());
                                 term.draw(|f| {
                                     render::draw(app, theme, f.area(), f.buffer_mut())
                                 })?;
@@ -392,7 +397,7 @@ fn event_loop(
                             } else {
                                 Key::Down
                             };
-                            app.on_key(key, clock.now_ms());
+                            app.on_key(key);
                         }
                         _ => {}
                     }
@@ -428,13 +433,29 @@ fn event_loop(
             out.flush()?;
         }
 
-        app.session.tick(clock.now_ms());
+        advance(session, app, clock.now_ms());
         term.draw(|f| render::draw(app, theme, f.area(), f.buffer_mut()))?;
     }
 }
 
+/// One turn of the crank: hand the surface's requests to the producer, advance it, republish.
+///
+/// **This function is the client/daemon boundary, in miniature.** Every change the user causes
+/// goes out as an `Intent` and comes back as a whole new view; nothing on the surface's side is
+/// edited in place. A refusal is printed rather than dropped -- a producer that silently ignored
+/// an intent would make a working build and a broken one look identical.
+fn advance(session: &mut Session, app: &mut App, now_ms: u64) {
+    for intent in app.drain_intents() {
+        if let Err(e) = session.apply(intent) {
+            app.notice = Some(e.to_string());
+        }
+    }
+    session.tick(now_ms);
+    app.update(session.view().clone());
+}
+
 /// Which inspector tab a pointer is over. Geometry from `render::tab_rects`, never recomputed.
-fn tab_at(chrome: &render::Chrome, col: u16, row: u16) -> Option<marlowe_stub::Tab> {
+fn tab_at(chrome: &render::Chrome, col: u16, row: u16) -> Option<marlowe_view::Tab> {
     render::tab_rects(chrome.tab_bar)
         .into_iter()
         .find(|(_, r)| col >= r.x && col < r.x + r.width && row == r.y)

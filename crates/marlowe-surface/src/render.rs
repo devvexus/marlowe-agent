@@ -15,7 +15,7 @@
 //! the acceptance suite render frame N and frame N+1 at chosen times and diff the two buffers cell
 //! by cell, turning §B13's "zero flicker" from an opinion into a count.
 
-use marlowe_stub::{Ambient, Entry, Session, Tab, Tone};
+use marlowe_view::{Ambient, Entry, Tab, Tone};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -165,7 +165,7 @@ pub fn draw(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     // painted straight over it — a menu that was there, then wasn't, with no error anywhere.
     draw_open_dropdown(app, theme, &tree, &c, buf);
 
-    if app.session.approval.is_some() {
+    if app.view().approval.is_some() {
         crate::overlay::draw_approval(app, theme, area, buf);
     }
 }
@@ -173,8 +173,8 @@ pub fn draw(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
 /// The one open dropdown, if any. §B4: each control-strip region opens a selection list in place —
 /// drawn by Marlowe, never an OS widget.
 fn draw_open_dropdown(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &mut Buffer) {
-    let strip = &app.session.control;
-    let cells: [(RegionId, &marlowe_stub::Picker); 5] = [
+    let strip = &app.view().control;
+    let cells: [(RegionId, &marlowe_view::Picker); 5] = [
         (RegionId::Model, &strip.model),
         (RegionId::Profile, &strip.profile),
         (RegionId::Session, &strip.session),
@@ -182,7 +182,7 @@ fn draw_open_dropdown(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, b
         (RegionId::Autonomy, &strip.autonomy),
     ];
     for (i, (id, picker)) in cells.iter().enumerate() {
-        if !picker.open {
+        if App::control_of(*id) != app.picker_open {
             continue;
         }
         if let Some(region) = tree.get(*id) {
@@ -208,7 +208,7 @@ fn draw_refusal(area: Rect, buf: &mut Buffer, theme: &Theme) {
 
 /// The titlebar has no hotkey, so under §B2 it has no border.
 fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
-    let session = app.session.control.session.value();
+    let session = app.view().control.session.value();
     let left = Line::from(vec![
         Span::styled("* ", Style::default().fg(theme.accent())),
         Span::styled(format!("marlowe — {session}"), theme.normal()),
@@ -228,7 +228,7 @@ fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
                 app.mouse_seen,
                 app.last_key,
                 app.focus,
-                app.session.status.state.name(),
+                app.view().status.state.name(),
             ),
             Style::default().fg(theme.accent()),
         )),
@@ -255,8 +255,8 @@ fn focus_of(app: &App, id: RegionId) -> FocusLevel {
 }
 
 fn draw_control(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &mut Buffer) {
-    let strip = &app.session.control;
-    let cells: [(RegionId, &marlowe_stub::Picker); 5] = [
+    let strip = &app.view().control;
+    let cells: [(RegionId, &marlowe_view::Picker); 5] = [
         (RegionId::Model, &strip.model),
         (RegionId::Profile, &strip.profile),
         (RegionId::Session, &strip.session),
@@ -315,7 +315,7 @@ pub fn dropdown_rect(anchor: Rect, options: usize, screen_h: u16) -> Rect {
 fn draw_dropdown(
     theme: &Theme,
     region: &Region,
-    picker: &marlowe_stub::Picker,
+    picker: &marlowe_view::Picker,
     anchor: Rect,
     hovered: Option<usize>,
     buf: &mut Buffer,
@@ -356,7 +356,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
     let Some(region) = tree.get(RegionId::Status) else {
         return;
     };
-    let band = &app.session.status;
+    let band = &app.view().status;
     let focus = focus_of(app, RegionId::Status);
     let block = region.block_toned(theme, focus, band.state.tone());
     let text = inner(area);
@@ -369,7 +369,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
         ..text
     };
     crate::meter::render(
-        &app.session.meter,
+        &app.meter_frame(),
         meter_area,
         buf,
         Style::default().fg(theme.tone(band.state.tone())),
@@ -425,7 +425,7 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
         width: c.conversation_scroll.width.saturating_sub(2),
         ..c.conversation_scroll
     };
-    let lines = transcript_lines(&app.session, theme, text_area.width);
+    let lines = transcript_lines(app, theme, text_area.width);
     let total = lines.len();
     let view = text_area.height as usize;
     let max_off = total.saturating_sub(view);
@@ -470,7 +470,7 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
     }
 
     // Pinned, and carrying what no other region has (§B6).
-    let p = app.session.pager;
+    let p = app.view().pager;
     Paragraph::new(Line::from(Span::styled(
         format!(
             "turn {} · {} compacted · lineage {} deep",
@@ -486,10 +486,10 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
 ///
 /// Wrapping happens here rather than in `Paragraph` because the scrollbar needs the true line
 /// count. A scrollbar sized from unwrapped lines lies by exactly the amount of prose on screen.
-pub fn transcript_lines<'a>(session: &Session, theme: &Theme, width: u16) -> Vec<Line<'a>> {
+pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a>> {
     let mut out: Vec<Line> = Vec::new();
     let w = width.max(20) as usize;
-    for entry in &session.transcript {
+    for entry in &app.view().transcript {
         match entry {
             Entry::User(text) => {
                 for l in wrap(text, w) {
@@ -520,7 +520,7 @@ pub fn transcript_lines<'a>(session: &Session, theme: &Theme, width: u16) -> Vec
             Entry::Tools(calls) => {
                 for call in calls {
                     out.push(tool_line(call, theme, w));
-                    if call.expanded {
+                    if app.is_expanded(call) {
                         out.extend(expansion(call, theme, w));
                     }
                 }
@@ -532,8 +532,8 @@ pub fn transcript_lines<'a>(session: &Session, theme: &Theme, width: u16) -> Vec
 }
 
 /// §B6's one line: `⋯ verb  target ............ summary`.
-fn tool_line<'a>(call: &marlowe_stub::ToolCall, theme: &Theme, w: usize) -> Line<'a> {
-    use marlowe_stub::ToolLineState;
+fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line<'a> {
+    use marlowe_view::ToolLineState;
     // Consecutive same-verb calls collapse: six reads become `⋯ read  6 files`.
     let target = if call.collapsed.is_empty() {
         call.target.clone()
@@ -560,8 +560,8 @@ fn tool_line<'a>(call: &marlowe_stub::ToolCall, theme: &Theme, w: usize) -> Line
     ])
 }
 
-fn expansion<'a>(call: &marlowe_stub::ToolCall, theme: &Theme, w: usize) -> Vec<Line<'a>> {
-    use marlowe_stub::ToolLineState;
+fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<Line<'a>> {
+    use marlowe_view::ToolLineState;
     let detail = match &call.state {
         ToolLineState::Ok(s) | ToolLineState::Failed(s) => s.detail.clone(),
         ToolLineState::Running { .. } => None,
@@ -638,7 +638,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
     let mut spans: Vec<Span> = Vec::new();
     let mut line1: Vec<Span> = Vec::new();
     for (i, tab) in Tab::ALL.iter().enumerate() {
-        let active = *tab == app.session.tab;
+        let active = *tab == app.tab;
         let target = if i < 3 { &mut spans } else { &mut line1 };
         target.push(Span::styled(
             format!("{} ", tab.digit()),
@@ -659,7 +659,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
     }
     Paragraph::new(vec![Line::from(spans), Line::from(line1)]).render(c.tab_bar, buf);
 
-    let items = crate::inspector::items(&app.session);
+    let items = crate::inspector::items(app.view(), app.tab);
     // **The pane scrolls, by whole items.** Without this, a window shorter than the pane's content
     // simply stopped drawing at the fold: the Runs tab's later items existed, were focusable, were
     // reachable by their own hotkeys, and were invisible. An item you can select and cannot see is
@@ -767,7 +767,7 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
     // a second indicator.
     let (body, style) = if app.input.is_empty() {
         (
-            app.session.status.state.placeholder().to_string(),
+            app.view().status.state.placeholder().to_string(),
             theme.dim(),
         )
     } else {
@@ -782,7 +782,7 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
     // A copy confirmation takes the ambient slot until the next keystroke. OSC 52 cannot be
     // acknowledged, so this line is the only evidence the user gets that anything happened; it
     // outranks the spend counters for the second or two it is up.
-    let a: Ambient = app.session.ambient;
+    let a: Ambient = app.view().ambient;
     let ambient = if let Some(notice) = &app.notice {
         Line::from(Span::styled(
             notice.clone(),

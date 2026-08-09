@@ -13,20 +13,30 @@
 
 use std::io::{BufRead, Write};
 
-use marlowe_stub::{Clock, Entry, Session, Tab, ToolLineState};
+use marlowe_view::{ClockRead, Entry, Intent, Produce, SessionView, Tab, ToolLineState};
 
 use crate::commands::{self, Outcome};
 
 /// Run the REPL over any reader/writer, so a test can drive it without a terminal.
-pub fn run(input: impl BufRead, mut out: impl Write, clock: &Clock) -> std::io::Result<()> {
-    let mut session = Session::new();
+/// **The REPL is a driver, so it is handed a producer rather than making one.**
+///
+/// C2d: it used to call `Session::new()`, which put a concrete producer inside the render crate.
+/// It now takes `&mut impl Produce`, so `marlowe-surface` can drive a producer without being able
+/// to construct one -- the same property that keeps `App` honest, applied to the surface that has
+/// no grid.
+pub fn run(
+    session: &mut impl Produce,
+    input: impl BufRead,
+    mut out: impl Write,
+    clock: &impl ClockRead,
+) -> std::io::Result<()> {
     let mut shown = 0usize;
 
     writeln!(
         out,
         "marlowe — classic. No grid, same commands. /help for the list."
     )?;
-    drain(&mut session, &mut out, &mut shown, clock)?;
+    drain(session, &mut out, &mut shown, clock)?;
 
     for line in input.lines() {
         let line = line?;
@@ -39,19 +49,30 @@ pub fn run(input: impl BufRead, mut out: impl Write, clock: &Clock) -> std::io::
             let mut parts = rest.split_whitespace();
             let name = parts.next().unwrap_or("");
             let args: Vec<&str> = parts.collect();
-            match commands::dispatch(&mut session, name, &args, clock.now_ms()) {
+            match commands::dispatch(session.view(), name, &args) {
                 Outcome::Quit => return Ok(()),
                 Outcome::Lines(lines) => {
                     for l in lines {
                         writeln!(out, "{l}")?;
                     }
                 }
+                // Same request path as the TUI. The producer acts; a refusal is printed by
+                // name rather than swallowed, so the CLI cannot look like it worked.
+                Outcome::Ask(intent, lines) => {
+                    for l in lines {
+                        writeln!(out, "{l}")?;
+                    }
+                    if let Err(e) = session.apply(intent) {
+                        writeln!(out, "{e}")?;
+                    }
+                    drain(session, &mut out, &mut shown, clock)?;
+                }
                 Outcome::Tab(tab, said) => {
                     // The same rule as the TUI (§B7): the region carries the data, the transcript
                     // carries the judgment. Without a grid they arrive one after the other rather
                     // than side by side — that is the layout half of "parity, not layout parity".
                     writeln!(out, "{said}")?;
-                    for l in commands::render_pane_linear(&session, tab) {
+                    for l in commands::render_pane_linear(session.view(), tab) {
                         writeln!(out, "{l}")?;
                     }
                 }
@@ -64,11 +85,11 @@ pub fn run(input: impl BufRead, mut out: impl Write, clock: &Clock) -> std::io::
                     }
                 }
             }
-            shown = session.transcript.len();
+            shown = session.view().transcript.len();
             // A command can raise an approval too — `/state waiting` does. Surfacing it only on the
             // message path would let the classic CLI sit in `waiting` with nothing on screen to
             // answer, which is a capability gap, and §B14 forbids TUI-only capabilities.
-            print_approval(&session, &mut out)?;
+            print_approval(session.view(), &mut out)?;
             continue;
         }
 
@@ -80,10 +101,11 @@ pub fn run(input: impl BufRead, mut out: impl Write, clock: &Clock) -> std::io::
             continue;
         }
 
-        session.submit(text, clock.now_ms());
-        drain(&mut session, &mut out, &mut shown, clock)?;
+        // Asked, not assigned -- exactly as the TUI does it.
+        let _ = session.apply(Intent::Send(text.to_string()));
+        drain(session, &mut out, &mut shown, clock)?;
 
-        print_approval(&session, &mut out)?;
+        print_approval(session.view(), &mut out)?;
     }
     Ok(())
 }
@@ -93,8 +115,8 @@ pub fn run(input: impl BufRead, mut out: impl Write, clock: &Clock) -> std::io::
 ///
 /// **States blast radius, not the command.** `BlastRadius` has no field for the command string, so
 /// this cannot print one even by accident.
-fn print_approval(session: &Session, out: &mut impl Write) -> std::io::Result<()> {
-    let Some(radius) = &session.approval else {
+fn print_approval(view: &SessionView, out: &mut impl Write) -> std::io::Result<()> {
+    let Some(radius) = &view.approval else {
         return Ok(());
     };
     writeln!(out, "\n  approval — {}", radius.headline)?;
@@ -120,16 +142,16 @@ fn print_approval(session: &Session, out: &mut impl Write) -> std::io::Result<()
 /// The TUI animates live tool lines in place; without a grid there is nowhere to animate, so the
 /// linear surface prints each line once it has settled. Same data, same order, no cursor tricks.
 fn drain(
-    session: &mut Session,
+    session: &mut impl Produce,
     out: &mut impl Write,
     shown: &mut usize,
-    clock: &Clock,
+    clock: &impl ClockRead,
 ) -> std::io::Result<()> {
     let start = clock.now_ms();
     let mut t = start;
     loop {
         session.tick(t);
-        print_new(session, out, shown)?;
+        print_new(session.view(), out, shown)?;
         match session.next_beat_in(t) {
             Some(dt) => t += dt.max(1),
             None => break,
@@ -140,12 +162,12 @@ fn drain(
         }
     }
     session.tick(t);
-    print_new(session, out, shown)
+    print_new(session.view(), out, shown)
 }
 
-fn print_new(session: &Session, out: &mut impl Write, shown: &mut usize) -> std::io::Result<()> {
-    while *shown < session.transcript.len() {
-        match &session.transcript[*shown] {
+fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std::io::Result<()> {
+    while *shown < view.transcript.len() {
+        match &view.transcript[*shown] {
             Entry::User(t) => writeln!(out, "> {t}")?,
             Entry::Said(t) => writeln!(out, "{t}")?,
             Entry::Compacted { turns } => writeln!(out, "-- compacted · {turns} turns → summary")?,
@@ -182,8 +204,8 @@ fn print_new(session: &Session, out: &mut impl Write, shown: &mut usize) -> std:
 }
 
 /// Print one pane linearly. Used by `--classic --print <tab>` for a piped, no-TTY read.
-pub fn print_pane(session: &Session, tab: Tab, mut out: impl Write) -> std::io::Result<()> {
-    for l in commands::render_pane_linear(session, tab) {
+pub fn print_pane(view: &SessionView, tab: Tab, mut out: impl Write) -> std::io::Result<()> {
+    for l in commands::render_pane_linear(view, tab) {
         writeln!(out, "{l}")?;
     }
     Ok(())

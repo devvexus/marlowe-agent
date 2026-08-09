@@ -12,6 +12,7 @@ marlowe-loop.workspace = true
 marlowe-permission.workspace = true
 marlowe-provider.workspace = true
 marlowe-tools.workspace = true
+marlowe-view.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

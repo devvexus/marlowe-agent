@@ -159,10 +159,56 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     /// mistake would live, whereas nothing on a contract path is inside this crate.
     const TEMPORARY_SPIKE: &str = "marlowe-embed-spike";
 
+    // **A fence naming a file that no longer exists is a comment.**
+    //
+    // This list matches on file NAME, so a fenced file moving between crates keeps working and a
+    // fenced file being *deleted* leaves a silent exemption behind — and the exemption would then
+    // sit there ready to excuse a future file that happened to take the same name. That is the
+    // fourteenth-instance shape (a guard whose subject moved) with the subject gone entirely.
+    //
+    // `protect-boundaries.py` grew `--self-check` for exactly this after M2 Session B; this guard
+    // never did. M2 C2d moved `turn.rs` and `model.rs` between crates, which is what made the gap
+    // worth closing rather than noting.
+    let all: Vec<String> = crate_sources()
+        .iter()
+        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        .collect();
+    for fence in FENCES {
+        assert!(
+            all.iter().any(|n| n == fence),
+            "the clock fence names `{fence}`, and no such file exists in crates/. Either it was \
+             renamed — in which case point the fence at the new name — or it was deleted, in \
+             which case delete the entry. An exemption that outlives what it exempts silently \
+             excuses the next file to take that name."
+        );
+    }
+
+    /// Files that **name** the forbidden spellings in order to ban them, and read no clock.
+    ///
+    /// Deliberately a separate list from [`FENCES`], not extra entries in it. A fence says *this
+    /// file legitimately reads real time*; these say *this file mentions the words*. Collapsing
+    /// them would let a genuine clock read appear in a test file under an exemption that was
+    /// granted for a string literal — the two claims are different and the list that records them
+    /// should be too.
+    const NAMES_BUT_DOES_NOT_READ: &[&str] = &[
+        "determinism_guard.rs",
+        // M2 C2d. Asserts locally that `marlowe-surface` reads no clock, which means spelling out
+        // what it is looking for. See `marlowe-surface/tests/c2d_boundary.rs`.
+        "c2d_boundary.rs",
+    ];
+    for named in NAMES_BUT_DOES_NOT_READ {
+        assert!(
+            all.iter().any(|n| n == named),
+            "the clock guard exempts `{named}`, and no such file exists in crates/. Delete the \
+             entry with the file — an exemption that outlives what it exempts is how a guard \
+             quietly stops guarding."
+        );
+    }
+
     let mut offenders = Vec::new();
     for path in crate_sources() {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if FENCES.contains(&name.as_str()) || name == "determinism_guard.rs" {
+        if FENCES.contains(&name.as_str()) || NAMES_BUT_DOES_NOT_READ.contains(&name.as_str()) {
             continue;
         }
         if path.components().any(|c| c.as_os_str() == TEMPORARY_SPIKE) {

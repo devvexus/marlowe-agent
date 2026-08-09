@@ -8,9 +8,10 @@
 #![allow(dead_code)]
 
 use marlowe_stub::Session;
-use marlowe_surface::app::App;
+use marlowe_surface::app::{Action, App, Key};
 use marlowe_surface::render;
 use marlowe_surface::Theme;
+use marlowe_view::Produce;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
 use ratatui::Terminal;
@@ -19,8 +20,77 @@ use ratatui::Terminal;
 /// 4K-ish terminal at a small font.
 pub const SIZES: [(u16, u16); 5] = [(120, 30), (140, 40), (160, 45), (200, 50), (240, 60)];
 
+/// A producer and a surface, wired the way a real driver wires them.
+///
+/// **C2d made this necessary and that is the point.** M1's tests held one object: `App` owned a
+/// `Session` and a keystroke mutated it in place, so a test could assert on `app.session` straight
+/// after a key. There is now a boundary in between — the surface emits an [`marlowe_view::Intent`],
+/// the producer applies it, and a new view comes back — and a test that wants to observe the
+/// result has to cross the same boundary the product does.
+///
+/// A test that could still reach through would be a test that proved nothing about the split.
+pub struct Rig {
+    pub producer: Session,
+    pub app: App,
+}
+
+impl Rig {
+    pub fn new() -> Self {
+        let producer = Session::new();
+        let app = App::new(producer.view().clone()).expect("the shipped key set has no conflicts");
+        Self { producer, app }
+    }
+
+    /// Publish the producer's current view to the surface.
+    pub fn sync(&mut self) {
+        self.app.update(self.producer.view().clone());
+    }
+
+    /// Advance the producer and republish.
+    pub fn tick(&mut self, now_ms: u64) {
+        self.producer.tick(now_ms);
+        self.sync();
+    }
+
+    /// One keystroke, through the whole loop: dispatch, drain the requests, apply them, republish.
+    pub fn key(&mut self, key: Key, now_ms: u64) -> Action {
+        let action = self.app.on_key(key);
+        self.settle(now_ms);
+        action
+    }
+
+    /// Apply whatever the surface asked for, then republish. Refusals are surfaced, never dropped
+    /// — a rig that swallowed an `IntentError` would hide the one failure mode `Produce::apply`
+    /// exists to make visible.
+    pub fn settle(&mut self, now_ms: u64) {
+        for intent in self.app.drain_intents() {
+            self.producer
+                .apply(intent.clone())
+                .unwrap_or_else(|e| panic!("the producer refused {intent:?}: {e}"));
+        }
+        self.producer.tick(now_ms);
+        self.sync();
+    }
+
+    /// Drive the band to a state, the way `/state` does.
+    pub fn force_state(&mut self, state: marlowe_view::StatusState, now_ms: u64) {
+        self.producer.force_state(state, now_ms);
+        self.producer.tick(now_ms);
+        self.sync();
+    }
+
+    pub fn tab(&mut self, tab: marlowe_view::Tab) {
+        self.app.tab = tab;
+    }
+}
+
+/// A surface over a fresh scripted view, for tests that only render.
 pub fn app() -> App {
-    App::new(Session::new()).expect("the shipped key set has no conflicts")
+    App::new(Session::new().view().clone()).expect("the shipped key set has no conflicts")
+}
+
+pub fn rig() -> Rig {
+    Rig::new()
 }
 
 pub fn theme() -> Theme {

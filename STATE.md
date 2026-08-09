@@ -1,5 +1,100 @@
 # State
 
+## M2 C2d — the view models are promoted, and §2.14 is structural rather than asserted
+
+**473 cargo tests (from 457), `eval/` untouched at 72, `repro` hash byte-identical to the
+pre-change baseline (`e796c12e…`), conformance unchanged.** Branch `master`.
+
+**`marlowe-view` is a new crate depending on nothing.** `SessionView`, `Intent`, `Produce`,
+`MeterSource`, and the M1 view models. `marlowe-surface` depends on it and on **no producer** —
+`marlowe-stub` is a dev-dependency, so `src/` cannot name one. That is the acceptance, it is
+checked by `tests/c2d_boundary.rs`, and a **negative control** confirms it is not decorative:
+putting `marlowe-stub` back into `[dependencies]` fails the test by name.
+
+**Two producers now exist**, which is what makes this a promotion rather than a rename: the
+scripted `marlowe-stub::Session`, and `marlowe-daemon::project` mapping `StatusReport`/`Event`
+onto the same view without the view being bent to fit.
+
+> ### THE HEADER CLAIM WAS FALSE, AND HAD BEEN SINCE M1
+> Both `marlowe-surface/src/lib.rs` and `marlowe-stub/src/model.rs` said the dependency graph made
+> §2.14 structural — *"a surface that cannot fabricate state is a surface that provably holds no
+> state the daemon lacks."* **`App` owned a `marlowe_stub::Session` mutably and pushed into its
+> transcript.** In-process against a stub that is invisible; against a daemon on a socket it is a
+> surface inventing history. **Eleven sites, listed below.** The claim is now true.
+
+**The one that would have been worst in production:** arrow keys inside an open dropdown assigned
+`Picker::selected` directly, so **arrowing past `act` in the Autonomy list granted `act` in
+passing**, and `Esc` left it there. Addendum A §A8 makes self-granted promotion structurally
+impossible — and the surface was doing it on a keystroke that was never a choice. The highlight is
+now `App::picker_cursor` and `Enter` is what asks.
+
+**`App::on_key` no longer takes a clock, and that is a result rather than a tidy-up.** Every branch
+used to end in a mutation, and a mutation needs a timestamp; they now end in an `Intent` and the
+producer stamps its own time, because the producer is the thing with a journal. Six dead `now_ms`
+parameters were removed rather than silenced.
+
+**`MeterSource` is a new distinction the M1 shape could not express.** `BASELINE` means *live and
+flat*; `MeterSource::None` means *nothing is measuring*. The daemon has no voice pipeline and no
+token-rate telemetry, so it reports `None` and the meter freezes — it does **not** report
+`BASELINE`, which would render as a live silent session, a claim made by a component that cannot
+know it. §B12 forbids decorative motion and a synthetic envelope on the daemon path would be that.
+
+**Optimistic state is allowed and never becomes history.** `PendingLine` renders what the user
+typed before acknowledgement, in its own weight, with **no transition into `Entry`** — there is no
+`confirm()`. It is retired only by the producer's transcript containing it. If the producer never
+acknowledges, **it stays visibly pending indefinitely**, which is the truth.
+
+### Two guards fired or were closed during this work
+
+1. **`b13_memory_surface.rs`'s §B1 guard names `turn.rs` by path, and I moved it.** It failed
+   loudly because it reads with `.expect`. The same check written with `unwrap_or_default()` would
+   have scanned nothing, found no memory variants, and passed forever.
+2. **`determinism_guard.rs`'s `FENCES` had no staleness check** — a fence naming a deleted file
+   left a silent exemption ready to excuse the next file to take that name. `protect-boundaries.py`
+   grew `--self-check` for this after Session B; this guard never did. **Now closed**, verified by
+   a control (a bogus fence entry fails by name). A separate `NAMES_BUT_DOES_NOT_READ` list keeps
+   *"legitimately reads a clock"* and *"mentions the word"* from being conflated.
+
+**LATENT, NOT FIXED — outside C2d, flagged rather than touched.** `marlowe-loop/tests/hp10_budgets.rs:37`:
+`let Ok(entries) = read_dir(dir) else { return out };` returns **empty** on a missing directory.
+It is saved only because the caller asserts `found.len() == 1`. Relax that to `<= 1` — which reads
+entirely natural — and the driving-loop guard scans a directory that is not there and passes forever.
+
+### Deferred, and named rather than improvised
+
+**`Outcome::Tab(tab, said)` still carries Marlowe-voiced prose hardcoded in the surface's command
+registry** — *"Two running. The deep dive is at $1.20 of its $3 ceiling."* C2d stopped it
+masquerading as transcript (it renders as a `ClientLine` now), which is **more honest about
+authorship but leaves persona-voiced text in the client channel**. Fixing it properly needs a
+producer-side command handler, which is **C3**. It is not an intent nobody handles — it renders
+today — but it is not right either.
+
+`/help`, `/keys` and `/doctor` are **not** part of that debt: they describe the *client*, so the
+client authoring them is correct. They were only ever wrong in being attributed to Marlowe.
+
+**Also deferred, unchanged:** `TurnEvent` still exists twice (`marlowe-loop` and `marlowe-view`),
+and the two `BlastRadius` shapes are still unreconciled — both are **Session E** per the entry
+below, and C2d deliberately did not absorb them. `marlowe --tui` still drives the scripted
+producer; pointing it at the daemon is Session E's "the TUI against the real loop".
+
+### The 15.2 GiB of stale `target/`, and the latency session
+
+**The repo moved out of OneDrive** — from `C:\Users\matth\OneDrive\Desktop\Projects\Marlowe_Harness`
+to `C:\Users\matth\Projects\Marlowe_Harness` — and `target/` still held test binaries compiled at
+the old path, with `CARGO_MANIFEST_DIR` baked in. Under `--workspace` feature unification cargo
+reused three of them and `hp10_budgets` failed against a path that no longer exists; `-p marlowe-loop`
+recompiled and passed. **15.2 GiB removed by `cargo clean --profile dev`.**
+
+**This is a candidate explanation for Session L's unexplained write times** — the 542 ms stall
+inside one timed span, and the cold p50 drift 208.4 → 267.0 ms on the same binary in the same
+configuration. Session L attributed those to OneDrive's delete-share locks on fresh binaries, which
+was a reasonable read at the time and is now untestable on this machine. **It is a hypothesis, not
+a finding: nothing has been re-measured, and Session L's numbers are still scoped to a machine
+state that no longer exists.** Re-measuring the CPU path here would need a fresh control run, not a
+citation.
+
+---
+
 ## M0c Session L — retrieval latency. GPU ships (ADR-029). R@1 UNMOVED at 0.6725.
 
 **`runs/session-l/RESULT.md`. Read `METHOD.md` before trusting any number in it.**
@@ -55,7 +150,7 @@ inflating every absolute ~10% while the table reconciled perfectly, and `get_pro
 *registered* providers rather than *where nodes ran*. **The rate is the argument for controls that
 feel redundant.**
 
-**445 cargo tests** (from 421), `eval/` untouched at **72**.
+**445 cargo tests** (from 421), `eval/` untouched at **72**. *(473 as of C2d.)*
 
 ---
 
@@ -191,7 +286,7 @@ coverage. The bound covers the false-injection rate among wrong queries; K1 asks
 `P(correct | injected)`, a selective risk it does not cover. **Global τ only** — largest wrong-query
 calibration set is 12 against a floor of 40.
 
-## Next action — M2 C2d: promote the view models, then M2 closes
+## Superseded — M2 C2d (done; see the top of this file)
 
 **`marlowe --tui` still drives M1's scripted stub.** `App::new(session: marlowe_stub::Session)` —
 the whole surface is built on the stub's view models (`StatusBand`, `ControlStrip`, `Entry`,
@@ -626,7 +721,7 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue.
 - **The unchanged-cue check is a NULL INSTRUMENT for a pruning change.** Its silence is not evidence.
-- **`cargo test --workspace` (442) and `cd eval && python -m pytest` (72).**
+- **`cargo test --workspace` (473) and `cd eval && python -m pytest` (72).**
 - **A build error seen in a shared checkout is a SNAPSHOT, not a fact.** Re-verify before
   reporting one, and say when it was observed. Twice in one day a session reported a real error in
   the other's mid-edit that had already been resolved — in both directions. See CLAUDE.md's
@@ -735,9 +830,10 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
 - **HP10's zero-config row is PARTIAL.** The library half is tested; **K6 — install → first useful
   output under five minutes in a clean container — is not measured** and lands in Session E. It is a
   milestone kill criterion, so do not let the passing library test be read as the criterion.
-- **`TurnEvent` exists twice** — canonically in `marlowe-loop`, and M1's view-model copy in
-  `marlowe-stub`. Session E deletes the stub's copy and points `marlowe-surface` at the real one.
-  The two `BlastRadius` shapes (CONTRACTS §9's, and the stub's rendered form) reconcile there.
+- **`TurnEvent` exists twice** — canonically in `marlowe-loop`, and the view-model copy now in
+  **`marlowe-view`** (moved from `marlowe-stub` by C2d). Session E deletes the duplicate and points
+  `marlowe-surface` at the real one. The two `BlastRadius` shapes (CONTRACTS §9's, and the rendered
+  form) reconcile there. **C2d deliberately did not absorb this.**
 - **The M2 report line said "a spawn with an empty tool set and reads_untrusted fails at load
   time".** It is the **non-empty** set that fails, per CONTRACTS §5; the empty set is the valid
   quarantined reader. Both cases are tested so the two cannot be confused.

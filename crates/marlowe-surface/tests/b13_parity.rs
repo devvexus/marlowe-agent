@@ -13,16 +13,26 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
-use marlowe_stub::{Clock, Session, Tab};
+use marlowe_stub::Clock;
+use marlowe_view::Tab;
 use marlowe_surface::app::App;
 use marlowe_surface::cli;
 use marlowe_surface::commands::{self, Outcome, REGISTRY};
 
 /// Drive the classic CLI with a script and collect its output.
 fn classic(script: &str) -> String {
+    // C2d: the REPL is handed a producer rather than making one, so the test supplies it — the
+    // same wiring the binary does.
     let clock = Clock::virtual_(0);
+    let mut producer = marlowe_stub::Session::new();
     let mut out = Vec::new();
-    cli::run(Cursor::new(script.to_string()), &mut out, &clock).expect("classic cli");
+    cli::run(
+        &mut producer,
+        Cursor::new(script.to_string()),
+        &mut out,
+        &clock,
+    )
+    .expect("classic cli");
     String::from_utf8(out).expect("utf-8")
 }
 
@@ -37,8 +47,8 @@ fn every_command_in_the_registry_is_reachable_in_both_surfaces() {
         }
 
         // TUI.
-        let mut app = App::new(Session::new()).unwrap();
-        let outcome = app.run_command(c.name, &[], 0);
+        let mut app = App::new(marlowe_stub::Session::new().view().clone()).unwrap();
+        let outcome = app.run_command(c.name, &[]);
         assert!(
             !matches!(outcome, Outcome::Unknown(_)),
             "/{} is in the registry but the TUI cannot reach it",
@@ -64,10 +74,10 @@ fn every_command_in_the_registry_is_reachable_in_both_surfaces() {
 #[test]
 fn the_two_surfaces_produce_the_same_data_for_a_pane() {
     // Layout differs; data does not. The linear render and the region items must agree row for row.
-    let session = Session::new();
+    let session = marlowe_stub::Session::new();
     for tab in Tab::ALL {
-        let linear = commands::render_pane_linear(&session, tab).join("\n");
-        for item in marlowe_surface::inspector::items_for(&session, tab) {
+        let linear = commands::render_pane_linear(session.view(), tab).join("\n");
+        for item in marlowe_surface::inspector::items_for(session.view(), tab) {
             assert!(
                 linear.contains(&item.label),
                 "the {} pane's item {:?} is in the TUI and missing from the classic CLI",

@@ -1,18 +1,23 @@
-//! The daemon-side view models the surface renders.
+//! The view models a producer publishes and a surface renders.
 //!
-//! **None of these are pinned in `CONTRACTS.md`, and that is deliberate.** §13 pins `TurnEvent` —
-//! the loop → surface *turn stream* — and nothing else about a surface. The status band, the
-//! control strip and the inspector are views the daemon publishes, and no contract describes them
-//! yet because no daemon exists yet.
+//! **This crate is M2 C2d paying the debt the M1 version of this file recorded.** It used to sit
+//! in `marlowe-stub` under a header saying *"M2 must pin them … they live here, in the stub, until
+//! there is a daemon whose shape they describe."* There is now a daemon (ARCHITECTURE §6), so they
+//! live here, and the stub is one producer of them rather than their owner.
 //!
-//! **M2 must pin them.** Inventing contract types this milestone would pin a shape to whatever a
-//! stub found convenient, which is the same mistake as letting the interface be shaped by whatever
-//! memory happens to do today. They live here, in the stub, until there is a daemon whose shape
-//! they describe.
+//! # Why this is its own crate and not part of the daemon
 //!
-//! What holds the boundary in the meantime: `marlowe-surface` **does not depend on anything that
-//! can produce these values**. It renders what it is handed. A surface that cannot fabricate state
-//! is a surface that provably holds no state the daemon lacks (ARCHITECTURE.md §2.14).
+//! Putting them in `marlowe-daemon` would put `marlowe-loop`, `marlowe-provider` and
+//! `marlowe-permission` into the surface's dependency tree, and let a surface construct an
+//! `Engine`. That is strictly worse than what M1 had. This crate depends on **nothing** — so it
+//! can be shared by a producer and a renderer without either gaining reach into the other.
+//!
+//! # Nothing here can produce a value
+//!
+//! There are no constructors that invent state, and **deliberately no `Default`**. A surface that
+//! can `SessionView::default()` can fabricate exactly the state ARCHITECTURE §2.14 forbids it from
+//! holding, and every test would stay green while it did. The producers are
+//! `marlowe-stub::Session::view()` (scripted) and `marlowe-daemon::project` (real).
 
 /// §B5's seven states. One region, always visible, outside every scroll area.
 ///
@@ -128,13 +133,21 @@ pub struct ControlStrip {
 }
 
 /// A control-strip value with its in-place selection list. Drawn by Marlowe, never an OS widget.
+///
+/// # `open` is not here, and that is C2d's correction
+///
+/// The M1 shape carried `open: bool` with the comment *"open state is the surface's business, but
+/// it lives with the value so a redraw cannot lose it."* The first half is right and the second is
+/// how it ended up on the wrong side of the boundary — a redraw cannot lose surface state that the
+/// surface owns either. `App::picker_open` holds it now.
+///
+/// `selected`, by contrast, **is** the daemon's: which model, profile, session and workspace are
+/// live are facts about the run, not about looking at it. A surface changes one by asking
+/// ([`crate::view::Intent`]), never by assignment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Picker {
     pub options: Vec<String>,
     pub selected: usize,
-    /// True while the dropdown is open. Open state is the *surface's* business, but it lives with
-    /// the value so a redraw cannot lose it.
-    pub open: bool,
 }
 
 impl Picker {
@@ -149,7 +162,6 @@ impl Picker {
         Self {
             options: options.iter().map(|s| (*s).to_string()).collect(),
             selected,
-            open: false,
         }
     }
 

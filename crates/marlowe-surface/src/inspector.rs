@@ -22,19 +22,19 @@
 //! the user cannot tell an empty pane from a broken one. A tab that rendered invented data would
 //! be worse still: it would make the tab bar a claim about capability that is false.
 
-use marlowe_stub::{Item, Session, Tab, Tone};
+use marlowe_view::{Item, SessionView, Tab, Tone};
 
 /// The items for the pane currently displayed.
-pub fn items(session: &Session) -> Vec<Item> {
-    items_for(session, session.tab)
+pub fn items(view: &SessionView, tab: Tab) -> Vec<Item> {
+    items_for(view, tab)
 }
 
 /// The items for any pane. Used by the key registry, which validates **all six** at startup rather
 /// than only the visible one — a collision in a pane the session never opens would otherwise ship.
-pub fn items_for(session: &Session, tab: Tab) -> Vec<Item> {
+pub fn items_for(view: &SessionView, tab: Tab) -> Vec<Item> {
     match tab {
-        Tab::Runs => session.runs.clone(),
-        Tab::Schedule => session.schedule.clone(),
+        Tab::Runs => view.runs.clone(),
+        Tab::Schedule => view.schedule.clone(),
         Tab::Sessions => vec![not_yet(
             "Sessions",
             'k',
@@ -83,10 +83,10 @@ mod tests {
     #[test]
     fn every_tab_renders_at_least_one_region() {
         // §B7's tab bar must not lie. An empty pane is indistinguishable from a broken one.
-        let s = Session::new();
+        let s = marlowe_stub::Session::new();
         for tab in Tab::ALL {
             assert!(
-                !items_for(&s, tab).is_empty(),
+                !items_for(s.view(), tab).is_empty(),
                 "{} renders nothing; a reachable tab with no region tells the user the interface \
                  is broken",
                 tab.title()
@@ -96,9 +96,9 @@ mod tests {
 
     #[test]
     fn the_four_deferred_panes_say_so_rather_than_showing_invented_data() {
-        let s = Session::new();
+        let s = marlowe_stub::Session::new();
         for tab in Tab::ALL.iter().filter(|t| !t.is_live_in_m1()) {
-            let items = items_for(&s, *tab);
+            let items = items_for(s.view(), *tab);
             let says_so = items.iter().any(|i| {
                 i.lines
                     .iter()

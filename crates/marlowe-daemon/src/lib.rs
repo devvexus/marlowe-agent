@@ -31,10 +31,12 @@
 pub mod client;
 pub mod clock;
 pub mod daemon;
+pub mod project;
 pub mod protocol;
 
 pub use client::{Client, ClientError};
 pub use daemon::{Daemon, DaemonConfig, DaemonError};
+pub use project::{apply_events, view_from_status};
 pub use protocol::{Event, Request, StatusReport};
 
 /// The loopback port the daemon listens on.

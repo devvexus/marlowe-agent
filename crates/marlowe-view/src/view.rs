@@ -1,0 +1,332 @@
+//! `SessionView` — what a producer publishes, and the **only** thing a surface renders.
+//!
+//! # The direction of every field here is one-way
+//!
+//! ARCHITECTURE §2.14: *surfaces own rendering and input; they never hold policy, and never hold
+//! state the daemon does not have.* M1 asserted that in two module headers and did not have it:
+//! `App` owned a `marlowe_stub::Session` **mutably** and pushed into its transcript, so the surface
+//! could and did author conversation turns no producer ever saw. In-process against a stub that is
+//! invisible. Against a daemon on a socket it is the surface inventing history.
+//!
+//! So the split is now in the types. A surface holds a [`SessionView`] it cannot write to, and
+//! changes anything by **asking** — [`Intent`] — which is a value it hands back to whatever is
+//! driving it. Nothing in this crate can apply an `Intent`; only a producer can.
+//!
+//! # Optimistic state is allowed, and it is never allowed to become history
+//!
+//! A message field that showed nothing until a daemon round-trip would feel broken. So a surface
+//! may render what the user just typed **before** it is acknowledged — as [`PendingLine`], which is
+//! a different type, renders differently (§B2's dim weight plus an explicit marker), and has **no
+//! transition into [`Entry`]**. There is deliberately no `PendingLine::confirm()`.
+//!
+//! The retirement rule is: a pending line goes away when the producer's `transcript` contains it,
+//! and not before. If the producer never acknowledges, **it stays pending and stays visibly
+//! pending, indefinitely** — the user can see that what they typed has not landed, which is the
+//! truth. The failure mode this rules out is the quiet one: a surface that promotes its own
+//! optimistic text to confirmed transcript after a timeout, producing a conversation that reads as
+//! real and that no journal has a record of.
+
+use crate::meter::MeterSource;
+use crate::model::{Ambient, BlastRadius, ControlStrip, Entry, Item, Pager, StatusBand};
+
+/// Everything a producer owns and a surface draws.
+///
+/// **No `Default`, and no constructor that invents values.** A surface able to conjure one of
+/// these is a surface that can hold state the daemon lacks, and every test would stay green while
+/// it did. Build one from [`crate::model`] parts in a producer, or do not build one.
+///
+/// Note what is *absent* and where it went: the selected inspector tab, whether a dropdown is
+/// open, scroll offsets and expansion flags are all properties of **looking at** a session rather
+/// than of the session, and they live on the surface's own `App`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SessionView {
+    pub control: ControlStrip,
+    pub status: StatusBand,
+    /// Confirmed history. A surface never appends to this — see [`PendingLine`].
+    pub transcript: Vec<Entry>,
+    pub pager: Pager,
+    pub ambient: Ambient,
+    /// `Some` while §B9's overlay is up. The producer decides; the surface renders and reports the
+    /// answer back as [`Intent::Approve`].
+    pub approval: Option<BlastRadius>,
+    /// What the amplitude source reported this frame, **including that there is no source**.
+    pub meter: MeterSource,
+    pub runs: Vec<Item>,
+    pub schedule: Vec<Item>,
+}
+
+/// A line the user has typed and the producer has not yet confirmed.
+///
+/// Rendered distinctly from confirmed transcript — never merged into it, never silently promoted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingLine {
+    pub text: String,
+    pub state: PendingState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PendingState {
+    /// Handed to the producer; not yet in the transcript. Renders dim with a `·` marker.
+    AwaitingAck,
+    /// The producer said it will not be accepted, and why. Renders in the failure tone.
+    ///
+    /// Distinct from `AwaitingAck` because "still going" and "will never arrive" call for
+    /// different things from the user, and a single "pending" state says neither.
+    Rejected(String),
+}
+
+impl PendingLine {
+    pub fn awaiting(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            state: PendingState::AwaitingAck,
+        }
+    }
+
+    /// Whether the producer's transcript has caught up with this line.
+    ///
+    /// Deliberately a **query over the view**, not a method that mutates anything: retirement is
+    /// something the surface *observes*, never something it decides. The last matching `User`
+    /// entry is what counts, so re-sending the same text after it was confirmed does not read as
+    /// already-acknowledged.
+    pub fn is_acknowledged_by(&self, view: &SessionView) -> bool {
+        view.transcript
+            .iter()
+            .any(|e| matches!(e, Entry::User(t) if *t == self.text))
+    }
+
+    /// The marker shown beside the text. §B6's vocabulary: specific, never the word "pending"
+    /// alone.
+    pub fn marker(&self) -> &str {
+        match &self.state {
+            PendingState::AwaitingAck => "· not yet acknowledged",
+            PendingState::Rejected(_) => "· not delivered",
+        }
+    }
+}
+
+/// A line **the client produced** — command output, a rejection, a notice.
+///
+/// # This is not Marlowe speaking, and C2d is where that stopped being conflated
+///
+/// M1's `App::say()` pushed `Entry::Said` into the transcript for `/help` output, for
+/// `No /foo. Closest is /bar.`, for `Opened for editing. Nothing sent.` — client-side text,
+/// rendered as Marlowe's own prose, in the confirmed conversation. Two things were wrong with it
+/// at once: the surface was authoring transcript (ARCHITECTURE §2.14), and it was authoring
+/// **persona-bearing prose** (CLAUDE.md's third fixed decision), which is a stricter rule still.
+///
+/// A command's output is the *tool* answering, the way a shell prints to your terminal without
+/// anyone claiming the shell said it. So it is a distinct type, rendered in a distinct weight, and
+/// it never enters [`SessionView::transcript`] — a `/help` listing is not part of the conversation
+/// and must not appear in a transcript copied with `Y`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientLine {
+    pub text: String,
+    pub tone: crate::model::Tone,
+    /// The transcript length when this was emitted, so it renders in the place it happened rather
+    /// than always at the bottom. Without it, a command run three turns ago would drift down the
+    /// pane as the conversation grew.
+    pub after: usize,
+}
+
+impl ClientLine {
+    pub fn new(text: impl Into<String>, tone: crate::model::Tone, after: usize) -> Self {
+        Self {
+            text: text.into(),
+            tone,
+            after,
+        }
+    }
+}
+
+/// What a surface asks a producer to do. **The whole outbound vocabulary.**
+///
+/// Every variant is a request. None of them is applied by the surface, and there is no method on
+/// [`SessionView`] that takes one — a surface holding an `Intent` it cannot apply is the shape
+/// that makes §2.14 structural instead of asserted.
+///
+/// The enum is closed and deliberately small. Anything a user can do that changes the session has
+/// to appear here, which is what makes the answer to *"what can a surface cause?"* readable in one
+/// place rather than distributed across a key dispatcher.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Intent {
+    /// Start a turn with this message.
+    Send(String),
+    /// Change a control-strip value. The producer decides whether it may.
+    ///
+    /// **This is a request even for `autonomy`, and especially for it.** Addendum A §A8 makes
+    /// self-granted promotion structurally impossible, which requires that the thing rendering the
+    /// control is not the thing that changes it.
+    Select { control: ControlId, option: usize },
+    /// §B9's answer. `granted` is the user's, never the model's.
+    Approve { granted: bool },
+    /// §B10's `Esc` at the outermost level. Keeps partial output.
+    Interrupt,
+    /// §B10's `/undo N` — soft-delete the last N turns.
+    Undo(usize),
+    /// `/compact`. Announces itself inline and does not interrupt.
+    Compact,
+    /// `/state <name>` and `^v`: drive the status band to a state.
+    ///
+    /// **A demonstration affordance, and a real producer is expected to refuse it by name.** M1
+    /// needed every §B5 state reachable without waiting for a script to arrive at one. A daemon
+    /// driving a real run has no business being told what state it is in, and
+    /// [`IntentError::NotADemo`] is what it answers — a named refusal rather than a silent no-op,
+    /// because a control that appears to work and does nothing is worse than one that says no.
+    ForceState(crate::model::StatusState),
+}
+
+/// Why a producer refused an [`Intent`].
+///
+/// A refusal is always **named**. The alternative — a producer quietly dropping an intent it does
+/// not implement — makes a working surface indistinguishable from a broken one, which is the
+/// failure mode this project has recorded more than any other.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IntentError {
+    /// The intent only means something against the scripted stub.
+    NotADemo(&'static str),
+    /// The argument did not name anything. Carries what the options were.
+    NoSuchOption { control: ControlId, given: String },
+    /// The producer cannot do this yet, and says which milestone owns it.
+    NotBuilt { what: String, milestone: &'static str },
+}
+
+impl std::fmt::Display for IntentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IntentError::NotADemo(what) => write!(
+                f,
+                "{what} drives the scripted stub and means nothing against a real run"
+            ),
+            IntentError::NoSuchOption { control, given } => {
+                write!(f, "{} has no option {given:?}", control.name())
+            }
+            IntentError::NotBuilt { what, milestone } => {
+                write!(f, "{what} is not built yet — {milestone}")
+            }
+        }
+    }
+}
+
+/// Which control-strip field an [`Intent::Select`] is about. §B4's five, in order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlId {
+    Model,
+    Profile,
+    Session,
+    Workspace,
+    Autonomy,
+}
+
+impl ControlId {
+    pub const ALL: [ControlId; 5] = [
+        ControlId::Model,
+        ControlId::Profile,
+        ControlId::Session,
+        ControlId::Workspace,
+        ControlId::Autonomy,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            ControlId::Model => "model",
+            ControlId::Profile => "profile",
+            ControlId::Session => "session",
+            ControlId::Workspace => "workspace",
+            ControlId::Autonomy => "autonomy",
+        }
+    }
+}
+
+impl SessionView {
+    /// The picker for a control. Read-only by construction — there is no `_mut` sibling, which is
+    /// what makes [`Intent::Select`] the only route.
+    pub fn picker(&self, id: ControlId) -> &crate::model::Picker {
+        match id {
+            ControlId::Model => &self.control.model,
+            ControlId::Profile => &self.control.profile,
+            ControlId::Session => &self.control.session,
+            ControlId::Workspace => &self.control.workspace,
+            ControlId::Autonomy => &self.control.autonomy,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Picker;
+    use crate::turn::DegradedPath;
+
+    fn view(transcript: Vec<Entry>) -> SessionView {
+        SessionView {
+            control: ControlStrip {
+                model: Picker::new(&["a"], 0),
+                profile: Picker::new(&["a"], 0),
+                session: Picker::new(&["a"], 0),
+                workspace: Picker::new(&["a"], 0),
+                autonomy: Picker::new(&["observe"], 0),
+            },
+            status: StatusBand {
+                state: crate::model::StatusState::Idle,
+                detail: String::new(),
+                figures: Vec::new(),
+                degraded: None,
+            },
+            transcript,
+            pager: Pager { turn: 0, compacted: 0, lineage: 0 },
+            ambient: Ambient { fill_pct: 0, spend_cents: 0, elapsed_min: 0 },
+            approval: None,
+            meter: MeterSource::None,
+            runs: Vec::new(),
+            schedule: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_pending_line_is_retired_by_the_producer_and_by_nothing_else() {
+        let p = PendingLine::awaiting("read notes.md");
+        assert!(!p.is_acknowledged_by(&view(Vec::new())));
+        // Marlowe answering is NOT acknowledgement of the user's line.
+        assert!(!p.is_acknowledged_by(&view(vec![Entry::Said("ok".into())])));
+        // Only the producer's own record of the user turn retires it.
+        assert!(p.is_acknowledged_by(&view(vec![Entry::User("read notes.md".into())])));
+    }
+
+    #[test]
+    fn there_is_no_way_to_turn_a_pending_line_into_transcript() {
+        // The guard is structural rather than behavioural, so state it as one: `PendingLine` has
+        // no method producing an `Entry`, and `SessionView.transcript` is only writable by
+        // whoever owns the value. If a `confirm()` is ever added, this comment is the argument it
+        // has to beat: a surface that promotes its own optimistic text produces a conversation
+        // that reads as real and that no journal has a record of.
+        let p = PendingLine::awaiting("x");
+        assert_eq!(p.marker(), "· not yet acknowledged");
+        let r = PendingLine {
+            text: "x".into(),
+            state: PendingState::Rejected("no daemon".into()),
+        };
+        // Two states, two markers: "still going" and "will never arrive" are different facts.
+        assert_ne!(r.marker(), p.marker());
+    }
+
+    #[test]
+    fn every_control_is_reachable_read_only_and_none_is_writable() {
+        let v = view(Vec::new());
+        for id in ControlId::ALL {
+            assert_eq!(v.picker(id).options.len(), 1, "{}", id.name());
+        }
+        // Autonomy is a request like any other — §A8 forbids the renderer being the mutator.
+        let i = Intent::Select { control: ControlId::Autonomy, option: 0 };
+        assert!(matches!(i, Intent::Select { control: ControlId::Autonomy, .. }));
+    }
+
+    #[test]
+    fn a_degraded_band_carries_the_specific_path_not_the_word_degraded() {
+        let mut v = view(Vec::new());
+        v.status.degraded = Some(DegradedPath::DenseRetrievalOffline);
+        let headline = v.status.degraded.unwrap().headline();
+        assert!(headline.contains("lexical only"), "{headline}");
+        assert_ne!(headline, "degraded");
+    }
+}

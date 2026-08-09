@@ -15,7 +15,7 @@
 
 mod common;
 
-use marlowe_stub::{Session, StatusState, Tab};
+use marlowe_view::{StatusState, Tab};
 use marlowe_surface::app::{App, Key};
 use marlowe_surface::region::RegionId;
 use marlowe_surface::render;
@@ -34,24 +34,25 @@ fn scenarios() -> Vec<(String, App)> {
         StatusState::Waiting,
         StatusState::Idle,
     ] {
-        let mut app = App::new(Session::new()).unwrap();
-        app.session.force_state(state, 500);
-        app.session.tick(500);
+        let mut producer = marlowe_stub::Session::new();
+        producer.force_state(state, 500);
+        producer.tick(500);
+        let app = App::new(producer.view().clone()).unwrap();
         out.push((format!("state {}", state.name()), app));
     }
     for tab in Tab::ALL {
-        let mut app = App::new(Session::new()).unwrap();
-        app.session.tab = tab;
+        let mut app = App::new(marlowe_stub::Session::new().view().clone()).unwrap();
+        app.tab = tab;
         app.focus = RegionId::Item(tab.into(), 0);
         out.push((format!("tab {}", tab.title()), app));
     }
-    let mut open = App::new(Session::new()).unwrap();
-    open.on_key(Key::Esc, 0);
-    open.on_key(Key::Char('a'), 0);
-    open.on_key(Key::Enter, 0);
+    let mut open = App::new(marlowe_stub::Session::new().view().clone()).unwrap();
+    open.on_key(Key::Esc);
+    open.on_key(Key::Char('a'));
+    open.on_key(Key::Enter);
     out.push(("autonomy dropdown open".into(), open));
 
-    let mut typing = App::new(Session::new()).unwrap();
+    let mut typing = App::new(marlowe_stub::Session::new().view().clone()).unwrap();
     typing.input = "/sc".into();
     out.push(("slash autocomplete".into(), typing));
 
@@ -141,11 +142,11 @@ fn intersects(a: Rect, b: Rect) -> bool {
 fn a_focus_change_repaints_borders_only_and_never_a_region_interior() {
     for (w, h) in common::SIZES {
         let mut app = common::app();
-        app.on_key(Key::Esc, 0);
+        app.on_key(Key::Esc);
         let mut term = common::terminal(w, h);
         let before = common::draw_into(&mut term, &app);
 
-        app.on_key(Key::Char('m'), 0); // conversation -> Model
+        app.on_key(Key::Char('m')); // conversation -> Model
         let after = common::draw_into(&mut term, &app);
 
         let changed = common::diff_cells(&before, &after);
@@ -183,7 +184,7 @@ fn a_focus_change_repaints_borders_only_and_never_a_region_interior() {
                 *x >= model.x && *x < model.right() && *y >= model.y && *y < model.bottom()
             })
             .count();
-        let value_len = app.session.control.model.value().chars().count();
+        let value_len = app.view().control.model.value().chars().count();
         assert!(
             model_hits <= value_len,
             "{w}x{h}: focusing Model repainted {model_hits} interior cells for a {value_len}-char \
@@ -201,15 +202,16 @@ fn a_focus_change_repaints_borders_only_and_never_a_region_interior() {
 #[test]
 fn a_streaming_text_delta_touches_the_conversation_and_the_status_band_only() {
     for (w, h) in common::SIZES {
-        let mut app = common::app();
-        app.input = "read the retrieval code".into();
-        app.submit(0);
+        let mut r = common::rig();
+        r.app.input = "read the retrieval code".into();
+        r.app.submit();
+        r.settle(0);
         let mut term = common::terminal(w, h);
 
-        app.session.tick(200);
-        let before = common::draw_into(&mut term, &app);
-        app.session.tick(260);
-        let after = common::draw_into(&mut term, &app);
+        r.tick(200);
+        let before = common::draw_into(&mut term, &r.app);
+        r.tick(260);
+        let after = common::draw_into(&mut term, &r.app);
 
         let c = render::layout(Rect::new(0, 0, w, h));
         let allowed = [c.conversation, c.status];
@@ -271,9 +273,9 @@ fn a_resize_round_trip_returns_the_identical_frame() {
 /// §B6: *"Tool calls render as one line."* §B13: default footprint 1 line.
 #[test]
 fn a_settled_tool_call_occupies_exactly_one_line() {
-    let session = Session::new();
+    let app = common::app();
     let theme = common::theme();
-    let lines = render::transcript_lines(&session, &theme, 70);
+    let lines = render::transcript_lines(&app, &theme, 70);
     let text: Vec<String> = lines
         .iter()
         .map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect())
@@ -287,10 +289,10 @@ fn a_settled_tool_call_occupies_exactly_one_line() {
     println!("tool call footprint: 1 line × {} calls", tool_lines.len());
 
     // Six reads collapse to one line carrying the count (§B6).
-    let mut s = Session::new();
-    s.submit("read the retrieval code", 0);
-    s.tick(1_000);
-    let collapsed = render::transcript_lines(&s, &theme, 70);
+    let mut r = common::rig();
+    r.producer.submit("read the retrieval code", 0);
+    r.tick(1_000);
+    let collapsed = render::transcript_lines(&r.app, &theme, 70);
     let joined: String = collapsed
         .iter()
         .flat_map(|l| l.spans.iter().map(|sp| sp.content.to_string()))
@@ -464,23 +466,21 @@ fn below_the_minimum_it_refuses_and_draws_no_grid() {
 /// ADR-021: `waiting` freezes the indicator. Two frames at different times, identical meter cells.
 #[test]
 fn the_indicator_freezes_in_waiting_and_moves_in_every_other_live_state() {
-    let mut app = common::app();
-    app.session.force_state(StatusState::Listening, 0);
-    app.session.tick(0);
+    let mut r = common::rig();
+    r.force_state(StatusState::Listening, 0);
     let mut term = common::terminal(140, 40);
-    let a = common::draw_into(&mut term, &app);
-    app.session.tick(400);
-    let b = common::draw_into(&mut term, &app);
+    let a = common::draw_into(&mut term, &r.app);
+    r.tick(400);
+    let b = common::draw_into(&mut term, &r.app);
     assert!(
         !common::diff_cells(&a, &b).is_empty(),
         "listening must move — motion means Marlowe is working"
     );
 
-    app.session.force_state(StatusState::Waiting, 500);
-    app.session.tick(500);
-    let c = common::draw_into(&mut term, &app);
-    app.session.tick(4_000);
-    let d = common::draw_into(&mut term, &app);
+    r.force_state(StatusState::Waiting, 500);
+    let c = common::draw_into(&mut term, &r.app);
+    r.tick(4_000);
+    let d = common::draw_into(&mut term, &r.app);
     assert!(
         common::diff_cells(&c, &d).is_empty(),
         "waiting must be perfectly still. §B5 — stillness means the ball is in the user's court, \
@@ -507,7 +507,7 @@ fn inner(r: Rect) -> Rect {
 /// rendered buffer rather than against the arithmetic that produced them.
 #[test]
 fn every_inspector_tab_rect_covers_its_own_label_in_the_rendered_frame() {
-    use marlowe_stub::Tab;
+    use marlowe_view::Tab;
 
     for (w, h) in common::SIZES {
         let app = common::app();

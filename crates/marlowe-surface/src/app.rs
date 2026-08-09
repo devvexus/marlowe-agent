@@ -29,7 +29,7 @@
 //! keys never suspend. `tests/keyboard_reachability.rs` proves it from the default focus rather
 //! than from a convenient one.
 
-use marlowe_stub::{Session, StatusState, Tab};
+use marlowe_view::{ClientLine, ControlId, Intent, PendingLine, SessionView, StatusState, Tab, Tone};
 
 use crate::commands::{self, Outcome};
 use crate::keys::{Binding, KeyRegistry};
@@ -80,7 +80,42 @@ pub enum Action {
 /// holds no state the daemon does not have, and closing it does not affect a run.
 #[derive(Debug)]
 pub struct App {
-    pub session: Session,
+    /// **The producer's view, read-only.** Replaced wholesale by [`App::update`]; never edited.
+    ///
+    /// Private, and that is the C2d change with the most consequence. It was `pub session: Session`
+    /// and the surface pushed into its transcript — see `marlowe_view::view`'s header.
+    view: SessionView,
+    /// What the user has typed and the producer has not confirmed. Rendered as pending, **never
+    /// merged into the transcript**; retired only by the producer acknowledging it.
+    pub pending: Option<PendingLine>,
+    /// Command output, rejections and notices. **The client talking, not Marlowe** — these are not
+    /// conversation and never enter the transcript or a `Y` copy.
+    pub client_lines: Vec<ClientLine>,
+    /// Requests waiting for the driver to hand to a producer. Drained by [`App::drain_intents`].
+    outbox: Vec<Intent>,
+    /// Which control-strip dropdown is open. Was `Picker::open` on the producer's side; open-ness
+    /// is a property of looking at a control, not of the control.
+    pub picker_open: Option<ControlId>,
+    /// The highlighted option inside an open dropdown.
+    ///
+    /// **Surface state, and M1 did not have it** — the highlight *was* `Picker::selected`, so
+    /// arrowing through the Autonomy list granted each tier in passing. See `on_picker_key`.
+    pub picker_cursor: usize,
+    /// The last frame an amplitude source actually reported.
+    ///
+    /// ADR-021's freeze needs somewhere to hold, and it has to be on the *looking* side: the
+    /// producer publishes `MeterSource::None` when nothing is measuring, and this is what that
+    /// resolves against. Keeping it here rather than in the view is what lets a producer say "I am
+    /// not measuring" without also having to remember what the last picture was.
+    last_meter: marlowe_view::Frame,
+    /// Tool lines the user has toggled, by call id.
+    ///
+    /// `ToolCall::expanded` is the producer's default (§B6: failures auto-expand). Whether *you*
+    /// then opened or closed one is a property of looking at it, so the override lives here and
+    /// the producer's value is what it falls back to.
+    pub expanded: std::collections::BTreeMap<u64, bool>,
+    /// The inspector tab being shown. Was `Session::tab`, for the same reason.
+    pub tab: Tab,
     pub focus: RegionId,
     pub input: String,
     pub steer: String,
@@ -158,7 +193,7 @@ pub struct App {
     /// tabs are not regions. Each tab carries its own hotkey, so under §B2 the *bar* has no border
     /// and no `RegionId` — which is correct for the region contract and means the mouse needs its
     /// own hit-test here.
-    pub hover_tab: Option<marlowe_stub::Tab>,
+    pub hover_tab: Option<marlowe_view::Tab>,
     /// The option index the pointer is over inside an OPEN dropdown, if any.
     ///
     /// Separate from `hover` because a dropdown's options are not regions — they have no border,
@@ -195,10 +230,18 @@ pub const MIN_ROWS: u16 = 30;
 
 impl App {
     /// Build, validating the key registry. **A conflict is a refusal to start** — see `keys.rs`.
-    pub fn new(session: Session) -> Result<Self, crate::keys::KeyConflict> {
-        let keys = KeyRegistry::build(&session)?;
+    pub fn new(view: SessionView) -> Result<Self, crate::keys::KeyConflict> {
+        let keys = KeyRegistry::build(&view)?;
         Ok(Self {
-            session,
+            view,
+            pending: None,
+            client_lines: Vec::new(),
+            outbox: Vec::new(),
+            picker_open: None,
+            picker_cursor: 0,
+            last_meter: marlowe_view::BASELINE,
+            expanded: std::collections::BTreeMap::new(),
+            tab: Tab::Schedule,
             // **The conversation, not the message field.**
             //
             // The first version started in the Message field, on the reasoning that the user came
@@ -234,51 +277,88 @@ impl App {
         })
     }
 
+    /// The producer's view. Read-only to everything, including the rest of this crate.
+    pub fn view(&self) -> &SessionView {
+        &self.view
+    }
+
+    /// A producer published a new view.
+    ///
+    /// **This is the only way the view changes, and it is where a pending line is retired.**
+    /// Retirement is an observation — the producer's transcript now contains the line — and never
+    /// a timeout, because a surface that promoted its own optimistic text after N seconds would
+    /// author conversation no journal has a record of.
+    pub fn update(&mut self, view: SessionView) {
+        if let Some(p) = &self.pending {
+            if p.is_acknowledged_by(&view) {
+                self.pending = None;
+            }
+        }
+        if let marlowe_view::MeterSource::Reported(f) = view.meter {
+            self.last_meter = f;
+        }
+        self.view = view;
+    }
+
+    /// The meter frame to draw. `MeterSource::None` holds the last reported one.
+    pub fn meter_frame(&self) -> marlowe_view::Frame {
+        self.view.meter.resolve(self.last_meter)
+    }
+
+    /// Whether a tool line is expanded: the user's toggle if there is one, else the producer's
+    /// default (§B6 auto-expands failures).
+    pub fn is_expanded(&self, call: &marlowe_view::ToolCall) -> bool {
+        *self.expanded.get(&call.id).unwrap_or(&call.expanded)
+    }
+
+    /// Take the requests built up since the last drain. The driver applies them to a producer.
+    pub fn drain_intents(&mut self) -> Vec<Intent> {
+        std::mem::take(&mut self.outbox)
+    }
+
+    /// Ask the producer for something. **The only way this surface causes anything.**
+    fn ask(&mut self, intent: Intent) {
+        self.outbox.push(intent);
+    }
+
     pub fn tab(&self) -> TabId {
-        self.session.tab.into()
+        self.tab.into()
     }
 
     pub fn tree(&self) -> RegionTree {
-        RegionTree::build(&self.session)
+        RegionTree::build(&self.view, self.tab)
     }
 
     /// True when the focused region takes typed characters as text.
     pub fn focus_is_text(&self) -> bool {
         match self.focus {
             RegionId::Message => true,
-            RegionId::Item(tab, i) => crate::inspector::items_for(&self.session, self.session.tab)
+            RegionId::Item(tab, i) => crate::inspector::items_for(&self.view, self.tab)
                 .get(i)
-                .is_some_and(|item| item.editable && TabId::from(self.session.tab) == tab),
+                .is_some_and(|item| item.editable && TabId::from(self.tab) == tab),
             _ => false,
         }
     }
 
-    fn picker_open(&self) -> bool {
-        let c = &self.session.control;
-        c.model.open || c.profile.open || c.session.open || c.workspace.open || c.autonomy.open
+    fn any_picker_open(&self) -> bool {
+        self.picker_open.is_some()
     }
 
     fn close_pickers(&mut self) {
-        let c = &mut self.session.control;
-        for p in [
-            &mut c.model,
-            &mut c.profile,
-            &mut c.session,
-            &mut c.workspace,
-            &mut c.autonomy,
-        ] {
-            p.open = false;
-        }
+        self.picker_open = None;
     }
 
-    fn picker_mut(&mut self, id: RegionId) -> Option<&mut marlowe_stub::Picker> {
-        let c = &mut self.session.control;
+    /// The control a region id names, if it names one.
+    ///
+    /// **There is no `picker_mut`.** Selecting an option is [`Intent::Select`]; the surface reads
+    /// the options in order to draw them and asks the producer to change which one is live.
+    pub fn control_of(id: RegionId) -> Option<ControlId> {
         Some(match id {
-            RegionId::Model => &mut c.model,
-            RegionId::Profile => &mut c.profile,
-            RegionId::Session => &mut c.session,
-            RegionId::Workspace => &mut c.workspace,
-            RegionId::Autonomy => &mut c.autonomy,
+            RegionId::Model => ControlId::Model,
+            RegionId::Profile => ControlId::Profile,
+            RegionId::Session => ControlId::Session,
+            RegionId::Workspace => ControlId::Workspace,
+            RegionId::Autonomy => ControlId::Autonomy,
             _ => return None,
         })
     }
@@ -300,13 +380,13 @@ impl App {
     /// disagrees six months later, with no test able to see it because each is individually right.
     pub fn run_counts(&self) -> (usize, usize) {
         let running = self
-            .session
+            .view
             .runs
             .iter()
             .filter(|i| i.lines.iter().any(|(l, _)| l.contains("running")))
             .count();
         let due = self
-            .session
+            .view
             .schedule
             .iter()
             .find(|i| i.label == "Due today")
@@ -326,7 +406,7 @@ impl App {
     /// This is the same argument for putting state in a native title bar on a platform that has
     /// one, so the string is built here rather than in the terminal-specific code.
     pub fn window_title(&self) -> String {
-        let s = &self.session;
+        let s = &self.view;
         let mut t = format!("marlowe — {}", s.control.session.value());
         // The state is worth the characters only when it is not the resting one; a title that
         // always says `idle` has spent a row to say nothing.
@@ -375,7 +455,7 @@ impl App {
     pub fn copy_focused(&mut self) -> Action {
         let (text, what) = match self.focus {
             RegionId::Item(_, _) => {
-                let items = crate::inspector::items_for(&self.session, self.session.tab);
+                let items = crate::inspector::items_for(&self.view, self.tab);
                 let RegionId::Item(_, i) = self.focus else {
                     unreachable!()
                 };
@@ -392,7 +472,7 @@ impl App {
                 }
             }
             _ => match self
-                .session
+                .view
                 .transcript
                 .iter()
                 .rev()
@@ -412,7 +492,7 @@ impl App {
 
     /// `Y` — copy the whole transcript as markdown. §B10.
     pub fn copy_transcript(&mut self) -> Action {
-        let text = crate::clipboard::transcript_markdown(&self.session);
+        let text = crate::clipboard::transcript_markdown(&self.view);
         self.notice = Some(format!(
             "copied the transcript as markdown — {} characters",
             text.chars().count()
@@ -440,25 +520,20 @@ impl App {
 
     /// `(region, index in the strip, number of options)` for the open dropdown, if one is open.
     pub fn open_picker(&self) -> Option<(RegionId, usize, usize)> {
-        let c = &self.session.control;
-        for (i, (id, p)) in Self::STRIP
+        let open = self.picker_open?;
+        let (i, id) = Self::STRIP
             .iter()
-            .zip([&c.model, &c.profile, &c.session, &c.workspace, &c.autonomy])
             .enumerate()
-        {
-            if p.open {
-                return Some((*id, i, p.options.len()));
-            }
-        }
-        None
+            .find(|(_, id)| Self::control_of(**id) == Some(open))?;
+        Some((*id, i, self.view.picker(open).options.len()))
     }
 
     /// Open the focused region's dropdown, if it has one. What a click on a control cell does.
     pub fn open_focused_picker(&mut self) -> Action {
         let id = self.focus;
-        match self.picker_mut(id) {
-            Some(p) => {
-                p.open = true;
+        match Self::control_of(id) {
+            Some(c) => {
+                self.picker_open = Some(c);
                 Action::Redraw
             }
             None => Action::None,
@@ -473,19 +548,27 @@ impl App {
     /// popup's border is not a request to pick the nearest option.
     pub fn choose_option(&mut self, index: usize) -> Action {
         let id = self.focus;
-        let Some(p) = self.picker_mut(id) else {
+        let Some(control) = Self::control_of(id) else {
             return Action::None;
         };
-        if index >= p.options.len() {
+        if index >= self.view.picker(control).options.len() {
             return Action::None;
         }
-        p.selected = index;
-        p.open = false;
+        // **Asked, not assigned.** The dropdown closes because closing it is the surface's own
+        // business; the selection does not move until the producer publishes a view saying it did.
+        self.picker_open = None;
+        self.ask(Intent::Select { control, option: index });
         Action::Redraw
     }
 
     /// The single key entry point.
-    pub fn on_key(&mut self, key: Key, now_ms: u64) -> Action {
+    ///
+    /// **It takes no clock, and that is a C2d result rather than a simplification.** Every branch
+    /// used to end in a mutation of the producer, and a mutation needs a timestamp. They now end
+    /// in an `Intent`, and the producer stamps its own time because the producer is the thing with
+    /// a journal. A `now_ms` left here for symmetry would be an unused argument in the one file
+    /// most likely to grow a surface-side timestamp.
+    pub fn on_key(&mut self, key: Key) -> Action {
         // Counted before any dispatch, so `--diagnostic` distinguishes "the key never arrived"
         // from "the key arrived and did nothing". Those have completely different causes and look
         // identical from outside the process.
@@ -497,18 +580,18 @@ impl App {
 
         // 1. §B9's overlay is modal. It is the only element permitted to dim the frame, and while
         //    it is up it is the only thing that answers a key.
-        if self.session.approval.is_some() {
-            return self.on_approval_key(key, now_ms);
+        if self.view.approval.is_some() {
+            return self.on_approval_key(key);
         }
 
         // 2. Ctrl-modified footer keys never suspend, in any focus. That is what makes "reachable
         //    by keyboard alone" true even from inside a text field.
         if let Key::Ctrl(c) = key {
-            return self.on_global_ctrl(c, now_ms);
+            return self.on_global_ctrl(c);
         }
 
         // 3. An open dropdown owns the arrows and Enter.
-        if self.picker_open() {
+        if self.any_picker_open() {
             return self.on_picker_key(key);
         }
 
@@ -524,14 +607,14 @@ impl App {
                 self.focus = self.tree().prev(self.focus);
                 Action::Redraw
             }
-            Key::Esc => self.on_escape(now_ms),
-            _ if self.focus_is_text() => self.on_text_key(key, now_ms),
-            _ => self.on_region_key(key, now_ms),
+            Key::Esc => self.on_escape(),
+            _ if self.focus_is_text() => self.on_text_key(key),
+            _ => self.on_region_key(key),
         }
     }
 
-    fn on_escape(&mut self, now_ms: u64) -> Action {
-        if self.picker_open() {
+    fn on_escape(&mut self) -> Action {
+        if self.any_picker_open() {
             self.close_pickers();
             return Action::Redraw;
         }
@@ -540,46 +623,56 @@ impl App {
             return Action::Redraw;
         }
         // The outermost level. Partial output is kept (§B10).
-        self.session.interrupt(now_ms);
+        self.ask(Intent::Interrupt);
         Action::Redraw
     }
 
-    fn on_global_ctrl(&mut self, c: char, now_ms: u64) -> Action {
+    fn on_global_ctrl(&mut self, c: char) -> Action {
         match c {
             'v' => {
                 // §B5's seven states, on demand. Required by M1's scope: every state must be
                 // reachable without waiting for a script to arrive at it.
-                self.session.cycle_state(now_ms);
+                self.ask(Intent::ForceState(self.next_state()));
                 Action::Redraw
             }
             'n' => {
-                self.session = Session::new();
+                // **`^n` no longer rebuilds a session, because a surface cannot make one.** It was
+                // `self.session = Session::new()` -- the single clearest instance of the surface
+                // holding what the daemon owns. A new session is a producer's act; what this
+                // really did was discard a transcript and call it one. It now clears what the
+                // surface owns and says plainly that the rest is not built.
                 self.input.clear();
                 self.scroll = None;
+                self.client_lines.clear();
+                self.client_note(
+                    "A new session is daemon-owned and lands with /sessions in M2. Cleared the                      message field; the conversation is still here.",
+                    Tone::Dim,
+                );
                 Action::Redraw
             }
             'r' => self.switch_tab(Tab::Runs),
             't' => self.switch_tab(Tab::Trust),
             'l' => {
-                self.say(format!(
+                self.client_note(format!(
                     "lineage {} deep · {} turns compacted. Walking it is M2 — the generations \
                      exist, the walk needs sessions behind it.",
-                    self.session.pager.lineage, self.session.pager.compacted
-                ));
+                    self.view.pager.lineage, self.view.pager.compacted
+                ), Tone::Dim);
                 Action::Redraw
             }
             'u' => {
-                self.run_command("undo", &["1"], now_ms);
+                self.run_command("undo", &["1"]);
                 Action::Redraw
             }
             'k' => {
                 // §B10's palette indexes sessions, models, skills, recent files and memory search.
                 // None exist. Saying so is the honest surface; a palette over a stub index would
                 // look like a feature and measure nothing.
-                self.say(
+                self.client_note(
                     "The palette lands in M2 — it indexes sessions, skills and models, and none \
                      of those exist yet. /help lists what does."
                         .to_string(),
+                    Tone::Dim,
                 );
                 Action::Redraw
             }
@@ -589,7 +682,7 @@ impl App {
     }
 
     fn switch_tab(&mut self, tab: Tab) -> Action {
-        self.session.tab = tab;
+        self.tab = tab;
         self.inspector_scroll = 0;
         // Focus follows the tab only if it was already inside the inspector; otherwise a `^r`
         // while typing would steal the cursor out of a half-written message.
@@ -599,7 +692,7 @@ impl App {
         Action::Redraw
     }
 
-    fn on_region_key(&mut self, key: Key, now_ms: u64) -> Action {
+    fn on_region_key(&mut self, key: Key) -> Action {
         match key {
             // §B10's copy keys. Checked before the region registry, and `keys.rs` refuses to build
             // a registry that binds either of them — so this cannot be shadowed by a pane whose
@@ -621,7 +714,7 @@ impl App {
                 }),
                 None => Action::None,
             },
-            Key::Enter => self.act(now_ms),
+            Key::Enter => self.act(),
             Key::Up => self.move_within(-1),
             Key::Down => self.move_within(1),
             Key::Left | Key::Right => Action::None,
@@ -630,7 +723,7 @@ impl App {
     }
 
     /// `Enter` acts on the focused region.
-    fn act(&mut self, now_ms: u64) -> Action {
+    fn act(&mut self) -> Action {
         match self.focus {
             RegionId::Model
             | RegionId::Profile
@@ -638,27 +731,31 @@ impl App {
             | RegionId::Workspace
             | RegionId::Autonomy => {
                 let id = self.focus;
-                if let Some(p) = self.picker_mut(id) {
-                    p.open = true;
-                }
+                self.picker_open = Self::control_of(id);
                 Action::Redraw
             }
             RegionId::Status => {
-                self.session.cycle_state(now_ms);
+                self.ask(Intent::ForceState(self.next_state()));
                 Action::Redraw
             }
             RegionId::Conversation => {
                 // §B6: cursor to a line, Enter for full output in place. M1 expands the last tool
                 // group; per-line cursoring inside the transcript is M2 with real scrollback.
-                if let Some(marlowe_stub::Entry::Tools(calls)) = self
-                    .session
+                if let Some(marlowe_view::Entry::Tools(calls)) = self
+                    .view
                     .transcript
-                    .iter_mut()
+                    .iter()
                     .rev()
-                    .find(|e| matches!(e, marlowe_stub::Entry::Tools(_)))
+                    .find(|e| matches!(e, marlowe_view::Entry::Tools(_)))
                 {
-                    for call in calls {
-                        call.expanded = !call.expanded;
+                    // The toggle lands in the surface's override map, not on the producer's
+                    // ToolCall. Whether you opened a tool line is a property of looking at it;
+                    // the producer's `expanded` stays the default it set (B6 auto-expands
+                    // failures) and is what an untouched line falls back to.
+                    let ids: Vec<(u64, bool)> =
+                        calls.iter().map(|c| (c.id, !self.is_expanded(c))).collect();
+                    for (id, want) in ids {
+                        self.expanded.insert(id, want);
                     }
                 }
                 Action::Redraw
@@ -691,7 +788,7 @@ impl App {
                 Action::Redraw
             }
             RegionId::Item(tab, i) => {
-                let n = crate::inspector::items_for(&self.session, self.session.tab).len();
+                let n = crate::inspector::items_for(&self.view, self.tab).len();
                 let next = (i as i32 + delta).clamp(0, n.saturating_sub(1) as i32) as usize;
                 self.focus = RegionId::Item(tab, next);
                 // Follow the selection rather than leaving it behind the fold. Only when it has
@@ -712,30 +809,46 @@ impl App {
         }
     }
 
+    /// Arrow keys inside an open dropdown.
+    ///
+    /// **The highlight moves; the value does not.** M1 assigned `p.selected` on every arrow press,
+    /// so arrowing past `act` in the Autonomy dropdown *granted* `act` in passing and `Esc` left it
+    /// there. Under Addendum A §A8 that is the worst possible place for the bug to live -- the one
+    /// control that changes what Marlowe may do without asking, changing on a keystroke that was
+    /// never a choice.
+    ///
+    /// The highlight is now `picker_cursor`, which is the surface's, and `Enter` is what asks.
     fn on_picker_key(&mut self, key: Key) -> Action {
-        let id = self.focus;
-        let Some(p) = self.picker_mut(id) else {
+        let Some(control) = self.picker_open else {
             self.close_pickers();
             return Action::Redraw;
         };
+        let n = self.view.picker(control).options.len();
         match key {
             Key::Up => {
-                p.selected = p.selected.saturating_sub(1);
+                self.picker_cursor = self.picker_cursor.saturating_sub(1);
                 Action::Redraw
             }
             Key::Down => {
-                p.selected = (p.selected + 1).min(p.options.len() - 1);
+                self.picker_cursor = (self.picker_cursor + 1).min(n - 1);
                 Action::Redraw
             }
-            Key::Enter | Key::Esc => {
-                p.open = false;
+            Key::Enter => {
+                let option = self.picker_cursor;
+                self.picker_open = None;
+                self.ask(Intent::Select { control, option });
+                Action::Redraw
+            }
+            Key::Esc => {
+                // Backs out changing nothing, which is now true rather than aspirational.
+                self.picker_open = None;
                 Action::Redraw
             }
             _ => Action::None,
         }
     }
 
-    fn on_text_key(&mut self, key: Key, now_ms: u64) -> Action {
+    fn on_text_key(&mut self, key: Key) -> Action {
         let steering = self.focus != RegionId::Message;
         match key {
             Key::Char(c) => {
@@ -782,18 +895,25 @@ impl App {
                     let text = std::mem::take(&mut self.steer);
                     if !text.trim().is_empty() {
                         // v1.0 §10.1: injected into a RUNNING child without killing it.
-                        self.say(format!("Steered. The run has it: {}", text.trim()));
+                        self.client_note(
+                            format!("Steer requested: {}", text.trim()),
+                            Tone::Normal,
+                        );
                     }
                     return Action::Redraw;
                 }
-                self.submit(now_ms)
+                self.submit()
             }
             _ => Action::None,
         }
     }
 
     /// Send the message field. Handles `/command`, `!shell`, and plain prose.
-    pub fn submit(&mut self, now_ms: u64) -> Action {
+    ///
+    /// **No clock.** Submitting used to stamp a turn onto the producer, which needed one. It now
+    /// emits an `Intent` and the producer stamps its own time — which is the correct owner, since
+    /// the producer is the thing with a journal.
+    pub fn submit(&mut self) -> Action {
         let text = std::mem::take(&mut self.input);
         let text = text.trim().to_string();
         if text.is_empty() {
@@ -805,7 +925,7 @@ impl App {
             let mut parts = rest.split_whitespace();
             let name = parts.next().unwrap_or("");
             let args: Vec<&str> = parts.collect();
-            return match self.run_command(name, &args, now_ms) {
+            return match self.run_command(name, &args) {
                 Outcome::Quit => Action::Quit,
                 _ => Action::Redraw,
             };
@@ -816,74 +936,133 @@ impl App {
             // same approval path**. M1 has no execution and no permission layer, so it reports
             // that rather than pretending — a stub that echoed fake output would be teaching the
             // user something false about what the approval path does.
-            self.session.transcript.push(marlowe_stub::Entry::User(text.clone()));
-            self.say(format!(
+            self.pending = Some(PendingLine {
+                text: text.clone(),
+                state: marlowe_view::PendingState::Rejected(
+                    "shell runs through the approval path, which lands in M2".into(),
+                ),
+            });
+            self.client_note(format!(
                 "Shell runs through the approval path, and that path lands in M2. {cmd:?} was not \
                  run."
-            ));
+            ), Tone::Amber);
             return Action::Redraw;
         }
 
-        self.session.submit(&text, now_ms);
+        // §B10: input is never blocked, so the line is shown at once -- as PENDING, in its own
+        // weight, retired only when the producer's transcript contains it. See
+        // `marlowe_view::view`'s header for what happens if it never is.
+        self.pending = Some(PendingLine::awaiting(text.clone()));
+        self.ask(Intent::Send(text));
         Action::Redraw
     }
 
     /// Dispatch through the **one** command registry (§B11), and render the outcome the TUI way.
-    pub fn run_command(&mut self, name: &str, args: &[&str], now_ms: u64) -> Outcome {
-        let outcome = commands::dispatch(&mut self.session, name, args, now_ms);
+    /// `now_ms` is gone: the dispatcher is pure now, so a clock argument here would be one
+    /// nobody reads and somebody eventually would.
+    pub fn run_command(&mut self, name: &str, args: &[&str]) -> Outcome {
+        let outcome = commands::dispatch(&self.view, name, args);
         match &outcome {
             Outcome::Lines(lines) => {
                 for line in lines {
-                    self.say(line.clone());
+                    self.client_note(line.clone(), Tone::Normal);
                 }
             }
             Outcome::Tab(tab, said) => {
                 // §B7's rule, and the whole argument for a TUI over a chat log: the inspector
                 // renders it and the conversation says only what a colleague would say out loud.
-                self.session.tab = *tab;
+                self.tab = *tab;
                 self.inspector_scroll = 0;
-                self.say(said.clone());
+                self.client_note(said.clone(), Tone::Normal);
             }
-            Outcome::Rejected(why) => self.say(why.clone()),
+            // A command that asks for something: show what was asked, queue the request. The
+            // producer's next view is what says whether it happened.
+            Outcome::Ask(intent, lines) => {
+                for line in lines {
+                    self.client_note(line.clone(), Tone::Dim);
+                }
+                let intent = intent.clone();
+                self.ask(intent);
+            }
+            Outcome::Rejected(why) => self.client_note(why.clone(), Tone::Amber),
             Outcome::Unknown(name) => {
                 let near = commands::complete(name);
                 let msg = match near.first() {
                     Some(c) => format!("No /{name}. Closest is /{}.", c.name),
                     None => format!("No /{name}. /help lists what there is."),
                 };
-                self.say(msg);
+                self.client_note(msg, Tone::Amber);
             }
             Outcome::Quit => {}
         }
         outcome
     }
 
-    fn say(&mut self, text: String) {
-        self.session.transcript.push(marlowe_stub::Entry::Said(text));
+    /// Emit a line **the client produced**. Not Marlowe speaking, and not transcript.
+    ///
+    /// This replaces M1's `say()`, which pushed `Entry::Said` -- so `/help` output, `No /foo.`
+    /// and `Opened for editing.` were all rendered as Marlowe's own prose in the confirmed
+    /// conversation. That broke two rules at once: a surface authoring session state
+    /// (ARCHITECTURE 2.14) and a surface authoring persona-bearing prose (CLAUDE.md's third fixed
+    /// decision). A `/help` listing is the tool answering, and it is not part of the conversation.
+    fn client_note(&mut self, text: impl Into<String>, tone: Tone) {
+        let after = self.view.transcript.len();
+        self.client_lines
+            .push(ClientLine::new(text, tone, after));
     }
 
-    fn on_approval_key(&mut self, key: Key, now_ms: u64) -> Action {
+    /// The next state in B5's order -- what `^v` and Enter-on-the-status-band ask for.
+    ///
+    /// The surface computes the *request*; the producer decides whether to honour it. A real
+    /// daemon refuses `ForceState` by name (`IntentError::NotADemo`).
+    fn next_state(&self) -> StatusState {
+        const ORDER: [StatusState; 7] = [
+            StatusState::Listening,
+            StatusState::Thinking,
+            StatusState::Speaking,
+            StatusState::Writing,
+            StatusState::Running,
+            StatusState::Waiting,
+            StatusState::Idle,
+        ];
+        let i = ORDER
+            .iter()
+            .position(|s| *s == self.view.status.state)
+            .unwrap_or(0);
+        ORDER[(i + 1) % ORDER.len()]
+    }
+
+    fn on_approval_key(&mut self, key: Key) -> Action {
         match key {
             Key::Enter => {
-                self.session.resolve_approval(true, now_ms);
+                self.ask(Intent::Approve { granted: true });
                 Action::Redraw
             }
             Key::Esc => {
-                self.session.resolve_approval(false, now_ms);
+                self.ask(Intent::Approve { granted: false });
                 Action::Redraw
             }
             Key::Char('e') => {
-                self.session.approval = None;
-                self.session.force_state(StatusState::Idle, now_ms);
-                self.say("Opened for editing. Nothing sent.".into());
+                // **Declining and then noting what the user chose.** M1 cleared `approval` on the
+                // producer directly, which dismissed the overlay whether or not anything had
+                // actually been declined -- a surface deciding an approval outcome, which is the
+                // one thing 8.2 says it must never do.
+                self.ask(Intent::Approve { granted: false });
+                self.client_note("Opened for editing. Nothing sent.", Tone::Normal);
                 Action::Redraw
             }
             Key::Char('s') => {
                 // Addendum A §A3: sending *as Marlowe* is the path that avoids impersonation
                 // entirely, and §B9 requires the overlay to offer it.
-                self.session.approval = None;
-                self.session.force_state(StatusState::Idle, now_ms);
-                self.say("Sent as Marlowe, with your name on the request and not on the sender.".into());
+                //
+                // **Send-as-Marlowe is not yet a distinct intent, and this says so rather than
+                // pretending.** It declines the impersonating send; the delegated one needs a
+                // producer that can perform it, which is Session E.
+                self.ask(Intent::Approve { granted: false });
+                self.client_note(
+                    "Send-as-Marlowe needs a producer that can perform it, which lands in                      Session E. The impersonating send was declined; nothing was sent.",
+                    Tone::Amber,
+                );
                 Action::Redraw
             }
             // Everything else is swallowed. §B9's whole subject is a user who has stopped reading;

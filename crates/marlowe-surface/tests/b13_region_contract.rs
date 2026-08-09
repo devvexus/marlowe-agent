@@ -17,17 +17,16 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use marlowe_stub::{Session, Tab};
+use marlowe_view::Tab;
 use marlowe_surface::region::RegionTree;
 
 #[test]
 fn every_region_in_the_tree_has_a_label_and_a_hotkey() {
-    let mut session = Session::new();
+    let session = marlowe_stub::Session::new();
     let mut checked = 0;
     // Every pane, not only the visible one — the inspector's items are regions too (§B7).
     for tab in Tab::ALL {
-        session.tab = tab;
-        let tree = RegionTree::build(&session);
+        let tree = RegionTree::build(session.view(), tab);
         for r in tree.regions() {
             assert!(
                 !r.label().trim().is_empty(),
@@ -48,10 +47,9 @@ fn every_region_in_the_tree_has_a_label_and_a_hotkey() {
 
 #[test]
 fn no_two_regions_visible_together_claim_the_same_key() {
-    let mut session = Session::new();
+    let session = marlowe_stub::Session::new();
     for tab in Tab::ALL {
-        session.tab = tab;
-        let tree = RegionTree::build(&session);
+        let tree = RegionTree::build(session.view(), tab);
         let mut seen: BTreeMap<char, String> = BTreeMap::new();
         for r in tree.regions() {
             if let Some(prev) = seen.insert(r.hotkey(), r.label().to_string()) {

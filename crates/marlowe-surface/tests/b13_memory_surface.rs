@@ -17,7 +17,7 @@ mod common;
 use std::fs;
 use std::path::Path;
 
-use marlowe_stub::{Session, Tab};
+use marlowe_view::Tab;
 use marlowe_surface::region::RegionTree;
 
 /// Words that would mean a region has taken memory as its subject.
@@ -36,11 +36,10 @@ const MEMORY_VOCABULARY: &[&str] = &[
 
 #[test]
 fn no_region_in_any_pane_has_memory_as_its_subject() {
-    let mut session = Session::new();
+    let session = marlowe_stub::Session::new();
     let mut checked = 0;
     for tab in Tab::ALL {
-        session.tab = tab;
-        for r in RegionTree::build(&session).regions() {
+        for r in RegionTree::build(session.view(), tab).regions() {
             let label = r.label().to_lowercase();
             for word in MEMORY_VOCABULARY {
                 assert!(
@@ -61,9 +60,9 @@ fn no_region_in_any_pane_has_memory_as_its_subject() {
 
 #[test]
 fn no_inspector_item_reports_a_score_a_count_or_a_provenance() {
-    let session = Session::new();
+    let session = marlowe_stub::Session::new();
     for tab in Tab::ALL {
-        for item in marlowe_surface::inspector::items_for(&session, tab) {
+        for item in marlowe_surface::inspector::items_for(session.view(), tab) {
             let label = item.label.to_lowercase();
             for word in MEMORY_VOCABULARY {
                 assert!(
@@ -81,11 +80,24 @@ fn no_inspector_item_reports_a_score_a_count_or_a_provenance() {
 /// the reason instead of the diff.
 #[test]
 fn turn_event_has_no_injection_variant_and_must_never_gain_one() {
+    // **C2d moved this guard's subject, and the guard said so.** `turn.rs` lived in
+    // `marlowe-stub` until the view models were promoted to `marlowe-view`. A guard is a claim
+    // about a path, so it needs to fail when the path is not there — this one does, because it
+    // reads with `expect` rather than falling back to an empty string. The same check written
+    // with `unwrap_or_default()` would have scanned nothing, found no memory variants, and passed
+    // forever while §B1 went unguarded.
     let src = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
-        .join("marlowe-stub/src/turn.rs");
-    let text = fs::read_to_string(&src).expect("turn.rs");
+        .join("marlowe-view/src/turn.rs");
+    let text = fs::read_to_string(&src).unwrap_or_else(|e| {
+        panic!(
+            "cannot read {} ({e}). This guard names a path; if TurnEvent moved again, point it \
+             at the new one rather than deleting the check — §B1 is binding and an unread file \
+             scans clean.",
+            src.display()
+        )
+    });
 
     // Only the enum body, so the doc comment explaining the rule does not trip the rule.
     let body = text

@@ -3,7 +3,7 @@
 //! # The widget animates nothing
 //!
 //! It renders the frame it is handed. The frame comes from the stub, which writes it only when its
-//! sample source reports (`marlowe_stub::amplitude::sample` returns `None` for `waiting`). So the
+//! sample source reports (`the amplitude source` returns `None` for `waiting`). So the
 //! §B5 rule —
 //!
 //! > Motion means Marlowe is working. Stillness means the ball is in the user's court.
@@ -21,7 +21,7 @@
 //! divergence. `marlowe doctor` prints the glyph row and asks the user to confirm it by eye
 //! instead — see ADR-021.
 
-use marlowe_stub::{Frame, LEVELS};
+use marlowe_view::{Frame, LEVELS};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -96,7 +96,7 @@ pub fn render(frame: &Frame, area: Rect, buf: &mut Buffer, style: Style) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use marlowe_stub::SAMPLES;
+    use marlowe_view::SAMPLES;
 
     #[test]
     fn a_silent_frame_is_all_blank_braille_cells() {

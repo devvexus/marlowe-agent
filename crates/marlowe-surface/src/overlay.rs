@@ -36,7 +36,7 @@ fn inner(r: Rect) -> Rect {
 /// for zero background fills and `tests/no_background_fill.rs` walks every cell with the overlay
 /// up. A `bg`-based scrim would fail it, and would also be the full-cell repaint §B12 forbids.
 pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
-    let Some(radius) = &app.session.approval else {
+    let Some(radius) = &app.view().approval else {
         return;
     };
 

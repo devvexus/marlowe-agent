@@ -13,7 +13,7 @@
 //! background, and a contrast ratio cannot replace that — but it can make sure the eye check
 //! arrives with a number attached instead of as an unaided opinion.
 
-use marlowe_stub::{Session, LEVELS, SAMPLES};
+use marlowe_view::{SessionView, LEVELS, SAMPLES};
 
 use crate::theme::{self, ColorDepth, Theme, ACCENT_RGB};
 
@@ -25,7 +25,7 @@ pub const REFERENCE_LIGHT: (u8, u8, u8) = (0xff, 0xff, 0xff);
 
 /// The report, one line per row. Rendered by both surfaces, because `doctor` is in the one command
 /// registry and §B11 gives it parity.
-pub fn report(session: &Session) -> Vec<String> {
+pub fn report(view: &SessionView) -> Vec<String> {
     let mut out = Vec::new();
 
     let (depth, why) = ColorDepth::detect(|k| std::env::var(k).ok());
@@ -106,7 +106,7 @@ pub fn report(session: &Session) -> Vec<String> {
 
     out.push(String::new());
     out.push("keys".into());
-    match crate::keys::KeyRegistry::build(session) {
+    match crate::keys::KeyRegistry::build(view) {
         Ok(reg) => out.push(format!(
             "  {} bindings, no conflicts",
             reg.all_keys().len()
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn the_report_states_both_backgrounds_and_the_braille_row() {
-        let out = report(&Session::new()).join("\n");
+        let out = report(marlowe_stub::Session::new().view()).join("\n");
         assert!(out.contains("on dark"));
         assert!(out.contains("on light"));
         assert!(out.contains('\u{28FF}'), "the full braille cell must be printed for the eye check");

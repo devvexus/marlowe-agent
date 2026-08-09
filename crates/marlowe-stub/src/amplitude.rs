@@ -1,30 +1,20 @@
-//! The sample source behind ADR-021's meter.
+//! The **scripted** sample source behind ADR-021's meter.
 //!
-//! **M1's source is a scripted envelope, not a microphone.** Stated in ADR-021 and repeated here
-//! because this is the file where it would rot. §B12 forbids decorative motion; what satisfies it
-//! is that the *widget* invents nothing and renders what the source reports. That is structurally
-//! true today and the reading is still synthetic. M2 replaces this module; the widget does not
-//! change.
+//! **This is a synthetic envelope, not a microphone.** Stated in ADR-021 and repeated here because
+//! this is the file where it would rot. §B12 forbids decorative motion; what satisfies it is that
+//! the *widget* invents nothing and renders what its source reports. That stays structurally true
+//! and this reading stays synthetic.
 //!
-//! # Shape
+//! # C2d moved the shape out and left the generator here, deliberately
 //!
-//! [`SAMPLES`] columns at [`LEVELS`] levels — 12×8, which is exactly what a 6×2 braille rect holds
-//! (2 dot-columns and 4 dot-rows per cell). The meter's resolution and this array's shape are the
-//! same fact expressed twice, so a change to one is a compile error in the other.
+//! `Frame`, `SAMPLES`, `LEVELS` and `BASELINE` are now `marlowe_view::meter` — a surface has to
+//! know the shape of a reading in order to draw one. **`sample` did not go with them.** A surface
+//! that could call it could generate its own amplitude, which is precisely the state ARCHITECTURE
+//! §2.14 says it must not hold. Producing a reading is a producer's job; `marlowe-daemon` has its
+//! own, measured from real delta arrivals rather than from a wave.
 
-use crate::model::StatusState;
-
-/// Horizontal samples. Six cells wide × 2 braille dot-columns per cell.
-pub const SAMPLES: usize = 12;
-
-/// Vertical levels. Two rows × 4 braille dot-rows per row.
-pub const LEVELS: u8 = 8;
-
-/// One rendered frame of the meter: a level per column, each `0..=LEVELS`.
-pub type Frame = [u8; SAMPLES];
-
-/// A frame of all zeroes — the flat baseline `idle` reports.
-pub const BASELINE: Frame = [0; SAMPLES];
+use marlowe_view::meter::{Frame, BASELINE, LEVELS, SAMPLES};
+use marlowe_view::StatusState;
 
 /// Produce the frame for a state at a time, or `None` when the state does not sample.
 ///

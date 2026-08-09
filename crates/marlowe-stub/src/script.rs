@@ -20,9 +20,11 @@
 //! virtual clock replays identically. That is what lets the §B13 suite render frame N and frame
 //! N+1 and diff them.
 
-use crate::amplitude::{self, Frame};
-use crate::model::*;
-use crate::turn::{DegradedPath, Metric, ResultSummary, ToolLineState};
+use crate::amplitude;
+use marlowe_view::meter::{Frame, MeterSource, BASELINE};
+use marlowe_view::model::*;
+use marlowe_view::turn::{DegradedPath, Metric, ResultSummary, ToolLineState};
+use marlowe_view::SessionView;
 
 /// One scheduled change to the session.
 #[derive(Debug, Clone, PartialEq)]
@@ -45,26 +47,22 @@ enum Action {
 }
 
 /// The whole stub. One value, no background threads, no I/O.
+///
+/// **C2d: this is a producer, and the thing it produces is [`SessionView`].** It owns one and
+/// mutates it — which is a producer's privilege and not a surface's. `view()` hands out a
+/// read-only borrow; the surface takes a snapshot of it and cannot write back.
+///
+/// What is *not* here any more: `tab`. Which inspector tab you are looking at is a property of
+/// looking, not of the session, so it moved to `App`.
 #[derive(Debug)]
 pub struct Session {
-    pub control: ControlStrip,
-    pub status: StatusBand,
-    pub transcript: Vec<Entry>,
-    pub pager: Pager,
-    pub ambient: Ambient,
-    pub tab: Tab,
-    /// `Some` while §B9's overlay is up. The only element permitted to dim the frame.
-    pub approval: Option<BlastRadius>,
+    view: SessionView,
     /// The meter's last reported frame.
     ///
     /// **Held, not recomputed, when the source stops.** This field *is* ADR-021's freeze: `tick`
-    /// only writes it when `amplitude::sample` returns `Some`, so `waiting` leaves whatever was
-    /// last true standing on screen.
-    pub meter: Frame,
-    /// Runs pane data (§B7, live in M1).
-    pub runs: Vec<Item>,
-    /// Schedule pane data (§B7, live in M1).
-    pub schedule: Vec<Item>,
+    /// only writes it when `amplitude::sample` returns `Some`, and publishes `MeterSource::None`
+    /// otherwise, so `waiting` leaves whatever was last true standing on screen.
+    last_meter: Frame,
     pending: Vec<Beat>,
     next_call_id: u64,
     /// Set when `running` so the meter can report elapsed against expected (§B5).
@@ -78,43 +76,77 @@ impl Session {
     /// it, because an empty transcript proves nothing about how a full one renders.
     pub fn new() -> Self {
         let mut s = Self {
-            control: ControlStrip {
-                model: Picker::new(&["opus-5", "sonnet-5", "haiku-4.5", "local/qwen-32b"], 0),
-                profile: Picker::new(&["work", "personal"], 0),
-                session: Picker::new(&["thursday", "ingest-debug", "q3-research", "marlowe-m1"], 0),
-                workspace: Picker::new(&["~/projects/ingest", "~/projects/marlowe", "~/notes"], 0),
-                autonomy: Picker::new(&["observe", "suggest", "draft", "confirm", "act"], 2),
+            view: SessionView {
+                control: ControlStrip {
+                    model: Picker::new(&["opus-5", "sonnet-5", "haiku-4.5", "local/qwen-32b"], 0),
+                    profile: Picker::new(&["work", "personal"], 0),
+                    session: Picker::new(
+                        &["thursday", "ingest-debug", "q3-research", "marlowe-m1"],
+                        0,
+                    ),
+                    workspace: Picker::new(
+                        &["~/projects/ingest", "~/projects/marlowe", "~/notes"],
+                        0,
+                    ),
+                    autonomy: Picker::new(&["observe", "suggest", "draft", "confirm", "act"], 2),
+                },
+                status: StatusBand {
+                    state: StatusState::Listening,
+                    detail: "voice · barge-in on · say \"marlowe\" to interrupt".into(),
+                    figures: vec!["740 ms voice-to-voice".into(), "opus-5 · work".into()],
+                    degraded: None,
+                },
+                transcript: opening_transcript(),
+                pager: Pager {
+                    turn: 12,
+                    compacted: 47,
+                    lineage: 3,
+                },
+                ambient: Ambient {
+                    fill_pct: 12,
+                    spend_cents: 18,
+                    elapsed_min: 22,
+                },
+                approval: None,
+                meter: MeterSource::None,
+                runs: runs_pane(),
+                schedule: schedule_pane(),
             },
-            status: StatusBand {
-                state: StatusState::Listening,
-                detail: "voice · barge-in on · say \"marlowe\" to interrupt".into(),
-                figures: vec!["740 ms voice-to-voice".into(), "opus-5 · work".into()],
-                degraded: None,
-            },
-            transcript: opening_transcript(),
-            pager: Pager {
-                turn: 12,
-                compacted: 47,
-                lineage: 3,
-            },
-            ambient: Ambient {
-                fill_pct: 12,
-                spend_cents: 18,
-                elapsed_min: 22,
-            },
-            tab: Tab::Schedule,
-            approval: None,
-            meter: amplitude::BASELINE,
-            runs: runs_pane(),
-            schedule: schedule_pane(),
+            last_meter: BASELINE,
             pending: Vec::new(),
             next_call_id: 100,
             run_started_ms: 0,
             run_expected_ms: 1_200_000,
             last_tick_ms: 0,
         };
-        s.meter = amplitude::sample(s.status.state, 0, 0, 0).unwrap_or(amplitude::BASELINE);
+        s.report_meter(amplitude::sample(s.view.status.state, 0, 0, 0));
         s
+    }
+
+    /// The published view. **Read-only, and the only thing a surface is given.**
+    pub fn view(&self) -> &SessionView {
+        &self.view
+    }
+
+    /// Record what the amplitude source reported, holding the last frame when it reports nothing.
+    ///
+    /// The `None` branch publishes `MeterSource::None` rather than the held frame, so a surface
+    /// can tell "still, and live" from "frozen, because nothing is feeding it" — §B5 shows the
+    /// user different things for the two and the type keeps them different all the way across.
+    fn report_meter(&mut self, sampled: Option<Frame>) {
+        match sampled {
+            Some(f) => {
+                self.last_meter = f;
+                self.view.meter = MeterSource::Reported(f);
+            }
+            None => self.view.meter = MeterSource::None,
+        }
+    }
+
+    /// The last frame a source actually reported. Exposed for the freeze test, which has to assert
+    /// that the held frame survives the source stopping.
+    pub fn last_meter(&self) -> Frame {
+        self.last_meter
     }
 
     /// Advance to `now_ms`. Idempotent for a given time; safe to call every frame.
@@ -132,7 +164,7 @@ impl Session {
         }
 
         // Live tool lines animate in place with elapsed time (§B6).
-        for entry in &mut self.transcript {
+        for entry in &mut self.view.transcript {
             if let Entry::Tools(calls) = entry {
                 for call in calls {
                     if let ToolLineState::Running { elapsed_ms } = &mut call.state {
@@ -142,16 +174,15 @@ impl Session {
             }
         }
 
-        // ADR-021: write the meter only when the source reports. `None` holds the last frame, and
-        // that is the whole of `waiting`'s freeze.
-        if let Some(frame) = amplitude::sample(
-            self.status.state,
+        // ADR-021: publish what the source reported, including that it reported nothing. `None`
+        // holds the last frame, and that is the whole of `waiting`'s freeze.
+        let sampled = amplitude::sample(
+            self.view.status.state,
             now_ms,
             now_ms.saturating_sub(self.run_started_ms),
             self.run_expected_ms,
-        ) {
-            self.meter = frame;
-        }
+        );
+        self.report_meter(sampled);
     }
 
     fn apply(&mut self, action: Action, now_ms: u64) {
@@ -159,11 +190,11 @@ impl Session {
             Action::Status(state, detail, figures) => {
                 self.set_state(state, detail, figures, now_ms);
             }
-            Action::Say(text) => self.transcript.push(Entry::Said(text.into())),
-            Action::StartTools => self.transcript.push(Entry::Tools(Vec::new())),
+            Action::Say(text) => self.view.transcript.push(Entry::Said(text.into())),
+            Action::StartTools => self.view.transcript.push(Entry::Tools(Vec::new())),
             Action::Tool(call) => self.push_tool(call),
             Action::Finish(id, state) => {
-                for entry in &mut self.transcript {
+                for entry in &mut self.view.transcript {
                     if let Entry::Tools(calls) = entry {
                         for call in calls.iter_mut().filter(|c| c.id == id) {
                             // §B6: failures auto-expand. Set here rather than at render time so
@@ -175,7 +206,7 @@ impl Session {
                 }
             }
             Action::Approval(radius) => {
-                self.approval = Some(radius);
+                self.view.approval = Some(radius);
                 self.set_state(
                     StatusState::Waiting,
                     "approval needed · send email as you",
@@ -184,18 +215,18 @@ impl Session {
                 );
             }
             Action::Compact(turns) => {
-                self.transcript.push(Entry::Compacted { turns });
-                self.pager.compacted += turns;
-                self.pager.lineage += 1;
-                self.ambient.fill_pct = 12;
+                self.view.transcript.push(Entry::Compacted { turns });
+                self.view.pager.compacted += turns;
+                self.view.pager.lineage += 1;
+                self.view.ambient.fill_pct = 12;
             }
-            Action::Degrade(path) => self.status.degraded = Some(path),
+            Action::Degrade(path) => self.view.status.degraded = Some(path),
         }
     }
 
     fn push_tool(&mut self, call: ToolCall) {
         // §B6: consecutive same-verb calls collapse — six reads become `⋯ read  6 files`.
-        if let Some(Entry::Tools(calls)) = self.transcript.last_mut() {
+        if let Some(Entry::Tools(calls)) = self.view.transcript.last_mut() {
             if let Some(prev) = calls.last_mut() {
                 let both_settled = !matches!(prev.state, ToolLineState::Running { .. })
                     && !matches!(call.state, ToolLineState::Running { .. });
@@ -212,7 +243,7 @@ impl Session {
             }
             calls.push(call);
         } else {
-            self.transcript.push(Entry::Tools(vec![call]));
+            self.view.transcript.push(Entry::Tools(vec![call]));
         }
     }
 
@@ -223,12 +254,12 @@ impl Session {
         figures: &[&str],
         now_ms: u64,
     ) {
-        if state == StatusState::Running && self.status.state != StatusState::Running {
+        if state == StatusState::Running && self.view.status.state != StatusState::Running {
             self.run_started_ms = now_ms;
         }
-        self.status.state = state;
-        self.status.detail = detail.to_string();
-        self.status.figures = figures.iter().map(|s| (*s).to_string()).collect();
+        self.view.status.state = state;
+        self.view.status.detail = detail.to_string();
+        self.view.status.figures = figures.iter().map(|s| (*s).to_string()).collect();
     }
 
     /// **Drive any status state on demand** — the `^v` cycle, and the classic CLI's `/status
@@ -269,7 +300,7 @@ impl Session {
         // `waiting` and the overlay are one situation, not two. §B5's seventh state *is* a pending
         // approval, so driving the state drives the overlay with it — otherwise the band would
         // claim the user owes an answer to a question nobody asked.
-        self.approval = match state {
+        self.view.approval = match state {
             StatusState::Waiting => Some(send_as_you()),
             _ => None,
         };
@@ -292,7 +323,7 @@ impl Session {
         ];
         let i = ORDER
             .iter()
-            .position(|s| *s == self.status.state)
+            .position(|s| *s == self.view.status.state)
             .unwrap_or(0);
         self.force_state(ORDER[(i + 1) % ORDER.len()], now_ms);
     }
@@ -302,10 +333,10 @@ impl Session {
     /// **Input is never blocked** (§B10) — the caller may submit again while beats are pending,
     /// and queued messages are appended in order.
     pub fn submit(&mut self, text: &str, now_ms: u64) {
-        self.transcript.push(Entry::User(text.to_string()));
-        self.pager.turn += 1;
-        self.ambient.fill_pct = (self.ambient.fill_pct + 4).min(99);
-        self.ambient.spend_cents += 3;
+        self.view.transcript.push(Entry::User(text.to_string()));
+        self.view.pager.turn += 1;
+        self.view.ambient.fill_pct = (self.view.ambient.fill_pct + 4).min(99);
+        self.view.ambient.spend_cents += 3;
 
         let id = self.next_call_id;
         self.next_call_id += 3;
@@ -336,7 +367,7 @@ impl Session {
     /// §B10: `Esc` interrupts and **partial output is kept**.
     pub fn interrupt(&mut self, now_ms: u64) {
         self.pending.clear();
-        for entry in &mut self.transcript {
+        for entry in &mut self.view.transcript {
             if let Entry::Tools(calls) = entry {
                 for call in calls {
                     if matches!(call.state, ToolLineState::Running { .. }) {
@@ -355,13 +386,13 @@ impl Session {
     /// Resolve §B9's overlay. `approved` is recorded for the rubber-stamping measurement that
     /// v1.0 §14.8 requires; M1 has nowhere to record it yet, which is noted rather than faked.
     pub fn resolve_approval(&mut self, approved: bool, now_ms: u64) {
-        self.approval = None;
+        self.view.approval = None;
         let line = if approved {
             "Sent. The thread is in your drafts folder if you want the copy."
         } else {
             "Not sent. It stays in drafts."
         };
-        self.transcript.push(Entry::Said(line.into()));
+        self.view.transcript.push(Entry::Said(line.into()));
         self.force_state(StatusState::Idle, now_ms);
     }
 }
@@ -369,6 +400,92 @@ impl Session {
 impl Default for Session {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The scripted producer. **Every intent the surface can form, applied here and nowhere else.**
+///
+/// C2d moved these bodies out of `marlowe-surface`: `/undo`'s truncation, `/compact`'s push, the
+/// picker assignment and `force_state` all used to run inside the command dispatcher, on a
+/// producer the surface held mutably. They are the same code; what changed is which side of the
+/// boundary it runs on.
+impl marlowe_view::Produce for Session {
+    fn view(&self) -> &SessionView {
+        &self.view
+    }
+
+    fn apply(&mut self, intent: marlowe_view::Intent) -> Result<(), marlowe_view::IntentError> {
+        use marlowe_view::{ControlId, Intent};
+        let now_ms = self.last_tick_ms;
+        match intent {
+            Intent::Send(text) => self.submit(&text, now_ms),
+            Intent::Interrupt => self.interrupt(now_ms),
+            Intent::Approve { granted } => self.resolve_approval(granted, now_ms),
+            Intent::ForceState(state) => self.force_state(state, now_ms),
+            Intent::Compact => {
+                let turns = self.view.pager.turn.max(1);
+                self.view.transcript.push(Entry::Compacted { turns });
+                self.view.pager.compacted += turns;
+                self.view.pager.lineage += 1;
+                self.view.ambient.fill_pct = 12;
+            }
+            Intent::Undo(n) => {
+                // §B10: soft-delete the last N turns, identically across TUI, CLI and messaging —
+                // which is why it lives on the producer and not in either surface.
+                let mut removed = 0;
+                while removed < n {
+                    let Some(start) = self
+                        .view
+                        .transcript
+                        .iter()
+                        .rposition(|e| matches!(e, Entry::User(_)))
+                    else {
+                        break;
+                    };
+                    self.view.transcript.truncate(start);
+                    removed += 1;
+                }
+                self.view.pager.turn = self.view.pager.turn.saturating_sub(removed as u32);
+            }
+            Intent::Select { control, option } => {
+                let p = match control {
+                    ControlId::Model => &mut self.view.control.model,
+                    ControlId::Profile => &mut self.view.control.profile,
+                    ControlId::Session => &mut self.view.control.session,
+                    ControlId::Workspace => &mut self.view.control.workspace,
+                    ControlId::Autonomy => &mut self.view.control.autonomy,
+                };
+                // An out-of-range option is a named refusal, not a clamp. A clamp would silently
+                // select a neighbour and report success, which is the shape of every default this
+                // project has had to go back and delete.
+                if option >= p.options.len() {
+                    return Err(marlowe_view::IntentError::NoSuchOption {
+                        control,
+                        given: option.to_string(),
+                    });
+                }
+                p.selected = option;
+            }
+        }
+        Ok(())
+    }
+
+    fn tick(&mut self, now_ms: u64) {
+        Session::tick(self, now_ms)
+    }
+
+    fn is_busy(&self) -> bool {
+        Session::is_busy(self)
+    }
+
+    fn next_beat_in(&self, now_ms: u64) -> Option<u64> {
+        Session::next_beat_in(self, now_ms)
+    }
+}
+
+impl marlowe_view::ClockRead for crate::frame_clock::Clock {
+    fn now_ms(&self) -> u64 {
+        crate::frame_clock::Clock::now_ms(self)
     }
 }
 
@@ -634,29 +751,57 @@ mod tests {
 
     #[test]
     fn waiting_holds_the_last_meter_frame_rather_than_clearing_it() {
+        // C2d changed this test's shape, and the change is the point. M1 asserted that the
+        // published `meter` field still held the moving frame. That conflated two facts — what was
+        // last measured, and whether anything is measuring now — into one array, so a producer
+        // with no telemetry was indistinguishable from one reporting silence.
+        //
+        // Now the producer publishes `MeterSource::None`, and the HELD frame is what resolves
+        // against it. Both halves are asserted: the source stops, and the picture does not.
         let mut s = Session::new();
         s.tick(300);
-        let moving = s.meter;
-        assert_ne!(moving, amplitude::BASELINE, "listening should be moving");
+        let moving = s.last_meter();
+        assert_ne!(moving, BASELINE, "listening should be moving");
+        assert!(s.view().meter.is_reporting(), "listening has a source attached");
 
         s.force_state(StatusState::Waiting, 400);
         s.tick(400);
         assert_eq!(
-            s.meter, moving,
+            s.view().meter,
+            MeterSource::None,
+            "waiting detaches the source; that is ADR-021's freeze arriving as an absence of data \
+             rather than as a branch inside the widget"
+        );
+        assert_eq!(
+            s.view().meter.resolve(moving),
+            moving,
             "the frame at the moment sampling stopped must stay on screen; a cleared meter reads \
              as 'nothing here' when the truth is 'nothing will happen until you act'"
         );
         s.tick(9_999);
-        assert_eq!(s.meter, moving, "and it must stay held, not decay");
+        assert_eq!(s.view().meter.resolve(moving), moving, "and it must stay held, not decay");
+    }
+
+    #[test]
+    fn idle_reports_a_flat_frame_and_waiting_reports_no_frame_at_all() {
+        // The distinction the M1 shape could not express. `idle` is live and silent; `waiting` is
+        // not measuring. §B5 shows the user different things for the two.
+        let mut s = Session::new();
+        s.force_state(StatusState::Idle, 0);
+        s.tick(0);
+        assert_eq!(s.view().meter, MeterSource::Reported(BASELINE));
+        s.force_state(StatusState::Waiting, 1);
+        s.tick(1);
+        assert_eq!(s.view().meter, MeterSource::None);
     }
 
     #[test]
     fn driving_waiting_raises_the_overlay_because_they_are_one_situation() {
         let mut s = Session::new();
         s.force_state(StatusState::Waiting, 0);
-        assert!(s.approval.is_some());
+        assert!(s.view().approval.is_some());
         s.force_state(StatusState::Idle, 1);
-        assert!(s.approval.is_none());
+        assert!(s.view().approval.is_none());
     }
 
     #[test]
@@ -664,7 +809,7 @@ mod tests {
         let mut s = Session::new();
         let mut seen = Vec::new();
         for i in 0..7 {
-            seen.push(s.status.state);
+            seen.push(s.view().status.state);
             s.cycle_state(i * 10);
         }
         for want in [
@@ -686,6 +831,7 @@ mod tests {
         s.submit("read the retrieval code", 0);
         s.tick(1_000);
         let Some(Entry::Tools(calls)) = s
+            .view()
             .transcript
             .iter()
             .rev()
@@ -703,6 +849,7 @@ mod tests {
         s.submit("run the tests", 0);
         s.tick(3_000);
         let Some(Entry::Tools(calls)) = s
+            .view()
             .transcript
             .iter()
             .rev()
@@ -718,13 +865,13 @@ mod tests {
     #[test]
     fn interrupt_keeps_partial_output() {
         let mut s = Session::new();
-        let before = s.transcript.len();
+        let before = s.view().transcript.len();
         s.submit("run the tests", 0);
         s.tick(200);
         s.interrupt(300);
         assert!(!s.is_busy());
         assert!(
-            s.transcript.len() > before,
+            s.view().transcript.len() > before,
             "§B10: partial output is kept, not rolled back"
         );
     }
@@ -738,7 +885,7 @@ mod tests {
             for t in (0..3_000).step_by(50) {
                 s.tick(t);
             }
-            format!("{:?}{:?}{:?}", s.transcript, s.status, s.meter)
+            format!("{:?}{:?}{:?}", s.view().transcript, s.view().status, s.last_meter())
         };
         assert_eq!(render(), render());
     }
