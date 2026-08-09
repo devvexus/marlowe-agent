@@ -123,14 +123,37 @@ pub fn run(opts: Options) -> io::Result<()> {
 /// exactly what a well-behaved tool does not do. It is spawned DETACHED rather than run in-process
 /// because invariant 6 is the whole reason for the split: a daemon inside the TUI would die with
 /// the terminal, which is the thing §6 exists to prevent.
-fn ensure_daemon(port: u16) {
+/// What starting the daemon did. **Returned rather than printed.**
+///
+/// # The bug this exists for
+///
+/// These were `eprintln!`s, and `ensure_daemon` runs **after** the alternate screen is up — §B13
+/// puts the first frame in front of the connection deliberately. So the message
+/// `marlowe: no daemon running — starting one` was written straight onto the rendered frame,
+/// past ratatui's buffer, and stayed there until something forced a full repaint. Reported as
+/// *"all the stuff is weird and shows (no daemon running) until I resize the window"* — the resize
+/// was not fixing a connection, it was erasing our own text.
+///
+/// Anything with something to say once the surface owns the terminal says it **through the view**.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaemonStart {
+    /// One was already listening.
+    AlreadyUp,
+    /// We started one and it answered.
+    Started,
+    /// We could not start one at all.
+    CouldNotSpawn,
+    /// We started one and it did not answer in time. It may still come up.
+    Slow,
+}
+
+fn ensure_daemon(port: u16) -> DaemonStart {
     let client = marlowe_daemon::Client::new("tui").with_port(port);
     if client.daemon_is_up() {
-        return;
+        return DaemonStart::AlreadyUp;
     }
-    let Ok(exe) = std::env::current_exe() else { return };
+    let Ok(exe) = std::env::current_exe() else { return DaemonStart::CouldNotSpawn };
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    eprintln!("marlowe: no daemon running — starting one. It outlives this window (invariant 6).");
     let mut cmd = std::process::Command::new(exe);
     cmd.arg("--serve").arg("--workspace").arg(&cwd);
     if port != marlowe_daemon::DEFAULT_DAEMON_PORT {
@@ -160,21 +183,23 @@ fn ensure_daemon(port: u16) {
         cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
     }
 
-    let spawned = cmd.spawn();
-    if spawned.is_err() {
-        eprintln!("marlowe: could not start one; the band will say so.");
-        return;
+    if cmd.spawn().is_err() {
+        return DaemonStart::CouldNotSpawn;
     }
     // Wait for the socket rather than sleeping a fixed amount. §B13 budgets 150 ms to first frame
     // and a fixed sleep would spend it whether or not it was needed.
-    for _ in 0..40 {
+    // **Four seconds, not one.** The daemon opens a journal, takes a profile lock and builds an
+    // engine before it binds; one second was enough on a warm run and not on a cold one, and
+    // falling through left the band saying "no daemon" for a daemon that came up 200 ms later
+    // with nothing ever retrying.
+    for _ in 0..160 {
         // LOOP-EXEMPT: waiting on a socket to come up, not a driving loop.
         if client.daemon_is_up() {
-            return;
+            return DaemonStart::Started;
         }
         std::thread::sleep(std::time::Duration::from_millis(25));
     }
-    eprintln!("marlowe: the daemon did not answer in time; the band will say so.");
+    DaemonStart::Slow
 }
 
 fn run_with(
@@ -364,9 +389,18 @@ fn event_loop(
     // **The frame is up; now talk to the daemon.** Spawning it and doing the `Status` round-trip
     // costs whatever a cold Ollama costs, and none of it is in front of the first paint.
     if let Some(port) = connect_port {
-        ensure_daemon(port);
+        let start = ensure_daemon(port);
         session.connect_now();
         app.update(session.view().clone());
+        // Said through the band, never through stdout: the surface owns this terminal now.
+        if let Some(note) = match start {
+            DaemonStart::Started => Some("started the daemon; it outlives this window"),
+            DaemonStart::CouldNotSpawn => Some("could not start a daemon — run `marlowe --serve`"),
+            DaemonStart::Slow => Some("the daemon is still starting"),
+            DaemonStart::AlreadyUp => None,
+        } {
+            app.set_status_detail(note);
+        }
         term.draw(|f| render::draw(app, theme, f.area(), f.buffer_mut()))?;
     }
 

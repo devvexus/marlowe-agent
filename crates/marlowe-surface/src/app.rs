@@ -345,6 +345,16 @@ impl App {
         self.client_note(e.as_notice(), Tone::Amber);
     }
 
+    /// Replace §B5's detail line.
+    ///
+    /// **Exists so the driver has somewhere to say things that is not `stdout`.** Starting the
+    /// daemon used to `eprintln!` after the alternate screen was up, writing raw text over the
+    /// rendered frame — it survived until a resize forced a repaint, and read as a broken UI.
+    /// Once the surface owns the terminal, the view is the only channel.
+    pub fn set_status_detail(&mut self, detail: impl Into<String>) {
+        self.view.status.detail = detail.into();
+    }
+
     pub fn tab(&self) -> TabId {
         self.tab.into()
     }
