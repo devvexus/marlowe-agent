@@ -1,6 +1,18 @@
 # State
 
-## M2 C2e addendum - three interface fixes, all reported from use. `550 tests`.
+## M2 C2e addendum - five defects, every one reported from use. `550 tests`.
+
+**Found by using it, in one sitting, after the milestone work was already committed.** Two of
+them were defects in fixes made earlier the same day. None was caught by a test.
+
+| # | Defect | How it presented |
+|---|---|---|
+| 1 | The user's words and the model's reasoning shared a foreground weight | *"user messages are indistinguishable colour-wise from thinking"* |
+| 2 | No shutdown path existed at all | a closed window left a daemon that the next launch silently reconnected to |
+| 3 | A reconnecting client rendered an empty transcript | looked like memory working, because the daemon never died |
+| 4 | Replay dropped thinking blocks and tool detail | the conversation came back, the work behind it did not |
+| 5 | Closing mid-turn destroyed the conversation | reopening answered `<tool_code>none</tool_code>` |
+
 
 ### There was only ever ONE conversation, and the screen did not show it
 
@@ -96,25 +108,7 @@ pushed before the result it produced, so reasoning precedes its tool line exactl
   flight - reopening mid-turn shows the conversation up to the last completed turn and then waits.
   Live attach needs concurrency in the accept loop.
 
-### NEXT SESSION - past sessions in the TUI
-
-The control strip already has the affordance and it is a stub: `project.rs` builds
-`session: Picker::new(&["cli"], 0)`, one hardcoded option, with the comment that session switching
-*"has no producer until M2 D and M3"*. `LiveSession::apply` refuses `Intent::Select` for anything
-that is not the one live value.
-
-Making it real is three pieces, in order:
-
-1. **Persist sessions.** The journal exists and is signed; the session store is not written to it.
-   Until a conversation survives a process, a picker lists things that are already gone.
-2. **A `Request::Sessions` op** so the daemon can enumerate what it has, and the picker can be
-   built from the answer rather than from a literal.
-3. **Switching.** `Intent::Select { control: Session, .. }` starts replaying the chosen one - the
-   `Replay` op above is already the mechanism, so this is the small piece once 1 and 2 exist.
-
-Note that (1) overlaps M2 D's durable-memory work and should not be built twice.
-
-## M2 C2e addendum - two interface fixes, both reported from use. `550 tests`.
+### The two fixes reported earlier in the same session
 
 ### The user's own words rendered at the same weight as the model's reasoning
 
@@ -171,6 +165,24 @@ reply: {"event":"done","outcome":"shutdown",...}
 connect after shutdown: refused - daemon stopped
 ```
 
+
+### NEXT SESSION - past sessions in the TUI
+
+The control strip already has the affordance and it is a stub: `project.rs` builds
+`session: Picker::new(&["cli"], 0)`, one hardcoded option, with the comment that session switching
+*"has no producer until M2 D and M3"*. `LiveSession::apply` refuses `Intent::Select` for anything
+that is not the one live value.
+
+Making it real is three pieces, in order:
+
+1. **Persist sessions.** The journal exists and is signed; the session store is not written to it.
+   Until a conversation survives a process, a picker lists things that are already gone.
+2. **A `Request::Sessions` op** so the daemon can enumerate what it has, and the picker can be
+   built from the answer rather than from a literal.
+3. **Switching.** `Intent::Select { control: Session, .. }` starts replaying the chosen one - the
+   `Replay` op above is already the mechanism, so this is the small piece once 1 and 2 exist.
+
+Note that (1) overlaps M2 D's durable-memory work and should not be built twice.
 
 ## M2 C2e - the agent loop is honest about what it sends and what it shows. `2be2179`.
 
