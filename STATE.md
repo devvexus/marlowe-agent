@@ -1,5 +1,105 @@
 # State
 
+## M2 C2d — `marlowe --tui` drives the real engine. ADR-030. `9f51476`.
+
+**494 cargo tests (from 457), `eval/` untouched at 72, `repro` byte-identical to the pre-change
+baseline, conformance unchanged.** Two commits: `5fbd513` (view models) and `9f51476` (the live
+TUI plus the Notice vocabulary).
+
+**Launch it:** the desktop shortcut `Marlowe.lnk` → `wt -p "Marlowe"` → `marlowe --tui --ground`.
+Recreate with `marlowe --launch` (writes the Windows Terminal profile) plus the `WScript.Shell`
+snippet in this session's log. **M1's claim that a `Marlowe.lnk` already existed was false** —
+there was no shortcut and no code for one, the same shape as the "hooks are the real boundary"
+claim CLAUDE.md records. It exists now.
+
+> ### THE MOST IMPORTANT FINDING: A GREEN PROBE BESIDE A HUNG PRODUCT
+> The auto-spawned daemon **inherited the parent's console**. `--timing-probe` returned healthy in
+> **56 ms** while every shell pipeline that launched it hung **forever** — the process that
+> finished could not say so, because a child holding the console open means the pipe never closes.
+>
+> **Nulling stdio is not enough; the console handle is the thing.** Fixed with `DETACHED_PROCESS |
+> CREATE_NEW_PROCESS_GROUP`. It would have fired on the **first click of the shortcut**.
+>
+> **Fourth seam this project has found by running rather than testing** — scroll and `NO_COLOR`
+> (M1), `done` routing (M2 C2c), the hotkey collisions and this (C2d). The standing rule of one
+> real end-to-end run per milestone is now four for four, and every one of them produced a defect
+> no unit test could see.
+
+**The other run-only finding, same session.** The daemon projection gave the Schedule pane hotkey
+`'s'` — the Session region's key — and numbered run items with digits that collide with §B7's tab
+digits. `KeyRegistry::build` refused to start, correctly. **No test had ever projected a daemon
+view into a key registry**, so both were invisible. Both fixed; `project.rs`'s `key_tests` now
+crosses that seam.
+
+### Process isolation is a standing constraint, and `--daemon-port` is the mechanism
+
+**Two sessions on one machine share `DEFAULT_DAEMON_PORT` — the shared-resource hazard in a fifth
+form.** The reflex when a daemon is in the way is to stop it, and that takes the other session's
+daemon with it. This session did exactly that once, with a blanket `Stop-Process`, before the
+constraint was named.
+
+**Anything needing a clean daemon uses a scratch port**: `marlowe --tui --daemon-port 11477` and
+`marlowe --serve --daemon-port 11477`. Auto-spawn was verified that way — the other session's
+daemon on 11435 was never touched, and the check that proves it is a listener count on both ports
+before and after.
+
+**A daemon restart is lossless when VERIFIED, not by default.** Before stopping one, ask it:
+`marlowe --status` reports `runs N live`. A restart costs exactly the in-flight runs — there is no
+WAL and no checkpoint resume (M3/K5) — so **zero live runs makes a restart provably free, and any
+other number makes it a decision.** Checking first is the standing procedure; assuming is how a
+session loses someone's work.
+
+### What is live on `--tui`, per region
+
+**Nothing is stub-fed on the live path.** `--tui --scripted` is the only route to M1's stub, and
+the active producer is announced at startup. A partially connected TUI that *looks* connected is
+the seam problem, so this is stated per region rather than in aggregate.
+
+| Region | Live path |
+|---|---|
+| Status band | **Live** — `StatusReport`: workspace, model, disclosure, `degraded`, `rerank_provider`, `live_runs` |
+| Conversation | **Live** — user turns, `Event::Text` → `Speech::Model`, tool lines from `Event::Tool` |
+| Runs pane | **Live** — `Request::Runs` on connect, then `Event::Run` |
+| Control strip | **Live, single-valued** — one model, one workspace; anything else is a named refusal |
+| Ambient · pager | **Live, zero until a turn completes** — both from `Event::Done`. Zero is the truth |
+| Meter | **Frozen** — `MeterSource::None`; no voice pipeline, no token-rate telemetry, so it reports nothing rather than a synthetic envelope (§B12) |
+| Schedule · Sessions · Skills · Trust · Status panes | **Not built**, each saying so with its milestone |
+| Approvals | **Refused by name** — see below |
+| Interrupt · undo · compact · `/state` | **Refused by name**, rendered as a persistent client line |
+
+**Measured:** first frame **7 ms** connected, **52 ms** degraded, **134 ms** including an
+auto-spawn — all under K4's 150 ms.
+
+**The one real protocol dependency, and Session E inherits it by name.** `Event::Approval` carries
+`{decision, verb, scope, reversible}` — **no novelty reason and no ceiling.** §B9 requires both,
+and neither can be defaulted: a defaulted ceiling is a claim about promotion logic nobody made. The
+live path refuses and **names the missing fields** rather than showing a fabricated blast radius.
+
+### ADR-030 — harness speech is a closed vocabulary
+
+`Entry::Said` carries `Speech::{Model(String), Harness(Notice)}`. Six `Notice` variants; **no field
+may be a `String`** (an `Echo` newtype carries text the user typed, quoted, never reworded).
+`/help` and command errors are **surface-constructed on purpose** — routing them through a producer
+would make `/help` a socket round-trip, and a help command that waits is worse than one in the
+wrong voice. Nothing in `Notice` can reach a model.
+
+**§B9's `BlastRadius` is typed the same way.** M1's overlay was **scaffolding**: the renderer was
+already clean, but nothing could *compute* its three strings. `novelty` and `ceiling` are required
+fields, not `Option`s.
+
+> **A control that only catches what the compiler already catches is testing nothing.** Verifying
+> the no-`String` guard took three attempts: two mutations failed to *compile*, so the control
+> never ran and the guard merely looked silent. The scanner's whole value is the case that
+> compiles — a new variant carrying a `String`. **Ask of any control: would this still fail if the
+> guard were deleted?** If it would fail earlier, it is measuring the compiler. ADR-030 §5a.
+
+**Not covered by the hook, measured not assumed (2026-08-09):** `crates/marlowe-permission/src/decision.rs`
+defines `BlastRadius` and `Outcome::NeedsApproval` — the approval layer's decision surface — and
+**returns no decision from `protect-boundaries.py`.** `adjudicate.rs` fires correctly; this file
+does not. Adding it is a §13 change and needs the human's call.
+
+---
+
 ## M2 C2d — the view models are promoted, and §2.14 is structural rather than asserted
 
 **473 cargo tests (from 457), `eval/` untouched at 72, `repro` hash byte-identical to the
@@ -491,7 +591,8 @@ CLI, width refusal, `doctor`. 87 tests green across `marlowe-surface`, `marlowe-
   from the model, never the screen** — the measured native selection returns
   `+3 −0 ││ ┌Spend───…`, three regions' cells from one row.
 - **§B17 — the launcher.** `marlowe --launch` writes an additive Windows Terminal profile, scheme
-  and theme, then opens the window. A desktop shortcut (`Marlowe.lnk`) runs it.
+  and theme, then opens the window. **The `Marlowe.lnk` this line claimed did not exist until C2d
+  created it** — there was no shortcut and no code for one.
 
 **Three bugs found by using it that no test caught, all now fixed:**
 
@@ -721,7 +822,7 @@ learned mechanism**, or **the 10%-coverage interval**.
 - **The artifact the driver reads must be the artifact the run scored with.**
 - **Calibration generalization: fit-split prediction vs held-out measurement**, per cue.
 - **The unchanged-cue check is a NULL INSTRUMENT for a pruning change.** Its silence is not evidence.
-- **`cargo test --workspace` (473) and `cd eval && python -m pytest` (72).**
+- **`cargo test --workspace` (494) and `cd eval && python -m pytest` (72).**
 - **A build error seen in a shared checkout is a SNAPSHOT, not a fact.** Re-verify before
   reporting one, and say when it was observed. Twice in one day a session reported a real error in
   the other's mid-edit that had already been resolved — in both directions. See CLAUDE.md's

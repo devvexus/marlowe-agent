@@ -244,7 +244,7 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 cd eval && python -m pytest                  # 72 passing
 
 # The implementation.
-cargo test --workspace                       # 473 passing (457 before M2 C2d)
+cargo test --workspace                       # 494 passing (457 before M2 C2d)
 cargo build --release                        # -> target/release/marlowe.exe
 ```
 
