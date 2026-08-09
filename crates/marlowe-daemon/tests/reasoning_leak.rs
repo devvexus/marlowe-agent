@@ -307,3 +307,63 @@ fn a_second_turn_on_the_same_session_can_see_the_first() {
 
     let _ = std::fs::remove_dir_all(&scratch);
 }
+
+/// **Narration that accompanies a tool call is thinking, not speech — and it carries no tag.**
+///
+/// The splitter catches reasoning the model fences with `</think>`. It cannot catch reasoning the
+/// model simply writes into `content` unfenced, which is what a mid-chain turn produces:
+///
+/// ```text
+///   ⋯ bash   echo hello marlowe   blocked
+///   But wait — I keep seeing "[bash blocked]" responses before any of my attempts succeeded...
+///   Let me try one more time with cwd="" and command="echo hello world":
+///   ⋯ bash   …
+/// ```
+///
+/// Reported live, in the response colour, with more tool calls after it.
+///
+/// The discriminator needs no tag: **the model called a tool.** Completion is the absence of an
+/// action, so a call ending in `tool_calls` is not the reply. Asserted here on the projection,
+/// which is where "in the response colour" is actually decided.
+#[test]
+fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
+    let mut v = view();
+    apply_events(
+        &mut v,
+        &[
+            Event::Reasoning { delta: "The user asked me to run a bash echo.".into() },
+            Event::Tool {
+                id: 1,
+                verb: "bash".into(),
+                target: "echo hello marlowe".into(),
+                state: "failed".into(),
+                summary: "blocked".into(),
+            },
+            Event::Text { delta: "But wait - I keep seeing \"[bash blocked]\" responses ".into() },
+            Event::Text { delta: "before any of my attempts succeeded.".into() },
+            // The call ended with another tool call, so none of that was the answer.
+            Event::SpeechRetracted,
+            Event::Tool {
+                id: 2,
+                verb: "bash".into(),
+                target: "echo hello world".into(),
+                state: "failed".into(),
+                summary: "blocked".into(),
+            },
+            // …and the turn finally answers.
+            Event::Text { delta: "bash is refused in this build.".into() },
+        ],
+    );
+
+    assert_eq!(
+        spoken(&v),
+        "bash is refused in this build.",
+        "mid-chain narration must not survive as Marlowe's speech: {:?}",
+        spoken(&v)
+    );
+    assert!(
+        thought(&v).contains("But wait"),
+        "it belongs in the thinking block, not nowhere: {:?}",
+        thought(&v)
+    );
+}

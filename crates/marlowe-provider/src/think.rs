@@ -97,6 +97,12 @@ pub struct ThinkSplitter {
     pending: String,
     /// Whether any speech has been emitted, so a retraction knows there is something to retract.
     spoke: bool,
+    /// Whether a think tag was ever seen on this channel.
+    ///
+    /// Distinguishes "the model fenced its reasoning inside `content`" from "Ollama parsed the
+    /// block and `content` is the answer". At the end of a call those look identical, and without
+    /// this the answer gets filed as reasoning and the turn renders silent.
+    saw_tag: bool,
 }
 
 impl ThinkSplitter {
@@ -107,6 +113,11 @@ impl ThinkSplitter {
     /// True while the model is inside a think block in the content channel.
     pub fn inside(&self) -> bool {
         self.inside
+    }
+
+    /// Whether any `<think>` or `</think>` was seen on this channel.
+    pub fn saw_any_tag(&self) -> bool {
+        self.saw_tag
     }
 
     /// Feed one streamed chunk.
@@ -120,6 +131,7 @@ impl ThinkSplitter {
             // LOOP-EXEMPT: consuming a bounded buffer, not a driving loop.
             match next_tag(rest) {
                 Some((at, len, opening)) => {
+                    self.saw_tag = true;
                     self.push(&mut split, &rest[..at]);
                     if opening {
                         self.inside = true;
@@ -308,5 +320,111 @@ mod tests {
         let again = s.feed("<think>more</think> and more");
         assert!(!again.retract_speech, "the real answer must not be retracted");
         assert_eq!(reasoning(&again), "more");
+    }
+}
+
+#[cfg(test)]
+mod hold_rule {
+    use super::*;
+
+    /// Replays the shape `--dev` captured on a real 848-frame turn: the opening tag never appears
+    /// (the chat template consumed it), 400+ frames of reasoning arrive in `content`, then
+    /// `"\n</think>"`, then the answer.
+    ///
+    /// **The rule under test:** nothing before that closing tag may be classified as speech.
+    fn drive(chunks: &[&str], tool_calls: bool) -> (String, String) {
+        let mut s = ThinkSplitter::new();
+        let (mut held, mut speech, mut reasoning) = (String::new(), String::new(), String::new());
+        let mut closed = false;
+
+        for c in chunks {
+            let split = s.feed(c);
+            if split.retract_speech {
+                reasoning.push_str(&held);
+                held.clear();
+                closed = true;
+            }
+            for seg in &split.segments {
+                match seg {
+                    Segment::Reasoning(r) => reasoning.push_str(r),
+                    Segment::Speech(t) => {
+                        if closed {
+                            speech.push_str(t)
+                        } else {
+                            held.push_str(t)
+                        }
+                    }
+                }
+            }
+        }
+        for seg in &s.finish().segments {
+            match seg {
+                Segment::Reasoning(r) => reasoning.push_str(r),
+                Segment::Speech(t) => {
+                    if closed {
+                        speech.push_str(t)
+                    } else {
+                        held.push_str(t)
+                    }
+                }
+            }
+        }
+        if !held.is_empty() {
+            if !tool_calls && (closed || !s.saw_any_tag()) {
+                speech.push_str(&held);
+            } else {
+                reasoning.push_str(&held);
+            }
+        }
+        (speech, reasoning)
+    }
+
+    #[test]
+    fn nothing_before_the_closing_tag_is_ever_speech() {
+        let (speech, reasoning) = drive(
+            &[
+                " The",
+                " error",
+                " message",
+                " indicates",
+                " that",
+                " paths",
+                " should",
+                " be",
+                " relative",
+                "\n</think>",
+                "\n\nhello",
+            ],
+            false,
+        );
+        assert_eq!(
+            speech.trim(),
+            "hello",
+            "only what follows `</think>` is the answer; got {speech:?}"
+        );
+        assert!(
+            reasoning.contains("paths") && reasoning.contains("relative"),
+            "everything before the tag belongs to the think block: {reasoning:?}"
+        );
+        assert!(!speech.contains("</think>") && !reasoning.contains("</think>"));
+    }
+
+    /// The block never closes and the call ends in a tool call: the model was thinking the whole
+    /// time, and none of it is an answer.
+    #[test]
+    fn an_unclosed_block_that_ends_in_a_tool_call_yields_no_speech() {
+        let (speech, reasoning) =
+            drive(&["<think>Let me try one more time with cwd=\"\""], true);
+        assert_eq!(speech, "", "mid-chain narration is not an answer: {speech:?}");
+        assert!(reasoning.contains("one more time"));
+    }
+
+    /// **The case that must not regress.** Ollama parsed the block itself, so `content` carries no
+    /// tag and is the answer. Holding must not swallow it.
+    #[test]
+    fn content_with_no_tag_and_no_tool_call_is_the_answer() {
+        let (speech, reasoning) = drive(&["2 + 2 = ", "4"], false);
+        assert_eq!(speech, "2 + 2 = 4", "a clean answer must still be spoken");
+        assert_eq!(reasoning, "");
     }
 }

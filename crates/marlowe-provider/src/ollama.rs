@@ -479,6 +479,27 @@ impl ModelDriver for OllamaDriver {
         // surface to guess at. A `</think>` reaching the screen is the loudest possible statement
         // that the channel split was wrong; see `crate::think`.
         let mut splitter = crate::think::ThinkSplitter::new();
+
+        // -- NOTHING RENDERS AS SPEECH UNTIL THE THINK BLOCK IS KNOWN SHUT ---------------
+        //
+        // **The requirement, stated by the person who kept seeing it violated:** everything that
+        // comes after `<think>` is in the think block, and it never leaves that container until
+        // `</think>` is emitted.
+        //
+        // The earlier design streamed content as speech and **retracted** it when a late
+        // `</think>` proved it wrong. That ends correct and still shows purple text on screen
+        // first, which is the thing the rule forbids. There is no online signal that a closing tag
+        // is coming, so satisfying the rule means holding.
+        //
+        // **What holding costs, measured rather than assumed.** `--dev`'s dump of a real
+        // 848-frame turn: the `</think>` arrived at frame **846**, and the whole answer was frame
+        // 847 -- seven bytes. Reasoning is where the wall time goes and it streams live
+        // throughout; the answer was always going to arrive in one piece at the end.
+        //
+        // `closed` starts false because the OPENING tag is emitted by the chat template and
+        // consumed before the stream begins: `<think>` never appears on the wire, only its close.
+        let mut held = String::new();
+        let mut closed = false;
         let mut tool_calls: Vec<serde_json::Value> = Vec::new();
         let mut usage = Usage { prompt_tokens: 0, completion_tokens: 0, micros_usd: 0, wall_ms: 0 };
 
@@ -512,25 +533,27 @@ impl ModelDriver for OllamaDriver {
                     if !c.is_empty() {
                         let split = splitter.feed(c);
                         if split.retract_speech {
-                            // Everything already streamed as speech was inside a think block.
-                            // Drop it from the answer and tell the surface to move it.
-                            //
-                            // **The surface moves its own text; this must not re-send it.** An
-                            // earlier version emitted the text as a reasoning delta *and then*
-                            // retracted. That put a fresh `Entry::Reasoning` at the end of the
-                            // transcript, so the retraction — which looks at the last entry —
-                            // found reasoning instead of speech and did nothing. The leak stayed
-                            // on screen with a verbatim copy of itself underneath it.
-                            text.clear();
-                            on_retract();
+                            // A `</think>` proved the buffer was reasoning. Nothing was rendered
+                            // as speech, so there is nothing to take back from the screen — it is
+                            // routed to the channel it belonged in all along.
+                            if !held.is_empty() {
+                                on_reasoning(&held);
+                                held.clear();
+                            }
+                            closed = true;
                         }
                         for seg in &split.segments {
                             match seg {
                                 crate::think::Segment::Reasoning(r) => on_reasoning(r),
                                 crate::think::Segment::Speech(t) => {
-                                    // Out to the surface immediately, and kept for the `Say`.
-                                    on_delta(t);
-                                    text.push_str(t);
+                                    if closed {
+                                        // The block is known shut. This is the answer; it streams.
+                                        on_delta(t);
+                                        text.push_str(t);
+                                    } else {
+                                        // Undecided. Held, and NOT rendered.
+                                        held.push_str(t);
+                                    }
                                 }
                             }
                         }
@@ -555,15 +578,43 @@ impl ModelDriver for OllamaDriver {
         }
 
         // A fragment held back in case it grew into a tag was ordinary text after all.
+        // A fragment held back in case it grew into a tag was ordinary text after all. It joins
+        // the buffer rather than bypassing it — a tail that streamed straight to the surface would
+        // be the one path where unresolved content still reached the response colour.
         for seg in &splitter.finish().segments {
             match seg {
                 crate::think::Segment::Reasoning(r) => on_reasoning(r),
                 crate::think::Segment::Speech(t) => {
-                    on_delta(t);
-                    text.push_str(t);
+                    if closed {
+                        on_delta(t);
+                        text.push_str(t);
+                    } else {
+                        held.push_str(t);
+                    }
                 }
             }
         }
+
+        // The call is over, so the buffer can be resolved.
+        //
+        // A call ending in a tool call has **not answered** -- completion is the absence of an
+        // action -- so anything it said along the way is narration and belongs with the thinking.
+        // A call with no tag anywhere is one Ollama parsed for us: reasoning went to the
+        // `thinking` field and the buffer is the reply.
+        if !held.is_empty() {
+            if tool_calls.is_empty() && (closed || !splitter.saw_any_tag()) {
+                on_delta(&held);
+                text.push_str(&held);
+            } else {
+                on_reasoning(&held);
+            }
+            held.clear();
+        }
+        // **`on_retract` is deliberately unused on this path now.** Holding removed the need to
+        // take anything back: nothing reaches the response colour before the block is known shut,
+        // so there is never rendered speech to withdraw. The callback stays on the trait because
+        // the surface's handling of it is tested and a future provider may still need it.
+        let _ = &on_retract;
 
         // Reassembled into the same shape the non-streaming path produced, so `parse_step` is
         // unchanged and the four loop-control tools keep their routing.
