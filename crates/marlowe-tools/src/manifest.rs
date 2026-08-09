@@ -124,15 +124,33 @@ pub struct ParamSpec {
     pub name: String,
     pub role: ArgumentRole,
     pub ty: ParamType,
+    /// **Whether the executor demands it. A separate question from [`ArgumentRole`].**
+    ///
+    /// `role` answers *what untrusted content may never shape*. `required` answers *what the tool
+    /// cannot run without*. They are correlated — a path is usually both — and binding one to the
+    /// other produced **eleven measured mismatches** across ten builtins:
+    ///
+    /// | tool | was sent as required | what the executor wants |
+    /// |---|---|---|
+    /// | `bash` | `command`, `cwd` | `command`; `cwd` defaults to the workspace |
+    /// | `find` | `path` | `pattern` — it fails without it |
+    /// | `edit` | `path` | `path` **and** `content` |
+    /// | `remember` | `derived_from`, `payload_kind` | the claim itself |
+    /// | `ask` | *nothing* | the question |
+    ///
+    /// Observed consequence: the model was told the search string was optional and the path
+    /// mandatory, invented a `cwd` on every shell call, and — after a refusal — was handed the
+    /// same wrong parameter list again by `Engine::expected_params`.
+    pub required: bool,
 }
 
 impl ParamSpec {
     pub fn target(name: &str, ty: ParamType) -> Self {
-        Self { name: name.to_string(), role: ArgumentRole::Target, ty }
+        Self { name: name.to_string(), role: ArgumentRole::Target, ty, required: true }
     }
 
     pub fn payload(name: &str, ty: ParamType) -> Self {
-        Self { name: name.to_string(), role: ArgumentRole::Payload, ty }
+        Self { name: name.to_string(), role: ArgumentRole::Payload, ty, required: false }
     }
 }
 
@@ -278,6 +296,11 @@ pub struct RawParamSpec {
     #[serde(default)]
     pub role: Option<ArgumentRole>,
     pub ty: ParamType,
+    /// See [`ParamSpec::required`]. Defaults to **optional**, which is the safe direction: a
+    /// parameter wrongly called optional produces a tool error the model can read, while one
+    /// wrongly called required makes it invent a value it should not have supplied.
+    #[serde(default)]
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -343,7 +366,7 @@ pub fn load(
         let Some(role) = p.role else {
             return Err(LoadError::UnroledParameter { tool, param: p.name });
         };
-        params.push(ParamSpec { name: p.name, role, ty: p.ty });
+        params.push(ParamSpec { name: p.name, role, ty: p.ty , required: p.required });
     }
     // `tool` survives the loop because every branch above returns; the moves are terminal.
 
@@ -410,7 +433,7 @@ mod tests {
     #[test]
     fn a_parameter_without_a_role_is_a_load_error() {
         let mut r = raw("t");
-        r.params = vec![RawParamSpec { name: "path".into(), role: None, ty: ParamType::Path }];
+        r.params = vec![RawParamSpec { name: "path".into(), role: None, ty: ParamType::Path, required: true }];
         assert_eq!(
             load(r, ManifestProvenance::FirstParty),
             Err(LoadError::UnroledParameter {

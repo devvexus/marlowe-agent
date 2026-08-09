@@ -285,9 +285,26 @@ fn the_web_tool_requires_its_target() {
         .filter_map(|v| v.as_str())
         .collect();
 
+    // **This assertion was written against the conflation and is now inverted, deliberately.**
+    //
+    // It fired when `required` was derived from `ArgumentRole::Target`, and it asked the wrong
+    // question: `web` is "search AND fetch", so a search has no `url` and a fetch has no `query`.
+    // Declaring `url` mandatory told the model a search was impossible. Neither is required; the
+    // executor validates the pair. What must hold is that both are OFFERED.
     assert!(
-        !required.is_empty(),
-        "`web` declared nothing required, which is why a call arrived with no target: {web:#}"
+        required.is_empty(),
+        "`web` must not declare either argument mandatory — a search has no url and a fetch has          no query. Requiredness is what the executor demands, not which argument is a Target:          {web:#}"
+    );
+    let props: Vec<&str> = web
+        .pointer("/function/parameters/properties")
+        .and_then(|p| p.as_object())
+        .expect("properties")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert!(
+        props.contains(&"url") && props.contains(&"query"),
+        "both operations must be expressible: {props:?}"
     );
 }
 

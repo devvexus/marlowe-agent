@@ -890,11 +890,10 @@ impl<S: PathScope> Engine<S> {
         let list: Vec<String> = params
             .iter()
             .map(|p| {
-                let req = if p.role == marlowe_tools::ArgumentRole::Target {
-                    " (required)"
-                } else {
-                    ""
-                };
+                // The third site that repeated the role-as-arity conflation. A model told the
+                // wrong thing, then corrected with the same wrong thing, is worse off than one
+                // told nothing.
+                let req = if p.required { " (required)" } else { "" };
                 format!("{}{req}", p.name)
             })
             .collect();

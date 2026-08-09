@@ -44,16 +44,29 @@ pub const BUILTIN_TOOLS: [&str; 10] = [
 /// would be a manifest that means something different on another machine.
 const WORKSPACE: &str = "./**";
 
-fn param(name: &str, role: ArgumentRole, ty: ParamType) -> RawParamSpec {
-    RawParamSpec { name: name.to_string(), role: Some(role), ty }
+fn param(name: &str, role: ArgumentRole, ty: ParamType, required: bool) -> RawParamSpec {
+    RawParamSpec { name: name.to_string(), role: Some(role), ty, required }
 }
 
-fn target(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Target, ty)
+/// **Four constructors, because there are two independent questions.**
+///
+/// `target`/`payload` answers *may untrusted content shape this* (§9). `req`/`opt` answers *does
+/// the executor need it*. They were the same switch until this session, and the eleven mismatches
+/// that produced are in [`marlowe_tools::ParamSpec::required`].
+fn target_req(name: &str, ty: ParamType) -> RawParamSpec {
+    param(name, ArgumentRole::Target, ty, true)
 }
 
-fn payload(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Payload, ty)
+fn target_opt(name: &str, ty: ParamType) -> RawParamSpec {
+    param(name, ArgumentRole::Target, ty, false)
+}
+
+fn payload_req(name: &str, ty: ParamType) -> RawParamSpec {
+    param(name, ArgumentRole::Payload, ty, true)
+}
+
+fn payload_opt(name: &str, ty: ParamType) -> RawParamSpec {
+    param(name, ArgumentRole::Payload, ty, false)
 }
 
 fn manifest(
@@ -108,7 +121,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
     let regs = [
         registration(
             "bash",
-            "Run a command in a persistent shell session.",
+            "Run a shell command in the workspace. Each call is a fresh shell: nothing persists between calls.",
             "bash",
             2_048,
             Irreversible,
@@ -117,21 +130,21 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `command` is a Target and not a Payload. It is not body content that a tool
             // happens to carry — it *is* the action, and untrusted content choosing it is the
             // whole attack.
-            vec![target("command", Text), target("cwd", ParamType::Path)],
+            vec![target_req("command", Text), target_opt("cwd", ParamType::Path)],
         ),
         registration(
             "read",
-            "Read a file, blob, or reference.",
+            "Read a file in the workspace, by workspace-relative path.",
             "read",
             8_192,
             Inert,
             &[WORKSPACE],
             &[],
-            vec![target("path", ParamType::Path), payload("range", Text)],
+            vec![target_req("path", ParamType::Path), payload_opt("range", Text)],
         ),
         registration(
             "edit",
-            "Make an atomic edit to a file, or write a new one.",
+            "Replace a file's contents, or write a new file.",
             "edit",
             2_048,
             Reversible,
@@ -139,22 +152,22 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             vec![
                 // WritePath, not Path: `edit` is the one builtin that may create its target.
-                target("path", ParamType::WritePath),
+                target_req("path", ParamType::WritePath),
                 // Content is Payload by design: §9 is explicit that untrusted prose may fill
                 // an inert body freely. The danger is the pair, not the text.
-                payload("content", Text),
-                payload("replacing", Text),
+                payload_req("content", Text),
+                payload_opt("replacing", Text),
             ],
         ),
         registration(
             "find",
-            "Search the repository; index-backed symbol lookup where available.",
+            "Search the workspace for a literal substring, line by line.",
             "find",
             8_192,
             Inert,
             &[WORKSPACE],
             &[],
-            vec![payload("pattern", Text), target("path", ParamType::Path)],
+            vec![payload_req("pattern", Text), target_opt("path", ParamType::Path)],
         ),
         registration(
             "web",
@@ -164,7 +177,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             Inert,
             &[],
             &["*"],
-            vec![target("url", Url), payload("query", Text)],
+            vec![target_opt("url", Url), payload_opt("query", Text)],
         ),
         registration(
             "recall",
@@ -174,7 +187,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             Inert,
             &[],
             &[],
-            vec![payload("query", Text), target("payload_kind", Text)],
+            vec![payload_req("query", Text), target_opt("payload_kind", Text)],
         ),
         registration(
             "remember",
@@ -185,11 +198,11 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             &[],
             vec![
-                payload("text", Text),
+                payload_req("text", Text),
                 // Which memories a claim derives from is a Target: choosing the lineage is how
                 // laundering would launder (§14.6, HP6).
-                target("derived_from", Identifier),
-                target("payload_kind", Text),
+                target_opt("derived_from", Identifier),
+                target_opt("payload_kind", Text),
             ],
         ),
         registration(
@@ -202,7 +215,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             Reversible,
             &[],
             &[],
-            vec![target("name", Text), payload("query", Text)],
+            vec![target_opt("name", Text), payload_opt("query", Text)],
         ),
         registration(
             "run",
@@ -213,14 +226,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             &[],
             vec![
-                payload("task", Text),
-                payload("output_contract", Text),
+                payload_req("task", Text),
+                payload_opt("output_contract", Text),
                 // The child's capability profile and budget are Targets. Untrusted content
                 // choosing a child's tool set is the trifecta reassembling itself one level
                 // down.
-                target("exposed_tools", Text),
-                target("budget_micros_usd", Amount),
-                target("orphan_policy", Text),
+                target_opt("exposed_tools", Text),
+                target_opt("budget_micros_usd", Amount),
+                target_opt("orphan_policy", Text),
             ],
         ),
         registration(
@@ -231,7 +244,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             Inert,
             &[],
             &[],
-            vec![payload("question", Text), payload("options", Text)],
+            vec![payload_req("question", Text), payload_opt("options", Text)],
         ),
     ];
 

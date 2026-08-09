@@ -367,3 +367,90 @@ fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
         thought(&v)
     );
 }
+
+/// **A blocked tool call must reach the transcript.**
+///
+/// Reported live: `bash` was refused, nothing appeared on screen, and the user only learned a
+/// call had happened by asking the model. The daemon emits the events — captured over the socket:
+///
+/// ```text
+/// tool      verb=bash state=failed summary='blocked'
+/// approval  verb=bash scope='echo hello marlowe · .'
+/// tool      verb=bash state=failed summary='declined'
+/// ```
+///
+/// So if the screen is empty, the projection is dropping them. This replays that exact sequence.
+#[test]
+fn a_blocked_tool_call_reaches_the_transcript() {
+    use marlowe_view::ToolLineState;
+
+    let mut v = view();
+    apply_events(
+        &mut v,
+        &[
+            Event::Degraded {
+                what: "read untrusted content".into(),
+                remedy: "see `marlowe --status`".into(),
+            },
+            Event::Reasoning { delta: "The user wants a shell command.".into() },
+            Event::Tool {
+                id: 1,
+                verb: "bash".into(),
+                target: "echo hello marlowe".into(),
+                state: "failed".into(),
+                summary: "blocked".into(),
+            },
+            Event::Approval {
+                decision: 0,
+                verb: "bash".into(),
+                scope: "echo hello marlowe · .".into(),
+                reversible: false,
+            },
+            Event::Tool {
+                id: 2,
+                verb: "bash".into(),
+                target: "echo hello marlowe · .".into(),
+                state: "failed".into(),
+                summary: "declined".into(),
+            },
+            Event::Text { delta: "bash is refused here.".into() },
+            Event::Done {
+                outcome: "completed".into(),
+                detail: String::new(),
+                spend_micros_usd: 0,
+                elapsed_ms: 10310,
+            },
+        ],
+    );
+
+    let calls: Vec<&marlowe_view::ToolCall> = v
+        .transcript
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Tools(c) => Some(c),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+
+    assert_eq!(
+        calls.len(),
+        2,
+        "both refused calls must be in the transcript; found {}: {:?}",
+        calls.len(),
+        v.transcript
+    );
+    assert!(
+        calls.iter().all(|c| matches!(c.state, ToolLineState::Failed(_))),
+        "a refused call must read as a failure"
+    );
+    assert!(calls.iter().all(|c| c.verb == "bash"));
+
+    // …and the run must not still be claiming an answer is owed once it has finished.
+    assert_ne!(
+        v.status.state,
+        marlowe_view::StatusState::Waiting,
+        "the band still says `approval needed` after Done: {:?}",
+        v.status.detail
+    );
+}

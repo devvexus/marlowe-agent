@@ -268,11 +268,14 @@ impl OllamaDriver {
                 //
                 // Every `Target` is required: a tool call with no target is not a partial call,
                 // it is a different call.
+                // **`required`, not `role`.** These are two questions and they were one switch:
+                // `ArgumentRole::Target` says what untrusted content may never shape, which is not
+                // the same as what the tool cannot run without. See `ParamSpec::required`.
                 let required: Vec<&str> = reg
                     .manifest
                     .params()
                     .iter()
-                    .filter(|p| p.role == marlowe_tools::ArgumentRole::Target)
+                    .filter(|p| p.required)
                     .map(|p| p.name.as_str())
                     .collect();
                 serde_json::json!({
@@ -1183,8 +1186,12 @@ fn param_description(p: &marlowe_tools::ParamSpec) -> String {
         ParamType::Boolean => "true or false",
         ParamType::Text => "text",
     };
+    // Arity from `required`, and the role stated only where it changes what the model may do.
+    // Rendering the role AS the arity is the same conflation the schema had, in prose, and it
+    // reached the model a second time through `Engine::expected_params` after a refusal.
+    let arity = if p.required { "REQUIRED" } else { "Optional" };
     match p.role {
-        ArgumentRole::Target => format!("REQUIRED. What this acts on: {what}."),
-        ArgumentRole::Payload => format!("Optional. {what}."),
+        ArgumentRole::Target => format!("{arity}. What this acts on: {what}."),
+        ArgumentRole::Payload => format!("{arity}. {what}."),
     }
 }

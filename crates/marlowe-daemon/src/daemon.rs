@@ -491,6 +491,12 @@ impl Daemon {
                             .join(", "))
                         .unwrap_or_else(|| "NONE".into())
                 );
+                // **The literal bytes.** Every summary above is a rendering of this; when the two
+                // disagree the summary is wrong, and only this settles it.
+                if std::env::var("MARLOWE_DUMP_BODY").is_ok() {
+                    eprintln!("[dev] ===== RAW BODY =====");
+                    eprintln!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
+                }
                 eprintln!("[dev] ===== END REQUEST =====");
             }));
 
