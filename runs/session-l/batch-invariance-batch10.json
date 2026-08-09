@@ -1,0 +1,77 @@
+{
+  "_what": "batch invariance at batch=10 on the shipped graph, over real held-out slates",
+  "_why_not_inherited": "determinism, batch and padding invariance are re-measured PER GRAPH and never inherited (STATE.md standing checks). Session K's read was also taken at n=8 on synthetic near-equal-length documents, which cannot see a length-heterogeneity effect inside the batch.",
+  "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "digest": "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0",
+  "split": "heldout",
+  "slates": 229,
+  "depth": 10,
+  "max_seq_len": 256,
+  "padding": "fixed 256, UNCHANGED -- only batching is gated here",
+  "optimization_level": "ORT_ENABLE_BASIC (matches ort Level1)",
+  "threads": 1,
+  "wordpiece_range_across_slates": [
+    2,
+    5241
+  ],
+  "max_abs_delta": 0.0,
+  "pairs_compared": 2290,
+  "exact_equality_fraction": 1.0,
+  "slates_with_changed_order": 0,
+  "slates_with_changed_top1": 0,
+  "batch_size_sweep": {
+    "1": {
+      "max_abs_delta": 0.0,
+      "pairs": 40,
+      "exact": 1.0
+    },
+    "2": {
+      "max_abs_delta": 0.0,
+      "pairs": 80,
+      "exact": 1.0
+    },
+    "3": {
+      "max_abs_delta": 0.0,
+      "pairs": 120,
+      "exact": 1.0
+    },
+    "4": {
+      "max_abs_delta": 0.0,
+      "pairs": 160,
+      "exact": 1.0
+    },
+    "5": {
+      "max_abs_delta": 0.0,
+      "pairs": 200,
+      "exact": 1.0
+    },
+    "6": {
+      "max_abs_delta": 0.0,
+      "pairs": 240,
+      "exact": 1.0
+    },
+    "7": {
+      "max_abs_delta": 0.0,
+      "pairs": 280,
+      "exact": 1.0
+    },
+    "8": {
+      "max_abs_delta": 0.0,
+      "pairs": 320,
+      "exact": 1.0
+    },
+    "9": {
+      "max_abs_delta": 0.0,
+      "pairs": 360,
+      "exact": 1.0
+    },
+    "10": {
+      "max_abs_delta": 0.0,
+      "pairs": 400,
+      "exact": 1.0
+    }
+  },
+  "_why_the_sweep": "a pool with fewer than `budget` survivors produces a SHORTER batch. Measuring only at 10 would leave every production-reachable smaller batch resting on the argument that BERT rows are independent given the mask, rather than on a number.",
+  "verdict": "INVARIANT",
+  "adoption": "batching may be adopted; it is quality-neutral by identity and the byte-identity gate on scored-candidates.ndjson can hold"
+}

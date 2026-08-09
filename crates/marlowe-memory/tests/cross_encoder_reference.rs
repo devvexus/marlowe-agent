@@ -37,7 +37,7 @@
 use std::path::{Path, PathBuf};
 
 use marlowe_memory::cue::dense::tokenizer::{encode_pair, Vocab};
-use marlowe_memory::rerank::{CrossEncoder, BATCH, MAX_SEQ_LEN, MODEL_FILE, TOKENIZER_FILE};
+use marlowe_memory::rerank::{CrossEncoder, MAX_BATCH, MAX_SEQ_LEN, MODEL_FILE, TOKENIZER_FILE};
 
 /// Absolute tolerance on one logit, and the reason it is not zero.
 ///
@@ -294,15 +294,90 @@ fn scoring_the_same_pair_twice_gives_the_same_logit() {
 }
 
 #[test]
-fn the_batch_dimension_is_one_and_there_is_no_way_to_raise_it() {
-    // The structural half of the batch-invariance defence. `BATCH` is a constant, `score` takes a
-    // single pair, and there is no slice-taking entry point on `CrossEncoder` -- so reintroducing
-    // batching requires changing a signature, not passing a bigger argument.
+fn batched_and_single_scoring_are_bit_identical() {
+    // **This replaces `the_batch_dimension_is_one_and_there_is_no_way_to_raise_it`, and it is the
+    // stronger test.** The old one asserted `BATCH == 1` -- a constant standing in for a property.
+    // It would have passed just as happily on a graph where batching was catastrophic, because it
+    // never ran the graph; what it actually guarded was that nobody had edited a number.
     //
-    // The shipped f32 graph IS batch-invariant, at 0.000000. Batch 1 is kept anyway because
-    // invariance is a per-graph measurement that is never inherited by the next re-pin. See
-    // rerank.rs module docs.
-    assert_eq!(BATCH, 1, "batch is fixed at 1 structurally; see rerank.rs module docs");
+    // This asserts the PROPERTY the constant was a proxy for: on the shipped graph, a pair's logit
+    // does not depend on which pairs share its batch. Measured in Python across all 229 held-out
+    // slates at 0.000000000 (`runs/session-l/batch-invariance-batch10.json`); re-asserted here so a
+    // future re-pin fails the BUILD rather than waiting for someone to re-run a tool.
+    //
+    // Per-graph and never inherited -- ADR-013's rule, and the reason this is a test rather than a
+    // comment citing the artifact.
+    let r = shipped();
+    if !model_dir(r).join(MODEL_FILE).exists() {
+        eprintln!("SKIP: {} is absent.", model_dir(r).join(MODEL_FILE).display());
+        return;
+    }
+    let mut encoder = CrossEncoder::load(&model_dir(r)).expect("loads");
+    let query = "which database did the analytics warehouse move to";
+    // Deliberately heterogeneous in length. Session K's Python check used near-equal-length
+    // synthetic documents, which cannot see a length-heterogeneity effect inside the batch -- the
+    // exact gap Session L's slate-based measurement closed.
+    let documents = [
+        "Postgres.",
+        "I moved the analytics warehouse off Postgres in April after the ingest job timed out, \
+         and the migration took three weekends of careful cutover work with a read replica.",
+        "we had pasta for dinner",
+        "The warehouse now runs on ClickHouse; the ingest job that used to time out nightly \
+         finishes in under four minutes, which is the whole reason the move was worth doing.",
+        "unrelated chatter about the weather",
+    ];
+
+    let batched = encoder.score_batch(query, &documents).expect("batch scores");
+    assert_eq!(batched.len(), documents.len(), "one logit per pair, in input order");
+
+    for (i, document) in documents.iter().enumerate() {
+        let single = encoder.score(query, document).expect("scores");
+        assert_eq!(
+            batched[i].to_bits(),
+            single.to_bits(),
+            "pair {i} scored {} in a batch of {} and {} alone -- BIT-identical is the bar, because \
+             the byte-identity gate on scored-candidates.ndjson rests on it",
+            batched[i],
+            documents.len(),
+            single
+        );
+    }
+}
+
+#[test]
+fn a_batch_larger_than_the_measured_envelope_is_refused() {
+    // The envelope is the edge of the evidence, not a capacity limit. Invariance is measured over
+    // 1..MAX_BATCH; nothing above it has been run. Refusing is the load-time-error-over-sensible-
+    // default rule applied to a measurement: "invariant at 10 so invariant at 32" is precisely the
+    // inherited-measurement reasoning that has now cost this project four wrong transfers.
+    let r = shipped();
+    if !model_dir(r).join(MODEL_FILE).exists() {
+        return;
+    }
+    let mut encoder = CrossEncoder::load(&model_dir(r)).expect("loads");
+    let too_many: Vec<&str> = vec!["a document"; MAX_BATCH + 1];
+    let err = encoder
+        .score_batch("a query", &too_many)
+        .expect_err("a batch past the measured envelope must be refused");
+    assert!(
+        matches!(err, marlowe_memory::rerank::RerankError::BatchTooLarge { .. }),
+        "{err}"
+    );
+    assert!(err.to_string().contains("batch-invariance"), "the refusal names the evidence: {err}");
+}
+
+#[test]
+fn the_rerank_budget_never_exceeds_what_invariance_was_measured_at() {
+    // The two constants live in different modules and mean different things -- one is a retrieval
+    // policy, the other the edge of a measurement. Raising the budget past the envelope would
+    // batch at a size nobody has measured, and `score_batch` would refuse at RUNTIME on every
+    // query, which reads as a reranker outage rather than as a missing measurement.
+    assert!(
+        marlowe_memory::retrieve::RERANK_BUDGET <= MAX_BATCH,
+        "RERANK_BUDGET {} exceeds the measured invariance envelope {MAX_BATCH}; re-run \
+         tools/session_l_batch_invariance.py to the new size before raising it",
+        marlowe_memory::retrieve::RERANK_BUDGET
+    );
 }
 
 #[test]

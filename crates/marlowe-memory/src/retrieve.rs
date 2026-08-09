@@ -195,6 +195,17 @@ pub enum Rerank<'a> {
         encoder: &'a mut CrossEncoder,
         /// How many of the pruned pool's top candidates to rerank.
         budget: usize,
+        /// Score the whole slate in one forward pass instead of one pair at a time.
+        ///
+        /// **A measurement switch, and `false` is the shipped value.** M0c Session L measured
+        /// batching at one intra-op thread as a **12% regression** (rerank p50 187.6 → 210.2 ms,
+        /// max 205.3 → 259.3) with output bit-identical, so it is off on cost grounds rather than
+        /// correctness grounds. It is a field rather than a constant because the finding is
+        /// *conditional on the thread count*, and the thread count is what Session L is measuring.
+        ///
+        /// Carried on the variant rather than read from a global so a run cannot report one
+        /// configuration and execute another; the retrieval profile records the value per query.
+        batched: bool,
     },
 }
 
@@ -451,7 +462,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     }
 
     probe.enter(Stage::Rerank);
-    if let Rerank::CrossEncoder { encoder, budget } = rerank {
+    if let Rerank::CrossEncoder { encoder, budget, batched } = rerank {
         // The slate: the top `budget` survivors under the EXISTING ranking key. Drawing the slate
         // with the key the reranker then replaces is what makes this a rerank stage rather than a
         // new cue — and it is what Q2's registered "fixed budget of 10 reranked pairs" costs.
@@ -465,14 +476,53 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
                 .then_with(|| x.entry.id.cmp(&y.entry.id))
         });
         slate.truncate(*budget);
-        for index in slate {
-            // One pair at a time. See `rerank.rs`: batch is 1 structurally because int8 batch
-            // invariance fails, measured at 0.0958 logits at this optimization level.
-            match encoder.score(query_text, &scored[index].entry.text) {
-                Ok(logit) => scored[index].rerank_score = Some(logit),
-                // Loud. A reranker that silently scored nothing would leave the stage looking
-                // present in the report and absent in the ranking.
-                Err(e) => eprintln!("marlowe: cross-encoder failed on {}: {e}", scored[index].entry.id),
+
+        // **One pair at a time, and this is a MEASURED choice rather than the inherited one.**
+        //
+        // M0c Session L batched the whole slate into a single `[10, 256]` forward and measured it:
+        // rerank p50 **187.6 ms → 210.2 ms**, a **12% REGRESSION**, warm-249. The output was
+        // bit-identical — the byte-identity gate on `scored-candidates.ndjson` passed — so this is
+        // a pure cost finding, not a correctness one.
+        //
+        // Why it loses: `rerank.rs` pins `intra_threads(1)` / `inter_threads(1)` for ADR-003's
+        // 1-vCPU target. Batching pays for itself through parallelism across the batch dimension,
+        // and at one thread there is none to exploit; what is left is the cost — attention is
+        // O(seq²) per row either way, so batching ten rows multiplies the intermediate tensors
+        // tenfold and loses cache locality. The tail says the same thing louder: batched max
+        // 259.3 ms against sequential 205.3 ms.
+        //
+        // **The batching path is retained in `rerank.rs` and is not dead code.** It is the shape a
+        // GPU execution provider would need, and that is a separate decision with its own ADR:
+        // determinism across execution providers is not inherited from the CPU graph, and the VPS
+        // target has no GPU, so it would be a second path rather than a replacement.
+        if *batched {
+            // One `[slate, 256]` forward. Invariance is measured at 0.000000000 across every batch
+            // size 1..10 on the shipped graph, so this produces bit-identical logits to the loop
+            // below -- the two differ in cost, never in result.
+            let documents: Vec<&str> =
+                slate.iter().map(|i| scored[*i].entry.text.as_str()).collect();
+            match encoder.score_batch(query_text, &documents) {
+                Ok(logits) => {
+                    for (index, logit) in slate.iter().zip(logits) {
+                        scored[*index].rerank_score = Some(logit);
+                    }
+                }
+                Err(e) => eprintln!(
+                    "marlowe: cross-encoder failed on a slate of {} for query {:?}: {e}",
+                    documents.len(),
+                    query_text
+                ),
+            }
+        } else {
+            for index in slate {
+                match encoder.score(query_text, &scored[index].entry.text) {
+                    Ok(logit) => scored[index].rerank_score = Some(logit),
+                    // Loud. A reranker that silently scored nothing would leave the stage looking
+                    // present in the report and absent in the ranking.
+                    Err(e) => {
+                        eprintln!("marlowe: cross-encoder failed on {}: {e}", scored[index].entry.id)
+                    }
+                }
             }
         }
     }

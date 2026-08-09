@@ -1,0 +1,75 @@
+{
+  "_what": "AMENDED acceptance for the GPU rerank path, registered BEFORE the recovery measurements it judges.",
+  "_supersedes": "the determinism gate in PREREGISTRATION-gpu.json. That registration's OTHER gates -- provider assertion by get_providers() AND node placement -- are UNCHANGED and still binding.",
+  "_authority": "the human, explicitly: 'This is a design decision on my authority, and it needs its own ADR -- cite the spike as evidence, not as authorisation.'",
+
+  "state_at_registration": {
+    "recovery_cells_completed": 0,
+    "what_had_been_observed": [
+      "G0 CPU seq 1t p50 200.124 ms/slate, G3 repeat 200.530, noise floor 0.406 ms",
+      "G1 CUDA sequential p50 23.594 ms/slate",
+      "G2 CUDA batched p50 2.877 ms/slate -- 70x the CPU arm",
+      "cross-provider logit delta: G1 max 0.00210666656, G2 max 0.00218200684",
+      "repeated CUDA runs NOT bit-identical",
+      "both CUDA cells ran 13.6% of nodes on CPU (55,680 of 408,320)",
+      "NOTHING about whether the delta reorders a slate, whether GPU-to-GPU repeatability is recoverable, or which ops fall back."
+    ]
+  },
+
+  "why_the_original_gate_is_amended_rather_than_waived": {
+    "the_argument": "bit-identity across providers existed to make OPTIMIZATION MEASUREMENTS COMPARABLE -- so that a latency change could be attributed to the change rather than to a moved scorer. At 2.877 ms against a 300 ms budget there is no optimization space left to protect. The instrument outlived the thing it was instrumenting.",
+    "the_driver": "brief section 9 requires 800 ms voice-to-voice P50 with retrieval INSIDE that budget. 200 ms of a 300 ms retrieval budget inside an 800 ms conversational budget was never going to work. 2.877 ms does.",
+    "what_this_is_NOT": "this is not a tolerance sought after a gate failed. The gate is replaced by a DIFFERENT gate that tests the property that still matters -- ranking -- and a STRICTER one where determinism is still recoverable.",
+    "the_spike_is_evidence_not_authorisation": "the 70x number is why the question was asked. It does not by itself license the change; the design decision and its ADR do."
+  },
+
+  "the_amended_acceptance": {
+    "gate_1_gpu_to_gpu_byte_identity": {
+      "requirement": "repeated CUDA runs must be BIT-IDENTICAL to one another",
+      "status": "THE BAR. Within a provider, determinism is a property the system should have and may be recoverable.",
+      "what_will_be_swept": [
+        "cudnn_conv_algo_search = HEURISTIC and DEFAULT (EXHAUSTIVE autotunes and is expected to be the least reproducible)",
+        "do_copy_in_default_stream = 1",
+        "arena_extend_strategy fixed (kSameAsRequested)"
+      ],
+      "usual_causes_named_in_advance": "nondeterministic kernel selection and atomic reductions",
+      "verdict_if_unrecoverable": "report it plainly. A nondeterministic scorer is a real cost and must be visible in the ADR, not absorbed."
+    },
+    "gate_2_cross_provider_is_RANKING_EQUIVALENCE_not_bytes": {
+      "requirement": "the top-10 ORDER must match CPU on the held-out set",
+      "rationale": "the slate IS the depth-10 top-10, so order equivalence over it is exactly what determines R@1, R@5 and R@10. A logit delta that never reorders is a different fact from one that does, and the acceptance is written against that distinction.",
+      "also_reported_because_it_is_not_the_same_question": [
+        "is 0.0021 a WORST CASE or a MEDIAN? the distribution of |delta|, not just its max",
+        "how many slates reorder at all",
+        "how many change top-1",
+        "whether R@1 over the held-out set moves by even one case"
+      ],
+      "verdict_if_ranking_equivalence_ALSO_fails": "REPORT IT AND STOP. That is a different and more serious finding than a logit delta -- it means the two paths disagree about what to retrieve, and no amount of speed makes two paths that retrieve differently into one system."
+    },
+    "gate_3_node_fallback": {
+      "requirement": "identify the ops in the 13.6% running on CPU",
+      "why_it_is_both": "a correctness surface -- every fallback is a boundary where two providers' numerics meet mid-graph -- AND speed left on the table."
+    }
+  },
+
+  "open_gap_node_placement_cannot_be_re_verified_by_the_shipped_binary": {
+    "_status": "OPEN GAP with a named closing condition. NOT a caveat.",
+    "what_was_verified": "node placement was measured ONCE, in Python, on THIS graph, at ORT 1.24.2: 13.6% of nodes ran on CPU under a registered CUDA session -- 55,680 of 408,320.",
+    "the_census": {
+      "Gather": 1856, "Unsqueeze": 1624, "Concat": 1392,
+      "Reshape": 232, "Equal": 232, "Where": 232
+    },
+    "what_the_census_is_evidence_FOR": "the CURRENT placement is benign -- every fallback op is a shape or index operation and there is not a single matmul among them, which is why 13.6% of NODES costs so little TIME.",
+    "what_it_is_NOT_evidence_for": "that it will STAY benign. It is a snapshot of one graph at one ORT version.",
+    "the_limitation": "`ort` exposes no node enumeration, so the SHIPPED Rust binary cannot re-verify placement. `error_on_failure()` covers provider REGISTRATION only. A future graph change, model swap, or ORT upgrade could move matmuls onto the CPU fallback and NOTHING would report it -- the run would simply be slower, and a slower run reads as machine drift, which this session has shown is large enough to hide it.",
+    "closing_condition": "either `ort` exposes node placement, or a Rust-side profiling hook is added that reads ORT's profiling output the way tools/session_l_gpu_recovery.py does. Until one of those exists, this is open.",
+    "interim_obligation": "re-run tools/session_l_gpu_recovery.py after ANY change to the graph, the model, or the ORT version. The verification does not survive those on its own."
+  },
+
+  "what_ships": {
+    "cpu": "STAYS the fallback and stays shipped where no GPU exists.",
+    "two_paths": "both correct, both measured, and the difference DOCUMENTED rather than hidden.",
+    "the_hazard_being_accepted_deliberately": "two numeric paths where one ships and one is measured is a configuration this project has been burned by. It is accepted here with eyes open because the alternative is a 200 ms retrieval stage inside an 800 ms conversational budget. The mitigation is that BOTH are measured and the difference is published, not that the difference is small.",
+    "unchanged_regardless": "rerank::SHIPPED_THREADS = 1 on the CPU path. Threading remains a +158.9 ms regression and this amendment says nothing about it."
+  }
+}

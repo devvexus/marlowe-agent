@@ -1,0 +1,134 @@
+{
+  "_registration": "runs/session-l/PREREGISTRATION-gpu-amendment.json",
+  "onnxruntime": "1.24.2",
+  "cuda_library_search_path": {
+    "added": true,
+    "torch_lib": "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\torch\\lib",
+    "libraries_present": {
+      "cublasLt64_12": true,
+      "cudnn64_9": true,
+      "cudart64_12": true
+    }
+  },
+  "slates": 229,
+  "cpu_p50_ms_per_slate": 200.563,
+  "gate_1_gpu_to_gpu_determinism": [
+    {
+      "options": "(provider defaults)",
+      "runs": 3,
+      "gpu_to_gpu_bit_identical": true,
+      "max_run_to_run_delta": 0.0,
+      "p50_ms_per_slate": 2.718,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      },
+      "cpu_fallback_fraction": 0.1364,
+      "cpu_fallback_ops": {
+        "Gather": 1856,
+        "Unsqueeze": 1624,
+        "Concat": 1392,
+        "Reshape": 232,
+        "Equal": 232,
+        "Where": 232
+      }
+    },
+    {
+      "options": {
+        "cudnn_conv_algo_search": "HEURISTIC"
+      },
+      "runs": 3,
+      "gpu_to_gpu_bit_identical": true,
+      "max_run_to_run_delta": 0.0,
+      "p50_ms_per_slate": 2.792,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      },
+      "cpu_fallback_fraction": 0.1364,
+      "cpu_fallback_ops": {
+        "Gather": 1856,
+        "Unsqueeze": 1624,
+        "Concat": 1392,
+        "Reshape": 232,
+        "Equal": 232,
+        "Where": 232
+      }
+    },
+    {
+      "options": {
+        "cudnn_conv_algo_search": "DEFAULT"
+      },
+      "runs": 3,
+      "gpu_to_gpu_bit_identical": true,
+      "max_run_to_run_delta": 0.0,
+      "p50_ms_per_slate": 2.649,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      },
+      "cpu_fallback_fraction": 0.1364,
+      "cpu_fallback_ops": {
+        "Gather": 1856,
+        "Unsqueeze": 1624,
+        "Concat": 1392,
+        "Reshape": 232,
+        "Equal": 232,
+        "Where": 232
+      }
+    },
+    {
+      "options": {
+        "cudnn_conv_algo_search": "HEURISTIC",
+        "do_copy_in_default_stream": "1",
+        "arena_extend_strategy": "kSameAsRequested"
+      },
+      "runs": 3,
+      "gpu_to_gpu_bit_identical": true,
+      "max_run_to_run_delta": 0.0,
+      "p50_ms_per_slate": 2.712,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      },
+      "cpu_fallback_fraction": 0.1364,
+      "cpu_fallback_ops": {
+        "Gather": 1856,
+        "Unsqueeze": 1624,
+        "Concat": 1392,
+        "Reshape": 232,
+        "Equal": 232,
+        "Where": 232
+      }
+    }
+  ],
+  "gate_1_recovered": true,
+  "gate_2_ranking_equivalence": {
+    "top10_order_matches_cpu_on_every_slate": true,
+    "slates_reordered": 0,
+    "slates_with_changed_top1": 0,
+    "r_at_1": {
+      "cpu": 0.6725,
+      "gpu": 0.6725,
+      "cases_moved": 0
+    }
+  },
+  "cross_provider_delta_distribution": {
+    "note": "the ORIGINAL spike reported only the MAX. This is the distribution, which is the question 'is 0.0021 typical or the tail' actually asks.",
+    "median": 0.00023651123046875,
+    "p95": 0.0008235455024987459,
+    "p99": 0.0012019446585327387,
+    "max": 0.0021820068359375,
+    "exactly_zero_fraction": 0.0017467248908296944
+  },
+  "gate_3_cpu_fallback_ops": {
+    "Gather": 1856,
+    "Unsqueeze": 1624,
+    "Concat": 1392,
+    "Reshape": 232,
+    "Equal": 232,
+    "Where": 232
+  },
+  "verdict": "RANKING EQUIVALENT -- top-10 order matches CPU on every slate.",
+  "cpu_stays": "the fallback, shipped wherever no GPU exists. Two paths, both measured."
+}

@@ -67,7 +67,12 @@ unicode-general-category = "1"
 # EXACT version, not a caret range: ort-sys pins ONNX Runtime 1.22.0 by sha256 per target
 # and links it statically, so this line is the top of a digest-pinned chain down to the
 # machine code that computes an embedding. A caret range would break that.
-ort = { version = "=2.0.0-rc.10", features = ["download-binaries"] }
+# **The `cuda` feature changes the ONNX Runtime binary for the WHOLE workspace, CPU included.**
+# M0c Session L added it, and the first thing it did was re-run the CPU path and check byte-identity
+# against runs/session-k's dump -- because a numerics shift from the version/build bump alone would
+# confound every later CPU-vs-GPU comparison, and nobody would have attributed it. See
+# runs/session-l/RESULT.md.
+ort = { version = "=2.0.0-rc.10", features = ["download-binaries", "cuda"] }
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 getrandom = "0.2"
 

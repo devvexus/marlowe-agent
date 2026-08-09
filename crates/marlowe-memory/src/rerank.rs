@@ -25,23 +25,39 @@
 //! f32 graph is re-verified — not inherited — at batch invariance `0.000000` and padding invariance
 //! `0.000000`; see `runs/session-k/export-verification-*.json`.
 //!
-//! ## Batch is 1, and it stays structural even though the reason changed
+//! ## The batch is now the slate, and both of Session K's reasons were retired by measurement
 //!
-//! Session G's original reason was that **int8 batch invariance FAILED** at 0.037 logits for L-2.
-//! **That reason no longer applies to the shipped graph** — f32 is batch-invariant at exactly
-//! `0.000000` — and leaving the old rationale in place would be a stale comment defending a
-//! constant nobody had re-examined. Two reasons replace it:
+//! Session G's original reason for batch 1 was that **int8 batch invariance FAILED** at 0.037
+//! logits for L-2. That reason died with the int8 graph. Session K replaced it with two others,
+//! and **M0c Session L retired both — by measuring, not by arguing**:
 //!
-//! 1. **Invariance is a per-graph measurement and is never inherited.** ADR-013's rule. A future
-//!    re-pin — a re-quantization, a new fine-tune, a different export — arrives with no invariance
-//!    result until one is taken, and a batch parameter sitting in the code is a way for that
-//!    re-pin to silently score candidates against whoever shares their batch.
-//! 2. **Batching buys nothing here.** 21.4 ms/pair × 10 candidates = 214 ms/query against a 300 ms
-//!    P95 budget, on ADR-003's 1-vCPU target.
+//! 1. *"Invariance is a per-graph measurement and is never inherited."* Still true, and still the
+//!    rule. It is discharged by taking the measurement on **this** graph rather than by refusing to
+//!    batch: `runs/session-l/batch-invariance-batch10.json`. Max `|batched − single|`
+//!    **0.000000000** over **2,290 pairs** across all 229 held-out slates, **zero** order changes,
+//!    **zero** top-1 changes — plus a sweep of **every batch size 1..10**, all `0.000000000`,
+//!    because a pool with fewer survivors produces a shorter batch and measuring only at 10 would
+//!    have left the production-reachable sizes resting on an argument.
 //!
-//! So [`CrossEncoder::score`] still takes **one** pair, builds a `[1, MAX_SEQ_LEN]` tensor, and
-//! asserts the leading dimension. There is no batch parameter to raise and no slice-of-pairs entry
-//! point: reintroducing batching means deleting an assertion and changing a signature.
+//!    Session K's read was taken at n = 8 on synthetic documents differing only by a trailing
+//!    integer — near-identical lengths, so a length-heterogeneity effect inside the batch could not
+//!    have appeared. Session L's slates span **2 to 5,241 word-pieces**.
+//!
+//! 2. *"Batching buys nothing here."* **This was wrong, and the profile is why.** The rerank is
+//!    **90.49%** of the retrieval P95 (`runs/session-l/RESULT.md`) — ten sequential forwards at
+//!    18.76 ms/pair. It is not a stage among stages; it is the budget. Everything else in the
+//!    pipeline combined is under 10%.
+//!
+//! **The per-graph rule is now enforced in Rust, not just in a Python artifact.**
+//! `tests/cross_encoder_reference.rs::batched_and_single_scoring_are_bit_identical` scores a slate
+//! both ways through the shipped path and asserts bit-identical logits. A re-pin that breaks
+//! invariance fails the build rather than silently scoring candidates against whoever shares their
+//! batch — which is the hazard the batch-1 constant was standing in for.
+//!
+//! [`CrossEncoder::score_batch`] is the entry point and [`CrossEncoder::score`] delegates to it
+//! with a one-element slice, so there is exactly **one** inference path. `MAX_BATCH` is the
+//! measured envelope and a larger batch is **refused**, not silently run: the invariance number
+//! covers 1..10 and nothing above it has been measured.
 //!
 //! ## `MAX_SEQ_LEN` is 256 and the 7.86% gold truncation is a PRICED DEFECT
 //!
@@ -62,7 +78,7 @@
 
 use std::path::{Path, PathBuf};
 
-use ort::execution_providers::CPUExecutionProvider;
+use ort::execution_providers::{CPUExecutionProvider, CUDAExecutionProvider};
 use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
 use ort::value::Value;
@@ -106,8 +122,81 @@ const SUPERSEDED_INT8_FILE: &str = "model_int8.onnx";
 /// Sequence length, fixed. See the module docs — this is a priced defect, not a free constant.
 pub const MAX_SEQ_LEN: usize = 256;
 
-/// The batch size, and it is not a tuning parameter. See the module docs.
-pub const BATCH: usize = 1;
+/// The largest batch whose invariance has been **measured** on the shipped graph.
+///
+/// Not a tuning parameter and not a capacity limit — it is the edge of the evidence. The sweep in
+/// `runs/session-l/batch-invariance-batch10.json` covers 1..10 at `0.000000000`; 11 has never been
+/// run. [`CrossEncoder::score_batch`] refuses above this rather than extrapolating, because "it was
+/// invariant at 10 so it is invariant at 32" is exactly the inherited-measurement reasoning the
+/// per-graph rule exists to stop.
+///
+/// It equals `retrieve::RERANK_BUDGET` by construction, and a test asserts the two agree — if the
+/// budget ever rises, the invariance sweep has to be re-run to that number first.
+pub const MAX_BATCH: usize = 10;
+
+/// The intra-op thread count every published number in this project was measured at.
+///
+/// ADR-003 sizes against a 1-vCPU VPS. That target is what forced this to 1, and M0c Session L
+/// records that the target itself is under question — so this constant names the *measured*
+/// configuration rather than an assumed one, and `load_with_threads` exists so the alternative can
+/// be measured instead of argued.
+pub const SHIPPED_THREADS: usize = 1;
+
+/// Which execution provider scores the slate.
+///
+/// **Not a fork: an accelerator.** Both providers return the same RANKING -- M0c Session L measured
+/// 0 of 229 held-out slates reordered, 0 top-1 changes, and R@1 identical at 0.6725. They differ in
+/// latency and in what that latency makes possible: brief section 9's 800 ms voice-to-voice budget
+/// does not fit a 200 ms retrieval stage, and does fit a 3 ms one.
+///
+/// **Cross-provider logits are NOT bit-identical and that is accepted deliberately**, on the
+/// human's authority, with an ADR. The acceptance is *ranking equivalence*, not byte equality --
+/// see `runs/session-l/PREREGISTRATION-gpu-amendment.json`. Within a provider, byte-identity IS the
+/// bar and it holds: GPU-to-GPU is bit-identical at provider defaults.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RerankProvider {
+    Cpu,
+    Cuda,
+}
+
+impl RerankProvider {
+    /// Whether to score the slate in ONE forward pass, **for this provider**.
+    ///
+    /// **Batching is not a global preference; it is a property of the hardware**, and the two
+    /// providers measured opposite. M0c Session L, warm-249 held-out, ranking identical in every
+    /// cell:
+    ///
+    /// | provider | sequential | batched | |
+    /// |---|---|---|---|
+    /// | CPU, 1 thread | rerank p50 **185.8 ms** | 195.6 ms | batching **LOSES** |
+    /// | CUDA | rerank p50 15.2 ms | **3.4 ms** | batching **WINS**, −77% |
+    ///
+    /// The mechanism is the same in both directions. Batching pays for itself through parallelism
+    /// across the batch dimension and amortized per-call overhead. At one CPU thread there is no
+    /// such parallelism, so all that remains is the cost: attention is O(seq²) per row either way,
+    /// and ten rows in one forward multiply the intermediate tensors and lose cache locality. On a
+    /// GPU that parallelism is the whole machine, and ten sequential forwards pay ten kernel
+    /// launches instead of one.
+    ///
+    /// **A single global default would therefore be wrong for one provider whichever value it
+    /// took.** Both values are measured; neither is inherited from the other.
+    ///
+    /// Overridable by `--rerank-batch` for measurement, and the value actually used is stamped on
+    /// every retrieval-profile row — so a cell cannot claim one configuration and run another.
+    pub fn default_batching(self) -> bool {
+        match self {
+            RerankProvider::Cpu => false,
+            RerankProvider::Cuda => true,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            RerankProvider::Cpu => "CPUExecutionProvider",
+            RerankProvider::Cuda => "CUDAExecutionProvider",
+        }
+    }
+}
 
 /// The execution provider this stage is measured and adopted on.
 ///
@@ -160,10 +249,22 @@ pub enum RerankError {
     // `Session` error rather than something this stage has to detect afterwards. An unreachable
     // variant would suggest a check that does not exist.
     #[error(
-        "the graph returned {found} values for one pair; a sequence-classification head returns \
-         exactly 1 logit. This is not the model this stage was built against"
+        "the graph returned {found} values for {pairs} pair(s); a sequence-classification head \
+         returns exactly one logit per pair. This is not the model this stage was built against"
     )]
-    ShapeDisagrees { found: usize },
+    ShapeDisagrees { found: usize, pairs: usize },
+
+    #[error(
+        "a batch of {found} pairs was requested; invariance on this graph is measured only over \
+         1..{MAX_BATCH} (runs/session-l/batch-invariance-batch10.json, max |delta| 0.000000000). \
+         A larger batch is REFUSED rather than run: extrapolating an invariance result past the \
+         sizes it was taken at is the inherited-measurement error this project has now paid for \
+         four times. Re-run the sweep to the new size first"
+    )]
+    BatchTooLarge { found: usize },
+
+    #[error("an empty batch was passed to the cross-encoder; there is nothing to score")]
+    EmptyBatch,
 }
 
 fn sha256_file(path: &Path) -> Result<String, RerankError> {
@@ -205,7 +306,34 @@ impl CrossEncoder {
     ///
     /// Both digests are checked before the graph is constructed, and the execution provider is
     /// required to register rather than being allowed to fall back. See the builder below.
+    /// Load with the shipped, measured thread count of 1.
+    ///
+    /// Every published number in this project was taken at one intra-op thread, per ADR-003's
+    /// 1-vCPU target. This is the only constructor a shipping path should call.
     pub fn load(dir: &Path) -> Result<Self, RerankError> {
+        Self::load_with(dir, SHIPPED_THREADS, RerankProvider::Cpu)
+    }
+
+    /// Load at an explicit intra-op thread count. **Measurement only.**
+    ///
+    /// M0c Session L exists because ADR-003's 1-vCPU assumption is what forced single-threading,
+    /// and that assumption is itself under question — so the thread count had to become measurable
+    /// rather than remain a constant defended by a target nobody had re-examined.
+    ///
+    /// **Multi-threaded ORT can change reduction order inside a matmul**, which changes logits,
+    /// which changes the ranking. So a thread count is adopted only if `scored-candidates.ndjson`
+    /// stays byte-identical — determinism is the gate regardless of speed, and a faster
+    /// configuration that moves one bit is rejected, not priced.
+    pub fn load_with_threads(dir: &Path, threads: usize) -> Result<Self, RerankError> {
+        Self::load_with(dir, threads, RerankProvider::Cpu)
+    }
+
+    /// Load at an explicit thread count AND provider.
+    pub fn load_with(
+        dir: &Path,
+        threads: usize,
+        provider: RerankProvider,
+    ) -> Result<Self, RerankError> {
         let model_path = dir.join(MODEL_FILE);
         let tokenizer_path = dir.join(TOKENIZER_FILE);
 
@@ -249,15 +377,33 @@ impl CrossEncoder {
             // can (`tools/session_j_models.py`, `session_j_verify_export.py`); Rust states the
             // requirement at build time instead, which refuses earlier rather than reporting
             // later. Do not add a comment claiming a post-construction assertion exists here.
-            .and_then(|b| {
-                b.with_execution_providers([CPUExecutionProvider::default()
+            .and_then(|b| match provider {
+                RerankProvider::Cpu => b.with_execution_providers([CPUExecutionProvider::default()
                     .build()
-                    .error_on_failure()])
+                    .error_on_failure()]),
+                // `error_on_failure` again, and it is doing MORE work here than on CPU: the Python
+                // spike found CUDA listed as "available" while failing to CREATE (missing
+                // cublasLt64_12.dll), after which ORT registers CPU and scores happily. That is
+                // Session G verbatim. Here it is a refusal instead.
+                //
+                // **It still does not cover per-node fallback.** Session L measured 13.6% of nodes
+                // running on CPU under a registered CUDA session -- all shape/index ops (Gather,
+                // Unsqueeze, Concat, Reshape, Equal, Where), no matmuls. `ort` exposes no node
+                // placement, so that half of the check lives in
+                // `tools/session_l_gpu_recovery.py` and is NOT assertable from here.
+                RerankProvider::Cuda => b.with_execution_providers([CUDAExecutionProvider::default()
+                    .build()
+                    .error_on_failure()]),
             })
             .and_then(|b| b.with_optimization_level(GraphOptimizationLevel::Level1))
-            // One thread inside the graph. ADR-003 sizes against a 1-vCPU VPS, and the verdict in
-            // runs/session-g/cross-encoder-recost.json is read at 1 thread for that reason.
-            .and_then(|b| b.with_intra_threads(1))
+            // Threads INSIDE the graph. ADR-003 sizes against a 1-vCPU VPS and every published
+            // number was read at 1 for that reason; `load` still passes `SHIPPED_THREADS`. It is a
+            // parameter rather than a constant because M0c Session L is measuring whether the
+            // 1-vCPU target — not the code — is the thing that should change.
+            .and_then(|b| b.with_intra_threads(threads))
+            // Inter-op stays 1. It parallelizes across independent graph NODES, and this graph is
+            // a single sequential chain, so raising it adds a thread pool that nothing can use.
+            // Sweeping it would produce a column of noise and invite reading one of its cells.
             .and_then(|b| b.with_inter_threads(1))
             .and_then(|b| b.commit_from_file(&model_path))
             .map_err(|e| RerankError::Session { path: model_path, source: Box::new(e) })?;
@@ -267,23 +413,55 @@ impl CrossEncoder {
 
     /// Score one `(query, document)` pair. Higher is more relevant.
     ///
-    /// **One pair. Not a slice, not a batch.** See the module docs: int8 batch invariance failed
-    /// at 0.037 logits, and a fixed batch of 1 removes the failure mode rather than tolerating it.
+    /// Delegates to [`CrossEncoder::score_batch`]. **There is one inference path, not two** — a
+    /// second copy "for the single case" is how the batched and unbatched paths would drift into
+    /// scoring differently while every test that exercises only one of them stayed green.
     pub fn score(&mut self, query: &str, document: &str) -> Result<f32, RerankError> {
-        let encoded = encode_pair(&self.vocab, query, document, MAX_SEQ_LEN);
+        Ok(self.score_batch(query, std::slice::from_ref(&document))?[0])
+    }
+
+    /// Score a whole slate against one query, in **one** forward pass. Results are in input order.
+    ///
+    /// This is the shipped path. See the module docs for why batching is now permitted and what
+    /// was measured before it was: max `|batched − single|` **0.000000000** across every batch size
+    /// 1..[`MAX_BATCH`], so the ordering the ranker sees is bit-identical to the sequential one.
+    ///
+    /// **Refuses above [`MAX_BATCH`]** rather than extrapolating past the measured envelope.
+    pub fn score_batch(&mut self, query: &str, documents: &[&str]) -> Result<Vec<f32>, RerankError> {
+        if documents.is_empty() {
+            return Err(RerankError::EmptyBatch);
+        }
+        if documents.len() > MAX_BATCH {
+            return Err(RerankError::BatchTooLarge { found: documents.len() });
+        }
+        let encoded: Vec<EncodedPair> = documents
+            .iter()
+            .map(|d| encode_pair(&self.vocab, query, d, MAX_SEQ_LEN))
+            .collect();
         self.run(&encoded)
     }
 
-    fn run(&mut self, encoded: &EncodedPair) -> Result<f32, RerankError> {
-        let ids: Vec<i64> = encoded.input_ids.iter().map(|&v| v as i64).collect();
-        let mask: Vec<i64> = encoded.attention_mask.iter().map(|&v| v as i64).collect();
-        let types: Vec<i64> = encoded.token_type_ids.iter().map(|&v| v as i64).collect();
+    fn run(&mut self, encoded: &[EncodedPair]) -> Result<Vec<f32>, RerankError> {
+        let pairs = encoded.len();
 
-        let shape = [BATCH as i64, MAX_SEQ_LEN as i64];
-        // The structural assertion. `BATCH` is a constant and this is what stops a later change
-        // from making it anything else without the failure being loud and immediate.
-        assert_eq!(shape[0], 1, "cross-encoder batch is fixed at 1; see rerank.rs module docs");
-        assert_eq!(ids.len(), BATCH * MAX_SEQ_LEN, "fixed [1, {MAX_SEQ_LEN}] shape");
+        // Row-major concatenation: row `i` is pair `i`, which is what makes the output's order the
+        // input's order. Written as an explicit flatten rather than relying on an iterator chain
+        // so the layout is legible beside the shape below.
+        let mut ids: Vec<i64> = Vec::with_capacity(pairs * MAX_SEQ_LEN);
+        let mut mask: Vec<i64> = Vec::with_capacity(pairs * MAX_SEQ_LEN);
+        let mut types: Vec<i64> = Vec::with_capacity(pairs * MAX_SEQ_LEN);
+        for pair in encoded {
+            ids.extend(pair.input_ids.iter().map(|&v| v as i64));
+            mask.extend(pair.attention_mask.iter().map(|&v| v as i64));
+            types.extend(pair.token_type_ids.iter().map(|&v| v as i64));
+        }
+
+        let shape = [pairs as i64, MAX_SEQ_LEN as i64];
+        // The sequence dimension is still structural: `MAX_SEQ_LEN` is a priced defect (ADR-015,
+        // ADR-017) and every pair is padded to it. Only the BATCH dimension became variable, and
+        // only up to the size its invariance was measured at.
+        assert!(pairs <= MAX_BATCH, "batch {pairs} exceeds the measured envelope {MAX_BATCH}");
+        assert_eq!(ids.len(), pairs * MAX_SEQ_LEN, "fixed [{pairs}, {MAX_SEQ_LEN}] shape");
 
         let make = |data: Vec<i64>| -> Result<Value, RerankError> {
             Value::from_array((shape, data))
@@ -307,9 +485,12 @@ impl CrossEncoder {
             .try_extract_tensor::<f32>()
             .map_err(|e| RerankError::Run { source: Box::new(e) })?;
 
-        if logits.len() != 1 {
-            return Err(RerankError::ShapeDisagrees { found: logits.len() });
+        // One logit per pair, and the count is checked rather than assumed. A graph returning a
+        // two-class head would silently halve the slate here and the ranker would score every
+        // candidate against its neighbour's logit.
+        if logits.len() != pairs {
+            return Err(RerankError::ShapeDisagrees { found: logits.len(), pairs });
         }
-        Ok(logits[0])
+        Ok(logits.to_vec())
     }
 }

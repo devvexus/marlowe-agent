@@ -73,6 +73,13 @@ _reranking = None
 # system other than the one it says it is measuring -- it is the profile that would be missing,
 # loudly, rather than a number that would be wrong, quietly.
 _profile_retrieval = False
+# Cross-encoder thread count and batching, passed straight through to the binary. `None` means "do
+# not pass the flag", so the binary's own measured default applies and there is exactly one place
+# the shipped value is written down. Both are echoed into every profile row by the binary itself,
+# so a cell cannot be labelled one way and run another.
+_rerank_threads = None
+_rerank_batch = None
+_rerank_provider = None
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -661,6 +668,9 @@ def score_one(
         f"--embedder-model {MODEL_DIR} --embedding-cache {_cache_dir} "
         f"--reranking {_reranking} "
         + (f"--profile-retrieval {profile} " if _profile_retrieval else "")
+        + (f"--rerank-threads {_rerank_threads} " if _rerank_threads is not None else "")
+        + (f"--rerank-batch {_rerank_batch} " if _rerank_batch is not None else "")
+        + (f"--rerank-provider {_rerank_provider} " if _rerank_provider is not None else "")
         + f"--dump-gate-features {dump}"
     )
     result = run(
@@ -877,6 +887,19 @@ def main() -> int:
         "reading `cost.latency_ms`, so it cannot inflate the number it explains. Read it with "
         "`tools/profile_retrieval.py`.",
     )
+    parser.add_argument(
+        "--rerank-threads", type=int, default=None,
+        help="ONNX intra-op threads for the cross-encoder. Omit to use the binary's measured "
+             "default of 1 (ADR-003's 1-vCPU target). Adoption requires byte-identity of the "
+             "dump: multi-threaded ORT can change reduction order inside a matmul.")
+    parser.add_argument(
+        "--rerank-batch", choices=["on", "off"], default=None,
+        help="score the depth-10 slate in one forward pass. Omit to use the binary's default.")
+    parser.add_argument(
+        "--rerank-provider", choices=["cpu", "cuda"], default=None,
+        help="cross-encoder execution provider. Omit for the binary's default (cpu). The value is "
+             "stamped on every profile row, because a provider is the single most consequential "
+             "thing a cell can be wrong about.")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -902,10 +925,14 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
-    global _cache_dir, _reranking, _profile_retrieval
+    global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch
+    global _rerank_provider
     _cache_dir = Path(args.embedding_cache)
     _reranking = args.reranking
     _profile_retrieval = args.profile_retrieval
+    _rerank_threads = args.rerank_threads
+    _rerank_batch = args.rerank_batch
+    _rerank_provider = args.rerank_provider
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

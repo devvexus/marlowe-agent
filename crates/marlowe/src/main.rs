@@ -24,6 +24,7 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
         [--profile-retrieval <FILE>]
+        [--rerank-threads <N>] [--rerank-batch <on|off>] [--rerank-provider <cpu|cuda>]
 
   --tui                         The terminal interface. Requires at least 120x30; below that it
                                 prints one line naming the current and required size and offers
@@ -113,6 +114,24 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 byte-identical with or without it, and the write happens AFTER
                                 `cost.latency_ms` is read, so profiling cannot inflate the number
                                 it exists to explain. Read it with `tools/profile_retrieval.py`.
+
+  --rerank-threads <N>          ONNX intra-op threads for the CROSS-ENCODER only. Default 1, the
+                                value every published number was measured at, per ADR-003's 1-vCPU
+                                target. MEASUREMENT KNOB: raising it may change reduction order
+                                inside a matmul, which changes logits, which changes the ranking.
+                                A value is adopted only if scored-candidates.ndjson stays
+                                byte-identical -- determinism gates this regardless of speed. The
+                                value is recorded on every --profile-retrieval row, so a sweep
+                                cell cannot claim one thread count and run another.
+
+  --rerank-batch <on|off>       Score the whole depth-10 slate in ONE forward pass. Explicit value,
+                                no bare boolean, default `off`. Batch invariance is measured at
+                                0.000000000 across sizes 1..10 on the shipped graph, so this is
+                                bit-identical by construction -- it is a COST switch, not a quality
+                                one. Off by default because M0c Session L measured it as a 12%
+                                REGRESSION at one thread (rerank p50 187.6 -> 210.2 ms): batching
+                                pays through parallelism across the batch dimension and there is
+                                none at one thread. Recorded per profile row.
 
   --dump-consolidation <FILE>   Write one NDJSON row per INGESTED SESSION describing what §5.3
                                 consolidation merged. A diagnostic side channel: the §4.6
@@ -297,6 +316,51 @@ fn main() {
         std::process::exit(2);
     }
 
+    // Explicit value, never a bare boolean -- the `--reranking` rule. A default-on/off switch
+    // forgotten in a sweep string measures one configuration under another's label.
+    let rerank_provider = match flag_value(&args, "--rerank-provider") {
+        Some("cpu") | None => marlowe_memory::rerank::RerankProvider::Cpu,
+        Some("cuda") => marlowe_memory::rerank::RerankProvider::Cuda,
+        Some(other) => {
+            eprintln!("{USAGE}");
+            eprintln!("error: --rerank-provider takes `cpu` or `cuda`, got {other:?}.");
+            std::process::exit(2);
+        }
+    };
+    let rerank_batched = match flag_value(&args, "--rerank-batch") {
+        Some("on") => true,
+        Some("off") => false,
+        // **Derived from the provider, not a constant.** CPU is faster sequential, CUDA is faster
+        // batched, both measured; see `RerankProvider::default_batching`. A single default would be
+        // wrong for one of them whichever value it took. The resolved value is stamped on every
+        // profile row, so this default cannot hide a mismatch.
+        None => rerank_provider.default_batching(),
+        Some(other) => {
+            eprintln!("{USAGE}");
+            eprintln!("error: --rerank-batch takes `on` or `off`, got {other:?}.");
+            std::process::exit(2);
+        }
+    };
+    let rerank_threads = match flag_value(&args, "--rerank-threads") {
+        Some(v) => match v.parse::<usize>() {
+            Ok(n) if n >= 1 => n,
+            _ => {
+                eprintln!("{USAGE}");
+                eprintln!("error: --rerank-threads must be a positive integer, got {v:?}.");
+                std::process::exit(2);
+            }
+        },
+        None => marlowe_memory::rerank::SHIPPED_THREADS,
+    };
+    // Explicit value, no bare boolean, default `cpu` -- the shipped provider. A run that means to
+    // measure CUDA and forgets the flag measures CPU and says CUDA in its filename; the value is
+    // stamped on every profile row so the artifact settles it rather than the label.
+    let rerank_settings = adapter::RerankSettings {
+        batched: rerank_batched,
+        threads: rerank_threads,
+        provider: rerank_provider,
+    };
+
     let dump_path = flag_value(&args, "--dump-gate-features").map(std::path::Path::new);
     let profile_path = flag_value(&args, "--profile-retrieval").map(std::path::Path::new);
     let fit_mode = args.iter().any(|a| a == "--fit-mode");
@@ -371,7 +435,7 @@ fn main() {
     // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
     // must stop the process, not become a per-query error the harness scores as a wrong number.
     let cross_encoder = match reranking {
-        Some(dir) => match marlowe_memory::rerank::CrossEncoder::load(&dir) {
+        Some(dir) => match marlowe_memory::rerank::CrossEncoder::load_with(&dir, rerank_threads, rerank_provider) {
             Ok(e) => Some(e),
             Err(e) => {
                 eprintln!("marlowe: {e}");
@@ -392,6 +456,7 @@ fn main() {
             path,
             consolidation,
             cross_encoder,
+            rerank_settings,
             profile_path,
         ),
         (true, None) => {
@@ -407,6 +472,7 @@ fn main() {
             adapter::Diagnostics { gate_features: path, retrieval_profile: profile_path },
             consolidation,
             cross_encoder,
+            rerank_settings,
         ),
     };
 

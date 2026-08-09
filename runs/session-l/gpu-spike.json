@@ -1,0 +1,159 @@
+{
+  "_registration": "runs/session-l/PREREGISTRATION-gpu.json",
+  "_scope": "CPU-to-CUDA RATIO under one ORT. NOT an end-to-end P95 and never to be quoted as one.",
+  "onnxruntime": "1.24.2",
+  "cuda_library_search_path": {
+    "torch_lib": "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\torch\\lib",
+    "added": true,
+    "libraries_present": {
+      "cublasLt64_12": true,
+      "cublas64_12": true,
+      "cudnn64_9": true,
+      "cudart64_12": true
+    }
+  },
+  "cells": [
+    {
+      "label": "G0 CPU  seq 1t",
+      "provider_requested": "CPUExecutionProvider",
+      "providers_registered": [
+        "CPUExecutionProvider"
+      ],
+      "node_placement": {
+        "CPUExecutionProvider": 406000
+      },
+      "threads": 1,
+      "batched": false,
+      "slates": 229,
+      "per_slate_ms": {
+        "p50": 200.124,
+        "p95": 222.065,
+        "p99": 236.24,
+        "max": 304.902,
+        "mean": 202.199
+      }
+    },
+    {
+      "label": "G1 CUDA seq",
+      "provider_requested": "CUDAExecutionProvider",
+      "providers_registered": [
+        "CUDAExecutionProvider",
+        "CPUExecutionProvider"
+      ],
+      "node_placement": {
+        "CUDAExecutionProvider": 352640,
+        "CPUExecutionProvider": 55680
+      },
+      "threads": 1,
+      "batched": false,
+      "slates": 229,
+      "per_slate_ms": {
+        "p50": 23.594,
+        "p95": 35.524,
+        "p99": 49.827,
+        "max": 87.651,
+        "mean": 25.577
+      }
+    },
+    {
+      "label": "G2 CUDA bat",
+      "provider_requested": "CUDAExecutionProvider",
+      "providers_registered": [
+        "CUDAExecutionProvider",
+        "CPUExecutionProvider"
+      ],
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      },
+      "threads": 1,
+      "batched": true,
+      "slates": 229,
+      "per_slate_ms": {
+        "p50": 2.877,
+        "p95": 8.678,
+        "p99": 11.771,
+        "max": 12.933,
+        "mean": 3.504
+      }
+    },
+    {
+      "label": "G3 CPU  seq 1t (repeat)",
+      "provider_requested": "CPUExecutionProvider",
+      "providers_registered": [
+        "CPUExecutionProvider"
+      ],
+      "node_placement": {
+        "CPUExecutionProvider": 406000
+      },
+      "threads": 1,
+      "batched": false,
+      "slates": 229,
+      "per_slate_ms": {
+        "p50": 200.53,
+        "p95": 216.539,
+        "p99": 238.068,
+        "max": 294.699,
+        "mean": 202.427
+      }
+    }
+  ],
+  "noise_floor_ms": 0.406,
+  "cpu_p50_ms": 200.327,
+  "best_gpu_p50_ms": 2.877,
+  "gain_ms": 197.45,
+  "materially_faster_2x_floor": true,
+  "logit_identity": {
+    "G0 CPU  seq 1t": {
+      "bit_identical_to_cpu": true,
+      "max_abs_delta": 0.0
+    },
+    "G1 CUDA seq": {
+      "bit_identical_to_cpu": false,
+      "max_abs_delta": 0.0021066665649414062
+    },
+    "G2 CUDA bat": {
+      "bit_identical_to_cpu": false,
+      "max_abs_delta": 0.0021820068359375
+    },
+    "G3 CPU  seq 1t (repeat)": {
+      "bit_identical_to_cpu": true,
+      "max_abs_delta": 0.0
+    }
+  },
+  "determinism_repeats": [
+    {
+      "run": 1,
+      "bit_identical_to_cpu": false,
+      "max_abs_delta": 0.0021820068359375,
+      "p50_ms": 2.674,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      }
+    },
+    {
+      "run": 2,
+      "bit_identical_to_cpu": false,
+      "max_abs_delta": 0.0021820068359375,
+      "p50_ms": 2.877,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      }
+    },
+    {
+      "run": 3,
+      "bit_identical_to_cpu": false,
+      "max_abs_delta": 0.0021820068359375,
+      "p50_ms": 2.665,
+      "node_placement": {
+        "CUDAExecutionProvider": 35264,
+        "CPUExecutionProvider": 5568
+      }
+    }
+  ],
+  "all_repeats_bit_identical": false,
+  "verdict": "CLOSED ON CORRECTNESS -- logits differ across providers. No tolerance is sought.",
+  "shipped_provider_unchanged": "CPUExecutionProvider. A performance finding surfaces a decision; it does not authorise one."
+}

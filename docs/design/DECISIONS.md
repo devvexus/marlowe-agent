@@ -825,6 +825,67 @@ write outside the append-only model and are named rather than absorbed:
   multi-subject record survives until its last subject wrap is destroyed, so deleting person A
   does not remove A's contribution from a record also keyed to B.
 
+### ADR-003 · AMENDMENT 2026-08-08 (M0c Session L) — the hot index is a CAPACITY requirement, and the 94.9 ms does not transfer to the retrieval path
+
+**Status: amended on measurement. The decision is unchanged — the partition is still a requirement
+— but the claim it rests on is split in two, because the text above reads as a latency requirement
+and the latency half is not supported on the path retrieval actually runs.**
+
+**What this amendment does NOT do:** it does not retire the hot index, weaken the ANN recall gate,
+or change the deployment target. It separates two claims that the original text lets a reader fuse.
+
+#### The two claims, separated
+
+| claim | status | evidence |
+|---|---|---|
+| **Capacity.** The candidate scan is the only stage whose cost is **O(store)** rather than O(scoped). Everything else in retrieval is bounded by the ~490 session-scoped candidates. | **HOLDS. This is the requirement.** | the profile below, and the Tier-C sweep above |
+| **Latency.** Removing the scan is worth ~79 ms at 100k live memories. | **DOES NOT TRANSFER to the retrieval path.** | measured directly, below |
+
+#### The measurement, beside the spike's
+
+`docs/design/spike-2026-08-01.md` measured **94.9 ms unpartitioned against 16.2 ms partitioned** at
+100k live, tombstone fraction 0.30. **That was a physical storage index under concurrent durable
+writes.** What `retrieve::select_for_injection` actually does is iterate an in-memory `BTreeMap`
+and collect matching references — no index pages, no fsync contention, no concurrent writer.
+
+Measured on the real retrieval path, warm, 249 held-out queries, `considered` = **113,000**
+(`runs/session-l/RESULT.md`, `cell3-warm-profiled`):
+
+| stage | p50 | p95 | share of the P95 query |
+|---|---|---|---|
+| `candidates` (§4.3 exclusions over the whole store) | **2.586 ms** | 3.136 ms | 1.21% |
+| `scope` (session filter over the survivors) | **1.243 ms** | 1.615 ms | 0.57% |
+| **both together** | **3.83 ms** | 4.75 ms | **1.78%** |
+
+**The two numbers differ by a factor of ~25 and they are measurements of different systems.** The
+spike's is not wrong; it is not about this path.
+
+#### Why this is written down rather than quietly corrected
+
+**A future session building the partition and expecting a speedup would be building it on a number
+that does not transfer.** It would be a correct implementation of a requirement that holds, sold
+on a benefit that does not, and the disappointment would arrive *after* the work — at which point
+the natural conclusion ("the partition didn't help") is also wrong, because the partition is not
+for that.
+
+Build it for the reason that survives: **the scan is O(store) and every other retrieval stage is
+O(scoped)**, so it is the one stage whose cost grows with a user's history rather than with a
+query. At 113k entries it is 1.78% of P95. At 10× that it is not, and the Tier-C RAM ceiling
+(~390k float32 vectors on a 1 GB VPS) arrives before the latency one either way.
+
+**Quote 3.83 ms for what the partition saves on today's retrieval path, and 94.9 ms → 16.2 ms only
+for the storage path it was measured on. Never the second as if it were the first.**
+
+#### Not decided here
+
+The 1-vCPU deployment target is what forces `rerank::SHIPPED_THREADS = 1`, and M0c Session L
+measured that raising it is a **+158.9 ms regression** on this model (see `runs/session-l/`), so no
+target change is proposed and none is implied. **A deployment-target change is a design decision,
+not a performance finding, even when a performance finding surfaces it** — it needs its own
+registration.
+
+---
+
 ## ADR-004 · Embedding strategy
 
 **Decision.** Local ONNX small model, 384 dimensions, **int8-quantized in the hot array** (see
@@ -2898,3 +2959,148 @@ the product is a local model's tool-calling. That is a real cost and it is the r
 exists: the number is disclosed rather than discovered. The mitigation is that hosted providers are
 a registration away, not a rebuild away — which is what makes the adapter's shape the load-bearing
 part of C2.
+
+---
+
+## ADR-029 · The cross-encoder runs on CUDA where a GPU exists, batched; CPU stays the fallback, sequential; and the provider is ANNOUNCED, never silently chosen
+
+**Status: adopted 2026-08-08, M0c Session L. On the human's authority as a design decision.**
+Evidence: `runs/session-l/` — `RESULT.md`, `gpu-recovery.json`, `PREREGISTRATION-gpu.json`,
+`PREREGISTRATION-gpu-amendment.json`. **The spike is cited as evidence, not as authorisation.**
+
+### The decision
+
+> **Where a CUDA device is available the rerank runs on it, in ONE batched `[10, 256]` forward.
+> Where one is not, it runs on CPU, sequential, at one thread. Both paths are correct and produce
+> the same ranking. The active provider is DECLARED in the interface; it is never chosen in
+> silence.**
+
+### What was measured, warm-249 held-out, Rust, end to end
+
+| path | rerank p50 | total p50 | total p95 | ranking |
+|---|---|---|---|---|
+| **CPU sequential 1t** *(fallback)* | 195.6 ms | 199.6 ms | ~213 ms | R@1 **0.6725** |
+| CUDA sequential | 15.2 ms | 23.4 ms | 32.2 ms | R@1 **0.6725** |
+| **CUDA batched** *(shipped where a GPU exists)* | **3.4 ms** | **10.0 ms** | **14.7 ms** | R@1 **0.6725** |
+
+CPU floor 9 ms, CUDA floor 7 ms, CUDA-batched floor 0.51 ms. **R@5 0.8865 and R@10 0.9039 are
+identical on every path**, read by `analyze_cue_overlap.py`, the authority for binary-side R@1.
+
+### Batching is a property of the HARDWARE, and the two providers measured opposite
+
+| provider | sequential | batched | |
+|---|---|---|---|
+| CPU, 1 thread | **185.8 ms** | 195.6 ms | batching **loses**, +8.8 ms |
+| CUDA | 15.2 ms | **3.4 ms** | batching **wins**, −77% |
+
+Same mechanism in both directions: batching pays through parallelism across the batch dimension and
+amortized per-call overhead. At one CPU thread there is none, so only the cost remains — attention
+is O(seq²) per row either way and ten rows multiply the intermediate tensors. On a GPU that
+parallelism is the machine, and ten sequential forwards pay ten kernel launches instead of one.
+
+**A single global default would be wrong for one provider whichever value it took.**
+`RerankProvider::default_batching()` derives it, and the resolved value is stamped on every
+retrieval-profile row so a run cannot claim one configuration and execute another.
+
+### The byte-identity requirement is AMENDED, not waived
+
+**The original gate:** bit-identical logits, cross-provider, any difference disqualifying.
+**Why it is replaced:** bit-identity existed to make *optimization measurements comparable* — so a
+latency change could be attributed to the change rather than to a moved scorer. **At 10 ms against a
+300 ms budget there is no optimization space left to protect. The instrument outlived its subject.**
+
+**The driver is brief §9:** 800 ms voice-to-voice P50 with retrieval inside it. 213 ms of an 800 ms
+conversational budget — 27%, before a token is generated — was never going to work. 10 ms does.
+
+**The amended acceptance, registered before the measurements that judged it:**
+
+| gate | requirement | result |
+|---|---|---|
+| GPU→GPU byte-identity | bit-identical across repeated runs | **PASSES** — identical at provider defaults, and the two end-to-end Rust dumps are byte-identical |
+| cross-provider | **ranking equivalence**, top-10 order vs CPU | **PASSES** — 0 of 229 slates reordered, 0 top-1 changes, R@1/R@5/R@10 identical |
+| provider | `get_providers()` **and** node placement | **PASSES**, with a limitation below |
+
+Cross-provider logit delta: **median 0.000237**, p95 0.000824, max 0.002182. The original spike
+reported only the max and it read as typical; the tail is roughly 10x the median.
+
+### Two corrections this ADR must carry, because a reader who sees the reversal without the reason trusts neither verdict
+
+**1. The first spike's verdict rested partly on an instrument bug.** It reported "repeats not
+bit-identical" while comparing each CUDA repeat against the **CPU** reference rather than against
+the other repeats — cross-provider disagreement, already known, reported as within-provider
+nondeterminism. GPU-to-GPU determinism was never actually broken.
+
+**2. `get_providers()` is itself a proxy**, and the correction came from the person who specified
+it. It names *registered* providers, not where nodes *ran*. Both CUDA cells execute **13.6% of
+nodes on CPU** — 55,680 of 408,320 — which a registered-provider check reports as clean.
+
+### OPEN GAP — the shipped binary cannot re-verify node placement
+
+`ort` exposes no node enumeration. Placement was verified **once, in Python, on this graph, at ORT
+1.24.2**; `error_on_failure()` covers registration only. The fallback census — `Gather` 1856,
+`Unsqueeze` 1624, `Concat` 1392, `Reshape` 232, `Equal` 232, `Where` 232 — is **all shape and index
+ops, no matmuls**, which is why 13.6% of nodes costs so little time. That is evidence the *current*
+placement is benign, **not that it stays so**.
+
+A graph change, model swap or ORT upgrade could move matmuls onto the fallback and the only symptom
+would be a slower run — which reads as machine drift, and this session measured drift large enough
+to hide it.
+
+**Closing condition:** `ort` exposing node placement, or a Rust-side hook reading ORT's profiling
+output as `tools/session_l_gpu_recovery.py` does. **Interim obligation:** re-run that tool after any
+change to the graph, the model, or the ORT version.
+
+### The provider is ANNOUNCED — a requirement on M2, recorded here
+
+> **An unannounced fallback is indistinguishable from the failure mode it resembles.**
+
+That is the argument, and it is deliberately **not** §4 invariant 4. Invariant 4 governs
+*degradation*, and genuinely does not cover two paths that are both correct and produce identical
+rankings. Neither path here is degraded. What differs is *capability*, which is why it needs its own
+statement rather than inheriting the degradation machinery.
+
+A system that quietly selects CPU when CUDA is unavailable is **Session G promoted from a
+measurement bug to a product behaviour**: the user would experience "retrieval feels slow today"
+with nothing to attribute it to — the same shape as `tier=truecolor` printed beside a white screen.
+
+#### A distinction worth naming: MEASUREMENT-CORRECT and PRODUCT-WRONG
+
+**`error_on_failure()` is both.** It made the Rust CUDA cell abort in 8 seconds rather than emit CPU
+numbers under a CUDA label — *exactly right for a measurement cell*, where a void result is the
+honest outcome and a plausible wrong number is the catastrophe. Shipped, it is unacceptable: a
+CPU-only machine would get a binary that refuses to launch.
+
+**This will recur anywhere a gate written for a spike survives into shipped code**, and the two
+requirements point in opposite directions. A spike wants refusal, because a number it cannot
+attribute is worse than no number. A product wants graceful continuation, because a user who cannot
+start has lost everything the fallback existed to preserve. **Ask of any gate inherited from a
+measurement: does the shipped path want this to refuse, or to continue and say so?**
+
+#### Requirements on M2's status-band work (§B6 / brief §12) — not implemented here
+
+1. **Explicit provider selection, fallback permitted, announcement mandatory.** The selection is
+   never implicit and the fallback is never silent.
+2. **Voice enablement on a CPU-only machine states its budget consumption at enable time**, not as
+   discovered latency — retrieval is ~27% of §9's 800 ms voice-to-voice budget there. §12's
+   honest-disclosure rule applied to hardware rather than to model capability, the same shape as
+   ADR-028's local-model quality disclosure.
+3. **`rerank_provider` on the retrieval-profile row is THE field the status band reads.** It exists
+   already, stamped per query, built for measurement. **M2 must not build a second source of the
+   same fact** — two producers of one value is how the two sides silently disagree, which this
+   project has now recorded a dozen instances of.
+
+### Cost accepted
+
+**Two numeric paths where one ships and one is measured** is a configuration this project has been
+burned by. It is accepted with eyes open because the alternative is a 213 ms retrieval stage inside
+an 800 ms conversational budget. **The mitigation is that both are measured and the difference is
+published — not that the difference is small.** `SHIPPED_THREADS = 1` on the CPU path is untouched;
+threading remains a +158.9 ms regression and this decision says nothing about it.
+
+### Consequence for ADR-003, to be re-derived rather than assumed
+
+On CUDA batched the stage shares are **rerank 34.1%, lexical 27.2%, candidates 13.3%, scope 6.3%**.
+`candidates + scope` is **19.6%** where it was 1.78% on CPU. **ADR-003's partition moves back toward
+a latency claim on the GPU path specifically** — the third time that classification has changed on
+measurement. It is recorded here as an observation and is **not** a decision; the partition is still
+not built and building it still needs its own registration.

@@ -57,22 +57,42 @@ pub const BM25_SATURATION: f64 = 10.0;
 /// need it.
 pub fn tokenize(text: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let mut current = String::new();
+    let mut buffer = String::new();
+    // **Defined in terms of `for_each_token`, not beside it.** Two token splitters with the same
+    // rules written twice is the two-implementations-one-checked pattern applied to the thing every
+    // BM25 number is computed over; a divergence would move the lexical cue and nothing would say
+    // so. There is one splitter and this is a collecting wrapper around it.
+    for_each_token(text, &mut buffer, |token| out.push(token.to_string()));
+    out
+}
+
+/// [`tokenize`] without the allocations: calls `emit` once per token, reusing one buffer.
+///
+/// **This is where the lexical stage's cost actually was.** M0c Session L measured `score_all` at
+/// 14.7 ms p50 — the second-largest stage in retrieval, 6.83% of P95 — for a set of ~487 candidates
+/// re-tokenized on *every* query. The dominant term was not the character scan but roughly 97,000
+/// `String` allocations per query, plus a `BTreeMap` built per document.
+///
+/// The token sequence is identical to [`tokenize`]'s by construction, because that function is
+/// implemented with this one.
+fn for_each_token(text: &str, buffer: &mut String, mut emit: impl FnMut(&str)) {
+    buffer.clear();
     for ch in text.chars() {
         if ch.is_ascii_alphanumeric() {
-            current.push(ch.to_ascii_lowercase());
+            buffer.push(ch.to_ascii_lowercase());
         } else if ch.is_alphanumeric() {
             // Non-ASCII alphanumerics are kept as-is rather than dropped. `to_ascii_lowercase`
             // is a no-op on them, so this is a faithful passthrough, not a casefold claim.
-            current.push(ch);
-        } else if !current.is_empty() {
-            out.push(std::mem::take(&mut current));
+            buffer.push(ch);
+        } else if !buffer.is_empty() {
+            emit(buffer);
+            buffer.clear();
         }
     }
-    if !current.is_empty() {
-        out.push(current);
+    if !buffer.is_empty() {
+        emit(buffer);
+        buffer.clear();
     }
-    out
 }
 
 /// Raw BM25 for every document, in the order the documents were given.
@@ -91,8 +111,42 @@ pub fn score_all(docs: &[&MemoryEntry], query_text: &str) -> Vec<f32> {
         return Vec::new();
     }
 
-    let doc_terms: Vec<Vec<String>> = docs.iter().map(|d| tokenize(&d.text)).collect();
-    let lengths: Vec<usize> = doc_terms.iter().map(Vec::len).collect();
+    // The query's terms, deduplicated in order of first appearance. **This order is the
+    // accumulation order below and therefore part of the arithmetic**, not a presentation choice.
+    let mut query_terms: Vec<String> = Vec::new();
+    for term in tokenize(query_text) {
+        if !query_terms.contains(&term) {
+            query_terms.push(term);
+        }
+    }
+    let t = query_terms.len();
+    // Term -> its column. BTreeMap because the determinism guard bans hash-ordered collections on
+    // any path whose order can reach the wire.
+    let column: BTreeMap<&str, usize> =
+        query_terms.iter().enumerate().map(|(j, q)| (q.as_str(), j)).collect();
+
+    // **Only the query's terms are counted.** The previous implementation built a full
+    // `BTreeMap<&str, u32>` of every term in every document and a document-frequency map over the
+    // whole vocabulary, then read ~5-10 entries out of them. Everything else was computed and
+    // discarded. `counts` is row-major, document `i` occupying `[i * t .. (i + 1) * t]`.
+    let mut counts = vec![0u32; n * t];
+    let mut lengths = vec![0usize; n];
+    let mut buffer = String::new();
+    for (i, doc) in docs.iter().enumerate() {
+        let mut length = 0usize;
+        for_each_token(&doc.text, &mut buffer, |token| {
+            // The length is every token, not just the matched ones: it is the BM25 length
+            // normalizer's input, so counting only query terms here would silently rescale every
+            // score while every test that checks a ranking still passed.
+            length += 1;
+            if let Some(j) = column.get(token) {
+                counts[i * t + j] += 1;
+            }
+        });
+        lengths[i] = length;
+    }
+
+    // Summed in document order, exactly as `lengths.iter().sum()` did.
     let total_len: usize = lengths.iter().sum();
     // A candidate set of empty documents has no average length to speak of. Guarding with 1.0
     // keeps the length-normalization term finite; every tf is zero in that case anyway, so the
@@ -103,44 +157,45 @@ pub fn score_all(docs: &[&MemoryEntry], query_text: &str) -> Vec<f32> {
         total_len as f64 / n as f64
     };
 
-    // Term frequency per document, and document frequency across the set.
-    let mut tf_maps: Vec<BTreeMap<&str, u32>> = Vec::with_capacity(n);
-    let mut df: BTreeMap<&str, u32> = BTreeMap::new();
-    for terms in &doc_terms {
-        let mut tf: BTreeMap<&str, u32> = BTreeMap::new();
-        for term in terms {
-            *tf.entry(term.as_str()).or_insert(0) += 1;
-        }
-        for term in tf.keys() {
-            *df.entry(term).or_insert(0) += 1;
-        }
-        tf_maps.push(tf);
-    }
-
-    let mut query_terms: Vec<String> = Vec::new();
-    for term in tokenize(query_text) {
-        if !query_terms.contains(&term) {
-            query_terms.push(term);
+    // Document frequency, over the candidate set, for the query's terms only.
+    let mut document_frequency = vec![0u32; t];
+    for i in 0..n {
+        for j in 0..t {
+            if counts[i * t + j] > 0 {
+                document_frequency[j] += 1;
+            }
         }
     }
 
+    // The BM25+ / Lucene form: always positive, so a term present in every document
+    // contributes a small amount rather than a negative one. The classic Robertson IDF
+    // goes negative above df > N/2, which would let a common term *penalise* the
+    // documents that contain it.
+    let idf: Vec<Option<f64>> = (0..t)
+        .map(|j| {
+            let df_t = document_frequency[j] as f64;
+            if df_t == 0.0 {
+                None
+            } else {
+                Some((1.0 + (n as f64 - df_t + 0.5) / (df_t + 0.5)).ln())
+            }
+        })
+        .collect();
+
+    // **Document-major, and the accumulation order is unchanged.** The previous loop was
+    // term-major, but for any fixed document the terms were still visited in `query_terms` order —
+    // so each `scores[i]` is the sum of exactly the same f64 sequence, in exactly the same order.
+    // That is what makes this bit-identical rather than merely equivalent, and byte-identity of
+    // `scored-candidates.ndjson` is the gate this change is held to.
     let mut scores = vec![0.0f64; n];
-    for term in &query_terms {
-        let df_t = *df.get(term.as_str()).unwrap_or(&0) as f64;
-        if df_t == 0.0 {
-            continue;
-        }
-        // The BM25+ / Lucene form: always positive, so a term present in every document
-        // contributes a small amount rather than a negative one. The classic Robertson IDF
-        // goes negative above df > N/2, which would let a common term *penalise* the
-        // documents that contain it.
-        let idf = (1.0 + (n as f64 - df_t + 0.5) / (df_t + 0.5)).ln();
-        for (i, tf) in tf_maps.iter().enumerate() {
-            let f = *tf.get(term.as_str()).unwrap_or(&0) as f64;
+    for i in 0..n {
+        let norm = 1.0 - BM25_B + BM25_B * (lengths[i] as f64 / avgdl);
+        for j in 0..t {
+            let Some(idf) = idf[j] else { continue };
+            let f = counts[i * t + j] as f64;
             if f == 0.0 {
                 continue;
             }
-            let norm = 1.0 - BM25_B + BM25_B * (lengths[i] as f64 / avgdl);
             scores[i] += idf * (f * (BM25_K1 + 1.0)) / (f + BM25_K1 * norm);
         }
     }

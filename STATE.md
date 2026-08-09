@@ -1,5 +1,64 @@
 # State
 
+## M0c Session L — retrieval latency. GPU ships (ADR-029). R@1 UNMOVED at 0.6725.
+
+**`runs/session-l/RESULT.md`. Read `METHOD.md` before trusting any number in it.**
+
+| path | total p50 | total p95 | budget 300 ms |
+|---|---|---|---|
+| **CPU sequential 1t** — ships where no GPU exists | 199.6 | ~213 | 87 ms headroom |
+| **CUDA batched** — ships where one does | **10.0** | **14.7** | 285 ms headroom |
+
+**Two changes ship.** The **lexical rewrite** (both paths, byte-identical, `score_all` stage
+14.76 → 3.07 ms cold, −79%) and the **GPU path** (ADR-029). Quality is unmoved: CPU dumps
+byte-identical to Session K; GPU **ranking-identical** — R@1 0.6725, R@5 0.8865, R@10 0.9039.
+
+**The profile, which is the thing to inherit:** on CPU the rerank is **90.49% of P95**. Everything
+else combined is under 10%. Any latency work that is not about the rerank is rounding.
+
+**Measured and REJECTED, all ranking-identical, all cost findings:** batching on CPU (+8.8 ms),
+threading at 16 intra-op threads (**+158.9 ms** — the model is too small to amortize ORT's per-op
+sync), batching at 16t (better than sequential-16t, still worse than 1t). **`SHIPPED_THREADS = 1`
+is now measured rather than assumed.**
+
+**Batching is a property of the HARDWARE and the two providers measured opposite** — CPU sequential,
+CUDA batched. `RerankProvider::default_batching()` derives it; a single global default would be
+wrong for one provider whichever value it took.
+
+> **ADR-003 is AMENDED.** The hot index is a **capacity** requirement, not a latency one: the
+> candidate scan is the only **O(store)** stage and costs **3.83 ms / 1.78%** at 113k entries. The
+> spike's 94.9 → 16.2 ms measured a *physical storage index under concurrent writes*, not the
+> in-memory iteration retrieval does — a factor of ~25 apart. **On the GPU path it is 19.6% and
+> moves back toward a latency claim.** Third change of classification on measurement; re-derive, do
+> not assume.
+
+**OPEN for M2 (in ADR-029, so it is inherited rather than re-derived):** the active provider is
+**announced**, never silently chosen — an unannounced fallback is indistinguishable from the failure
+mode it resembles. Voice on a CPU-only machine states its budget consumption **at enable time**
+(retrieval is ~27% of §9's 800 ms). **`rerank_provider` on the profile row is THE field the band
+reads — do not build a second source.**
+
+**OPEN GAP:** `ort` exposes no node enumeration, so the shipped binary cannot re-verify that 13.6%
+of CUDA nodes run on CPU (all shape/index ops, no matmuls). Verified once, in Python, at ORT 1.24.2.
+**Re-run `tools/session_l_gpu_recovery.py` after any graph, model or ORT change.**
+
+> ### THE BUDGET IS TIGHTER THAN THE CLEAN NUMBERS SUGGEST
+> Machine drift on this box moved the **same binary in the same configuration** across cold p50
+> **208.4 → 267.0 ms** and warm p50 **199.6 → 267.0**. One cell breached the 300 ms budget at
+> **329 ms with no code change at all**. **Budget the CPU path against ~60 ms of usable headroom,
+> not 87.** The repo lives under OneDrive, which holds delete-share locks on fresh binaries and is
+> the likeliest cause of a 542 ms stall inside one timed span.
+
+**Seven instrument defects in one session, every one caught by a control and none reaching a
+published number** — see `RESULT.md` §5. The two worth carrying: a concurrent `cargo build`
+inflating every absolute ~10% while the table reconciled perfectly, and `get_providers()` reporting
+*registered* providers rather than *where nodes ran*. **The rate is the argument for controls that
+feel redundant.**
+
+**445 cargo tests** (from 421), `eval/` untouched at **72**.
+
+---
+
 **Updated:** 2026-08-08 — **M1 is CLOSED (`ed25914`). Current milestone: M2**, branch `m2-loop`.
 Session A shipped the spine (loop, tools, permissions, runs, assembler); **Session B shipped path
 scoping whole** — traversal suite and handle discipline together, ADR-027, **verified on Windows AND

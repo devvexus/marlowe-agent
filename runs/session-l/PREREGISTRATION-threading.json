@@ -1,0 +1,62 @@
+{
+  "_what": "The acceptance rule for cross-encoder multi-threading and batching, fixed BEFORE any matrix cell produced a number.",
+  "_registered_by": "the human, mid-session, explicitly: 'decide before C2 lands, so it is not decided by the result'.",
+
+  "state_at_registration": {
+    "matrix_task": "b90okrrh8",
+    "cells_completed": 0,
+    "output_at_registration": "waiting for the orphaned run to drain ...",
+    "what_had_been_observed": [
+      "batched at 1 thread, measured in an EARLIER window: rerank p50 187.6 -> 210.2 ms, a 12% regression, byte-identity PASSED",
+      "lexical rewrite, measured in an earlier window: 14.682 -> 3.216 ms p50, byte-identity PASSED",
+      "NOTHING about multi-threading. C2 and C3 had not run."
+    ],
+    "why_this_matters": "a rule written after seeing the number it judges is not a rule. The two figures above were already known and are recorded here so the registration cannot be read as covering them."
+  },
+
+  "the_noise_floor_is_measured_not_assumed": {
+    "definition": "abs(C1 - C5), two passes of the IDENTICAL configuration and binary at opposite ends of the matrix",
+    "why": "every delta in this matrix is read against it. Without it, a difference smaller than machine drift is unreadable -- and this session has already had two measurements invalidated by drift it could not see (a concurrent cargo build, and an orphaned run holding 8 cores).",
+    "rule": "a configuration is 'faster' only if its improvement over C1 EXCEEDS the C1/C5 spread. Anything inside the floor is reported as NO EFFECT MEASURED, not as a small win."
+  },
+
+  "acceptance_for_multithreading": {
+    "applies_to": ["C2 (sequential, 16 threads)", "C3 (batched, 16 threads)"],
+    "gate_1_determinism": {
+      "requirement": "scored-candidates.ndjson byte-identical to runs/session-k/heldout/ on AT LEAST THREE repeated runs",
+      "single_run_is_insufficient": true,
+      "why": "byte-identity on one run proves reduction order held for these 229 queries, on this machine, under that scheduling. ORT's thread pool is NOT deterministic in its scheduling, so the same configuration can partition a matmul differently on the next run, on a different core count, or on a loaded machine. Three passes do not prove determinism either -- they raise the cost of a false pass from one draw to three.",
+      "verdict_if_any_run_differs": "REJECTED regardless of speed. Not priced, not caveated."
+    },
+    "gate_2_speed": {
+      "requirement": "improvement over C1 exceeds the measured noise floor"
+    },
+    "class_of_guarantee": {
+      "intra_threads_1": "STRUCTURAL. One thread cannot partition a reduction two ways; determinism follows from the configuration.",
+      "intra_threads_N": "MEASURED. Determinism is an empirical observation over the runs actually taken, and it does not extend to a core count, a machine, or a load level that was not measured.",
+      "must_be_stated_in_the_adr": true,
+      "why": "whoever inherits this must be able to see that the two are different KINDS of claim. A reader who finds 'byte-identical' beside both will reasonably assume they mean the same thing, and the multi-threaded one is the weaker by a wide margin. This is the same failure family as a measurement that transferred between contexts -- the fourth instance of which this session recorded."
+    }
+  },
+
+  "adr_003_is_not_amended_in_this_session": {
+    "rule": "if C2 wins, REPORT THE NUMBER and stop. The 1-vCPU deployment target is not changed here.",
+    "why": "a deployment-target change is a design decision, not a performance finding -- even when a performance finding is what surfaces it. The number is evidence FOR that decision; it is not the decision.",
+    "what_this_session_may_do": [
+      "report the measured effect of thread count on retrieval P95",
+      "state that ADR-003's 1-vCPU target is the sole reason intra_threads is 1",
+      "leave the shipped default at SHIPPED_THREADS = 1"
+    ],
+    "what_this_session_may_not_do": [
+      "raise the shipped thread count",
+      "amend ADR-003's deployment target",
+      "treat a fast C2 as authorisation for either"
+    ]
+  },
+
+  "batching_status_at_registration": {
+    "at_1_thread": "REGRESSION, measured, 12%. Reverted; score_batch retained in rerank.rs, unused by the shipped path.",
+    "open_question_C3": "whether batching pays once there are threads to parallelise across the batch dimension. Judged by the same two gates above.",
+    "gpu": "a separate ADR, deferred. Determinism across execution providers is not inherited from the CPU graph, and the VPS target has no GPU, so it would be a second path rather than a replacement."
+  }
+}

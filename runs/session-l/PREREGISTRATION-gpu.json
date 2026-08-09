@@ -1,0 +1,88 @@
+{
+  "_what": "The GPU rerank spike: method, gates and decision rule, fixed BEFORE any cell produced a number.",
+  "_registered_by": "the human, explicitly: 'Registered, not appended... my prior has been wrong once in this session already, so measure it.'",
+
+  "state_at_registration": {
+    "cells_completed": 0,
+    "what_had_been_observed": [
+      "CPU, sequential, 1 thread is the best configuration measured: warm-249 total p50 226.9 ms (C1/C5 mean)",
+      "CPU, sequential, 16 threads: +158.9 ms regression",
+      "CPU, batched, 1 thread: +8.8 ms regression",
+      "CPU, batched, 16 threads: -131.5 ms vs sequential 16t, still worse than 1 thread",
+      "batch invariance on the shipped graph, CPU: 0.000000000 across sizes 1..10",
+      "NOTHING about GPU. No CUDA session has been constructed in this session."
+    ],
+    "hardware": "NVIDIA GeForce RTX 4080 SUPER, driver 610.74, 16376 MiB",
+    "why_the_human_reopened_this": "'I predicted threading would win and it lost by 159 ms. That prior has been wrong once in this session already.'"
+  },
+
+  "three_constraints_found_before_running_anything": {
+    "1_rust_ort_has_no_cuda_feature": {
+      "fact": "Cargo.toml pins ort = 2.0.0-rc.10 with features = [\"download-binaries\"]. The CUDA execution provider is not compiled in.",
+      "consequence": "enabling it swaps the ONNX Runtime binary for the WHOLE project, CPU included.",
+      "hazard": "the byte-identity gate is against runs/session-k's dump, produced by the current CPU-only ORT build. A CUDA-enabled build could perturb CPU numerics through different fusion, and then a CPU cell would fail byte-identity for a reason that has nothing to do with GPU."
+    },
+    "2_the_requested_provider_gate_is_UNAVAILABLE_in_rust": {
+      "requested": "assert the active provider against get_providers() after session construction",
+      "fact": "ort 2.0.0-rc.10 exposes NO post-construction provider enumeration -- no get_providers, no available_providers, nothing on Session. Verified in Session K and recorded in rerank.rs.",
+      "what_rust_has_instead": "CPUExecutionProvider::default().build().error_on_failure(), which makes a REGISTRATION failure a hard error at construction rather than a silent fallback",
+      "why_that_is_not_equivalent": "error_on_failure covers provider REGISTRATION. It does NOT cover per-node fallback: ORT may register CUDA and still execute individual nodes on CPU where a kernel is unsupported. get_providers() does not cover that either -- it lists registered providers, not where nodes ran. The only check that covers it is node placement from ORT's profiling output.",
+      "consequence": "the gate the human called non-negotiable CANNOT be satisfied on the Rust path. It CAN be satisfied in Python."
+    },
+    "3_python_ort_is_a_different_version_than_the_shipped_path": {
+      "python": "onnxruntime 1.24.2, providers ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'], device GPU",
+      "rust": "ort 2.0.0-rc.10, statically linked ORT 1.22.0",
+      "consequence": "a Python CPU number is NOT the shipped Rust CPU number. Different version, different fusion; tests/cross_encoder_reference.rs already carries a 1e-3 tolerance across this boundary for exactly this reason.",
+      "how_this_is_handled": "BOTH arms run under the SAME Python ORT, so the CPU-vs-CUDA RATIO is measured like-for-like. The absolute Python CPU figure is never quoted as the shipped latency."
+    }
+  },
+
+  "method_chosen_and_what_it_can_and_cannot_answer": {
+    "method": "offline Python spike on the shipped graph over the real held-out slates, both arms under one ORT, provider asserted via get_providers() AND node placement verified from profiling output",
+    "why_not_the_warm_249_cells_as_specified": "they require the Rust path, where the provider gate is unavailable and where enabling CUDA would perturb the CPU baseline the byte-identity gate depends on. Running them would produce a table whose provider column could not be verified -- and an unverifiable provider column is precisely the failure this spike exists to avoid.",
+    "can_answer": "is a batched [10, 256] forward materially faster on this GPU than on CPU, on this graph, and are the logits bit-identical",
+    "cannot_answer": "end-to-end warm-249 retrieval P95 on GPU. That number is NOT produced by this spike and must not be projected from it -- the rerank is 90.49% of P95, but 90.49% of a P95 measured on a different ORT version is an estimate wearing a measurement's clothes."
+  },
+
+  "cells": {
+    "G0": "CPU, sequential, 1 thread",
+    "G1": "CUDA, sequential",
+    "G2": "CUDA, batched (batch = 10)",
+    "G3": "CPU, sequential, 1 thread -- REPEAT of G0, the noise floor",
+    "ordering": "G0, G1, G2, G3 in one window. No builds inside it. Runs only after the cold triple has drained, since G0/G3 are CPU cells and a concurrent run would inflate them."
+  },
+
+  "_amendment_1_the_provider_gate_was_itself_an_adjacent_measurement": {
+    "_recorded_at": "before any cell ran; no GPU number existed",
+    "_recorded_by": "the human, unprompted, about their own specification",
+    "the_gate_as_originally_written": "assert the active provider against get_providers() after session construction, not against the available list",
+    "the_defect": "get_providers() names REGISTERED providers, not where nodes RAN. A per-node CPU fallback -- ORT registering CUDA and then executing individual nodes on CPU where a kernel is unsupported -- satisfies this gate completely while defeating its entire purpose. The cell would report 'CUDAExecutionProvider' and time CPU kernels.",
+    "the_correction": "node placement from ORT's profiling output is the check that reports the OUTCOME rather than the INTENT. Both are asserted; get_providers() is retained as the cheaper first check, not as the gate.",
+    "why_this_is_in_the_record": "the specification was written by someone who knows this failure family, naming it explicitly ('CUDA has already silently fallen back to CPU once in this project'), and who still reached for the proxy. The rule is not hard to state and is hard to apply -- and an instance where knowing the rule did not prevent the error is more useful evidence than an instance where it did.",
+    "generalised": "'assert the property you care about' has a second edge: the ASSERTION itself can be the proxy. Ask of every gate what it would report if the thing it guards were violated in the most likely way. Here the most likely way was per-node fallback, and the answer was 'it would pass'."
+  },
+
+  "gates": {
+    "provider_gate": {
+      "requirement": "get_providers() asserted after session construction AND node placement confirmed from profiling. See _amendment_1: get_providers() ALONE is a proxy and was corrected before any cell ran.",
+      "rationale": "CUDA has already silently fallen back to CPU once in this project (Session G) and produced a 'CUDA' figure within 1% of the CPU number",
+      "verdict_if_unassertable": "the cell is VOID, not slow. A number without a verified provider is not a measurement of that provider."
+    },
+    "determinism_gate": {
+      "requirement": "bit-identical logits against the CPU arm on every pair, on AT LEAST THREE repeated runs",
+      "stricter_than_the_threading_gate_because": "byte-identity across EXECUTION PROVIDERS is not inherited from the CPU graph at all -- different kernels, different reduction order, different fusion. Multi-threading changes how one kernel partitions its reduction; a different provider changes which kernel runs.",
+      "class_of_guarantee": "MEASURED, and narrower than the multi-threaded case. Three identical runs establish that reduction order held for these 229 queries, on THIS GPU, under THIS driver (610.74), at THIS load. It extends to no other GPU, no other driver version, and no other load level.",
+      "verdict_if_any_run_differs": "CLOSED, recorded as a CORRECTNESS finding rather than a cost one. Do NOT pursue a tolerance."
+    },
+    "speed_gate": {
+      "materially_faster": "clears the G0/G3 noise floor by at least 2x"
+    }
+  },
+
+  "decision_rule_registered_before_the_numbers": {
+    "byte_identity_fails": "CLOSED on correctness. No tolerance is sought. Speed does not buy an exception -- if GPU is 20x faster and one byte differs, it fails.",
+    "identical_and_materially_faster": "a CANDIDATE, not an adoption. Needs its own ADR: the deployment target has no GPU, so it would be a SECOND path with a CPU fallback, and two numeric paths where one ships and one is measured is exactly the configuration this project has been burned by.",
+    "identical_and_not_materially_faster": "the human's prior was right, closed ON MEASUREMENT rather than argument, and score_batch finally has a verdict.",
+    "regardless_of_outcome": "SHIPPED_PROVIDER stays CPU and rerank::SHIPPED_THREADS stays 1. A performance finding surfaces a decision; it does not authorise one."
+  }
+}

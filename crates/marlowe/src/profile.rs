@@ -33,6 +33,8 @@ use std::path::Path;
 use marlowe_memory::probe::Stage;
 use marlowe_memory::retrieve::Selection;
 
+use crate::adapter::RerankSettings;
+
 use crate::elapsed::{ElapsedUs, StageTimer};
 
 pub struct RetrievalProfile {
@@ -70,6 +72,7 @@ impl RetrievalProfile {
         timer: &StageTimer,
         span_us: ElapsedUs,
         total_us: ElapsedUs,
+        rerank: RerankSettings,
         selection: &Selection<'_>,
     ) -> std::io::Result<()> {
         let totals = timer.totals();
@@ -96,6 +99,12 @@ impl RetrievalProfile {
         // mean double-counting — reads as zero here and as a broken sum in the report, instead of
         // wrapping into an enormous plausible-looking number.
         row.insert("residual_us".into(), serde_json::json!(span.saturating_sub(staged)));
+        // **The configuration travels with the measurement.** A sweep cell that forgot a flag
+        // would otherwise be indistinguishable from one that used it, and the label in a filename
+        // is not evidence about what ran.
+        row.insert("rerank_batched".into(), serde_json::json!(rerank.batched));
+        row.insert("rerank_threads".into(), serde_json::json!(rerank.threads));
+        row.insert("rerank_provider".into(), serde_json::json!(rerank.provider.name()));
         row.insert("considered".into(), serde_json::json!(selection.considered));
         row.insert("scoped".into(), serde_json::json!(selection.scoped));
         row.insert("survived_pruning".into(), serde_json::json!(selection.survived_pruning));

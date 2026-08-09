@@ -52,6 +52,25 @@ pub struct Consolidation<'a> {
     pub dump_path: Option<&'a Path>,
 }
 
+/// How the rerank stage is configured for this run.
+///
+/// **Both fields are experiment knobs whose shipped values are the measured ones**, and both are
+/// recorded on every retrieval-profile row rather than only in the command line. A sweep cell that
+/// forgot a flag would otherwise measure one configuration under another's label — the failure this
+/// project has now paid for four times — and here the artifact itself carries the answer.
+#[derive(Debug, Clone, Copy)]
+pub struct RerankSettings {
+    /// Score the slate in one forward pass. Shipped value `false`; see `retrieve::Rerank`.
+    pub batched: bool,
+    /// ONNX intra-op threads. Shipped value `rerank::SHIPPED_THREADS` = 1, per ADR-003's 1-vCPU
+    /// target — which M0c Session L is measuring rather than assuming.
+    pub threads: usize,
+    /// Which execution provider scored the slate. Stamped on every profile row: a provider is the
+    /// single most consequential thing a cell can be wrong about, and this project has already
+    /// produced one "GPU" figure that was CPU.
+    pub provider: marlowe_memory::rerank::RerankProvider,
+}
+
 /// Where the two diagnostic side channels write, if anywhere.
 ///
 /// Bundled for the same reason `Consolidation` is: two bare `Option<&Path>` arguments of the same
@@ -100,6 +119,8 @@ pub struct Adapter {
     /// Session H's rerank stage. `None` is an EXPLICIT choice made at the command line
     /// (`--reranking off`), never a default -- see `main.rs`'s USAGE.
     cross_encoder: Option<CrossEncoder>,
+    /// How the rerank stage is configured. See [`RerankSettings`].
+    rerank: RerankSettings,
     /// The retrieval stage profile, when `--profile-retrieval` named a path.
     ///
     /// `None` is the shipped configuration, and it is what makes an unprofiled run a **true
@@ -129,6 +150,7 @@ impl Adapter {
         diagnostics: Diagnostics<'_>,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        rerank: RerankSettings,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
         let dump = diagnostics.gate_features.map(FeatureDump::create).transpose()?;
@@ -138,6 +160,7 @@ impl Adapter {
             Mode::Gated(gate, dump),
             consolidation,
             cross_encoder,
+            rerank,
             diagnostics.retrieval_profile,
         )
     }
@@ -153,6 +176,7 @@ impl Adapter {
         dump_path: &Path,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        rerank: RerankSettings,
         retrieval_profile: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         Self::start_with(
@@ -161,6 +185,7 @@ impl Adapter {
             Mode::FitDump(FeatureDump::create(dump_path)?),
             consolidation,
             cross_encoder,
+            rerank,
             retrieval_profile,
         )
     }
@@ -171,6 +196,7 @@ impl Adapter {
         mode: Mode,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        rerank: RerankSettings,
         retrieval_profile: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
@@ -195,6 +221,7 @@ impl Adapter {
                 .map(ConsolidationDump::create)
                 .transpose()?,
             cross_encoder,
+            rerank,
             profile: retrieval_profile.map(RetrievalProfile::create).transpose()?,
         })
     }
@@ -418,7 +445,9 @@ impl Adapter {
             &self.vectors,
             query_vector.as_deref(),
             &mut match self.cross_encoder.as_mut() {
-                Some(encoder) => Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET },
+                Some(encoder) => {
+                    Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET, batched: self.rerank.batched }
+                }
                 None => Rerank::Off,
             },
             &mut probe,
@@ -496,6 +525,7 @@ impl Adapter {
                 &timer,
                 span_us,
                 total_us,
+                self.rerank,
                 &selection,
             ) {
                 // Loud, for the same reason a truncated feature dump is: a profile missing rows

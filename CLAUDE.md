@@ -68,6 +68,34 @@ requirements only when the design docs do not answer the question.
   **12** — `Deserialize` routing around a validating constructor (M2 A; the first caught by design).
   **13** — R@1 counting a superseded fact as a hit, so every R@1 in the project was inflated
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
+- **A measurement is scoped to the system it was taken on. Carrying it forward requires
+  re-measuring, not citing.** The sibling of the rule above, and the harder one to catch: the number
+  is *correct*, the reasoning about it is sound, and it is simply **about a different system**. There
+  is nothing wrong to find by re-reading it — which is why it survives review and gets quoted for
+  sessions.
+
+  **Four instances, and the fourth is what named the family:**
+
+  **1.** Session G measured int8 batch invariance and the reading did not transfer to f32 — the
+  origin of the standing rule that *determinism, batch and padding invariance are re-measured PER
+  GRAPH and never inherited*. **2.** ADR-015's shape-binding is a property of **int8** graphs;
+  reading it as a property of the architecture put ADR-014's neighbourhood wrong until it was
+  corrected. **3.** ADR-017's closure was measured on **fit** and withdrawn on held-out. **4.**
+  ADR-003's spike measured **94.9 ms → 16.2 ms** for a physical storage index under concurrent
+  durable writes; the retrieval path iterates an in-memory `BTreeMap`, where the same stage measures
+  **3.83 ms at 113k entries — 1.78% of P95**, a factor of ~25 apart (M0c Session L; ADR-003
+  AMENDMENT 2026-08-08).
+
+  **The tell is that the number arrives with a citation instead of a command.** Before reusing a
+  measurement across a boundary — a different graph, a different split, a different code path, a
+  different thread count, a different machine — ask *what system was this taken on, and is that the
+  system I am about to act on?* If the answer needs an argument, it needs a measurement.
+
+  **Session L is also the counter-example that keeps this honest.** Session K's *"batching buys
+  nothing here"* was **correct**, and it was retired anyway on a profile showing the rerank
+  dominates — which establishes that the rerank is worth attacking, not that batching is how. The
+  measured answer was a **12% regression at one thread**, and multi-threading was **+158.9 ms**. So
+  the rule cuts both ways: an old number can be wrongly *carried*, and it can be wrongly *discarded*.
 - **Watch for defaults that make a mismatch unobservable.** A fallback value, a permissive
   default, a re-resolved path — each lets two sides silently disagree while the test goes green
   because the failing path stopped existing. This pattern has produced four bugs in this project
