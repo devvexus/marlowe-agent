@@ -89,6 +89,12 @@ impl LiveSession {
     pub fn finish_connect(&mut self) {
         let resolved = Self::connect_with(self.client.clone());
         self.view = resolved.view;
+        // **What the model can see, the screen shows.** The daemon owns the session and outlives
+        // the window; without this a reconnecting client rendered an empty transcript in front of
+        // a live conversation, and Marlowe answered from context the user had no sight of.
+        if let Ok(past) = self.client.replay() {
+            project::apply_events(&mut self.view, &past);
+        }
         self.unreachable = resolved.unreachable;
         self.connected = true;
     }

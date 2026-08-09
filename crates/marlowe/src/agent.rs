@@ -141,6 +141,8 @@ fn render(events: &[Event]) {
                 }
             }
             Event::Text { delta } => print!("{delta}"),
+            // Only ever produced by `Replay`, which the classic path does not use.
+            Event::User { text } => println!("> {text}"),
             // The classic path has no collapsible element, so reasoning is counted rather than
             // printed: it is progress, not an answer, and dumping a chain of thought into a
             // piped stdout would make `--ask` unusable in a script.

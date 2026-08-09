@@ -1,5 +1,69 @@
 # State
 
+## M2 C2e addendum - three interface fixes, all reported from use. `550 tests`.
+
+### There was only ever ONE conversation, and the screen did not show it
+
+Found by the human, and it explains something that had been read as working memory: *"I closed
+the window after each conversation but he remembered in the next one. Like I never closed it at
+all."*
+
+He had not. Three facts compounding:
+
+1. **The window is not the session.** The daemon owns it and outlives the client. Closing the TUI
+   closed a client; the daemon kept listening with the conversation intact.
+2. **Every TUI connects under the same name.** `LiveSession::connecting("tui", port)` means one
+   fixed session key, so every window mapped to the *same* session. Turn 1 of the "second"
+   conversation was turn 40 of the only one there had ever been.
+3. **A reconnecting client rendered nothing.** Its view came from `view_from_status`, which fills
+   the control strip and the band and leaves `transcript: Vec::new()`. There was no replay op at
+   all - `Request` had `Status`, `Ask`, `Runs`, `Approve`.
+
+So the screen showed an empty transcript in front of a live conversation, and Marlowe answered
+from context the user could not see. **The screen and the model disagreed, and the screen was the
+one telling the truth about what would be displayed.**
+
+`Request::Replay { session }` now re-sends the session's turns as ordinary render-only frames, and
+`LiveSession::finish_connect` applies them. §2.14 still holds: the client re-projects what the
+daemon owns rather than taking custody of it - which is why this is a replay of `Event`s and not a
+frame carrying a transcript, a shape `protocol.rs` has a standing test against.
+
+`Event::User { text }` had to be added: a live client appends its own user turn locally, so the
+wire had never needed to express "the person said this". Without it a replayed conversation would
+have been Marlowe talking to nobody.
+
+Verified live across two turns and a reconnect:
+
+```
+user    'My favourite colour is green. Just acknowledge.'
+marlowe 'Acknowledged: green.'
+user    'What colour did I say? Colour only.'
+marlowe 'Green'
+```
+
+**What this does NOT fix, and it is the more important half.** Nothing is persisted. The session
+store is a `BTreeMap` on `Daemon`; with shutdown-on-close now landed, closing the window ends the
+conversation for real. Replay only helps while a daemon outlives a window - a manual `--serve`, or
+a second client. **Durable conversations across restarts are unbuilt.**
+
+### NEXT SESSION - past sessions in the TUI
+
+The control strip already has the affordance and it is a stub: `project.rs` builds
+`session: Picker::new(&["cli"], 0)`, one hardcoded option, with the comment that session switching
+*"has no producer until M2 D and M3"*. `LiveSession::apply` refuses `Intent::Select` for anything
+that is not the one live value.
+
+Making it real is three pieces, in order:
+
+1. **Persist sessions.** The journal exists and is signed; the session store is not written to it.
+   Until a conversation survives a process, a picker lists things that are already gone.
+2. **A `Request::Sessions` op** so the daemon can enumerate what it has, and the picker can be
+   built from the answer rather than from a literal.
+3. **Switching.** `Intent::Select { control: Session, .. }` starts replaying the chosen one - the
+   `Replay` op above is already the mechanism, so this is the small piece once 1 and 2 exist.
+
+Note that (1) overlaps M2 D's durable-memory work and should not be built twice.
+
 ## M2 C2e addendum - two interface fixes, both reported from use. `550 tests`.
 
 ### The user's own words rendered at the same weight as the model's reasoning

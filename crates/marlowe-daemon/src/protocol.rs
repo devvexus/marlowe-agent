@@ -31,6 +31,16 @@ pub enum Request {
     /// Approve or decline a pending decision (§B9). The harness enforces; the model never sees
     /// this path.
     Approve { decision: u64, granted: bool },
+    /// Re-send a session's turns so a reconnecting client can rebuild its view.
+    ///
+    /// **The screen and the model disagreed without this.** The daemon owns the session; a client
+    /// that reconnects built its view from `Status` alone, which fills the control strip and the
+    /// band and nothing else. So a live conversation rendered as a blank transcript, and Marlowe
+    /// answered from forty turns of context the user could not see.
+    ///
+    /// It replays **render-only events** — the same frames a live turn produces — so §2.14 still
+    /// holds: the client is re-projecting what the daemon owns, not taking custody of it.
+    Replay { session: String },
     /// Stop the daemon.
     ///
     /// **Invariant 6 says a run survives the client that started it, not that the daemon is
@@ -49,6 +59,12 @@ pub enum Event {
     /// The daemon's identity and health, including what §B5's band needs.
     Status(StatusReport),
     Text { delta: String },
+    /// A turn the **user** took. Only ever sent by `Replay`.
+    ///
+    /// A live client already knows what its own user typed and appends it locally; a reconnecting
+    /// one does not, and without this the wire had no way to express "the person said this", so a
+    /// replayed conversation would have been Marlowe talking to nobody.
+    User { text: String },
     /// A chunk of the model's reasoning. **Not the answer**, and never part of the transcript.
     Reasoning { delta: String },
     /// The speech streamed so far this turn was reasoning. The client moves it, and no text that

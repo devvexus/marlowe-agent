@@ -131,6 +131,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
                 }
             }
+            Event::User { text } => view.transcript.push(Entry::User(text.clone())),
             // **Take back what was rendered as speech.** The model closed a think block it had
             // opened before the `content` channel began, so text already on screen in the response
             // colour was reasoning. Observed live: `</think>` printed to the user under a tool

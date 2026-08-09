@@ -174,6 +174,11 @@ impl Client {
         self.send(&Request::Status)
     }
 
+    /// Re-fetch this session's turns, so a reconnecting client shows what the model can see.
+    pub fn replay(&self) -> Result<Vec<Event>, ClientError> {
+        self.send(&Request::Replay { session: self.session.clone() })
+    }
+
     /// Ask the daemon to stop.
     ///
     /// **Refused while a run is in flight** — that is the case invariant 6 exists for. An idle

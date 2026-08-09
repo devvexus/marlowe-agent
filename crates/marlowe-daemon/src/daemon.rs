@@ -655,6 +655,45 @@ impl Daemon {
             }
             // The gate is not wired to a surface yet; refusing is the honest answer rather than
             // recording an approval nobody gave.
+            Request::Replay { session } => {
+                // Blocks back into the frames that produced them. Nothing here is state the
+                // client gets to keep: the next `Status` or `Ask` still comes from the daemon.
+                if let Some(mem) = self.sessions.get(&session) {
+                    for block in mem.state.volatile.iter() {
+                        let name = block
+                            .wire
+                            .as_ref()
+                            .and_then(|w| w.tool_name.clone())
+                            .unwrap_or_else(|| "tool".to_string());
+                        match block.source {
+                            marlowe_loop::SourceKind::History => {
+                                if block.text.is_empty() {
+                                    continue;
+                                }
+                                if block.trust == TrustClass::AgentInferred {
+                                    on_event(Event::Text { delta: block.text.clone() });
+                                } else {
+                                    on_event(Event::User { text: block.text.clone() });
+                                }
+                            }
+                            marlowe_loop::SourceKind::ToolResults => {
+                                on_event(Event::Tool {
+                                    id: 0,
+                                    verb: name,
+                                    target: String::new(),
+                                    state: if block.text.contains("blocked") {
+                                        "failed".into()
+                                    } else {
+                                        "ok".into()
+                                    },
+                                    summary: String::new(),
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
             Request::Shutdown => {
                 // **Refused while a run is live.** That is exactly what invariant 6 protects: the
                 // work outlives the window. An idle daemon protects nothing and is only in the
