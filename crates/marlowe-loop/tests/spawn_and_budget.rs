@@ -776,11 +776,24 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
     // The web fetch ran; the shell command did not.
     assert_eq!(tools.calls.len(), 1, "only the inert read executed: {:?}", tools.calls);
     assert_eq!(tools.calls[0].0, "web");
-    assert!(e
-        .assembler()
-        .assemble(&state)
-        .rendered()
-        .contains("UntrustedTarget"));
+    // **The property, not the spelling.** This asserted `contains("UntrustedTarget")` — the name
+    // of a Rust enum variant — which pinned the `Debug` rendering that was being handed to the
+    // model as its refusal. That rendering is now prose, and the boundary is unchanged: what
+    // matters is that the tainted call was refused, was never executed, and the model was told
+    // which argument caused it.
+    let rendered = e.assembler().assemble(&state).rendered();
+    assert!(
+        rendered.contains("[bash blocked]"),
+        "the blocked call must be reported to the model: {rendered}"
+    );
+    assert!(
+        rendered.contains("outside this conversation"),
+        "the refusal must name the rule that fired — an argument shaped by untrusted content:          {rendered}"
+    );
+    assert!(
+        rendered.contains("`command`"),
+        "and WHICH argument, or the model cannot correct it: {rendered}"
+    );
 }
 
 /// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
@@ -1105,4 +1118,86 @@ fn a_blocked_tool_call_still_emits_a_tool_line() {
         }
         other => panic!("not a tool line: {other:?}"),
     }
+}
+
+/// **A refused call is still a call the model made, and the refusal must be readable.**
+///
+/// Observed live: handed `[bash blocked] declined`, the model spent a turn concluding it had not
+/// called bash at all — *"this must have been some automatic response or something odd with the
+/// display"* — then apologised for a failure it could not describe. Two causes:
+///
+/// 1. The assistant turn carrying `tool_calls` was pushed **after** adjudication, so a refused
+///    call produced a `tool` result with nothing that produced it.
+/// 2. The reason was `format!("{reason:?}")` — the `Debug` rendering of an internal enum.
+#[test]
+fn a_refusal_tells_the_model_what_happened_and_whether_to_retry() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::ToolCall {
+                tool: ToolId::new("read"),
+                // Path scoping is `Unavailable` here, so this is refused.
+                args: marlowe_permission::Args::new().text("path", "/etc/passwd"),
+            },
+            10,
+        ),
+        say("could not read it", 10),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    // 1. The attempt is in the conversation, as an assistant turn with the call on it.
+    let declared = state.volatile.iter().any(|b| {
+        b.wire
+            .as_ref()
+            .is_some_and(|w| w.tool_calls.iter().any(|c| c.name == "read"))
+    });
+    assert!(
+        declared,
+        "a refused call must still be recorded as a call the model made, or the model cannot \
+         tell it called anything: {:?}",
+        state.volatile.iter().map(|b| (&b.source, &b.text)).collect::<Vec<_>>()
+    );
+
+    // 2. The refusal reads as English, not as a Debug dump.
+    let refusal = state
+        .volatile
+        .iter()
+        .find(|b| b.text.contains("blocked"))
+        .map(|b| b.text.clone())
+        .expect("the refusal reached the conversation");
+    assert!(
+        !refusal.contains("UndeclaredPath {") && !refusal.contains("detail:"),
+        "the model was handed a Debug rendering of an internal enum: {refusal}"
+    );
+    assert!(
+        refusal.contains("workspace"),
+        "the refusal must say what the rule is: {refusal}"
+    );
+    assert!(
+        refusal.to_lowercase().contains("retry"),
+        "the refusal must say whether retrying can ever work — that is what the next action \
+         depends on: {refusal}"
+    );
 }
