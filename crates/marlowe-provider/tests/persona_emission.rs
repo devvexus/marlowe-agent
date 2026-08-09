@@ -158,3 +158,51 @@ fn the_persona_text_exists_in_exactly_one_place() {
         copies.join("\n")
     );
 }
+
+/// **Marlowe's own words go out as `assistant`, never as `user`.**
+///
+/// The bug this pins was invisible from every unit test and obvious the moment a human read the
+/// screen: every non-stable block was sent as `role: "user"`, so the model received its own last
+/// reply attributed to the user and answered it.
+///
+///     Hello. What do you need?   →   Nothing in particular.   →   Nothing yet either.
+///
+/// `/api/chat` carries four roles for exactly this reason. Collapsing them threw away the
+/// distinction the endpoint exists to make, and the symptom looked like a model defect.
+#[test]
+fn history_roles_follow_who_actually_said_it() {
+    use marlowe_loop::{Assembler, Block, CallLimits, SessionId, SessionState, SourceKind};
+
+    let mut state = SessionState::new(SessionId::new(), "identity");
+    state.push(Block::new(SourceKind::History, "what is 2+2", TrustClass::UserAsserted));
+    state.push(Block::new(SourceKind::History, "Four.", TrustClass::AgentInferred));
+    state.push(Block::new(SourceKind::ToolResults, "48 lines", TrustClass::AgentObserved));
+    let view = Assembler::new(16_384, 1_024).assemble(&state);
+
+    let tools = ExposedSet::new(vec![ToolId::new("read")]).expect("one tool fits");
+    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128 });
+    let messages = body.get("messages").and_then(|m| m.as_array()).expect("messages");
+
+    let role_of = |needle: &str| -> Option<String> {
+        messages
+            .iter()
+            .find(|m| {
+                m.get("content")
+                    .and_then(|c| c.as_str())
+                    .is_some_and(|c| c.contains(needle))
+            })
+            .and_then(|m| m.get("role").and_then(|r| r.as_str()))
+            .map(str::to_string)
+    };
+
+    assert_eq!(role_of("what is 2+2").as_deref(), Some("user"));
+    assert_eq!(
+        role_of("Four.").as_deref(),
+        Some("assistant"),
+        "Marlowe's own reply reached the model as a USER turn, so it will answer itself. Body:\n{body:#}"
+    );
+    assert_eq!(role_of("48 lines").as_deref(), Some("tool"));
+
+    // And the persona is still where §C6 puts it.
+    assert_eq!(role_of("identity").as_deref(), Some("system"));
+}

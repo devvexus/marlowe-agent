@@ -307,6 +307,20 @@ impl<S: PathScope> Engine<S> {
                         text,
                         TrustClass::AgentInferred,
                     ));
+
+// **The turn does NOT end here, and that is deliberate after a false start.**
+                    //
+                    // The self-talk this looked like — `Hello. What do you need?` → `Nothing in
+                    // particular.` → `Nothing yet either.` — was not the loop failing to stop. It
+                    // was `ollama.rs` sending every history block as `role: "user"`, so the model
+                    // received its own last reply attributed to the user and answered it. The
+                    // roles are derived from origin now.
+                    //
+                    // Ending the turn on `Say` was tried as a belt-and-braces guard and reverted:
+                    // it broke three compaction tests that legitimately drive several steps, and
+                    // it would have masked the real bug rather than fixed it. If a small model
+                    // still fails to emit `done`, that is a separate finding and needs its own
+                    // measurement — `MAX_STEPS` is the existing backstop.
                 }
 
                 ModelStep::Done(result) => {

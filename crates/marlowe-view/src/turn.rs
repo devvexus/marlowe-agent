@@ -122,6 +122,16 @@ pub enum DegradedPath {
     VoiceUnavailable,
     /// A provider failed over. The run continues on another.
     ProviderFailedOver,
+    /// Something is degraded that this enum has no specific name for. **The remedy carries it.**
+    ///
+    /// The projection used to fall back to `ProviderFailedOver` for any unrecognised remedy, so
+    /// the band read *"failed over · secondary provider"* for a daemon whose only problem was a
+    /// stale binary. That is worse than saying nothing: it is a specific, false claim about a
+    /// component that never failed, and a user acting on it would go looking at providers.
+    ///
+    /// A degraded state must be visible (invariant 4) AND accurate. When the class is unknown,
+    /// the honest headline says so and defers to the remedy text.
+    Unclassified,
 }
 
 impl DegradedPath {
@@ -131,6 +141,7 @@ impl DegradedPath {
             DegradedPath::DenseRetrievalOffline => "dense retrieval offline · lexical only",
             DegradedPath::VoiceUnavailable => "voice offline · text only",
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",
+            DegradedPath::Unclassified => "degraded · see the Status tab",
         }
     }
 
@@ -140,6 +151,7 @@ impl DegradedPath {
             DegradedPath::DenseRetrievalOffline => "recall quality reduced · not silent",
             DegradedPath::VoiceUnavailable => "text is unaffected",
             DegradedPath::ProviderFailedOver => "run state preserved across the switch",
+            DegradedPath::Unclassified => "the remedy is stated where this was raised",
         }
     }
 }

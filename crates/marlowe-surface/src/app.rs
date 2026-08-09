@@ -104,8 +104,14 @@ pub struct App {
     /// **Surface state, and M1 did not have it** — the highlight *was* `Picker::selected`, so
     /// arrowing through the Autonomy list granted each tier in passing. See `on_picker_key`.
     pub picker_cursor: usize,
-    /// Whether the thinking block is expanded. **Surface state**: collapsed is the default because
-    /// the user asked a question, not for a monologue.
+    /// Whether thinking blocks are expanded. **Surface state**: collapsed by default, because the
+    /// user asked a question rather than for a monologue.
+    ///
+    /// One flag for all of them rather than one per block, and that is a real limitation stated
+    /// rather than hidden: §B6 defers per-line cursoring in the conversation to M2 with real
+    /// scrollback, so there is nothing to address an individual block *with*. Expand-all is the
+    /// honest affordance until there is a cursor; a per-block flag with no way to point at a block
+    /// would be state the user cannot reach.
     pub reasoning_expanded: bool,
     /// The last frame an amplitude source actually reported.
     ///
@@ -771,10 +777,11 @@ Action::Redraw
                 // the Sessions pane, and the registry refused all three. §B6 already says "cursor
                 // to a line, Enter for full output in place"; a thinking block is a line with more
                 // behind it, which is the same affordance.
-                if matches!(
-                    self.view.transcript.last(),
-                    Some(marlowe_view::Entry::Reasoning { .. })
-                ) {
+                // **Any reasoning block, not just the last one.** The first version only fired
+                // when `Reasoning` was the final entry — which it almost never is, because the
+                // answer follows it. The line advertised `↵` and nothing happened, which is worse
+                // than not offering it.
+                if self.has_reasoning() {
                     self.reasoning_expanded = !self.reasoning_expanded;
                     return Action::Redraw;
                 }

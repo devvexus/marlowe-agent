@@ -98,7 +98,10 @@ fn classify_degradation(remedy: &str) -> DegradedPath {
     } else if r.contains("voice") {
         DegradedPath::VoiceUnavailable
     } else {
-        DegradedPath::ProviderFailedOver
+        // **Not `ProviderFailedOver`.** Guessing the most general declared path meant the band
+        // announced a failover that never happened — observed live, for a daemon whose only
+        // problem was a stale binary. An unclassified degradation says so.
+        DegradedPath::Unclassified
     }
 }
 

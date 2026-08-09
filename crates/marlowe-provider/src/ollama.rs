@@ -9,6 +9,7 @@
 
 use std::time::Duration;
 
+use marlowe_loop::SourceKind;
 use marlowe_loop::{
     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
     ModelStep, ProviderError, Usage,
@@ -280,14 +281,47 @@ impl OllamaDriver {
     ) -> serde_json::Value {
         let model = self.routing.model_for(marlowe_loop::ModelRoute::Orchestrator).to_string();
 
-        // The three tiers become three messages in order, so the stable prefix stays stable and
-        // cache-friendly (§6). Governance is in `stable` and therefore always first.
+        // **Roles are derived from the block's origin, not from its tier.**
+        //
+        // Every non-stable block used to go out as `role: "user"` — including `History` blocks
+        // holding MARLOWE'S OWN PRIOR REPLIES. The model therefore read its own last answer as
+        // something the user had just said, and answered it. Observed at the terminal:
+        //
+        //     Hello. What do you need?   →   Nothing in particular.   →   Nothing yet either.
+        //
+        // A conversation with itself, ended only by the budget. `/api/chat` has `system`,
+        // `user`, `assistant` and `tool` precisely so this cannot happen, and collapsing three of
+        // them into one threw away the distinction the endpoint exists to carry.
+        //
+        // `TrustClass` is origin-bound and never derived from content (§3.3), which makes it the
+        // right discriminator: what the user asserted is `user`, what the agent inferred is
+        // `assistant`, and a tool's output is `tool`.
         let mut messages = Vec::new();
         for block in view.stable.iter() {
             messages.push(serde_json::json!({ "role": "system", "content": block.text }));
         }
-        for block in view.context.iter().chain(view.volatile.iter()) {
-            messages.push(serde_json::json!({ "role": "user", "content": block.text }));
+        // Project files, skills and tool schemas describe the world rather than speak in it, so
+        // they stay `system`: they are context the assistant has, not turns anybody took.
+        for block in view.context.iter() {
+            messages.push(serde_json::json!({ "role": "system", "content": block.text }));
+        }
+        for block in view.volatile.iter() {
+            let role = match block.source {
+                SourceKind::ToolResults => "tool",
+                SourceKind::History | SourceKind::ChildResults => {
+                    match block.trust {
+                        // The one the bug turned on.
+                        marlowe_contract::TrustClass::AgentInferred => "assistant",
+                        _ => "user",
+                    }
+                }
+                // Injected memory is context, not a turn. Attributing it to the user would make a
+                // recalled fact indistinguishable from something they just said — and §B1 keeps
+                // memory out of the interface, which starts with not pretending it was spoken.
+                SourceKind::InjectedMemory => "system",
+                _ => "user",
+            };
+            messages.push(serde_json::json!({ "role": role, "content": block.text }));
         }
 
         serde_json::json!({
