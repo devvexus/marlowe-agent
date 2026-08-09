@@ -17,6 +17,7 @@
 
 use marlowe_contract::{Clock, TrustClass};
 use marlowe_journal::EventKind;
+use crate::turn::DegradedPath;
 use marlowe_permission::{
     Adjudicator, Args, BlockReason, EgressPolicy, Outcome, PathScope, Request, Tier,
 };
@@ -227,16 +228,25 @@ impl<S: PathScope> Engine<S> {
             // call, so the chunks reach the surface while the model is still producing them —
             // which is the whole of what "streaming" means above the transport.
             let streamed = ports.driver.streams();
-            let sink = &mut *ports.sink;
+            // Disjoint field borrows: the driver and the sink are different fields of `Ports`, so
+            // both can be held at once. The `RefCell` is what lets two closures share the sink —
+            // the alternative was one callback with a kind tag, which pushes the branch into every
+            // provider instead of keeping it here.
+            let Ports { driver, sink, .. } = &mut *ports;
+            let sink = std::cell::RefCell::new(&mut **sink);
             let call = {
                 let mut on_delta = |chunk: &str| {
-                    sink.emit(TurnEvent::TextDelta(chunk.to_string()));
+                    sink.borrow_mut().emit(TurnEvent::TextDelta(chunk.to_string()));
                 };
-                ports.driver.call_streaming(
+                let mut on_reasoning = |chunk: &str| {
+                    sink.borrow_mut().emit(TurnEvent::ReasoningDelta(chunk.to_string()));
+                };
+                driver.call_streaming_split(
                     &view,
                     run.profile.exposed_tools(),
                     limits,
                     &mut on_delta,
+                    &mut on_reasoning,
                 )
             };
             let call = match call {
@@ -709,7 +719,14 @@ impl<S: PathScope> Engine<S> {
                 // and a run that continued past a dropped event would be unreconstructable.
                 // It is surfaced rather than swallowed; the loop's own failure path handles it
                 // on the next iteration through `RunFailed`.
-                ports.sink.emit(TurnEvent::TextDelta(format!("[journal] append failed: {e}")));
+                // **Degraded, not prose.** This used to be a `TextDelta`, so an audit-log
+                // failure arrived in the transcript in Marlowe's voice, mid-sentence, repeatedly:
+                // `You got here first. Go ahead.[journal] append failed: UNIQUE constraint …`.
+                // A harness error rendered as model output is the exact confusion `Speech::Model`
+                // versus `Speech::Harness` exists to prevent, at the one place that still emitted
+                // raw text. Invariant 4 says degrade visibly; it does not say degrade in character.
+                ports.sink.emit(TurnEvent::Degraded { what: DegradedPath::JournalAppendFailed });
+                let _ = e;
                 None
             }
         }

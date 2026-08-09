@@ -518,6 +518,29 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                 }
                 out.push(Line::from(""));
             }
+            // **The thinking block.** Collapsed by default, one line, expandable with `t`.
+            //
+            // It appears the instant the first reasoning chunk lands, which is the point: a
+            // reasoning model spends most of a turn here, and without this the screen is static
+            // while the machine is working. §B5's rule is that motion means Marlowe is working —
+            // this is the part of the work that was invisible.
+            Entry::Reasoning { text, done } => {
+                let expanded = app.reasoning_expanded;
+                let marker = if expanded { "▾" } else { "▸" };
+                let head = if *done {
+                    format!("{marker} thought for {} characters   ↵", text.len())
+                } else {
+                    // Live: the count moves, so the line itself reports progress.
+                    format!("{marker} thinking… {} characters   ↵", text.len())
+                };
+                out.push(Line::from(Span::styled(head, theme.dim())));
+                if expanded {
+                    for l in wrap(text, w.saturating_sub(2)) {
+                        out.push(Line::from(Span::styled(format!("  {l}"), theme.dim())));
+                    }
+                }
+                out.push(Line::from(""));
+            }
             Entry::Compacted { turns } => {
                 let text = format!("─ compacted · {turns} turns → summary ─");
                 let pad = w.saturating_sub(text.chars().count()) / 2;

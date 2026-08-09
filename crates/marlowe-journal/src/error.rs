@@ -6,6 +6,18 @@ use crate::event::{EventKind, Seq};
 
 #[derive(Debug, thiserror::Error)]
 pub enum JournalError {
+    /// Another process holds this profile.
+    ///
+    /// The journal is a hash chain and `seq` comes from an in-memory counter, so two writers fork
+    /// the chain rather than interleaving. Refusing at open is the only honest answer: a second
+    /// process that started and then failed every append would present as a corrupt journal.
+    #[error(
+        "another Marlowe process is using the profile at {root} ({detail}).
+
+         The journal is a signed hash chain with a per-process sequence counter, so two writers          fork it — `UNIQUE constraint failed: journal.seq` is what that looks like from the          inside. Stop the other process, or use a separate --profile-root."
+    )]
+    ProfileLocked { root: std::path::PathBuf, detail: String },
+
     #[error(
         "profile root {root} already contains {entries} entr(ies); refusing to reuse state. \
          Each eval spawn must start empty, or the clock probe compares contaminated runs \

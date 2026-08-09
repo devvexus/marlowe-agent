@@ -82,71 +82,6 @@ pub struct RunSummary {
     pub depth: u8,
 }
 
-/// Whether the running binary predates the source it was built from.
-///
-/// # Why a daemon needs this and a CLI does not
-///
-/// A daemon is long-lived. It loads a binary once and serves from it until something stops it —
-/// so a rebuild changes the source, the tests and the developer's mental model while the process
-/// keeps answering from the old code. **This cost M2 C2e two turns**: the persona was wired,
-/// committed and unit-tested, and the daemon had been serving pre-persona code for an hour. The
-/// symptom was "the persona does not work", which is a true observation about a false cause.
-///
-/// That is the same family as everything else in CLAUDE.md's table — a reading that is correct
-/// about a system other than the one being asked about — so it gets an instrument rather than a
-/// habit. Returns the newest source mtime when it is newer than the executable's.
-///
-/// **Absent outside a source tree**, which is correct: an installed binary has no `crates/` to be
-/// stale against, and inventing a warning there would be noise.
-fn stale_against_source() -> Option<String> {
-    let exe = std::env::current_exe().ok()?;
-    let exe_time = exe.metadata().ok()?.modified().ok()?;
-
-    // Walk up from the executable looking for the workspace's `crates/`.
-    let mut root = exe.parent()?;
-    let crates = loop {
-        // LOOP-EXEMPT: walking up a path, not a driving loop.
-        let candidate = root.join("crates");
-        if candidate.is_dir() {
-            break candidate;
-        }
-        root = root.parent()?;
-    };
-
-    let mut newest: Option<std::time::SystemTime> = None;
-    let mut stack = vec![crates];
-    while let Some(dir) = stack.pop() {
-        // LOOP-EXEMPT: a filesystem walk, not a driving loop.
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
-        for e in entries.flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                if p.file_name().is_some_and(|n| n == "target") {
-                    continue;
-                }
-                stack.push(p);
-            } else if p.extension().is_some_and(|x| x == "rs") {
-                if let Ok(t) = p.metadata().and_then(|m| m.modified()) {
-                    if newest.is_none_or(|n| t > n) {
-                        newest = Some(t);
-                    }
-                }
-            }
-        }
-    }
-
-    let newest = newest?;
-    if newest <= exe_time {
-        return None;
-    }
-    let behind = newest.duration_since(exe_time).ok()?;
-    let mins = behind.as_secs() / 60;
-    Some(format!(
-        "this daemon's binary is {} older than the source it was built from — rebuild with          `cargo build --release` and restart it, or it will keep serving the old code",
-        if mins >= 1 { format!("{mins} min") } else { format!("{} s", behind.as_secs()) }
-    ))
-}
-
 /// Turns a loop event into a wire event. Render-only.
 ///
 /// `TurnEvent::Done` returns `None`: the loop's own Done carries no outcome, and the daemon emits
@@ -157,6 +92,7 @@ fn stale_against_source() -> Option<String> {
 fn to_wire(event: TurnEvent) -> Option<Event> {
     Some(match event {
         TurnEvent::TextDelta(t) => Event::Text { delta: t },
+        TurnEvent::ReasoningDelta(t) => Event::Reasoning { delta: t },
             TurnEvent::ToolLine { id, verb, target, state } => {
                 let (state, summary) = match state {
                     ToolLineState::Running { elapsed_ms } => {
@@ -291,7 +227,7 @@ impl Daemon {
         // **Announced, loudly, and ahead of everything else.** A daemon serving stale code
         // produces symptoms that look like bugs in whatever was just changed, and the reflex is to
         // debug the change. Invariant 4's rule applies: degrade visibly, and name the remedy.
-        let degraded = stale_against_source().or(degraded);
+        let degraded = crate::staleness::stale_against_source().or(degraded);
         StatusReport {
             version: env!("CARGO_PKG_VERSION").to_string(),
             workspace: self.config.workspace.display().to_string(),

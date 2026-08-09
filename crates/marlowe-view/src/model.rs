@@ -192,6 +192,17 @@ pub enum Entry {
     Said(crate::notice::Speech),
     /// A group of consecutive tool calls. §B6's same-verb collapse operates within a group.
     Tools(Vec<ToolCall>),
+    /// The model's reasoning, **collapsed by default**.
+    ///
+    /// Appears the moment generation starts, so a reasoning model is visibly working rather than
+    /// apparently hung — `qwen3.5:9b` spent 91% of its frames here on a one-word greeting, and
+    /// none of it was on screen.
+    ///
+    /// It is its own variant rather than a `Said` because it is **not what Marlowe said**: it does
+    /// not carry the persona, it must not appear in a `Y` transcript copy, and the user asked a
+    /// question rather than for a monologue. Expansion is the surface's, exactly as for a tool
+    /// line — see `App::expanded`.
+    Reasoning { text: String, done: bool },
     /// `─ compacted · 47 turns → summary ─`. Announces itself inline and does not interrupt.
     Compacted { turns: u32 },
 }

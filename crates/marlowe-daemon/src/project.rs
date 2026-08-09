@@ -116,9 +116,24 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             // Model output, so `Speech::Model`. Deltas coalesce into one `Said` rather than one
             // entry per token. This is the half of `Entry::Said` that is legitimately a `String`:
             // it is what the model emitted, and the harness does not get to reword it.
-            Event::Text { delta } => match view.transcript.last_mut() {
-                Some(Entry::Said(Speech::Model(s))) => s.push_str(delta),
-                _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
+            Event::Text { delta } => {
+                // The first answer token closes the reasoning block: the model has stopped
+                // thinking and started answering, and a block still marked open would keep
+                // claiming work that has finished.
+                if let Some(Entry::Reasoning { done, .. }) = view.transcript.last_mut() {
+                    *done = true;
+                }
+                match view.transcript.last_mut() {
+                    Some(Entry::Said(Speech::Model(s))) => s.push_str(delta),
+                    _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
+                }
+            }
+            // Coalesced into one block, and it opens as soon as the first chunk lands.
+            Event::Reasoning { delta } => match view.transcript.last_mut() {
+                Some(Entry::Reasoning { text, done: false }) => text.push_str(delta),
+                _ => view
+                    .transcript
+                    .push(Entry::Reasoning { text: delta.clone(), done: false }),
             },
             Event::Tool { id, verb, target, state, summary } => {
                 let call = tool_call(*id, verb, target, state, summary);

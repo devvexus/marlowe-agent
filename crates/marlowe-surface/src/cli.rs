@@ -197,6 +197,14 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
                 }
             },
             Entry::Compacted { turns } => writeln!(out, "-- compacted · {turns} turns → summary")?,
+            // Linear surfaces have nowhere to collapse to, so the classic CLI reports the shape
+            // rather than the content: it is progress, not an answer.
+            Entry::Reasoning { text, done } => writeln!(
+                out,
+                "  ⋯ thinking   {} chars{}",
+                text.len(),
+                if *done { "" } else { " …" }
+            )?,
             Entry::Tools(calls) => {
                 for c in calls {
                     let target = if c.collapsed.is_empty() {

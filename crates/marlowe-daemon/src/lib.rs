@@ -33,6 +33,7 @@ pub mod clock;
 pub mod daemon;
 pub mod live;
 pub mod project;
+mod staleness;
 pub mod protocol;
 
 pub use client::{Client, ClientError};

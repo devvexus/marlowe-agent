@@ -115,6 +115,10 @@ fn render(events: &[Event]) {
                 }
             }
             Event::Text { delta } => print!("{delta}"),
+            // The classic path has no collapsible element, so reasoning is counted rather than
+            // printed: it is progress, not an answer, and dumping a chain of thought into a
+            // piped stdout would make `--ask` unusable in a script.
+            Event::Reasoning { .. } => {}
             Event::Tool { verb, target, state, summary, .. } => {
                 println!("  ⋯ {verb}  {target}  {summary}  [{state}]");
             }

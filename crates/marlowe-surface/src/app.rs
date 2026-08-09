@@ -104,6 +104,9 @@ pub struct App {
     /// **Surface state, and M1 did not have it** — the highlight *was* `Picker::selected`, so
     /// arrowing through the Autonomy list granted each tier in passing. See `on_picker_key`.
     pub picker_cursor: usize,
+    /// Whether the thinking block is expanded. **Surface state**: collapsed is the default because
+    /// the user asked a question, not for a monologue.
+    pub reasoning_expanded: bool,
     /// The last frame an amplitude source actually reported.
     ///
     /// ADR-021's freeze needs somewhere to hold, and it has to be on the *looking* side: the
@@ -243,6 +246,7 @@ impl App {
             outbox: Vec::new(),
             picker_open: None,
             picker_cursor: 0,
+            reasoning_expanded: false,
             last_meter: marlowe_view::BASELINE,
             expanded: std::collections::BTreeMap::new(),
             tab: Tab::Schedule,
@@ -759,6 +763,21 @@ Action::Redraw
                 Action::Redraw
             }
             RegionId::Conversation => {
+                // **The thinking block expands on `Enter`, like a tool line.**
+                //
+                // It has no letter of its own, and that is not a compromise: every lowercase key
+                // is reachable by the daemon's run-key pool, so a global letter would collide the
+                // moment enough runs existed — `t` hit `test-suite`, `x` hit `pdf-export`, `k` hit
+                // the Sessions pane, and the registry refused all three. §B6 already says "cursor
+                // to a line, Enter for full output in place"; a thinking block is a line with more
+                // behind it, which is the same affordance.
+                if matches!(
+                    self.view.transcript.last(),
+                    Some(marlowe_view::Entry::Reasoning { .. })
+                ) {
+                    self.reasoning_expanded = !self.reasoning_expanded;
+                    return Action::Redraw;
+                }
                 // §B6: cursor to a line, Enter for full output in place. M1 expands the last tool
                 // group; per-line cursoring inside the transcript is M2 with real scrollback.
                 if let Some(marlowe_view::Entry::Tools(calls)) = self
@@ -1039,6 +1058,18 @@ Action::Redraw
     fn client_note(&mut self, notice: Notice, tone: Tone) {
         let after = self.view.transcript.len();
         self.client_lines.push(ClientLine::new(notice, tone, after));
+    }
+
+    /// Whether the transcript currently holds a thinking block.
+    ///
+    /// `t` is only claimed when there is one, so it stays available to the region registry
+    /// otherwise — a global key that does nothing most of the time is a key the user stops
+    /// trusting.
+    pub fn has_reasoning(&self) -> bool {
+        self.view
+            .transcript
+            .iter()
+            .any(|e| matches!(e, marlowe_view::Entry::Reasoning { .. }))
     }
 
     /// The next state in B5's order -- what `^v` and Enter-on-the-status-band ask for.

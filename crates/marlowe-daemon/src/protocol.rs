@@ -41,6 +41,8 @@ pub enum Event {
     /// The daemon's identity and health, including what §B5's band needs.
     Status(StatusReport),
     Text { delta: String },
+    /// A chunk of the model's reasoning. **Not the answer**, and never part of the transcript.
+    Reasoning { delta: String },
     /// §B6's one line per call.
     Tool { id: u64, verb: String, target: String, state: String, summary: String },
     Compacted { turns: u32 },

@@ -126,6 +126,9 @@ pub fn entry_text(e: &Entry) -> Option<String> {
         // Harness speech is not conversation. `y` on a `/help` listing copying the listing would
         // be a copy of the tool's output masquerading as a turn.
         Entry::Said(marlowe_view::Speech::Harness(_)) => None,
+        // Reasoning is not what Marlowe said. Copying a turn must not hand the user a chain of
+        // thought they collapsed precisely because they did not want to read it.
+        Entry::Reasoning { .. } => None,
         Entry::Tools(calls) if calls.is_empty() => None,
         Entry::Tools(calls) => Some(
             calls
@@ -158,6 +161,8 @@ pub fn transcript_markdown(view: &SessionView) -> String {
             // deliberately absent from the markdown, exactly as a shell's output is absent from a
             // transcript of what two people said.
             Entry::Said(marlowe_view::Speech::Harness(_)) => {}
+            // Absent from a `Y` markdown transcript for the same reason.
+            Entry::Reasoning { .. } => {}
             Entry::Tools(calls) if !calls.is_empty() => {
                 out.push_str("```\n");
                 for c in calls {

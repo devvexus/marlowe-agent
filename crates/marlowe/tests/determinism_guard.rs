@@ -190,6 +190,24 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     /// them would let a genuine clock read appear in a test file under an exemption that was
     /// granted for a string literal — the two claims are different and the list that records them
     /// should be too.
+    /// Files that compare **filesystem timestamps** and never read the current time.
+    ///
+    /// A third list, and the separation is the point. `FENCES` means *this file legitimately reads
+    /// real time*; `NAMES_BUT_DOES_NOT_READ` means *this file spells the words in order to ban
+    /// them*. Neither describes a file that compares two mtimes — and folding it into `FENCES`
+    /// would grant it the right to call `SystemTime::now()`, which is exactly what it must not do.
+    const COMPARES_MTIMES: &[&str] = &[
+        // M2 C2e: the daemon staleness guard. Compares the executable's mtime against the newest
+        // source file. Nothing here reaches a journal timestamp, a memory id or a repro hash.
+        "staleness.rs",
+    ];
+    for named in COMPARES_MTIMES {
+        assert!(
+            all.iter().any(|n| n == named),
+            "the clock guard exempts `{named}`, and no such file exists in crates/."
+        );
+    }
+
     const NAMES_BUT_DOES_NOT_READ: &[&str] = &[
         "determinism_guard.rs",
         // M2 C2d. Asserts locally that `marlowe-surface` reads no clock, which means spelling out
@@ -208,7 +226,10 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     let mut offenders = Vec::new();
     for path in crate_sources() {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if FENCES.contains(&name.as_str()) || NAMES_BUT_DOES_NOT_READ.contains(&name.as_str()) {
+        if FENCES.contains(&name.as_str())
+            || NAMES_BUT_DOES_NOT_READ.contains(&name.as_str())
+            || COMPARES_MTIMES.contains(&name.as_str())
+        {
             continue;
         }
         if path.components().any(|c| c.as_os_str() == TEMPORARY_SPIKE) {

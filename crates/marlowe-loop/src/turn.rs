@@ -37,6 +37,14 @@ pub enum DegradedPath {
     DenseRetrievalOffline,
     VoiceUnavailable,
     ProviderFailedOver,
+    /// **The audit log refused a write.** Invariant 7: a run that continued past a dropped event
+    /// would be unreconstructable, so this is never silent.
+    ///
+    /// It has its own variant because it was previously emitted as a `TextDelta` — harness text
+    /// rendered as Marlowe's own prose, interleaved mid-sentence into the conversation. That made
+    /// a data-integrity failure look like the model babbling, which is the wrong message about the
+    /// wrong component.
+    JournalAppendFailed,
     /// ADR-028: the local Ollama endpoint is absent, or the routed model is not pulled.
     ///
     /// A declared value on the run, not a crash — invariant 4. The *specific* remedy
@@ -48,6 +56,7 @@ pub enum DegradedPath {
 impl DegradedPath {
     pub fn headline(self) -> &'static str {
         match self {
+            DegradedPath::JournalAppendFailed => "audit log write refused · run not recorded",
             DegradedPath::DenseRetrievalOffline => "dense retrieval offline · lexical only",
             DegradedPath::VoiceUnavailable => "voice offline · text only",
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",
@@ -60,6 +69,17 @@ impl DegradedPath {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TurnEvent {
     TextDelta(String),
+    /// A chunk of the model's **reasoning**, not its answer.
+    ///
+    /// Reasoning models emit these before any answer text — `qwen3.5:9b` spent **2,615 of 2,862
+    /// frames** on them in one `Hello`. Without a variant of their own they were invisible, so a
+    /// model working hard read as a hung process, and §B5's *motion means Marlowe is working* had
+    /// nothing to move on.
+    ///
+    /// **Separate from `TextDelta` deliberately.** It is not what Marlowe said, it must never
+    /// enter the transcript a `Y` copy produces, and it is collapsed by default — the user asked
+    /// for a question, not a monologue.
+    ReasoningDelta(String),
     ToolLine { id: u64, verb: String, target: String, state: ToolLineState },
     Compacted { turns: u32 },
     Degraded { what: DegradedPath },
@@ -77,13 +97,18 @@ mod tests {
         // enum the real loop emits, and the rule has to hold where the events are produced.
         let names = [
             "TextDelta",
+            "ReasoningDelta",
             "ToolLine",
             "Compacted",
             "Degraded",
             "ApprovalPrompt",
             "Done",
         ];
-        assert_eq!(names.len(), 6, "a variant was added; is its subject the memory system?");
+        // Seven since M2 C2e added `ReasoningDelta`. **The count is the prompt, not the rule**:
+        // it forces whoever adds a variant to answer the question below rather than slipping one
+        // past a list nobody re-reads. `ReasoningDelta` carries the model's chain of thought — it
+        // is about the provider, not about what Marlowe knows, so §B1 is untouched.
+        assert_eq!(names.len(), 7, "a variant was added; is its subject the memory system?");
         for n in names {
             let lower = n.to_lowercase();
             assert!(

@@ -43,10 +43,105 @@ pub struct Manifest {
     pub derivation_version: u32,
 }
 
+/// The name of the exclusivity lock inside a profile root.
+const LOCK_FILE: &str = "profile.lock";
+
+/// An exclusive hold on a profile root, released when the `Profile` is dropped.
+///
+/// # Why the journal cannot tolerate a second writer
+///
+/// The journal is a **hash chain**: every entry signs over the previous entry's signature, and
+/// `seq` is `last_seq + 1` from an in-memory counter loaded at open. Two processes on one profile
+/// therefore do not merely race — they **fork the chain**, and `verify_chain` is right to reject
+/// the result. This is not a concurrency bug to tune away; concurrent writers are incompatible
+/// with the design, so the honest mechanism is to refuse the second one.
+///
+/// **Observed, not theorised.** A `marlowe --ask` running beside a `marlowe --serve` on the same
+/// profile produced `UNIQUE constraint failed: journal.seq` on every append the daemon attempted,
+/// for a whole session, while the other process wrote happily. The audit log — invariant 7 — was
+/// silently taking writes from one process and refusing them from the other.
+#[derive(Debug)]
+struct ProfileLock {
+    path: PathBuf,
+    _file: fs::File,
+}
+
+impl ProfileLock {
+    /// Take the lock, or say who has it. **Refuses at load time**, which is the whole point: a
+    /// second daemon that started and then failed every append would look like a broken journal
+    /// rather than a second daemon.
+    fn acquire(root: &Path) -> Result<Self, JournalError> {
+        let path = root.join(LOCK_FILE);
+        let file = Self::exclusive(&path).map_err(|e| JournalError::ProfileLocked {
+            root: root.to_path_buf(),
+            detail: e.to_string(),
+        })?;
+        Ok(Self { path, _file: file })
+    }
+
+    #[cfg(windows)]
+    fn exclusive(path: &Path) -> std::io::Result<fs::File> {
+        use std::os::windows::fs::OpenOptionsExt;
+        // Share nothing: a second opener fails with a sharing violation, which is exactly the
+        // answer wanted. The handle is held for the process's lifetime.
+        fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .share_mode(0)
+            .open(path)
+    }
+
+    #[cfg(not(windows))]
+    fn exclusive(path: &Path) -> std::io::Result<fs::File> {
+        use std::io::Write;
+        // POSIX has no mandatory locking, so this uses `O_EXCL` on a lock file plus a liveness
+        // check: a stale lock from a crashed process must not wedge the profile forever.
+        match fs::OpenOptions::new().create_new(true).write(true).open(path) {
+            Ok(mut f) => {
+                let _ = write!(f, "{}", std::process::id());
+                Ok(f)
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                let holder = fs::read_to_string(path).unwrap_or_default();
+                let alive = holder
+                    .trim()
+                    .parse::<i32>()
+                    .map(|pid| Path::new(&format!("/proc/{pid}")).exists())
+                    .unwrap_or(false);
+                if alive {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::WouldBlock,
+                        format!("held by pid {}", holder.trim()),
+                    ));
+                }
+                // Stale: the holder is gone. Reclaim rather than refuse forever.
+                let _ = fs::remove_file(path);
+                let mut f = fs::OpenOptions::new().create_new(true).write(true).open(path)?;
+                let _ = write!(f, "{}", std::process::id());
+                Ok(f)
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl Drop for ProfileLock {
+    fn drop(&mut self) {
+        // Best effort. A leftover file is reclaimed by the liveness check above; on Windows the
+        // handle closing is what releases it and the file itself is harmless.
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
 pub struct Profile {
     root: PathBuf,
     key: SigningKey,
     manifest: Manifest,
+    /// **Held for as long as the profile is.** `Journal::open` takes a `&Profile`, so there is no
+    /// way to reach the journal without having taken this — the validating-constructor pattern
+    /// applied to a resource rather than a value.
+    _lock: ProfileLock,
 }
 
 impl Profile {
@@ -95,7 +190,8 @@ impl Profile {
 
         crate::store::create_schema(&root.join(JOURNAL_DB))?;
 
-        Ok(Self { root, key, manifest })
+        let _lock = ProfileLock::acquire(&root)?;
+        Ok(Self { root, key, manifest, _lock })
     }
 
     /// Open an existing profile. Every part must be present and consistent.
@@ -137,7 +233,8 @@ impl Profile {
             });
         }
 
-        Ok(Self { root, key, manifest })
+        let _lock = ProfileLock::acquire(&root)?;
+        Ok(Self { root, key, manifest, _lock })
     }
 }
 
@@ -154,10 +251,41 @@ mod tests {
     #[test]
     fn init_then_open_round_trips() {
         let dir = tmp("roundtrip");
-        let created = Profile::init(&dir).expect("init");
+        // **The first profile is dropped before the second opens**, and that is the lock working
+        // rather than a test workaround: two live `Profile` values on one root is exactly the
+        // configuration that forked the journal's hash chain and produced
+        // `UNIQUE constraint failed: journal.seq` on every append from the losing process.
+        let created_key = {
+            let created = Profile::init(&dir).expect("init");
+            created.key().to_hex()
+        };
         let opened = Profile::open(&dir).expect("open");
-        assert_eq!(created.key().to_hex(), opened.key().to_hex());
+        assert_eq!(created_key, opened.key().to_hex());
         assert_eq!(opened.manifest().derivation_version, DERIVATION_VERSION);
+        drop(opened);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// The lock, asserted directly. **A second holder is refused by name.**
+    #[test]
+    fn a_second_process_cannot_open_a_profile_that_is_already_held() {
+        let dir = tmp("locked");
+        let first = Profile::init(&dir).expect("init");
+
+        let second = Profile::open(&dir);
+        match second {
+            Err(JournalError::ProfileLocked { .. }) => {}
+            Err(e) => panic!("refused for the wrong reason: {e}"),
+            Ok(_) => panic!(
+                "two live profiles on one root. The journal is a signed hash chain with a                  per-process sequence counter, so the second writer forks it — which is what                  `UNIQUE constraint failed: journal.seq` looked like from the inside."
+            ),
+        }
+
+        // And it is released, so a crash or a restart does not wedge the profile.
+        drop(first);
+        let reopened = Profile::open(&dir);
+        assert!(reopened.is_ok(), "the lock must release on drop: {:?}", reopened.err());
+        drop(reopened);
         let _ = fs::remove_dir_all(&dir);
     }
 

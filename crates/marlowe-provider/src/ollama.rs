@@ -298,7 +298,15 @@ impl OllamaDriver {
             "options": {
                 // The budget's hard cap, handed to the provider. `budget` is explicit that this
                 // is the mechanism and the top-of-loop check is only the backstop.
-                "num_predict": limits.max_output_tokens.min(i32::MAX as u64) as i64,
+                // **Capped against the window.** The budget's `max_output_tokens` was reaching
+                // the provider as 200,000 against a 32,768-token window — six times more output
+                // than the context can hold, which is unbounded generation with extra steps and
+                // is most of why a reasoning model appeared to run forever. A quarter of the
+                // window leaves room for the prompt it has to answer from.
+                "num_predict": limits
+                    .max_output_tokens
+                    .min((self.context_tokens / 4) as u64)
+                    .min(i32::MAX as u64) as i64,
                 // **Never omitted.** Omitting it is Ollama's 2048, which is the permissive
                 // default this project keeps deleting — and it was live the whole time.
                 "num_ctx": self.context_tokens,
@@ -354,6 +362,17 @@ impl ModelDriver for OllamaDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
     ) -> Result<ModelCall, ProviderError> {
+        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {})
+    }
+
+    fn call_streaming_split(
+        &mut self,
+        view: &ContextView,
+        tools: &ExposedSet,
+        limits: CallLimits,
+        on_delta: &mut dyn FnMut(&str),
+        on_reasoning: &mut dyn FnMut(&str),
+    ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
 
         // **The bytes that actually go out**, dumped before they are sent. Not the same claim as
@@ -393,6 +412,16 @@ impl ModelDriver for OllamaDriver {
             }
 
             if let Some(msg) = frame.get("message") {
+                // **Reasoning models put their chain of thought here, not in `content`.**
+                // `qwen3.5:9b` emitted 2,615 of 2,862 frames with an empty `content` — all of the
+                // work was in `thinking`, and none of it was visible. Ollama has used both spellings.
+                for field in ["thinking", "reasoning", "reasoning_content"] {
+                    if let Some(r) = msg.get(field).and_then(|r| r.as_str()) {
+                        if !r.is_empty() {
+                            on_reasoning(r);
+                        }
+                    }
+                }
                 if let Some(c) = msg.get("content").and_then(|c| c.as_str()) {
                     if !c.is_empty() {
                         // Out to the surface immediately, and kept for the assembled `Say`.

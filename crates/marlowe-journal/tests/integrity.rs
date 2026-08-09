@@ -96,8 +96,10 @@ fn an_edited_payload_breaks_the_chain_on_reopen() {
     // Invariant 7: the log IS the audit trail. If a row can be edited without detection,
     // "every autonomous action is reconstructable" is not true.
     let dir = tmp("tamper");
-    let profile = Profile::init(&dir).unwrap();
+    // Scoped so the profile's exclusivity lock releases before the reopen below. Two live
+    // `Profile` values on one root is the configuration that forks the journal's hash chain.
     {
+        let profile = Profile::init(&dir).unwrap();
         let mut journal = Journal::open(&profile).unwrap();
         let clock = Clock::new(1_780_000_000_000);
         for i in 0..3 {
@@ -132,8 +134,10 @@ fn a_deleted_event_breaks_the_chain_on_reopen() {
     // undetectable way to forget -- and forgetting must remove accessibility, never
     // availability of the record that it happened.
     let dir = tmp("delete");
-    let profile = Profile::init(&dir).unwrap();
+    // Scoped so the profile's exclusivity lock releases before the reopen below. Two live
+    // `Profile` values on one root is the configuration that forks the journal's hash chain.
     {
+        let profile = Profile::init(&dir).unwrap();
         let mut journal = Journal::open(&profile).unwrap();
         let clock = Clock::new(1_780_000_000_000);
         for i in 0..3 {
@@ -162,8 +166,10 @@ fn a_deleted_event_breaks_the_chain_on_reopen() {
 #[test]
 fn reopening_an_intact_journal_verifies_and_resumes() {
     let dir = tmp("resume");
-    let profile = Profile::init(&dir).unwrap();
+    // Scoped so the profile's exclusivity lock releases before the reopen below. Two live
+    // `Profile` values on one root is the configuration that forks the journal's hash chain.
     {
+        let profile = Profile::init(&dir).unwrap();
         let mut journal = Journal::open(&profile).unwrap();
         let clock = Clock::new(1_780_000_000_000);
         for i in 0..4 {
@@ -188,7 +194,9 @@ fn reopening_an_intact_journal_verifies_and_resumes() {
         )
         .unwrap();
     assert_eq!(next.seq, 5);
+    // Both the journal and the profile go, so the lock releases before the final reopen.
     drop(journal);
+    drop(profile);
 
     let profile = Profile::open(&dir).unwrap();
     assert!(Journal::open(&profile).is_ok(), "the chain must still verify");

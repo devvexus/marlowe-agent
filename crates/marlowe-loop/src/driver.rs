@@ -134,6 +134,19 @@ pub trait ModelDriver {
         self.call(view, tools, limits)
     }
 
+    /// As [`Self::call_streaming`], but reasoning chunks go to `on_reasoning` and answer chunks to
+    /// `on_delta`. A provider that does not distinguish them sends everything to `on_delta`.
+    fn call_streaming_split(
+        &mut self,
+        view: &ContextView,
+        tools: &ExposedSet,
+        limits: CallLimits,
+        on_delta: &mut dyn FnMut(&str),
+        _on_reasoning: &mut dyn FnMut(&str),
+    ) -> Result<ModelCall, ProviderError> {
+        self.call_streaming(view, tools, limits, on_delta)
+    }
+
     /// Whether this driver actually streams. **Announced, not inferred**: the engine has to know
     /// whether the deltas it saw were the whole reply or nothing at all, and guessing from "did I
     /// receive any" would be wrong for an empty response.

@@ -173,8 +173,11 @@ fn the_belief_store_rebuilds_from_the_log_alone() {
     // ADR-003's migration story, and the mechanism ADR-009 rests on: the store is a
     // materialized view, so a derived field is a rebuild and never a migration.
     let dir = tmp("rebuild");
-    let profile = Profile::init(&dir).unwrap();
+    // Scoped so the profile's exclusivity lock releases before the rebuild reopens the root.
+    // Two live `Profile` values on one root fork the journal's hash chain, which is why the
+    // second holder is now refused rather than allowed to interleave.
     let live = {
+        let profile = Profile::init(&dir).unwrap();
         let mut journal = Journal::open(&profile).unwrap();
         let mut beliefs = BeliefStore::default();
         let req = request(
