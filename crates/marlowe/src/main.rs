@@ -18,6 +18,7 @@ use std::path::PathBuf;
 const USAGE: &str = "\
 marlowe --ask <question> [--workspace <DIR>] [--dev] [--context <TOKENS>]
 marlowe --serve [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKENS>]
+        [--no-thinking]
 marlowe --status
 marlowe --launch
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
@@ -236,6 +237,11 @@ fn main() {
         },
     };
 
+    // **`--no-thinking` turns it off; it is ON unless asked otherwise.** A reasoning model that
+    // does not separate its chain of thought inlines it into the answer, so the default is the
+    // one that keeps reasoning out of the transcript.
+    let thinking = !args.iter().any(|a| a == "--no-thinking");
+
     if matches!(modes[0], "--serve" | "--ask" | "--status") {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
@@ -252,6 +258,7 @@ fn main() {
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
                 args.iter().any(|a| a == "--dev"),
                 context,
+                thinking,
             ),
             "--status" => agent::status(workspace, profile_root),
             _ => match flag_value(&args, "--ask") {
@@ -261,6 +268,7 @@ fn main() {
                     profile_root,
                     args.iter().any(|a| a == "--dev"),
                     context,
+                    thinking,
                 ),
                 None => Err("--ask requires a question, e.g. `marlowe --ask \"read notes.md\"`"
                     .to_string()),

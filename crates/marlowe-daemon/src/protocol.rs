@@ -43,6 +43,9 @@ pub enum Event {
     Text { delta: String },
     /// A chunk of the model's reasoning. **Not the answer**, and never part of the transcript.
     Reasoning { delta: String },
+    /// The speech streamed so far this turn was reasoning. The client moves it, and no text that
+    /// belonged inside a think block is left in the response colour.
+    SpeechRetracted,
     /// §B6's one line per call.
     Tool { id: u64, verb: String, target: String, state: String, summary: String },
     Compacted { turns: u32 },

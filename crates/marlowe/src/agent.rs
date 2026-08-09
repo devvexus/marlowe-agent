@@ -35,12 +35,14 @@ pub fn serve(
     port: Option<u16>,
     dev: bool,
     context: Option<u32>,
+    thinking: bool,
 ) -> Result<(), String> {
     let mut config = DaemonConfig::new(profile_root, workspace);
     if let Some(p) = port {
         config.port = p;
     }
     config.dev = dev;
+    config.thinking = thinking;
     if let Some(n) = context {
         config.context_tokens = n;
     }
@@ -63,6 +65,7 @@ pub fn ask(
     profile_root: PathBuf,
     dev: bool,
     context: Option<u32>,
+    thinking: bool,
 ) -> Result<(), String> {
     let client = Client::new("cli");
 
@@ -72,6 +75,7 @@ pub fn ask(
         eprintln!("marlowe: run `marlowe --serve` for a daemon that outlives the command.");
         let mut config = DaemonConfig::new(profile_root, workspace);
         config.dev = dev;
+        config.thinking = thinking;
         if let Some(n) = context {
             config.context_tokens = n;
         }
@@ -98,9 +102,31 @@ pub fn status(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-/// Render events as §B6 asks: one line per tool call, prose as prose, failures visible.
-fn render(events: &[Event]) {
+/// Drop every `Text` event that a later `SpeechRetracted` proved was reasoning.
+///
+/// A retraction applies to the speech emitted **so far in the turn**, so it clears the run of
+/// `Text` events back to the previous retraction or the start of the list — the same span the
+/// TUI moves into its thinking block.
+fn resolve_retractions(events: &[Event]) -> Vec<Event> {
+    let mut out: Vec<Event> = Vec::with_capacity(events.len());
     for event in events {
+        match event {
+            Event::SpeechRetracted => out.retain(|e| !matches!(e, Event::Text { .. })),
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
+/// Render events as §B6 asks: one line per tool call, prose as prose, failures visible.
+///
+/// **Retractions are resolved before anything prints.** `stdout` cannot be un-written, so the TUI's
+/// approach — move the text into the thinking block — has no equivalent here. The classic path
+/// gets the whole event list at once, so the retraction is applied to the list instead: text the
+/// model later proved was reasoning never reaches the pipe in the first place.
+fn render(events: &[Event]) {
+    let events = resolve_retractions(events);
+    for event in &events {
         match event {
             Event::Status(r) => {
                 println!("marlowe {}", r.version);
@@ -119,6 +145,8 @@ fn render(events: &[Event]) {
             // printed: it is progress, not an answer, and dumping a chain of thought into a
             // piped stdout would make `--ask` unusable in a script.
             Event::Reasoning { .. } => {}
+            // Already applied by `resolve_retractions`, above.
+            Event::SpeechRetracted => {}
             Event::Tool { verb, target, state, summary, .. } => {
                 println!("  ⋯ {verb}  {target}  {summary}  [{state}]");
             }

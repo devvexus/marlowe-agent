@@ -131,6 +131,34 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
                 }
             }
+            // **Take back what was rendered as speech.** The model closed a think block it had
+            // opened before the `content` channel began, so text already on screen in the response
+            // colour was reasoning. Observed live: `</think>` printed to the user under a tool
+            // call that had failed.
+            //
+            // The move is what makes the requirement literal — nothing switches to the response
+            // colour before the model leaves the think block, because anything that did is put
+            // back. The reasoning block is collapsed by default, so the correction reads as the
+            // thinking counter growing rather than as text jumping around.
+            Event::SpeechRetracted => {
+                let spoken = match view.transcript.last() {
+                    Some(Entry::Said(Speech::Model(t))) => {
+                        let t = t.clone();
+                        view.transcript.pop();
+                        t
+                    }
+                    // Nothing outstanding. A turn can retract before it has spoken, and that is
+                    // not an error — it is the ordinary nested `<think>…</think>` case.
+                    _ => continue,
+                };
+                match view.transcript.last_mut() {
+                    Some(Entry::Reasoning { text, done }) => {
+                        text.push_str(&spoken);
+                        *done = false;
+                    }
+                    _ => view.transcript.push(Entry::Reasoning { text: spoken, done: false }),
+                }
+            }
             // Coalesced into one block, and it opens as soon as the first chunk lands.
             Event::Reasoning { delta } => match view.transcript.last_mut() {
                 Some(Entry::Reasoning { text, done: false }) => text.push_str(delta),

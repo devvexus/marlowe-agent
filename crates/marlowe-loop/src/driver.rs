@@ -156,6 +156,9 @@ pub trait ModelDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
         _on_reasoning: &mut dyn FnMut(&str),
+        // Called when a `</think>` proves every chunk handed to `on_delta` this turn was
+        // reasoning. See `marlowe_provider::ThinkSplitter`.
+        _on_retract: &mut dyn FnMut(),
     ) -> Result<ModelCall, ProviderError> {
         self.call_streaming(view, tools, limits, on_delta)
     }

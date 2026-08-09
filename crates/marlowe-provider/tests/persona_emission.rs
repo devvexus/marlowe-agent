@@ -206,3 +206,137 @@ fn history_roles_follow_who_actually_said_it() {
     // And the persona is still where §C6 puts it.
     assert_eq!(role_of("identity").as_deref(), Some("system"));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// Tool schemas, as Ollama's /api/chat expects them
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+fn tool_schemas() -> Vec<serde_json::Value> {
+    use marlowe_loop::{Assembler, CallLimits, SessionId, SessionState};
+    let state = SessionState::new(SessionId::new(), "identity");
+    let view = Assembler::new(16_384, 1_024).assemble(&state);
+    let all: Vec<ToolId> = marlowe_tools::BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
+    let tools = ExposedSet::new(all).expect("the builtins fit");
+    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128 });
+    body.get("tools").and_then(|t| t.as_array()).cloned().unwrap_or_default()
+}
+
+/// **Every tool declares its required parameters.**
+///
+/// The absence of `required` is why calls arrived with no target. OpenAI-shaped function schemas,
+/// which Ollama follows, mark mandatory parameters there — omit it and every parameter is
+/// optional, so a model that leaves out the one thing the tool needs has produced a call that is
+/// *valid against the schema it was given*. It is then refused for "no declared target": a failure
+/// caused by our schema and reported as if the model had erred.
+#[test]
+fn every_tool_with_a_target_declares_it_required() {
+    let schemas = tool_schemas();
+    assert!(!schemas.is_empty(), "no tool schemas were produced; this test would pass vacuously");
+
+    let mut checked = 0;
+    for t in &schemas {
+        let name = t.pointer("/function/name").and_then(|n| n.as_str()).unwrap_or("?");
+        let params = t.pointer("/function/parameters").expect("a parameters object");
+
+        assert_eq!(
+            params.get("type").and_then(|v| v.as_str()),
+            Some("object"),
+            "{name}: parameters must be a JSON Schema object"
+        );
+        let required = params
+            .get("required")
+            .and_then(|r| r.as_array())
+            .unwrap_or_else(|| panic!("{name}: no `required` array — every parameter is optional"));
+
+        // A tool with properties but nothing required is the exact shape that produced the bug.
+        let props = params
+            .pointer("/properties")
+            .and_then(|p| p.as_object())
+            .expect("a properties object");
+        if !props.is_empty() {
+            checked += 1;
+            // Every required name must actually exist as a property.
+            for r in required {
+                let r = r.as_str().unwrap_or_default();
+                assert!(
+                    props.contains_key(r),
+                    "{name}: `required` names {r:?}, which is not a declared property"
+                );
+            }
+        }
+    }
+    assert!(checked > 0, "no tool had parameters, so nothing was really checked");
+}
+
+/// `web` in particular — the call the model got wrong live.
+#[test]
+fn the_web_tool_requires_its_target() {
+    let schemas = tool_schemas();
+    let web = schemas
+        .iter()
+        .find(|t| t.pointer("/function/name").and_then(|n| n.as_str()) == Some("web"))
+        .expect("`web` is a builtin");
+
+    let required: Vec<&str> = web
+        .pointer("/function/parameters/required")
+        .and_then(|r| r.as_array())
+        .expect("required")
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+
+    assert!(
+        !required.is_empty(),
+        "`web` declared nothing required, which is why a call arrived with no target: {web:#}"
+    );
+}
+
+/// Parameter descriptions must describe the ARGUMENT, not our type system.
+///
+/// They were `format!("{:?} · {:?}", p.role, p.ty)` — the Debug rendering of two internal Rust
+/// enums, e.g. `Target · Text`. That names our implementation and tells a model nothing about
+/// what to put in the field.
+#[test]
+fn parameter_descriptions_do_not_leak_internal_rust_type_names() {
+    for t in tool_schemas() {
+        let name = t.pointer("/function/name").and_then(|n| n.as_str()).unwrap_or("?");
+        let Some(props) = t.pointer("/function/parameters/properties").and_then(|p| p.as_object())
+        else {
+            continue;
+        };
+        for (param, spec) in props {
+            let d = spec.get("description").and_then(|d| d.as_str()).unwrap_or("");
+            assert!(!d.is_empty(), "{name}.{param}: no description");
+            for leaked in ["Target ·", "Payload ·", "WritePath", "ParamType", "ArgumentRole"] {
+                assert!(
+                    !d.contains(leaked),
+                    "{name}.{param}: description leaks the internal name {leaked:?}: {d:?}"
+                );
+            }
+        }
+    }
+}
+
+/// Integers are declared as integers. A quoted number falls to the trust floor as model-composed
+/// text rather than parsing, which is a security-relevant difference, not a cosmetic one.
+#[test]
+fn parameter_types_are_not_all_string() {
+    let schemas = tool_schemas();
+    let types: Vec<&str> = schemas
+        .iter()
+        .filter_map(|t| t.pointer("/function/parameters/properties").and_then(|p| p.as_object()))
+        .flat_map(|props| {
+            props
+                .values()
+                .filter_map(|v| v.get("type").and_then(|t| t.as_str()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert!(!types.is_empty(), "no parameter types found");
+    for ty in &types {
+        assert!(
+            ["string", "integer", "boolean"].contains(ty),
+            "unexpected JSON Schema type {ty:?}"
+        );
+    }
+}

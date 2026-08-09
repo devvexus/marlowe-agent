@@ -313,12 +313,16 @@ impl<S: PathScope> Engine<S> {
                     reasoning_buf.borrow_mut().push_str(chunk);
                     sink.borrow_mut().emit(TurnEvent::ReasoningDelta(chunk.to_string()));
                 };
+                let mut on_retract = || {
+                    sink.borrow_mut().emit(TurnEvent::SpeechRetracted);
+                };
                 driver.call_streaming_split(
                     &view,
                     offered_tools,
                     limits,
                     &mut on_delta,
                     &mut on_reasoning,
+                    &mut on_retract,
                 )
             };
             let call = match call {
@@ -615,7 +619,16 @@ impl<S: PathScope> Engine<S> {
                         json!({ "host": host }),
                     );
                 }
-                let why = format!("{reason:?}");
+                // **The refusal must be actionable, or the model cannot recover from it.**
+                //
+                // This was `format!("{reason:?}")` — the Debug rendering of an internal enum. A
+                // model told `UndeclaredPath { path: "", detail: "no declared target" }` knows it
+                // failed and has nothing to correct toward, so it guesses: observed live, qwen
+                // followed a refused `web` call with `[web](query="...")`, a syntax we never
+                // offered, because it was inventing rather than reading.
+                //
+                // Appending the tool's actual parameter list turns a dead end into a correction.
+                let why = format!("{reason:?}{}", self.expected_params(&tool));
                 self.tool_error(state, &tool, &why);
                 return;
             }
@@ -803,6 +816,32 @@ impl<S: PathScope> Engine<S> {
         // is no accessor that would hand it to the parent, which is what makes §10.2's "the
         // orchestrator's context must never accumulate raw worker history" structural.
         state.push(Block::new(SourceKind::ChildResults, note, TrustClass::AgentInferred));
+    }
+
+    /// The tool's declared parameters, rendered for a model that just got one wrong.
+    ///
+    /// Read from the registry rather than restated, so it cannot drift from the schema the model
+    /// was actually given.
+    fn expected_params(&self, tool: &ToolId) -> String {
+        let Some(reg) = self.registry.get(tool) else {
+            return String::new();
+        };
+        let params = reg.manifest.params();
+        if params.is_empty() {
+            return String::new();
+        }
+        let list: Vec<String> = params
+            .iter()
+            .map(|p| {
+                let req = if p.role == marlowe_tools::ArgumentRole::Target {
+                    " (required)"
+                } else {
+                    ""
+                };
+                format!("{}{req}", p.name)
+            })
+            .collect();
+        format!(" — `{tool}` takes: {}", list.join(", "))
     }
 
     fn tool_error(&mut self, state: &mut SessionState, tool: &ToolId, why: &str) {

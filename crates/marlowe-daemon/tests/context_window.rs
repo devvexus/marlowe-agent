@@ -137,3 +137,54 @@ fn a_completed_turn_does_not_repeat_its_reply_in_the_done_frame() {
     );
     assert_eq!(said[0], "Hello.");
 }
+
+/// **`think` is declared on every request, never inherited.**
+///
+/// Ollama decides this when the field is absent, and its answer varies by model and by version.
+/// Leaving it out means reasoning silently moves into `content` on some upgrade and lands in the
+/// transcript as Marlowe's answer — the `num_ctx` shape again: a default that makes a mismatch
+/// unobservable.
+#[test]
+fn every_request_declares_whether_the_model_should_think() {
+    use marlowe_contract::TrustClass;
+    use marlowe_loop::{Assembler, Block, CallLimits, SessionId, SessionState, SourceKind};
+
+    let mut state = SessionState::new(SessionId::new(), "identity");
+    state.push(Block::new(SourceKind::History, "hi", TrustClass::UserAsserted));
+    let view = Assembler::new(8_192, 512).assemble(&state);
+    let tools = marlowe_tools::ExposedSet::new(vec![marlowe_tools::ToolId::new("read")]).unwrap();
+
+    for on in [true, false] {
+        let driver = marlowe_provider::OllamaDriver::new(
+            marlowe_provider::LocalEndpoint::default_ollama(),
+            marlowe_provider::Routing::uniform(marlowe_provider::DEFAULT_MODEL).unwrap(),
+            marlowe_tools::builtin_registry().unwrap(),
+        )
+        .with_thinking(on);
+
+        let body = driver.request_body(&view, &tools, CallLimits { max_output_tokens: 64 });
+        assert_eq!(
+            body.get("think").and_then(|t| t.as_bool()),
+            Some(on),
+            "`think` must be present and match the setting. Absent means Ollama chooses, and \
+             which channel reasoning arrives in stops being something this project decided.\n{body:#}"
+        );
+    }
+}
+
+/// The daemon's setting is what reaches the driver — one source, not two.
+#[test]
+fn the_daemons_thinking_setting_is_the_one_the_driver_uses() {
+    use marlowe_daemon::DaemonConfig;
+    let mut config = DaemonConfig::new(std::env::temp_dir(), std::env::temp_dir());
+    assert!(config.thinking, "reasoning is separated by default");
+
+    config.thinking = false;
+    let driver = marlowe_provider::OllamaDriver::new(
+        marlowe_provider::LocalEndpoint::default_ollama(),
+        marlowe_provider::Routing::uniform(marlowe_provider::DEFAULT_MODEL).unwrap(),
+        marlowe_tools::builtin_registry().unwrap(),
+    )
+    .with_thinking(config.thinking);
+    assert!(!driver.thinking());
+}

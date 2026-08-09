@@ -88,6 +88,15 @@ pub enum TurnEvent {
     /// enter the transcript a `Y` copy produces, and it is collapsed by default — the user asked
     /// for a question, not a monologue.
     ReasoningDelta(String),
+    /// **Everything streamed as speech this turn was reasoning.** Take it back.
+    ///
+    /// A model can close a think block it opened before the `content` channel began, so the
+    /// harness learns the text was reasoning only *after* it has rendered it as Marlowe speaking
+    /// — the `</think>` on screen in the Cass Lake transcript. There is no online way to know a
+    /// closing tag is coming; the choice is to hold every content byte until the turn ends, for
+    /// every model, or to correct the rare turn that misbehaves. Streaming is a hard requirement,
+    /// so it is corrected.
+    SpeechRetracted,
     ToolLine { id: u64, verb: String, target: String, state: ToolLineState },
     Compacted { turns: u32 },
     Degraded { what: DegradedPath },

@@ -181,6 +181,17 @@ pub struct OllamaDriver {
     timeout: Duration,
     raw_frames: Option<RawFrameSink>,
     request_dump: Option<RequestSink>,
+    /// Whether the model is asked to separate its chain of thought into the `thinking` channel.
+    ///
+    /// **A declared setting, not an inherited default.** Ollama decides this when the field is
+    /// absent, and its answer varies by model and by version — so leaving it out means reasoning
+    /// silently moves into `content` on some upgrade, and lands in the transcript as Marlowe's
+    /// answer. That is the `num_ctx` shape again: a default that makes a mismatch unobservable.
+    ///
+    /// Off is a legitimate choice — a non-reasoning model gains nothing, and a user who wants
+    /// no thinking block at all is asking for something reasonable. It is a setting rather than a
+    /// constant so both are reachable and both are stated.
+    thinking: bool,
     /// The context window, in tokens, carried on **every** request as `num_ctx`.
     ///
     /// **Ollama defaults this to 2048 regardless of what the model supports**, and until M2 C2e
@@ -206,6 +217,7 @@ impl OllamaDriver {
             timeout: DEFAULT_TIMEOUT,
             raw_frames: None,
             request_dump: None,
+            thinking: true,
             context_tokens: DEFAULT_CONTEXT_TOKENS,
         }
     }
@@ -238,11 +250,30 @@ impl OllamaDriver {
                         (
                             p.name.clone(),
                             serde_json::json!({
-                                "type": "string",
-                                "description": format!("{:?} · {:?}", p.role, p.ty),
+                                "type": json_type(p.ty),
+                                "description": param_description(p),
                             }),
                         )
                     })
+                    .collect();
+
+                // **`required` — its absence is why calls arrived with no target.**
+                //
+                // OpenAI-shaped function schemas, which Ollama's `/api/chat` follows, mark
+                // mandatory parameters here. Omitting it makes EVERY parameter optional, so a
+                // model that leaves out the one thing the tool needs is producing a call that is
+                // valid against the schema it was given. It then gets refused by the permission
+                // layer for "no declared target" — a failure caused by our own schema, reported
+                // as if the model had erred.
+                //
+                // Every `Target` is required: a tool call with no target is not a partial call,
+                // it is a different call.
+                let required: Vec<&str> = reg
+                    .manifest
+                    .params()
+                    .iter()
+                    .filter(|p| p.role == marlowe_tools::ArgumentRole::Target)
+                    .map(|p| p.name.as_str())
                     .collect();
                 serde_json::json!({
                     "type": "function",
@@ -253,7 +284,11 @@ impl OllamaDriver {
                         // and the assembler's tier, not a sanitizer — but it is bounded, which
                         // `Description::new` already did at registration.
                         "description": reg.description.text(),
-                        "parameters": { "type": "object", "properties": properties },
+                        "parameters": {
+                            "type": "object",
+                            "properties": properties,
+                            "required": required,
+                        },
                     }
                 })
             })
@@ -329,6 +364,8 @@ impl OllamaDriver {
             "messages": messages,
             "tools": self.tool_schema(tools),
             "stream": true,
+            // Declared, never inherited — see `OllamaDriver::thinking`.
+            "think": self.thinking,
             "options": {
                 // The budget's hard cap, handed to the provider. `budget` is explicit that this
                 // is the mechanism and the top-of-loop check is only the backstop.
@@ -364,6 +401,16 @@ impl OllamaDriver {
 
     /// Set the context window. **The same number must reach the assembler** — see
     /// [`DEFAULT_CONTEXT_TOKENS`].
+    /// Ask the model to separate reasoning from its answer, or not.
+    pub fn with_thinking(mut self, on: bool) -> Self {
+        self.thinking = on;
+        self
+    }
+
+    pub fn thinking(&self) -> bool {
+        self.thinking
+    }
+
     pub fn with_context_tokens(mut self, tokens: u32) -> Self {
         self.context_tokens = tokens;
         self
@@ -396,7 +443,7 @@ impl ModelDriver for OllamaDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
     ) -> Result<ModelCall, ProviderError> {
-        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {})
+        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {}, &mut || {})
     }
 
     fn call_streaming_split(
@@ -406,6 +453,7 @@ impl ModelDriver for OllamaDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
         on_reasoning: &mut dyn FnMut(&str),
+        on_retract: &mut dyn FnMut(),
     ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
 
@@ -427,6 +475,10 @@ impl ModelDriver for OllamaDriver {
             })?;
 
         let mut text = String::new();
+        // **Reasoning that arrives in `content` is split back out of it here**, not left for the
+        // surface to guess at. A `</think>` reaching the screen is the loudest possible statement
+        // that the channel split was wrong; see `crate::think`.
+        let mut splitter = crate::think::ThinkSplitter::new();
         let mut tool_calls: Vec<serde_json::Value> = Vec::new();
         let mut usage = Usage { prompt_tokens: 0, completion_tokens: 0, micros_usd: 0, wall_ms: 0 };
 
@@ -458,10 +510,25 @@ impl ModelDriver for OllamaDriver {
                 }
                 if let Some(c) = msg.get("content").and_then(|c| c.as_str()) {
                     if !c.is_empty() {
-                        // Out to the surface immediately, and kept for the assembled `Say`.
-                        on_delta(c);
+                        let split = splitter.feed(c);
+                        if split.retract_speech {
+                            // Everything already streamed as speech was inside a think block.
+                            // Drop it from the answer and tell the surface to move it.
+                            on_reasoning(&text);
+                            text.clear();
+                            on_retract();
+                        }
+                        for seg in &split.segments {
+                            match seg {
+                                crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                                crate::think::Segment::Speech(t) => {
+                                    // Out to the surface immediately, and kept for the `Say`.
+                                    on_delta(t);
+                                    text.push_str(t);
+                                }
+                            }
+                        }
                     }
-                    text.push_str(c);
                 }
                 if let Some(calls) = msg.get("tool_calls").and_then(|t| t.as_array()) {
                     tool_calls.extend(calls.iter().cloned());
@@ -478,6 +545,17 @@ impl ModelDriver for OllamaDriver {
                     .and_then(|v| v.as_u64())
                     .map(|ns| ns / 1_000_000)
                     .unwrap_or(0);
+            }
+        }
+
+        // A fragment held back in case it grew into a tag was ordinary text after all.
+        for seg in &splitter.finish().segments {
+            match seg {
+                crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                crate::think::Segment::Speech(t) => {
+                    on_delta(t);
+                    text.push_str(t);
+                }
             }
         }
 
@@ -928,4 +1006,47 @@ fn done_body(args: &Args, message: &serde_json::Value) -> String {
                 .map(str::to_string)
         })
         .unwrap_or_default()
+}
+
+/// The JSON Schema type for a parameter. **Not always `string`.**
+///
+/// Sending `"type": "string"` for an integer invites the model to quote it, and a quoted number
+/// then falls to the trust floor as model-composed text rather than parsing as a number.
+fn json_type(ty: marlowe_tools::ParamType) -> &'static str {
+    use marlowe_tools::ParamType;
+    match ty {
+        ParamType::Integer | ParamType::Amount => "integer",
+        ParamType::Boolean => "boolean",
+        // Everything else is a string on the wire. What it MEANS — a path to scope, a URL to
+        // allowlist, an id to resolve — is the permission layer's business, and encoding that in
+        // the JSON type would tell the model about a mechanism it must not be able to address.
+        ParamType::Text
+        | ParamType::Path
+        | ParamType::WritePath
+        | ParamType::Url
+        | ParamType::Identifier => "string",
+    }
+}
+
+/// What a parameter is FOR, in words a model can act on.
+///
+/// This used to be `format!("{:?} · {:?}", p.role, p.ty)` — the `Debug` rendering of two internal
+/// Rust enums, e.g. `Target · Text`. That names our type system, not the argument's meaning, and a
+/// model reading it learns nothing about what to put there.
+fn param_description(p: &marlowe_tools::ParamSpec) -> String {
+    use marlowe_tools::{ArgumentRole, ParamType};
+    let what = match p.ty {
+        ParamType::Path => "an existing path, relative to the workspace root",
+        ParamType::WritePath => "a path relative to the workspace root; it may not exist yet",
+        ParamType::Url => "a full URL including the scheme, e.g. https://example.com/page",
+        ParamType::Amount => "an amount in micros of the profile's currency",
+        ParamType::Identifier => "an identifier returned by an earlier call",
+        ParamType::Integer => "a whole number",
+        ParamType::Boolean => "true or false",
+        ParamType::Text => "text",
+    };
+    match p.role {
+        ArgumentRole::Target => format!("REQUIRED. What this acts on: {what}."),
+        ArgumentRole::Payload => format!("Optional. {what}."),
+    }
 }

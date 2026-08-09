@@ -186,6 +186,11 @@ impl SessionState {
         Self { session, identity: identity.into(), ..Default::default() }
     }
 
+    /// How many blocks of conversation this session is carrying, across both mutable tiers.
+    pub fn history_len(&self) -> usize {
+        self.context_blocks.len() + self.volatile.len()
+    }
+
     pub fn assert_governance(&mut self, c: GovernanceConstraint) {
         self.governance.push(c);
     }

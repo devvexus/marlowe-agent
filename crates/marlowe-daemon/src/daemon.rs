@@ -50,6 +50,10 @@ pub struct DaemonConfig {
     pub rerank_provider: String,
     /// `--dev`: write raw provider frames and the outbound request to stderr.
     pub dev: bool,
+    /// Whether the model separates reasoning into the `thinking` channel.
+    ///
+    /// Declared here so a run states it rather than inheriting whatever the provider defaults to.
+    pub thinking: bool,
     /// The context window in tokens. **One number**: it becomes both `num_ctx` on every request
     /// and the assembler's window, so §6's 70% compaction trigger is computed against the window
     /// the provider actually has.
@@ -68,6 +72,7 @@ impl DaemonConfig {
             // nothing has announced one yet.
             rerank_provider: "not-wired".to_string(),
             dev: false,
+            thinking: true,
             context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,
         }
     }
@@ -93,6 +98,7 @@ fn to_wire(event: TurnEvent) -> Option<Event> {
     Some(match event {
         TurnEvent::TextDelta(t) => Event::Text { delta: t },
         TurnEvent::ReasoningDelta(t) => Event::Reasoning { delta: t },
+        TurnEvent::SpeechRetracted => Event::SpeechRetracted,
             TurnEvent::ToolLine { id, verb, target, state } => {
                 let (state, summary) = match state {
                     ToolLineState::Running { elapsed_ms } => {
@@ -174,14 +180,64 @@ impl Summarizer for PassthroughSummarizer {
     }
 }
 
+/// Everything a conversation carries from one turn to the next.
+///
+/// # Why this exists
+///
+/// It did not, and Marlowe could not summarize the conversation he was in. `ask_streaming` built
+/// a fresh `SessionState` on **every** request, so the model was handed the identity block,
+/// governance, and one user message — turn 1, every time. Asking "what did we just discuss?"
+/// produced an honest answer about an empty history, which reads as amnesia and is worse than a
+/// crash, because nothing in the system reports a fault.
+///
+/// The session **id** was already stable (`SessionId::from_name`), which is what made this hard to
+/// see: everything downstream was correctly keyed to a conversation that was never stored.
+///
+/// `Provenance` travels with the state because it is the attribution of *those* blocks. Rebuilding
+/// it per turn would leave the assembled history with no record of which parts came from the user,
+/// which is what ADR-023's taint computation reads.
+struct SessionMemory {
+    state: SessionState,
+    provenance: Provenance,
+}
+
 pub struct Daemon {
     config: DaemonConfig,
     journal: Journal,
     runs: BTreeMap<String, RunSummary>,
+    /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
+    sessions: BTreeMap<String, SessionMemory>,
     shutdown: Arc<AtomicBool>,
 }
 
 impl Daemon {
+
+    /// How many history blocks this conversation is carrying. **Test surface for the session
+    /// store** — the amnesia bug was invisible from outside because the session *id* was stable
+    /// while the state behind it was not.
+    pub fn session_turn_count(&self, session: &str) -> usize {
+        self.sessions.get(session).map_or(0, |m| m.state.history_len())
+    }
+
+    /// Append a user turn to a session's history without calling a model.
+    ///
+    /// Exists so the store can be driven in a test that must not depend on Ollama being up.
+    pub fn remember_user_turn(&mut self, session: &str, message: &str) {
+        let session_id = SessionId::from_name(session);
+        let memory = self.sessions.remove(session).unwrap_or_else(|| SessionMemory {
+            state: SessionState::new(session_id, identity_block()),
+            provenance: Provenance::new(),
+        });
+        let SessionMemory { mut state, mut provenance } = memory;
+        provenance.attribute_user_message(message);
+        state.push(marlowe_loop::Block::new(
+            marlowe_loop::SourceKind::History,
+            message,
+            TrustClass::UserAsserted,
+        ));
+        self.sessions.insert(session.to_string(), SessionMemory { state, provenance });
+    }
+
     pub fn open(config: DaemonConfig) -> Result<Self, DaemonError> {
         // Path scoping must be constructible before anything else. A daemon that started on an
         // unverified platform and refused paths later would present as broken tools.
@@ -202,7 +258,13 @@ impl Daemon {
             detail: e.to_string(),
         })?;
 
-        Ok(Self { config, journal, runs: BTreeMap::new(), shutdown: Arc::new(AtomicBool::new(false)) })
+        Ok(Self {
+            config,
+            journal,
+            runs: BTreeMap::new(),
+            sessions: BTreeMap::new(),
+            shutdown: Arc::new(AtomicBool::new(false)),
+        })
     }
 
     pub fn shutdown_handle(&self) -> Arc<AtomicBool> {
@@ -335,7 +397,8 @@ impl Daemon {
             builtin_registry().expect("the builtins loaded a moment ago"),
         )
         .with_capability(default_capability())
-        .with_context_tokens(self.config.context_tokens);
+        .with_context_tokens(self.config.context_tokens)
+        .with_thinking(self.config.thinking);
 
         // **`--dev`: the provider's own wire, before interpretation.**
         //
@@ -417,19 +480,29 @@ impl Daemon {
             Budget::interactive(),
             OutputContract::answer(),
         );
-        let mut state = SessionState::new(session_id, identity_block());
-        // §6: governance lives in the stable tier and is re-asserted structurally. The workspace
-        // scope is a user-visible constraint, so it is stated to the model as one.
-        state.assert_governance(GovernanceConstraint::asserted(&format!(
+        // **Resumed, not rebuilt.** Governance is asserted once when the conversation starts;
+        // `assert_governance` appends, so re-asserting per turn would grow the stable tier by two
+        // blocks a turn until compaction had nothing left to trim.
+        let workspace_rule = format!(
             "The workspace is {}. Every path you name is relative to it.",
             self.config.workspace.display()
-        )));
-        state.assert_governance(GovernanceConstraint::asserted(
-            "Use a tool when the user asks for something a tool can do. Answer with `done` when \
-             the task is complete.",
-        ));
-
-        let mut provenance = Provenance::new();
+        );
+        let memory = self.sessions.remove(session).unwrap_or_else(|| {
+            let mut state = SessionState::new(session_id, identity_block());
+            // §6: governance lives in the stable tier and is re-asserted structurally. The
+            // workspace scope is a user-visible constraint, so it is stated to the model as one.
+            state.assert_governance(GovernanceConstraint::asserted(&workspace_rule));
+            // **This told the model to call a tool that does not exist.** `done` was removed from
+            // the vocabulary when completion became the *absence* of an action — a small model
+            // cannot be trusted to emit a terminator reliably, so the loop ends on prose with no
+            // tool call. The prompt was not updated with it, so every turn instructed the model to
+            // finish with `done`, and the model tried. Found in `--dev`'s outbound dump on a real
+            // run; no test could see it, because nothing asserts that the prompt names only tools
+            // that exist.
+            state.assert_governance(GovernanceConstraint::asserted(governance_prompt()));
+            SessionMemory { state, provenance: Provenance::new() }
+        });
+        let SessionMemory { mut state, mut provenance } = memory;
         provenance.attribute_user_message(message);
         state.push(marlowe_loop::Block::new(
             marlowe_loop::SourceKind::History,
@@ -454,6 +527,11 @@ impl Daemon {
             engine.run(&mut run, &mut state, &mut provenance, &mut ports)
         };
         drop(sink);
+
+        // **The turn's history goes back into the conversation.** `engine.run` has pushed the
+        // model's prose and every tool result onto `state`; dropping it here is precisely the bug
+        // this store exists for.
+        self.sessions.insert(session.to_string(), SessionMemory { state, provenance });
 
         let (status, detail) = match &outcome {
             // **Empty, and that is the fix for a double-send.**
@@ -608,4 +686,14 @@ fn identity_block() -> String {
 /// A recorder for a daemon with no journal on disk — used by tests, never by `serve`.
 pub fn memory_recorder() -> MemoryRecorder {
     MemoryRecorder::default()
+}
+
+/// How the loop's termination rule is stated to the model.
+///
+/// **Public so it can be asserted on.** It said *"Answer with `done` when the task is complete"*
+/// for as long as `done` had not existed, and nothing could see it — the loop was right, the
+/// provider was right, and a prompt is just a string until something reads it. It is a function
+/// rather than a literal so `the_system_prompt_names_no_tool_that_does_not_exist` has a subject.
+pub fn governance_prompt() -> &'static str {
+    "Use a tool when the user asks for something a tool can do. You may call tools while      reasoning. When the task is complete, reply to the user in prose and call no tool — that is      what ends the turn."
 }
