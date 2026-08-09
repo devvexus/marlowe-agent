@@ -172,3 +172,24 @@ impl ClockSource for FrozenClock {
         self.0
     }
 }
+
+/// A tool call that carries no meaning beyond "keep going and add bulk to history".
+///
+/// **Why tests that grow context use this rather than `say`.** M2 C2e made completion the absence
+/// of an action: a reply with no tool call ends the turn. That is the product's termination rule,
+/// so a test that grew context with five consecutive `say` steps was exercising a loop that no
+/// longer exists — it would now end on the first one.
+///
+/// A multi-step turn in the real product is a sequence of tool calls followed by one reply, and
+/// that is what these helpers build. The bulk arrives as tool *results*, which is also where bulk
+/// actually comes from.
+pub fn work(tokens: u64) -> ModelCall {
+    step(
+        ModelStep::ToolCall {
+            tool: marlowe_tools::ToolId::new("read"),
+            args: marlowe_permission::Args::new()
+                .with("path", marlowe_permission::ArgValue::Text("./notes.md".into())),
+        },
+        tokens,
+    )
+}

@@ -83,9 +83,22 @@ pub enum ModelStep {
     Spawn(SpawnRequest),
     /// Escalate with a decision package. The run does not hold a channel open.
     Ask(String),
-    /// Finish against the run's output contract.
-    Done(CondensedResult),
 }
+
+// **There is no `Done` variant, and that is M2 C2e's correction.**
+//
+// A run used to end only when the model emitted `done`. Measured against the shipped model, that
+// is not a contract a small model honours: `marlowe --ask "Hello marlowe"` produced **100 model
+// calls** and stopped at the token budget, twice, by two different routes — once emitting `done`
+// as plain prose that the adapter did not recognise, once never emitting it at all.
+//
+// **Completion is now the ABSENCE of an action.** A turn that produces prose and calls no tool is
+// finished; that is what "the model answered you" means, and it needs nothing from the model
+// except the answer it was already giving. `done` asked a 9B model to remember a control token in
+// order for the loop to stop, and made forgetting it indistinguishable from working.
+//
+// `ask`, `remember` and `run` remain control steps: each *does* something beyond ending, so
+// naming it is the only way to express it.
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{detail}")]

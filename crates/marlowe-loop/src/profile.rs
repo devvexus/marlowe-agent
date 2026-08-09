@@ -155,8 +155,11 @@ impl CapabilityProfile {
     /// and a hard step budget. It is not a second loop.
     pub fn consolidation() -> Self {
         Self::new(
-            ExposedSet::new(vec![ToolId::new("recall"), ToolId::new("remember"), ToolId::new("done")])
-                .expect("three tools"),
+            // `done` is gone: a run ends when the model replies without calling a tool (M2 C2e).
+            // Exposing a tool whose only job was ending would advertise a control token the loop
+            // no longer reads.
+            ExposedSet::new(vec![ToolId::new("recall"), ToolId::new("remember")])
+                .expect("two tools"),
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Worker,
@@ -170,7 +173,7 @@ impl CapabilityProfile {
     pub fn interactive() -> Self {
         let tools = marlowe_tools::BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
         Self::new(
-            ExposedSet::new(tools).expect("eleven fits in twelve"),
+            ExposedSet::new(tools).expect("ten fits in twelve"),
             EgressPolicy::DenyAll,
             InterruptPolicy::Interruptible,
             ModelRoute::Orchestrator,
@@ -340,17 +343,19 @@ mod tests {
 
         let c = CapabilityProfile::consolidation();
         assert!(c.may_write_memory() && !c.reads_untrusted());
-        assert_eq!(c.exposed_tools().len(), 3);
+        // Two since `done` was removed — consolidation recalls and remembers, and ends by replying.
+        assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        assert_eq!(i.exposed_tools().len(), 11);
+        // Ten since M2 C2e removed `done`; the loop ends on a reply, not a token.
+        assert_eq!(i.exposed_tools().len(), 10);
         assert_eq!(*i.egress(), EgressPolicy::DenyAll, "egress is granted, never assumed");
     }
 
     #[test]
     fn a_child_cannot_be_widened_past_its_parent() {
         let narrow = CapabilityProfile::new(
-            ExposedSet::new(vec![ToolId::new("read"), ToolId::new("done")]).unwrap(),
+            ExposedSet::new(vec![ToolId::new("read"), ToolId::new("find")]).unwrap(),
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Orchestrator,

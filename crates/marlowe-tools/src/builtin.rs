@@ -33,8 +33,8 @@ use crate::ArgumentRole;
 
 /// The eleven ids, in ADR-006's order. Used by the HP10 budget test and by profile
 /// construction, so the list exists once.
-pub const BUILTIN_TOOLS: [&str; 11] = [
-    "bash", "read", "edit", "find", "web", "recall", "remember", "use", "run", "ask", "done",
+pub const BUILTIN_TOOLS: [&str; 10] = [
+    "bash", "read", "edit", "find", "web", "recall", "remember", "use", "run", "ask",
 ];
 
 /// The workspace-relative glob every filesystem tool declares.
@@ -233,16 +233,6 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             vec![payload("question", Text), payload("options", Text)],
         ),
-        registration(
-            "done",
-            "Finish against the run's output contract.",
-            "done",
-            4_096,
-            Inert,
-            &[],
-            &[],
-            vec![payload("result", Text)],
-        ),
     ];
 
     for reg in regs {
@@ -258,17 +248,20 @@ mod tests {
     use crate::exposure::MAX_EXPOSED_TOOLS;
 
     #[test]
-    fn eleven_tools_against_a_budget_of_twelve() {
+    fn ten_tools_against_a_budget_of_twelve() {
         let r = builtin_registry().expect("the builtin manifests load");
         assert_eq!(r.len(), BUILTIN_TOOLS.len());
-        assert_eq!(BUILTIN_TOOLS.len(), 11, "ADR-006 names eleven");
+        // **Ten since M2 C2e removed `done`.** ADR-006 named eleven; the eleventh was a tool
+        // whose only job was ending a run, and a run now ends when the model replies without
+        // calling a tool. Two spare slots rather than one — spending either still needs an ADR.
+        assert_eq!(BUILTIN_TOOLS.len(), 10, "ADR-006's eleven, less `done` (M2 C2e)");
         assert!(
             BUILTIN_TOOLS.len() < MAX_EXPOSED_TOOLS,
             "the spare slot is the design; spending it here needs an ADR"
         );
 
         let ids: Vec<ToolId> = BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
-        assert!(r.expose(&ids).is_ok(), "all eleven fit in one exposed set");
+        assert!(r.expose(&ids).is_ok(), "all ten fit in one exposed set");
     }
 
     #[test]

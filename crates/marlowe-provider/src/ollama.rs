@@ -504,7 +504,13 @@ impl ModelDriver for OllamaDriver {
 /// tool host reported "no executor", the model saw a failure it could not interpret, and tried
 /// again. The budget paused it — the backstop worked — but the loop should have ended at `done`.
 /// Every unit test passed throughout, because each half was correct in isolation.
-const CONTROL_TOOLS: [&str; 4] = ["done", "ask", "remember", "run"];
+/// Loop-control steps, which are `ModelStep` variants rather than tool-host executions.
+///
+/// **`done` is not here any more.** A run ends when the model produces prose and calls no tool —
+/// see `ModelStep`'s header. Keeping `done` as an accepted alias would have preserved the failure
+/// it caused: a model that emits it inconsistently would end some turns and not others, which is
+/// harder to diagnose than never ending them.
+const CONTROL_TOOLS: [&str; 3] = ["ask", "remember", "run"];
 
 /// Turn one Ollama message into a [`ModelStep`].
 ///
@@ -535,6 +541,20 @@ pub fn parse_step(message: &serde_json::Value) -> ModelStep {
                         args = args.with(k.clone(), value);
                     }
                 }
+                // **A structured `done` must never reach the tool host.**
+                //
+                // The tool no longer exists, so without this it becomes an ordinary `ToolCall`
+                // for a tool with no executor — which is EXACTLY the defect CLAUDE.md records
+                // from M2's first real run: the model called `done`, the host reported no
+                // executor, and the model spent 155 seconds trying to act on a failure it could
+                // not interpret. Removing the tool reintroduced the failure by a new route, and
+                // the provider tests caught it.
+                //
+                // A model naming `done` is answering. The body becomes the reply, and a reply
+                // with no tool call ends the turn.
+                if name == "done" {
+                    return ModelStep::Say(done_body(&args, message));
+                }
                 if CONTROL_TOOLS.contains(&name) {
                     return control_step(name, &args, message);
                 }
@@ -542,9 +562,46 @@ pub fn parse_step(message: &serde_json::Value) -> ModelStep {
             }
         }
     }
-    ModelStep::Say(
-        message.get("content").and_then(|c| c.as_str()).unwrap_or_default().to_string(),
-    )
+    let content = message.get("content").and_then(|c| c.as_str()).unwrap_or_default();
+
+    // **A control tool named in plain text is still a control tool.**
+    //
+    // Observed live: `marlowe --ask "Hello marlowe"` produced **101 model calls** and exactly one
+    // content frame — the word `done`. The model was ending the run correctly and emitting it as
+    // prose rather than as a structured `tool_calls` entry, so `parse_step` fell through to
+    // `Say("done")`, the loop pushed it to history and asked again, and the turn ran until the
+    // token budget stopped it.
+    //
+    // This is CLAUDE.md's recorded `done`-routing defect in a second form. That one was the
+    // adapter mapping a structured control call to the tool host; this is the adapter not seeing
+    // an unstructured one at all. Both end the same way — a model doing the right thing while the
+    // harness fails to notice.
+    //
+    // **The match is exact and trimmed, never a substring.** `content.contains("done")` would
+    // swallow "I'm done looking at that" and end a turn mid-sentence, which is a worse failure
+    // than the one being fixed: it would be rare, silent, and look like the model stopping for no
+    // reason. A whole message that is one control word is unambiguous; anything else is prose.
+    let bare = content.trim();
+    if CONTROL_TOOLS.contains(&bare) {
+        return control_step(bare, &Args::new(), message);
+    }
+
+    // ── recover tool calls the model leaked as XML into its prose ───────────────────
+    //
+    // qwen in think mode sometimes emits the call as literal markup instead of taking the
+    // structured `tool_calls` path:
+    //
+    //     <function=read><parameter=path>notes.md</parameter></function>
+    //
+    // Left unrecovered this is worse than a missing call. The markup becomes assistant history,
+    // goes back to Ollama on the next request, and its template fails to parse it — observed as
+    // `HTTP 500: XML syntax error on line 4: element <function> closed by </parameter>`. The
+    // model then retries, and the run spends its budget on a call that never happened.
+    if let Some(step) = recover_leaked_call(content) {
+        return step;
+    }
+
+    ModelStep::Say(content.to_string())
 }
 
 /// Map a control tool onto its `ModelStep`. §12: the adapter normalizes what the model speaks.
@@ -567,7 +624,10 @@ fn control_step(name: &str, args: &Args, message: &serde_json::Value) -> ModelSt
         .unwrap_or_default();
 
     match name {
-        "done" => ModelStep::Done(CondensedResult::new().with("answer", body)),
+        // **`done` deliberately falls through to `Say`.** A model that still names it is
+        // answering; the loop ends on prose-with-no-tool-call, so saying the body IS ending.
+        // Mapping it to a control step would resurrect the token this design removed.
+        "done" => ModelStep::Say(body),
         "ask" => ModelStep::Ask(text("question").unwrap_or(body)),
         "remember" => ModelStep::MemoryWrite(ClaimRequest {
             text: text("text").unwrap_or(body),
@@ -658,16 +718,21 @@ mod tests {
     }
 
     #[test]
-    fn the_four_control_tools_become_loop_steps_not_tool_calls() {
-        // The defect the first real end-to-end run exposed. `done` routed to the tool host,
-        // which has no executor for it, so the run never ended and burned its whole budget.
+    fn the_control_tools_become_loop_steps_not_tool_calls() {
+        // The defect the first real end-to-end run exposed: control tools routed to the tool
+        // host, which has no executor for them.
+        //
+        // `done` is no longer among them. M2 C2e made completion the absence of an action, so a
+        // model that still names `done` is answering — and the body it named becomes the reply
+        // that ends the turn. Mapping it back to a control step would resurrect the token the
+        // design removed.
         let done = serde_json::json!({
             "content": "",
             "tool_calls": [{ "function": { "name": "done", "arguments": { "result": "42" } } }]
         });
         match parse_step(&done) {
-            ModelStep::Done(r) => assert_eq!(r.get("answer"), Some("42")),
-            other => panic!("`done` must end the run, got {other:?}"),
+            ModelStep::Say(t) => assert_eq!(t, "42"),
+            other => panic!("`done` must become the reply that ends the turn, got {other:?}"),
         }
 
         let ask = serde_json::json!({
@@ -700,8 +765,8 @@ mod tests {
             "tool_calls": [{ "function": { "name": "done", "arguments": {} } }]
         });
         match parse_step(&done) {
-            ModelStep::Done(r) => assert_eq!(r.get("answer"), Some("the answer")),
-            other => panic!("expected Done, got {other:?}"),
+            ModelStep::Say(t) => assert_eq!(t, "the answer"),
+            other => panic!("expected the reply that ends the turn, got {other:?}"),
         }
     }
 
@@ -712,4 +777,155 @@ mod tests {
         let msg = serde_json::json!({ "content": "hm", "tool_calls": [{ "function": {} }] });
         assert_eq!(parse_step(&msg), ModelStep::Say("hm".into()));
     }
+}
+
+#[cfg(test)]
+mod control_text_tests {
+    use super::*;
+
+    /// The 101-call loop, as a test — and the reason it can no longer happen.
+    #[test]
+    fn a_bare_done_is_just_a_reply_and_a_reply_ends_the_turn() {
+        // `--ask "Hello marlowe"` produced 100+ model calls twice: once the model emitted `done`
+        // as prose the adapter did not recognise, once it never emitted it at all. Recognising
+        // the word was the narrow fix; removing the requirement was the real one.
+        //
+        // A bare `done` is now a `Say`, and a `Say` with no tool call ends the turn — the same
+        // outcome, by a mechanism the model cannot forget to trigger.
+        assert!(matches!(parse_step(&serde_json::json!({ "content": "done" })), ModelStep::Say(_)));
+        assert!(matches!(
+            parse_step(&serde_json::json!({ "content": "anything at all" })),
+            ModelStep::Say(_)
+        ));
+    }
+
+    /// The failure the exact match exists to avoid, which would be worse than the one it fixes.
+    #[test]
+    fn prose_that_merely_mentions_a_control_word_stays_prose() {
+        for text in [
+            "I'm done looking at that.",
+            "done: the tests pass",
+            "Ask me anything.",
+            "That run is done.",
+        ] {
+            let step = parse_step(&serde_json::json!({ "content": text }));
+            assert!(
+                matches!(step, ModelStep::Say(_)),
+                "{text:?} was routed as control. A substring match would end turns mid-sentence — \
+                 rare, silent, and indistinguishable from the model stopping for no reason."
+            );
+        }
+    }
+
+    /// A structured call still wins; this is a fallback, not a replacement.
+    #[test]
+    fn a_structured_tool_call_is_unaffected() {
+        let msg = serde_json::json!({
+            "content": "done",
+            "tool_calls": [{ "function": { "name": "read", "arguments": { "path": "a.md" } } }]
+        });
+        assert!(matches!(parse_step(&msg), ModelStep::ToolCall { .. }));
+    }
+}
+
+/// Parse a tool call the model wrote as markup rather than emitting structurally.
+///
+/// Deliberately narrow: it matches `<function=NAME>` with `<parameter=KEY>VALUE</parameter>`
+/// children and nothing else. A looser parser here would start interpreting prose about tools as
+/// calls, which is the failure mode that cannot be debugged from a transcript.
+fn recover_leaked_call(content: &str) -> Option<ModelStep> {
+    let start = content.find("<function=")?;
+    let rest = &content[start + "<function=".len()..];
+    let name_end = rest.find('>')?;
+    let name = rest[..name_end].trim();
+    if name.is_empty() {
+        return None;
+    }
+    let body_end = rest.find("</function>").unwrap_or(rest.len());
+    let body = &rest[name_end + 1..body_end];
+
+    let mut args = Args::new();
+    let mut cursor = body;
+    while let Some(p) = cursor.find("<parameter=") {
+        // LOOP-EXEMPT: scanning one string, not a driving loop.
+        let after = &cursor[p + "<parameter=".len()..];
+        let Some(key_end) = after.find('>') else { break };
+        let key = after[..key_end].trim().to_string();
+        let value_region = &after[key_end + 1..];
+        let value_end = value_region.find("</parameter>").unwrap_or(value_region.len());
+        let value = value_region[..value_end].trim().to_string();
+        if !key.is_empty() {
+            args = args.with(
+                key,
+                match value.parse::<i64>() {
+                    Ok(n) => ArgValue::Integer(n),
+                    Err(_) => ArgValue::Text(value),
+                },
+            );
+        }
+        cursor = &value_region[value_end.min(value_region.len())..];
+        if cursor.is_empty() {
+            break;
+        }
+        cursor = &cursor[cursor.find("</parameter>").map(|i| i + "</parameter>".len()).unwrap_or(0)..];
+    }
+
+    if CONTROL_TOOLS.contains(&name) {
+        return Some(control_step(name, &args, &serde_json::Value::Null));
+    }
+    Some(ModelStep::ToolCall { tool: ToolId::new(name), args })
+}
+
+#[cfg(test)]
+mod leaked_call_tests {
+    use super::*;
+
+    #[test]
+    fn a_tool_call_written_as_markup_is_recovered() {
+        let msg = serde_json::json!({
+            "content": "<function=read><parameter=path>notes.md</parameter></function>"
+        });
+        match parse_step(&msg) {
+            ModelStep::ToolCall { tool, args } => {
+                assert_eq!(tool.as_str(), "read");
+                assert_eq!(args.get("path").and_then(ArgValue::as_text), Some("notes.md"));
+            }
+            other => panic!("leaked markup was not recovered: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn prose_about_tools_is_not_a_tool_call() {
+        // The parser is narrow on purpose. A looser one would read this as a call, and a
+        // hallucinated tool invocation is not debuggable from a transcript.
+        for text in [
+            "I could use the read function on notes.md.",
+            "The <function> element is XML.",
+            "read(path=notes.md)",
+        ] {
+            let step = parse_step(&serde_json::json!({ "content": text }));
+            assert!(matches!(step, ModelStep::Say(_)), "{text:?} was read as a call");
+        }
+    }
+}
+
+/// The prose a model attached to a `done` call, under whichever field name it chose.
+///
+/// It may name the field `result`, `answer`, `content`, or nothing at all and put the text in the
+/// message body. Falling back through all of them is what stops a well-formed finish from
+/// becoming an empty reply the model then has to guess its way out of.
+fn done_body(args: &Args, message: &serde_json::Value) -> String {
+    let text = |key: &str| args.get(key).and_then(ArgValue::as_text).map(str::to_string);
+    text("result")
+        .or_else(|| text("answer"))
+        .or_else(|| text("content"))
+        .or_else(|| text("text"))
+        .or_else(|| {
+            message
+                .get("content")
+                .and_then(|c| c.as_str())
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_string)
+        })
+        .unwrap_or_default()
 }

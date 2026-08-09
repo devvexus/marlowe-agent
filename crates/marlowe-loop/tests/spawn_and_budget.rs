@@ -61,7 +61,11 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
             }),
             100,
         ),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "done")), 100),
+        // **Two replies, one each.** A spawn re-enters the same loop with the same scripted
+        // driver, so the CHILD consumes the first reply and completes on it; the parent then
+        // needs one of its own. Before M2 C2e a reply ended nothing and one sufficed.
+        say("child done", 100),
+        say("parent done", 100),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -136,11 +140,11 @@ fn a_quarantined_child_runs_and_returns_findings() {
         ),
         // the child
         step(
-            ModelStep::Done(CondensedResult::new().with("findings", "the page recommends x")),
+            ModelStep::Say("the page recommends x".into()),
             100,
         ),
         // the parent finishes
-        step(ModelStep::Done(CondensedResult::new().with("answer", "x")), 100),
+        say("x", 100),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -186,7 +190,10 @@ fn a_quarantined_child_runs_and_returns_findings() {
 fn a_budget_ceiling_pauses_and_never_spends_past_the_line() {
     let mut e = engine();
     // Twenty steps offered; the budget allows far fewer.
-    let script: Vec<_> = (0..20).map(|i| say(&format!("step {i}"), 1_000)).collect();
+    // **Tool calls, not replies.** M2 C2e made a reply-with-no-tool-call the end of a turn,
+    // so a script of twenty `say`s now ends at the first one and the budget never bites. A long
+    // turn in the real product is a run of tool calls, which is what this scripts.
+    let script: Vec<_> = (0..20).map(|_| work(1_000)).collect();
     let mut driver = ScriptDriver::new(script);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -253,7 +260,7 @@ fn every_budget_dimension_can_be_the_one_that_pauses() {
         ("subagents", Budget { subagents: 0, ..Budget::interactive() }),
     ] {
         let mut e = engine();
-        let script: Vec<_> = (0..5).map(|i| say(&format!("s{i}"), 100)).collect();
+        let script: Vec<_> = (0..5).map(|_| work(100)).collect();
         let mut driver = ScriptDriver::new(script);
         let mut summarizer = EmptySummarizer;
         let mut tools = ScriptedTools::default();
@@ -295,8 +302,10 @@ fn a_driver_that_ignores_its_cap_is_stopped_at_the_next_iteration() {
     // line" without this test would be claiming something about a provider we do not control.
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
-        say("a very long answer", 50_000), // ignores a 3,000 cap
-        say("another", 50_000),
+        // Tool calls, not replies: a reply ends the turn (M2 C2e), and this test needs a
+        // SECOND iteration to exist so the top-of-loop check can stop it there.
+        work(50_000), // ignores a 3,000 cap
+        work(50_000),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -344,24 +353,31 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
                 contract: OutputContract::new("what you found", &["findings"]),
                 orphan: OrphanPolicy::Detach,
                 share: BudgetShare::Standard,
-                tools: vec![],
+                // The child needs a tool in order to HAVE working to isolate.
+                tools: vec![ToolId::new("read")],
                 reads_untrusted: false,
             }),
             100,
         ),
-        // the child talks at length, then returns a condensed result
-        say(&format!("{CHILD_MARKER} first thought"), 100),
-        say(&format!("{CHILD_MARKER} second thought"), 100),
-        say(&format!("{CHILD_MARKER} third thought"), 100),
-        step(
-            ModelStep::Done(CondensedResult::new().with("findings", "the answer is 42")),
-            100,
-        ),
+        // The child works, then replies — which is what ends it (M2 C2e). It cannot "talk at
+        // length" across several replies any more, because the first reply completes it.
+        work(100),
+        work(100),
+        // **The marker is on the child's WORKING (its tool results), not on its answer.**
+        //
+        // M2 C2e made the reply the result, so a child's final reply legitimately crosses to
+        // the parent — that is what a subagent is FOR. What must never cross is how it got
+        // there. Marking the answer would test the opposite of the invariant.
+        say("the answer is 42", 100),
         // the parent finishes
-        step(ModelStep::Done(CondensedResult::new().with("answer", "42")), 100),
+        say("42", 100),
     ]);
     let mut summarizer = EmptySummarizer;
-    let mut tools = ScriptedTools::default();
+    // The child's tool results carry the marker: that is its WORKING, which must not cross.
+    let mut tools = ScriptedTools {
+        body: Some(format!("{CHILD_MARKER} intermediate finding")),
+        ..Default::default()
+    };
     let mut approvals = FixedApprovals(true);
     let mut sink = CollectingSink::default();
     let mut control = marlowe_loop::NoControl;
@@ -387,10 +403,19 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
 
     // The anti-vacuity check FIRST. Without it, an absent marker in the parent would prove
     // nothing — it would also be absent if the child had never spoken.
-    assert_eq!(
-        sink.text().matches(CHILD_MARKER).count(),
-        3,
-        "the child must actually have produced a transcript for this test to mean anything"
+    // **The anti-vacuity check, and it took three attempts to state correctly.**
+    //
+    // Not `sink.text()`: tool bodies never reach the sink, which carries §B6 tool *lines* — a
+    // verb and a typed summary. Not `tools.calls`: this engine's scope is `Unavailable`, so
+    // adjudication refuses the call before the tool host ever sees it.
+    //
+    // What is true regardless is that the child made several model calls. A child that ran one
+    // step and stopped would leave an absent marker in the parent proving nothing.
+    assert!(
+        driver.views_seen.len() >= 4,
+        "the child must actually have worked across several steps for this test to mean \
+         anything; the driver saw {} calls",
+        driver.views_seen.len()
     );
 
     // The property: none of it is in the parent's context, in any tier.
@@ -460,8 +485,8 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
             },
             100,
         ),
-        step(ModelStep::Done(CondensedResult::new().with("findings", "done")), 100),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "ok")), 100),
+        say("done", 100),
+        say("ok", 100),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -533,7 +558,7 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
             }),
             100,
         ),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "ok")), 100),
+        say("ok", 100),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -591,9 +616,9 @@ fn the_spawn_tree_is_bounded_by_depth() {
         spawn("depth 1"),
         spawn("depth 2"),
         spawn("depth 3 — refused"),
-        step(ModelStep::Done(CondensedResult::new().with("findings", "d2")), 10),
-        step(ModelStep::Done(CondensedResult::new().with("findings", "d1")), 10),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "ok")), 10),
+        say("d2", 10),
+        say("d1", 10),
+        say("ok", 10),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -641,8 +666,7 @@ fn a_childs_spend_counts_against_its_parent() {
             1_000,
         ),
         say("child thinking", 5_000),
-        step(ModelStep::Done(CondensedResult::new().with("findings", "f")), 1_000),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "a")), 1_000),
+        step(ModelStep::Say("f".into()), 1_000),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools::default();
@@ -670,8 +694,10 @@ fn a_childs_spend_counts_against_its_parent() {
 
     assert_eq!(run.spent.subagents, 1);
     assert_eq!(
-        run.spent.tokens, 8_000,
-        "1,000 (spawn) + 6,000 (the child) + 1,000 (the parent's done)"
+        run.spent.tokens, 7_000,
+        // A reply ends a run, so the child costs ONE call and the parent one more. Under the old
+        // `done` contract each needed a second step to finish, which is where 8,000 came from.
+        "1,000 (spawn) + 5,000 (the child's reply) + 1,000 (the parent's reply)"
     );
 }
 
@@ -698,7 +724,7 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
             },
             100,
         ),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "stopped")), 100),
+        say("stopped", 100),
     ]);
     let mut summarizer = EmptySummarizer;
     let mut tools = ScriptedTools {
@@ -750,4 +776,84 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
         .assemble(&state)
         .rendered()
         .contains("UntrustedTarget"));
+}
+
+/// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
+///
+/// Completion is the absence of an action, and an empty reply is technically that — so without a
+/// guard, a model returning nothing repeatedly would END THE RUN with an empty answer, reported as
+/// success. That is the difference between "Marlowe answered" and "Marlowe said nothing and we
+/// called it done".
+#[test]
+fn a_model_that_returns_nothing_fails_the_run_rather_than_completing_it() {
+    let mut e = engine();
+    // Four empty turns: three are nudged, the fourth exhausts the allowance.
+    let mut driver = ScriptDriver::new((0..4).map(|_| say("", 10)).collect());
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    match outcome {
+        LoopOutcome::Failed { error } => assert!(
+            error.contains("no reply and no tool call"),
+            "the failure must name what happened: {error}"
+        ),
+        other => panic!("an empty turn was reported as {other:?} rather than a failure"),
+    }
+}
+
+/// The nudge is retried a bounded number of times before that failure.
+#[test]
+fn an_empty_turn_is_nudged_before_it_is_failed() {
+    let mut e = engine();
+    // Two empties then a real reply: the nudges recover the turn.
+    let mut driver = ScriptDriver::new(vec![say("", 10), say("", 10), say("here it is", 10)]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    assert!(
+        matches!(outcome, LoopOutcome::Completed(_)),
+        "two empty turns should be recovered by the nudge, not fatal: {outcome:?}"
+    );
 }

@@ -38,6 +38,27 @@ fn engine() -> Engine<Unavailable> {
     )
 }
 
+/// Seed the state with prior turns, which is where window pressure actually comes from.
+///
+/// **M2 C2e changed what a single turn can do.** Completion is now the absence of an action, so
+/// one turn is: some tool calls, then one reply. Tool results are *trimmable* (ADR-025) and the
+/// assembler drops them to stay inside its budget, so a single turn cannot fill the window from
+/// them. History is not trimmable — and history grows one user message and one reply at a time,
+/// across turns.
+///
+/// So these tests seed the history a long conversation would have produced and then run the turn
+/// that crosses the trigger. That is the same property under test (governance survives
+/// compaction) against the loop that now exists, rather than against a turn that never ended.
+fn seed_prior_turns(state: &mut SessionState, turns: usize) {
+    for i in 0..turns {
+        state.push(Block::new(
+            SourceKind::History,
+            format!("TURN-{i} {}", "x".repeat(2_400)),
+            TrustClass::UserAsserted,
+        ));
+    }
+}
+
 fn governed_state(session: SessionId) -> SessionState {
     let mut s = SessionState::new(session, "Marlowe. Terminal-native.");
     s.assert_governance(GovernanceConstraint::asserted(RULE_A));
@@ -53,15 +74,10 @@ fn governance_survives_compaction_with_a_summarizer_that_preserves_nothing() {
     // identifiable so the test can say *which* turns survived rather than only how many.
     let turn = |i: usize| format!("TURN-{i} {}", "x".repeat(2_400)); // ~800 tokens
     let mut driver = ScriptDriver::new(vec![
-        say(&turn(0), 10),
-        say(&turn(1), 10),
-        say(&turn(2), 10),
-        say(&turn(3), 10),
-        say(&turn(4), 10),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "done")), 10),
+                say("done", 10),
     ]);
     let mut summarizer = EmptySummarizer; // returns ""
-    let mut tools = ScriptedTools::default();
+    let mut tools = ScriptedTools { body: Some("x".repeat(2_400)), ..Default::default() };
     let mut approvals = FixedApprovals(true);
     let mut sink = CollectingSink::default();
     let mut control = marlowe_loop::NoControl;
@@ -87,6 +103,7 @@ fn governance_survives_compaction_with_a_summarizer_that_preserves_nothing() {
         OutputContract::answer(),
     );
     let mut state = governed_state(run.session);
+    seed_prior_turns(&mut state, 6);
     let session_before = state.session;
     let mut prov = Provenance::new();
 
@@ -131,15 +148,24 @@ fn governance_survives_compaction_with_a_summarizer_that_preserves_nothing() {
     assert!(view.stable.iter().any(|b| b.text.contains(RULE_B)));
 
     // The conversation before the boundary did not survive, which is the point of compacting —
-    // and turns after it did, which is the point of continuing. Asserting only the first would
-    // pass against a loop that had stopped adding history at all.
+    // and what the turn produced after it did, which is the point of continuing. Asserting only
+    // the first would pass against a loop that had stopped adding history at all.
     assert!(
         !rendered.contains("TURN-0"),
         "pre-compaction history is still in the window:\n{rendered}"
     );
+    // **The reply is what post-compaction accumulation looks like now.** M2 C2e made completion
+    // the absence of an action, so a turn is tool calls then one reply — there is no stream of
+    // further turns inside one run to observe. What must still hold is that the loop kept working
+    // after compacting and its output reached the window; a run that compacted and then produced
+    // nothing would pass the assertion above and fail this one.
+    //
+    // The seeded turns are all gone because `EmptySummarizer` preserves nothing, which is
+    // deliberate: a cooperative summarizer would let this pass without governance being re-asserted
+    // structurally.
     assert!(
-        rendered.contains("TURN-4"),
-        "post-compaction history is missing; the run stopped accumulating:\n{rendered}"
+        rendered.contains("done"),
+        "the turn produced nothing after compacting:\n{rendered}"
     );
 }
 
@@ -151,14 +177,10 @@ fn the_model_sees_its_governance_on_the_turn_after_compaction() {
     let long = "y".repeat(2_400);
     let mut driver = ScriptDriver::new(vec![
         say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "done")), 10),
+        say("done", 10),
     ]);
     let mut summarizer = EmptySummarizer;
-    let mut tools = ScriptedTools::default();
+    let mut tools = ScriptedTools { body: Some("x".repeat(2_400)), ..Default::default() };
     let mut approvals = FixedApprovals(true);
     let mut sink = CollectingSink::default();
     let mut control = marlowe_loop::NoControl;
@@ -184,6 +206,7 @@ fn the_model_sees_its_governance_on_the_turn_after_compaction() {
         OutputContract::answer(),
     );
     let mut state = governed_state(run.session);
+    seed_prior_turns(&mut state, 6);
     let mut prov = Provenance::new();
     let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
 
@@ -202,14 +225,10 @@ fn compaction_invalidates_the_cache_and_a_stale_prefix_is_unreachable() {
     let long = "z".repeat(2_400);
     let mut driver = ScriptDriver::new(vec![
         say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        say(&long, 10),
-        step(ModelStep::Done(CondensedResult::new().with("answer", "done")), 10),
+        say("done", 10),
     ]);
     let mut summarizer = MarkerSummarizer("summary of the conversation".into());
-    let mut tools = ScriptedTools::default();
+    let mut tools = ScriptedTools { body: Some("x".repeat(2_400)), ..Default::default() };
     let mut approvals = FixedApprovals(true);
     let mut sink = CollectingSink::default();
     let mut control = marlowe_loop::NoControl;
@@ -224,6 +243,7 @@ fn compaction_invalidates_the_cache_and_a_stale_prefix_is_unreachable() {
         OutputContract::answer(),
     );
     let mut state = governed_state(run.session);
+    seed_prior_turns(&mut state, 6);
     let mut prov = Provenance::new();
 
     let epoch_before = e.assembler().cache_epoch();
@@ -280,7 +300,7 @@ fn tool_results_are_masked_before_the_window_reaches_the_compaction_trigger() {
                 )
             })
             .chain(std::iter::once(step(
-                ModelStep::Done(CondensedResult::new().with("answer", "done")),
+                ModelStep::Say("done".into()),
                 10,
             )))
             .collect(),
@@ -312,6 +332,8 @@ fn tool_results_are_masked_before_the_window_reaches_the_compaction_trigger() {
         OutputContract::answer(),
     );
     let mut state = governed_state(run.session);
+    // NOT seeded: this test's whole point is that masking handles the pressure BEFORE
+    // compaction is reached, so pre-filling history would defeat what it measures.
     let mut prov = Provenance::new();
     let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
 

@@ -75,6 +75,23 @@ pub struct Ports<'a> {
     pub recorder: &'a mut dyn Recorder,
 }
 
+/// How many times a turn that produced only reasoning may be nudged to continue.
+///
+/// A reasoning model sometimes ends a stream mid-thought: thinking, no prose, no tool call. That
+/// is not "finished", and treating it as an answer ends the turn with nothing on screen. Nor is it
+/// free to retry forever, so it is bounded and the bound is stated.
+const MAX_AUTO_CONTINUE: u32 = 3;
+
+/// Consecutive tool-only turns before the loop starts steering.
+///
+/// A model that keeps gathering and never answers is the failure a token budget catches far too
+/// late — it stops the run rather than getting an answer out of it. These nudge first, then stop.
+const FARMING_SOFT_NUDGE: u32 = 4;
+const FARMING_FIRM_NUDGE: u32 = 7;
+/// At this point tools are **withheld for one call**, so the model must answer with what it has.
+/// A nudge asks; an empty tool set removes the option.
+const FARMING_HARD_STOP: u32 = 10;
+
 pub struct Engine<S: PathScope> {
     registry: ToolRegistry,
     adjudicator: Adjudicator<S>,
@@ -124,6 +141,12 @@ impl<S: PathScope> Engine<S> {
     ) -> LoopOutcome {
         run.status = RunStatus::Running;
         let mut steps: u32 = 0;
+
+        // Loop-scoped steering. **None of it reaches history** — see the nudge note below.
+        let mut pending_nudge = String::new();
+        let mut auto_continue: u32 = 0;
+        let mut tool_calls_this_turn: u32 = 0;
+        let mut last_reasoning = String::new();
 
         loop {
             // ── hard stops, checked before any model spend ───────────────────────────
@@ -228,6 +251,39 @@ impl<S: PathScope> Engine<S> {
             // call, so the chunks reach the surface while the model is still producing them —
             // which is the whole of what "streaming" means above the transport.
             let streamed = ports.driver.streams();
+
+            // **Ephemeral steering.** A nudge is appended to the VIEW, never to `state`, so it
+            // reaches exactly one call and never becomes history the model must live with. A
+            // nudge that persisted would compound: the model would read three turns of "stop
+            // gathering" and start explaining why it was gathering.
+            let mut view = view;
+            if !pending_nudge.is_empty() {
+                view.stable.push(Block::new(
+                    SourceKind::Governance,
+                    std::mem::take(&mut pending_nudge),
+                    TrustClass::AgentObserved,
+                ));
+            }
+
+            // **Sliding-window reasoning.** Only the most recent turn's thinking is carried, and
+            // it is carried in the view rather than in state. Older reasoning is not merely
+            // useless — it compounds: three turns of "let me check one more thing" reads as a
+            // standing instruction to keep checking.
+            if !last_reasoning.is_empty() {
+                view.volatile.push(Block::new(
+                    SourceKind::History,
+                    format!("[your prior reasoning]\n{last_reasoning}"),
+                    TrustClass::AgentInferred,
+                ));
+            }
+
+            let empty_tools = ExposedSet::new(Vec::new()).expect("an empty set is within the cap");
+            let offered_tools = if tool_calls_this_turn >= FARMING_HARD_STOP {
+                &empty_tools
+            } else {
+                run.profile.exposed_tools()
+            };
+            let reasoning_buf = std::cell::RefCell::new(String::new());
             // Disjoint field borrows: the driver and the sink are different fields of `Ports`, so
             // both can be held at once. The `RefCell` is what lets two closures share the sink —
             // the alternative was one callback with a kind tag, which pushes the branch into every
@@ -239,11 +295,12 @@ impl<S: PathScope> Engine<S> {
                     sink.borrow_mut().emit(TurnEvent::TextDelta(chunk.to_string()));
                 };
                 let mut on_reasoning = |chunk: &str| {
+                    reasoning_buf.borrow_mut().push_str(chunk);
                     sink.borrow_mut().emit(TurnEvent::ReasoningDelta(chunk.to_string()));
                 };
                 driver.call_streaming_split(
                     &view,
-                    run.profile.exposed_tools(),
+                    offered_tools,
                     limits,
                     &mut on_delta,
                     &mut on_reasoning,
@@ -291,66 +348,133 @@ impl<S: PathScope> Engine<S> {
                 }
             }
 
+            last_reasoning = reasoning_buf.into_inner();
+
+            // ── a turn that produced ONLY reasoning is mid-thought, not finished ──────
+            //
+            // The stream closed while the model was still working. Ending the turn here would
+            // show the user nothing; treating it as an answer would be a lie about what happened.
+            // So it is nudged to continue, bounded, and the nudge is ephemeral.
+            let produced_nothing = matches!(&call.step, ModelStep::Say(t) if t.trim().is_empty());
+            if produced_nothing {
+                if auto_continue < MAX_AUTO_CONTINUE {
+                    auto_continue += 1;
+                    // The nudge differs by cause: a model told the wrong one explains rather than
+                    // acts.
+                    pending_nudge = if last_reasoning.is_empty() {
+                        "(Your previous turn produced nothing at all. Answer the user, or call a tool if you need something first.)"
+                            .to_string()
+                    } else {
+                        "(Your previous turn produced reasoning but no reply and no tool call. Continue from where you left off — either answer the user or call a tool.)"
+                            .to_string()
+                    };
+                    continue;
+                }
+
+                // **An empty turn must never quietly succeed.**
+                //
+                // Completion is the absence of an action, and an empty reply is technically that —
+                // so without this branch a model returning nothing three times would END THE RUN
+                // with an empty answer, reported as success. A turn that produced no output is a
+                // failure and says so: that is the difference between "Marlowe answered" and
+                // "Marlowe said nothing and we called it done".
+                return self.fail(
+                    run,
+                    state,
+                    ports,
+                    format!("the model produced no reply and no tool call {MAX_AUTO_CONTINUE} times in a row"),
+                );
+            }
+            auto_continue = 0;
+
+            // ── tool-farming: count the tool calls made INSIDE THIS TURN ─────────────
+            //
+            // **Per turn, not "consecutive turns without a reply".** A reply ends the turn now, so
+            // a reply that fails to reset this cannot exist — the branch that would express it is
+            // unreachable. Leaving it in would invite the reading that this counts across replies.
+            // It does not: it is the length of one tool chain.
+            if matches!(call.step, ModelStep::ToolCall { .. }) {
+                tool_calls_this_turn += 1;
+                pending_nudge = match tool_calls_this_turn {
+                    n if n >= FARMING_HARD_STOP => "(HARD STOP: you have called tools repeatedly \
+                         without answering. Tools are withheld for this turn. Answer the user now \
+                         with what you already have.)"
+                        .to_string(),
+                    n if n >= FARMING_FIRM_NUDGE => "(You have gathered a substantial amount \
+                         across many tool calls. Stop collecting. Next turn, synthesise what you \
+                         have and answer. Call another tool only if it is essential.)"
+                        .to_string(),
+                    n if n >= FARMING_SOFT_NUDGE => "(Reminder: several tool calls so far. Do you \
+                         already have enough to answer? If so, stop searching and answer.)"
+                        .to_string(),
+                    _ => String::new(),
+                };
+            }
+
             match call.step {
                 ModelStep::Say(text) => {
                     // **Emitted only if the driver did not already stream it.** A streaming driver
-                    // has handed every chunk to `on_delta` above, and re-emitting the assembled
-                    // string here would deliver the reply twice — visibly, in the transcript.
-                    // `streams()` is asked rather than inferred from "did any delta arrive",
-                    // because an empty reply from a streaming driver is not the same as a
-                    // non-streaming one.
+                    // has handed every chunk to `on_delta` above; re-emitting here would deliver
+                    // the reply twice, visibly.
                     if !streamed {
                         ports.sink.emit(TurnEvent::TextDelta(text.clone()));
                     }
                     state.push(Block::new(
                         SourceKind::History,
-                        text,
+                        text.clone(),
                         TrustClass::AgentInferred,
                     ));
 
-// **The turn does NOT end here, and that is deliberate after a false start.**
+                    // ── COMPLETION IS THE ABSENCE OF AN ACTION ──────────────────────────
                     //
-                    // The self-talk this looked like — `Hello. What do you need?` → `Nothing in
-                    // particular.` → `Nothing yet either.` — was not the loop failing to stop. It
-                    // was `ollama.rs` sending every history block as `role: "user"`, so the model
-                    // received its own last reply attributed to the user and answered it. The
-                    // roles are derived from origin now.
+                    // Prose with no tool call means the model answered. That is the whole
+                    // termination rule, and it replaces `done`.
                     //
-                    // Ending the turn on `Say` was tried as a belt-and-braces guard and reverted:
-                    // it broke three compaction tests that legitimately drive several steps, and
-                    // it would have masked the real bug rather than fixed it. If a small model
-                    // still fails to emit `done`, that is a separate finding and needs its own
-                    // measurement — `MAX_STEPS` is the existing backstop.
-                }
+                    // Measured, not assumed: `--ask "Hello marlowe"` ran **100 model calls** and
+                    // stopped at the token budget, twice, by two different routes. Once the model
+                    // emitted `done` as plain prose the adapter did not recognise; once it never
+                    // emitted it at all and simply kept chatting. A control token the model must
+                    // remember in order for the loop to stop makes forgetting it look identical
+                    // to working.
+                    self.record(ports, EventKind::RunCompleted, run, state, json!({}));
+                    run.status = RunStatus::Completed;
+                    ports.sink.emit(TurnEvent::Done {
+                        spend_micros_usd: run.spent.micros_usd,
+                        elapsed_ms: run.spent.wall_ms,
+                        fill_pct: view.fill_pct,
+                    });
 
-                ModelStep::Done(result) => {
-                    match run.output_contract.validate(&result) {
-                        Ok(()) => {
-                            self.record(
-                                ports,
-                                EventKind::RunCompleted,
-                                run,
-                                state,
-                                json!({ "fields": result.fields.keys().collect::<Vec<_>>() }),
-                            );
-                            run.status = RunStatus::Completed;
-                            ports.sink.emit(TurnEvent::Done {
-                                spend_micros_usd: run.spent.micros_usd,
-                                elapsed_ms: run.spent.wall_ms,
-                                fill_pct: view.fill_pct,
-                            });
-                            return LoopOutcome::Completed(result);
-                        }
-                        Err(v) => {
-                            // A contract violation is a tool error into context, not a crash:
-                            // the child gets to try again inside its own budget.
-                            state.push(Block::new(
-                                SourceKind::History,
-                                format!("[output contract] {v}"),
-                                TrustClass::AgentObserved,
-                            ));
+                    // **The reply IS the result, filed under the fields the contract asked for.**
+                    //
+                    // A contract names what the parent wants back (`findings`, `answer`). With
+                    // `done` gone the model no longer names fields — it just replies — so the
+                    // reply is filed under every field the contract requires. The parent still
+                    // gets the shape it asked for; what changed is that the child no longer has to
+                    // remember a schema in order to finish.
+                    //
+                    // Filing under every required field rather than the first is deliberate: a
+                    // partially-filled contract would validate for some parents and not others,
+                    // which is the kind of difference nobody notices until a spawn fails.
+                    let mut result = CondensedResult::new();
+                    if run.output_contract.fields.is_empty() {
+                        result = result.with("answer", text.clone());
+                    } else {
+                        for field in &run.output_contract.fields {
+                            result = result.with(field.clone(), text.clone());
                         }
                     }
+                    if let Err(v) = run.output_contract.validate(&result) {
+                        // A violation is a tool error into context, not a crash: the child gets
+                        // to try again inside its own budget.
+                        state.push(Block::new(
+                            SourceKind::History,
+                            format!("[output contract] {v}"),
+                            TrustClass::AgentObserved,
+                        ));
+                        run.status = RunStatus::Running;
+                        continue;
+                    }
+                    return LoopOutcome::Completed(result);
                 }
 
                 ModelStep::Ask(question) => {

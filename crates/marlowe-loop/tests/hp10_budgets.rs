@@ -230,10 +230,12 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     // client, and it is M2 Session E. Counting this test as K6 would be measuring something
     // adjacent to the criterion and reporting it as the criterion.
     let registry = builtin_registry().expect("the builtins are compiled in, not loaded");
-    assert_eq!(registry.len(), 11);
+    // Ten since M2 C2e removed `done`: a run ends when the model replies without calling a
+    // tool, so a tool whose only job was ending no longer exists.
+    assert_eq!(registry.len(), 10);
 
     let profile = CapabilityProfile::interactive();
-    assert_eq!(profile.exposed_tools().len(), 11);
+    assert_eq!(profile.exposed_tools().len(), 10);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");
