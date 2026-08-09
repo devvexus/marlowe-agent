@@ -171,7 +171,18 @@ impl CapabilityProfile {
 
     /// The interactive coding profile: all eleven, no egress until the user grants it.
     pub fn interactive() -> Self {
-        let tools = marlowe_tools::BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
+        // **Only what can actually run.** `web`, `recall` and `use` are registered and
+        // unimplemented — `FileSystemTools` has arms for four tools, and the three loop-control
+        // tools are `ModelStep` variants. Exposing the rest gave the model three tools it could
+        // see, call correctly, and never execute, which is what made "check the weather" produce a
+        // model arguing with an error it could not read.
+        //
+        // They come back the moment they have executors, and `verify_every_exposed_tool_is_runnable`
+        // is what makes that a build failure rather than a discovery.
+        let tools = ["read", "edit", "find", "bash", "ask", "remember", "run"]
+            .iter()
+            .map(|t| ToolId::new(*t))
+            .collect();
         Self::new(
             ExposedSet::new(tools).expect("ten fits in twelve"),
             EgressPolicy::DenyAll,
@@ -344,11 +355,18 @@ mod tests {
         let c = CapabilityProfile::consolidation();
         assert!(c.may_write_memory() && !c.reads_untrusted());
         // Two since `done` was removed — consolidation recalls and remembers, and ends by replying.
+        //
+        // **`recall` has no executor yet**, so this profile would fail
+        // `verify_every_exposed_tool_is_runnable` against `FileSystemTools`. It is left as
+        // declared because consolidation is not wired until M2 D, and the guard firing at that
+        // point is the guard working — not a surprise to design around now.
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        // Ten since M2 C2e removed `done`; the loop ends on a reply, not a token.
-        assert_eq!(i.exposed_tools().len(), 10);
+        // **Seven, not ten.** `web`, `recall` and `use` are registered and unimplemented; exposing
+        // them handed the model three tools it could call and never execute. Four executable
+        // builtins plus the three loop-control tools is what can actually be reached today.
+        assert_eq!(i.exposed_tools().len(), 7);
         assert_eq!(*i.egress(), EgressPolicy::DenyAll, "egress is granted, never assumed");
     }
 
@@ -368,5 +386,60 @@ mod tests {
             narrow.narrowed(vec![ToolId::new("bash")]).is_err(),
             "privilege must not grow with depth"
         );
+    }
+}
+
+/// **A tool in the exposed set with no executor is unrepresentable, not merely wrong.**
+///
+/// # The fifth instance
+///
+/// The model can see the tool, call it correctly, and get back `has no executor in this build` —
+/// a failure it cannot interpret and cannot route around. It has happened five times:
+///
+/// | Tool | What the model got |
+/// |---|---|
+/// | `done` (M2 C2b) | routed to the tool host, which had no executor; the model retried for 155 s |
+/// | `web` | same, and it is what made "check the weather" unanswerable |
+/// | `recall` | same |
+/// | `use` | same |
+///
+/// Every one of them passed every unit test, because each half was right in isolation: the
+/// registry registered the tool, the profile exposed it, and the host correctly reported that it
+/// could not run it. **Nothing owned the seam.** This does.
+///
+/// The check runs where the two sides meet — a profile and a host — and it is a **load-time
+/// error**. A daemon that starts and then fails every third tool call presents as a broken model;
+/// a daemon that refuses to start names the tool and the fix in one line.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "the capability profile exposes {} the tool host cannot run: {}.
+     A tool the model can see and call but never execute returns an error it cannot interpret.      Either give it an executor or stop exposing it.
+     Loop-control tools ({}) are exempt: ARCHITECTURE §3 handles them as ModelStep variants.",
+    if .0.len() == 1 { "a tool".to_string() } else { format!("{} tools", .0.len()) },
+    .0.join(", "),
+    crate::driver::CONTROL_TOOLS.join(", ")
+)]
+pub struct UnrunnableTools(pub Vec<String>);
+
+/// Verify that every exposed tool can actually be reached.
+///
+/// Call this once, at startup, before a model is ever offered the set.
+pub fn verify_every_exposed_tool_is_runnable(
+    exposed: &ExposedSet,
+    host: &dyn crate::driver::ToolHost,
+) -> Result<(), UnrunnableTools> {
+    let runnable: std::collections::BTreeSet<String> =
+        host.executes().into_iter().map(|t| t.as_str().to_string()).collect();
+    let unrunnable: Vec<String> = exposed
+        .iter()
+        .map(|t| t.as_str().to_string())
+        .filter(|name| {
+            !runnable.contains(name) && !crate::driver::CONTROL_TOOLS.contains(&name.as_str())
+        })
+        .collect();
+    if unrunnable.is_empty() {
+        Ok(())
+    } else {
+        Err(UnrunnableTools(unrunnable))
     }
 }

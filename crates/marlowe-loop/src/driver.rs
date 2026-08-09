@@ -212,7 +212,21 @@ pub trait ToolHost {
         args: &Args,
         adjudication: &marlowe_permission::Adjudication,
     ) -> ToolOutcome;
+
+    /// Every tool this host has an executor for.
+    ///
+    /// **Required, with no default.** A default of "all" would restore exactly the situation this
+    /// exists to make impossible, and a default of "none" would be a lie every host has to
+    /// remember to correct. See [`crate::profile::UnrunnableTools`].
+    fn executes(&self) -> Vec<ToolId>;
 }
+
+/// Tools that are **loop control**, not tool-host executions.
+///
+/// ARCHITECTURE §3's match handles these as `ModelStep` variants: they escalate, request a memory
+/// write, and spawn a child. They are representable without the host having an executor, which is
+/// why they are exempt from the check below.
+pub const CONTROL_TOOLS: [&str; 3] = ["ask", "remember", "run"];
 
 /// The memory port. Wired to `marlowe-memory` in Session D.
 pub trait MemoryHost {

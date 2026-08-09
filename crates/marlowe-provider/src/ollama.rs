@@ -514,7 +514,13 @@ impl ModelDriver for OllamaDriver {
                         if split.retract_speech {
                             // Everything already streamed as speech was inside a think block.
                             // Drop it from the answer and tell the surface to move it.
-                            on_reasoning(&text);
+                            //
+                            // **The surface moves its own text; this must not re-send it.** An
+                            // earlier version emitted the text as a reasoning delta *and then*
+                            // retracted. That put a fresh `Entry::Reasoning` at the end of the
+                            // transcript, so the retraction — which looks at the last entry —
+                            // found reasoning instead of speech and did nothing. The leak stayed
+                            // on screen with a verbatim copy of itself underneath it.
                             text.clear();
                             on_retract();
                         }

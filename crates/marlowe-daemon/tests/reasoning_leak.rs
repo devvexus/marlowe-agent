@@ -92,6 +92,61 @@ fn retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript() {
     );
 }
 
+/// **The event order the provider actually produces**, which is not the one the first version of
+/// this file tested.
+///
+/// A turn interleaves: native reasoning arrives in `message.thinking` and opens a block, content
+/// then leaks as speech, and the retraction lands **after** a tool line and a second reasoning
+/// block have already been appended. The first projection looked only at `transcript.last()`, so
+/// it found reasoning where it expected speech, did nothing, and left the leak on screen — with a
+/// verbatim copy of itself in a thought block underneath.
+///
+/// That is what the Cass Lake screenshot showed on the *second* attempt: `thought for 265
+/// characters`, a purple block of reasoning, then `thought for 1071 characters` containing the
+/// same words. Two copies is the signature of a retraction that fired and was ignored.
+#[test]
+fn a_retraction_is_honoured_when_it_is_not_the_last_event() {
+    let mut v = view();
+    apply_events(
+        &mut v,
+        &[
+            Event::Reasoning { delta: "The user wants weather. I will search.".into() },
+            Event::Tool {
+                id: 1,
+                verb: "web".into(),
+                target: "weather.gov".into(),
+                state: "failed".into(),
+                summary: String::new(),
+            },
+            Event::Text { delta: "including scheme like https://weather.com ".into() },
+            Event::Text { delta: "I need to format this properly.".into() },
+            Event::Reasoning { delta: " Trying the National Weather Service.".into() },
+            Event::SpeechRetracted,
+        ],
+    );
+
+    assert_eq!(
+        spoken(&v),
+        "",
+        "the retraction was ignored because it was not the last event: {:?}",
+        spoken(&v)
+    );
+    let thoughts: Vec<&str> = v
+        .transcript
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Reasoning { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        thoughts.iter().filter(|t| t.contains("including scheme")).count(),
+        1,
+        "the retracted text must appear exactly once, not once as speech and once as a second \
+         thought block: {thoughts:?}"
+    );
+}
+
 /// A real answer after the retraction survives it. The correction is scoped to what was
 /// outstanding, not to everything the turn ever said.
 #[test]

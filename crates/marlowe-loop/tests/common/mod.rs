@@ -104,6 +104,11 @@ pub struct ScriptedTools {
 }
 
 impl ToolHost for ScriptedTools {
+    /// A scripted host answers for whatever it was scripted with, plus the builtins tests drive.
+    fn executes(&self) -> Vec<marlowe_tools::ToolId> {
+        marlowe_tools::BUILTIN_TOOLS.iter().map(|t| marlowe_tools::ToolId::new(*t)).collect()
+    }
+
     fn execute(&mut self, tool: &ToolId, args: &Args, _a: &Adjudication) -> ToolOutcome {
         self.calls.push((tool.to_string(), args.clone()));
         ToolOutcome {

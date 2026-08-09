@@ -293,8 +293,14 @@ fn tool_results_are_masked_before_the_window_reaches_the_compaction_trigger() {
             .map(|_| {
                 step(
                     ModelStep::ToolCall {
-                        tool: marlowe_tools::ToolId::new("recall"),
-                        args: marlowe_permission::Args::new().text("query", "anything"),
+                        // **A tool the run holds AND that takes no path.** It was `recall`, which
+                        // `interactive()` stopped exposing once tools with no executor were made
+                        // unrepresentable. `find` was the obvious replacement and was wrong: this
+                        // engine is built with `Unavailable` scoping, so every path-taking tool is
+                        // refused and the test would have measured masking over zero tool results.
+                        // `bash` declares `cwd` optional, so `command` alone adjudicates.
+                        tool: marlowe_tools::ToolId::new("bash"),
+                        args: marlowe_permission::Args::new().text("command", "echo anything"),
                     },
                     10,
                 )

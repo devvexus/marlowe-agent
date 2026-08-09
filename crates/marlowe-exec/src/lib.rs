@@ -293,6 +293,12 @@ impl<S: PathScope> FileSystemTools<S> {
 }
 
 impl<S: PathScope> ToolHost for FileSystemTools<S> {
+    /// **The four this host actually has arms for.** Kept beside the match below so the two
+    /// cannot drift; `every_declared_tool_has_a_match_arm` asserts they agree.
+    fn executes(&self) -> Vec<marlowe_tools::ToolId> {
+        ["read", "edit", "find", "bash"].iter().map(|t| marlowe_tools::ToolId::new(*t)).collect()
+    }
+
     fn execute(&mut self, tool: &ToolId, args: &Args, adjudication: &Adjudication) -> ToolOutcome {
         // The declared globs are the manifest's; the adjudicator already matched the model's
         // argument against them. `find` needs them again for its own opens.

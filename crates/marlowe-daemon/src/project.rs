@@ -141,22 +141,34 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             // back. The reasoning block is collapsed by default, so the correction reads as the
             // thinking counter growing rather than as text jumping around.
             Event::SpeechRetracted => {
-                let spoken = match view.transcript.last() {
-                    Some(Entry::Said(Speech::Model(t))) => {
-                        let t = t.clone();
-                        view.transcript.pop();
-                        t
-                    }
+                // **Searched for, not assumed to be last.** The first version of this checked
+                // `transcript.last()` only, which held for the event order in its test and not
+                // for the one the provider produced — a tool line or a reasoning delta landing
+                // after the speech made the retraction a silent no-op, and the leak stayed on
+                // screen. The retraction is about the turn's outstanding speech wherever it sits.
+                let Some(at) =
+                    view.transcript.iter().rposition(|e| matches!(e, Entry::Said(Speech::Model(_))))
+                else {
                     // Nothing outstanding. A turn can retract before it has spoken, and that is
                     // not an error — it is the ordinary nested `<think>…</think>` case.
-                    _ => continue,
+                    continue;
                 };
-                match view.transcript.last_mut() {
-                    Some(Entry::Reasoning { text, done }) => {
-                        text.push_str(&spoken);
-                        *done = false;
+                let Entry::Said(Speech::Model(spoken)) = view.transcript.remove(at) else {
+                    unreachable!("rposition matched this variant")
+                };
+                // Into the thinking block it belongs to: the one immediately before it, so the
+                // reasoning reads in the order the model produced it.
+                match view.transcript[..at].iter().rposition(|e| matches!(e, Entry::Reasoning { .. }))
+                {
+                    Some(r) => {
+                        if let Entry::Reasoning { text, done } = &mut view.transcript[r] {
+                            text.push_str(&spoken);
+                            *done = false;
+                        }
                     }
-                    _ => view.transcript.push(Entry::Reasoning { text: spoken, done: false }),
+                    None => view
+                        .transcript
+                        .insert(at, Entry::Reasoning { text: spoken, done: false }),
                 }
             }
             // Coalesced into one block, and it opens as soon as the first chunk lands.

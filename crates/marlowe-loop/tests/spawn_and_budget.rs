@@ -56,7 +56,12 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
                 contract: OutputContract::new("findings", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Standard,
-                tools: vec![ToolId::new("web")], // the violation
+                // The violation is the **non-empty set**, not which tool is in it. It was `web`
+                // until `interactive()` stopped exposing tools with no executor, at which point
+                // the spawn was refused by the narrowing rule first and this test stopped
+                // exercising the trifecta rule it is named for. Any tool the parent actually
+                // holds keeps the assertion pointed at the right refusal.
+                tools: vec![ToolId::new("read")],
                 reads_untrusted: true,
             }),
             100,
@@ -966,4 +971,68 @@ fn a_child_cannot_be_less_tainted_than_the_run_that_spawned_it() {
         "a child started clean would launder exactly what ADR-023 blocks: its task string was \
          model-composed from the parent's tainted window"
     );
+}
+
+/// **A tool the model can see but never execute is unrepresentable.**
+///
+/// Five instances: `done` (which cost a run 155 seconds of retrying a failure it could not read),
+/// then `web`, `recall` and `use`, all three exposed by `interactive()` against a host with arms
+/// for four tools. Each passed every unit test, because the registry, the profile and the host
+/// were individually correct and nothing owned the seam between them.
+#[test]
+fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
+    struct FourTools;
+    impl marlowe_loop::ToolHost for FourTools {
+        fn execute(
+            &mut self,
+            _t: &marlowe_tools::ToolId,
+            _a: &marlowe_permission::Args,
+            _adj: &marlowe_permission::Adjudication,
+        ) -> marlowe_loop::ToolOutcome {
+            unreachable!("not called")
+        }
+        fn executes(&self) -> Vec<marlowe_tools::ToolId> {
+            ["read", "edit", "find", "bash"]
+                .iter()
+                .map(|t| marlowe_tools::ToolId::new(*t))
+                .collect()
+        }
+    }
+
+    marlowe_loop::verify_every_exposed_tool_is_runnable(
+        marlowe_loop::CapabilityProfile::interactive().exposed_tools(),
+        &FourTools,
+    )
+    .expect("the shipped profile must not offer a tool that cannot run");
+}
+
+/// **The negative control.** A guard that cannot fail is a comment.
+#[test]
+fn the_guard_names_a_tool_that_has_no_executor() {
+    struct NoTools;
+    impl marlowe_loop::ToolHost for NoTools {
+        fn execute(
+            &mut self,
+            _t: &marlowe_tools::ToolId,
+            _a: &marlowe_permission::Args,
+            _adj: &marlowe_permission::Adjudication,
+        ) -> marlowe_loop::ToolOutcome {
+            unreachable!("not called")
+        }
+        fn executes(&self) -> Vec<marlowe_tools::ToolId> {
+            vec![]
+        }
+    }
+
+    let exposed = marlowe_tools::ExposedSet::new(vec![
+        marlowe_tools::ToolId::new("web"),
+        // Loop control: representable without a host executor, so it must NOT be named.
+        marlowe_tools::ToolId::new("ask"),
+    ])
+    .unwrap();
+
+    let err = marlowe_loop::verify_every_exposed_tool_is_runnable(&exposed, &NoTools)
+        .expect_err("a host with no executors must reject an exposed `web`");
+    assert_eq!(err.0, vec!["web".to_string()], "`ask` is loop control and is exempt");
+    assert!(err.to_string().contains("web"), "the error must name the tool: {err}");
 }

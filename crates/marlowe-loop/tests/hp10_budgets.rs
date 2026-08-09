@@ -235,7 +235,11 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     assert_eq!(registry.len(), 10);
 
     let profile = CapabilityProfile::interactive();
-    assert_eq!(profile.exposed_tools().len(), 10);
+    // **Registered is ten; exposed is seven.** `web`, `recall` and `use` are compiled in and have
+    // no executor, so exposing them handed the model tools it could call and never run. The gap
+    // between these two numbers is the honest statement of what is built — and
+    // `verify_every_exposed_tool_is_runnable` is what keeps it from closing by accident.
+    assert_eq!(profile.exposed_tools().len(), 7);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");

@@ -38,6 +38,10 @@ pub enum DaemonError {
     Scope { detail: String },
     #[error("{detail}")]
     Setup { detail: String },
+    /// The fifth instance of the `done` defect, refused at startup. See
+    /// `marlowe_loop::profile::UnrunnableTools`.
+    #[error("{0}")]
+    UnrunnableTools(#[from] marlowe_loop::UnrunnableTools),
 }
 
 pub struct DaemonConfig {
@@ -242,6 +246,19 @@ impl Daemon {
         // Path scoping must be constructible before anything else. A daemon that started on an
         // unverified platform and refused paths later would present as broken tools.
         WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
+
+        // **Refuse to start rather than offer a tool that cannot run.** A daemon that starts and
+        // then fails every `web` call presents as a broken model; this names the tool instead.
+        // Checked here, before a port is bound or a journal is opened, because it is a statement
+        // about the build and not about this machine.
+        {
+            let scope = WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
+            let host = FileSystemTools::new(scope, config.workspace.clone());
+            marlowe_loop::verify_every_exposed_tool_is_runnable(
+                CapabilityProfile::interactive().exposed_tools(),
+                &host,
+            )?;
+        }
 
         let profile = if config.profile_root.join("profile.json").exists() {
             Profile::open(&config.profile_root)
