@@ -82,3 +82,58 @@ fn the_declared_default_is_well_under_the_recorded_ceiling() {
         "the default must beat Ollama's own, or setting it explicitly buys nothing"
     );
 }
+
+/// **The reply is sent once.** (Observed live: it arrived twice.)
+///
+/// M2 C2e made the reply the result, so `CondensedResult` holds the same text the model already
+/// streamed as `TextDelta`s. Rendering it into `Event::Done`'s detail put it on screen a second
+/// time — the model said `Hello.` and the transcript then showed `answer: Hello.` underneath.
+///
+/// This is the projection's half of the same rule: a `Done` with content becomes a second
+/// `Entry::Said`, so the guard belongs where the duplication would be visible.
+#[test]
+fn a_completed_turn_does_not_repeat_its_reply_in_the_done_frame() {
+    use marlowe_daemon::{apply_events, view_from_status, Event, StatusReport};
+    use marlowe_view::{Entry, Speech};
+
+    let mut view = view_from_status(&StatusReport {
+        version: "0.1.0".into(),
+        workspace: "/ws".into(),
+        model: "m".into(),
+        model_disclosure: "d".into(),
+        degraded: None,
+        rerank_provider: "cpu".into(),
+        live_runs: 0,
+    });
+
+    apply_events(
+        &mut view,
+        &[
+            Event::Text { delta: "Hello.".into() },
+            // A completed turn carries no detail: the prose already went out as deltas.
+            Event::Done {
+                outcome: "completed".into(),
+                detail: String::new(),
+                spend_micros_usd: 0,
+                elapsed_ms: 10,
+            },
+        ],
+    );
+
+    let said: Vec<&String> = view
+        .transcript
+        .iter()
+        .filter_map(|e| match e {
+            Entry::Said(Speech::Model(t)) => Some(t),
+            _ => None,
+        })
+        .collect();
+
+    assert_eq!(
+        said.len(),
+        1,
+        "the reply reached the transcript {} times: {said:?}",
+        said.len()
+    );
+    assert_eq!(said[0], "Hello.");
+}

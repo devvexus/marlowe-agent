@@ -132,6 +132,8 @@ pub enum DegradedPath {
     /// A degraded state must be visible (invariant 4) AND accurate. When the class is unknown,
     /// the honest headline says so and defers to the remedy text.
     Unclassified,
+    /// ADR-023's latch engaged: the run read untrusted content and cannot act on composed targets.
+    TrustFloorLatched,
 }
 
 impl DegradedPath {
@@ -142,6 +144,7 @@ impl DegradedPath {
             DegradedPath::VoiceUnavailable => "voice offline · text only",
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",
             DegradedPath::Unclassified => "degraded · see the Status tab",
+            DegradedPath::TrustFloorLatched => "read untrusted · composed targets blocked",
         }
     }
 
@@ -152,6 +155,9 @@ impl DegradedPath {
             DegradedPath::VoiceUnavailable => "text is unaffected",
             DegradedPath::ProviderFailedOver => "run state preserved across the switch",
             DegradedPath::Unclassified => "the remedy is stated where this was raised",
+            DegradedPath::TrustFloorLatched => {
+                "ADR-023 — spawn a quarantined reader and let an untainted run act on its findings"
+            }
         }
     }
 }

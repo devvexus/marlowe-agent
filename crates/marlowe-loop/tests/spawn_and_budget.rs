@@ -857,3 +857,113 @@ fn an_empty_turn_is_nudged_before_it_is_failed() {
         "two empty turns should be recovered by the nudge, not fatal: {outcome:?}"
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// ADR-023 — the trust floor latches for the run's whole lifetime
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/// **The specific failure, not the mechanism.**
+///
+/// `taint_for` used `ContextView::trust_floor()` — the minimum over the blocks *currently* in the
+/// view. `ToolResults` is trimmable, so the assembler could drop an untrusted block to stay inside
+/// its per-source budget and the floor would **rise again**: the run silently regaining privileges
+/// ADR-023 says it loses permanently, with no error and no event.
+///
+/// This drives that exact sequence — untrusted content in, then enough pressure to trim it out —
+/// and asserts the floor holds. Asserting only that a latch exists would pass against a latch that
+/// never engaged.
+#[test]
+fn the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view() {
+    use marlowe_loop::{Assembler, Block, SourceKind};
+
+    let mut run = root(Budget::interactive());
+    assert_eq!(
+        run.trust_floor(),
+        TrustClass::UserAsserted,
+        "a fresh run has seen nothing untrusted"
+    );
+
+    let mut state = SessionState::new(run.session, "Marlowe.");
+
+    // A tool returns untrusted content — a web page, an inbound mail, an MCP payload.
+    state.push(Block::new(
+        SourceKind::ToolResults,
+        format!("UNTRUSTED-PAGE {}", "p".repeat(500)),
+        TrustClass::UntrustedContent,
+    ));
+
+    // A small window, so the next pushes actually force the assembler to trim.
+    let assembler = Assembler::new(2_000, 200);
+    let view = assembler.assemble(&state);
+    assert_eq!(
+        view.trust_floor(),
+        TrustClass::UntrustedContent,
+        "the untrusted block must be IN the view at this point, or the trim below proves nothing"
+    );
+    assert_eq!(
+        run.latch_trust_floor(view.trust_floor()),
+        Some(TrustClass::UntrustedContent),
+        "the latch must engage the first time untrusted content is seen"
+    );
+
+    // Now bury it: enough trimmable bulk that the assembler drops the untrusted block.
+    for i in 0..40 {
+        state.push(Block::new(
+            SourceKind::ToolResults,
+            format!("filler-{i} {}", "f".repeat(500)),
+            TrustClass::AgentObserved,
+        ));
+    }
+    let later = assembler.assemble(&state);
+
+    // The anti-vacuity check: the block really is gone from the view.
+    assert!(
+        !later.rendered().contains("UNTRUSTED-PAGE"),
+        "the untrusted block was not trimmed, so this test is not exercising the failure it \
+         exists for:\n{}",
+        later.rendered()
+    );
+    assert_eq!(
+        later.trust_floor(),
+        TrustClass::AgentObserved,
+        "the VIEW's floor rose, which is the behaviour that made the hole reachable"
+    );
+
+    // ...and the run's floor did not move with it.
+    assert_eq!(
+        run.latch_trust_floor(later.trust_floor()),
+        None,
+        "the latch must never RAISE the floor"
+    );
+    assert_eq!(
+        run.trust_floor(),
+        TrustClass::UntrustedContent,
+        "the run regained privileges it read untrusted content to lose. ADR-023: once a run has \
+         read untrusted content, every model-composed target in that run is blocked — `once has` \
+         is a property of the run, not of whatever survived the last trim"
+    );
+}
+
+/// A child inherits its parent's floor: a spawn is a narrowing with no widening path.
+#[test]
+fn a_child_cannot_be_less_tainted_than_the_run_that_spawned_it() {
+    let mut parent = root(Budget::interactive());
+    parent.latch_trust_floor(TrustClass::UntrustedContent);
+
+    let child = Run::child(
+        RunId::from_name("child"),
+        &parent,
+        SessionId::from_name("child-session"),
+        CapabilityProfile::quarantined_reader(),
+        Budget::interactive(),
+        OrphanPolicy::Terminate,
+        OutputContract::new("findings", &["findings"]),
+    );
+
+    assert_eq!(
+        child.trust_floor(),
+        TrustClass::UntrustedContent,
+        "a child started clean would launder exactly what ADR-023 blocks: its task string was \
+         model-composed from the parent's tainted window"
+    );
+}

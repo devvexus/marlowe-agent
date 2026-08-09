@@ -45,6 +45,11 @@ pub enum DegradedPath {
     /// a data-integrity failure look like the model babbling, which is the wrong message about the
     /// wrong component.
     JournalAppendFailed,
+    /// The run read untrusted content; model-composed targets are blocked from here on.
+    ///
+    /// Surfaced because it changes what Marlowe can do for the rest of the run, and a user who
+    /// sees a later action refused deserves to know when the constraint engaged.
+    TrustFloorLatched,
     /// ADR-028: the local Ollama endpoint is absent, or the routed model is not pulled.
     ///
     /// A declared value on the run, not a crash — invariant 4. The *specific* remedy
@@ -57,6 +62,9 @@ impl DegradedPath {
     pub fn headline(self) -> &'static str {
         match self {
             DegradedPath::JournalAppendFailed => "audit log write refused · run not recorded",
+            DegradedPath::TrustFloorLatched => {
+                "read untrusted content · composed targets blocked for this run"
+            }
             DegradedPath::DenseRetrievalOffline => "dense retrieval offline · lexical only",
             DegradedPath::VoiceUnavailable => "voice offline · text only",
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",

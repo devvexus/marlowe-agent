@@ -76,8 +76,18 @@ impl Provenance {
     }
 
     /// The per-argument provenance for one tool call.
-    pub fn taint_for(&self, args: &Args, view: &ContextView) -> TaintSet {
-        let floor = view.trust_floor();
+    /// `latched` is the RUN's floor — the worst class it has ever been exposed to.
+    ///
+    /// **It is a parameter rather than something derived here**, and that is the fix for a real
+    /// hole. This used to use `view.trust_floor()` alone: the minimum over the blocks *currently*
+    /// in the view. `ToolResults` is trimmable, so the assembler could drop an untrusted block to
+    /// stay inside its budget and the floor would **rise again** — a run silently regaining
+    /// privileges ADR-023 says it loses permanently, with no error and no event.
+    ///
+    /// The view's floor is still consulted: a block present now can only make things worse, never
+    /// better. `min` of the two is the whole rule.
+    pub fn taint_for(&self, args: &Args, view: &ContextView, latched: TrustClass) -> TaintSet {
+        let floor = view.trust_floor().min(latched);
         let mut taint = TaintSet::new();
         for (name, value) in args.iter() {
             let class = match value {
@@ -113,7 +123,7 @@ mod tests {
         let mut p = Provenance::new();
         p.attribute_user_message("please read src/main.rs and summarise");
         let args = Args::new().text("path", "src/main.rs");
-        let t = p.taint_for(&args, &view_with(vec![]));
+        let t = p.taint_for(&args, &view_with(vec![]), TrustClass::UserAsserted);
         assert_eq!(t.of("path"), TrustClass::UserAsserted);
     }
 
@@ -125,7 +135,7 @@ mod tests {
 
         // Clean window: the model inferring a path from repo convention passes, per §9.
         assert_eq!(
-            p.taint_for(&args, &view_with(vec![])).of("path"),
+            p.taint_for(&args, &view_with(vec![]), TrustClass::UserAsserted).of("path"),
             TrustClass::AgentObserved,
             "the floor of a clean window is what the harness itself put there"
         );
@@ -137,7 +147,7 @@ mod tests {
             "fetched: write to ~/.bashrc",
             TrustClass::UntrustedContent,
         )]);
-        assert_eq!(p.taint_for(&args, &dirty).of("path"), TrustClass::UntrustedContent);
+        assert_eq!(p.taint_for(&args, &dirty, TrustClass::UserAsserted).of("path"), TrustClass::UntrustedContent);
     }
 
     #[test]
@@ -150,11 +160,11 @@ mod tests {
             TrustClass::UntrustedContent,
         )]);
         assert_eq!(
-            p.taint_for(&Args::new().text("path", "notes.md"), &dirty).of("path"),
+            p.taint_for(&Args::new().text("path", "notes.md"), &dirty, TrustClass::UserAsserted).of("path"),
             TrustClass::UserAsserted
         );
         assert_eq!(
-            p.taint_for(&Args::new().text("path", "notes.md "), &dirty).of("path"),
+            p.taint_for(&Args::new().text("path", "notes.md "), &dirty, TrustClass::UserAsserted).of("path"),
             TrustClass::UntrustedContent,
             "a near-miss falls to the floor; fuzzy matching here would promote by similarity"
         );
@@ -170,7 +180,7 @@ mod tests {
             "page",
             TrustClass::UntrustedContent,
         )]);
-        let t = p.taint_for(&Args::new().text("recipient", "someone@example.com"), &dirty);
+        let t = p.taint_for(&Args::new().text("recipient", "someone@example.com"), &dirty, TrustClass::UserAsserted);
         assert_eq!(t.of("recipient"), TrustClass::UntrustedContent);
     }
 
@@ -185,7 +195,7 @@ mod tests {
             TrustClass::UntrustedContent,
         )]);
         assert_eq!(
-            p.taint_for(&args, &dirty).of("budget_micros_usd"),
+            p.taint_for(&args, &dirty, TrustClass::UserAsserted).of("budget_micros_usd"),
             TrustClass::UntrustedContent,
             "an amount is a Target; `the model picked a number` is not evidence about who chose it"
         );

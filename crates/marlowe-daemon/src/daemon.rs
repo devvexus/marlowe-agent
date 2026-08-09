@@ -456,7 +456,16 @@ impl Daemon {
         drop(sink);
 
         let (status, detail) = match &outcome {
-            LoopOutcome::Completed(r) => ("completed", r.render()),
+            // **Empty, and that is the fix for a double-send.**
+            //
+            // M2 C2e made the reply the result, so `CondensedResult` now holds the SAME text the
+            // model already streamed as `TextDelta`s. Rendering it here put it on screen twice:
+            // once as the answer, then again as `answer: Hello.` — observed live.
+            //
+            // The turn's prose reaches the user through the stream. `Done` carries the OUTCOME,
+            // not a second copy of the content; a client that wants the structured result asks
+            // for the run, which is the only place it belongs.
+            LoopOutcome::Completed(_) => ("completed", String::new()),
             LoopOutcome::Paused { reason } => ("paused", format!("{reason:?}")),
             LoopOutcome::Escalated { question } => ("escalated", question.clone()),
             LoopOutcome::Cancelled => ("cancelled", String::new()),

@@ -26,6 +26,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use marlowe_contract::TrustClass;
 use uuid::Uuid;
 
 use crate::budget::{Budget, Dimension};
@@ -232,9 +233,82 @@ pub struct Run {
     pub orphan_policy: OrphanPolicy,
     pub output_contract: OutputContract,
     pub last_checkpoint: Option<u64>,
+    /// **The latched trust floor. Monotonic: it only ever falls.**
+    ///
+    /// ADR-023 says *"**once a run has read untrusted content**, every model-composed Target in
+    /// that run is blocked"* — a property of the RUN, permanent from the moment it holds.
+    ///
+    /// It was derived from `ContextView::trust_floor()`, the minimum trust class of the blocks
+    /// **currently in the view**. `ToolResults` — where untrusted content lands — is trimmable, so
+    /// the assembler could drop the untrusted block to stay inside its budget and the floor would
+    /// **rise again**. The run would silently regain privileges it was supposed to have lost, with
+    /// no error and no event.
+    ///
+    /// Making untrusted blocks untrimmable was the alternative and is worse: one poisoned page
+    /// would pin the window open for the rest of the run, converting a security property into a
+    /// denial of service.
+    ///
+    /// **The new loop is what made this reachable.** With `done` removed and multi-step work
+    /// actually happening, a run can now last long enough for trimming to occur mid-run — which it
+    /// structurally could not before.
+    trust_floor: TrustClass,
 }
 
 impl Run {
+    /// The run's trust floor: the worst class it has ever been exposed to.
+    pub fn trust_floor(&self) -> TrustClass {
+        self.trust_floor
+    }
+
+    /// Lower the floor if this view is worse than anything seen before. **Never raises it.**
+    ///
+    /// Returns `Some(new_floor)` when it actually moved, so the caller can record and announce
+    /// the change — a guard that engages silently is a guard nobody can confirm engaged.
+    pub fn latch_trust_floor(&mut self, observed: TrustClass) -> Option<TrustClass> {
+        if observed < self.trust_floor {
+            self.trust_floor = observed;
+            Some(observed)
+        } else {
+            None
+        }
+    }
+
+    /// A child of `parent`. **Inherits the parent's latched floor.**
+    ///
+    /// A spawn is a narrowing and there is no widening path (§5), so a child can never be *less*
+    /// tainted than the run that created it — its task string was model-composed from the parent's
+    /// window, and starting it clean would launder exactly what ADR-023 blocks.
+    ///
+    /// The quarantined-reader pattern still works, and this is why it is the *only* thing that
+    /// works: an UNTAINTED orchestrator spawns a reader, the reader's own floor drops when it
+    /// reads the page, and the structured findings it returns carry a class the orchestrator can
+    /// act on. The orchestrator never saw the page, so its floor never moved.
+    #[allow(clippy::too_many_arguments)]
+    pub fn child(
+        id: RunId,
+        parent: &Run,
+        session: SessionId,
+        profile: CapabilityProfile,
+        budget: Budget,
+        orphan_policy: OrphanPolicy,
+        output_contract: OutputContract,
+    ) -> Self {
+        Self {
+            id,
+            parent: Some(parent.id),
+            session,
+            trace_id: parent.trace_id, // one trace across the tree — invariant 7's replay key
+            status: RunStatus::Queued,
+            profile,
+            budget,
+            spent: Budget::default(),
+            orphan_policy,
+            output_contract,
+            last_checkpoint: None,
+            trust_floor: parent.trust_floor,
+        }
+    }
+
     pub fn root(
         id: RunId,
         session: SessionId,
@@ -256,6 +330,8 @@ impl Run {
             orphan_policy: OrphanPolicy::Terminate,
             output_contract,
             last_checkpoint: None,
+            // The highest class: nothing untrusted has been seen yet.
+            trust_floor: TrustClass::UserAsserted,
         }
     }
 

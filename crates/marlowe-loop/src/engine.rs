@@ -277,6 +277,21 @@ impl<S: PathScope> Engine<S> {
                 ));
             }
 
+            // ── latch the run's trust floor ──────────────────────────────────────────
+            //
+            // Monotonic and permanent. Announced when it moves, because a guard that engages
+            // silently is a guard nobody can confirm engaged.
+            if let Some(floor) = run.latch_trust_floor(view.trust_floor()) {
+                self.record(
+                    ports,
+                    EventKind::TrustFloorLatched,
+                    run,
+                    state,
+                    json!({ "floor": format!("{floor:?}") }),
+                );
+                ports.sink.emit(TurnEvent::Degraded { what: DegradedPath::TrustFloorLatched });
+            }
+
             let empty_tools = ExposedSet::new(Vec::new()).expect("an empty set is within the cap");
             let offered_tools = if tool_calls_this_turn >= FARMING_HARD_STOP {
                 &empty_tools
@@ -569,7 +584,7 @@ impl<S: PathScope> Engine<S> {
         let manifest = manifest.clone();
 
         // Provenance is computed HERE, by the harness, from the view the model actually saw.
-        let taint = provenance.taint_for(&args, view);
+        let taint = provenance.taint_for(&args, view, run.trust_floor());
 
         let adjudication = self.adjudicator.adjudicate(Request {
             manifest: &manifest,
@@ -725,20 +740,16 @@ impl<S: PathScope> Engine<S> {
         };
 
         let child_id = RunId::new();
-        let mut child_run = Run {
-            id: child_id,
-            parent: Some(run.id),
-            session: SessionId::new(),
-            trace_id: run.trace_id, // one trace across the tree — invariant 7's replay key
-            status: RunStatus::Queued,
-            profile: child_profile,
-            budget: child_budget,
-            spent: Budget::default(),
+        let mut child_run = Run::child(
+            child_id,
+            run,
+            SessionId::new(),
+            child_profile,
+            child_budget,
             // Declared at spawn, never inferred. Recorded and unused at M2.
-            orphan_policy: req.orphan,
-            output_contract: req.contract.clone(),
-            last_checkpoint: None,
-        };
+            req.orphan,
+            req.contract.clone(),
+        );
         self.record(
             ports,
             EventKind::RunSpawned,

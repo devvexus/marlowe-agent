@@ -74,6 +74,12 @@ pub enum EventKind {
     ToolCompleted,
     ToolFailed,
     EgressBlocked,
+    /// The run's trust floor fell and will never rise again (ADR-023).
+    ///
+    /// Journalled because it is a permanent, run-level privilege change: from here on every
+    /// model-composed target is blocked, and a reader reconstructing the run needs to know when
+    /// that started and why the calls after it were refused.
+    TrustFloorLatched,
 
     // -- memory: writes ---------------------------------------------------------------
     /// The ONLY way a belief comes into existence.
