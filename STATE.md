@@ -1,5 +1,95 @@
 # State
 
+## M2 C2e - the agent loop is honest about what it sends and what it shows. `2be2179`.
+
+**542 tests. `cargo build --release` clean. Seven commits, and not one of these defects was found
+by a test.** Every one was live-reproduced, and every fix verified against the running process
+rather than against a body built in a test process.
+
+### The one that explains most of the others
+
+**The conversation sent to `/api/chat` was lossy in five ways, and they compounded.** Found by
+fixing the instrument first: `--dev`'s outbound dump printed only the system tier, so the shape of
+the conversation - the part deciding whether the model can see its own tool calls - was the one
+thing it could not show.
+
+```
+[ 4] user       52 chars  tool_calls=0  tool_name=""
+[ 5] tool       54 chars  tool_calls=0  tool_name=""  "983 lines - 69630 B - ref 225bfe8df7"
+[ 6] tool       54 chars  tool_calls=0  tool_name=""  "983 lines - 69630 B - ref 225bfe8df7"
+[ 9] assistant 1215 chars  "[your prior reasoning]\nThe user wants me to read..."
+```
+
+1. **No assistant message carried `tool_calls`.** A tool result appeared with nothing that produced
+   it. Measured against the live endpoint: given that shape the model **abandons the task and
+   narrates**; given the documented shape it **acts on the result**.
+2. **No `tool_name`.** Five identical results, no way to tell them apart.
+3. **The model never received the file.** `read` returned a hash for a 69 KB file and `read` has no
+   parameter accepting one, so it called `read` five times chasing the same hash. `ToolOutcome` now
+   carries a head/tail preview with the omission stated in words.
+4. **Reasoning was replayed as text prefixed `[your prior reasoning]` - and the model imitated the
+   marker.** The first leak reported this session contained `[your reasoning continues]`, a string
+   that appears **nowhere in this repository**. Two tool calls were spent hunting it.
+5. **Sliding-window reasoning**: only the newest assistant turn keeps `thinking`. Older reasoning
+   compounds - three turns of "let me check one more thing" replayed together read as a standing
+   instruction to keep checking.
+
+**After: one read instead of five, correct answer, 3.4 s.**
+
+### The `</think>` on the user's screen - three attempts, two of them my own bugs
+
+| Attempt | What it did | Why it was wrong |
+|---|---|---|
+| 1 | Split the tags out of `content`, retract late | The retraction fired and the **projection ignored it** - it checked `transcript.last()`, found the reasoning block the provider had just created, and no-opped. The leak stayed on screen with a verbatim copy underneath |
+| 2 | Provider stops re-sending; projection **searches** for the outstanding speech | Correct, but still showed purple text before taking it back - which the rule forbids |
+| 3 | **Hold**: content never renders as speech until the block is known shut | Correct, and it stopped the reply streaming |
+
+**The measurement that settled it.** `--dev` on an 848-frame turn: `<think>` **never appears on the
+wire** (the chat template emits it), the closing tag arrived at frame **846**, and the whole answer
+was frame 847 - seven bytes. That is why "start Outside and look for an open" could never work.
+
+**Then fixing the wire shape changed the measurement.** Ollama began parsing the block itself:
+`native_thinking=450B, content=31B, close_tag_in_content=false`. No closing tag ever arrives, so
+the hold never resolved and the reply came out in one lump. **Resolved rule: a `thinking` delta
+means the provider is separating the channels, so `content` is outside the block and streams.**
+Verified live - 9 text events, ~30 ms apart.
+
+### Fifth instance of the `done` defect, closed structurally
+
+`web`, `recall` and `use` were exposed against a host with arms for **four** tools. Every call
+returned `has no executor in this build` - a failure the model cannot interpret. `done` was the
+first instance and cost a run 155 seconds.
+
+`marlowe_loop::verify_every_exposed_tool_is_runnable` now refuses at **load time**;
+`ToolHost::executes` is required with **no default**, because a permissive default is the thing it
+exists to prevent. `interactive()` exposes **seven** - four executable builtins plus the three
+loop-control tools. **Registered is still ten; the gap is the honest statement of what is built.**
+
+### Other defects closed
+
+- **No conversation history at all.** `ask_streaming` built a fresh `SessionState` on **every**
+  request, so every turn was turn 1. The session *id* was stable, which is exactly why it was
+  invisible - everything downstream was correctly keyed to a session nobody stored.
+- **The system prompt told the model to call `done`**, long after `done` was removed. Found in the
+  outbound dump. Guarded by a test **with a negative control**, because the new prompt has no
+  backticks and the obvious assertion would have been vacuous.
+- **A refused tool call emitted no section-B6 line.** Both refusal paths returned before the emit,
+  so a run that tried three times and was refused three times rendered as one that never tried.
+- **`think` is a declared setting** (`--no-thinking`), never inherited from the provider.
+
+### Three lessons this session earned, stated for the next one
+
+1. **A test used an event order the provider never produces.** `Text, Text, SpeechRetracted` - a
+   real turn interleaves reasoning deltas and tool lines in between. The projection passed the test
+   and failed on screen. *A test of a consumer must replay the producer's actual output.*
+2. **A guard whose subject has no instances is vacuous.** The prompt-tool guard scanned backticked
+   words; the new prompt has none, so it passed over an empty list. It now has a negative control
+   pinned to the exact string that shipped broken.
+3. **`--ask` has no `--daemon-port`.** A memory test ran two `--ask` commands against a running
+   daemon, both said "no colour yet", and the fix was nearly reported broken. That was measuring
+   the CLI's connection behaviour and reading it as a property of the session store.
+
+
 ## M2 C2d — `marlowe --tui` drives the real engine. ADR-030. `9f51476`.
 
 **494 cargo tests (from 457), `eval/` untouched at 72, `repro` byte-identical to the pre-change
@@ -872,6 +962,77 @@ be done as one run. A proposal that treats a strong/cheap split as free is a pro
 priced the measurement. Recorded here so it does not surface as a surprise inside one.
 
 ## Known issues
+
+### M2 C2e - outstanding, highest first
+
+- **`web`, `recall` and `use` have no executors and are NOT exposed.** `web` is the one that
+  matters: it is a core tool and removing it from the exposed set hides the problem rather than
+  fixing it. **Decision taken, not yet built: mimic Claude Code - fetch AND search, any host, with
+  approval.** Blocked on two things. (a) There is **no TLS anywhere in this workspace**;
+  `marlowe-provider/src/http.rs` is a hand-rolled plaintext TCP client for localhost Ollama whose
+  own header says "no https, no redirect following". Needs `rustls` - a new dependency, so an ADR.
+  (b) `interactive()` is `EgressPolicy::DenyAll`, so even a working executor is blocked at the
+  boundary - brief section 13 territory, needs a `DECISIONS.md` entry, not a quiet flip.
+- **The trust floor latches on an ordinary workspace read.** Every live run prints
+  `! read untrusted content - composed targets blocked for this run` after a plain `read`. ADR-023
+  is doing what it says; the question is whether a workspace read should move the floor at all.
+  Unchased.
+- **`ParamSpec` conflates a security role with an arity question, and the pin is APPROVED to move.**
+  `required` in the JSON schema is derived from `ArgumentRole::Target` - but Target answers *what
+  untrusted content may never shape*, not *what the executor demands*. **11 measured mismatches**:
+  9 params marked required that are not (`bash.cwd` is the clearest - the executor defaults it to
+  the workspace while the schema forces the model to invent one), and 2 the executor demands that
+  the schema calls optional (`find.pattern`, `edit.content` - schema-valid calls the executor
+  rejects). Human approved: `ParamSpec` gains a requiredness field, CONTRACTS 7.3 amended,
+  `DECISIONS.md` entry, **all three sites changed together** - the schema, `param_description`, and
+  `Engine::expected_params`. A model told the wrong thing and then corrected with the same wrong
+  thing is worse than one told nothing.
+- **Descriptions promise operations that do not exist.** `bash` says "persistent shell session"
+  (`spawn_shell` runs a fresh `cmd /C` per call), `find` says "index-backed symbol lookup" (it is
+  `line.contains`), `edit` says "atomic" (it is `set_len(0)` + rewrite), `read` says "blob, or
+  reference" (no parameter accepts either). Model-visible prose that makes the model call things
+  wrongly and then blame itself.
+- **`run.budget_micros_usd` types as `Amount`, which `parse_step` can never produce** - it emits
+  `ArgValue::Integer`. `blast_radius` collects targets via `as_text`, which returns `None` for
+  `Integer`, **so the spend ceiling never appears in the approval prompt's scope line**. Section B9
+  requires blast radius stated; a budget absent from the scope line is exactly the case where a
+  human approves something they would have refused. **Highest-consequence finding of the tool
+  audit.** `adjudicate.rs` is section-13 guarded: this needs a `DECISIONS.md` entry **before** it
+  is fixed.
+- **`--ask` cannot talk to a running daemon.** No `--daemon-port`; it always runs in-process, so
+  two `--ask` invocations get two daemons and two empty sessions. The TUI is unaffected.
+- **Session memory is in-process only.** The store lives on `Daemon`; it does not survive a restart.
+- **`bash` is refused unconditionally in the daemon.** `Irreversible` -> `NeedsApproval` at every
+  tier -> `DenyUnattended` returns false. There is no interactive approval gate yet, so it always
+  reads `declined`.
+- **`run` never spawns from a model call.** `control_step` returns a canned
+  "[run is not yet reachable from a model call...]", and the schema still demands three spawn
+  arguments.
+- **`read` cannot dereference a reference.** `web` declares `inline_threshold_bytes: 0` - "the loop
+  gets a reference" - and nothing can read one. The head/tail preview is a stopgap; the content
+  store is M2 D.
+- **`consolidation()` exposes `recall`, which has no executor.** It will fail
+  `verify_every_exposed_tool_is_runnable` the moment it is wired at M2 D. Left as declared: the
+  guard firing then is the guard working.
+- **Tool lines render OUTSIDE the thinking block.** `Entry::Tools` is a peer of `Entry::Reasoning`,
+  so lines land between reasoning blocks rather than nested. **Not intentional - it fell out of
+  section B6's one-line-per-call being its own entry. The human has seen it and asked for it to
+  stay.**
+- **Nudges reach the model as `system` messages** mid-conversation. Observed in the dump. Whether
+  they are journalled is the human's acceptance condition 2 and is still unanswered.
+- **Never seen again, never explained:** one live reply contained a literal `[tool .]` marker. Not
+  in the source. Possibly the model imitating a tool line, as it imitated `[your prior reasoning]`.
+
+### Deferred with the human's agreement
+
+- **Deep research is out of scope** (brief section 10).
+- **Hermes agent-loop research** - asked for, displaced by live bugs, never done.
+- **The `web` manifest cannot express search** (`url` required, `query` optional, description says
+  "Search and fetch"). ADR-006 territory; folded into the `web` work above.
+- **Acceptance conditions 6 -> 4 -> 5 -> 1** are partially covered by this session's tests. The
+  unmeasured constants (1) - `MAX_AUTO_CONTINUE`, the three farming thresholds, `max_iterations` -
+  are still unmeasured and still unmarked as placeholders.
+
 
 - **The export gap is now on the SHIPPED path.** The graph is **self-validated only** — this project
   is the publisher, so there is no external authority. Digest pinning, torch-vs-ORT at 1e-6,
