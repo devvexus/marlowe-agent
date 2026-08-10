@@ -119,11 +119,14 @@ fn to_wire(event: TurnEvent) -> Option<Event> {
                 // The specific remedy is the provider's to state; the loop only knows the class.
                 remedy: "see `marlowe --status`".to_string(),
             },
+            // **The prompt the GATE sends is the one that carries a decision id.** This one is
+            // the loop announcing that it is about to ask, so it is render-only and its id is 0.
             TurnEvent::ApprovalPrompt(br) => Event::Approval {
                 decision: 0,
                 verb: br.verb,
                 scope: br.scope,
                 reversible: br.reversible,
+                novelty: br.novelty.map(|n| format!("{n:?}")),
             },
         TurnEvent::Done { .. } => return None,
     })
@@ -162,6 +165,73 @@ struct DenyUnattended;
 impl ApprovalGate for DenyUnattended {
     fn await_approval(&mut self, _radius: &BlastRadius) -> bool {
         false
+    }
+}
+
+/// The interactive gate: **asks the client that opened this connection, and blocks.**
+///
+/// # Why it round-trips on the existing connection rather than waiting for `Request::Approve`
+///
+/// The daemon is serial — `serve` accepts one connection, serves it to completion, then accepts
+/// the next. A client that answered on a *second* connection would be talking to a listener that
+/// is not listening: the turn holding the first connection is exactly what is blocked. So the
+/// approval travels on the socket that is already open. The daemon writes `Event::Approval` and
+/// then reads one line back.
+///
+/// **It holds its own clones of the socket**, rather than sharing the event writer. Two mutable
+/// borrows of one writer would not compile, and the alternative — routing the prompt through the
+/// event callback and the answer through somewhere else — would split one exchange across two
+/// mechanisms. Writes are sequential on one thread, so ordering on the wire is preserved.
+///
+/// **Every failure is a denial.** A hung-up client, a malformed reply, a reply naming a different
+/// decision: all return `false`. §8.2 puts enforcement in the harness, and a gate that approved
+/// because it could not hear the answer would be enforcement in name only.
+struct SocketApprovals {
+    writer: TcpStream,
+    reader: BufReader<TcpStream>,
+    next_decision: u64,
+}
+
+impl SocketApprovals {
+    fn new(writer: TcpStream, reader: BufReader<TcpStream>) -> Self {
+        Self { writer, reader, next_decision: 1 }
+    }
+}
+
+impl ApprovalGate for SocketApprovals {
+    fn await_approval(&mut self, radius: &BlastRadius) -> bool {
+        let decision = self.next_decision;
+        self.next_decision += 1;
+
+        // §B9 wants the blast radius stated rather than the command. `scope` carries every
+        // declared Target — including the numeric ones, which `ArgValue::render` made visible in
+        // M2 C2f; before that a spend ceiling was silently absent from this line.
+        //
+        // **`novelty` is carried as an Option and is NOT defaulted.** §B9 asks for a novelty
+        // reason and a ceiling; the ceiling has no producer yet (the trust ledger is M6). Sending
+        // `"routine"` because nothing said otherwise would be a claim about promotion logic
+        // nobody has written. Absent renders as absent.
+        let prompt = Event::Approval {
+            decision,
+            verb: radius.verb.clone(),
+            scope: radius.scope.clone(),
+            reversible: radius.reversible,
+            novelty: radius.novelty.as_ref().map(|n| format!("{n:?}")),
+        };
+        if crate::protocol::write_line(&mut self.writer, &prompt).is_err() {
+            return false;
+        }
+
+        let mut line = String::new();
+        match self.reader.read_line(&mut line) {
+            Ok(0) | Err(_) => false,
+            Ok(_) => match serde_json::from_str::<Request>(line.trim()) {
+                // The reply must name the decision it is answering. A client that answered a
+                // stale prompt would otherwise approve whatever is pending now.
+                Ok(Request::Approve { decision: d, granted }) if d == decision => granted,
+                _ => false,
+            },
+        }
     }
 }
 
@@ -332,6 +402,23 @@ impl Daemon {
         &mut self,
         session: &str,
         message: &str,
+        mut on_event: impl FnMut(Event),
+    ) {
+        self.ask_streaming_with(session, message, &mut DenyUnattended, on_event)
+    }
+
+    /// As [`Self::ask_streaming`], with the approval gate supplied by the caller.
+    ///
+    /// **`serve_one` passes a gate that round-trips on the live connection.** The daemon is
+    /// serial: it serves one request at a time, so a `Request::Approve` arriving on a *second*
+    /// connection could not be read while the turn holding the first is still running. The
+    /// approval therefore travels on the connection that is already open — the daemon writes
+    /// `Event::Approval` and blocks reading one line back.
+    pub fn ask_streaming_with(
+        &mut self,
+        session: &str,
+        message: &str,
+        approvals: &mut dyn ApprovalGate,
         mut on_event: impl FnMut(Event),
     ) {
         // The run is recorded FIRST, before anything can fail. The daemon accepted the work, so
@@ -534,7 +621,6 @@ impl Daemon {
         };
         let mut tools = FileSystemTools::new(tool_scope, self.config.workspace.clone());
         let mut summarizer = PassthroughSummarizer;
-        let mut approvals = DenyUnattended;
         let mut sink = CallbackSink { on_event: &mut on_event };
         let mut control = NoControl;
         let mut clock = SystemClock;
@@ -585,7 +671,7 @@ impl Daemon {
                 summarizer: &mut summarizer,
                 tools: &mut tools,
                 memory: None,
-                approvals: &mut approvals,
+                approvals,
                 sink: &mut sink,
                 control: &mut control,
                 clock: &mut clock,
@@ -642,11 +728,16 @@ impl Daemon {
     /// Answer a request, emitting each event **as it is produced**.
     ///
     /// `Ask` streams; everything else is a single frame and has nothing to stream.
-    fn handle(&mut self, request: Request, mut on_event: impl FnMut(Event)) {
+    fn handle(
+        &mut self,
+        request: Request,
+        approvals: &mut dyn ApprovalGate,
+        mut on_event: impl FnMut(Event),
+    ) {
         match request {
             Request::Status => on_event(Event::Status(self.status())),
             Request::Ask { session, message } => {
-                self.ask_streaming(&session, &message, on_event)
+                self.ask_streaming_with(&session, &message, approvals, on_event)
             }
             Request::Runs => {
                 for e in self.runs() {
@@ -742,8 +833,14 @@ impl Daemon {
                     });
                 }
             }
+            // **An approval arriving on its OWN connection cannot be honoured, and the reason is
+            // the daemon's serialism rather than a missing feature.** The turn that raised the
+            // prompt is holding the only connection being served; a second one is not read until
+            // that turn finishes, by which time the decision it answers has already been denied.
+            // The live path answers on the connection the prompt arrived on — see
+            // `SocketApprovals`. This arm stays so the wire shape is total, and it says why.
             Request::Approve { .. } => on_event(Event::Error {
-                detail: "approvals need an attached surface; the daemon does not self-approve"
+                detail: "an approval must be answered on the connection that asked for it. This                          daemon serves one connection at a time, so a decision sent on a second                          connection is read only after the turn it answers has already been                          denied. Concurrency is M3."
                     .into(),
             }),
         }
@@ -806,8 +903,30 @@ impl Daemon {
         // so it is captured and returned after the turn: aborting mid-turn would leave the run
         // half-recorded, and the daemon owns the run whether or not anyone is listening
         // (invariant 6).
+        // **The gate holds its own clones.** See `SocketApprovals`: the event writer is borrowed
+        // by the callback below, and one exchange split across two mechanisms would be worse than
+        // a second file descriptor.
+        //
+        // **The ORIGINAL reader is moved in, not a second one over the same socket.** A fresh
+        // `BufReader` would start with an empty buffer while this one may already hold bytes the
+        // client sent after the request line — those bytes would be stranded in a reader nobody
+        // reads again. It is not reachable today, because the client cannot answer a prompt it has
+        // not been sent yet, but a second buffer over one socket is a bug waiting for a client
+        // that pipelines.
+        let mut approvals = match writer.try_clone() {
+            Ok(w) => Some(SocketApprovals::new(w, reader)),
+            // A socket that cannot be cloned cannot carry an approval, and the honest gate for
+            // that is the one that denies.
+            Err(_) => None,
+        };
+        let mut deny = DenyUnattended;
+        let gate: &mut dyn ApprovalGate = match approvals.as_mut() {
+            Some(a) => a,
+            None => &mut deny,
+        };
+
         let mut write_err: Option<std::io::Error> = None;
-        self.handle(request, |event| {
+        self.handle(request, gate, |event| {
             if write_err.is_some() {
                 return;
             }
@@ -866,4 +985,97 @@ pub fn memory_recorder() -> MemoryRecorder {
 /// rather than a literal so `the_system_prompt_names_no_tool_that_does_not_exist` has a subject.
 pub fn governance_prompt() -> &'static str {
     "Use a tool when the user asks for something a tool can do. You may call tools while      reasoning. When the task is complete, reply to the user in prose and call no tool — that is      what ends the turn."
+}
+
+#[cfg(test)]
+mod approval_gate_tests {
+    use super::*;
+    use marlowe_permission::BlastRadius;
+    use std::io::Write as _;
+
+    fn radius() -> BlastRadius {
+        BlastRadius {
+            verb: "web".into(),
+            scope: "https://example.com/".into(),
+            reversible: true,
+            novelty: None,
+        }
+    }
+
+    /// A connected pair, so the gate is exercised over a real socket rather than a mock. The
+    /// client half is returned for the test to answer on.
+    fn pair() -> (SocketApprovals, TcpStream) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let client = TcpStream::connect(addr).expect("connect");
+        let (server, _) = listener.accept().expect("accept");
+        let reader = BufReader::new(server.try_clone().expect("clone"));
+        (SocketApprovals::new(server, reader), client)
+    }
+
+    fn answer(client: &mut TcpStream, line: &str) {
+        client.write_all(line.as_bytes()).expect("write");
+        client.write_all(b"\n").expect("newline");
+        client.flush().expect("flush");
+    }
+
+    #[test]
+    fn a_granted_decision_is_approved_and_the_prompt_names_the_blast_radius() {
+        let (mut gate, mut client) = pair();
+        answer(&mut client, r#"{"op":"approve","decision":1,"granted":true}"#);
+        assert!(gate.await_approval(&radius()));
+
+        // §B9: the prompt states the blast radius, not the command. Read it back off the wire —
+        // asserting on a struct built in the test would prove nothing about what was sent.
+        let mut sent = String::new();
+        BufReader::new(client).read_line(&mut sent).expect("the prompt was written");
+        assert!(sent.contains("example.com"), "the scope must reach the client: {sent}");
+        assert!(sent.contains("\"decision\":1"), "the prompt must carry its id: {sent}");
+    }
+
+    #[test]
+    fn a_declined_decision_is_denied() {
+        let (mut gate, mut client) = pair();
+        answer(&mut client, r#"{"op":"approve","decision":1,"granted":false}"#);
+        assert!(!gate.await_approval(&radius()));
+    }
+
+    /// **Every failure is a denial**, and each of these is a separate way to fail. A gate that
+    /// approved because it could not hear the answer would make §8.2's "the harness enforces"
+    /// a statement about a code path that does not run.
+    #[test]
+    fn silence_a_malformed_reply_and_a_stale_decision_id_are_all_denials() {
+        // Hung up without answering.
+        let (mut gate, client) = pair();
+        drop(client);
+        assert!(!gate.await_approval(&radius()), "a client that hung up has not approved");
+
+        // Answered with something that is not a decision.
+        let (mut gate, mut client) = pair();
+        answer(&mut client, "not json at all");
+        assert!(!gate.await_approval(&radius()), "a malformed reply is not an approval");
+
+        // Answered a DIFFERENT decision — the stale-prompt case. Without the id check this
+        // would approve whatever happens to be pending now.
+        let (mut gate, mut client) = pair();
+        answer(&mut client, r#"{"op":"approve","decision":99,"granted":true}"#);
+        assert!(
+            !gate.await_approval(&radius()),
+            "a reply naming another decision must not approve this one"
+        );
+    }
+
+    /// Ids increment, so two prompts in one turn cannot be confused for each other.
+    #[test]
+    fn each_prompt_in_a_turn_gets_its_own_decision_id() {
+        let (mut gate, mut client) = pair();
+        answer(&mut client, r#"{"op":"approve","decision":1,"granted":true}"#);
+        assert!(gate.await_approval(&radius()));
+        // The second prompt is decision 2; answering it with 1 again must fail.
+        answer(&mut client, r#"{"op":"approve","decision":1,"granted":true}"#);
+        assert!(
+            !gate.await_approval(&radius()),
+            "re-sending the previous decision must not approve the next one"
+        );
+    }
 }

@@ -1299,9 +1299,21 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
 
 ### M2 C2e - outstanding, highest first
 
-- **PARTLY CLOSED (C2f): `web` has an executor and TLS exists.** It is still not exposed, because
-  `interactive()` is still `DenyAll` — ADR-032 is proposed and unapproved. `recall` and `use` are
-  unchanged. The original entry, for the record:
+- **PARTLY CLOSED (C2f): `web` has an executor, TLS exists, and the daemon can now ASK.**
+  `SocketApprovals` writes `Event::Approval` and blocks reading one line back **on the connection
+  that is already open** — the daemon is serial, so a `Request::Approve` on a second connection is
+  only read after the turn it answers has been denied. That arm now says so instead of reading as
+  a missing feature. Every failure is a denial: hang-up, malformed reply, and a reply naming a
+  different decision, each with its own test over a real socket pair.
+  **STILL NOT USABLE END TO END, and this is the honest gap:** (a) **no client answers the prompt
+  yet** — `live.rs` reads `Event::Approval` and does nothing with it, and the TUI has no approval
+  UI; (b) `interactive()` is still `DenyAll`, so `web` is not exposed. **The gate has unit tests
+  and nothing has crossed it**, which is precisely the shape CLAUDE.md warns about — treat it as
+  unverified until a real approval is observed on a real turn.
+  **§B9 is partly served:** the prompt carries the blast radius and now `novelty`, as an `Option`
+  that is never defaulted. **There is still no ceiling** — no producer exists until the trust
+  ledger at M6, and defaulting one would be a claim about promotion logic nobody has written.
+  `recall` and `use` are unchanged. The original entry, for the record:
 - **`web`, `recall` and `use` have no executors and are NOT exposed.** `web` is the one that
   matters: it is a core tool and removing it from the exposed set hides the problem rather than
   fixing it. **Decision taken, not yet built: mimic Claude Code - fetch AND search, any host, with

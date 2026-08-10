@@ -76,7 +76,19 @@ pub enum Event {
     /// Invariant 4. Carries the **remedy**, not just the fact.
     Degraded { what: String, remedy: String },
     /// §B9. The client renders; the daemon decides.
-    Approval { decision: u64, verb: String, scope: String, reversible: bool },
+    /// §B9's approval prompt. **The blast radius, never the command.**
+    ///
+    /// `novelty` is `Option` and is never defaulted: §B9 wants a novelty reason *and* a ceiling,
+    /// the ceiling has no producer until the trust ledger at M6, and sending `"routine"` because
+    /// nothing said otherwise would be a claim about promotion logic nobody has written. A missing
+    /// field renders as missing.
+    Approval {
+        decision: u64,
+        verb: String,
+        scope: String,
+        reversible: bool,
+        novelty: Option<String>,
+    },
     /// The turn ended. `outcome` distinguishes completed / paused / escalated / failed.
     Done { outcome: String, detail: String, spend_micros_usd: u64, elapsed_ms: u64 },
     /// A run the daemon owns.

@@ -405,6 +405,10 @@ fn a_blocked_tool_call_reaches_the_transcript() {
                 verb: "bash".into(),
                 scope: "echo hello marlowe · .".into(),
                 reversible: false,
+                // §B9 wants a novelty reason. There is no producer for one yet, and `None`
+                // renders as absent rather than as "routine" — a default here would be a claim
+                // about promotion logic nobody has written.
+                novelty: None,
             },
             Event::Tool {
                 id: 2,
