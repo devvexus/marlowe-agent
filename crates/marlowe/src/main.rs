@@ -20,6 +20,7 @@ marlowe --ask <question> [--workspace <DIR>] [--dev] [--context <TOKENS>]
 marlowe --serve [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKENS>]
         [--no-thinking]
 marlowe --status
+marlowe --shutdown [--daemon-port <N>]
 marlowe --launch
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
         [--ground]
@@ -187,7 +188,7 @@ fn main() {
     // `marlowe` becomes the thin client at M2, and guessing one now would mean changing what an
     // existing command does later.
     let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch",
-                            "--serve", "--ask", "--status"]
+                            "--serve", "--ask", "--status", "--shutdown"]
         .into_iter()
         .filter(|m| args.iter().any(|a| a == m))
         .collect();
@@ -196,7 +197,7 @@ fn main() {
         0 => {
             eprintln!("{USAGE}");
             eprintln!(
-                "error: no mode selected. One of --serve, --ask, --status, --launch, --tui, --classic, --doctor, --eval-adapter."
+                "error: no mode selected. One of --serve, --ask, --status, --shutdown, --launch, --tui, --classic, --doctor, --eval-adapter."
             );
             std::process::exit(2);
         }
@@ -242,7 +243,7 @@ fn main() {
     // one that keeps reasoning out of the transcript.
     let thinking = !args.iter().any(|a| a == "--no-thinking");
 
-    if matches!(modes[0], "--serve" | "--ask" | "--status") {
+    if matches!(modes[0], "--serve" | "--ask" | "--status" | "--shutdown") {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
             .or_else(|| std::env::current_dir().ok())
@@ -261,6 +262,9 @@ fn main() {
                 thinking,
             ),
             "--status" => agent::status(workspace, profile_root),
+            "--shutdown" => agent::shutdown(
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
             _ => match flag_value(&args, "--ask") {
                 Some(message) => agent::ask(
                     message,

@@ -301,6 +301,12 @@ fn run_with(
         ));
     }
 
+    // Installed before the loop, so a window closed at any point after this is covered.
+    #[cfg(windows)]
+    if let Some(port) = connect_port {
+        close_handler::install(port);
+    }
+
     let mut term = Terminal::new(CrosstermBackend::new(io::stdout()))?;
     let result = event_loop(&mut term, session, &mut app, &theme, &clock, &opts, connect_port);
     // **Read before the teardown, because a turn in flight changes what closing means.**
@@ -411,6 +417,79 @@ fn install_panic_hook() {
 }
 
 /// Returns `Some((first_frame_ms, interactive_ms))` under `--timing-probe`.
+
+/// **Closing the window with the X, on Windows.**
+///
+/// The teardown at the bottom of [`run`] only executes if `event_loop` returns. Clicking the close
+/// button does not unwind the process — Windows raises `CTRL_CLOSE_EVENT` on a handler thread and
+/// then terminates it — so the shutdown never ran and the detached daemon outlived its client.
+/// Observed 2026-08-10: the next `--status` reported *"this daemon's binary is 17 min older than
+/// the source it was built from"*, which is exactly the stale-daemon trap this project has paid
+/// for three times.
+///
+/// A control handler is the only place code can run at that moment. Windows gives it a few seconds
+/// before killing the process, which is ample for one loopback request.
+///
+/// **The busy check is preserved.** [`TURN_IN_FLIGHT`] mirrors `session.is_busy()`, so a window
+/// closed mid-turn leaves the daemon running and the conversation intact — the same rule the
+/// graceful path follows, for the same reason (invariant 6).
+#[cfg(windows)]
+mod close_handler {
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+    /// The daemon's port, or 0 when this TUI did not connect to one.
+    static PORT: AtomicU32 = AtomicU32::new(0);
+    /// Whether a turn is running. A window closed mid-turn must not stop the daemon.
+    pub static TURN_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
+
+    // `kernel32` is already linked by std on Windows, so this needs no new dependency. One
+    // function, declared by hand rather than pulling in a bindings crate for it.
+    unsafe extern "system" {
+        fn SetConsoleCtrlHandler(
+            handler: Option<unsafe extern "system" fn(u32) -> i32>,
+            add: i32,
+        ) -> i32;
+    }
+
+    const CTRL_C_EVENT: u32 = 0;
+    const CTRL_BREAK_EVENT: u32 = 1;
+    const CTRL_CLOSE_EVENT: u32 = 2;
+    const CTRL_LOGOFF_EVENT: u32 = 5;
+    const CTRL_SHUTDOWN_EVENT: u32 = 6;
+
+    unsafe extern "system" fn on_console_event(event: u32) -> i32 {
+        if !matches!(
+            event,
+            CTRL_C_EVENT
+                | CTRL_BREAK_EVENT
+                | CTRL_CLOSE_EVENT
+                | CTRL_LOGOFF_EVENT
+                | CTRL_SHUTDOWN_EVENT
+        ) {
+            return 0;
+        }
+        let port = PORT.load(Ordering::Relaxed);
+        if port != 0 && !TURN_IN_FLIGHT.load(Ordering::Relaxed) {
+            // Best effort. The process is about to die either way, and a daemon left running is
+            // the failure this exists to prevent rather than one it can cause.
+            let client = marlowe_daemon::Client::new("tui").with_port(port as u16);
+            let _ = client.shutdown();
+        }
+        // TRUE: handled. Windows terminates the process next regardless.
+        1
+    }
+
+    /// Install the handler. Called once, only when a port is known.
+    pub fn install(port: u16) {
+        PORT.store(port as u32, Ordering::Relaxed);
+        // SAFETY: one FFI call into kernel32 with a `'static` function pointer and no data
+        // shared across the boundary. The handler touches only atomics and a fresh client.
+        unsafe {
+            SetConsoleCtrlHandler(Some(on_console_event), 1);
+        }
+    }
+}
+
 fn event_loop(
     term: &mut Terminal<CrosstermBackend<io::Stdout>>,
     session: &mut impl Produce,
@@ -466,6 +545,9 @@ fn event_loop(
     loop {
         let now = clock.now_ms();
         advance(session, app, now);
+        // Mirrored for the close handler, which cannot reach `session`.
+        #[cfg(windows)]
+        close_handler::TURN_IN_FLIGHT.store(session.is_busy(), std::sync::atomic::Ordering::Relaxed);
 
         let timeout = if app.view().status.state.samples_amplitude() {
             ANIMATION_TICK_MS

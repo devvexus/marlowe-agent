@@ -173,6 +173,30 @@ fn approve_at_the_terminal(event: &Event) -> bool {
     }
 }
 
+/// Stop a running daemon. **The graceful path, and until now there was none.**
+///
+/// `Request::Shutdown` and `Client::shutdown()` have both existed since M2 C2e with nothing on
+/// the command line able to reach either, so a daemon left behind — by a hard window close, say —
+/// could only be killed. `Stop-Process` skips the daemon's own guard; this does not.
+///
+/// **It refuses while a run is in flight**, which is invariant 6 where it means something: a run
+/// outlives the client that started it. There is no WAL, so stopping mid-run loses the run.
+pub fn shutdown(port: Option<u16>) -> Result<(), String> {
+    let mut client = Client::new("cli");
+    if let Some(p) = port {
+        client = client.with_port(p);
+    }
+    if !client.daemon_is_up() {
+        // Not an error. "Stop it" and "it is already stopped" want the same outcome, and failing
+        // here would make the command awkward to use in a script that just wants a clean slate.
+        println!("no daemon is running");
+        return Ok(());
+    }
+    let events = client.shutdown().map_err(|e| e.to_string())?;
+    render(&events);
+    Ok(())
+}
+
 pub fn status(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
     let client = Client::new("cli");
     let events = if client.daemon_is_up() {
