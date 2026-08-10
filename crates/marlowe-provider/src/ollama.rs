@@ -884,13 +884,29 @@ fn control_step(name: &str, args: &Args, message: &serde_json::Value) -> ModelSt
             payload_kind: text("payload_kind").unwrap_or_else(|| "fact".into()),
             derived_from: text("derived_from").into_iter().collect(),
         }),
-        // `run` needs a full SpawnRequest and the model supplies only a task. Rather than
-        // synthesise a capability profile and a budget the model never declared — which §5 says
-        // must be declared at spawn, never inferred — this reports the gap as prose the model can
-        // act on. Wiring `run` from a provider is M2 D work.
-        _ => ModelStep::Say(format!(
-            "[run is not yet reachable from a model call; the spawn contract must be declared              explicitly] {body}"
-        )),
+        // **`run` cannot spawn yet, and this refusal goes to the MODEL, not to the user.**
+        //
+        // It was `ModelStep::Say`, which ends the turn — so a model that called `run` put the
+        // string "[run is not yet reachable from a model call...]" on screen *as Marlowe's reply*
+        // and stopped. Two things wrong at once: harness prose in Marlowe's voice, which ADR-030
+        // forbids, and a turn ended by a tool refusal, which is not an answer to anything.
+        //
+        // Routed as a `ToolCall` instead. The tool host has no `run` executor, so the loop
+        // refuses it through the ordinary path, the model reads a refusal it can act on, and the
+        // turn continues. That is the same route every other unbuilt tool takes.
+        //
+        // **Why it cannot simply spawn.** §5 requires a spawn's capability profile, budget and
+        // orphan policy to be *declared at spawn, never inferred*, and the model supplies a task.
+        // Synthesising the rest is precisely what that rule forbids, so this needs a decision
+        // about who declares the contract — not more plumbing. M2 D.
+        "run" => ModelStep::ToolCall {
+            calls: vec![marlowe_loop::ToolInvocation {
+                id: "call_1".to_string(),
+                tool: ToolId::new("run"),
+                args: args.clone(),
+            }],
+        },
+        _ => ModelStep::Say(body),
     }
 }
 

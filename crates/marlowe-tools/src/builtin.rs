@@ -171,13 +171,18 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "web",
-            "Search and fetch. Always returns a reference, always untrusted content.",
+            "Fetch one URL over https and return the page. It does not search: supply a full URL. Always returns untrusted content.",
             "web",
             0, // Never inlined. §8.2: raw untrusted bytes do not reach attention.
             Inert,
             &[],
             &["*"],
-            vec![target_opt("url", Url), payload_opt("query", Text)],
+            // **`url` is REQUIRED and `query` is gone.** Both were optional when `web` was
+            // "search and fetch": a search had no url, a fetch had no query, so neither could be
+            // mandatory. This build only fetches, so `url` is exactly what the executor cannot
+            // run without — and a `query` parameter for an operation that does not exist invites
+            // a call that always fails. It returns when search does (ADR-035).
+            vec![target_req("url", Url)],
         ),
         registration(
             "recall",

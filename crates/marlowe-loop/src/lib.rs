@@ -45,7 +45,7 @@ pub use driver::{ToolInvocation,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
     ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,
 };
-pub use engine::{Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS, MAX_STEPS};
+pub use engine::{coerce_to_declared_types, Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS, MAX_STEPS};
 pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
 pub use provenance::Provenance;
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};

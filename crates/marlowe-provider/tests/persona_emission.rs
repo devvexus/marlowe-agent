@@ -274,8 +274,21 @@ fn every_tool_with_a_target_declares_it_required() {
 }
 
 /// `web` in particular — the call the model got wrong live.
+///
+/// **This assertion has now been inverted twice, and both inversions were the manifest catching
+/// up with what the executor does.**
+///
+/// It first required `url`, derived from `ArgumentRole::Target`. ADR-034 inverted it: `web` was
+/// "search AND fetch", so a search had no url and a fetch had no query, and declaring either
+/// mandatory told the model one of the two operations was impossible.
+///
+/// M2 C2f inverts it back, because the premise changed rather than the reasoning. This build
+/// fetches and does not search, so `url` is precisely what the executor cannot run without, and
+/// `query` has been removed rather than left as an optional argument for an operation that does
+/// not exist. Requiredness is what the executor demands — it tracks the executor, and the
+/// executor moved.
 #[test]
-fn the_web_tool_requires_its_target() {
+fn the_web_tool_requires_its_url_and_offers_no_search() {
     let schemas = tool_schemas();
     let web = schemas
         .iter()
@@ -289,17 +302,8 @@ fn the_web_tool_requires_its_target() {
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
+    assert_eq!(required, vec!["url"], "a fetch cannot run without one: {web:#}");
 
-    // **This assertion was written against the conflation and is now inverted, deliberately.**
-    //
-    // It fired when `required` was derived from `ArgumentRole::Target`, and it asked the wrong
-    // question: `web` is "search AND fetch", so a search has no `url` and a fetch has no `query`.
-    // Declaring `url` mandatory told the model a search was impossible. Neither is required; the
-    // executor validates the pair. What must hold is that both are OFFERED.
-    assert!(
-        required.is_empty(),
-        "`web` must not declare either argument mandatory — a search has no url and a fetch has          no query. Requiredness is what the executor demands, not which argument is a Target:          {web:#}"
-    );
     let props: Vec<&str> = web
         .pointer("/function/parameters/properties")
         .and_then(|p| p.as_object())
@@ -307,9 +311,28 @@ fn the_web_tool_requires_its_target() {
         .keys()
         .map(String::as_str)
         .collect();
+    assert_eq!(
+        props,
+        vec!["url"],
+        "no `query`: offering a parameter for an operation this build does not have invites a          call that always fails, which is the defect the tool descriptions were corrected for"
+    );
+
+    let description = web
+        .pointer("/function/description")
+        .and_then(|d| d.as_str())
+        .unwrap_or_default();
+    // **Asserted as the disclaimer, not as the absence of a substring.** The first version of
+    // this check was `!contains("search")`, which fails on the honest description — it has to
+    // say "does not search" to be honest, and that contains the word. A test that forbids a
+    // token cannot tell a promise from a denial.
+    let d = description.to_lowercase();
     assert!(
-        props.contains(&"url") && props.contains(&"query"),
-        "both operations must be expressible: {props:?}"
+        d.contains("does not search"),
+        "the description must say plainly that it cannot search: {description:?}"
+    );
+    assert!(
+        !d.starts_with("search"),
+        "and it must not lead with the operation it does not have: {description:?}"
     );
 }
 

@@ -1324,6 +1324,57 @@ fn a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked(
     );
 }
 
+/// **A declared `Amount` reaches the approval prompt as money, not as a bare integer.**
+/// (M2 C2f.)
+///
+/// JSON has one number type, so a spend ceiling arrives from any provider as `ArgValue::Integer`
+/// — meaning `ParamType::Amount` was a declared type the runtime value never took, and every
+/// branch on `Amount` was dead on the model path. The visible consequence is the §B9 scope line:
+/// `2500000` is a number a human approves after reading it as dollars.
+#[test]
+fn a_declared_amount_is_rendered_as_money_in_the_scope_line() {
+    let r = builtin_registry().expect("the builtins load");
+    let manifest = r.manifest(&ToolId::new("run")).expect("`run` is a builtin");
+
+    // What a provider actually produces for `"budget_micros_usd": 2500000`.
+    let raw = marlowe_permission::Args::new()
+        .text("task", "summarise")
+        .with("budget_micros_usd", marlowe_permission::ArgValue::Integer(2_500_000));
+
+    let coerced = marlowe_loop::coerce_to_declared_types(manifest, raw);
+    assert_eq!(
+        coerced.get("budget_micros_usd"),
+        Some(&marlowe_permission::ArgValue::Amount(2_500_000)),
+        "the manifest declares Amount, so that is what the adjudicator should see"
+    );
+    assert!(
+        coerced.get("budget_micros_usd").map(|v| v.render()).unwrap_or_default().contains("2.500000"),
+        "and it renders as money rather than as a raw micro count"
+    );
+
+    // Untouched types stay untouched.
+    assert_eq!(
+        coerced.get("task"),
+        Some(&marlowe_permission::ArgValue::Text("summarise".into()))
+    );
+}
+
+/// A nonsensical value is passed through rather than made plausible. Clamping a negative amount
+/// to zero would hand the adjudicator a number nobody sent.
+#[test]
+fn a_negative_amount_is_not_quietly_turned_into_a_valid_one() {
+    let r = builtin_registry().expect("the builtins load");
+    let manifest = r.manifest(&ToolId::new("run")).expect("`run` is a builtin");
+    let raw = marlowe_permission::Args::new()
+        .with("budget_micros_usd", marlowe_permission::ArgValue::Integer(-5));
+    let coerced = marlowe_loop::coerce_to_declared_types(manifest, raw);
+    assert_eq!(
+        coerced.get("budget_micros_usd"),
+        Some(&marlowe_permission::ArgValue::Integer(-5)),
+        "left as it arrived: the adjudicator should see what was actually sent"
+    );
+}
+
 /// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
 ///
 /// Completion is the absence of an action, and an empty reply is technically that — so without a

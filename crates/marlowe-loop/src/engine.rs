@@ -177,6 +177,28 @@ fn refusal_prose(reason: &BlockReason, tool: &ToolId) -> String {
     }
 }
 
+/// Re-type arguments the model supplied to match what the manifest declared. See the call site.
+///
+/// **Widening only, and silent on anything else.** A negative integer for an `Amount` is left as
+/// it arrived rather than clamped to zero: a clamp would turn a nonsensical value into a
+/// plausible one, and the adjudicator should see what was actually sent.
+pub fn coerce_to_declared_types(manifest: &marlowe_tools::CapabilityManifest, args: Args) -> Args {
+    let mut out = Args::new();
+    for (name, value) in args.iter() {
+        let declared = manifest.spec_of(name).map(|s| s.ty);
+        let coerced = match (declared, value) {
+            (Some(marlowe_tools::ParamType::Amount), marlowe_permission::ArgValue::Integer(n))
+                if *n >= 0 =>
+            {
+                marlowe_permission::ArgValue::Amount(*n as u64)
+            }
+            (_, v) => v.clone(),
+        };
+        out = out.with(name.clone(), coerced);
+    }
+    out
+}
+
 impl<S: PathScope> Engine<S> {
     pub fn new(
         registry: ToolRegistry,
@@ -773,6 +795,23 @@ impl<S: PathScope> Engine<S> {
             return;
         };
         let manifest = manifest.clone();
+
+        // **Coerce arguments to the type the manifest declared.**
+        //
+        // `run.budget_micros_usd` is declared `ParamType::Amount` and no provider produces an
+        // `ArgValue::Amount`: JSON has one number type, so a spend ceiling arrives as `Integer`.
+        // A declared type the runtime value never takes is a type nobody can branch on — anything
+        // matching `Amount` was dead code on the model path.
+        //
+        // It lives HERE rather than in the Ollama adapter because the manifest is here. A second
+        // provider would otherwise need the same coercion and would not know to have it, which is
+        // the two-sides-silently-disagree shape this project keeps recording.
+        //
+        // Not a security change: `taint_for` gives every non-`Text` value the floor either way.
+        // What it fixes is the reading — `ArgValue::render` prints an `Amount` as `2.500000
+        // (spend ceiling)` and an `Integer` as `2500000`, and the second is a number a human
+        // approves after misreading it as dollars.
+        let args = coerce_to_declared_types(&manifest, args);
 
         // Provenance is computed HERE, by the harness, from the view the model actually saw.
         let taint = provenance.taint_for(&args, view, run.trust_floor());

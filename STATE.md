@@ -1367,6 +1367,20 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   `DECISIONS.md` entry, **all three sites changed together** - the schema, `param_description`, and
   `Engine::expected_params`. A model told the wrong thing and then corrected with the same wrong
   thing is worse than one told nothing.
+- ~~**`web`'s description promises search.**~~ **CLOSED (C2f).** It says it fetches and does not
+  search, `url` is **required**, and **`query` is removed** — offering a parameter for an
+  operation this build does not have invites a call that always fails, which is the same defect
+  the other descriptions were corrected for. `the_web_tool_requires_its_url_and_offers_no_search`
+  asserts the **disclaimer** rather than the absence of the word: an honest description has to
+  contain "does not search", so a test forbidding the token cannot tell a promise from a denial.
+- ~~**`run` never spawns from a model call.**~~ **PARTLY CLOSED (C2f), and the rest is a decision
+  rather than work.** The canned refusal was a `ModelStep::Say`, so a model calling `run` put
+  harness prose on screen **as Marlowe's reply** and ended the turn — ADR-030 forbids the first
+  and a tool refusal is not an answer to anything. It now routes as an ordinary `ToolCall` with no
+  executor, so the model reads a refusal it can act on and the turn continues.
+  **It still cannot spawn, and inventing the missing pieces is what §5 forbids**: a spawn's
+  capability profile, budget and orphan policy must be *declared at spawn, never inferred*, and
+  the model supplies a task. **Needs an ADR about who declares the contract.** M2 D.
 - **Descriptions promise operations that do not exist.** `bash` says "persistent shell session"
   (`spawn_shell` runs a fresh `cmd /C` per call), `find` says "index-backed symbol lookup" (it is
   `line.contains`), `edit` says "atomic" (it is `set_len(0)` + rewrite), `read` says "blob, or
@@ -1378,6 +1392,13 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   for a declared `Amount`, so the declared type is never the runtime variant. That no longer hides
   the ceiling — `render` handles `Integer` too — but the coercion-by-declared-type is unbuilt.
   Original entry:
+- ~~**`parse_step` never produces `Amount`**~~ — **CLOSED (C2f).** Arguments are coerced to the
+  manifest's declared `ParamType` in **`Engine::tool_call`**, not in the Ollama adapter: the
+  manifest is there, and a second provider would otherwise need the same coercion and not know to
+  have it. A spend ceiling now reaches the §B9 scope line as `2.500000 (spend ceiling)` rather
+  than `2500000`, which is a number a human approves after reading it as dollars. A negative
+  amount is passed through rather than clamped — a clamp turns a nonsensical value into a
+  plausible one. Original entry:
 - **`run.budget_micros_usd` types as `Amount`, which `parse_step` can never produce** - it emits
   `ArgValue::Integer`. `blast_radius` collects targets via `as_text`, which returns `None` for
   `Integer`, **so the spend ceiling never appears in the approval prompt's scope line**. Section B9
@@ -1385,6 +1406,12 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   human approves something they would have refused. **Highest-consequence finding of the tool
   audit.** `adjudicate.rs` is section-13 guarded: this needs a `DECISIONS.md` entry **before** it
   is fixed.
+- ~~**CLOSING THE TUI WINDOW WITH THE X DOES NOT STOP THE DAEMON.**~~ **CLOSED (C2f)**, and
+  **not yet confirmed by a real window close.** A Windows console control handler runs the
+  shutdown on `CTRL_CLOSE_EVENT`; one hand-declared `kernel32` import, no bindings crate.
+  **`TURN_IN_FLIGHT` mirrors `session.is_busy()`**, so a window closed mid-turn still leaves the
+  daemon up — without that mirror the fix would have reintroduced C2e's mid-turn conversation
+  loss. Original entry:
 - **CLOSING THE TUI WINDOW WITH THE X DOES NOT STOP THE DAEMON.** Found 2026-08-10 during the
   first live approval test. `tui.rs` sends `Request::Shutdown` on exit, and that fires on a
   *graceful* quit — closing the window terminates the process outright, so the teardown never
@@ -1393,6 +1420,9 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   daemon serving pre-change code. **The staleness banner caught it** — `--status` reported *"this
   daemon's binary is 17 min older than the source it was built from"*, which is `staleness.rs`
   doing exactly its job. Needs a console control handler on Windows.
+- ~~**There is no CLI shutdown.**~~ **CLOSED (C2f):** `marlowe --shutdown [--daemon-port N]`,
+  verified against a real daemon on a scratch port. "No daemon is running" is not an error.
+  Original entry:
 - **There is no CLI shutdown, so a daemon left behind can only be killed.** `Request::Shutdown`
   and `Client::shutdown()` both exist; no mode reaches them (`--serve`, `--ask`, `--status`,
   `--launch`, `--tui`, `--classic`, `--doctor`, `--eval-adapter`). Until a `--shutdown` mode
