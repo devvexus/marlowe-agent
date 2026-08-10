@@ -78,14 +78,14 @@ fn the_client_answers_the_prompt_on_the_same_connection_and_names_the_decision()
     let mut shown = Vec::new();
     let _ = client.ask_streaming_approving(
         "fetch something",
-        &mut |_event| true,
+        &mut |_event| (true, None),
         &mut |event| shown.push(event),
     );
 
     let reply = rx.recv().expect("the daemon read a reply");
     assert_eq!(
         reply,
-        Some(Request::Approve { decision: 7, granted: true }),
+        Some(Request::Approve { decision: 7, granted: true, reason: None }),
         "the answer must name the decision it answers — a reply that did not could approve \
          whatever happens to be pending next"
     );
@@ -103,11 +103,15 @@ fn the_client_answers_the_prompt_on_the_same_connection_and_names_the_decision()
 fn a_declined_prompt_is_sent_as_declined_rather_than_dropped() {
     let (port, rx) = fake_daemon(1);
     let client = Client::new("test").with_port(port);
-    let _ = client.ask_streaming_approving("fetch something", &mut |_| false, &mut |_| {});
+    let _ = client.ask_streaming_approving("fetch something", &mut |_| (false, Some("not this host".to_string())), &mut |_| {});
 
     assert_eq!(
         rx.recv().expect("the daemon read a reply"),
-        Some(Request::Approve { decision: 1, granted: false }),
+        Some(Request::Approve {
+            decision: 1,
+            granted: false,
+            reason: Some("not this host".to_string()),
+        }),
         "a decline is an answer and must be sent — silence would leave the daemon blocked until \
          its read timed out"
     );
@@ -122,7 +126,7 @@ fn the_render_only_prompt_is_not_answered() {
     let (port, rx) = fake_daemon(0);
     let client = Client::new("test").with_port(port);
     let mut shown = Vec::new();
-    let _ = client.ask_streaming_approving("go", &mut |_| true, &mut |e| shown.push(e));
+    let _ = client.ask_streaming_approving("go", &mut |_| (true, None), &mut |e| shown.push(e));
 
     assert_eq!(
         rx.recv().expect("the daemon finished reading"),

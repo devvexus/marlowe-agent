@@ -163,7 +163,11 @@ pub enum Intent {
     /// control is not the thing that changes it.
     Select { control: ControlId, option: usize },
     /// §B9's answer. `granted` is the user's, never the model's.
-    Approve { granted: bool },
+    /// §B9's answer. `reason` is the *Other* key: a decline the user explained.
+    ///
+    /// It is `Option<Echo>` rather than `Option<String>` because it is text the user typed, and
+    /// ADR-030's rule is that such text is carried quoted and never reworded.
+    Approve { granted: bool, reason: Option<crate::notice::Echo> },
     /// §B10's `Esc` at the outermost level. Keeps partial output.
     Interrupt,
     /// §B10's `/undo N` — soft-delete the last N turns.

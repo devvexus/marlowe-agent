@@ -91,7 +91,7 @@ impl Client {
         // A caller that supplies no decider cannot approve anything, and the honest answer for
         // that is a refusal rather than a default. `false` here is the same fail-closed rule the
         // daemon's gate applies to a client that hangs up.
-        self.send_streaming_approving(request, &mut |_| false, &mut on_event)
+        self.send_streaming_approving(request, &mut |_| (false, None), &mut on_event)
     }
 
     /// As [`Self::send_streaming`], answering approval prompts with `decide`.
@@ -110,7 +110,7 @@ impl Client {
     pub fn send_streaming_approving(
         &self,
         request: &Request,
-        decide: &mut dyn FnMut(&Event) -> bool,
+        decide: &mut dyn FnMut(&Event) -> (bool, Option<String>),
         on_event: &mut dyn FnMut(Event),
     ) -> Result<(), ClientError> {
         let stream = self.connect()?;
@@ -142,8 +142,11 @@ impl Client {
                                     // Show it before asking — the decider is a human, and §B9's
                                     // whole point is that they see the blast radius first.
                                     on_event(e.clone());
-                                    let granted = decide(&e);
-                                    let reply = Request::Approve { decision, granted };
+                                    let (granted, reason) = decide(&e);
+                                    // The reason rides with the decline rather than being sent
+                                    // separately: two messages for one answer is a second thing
+                                    // that can be lost.
+                                    let reply = Request::Approve { decision, granted, reason };
                                     crate::protocol::write_line(&mut writer, &reply).map_err(
                                         |e| ClientError::Closed { detail: e.to_string() },
                                     )?;
@@ -215,7 +218,7 @@ impl Client {
     pub fn ask_streaming_approving(
         &self,
         message: &str,
-        decide: &mut dyn FnMut(&Event) -> bool,
+        decide: &mut dyn FnMut(&Event) -> (bool, Option<String>),
         on_event: &mut dyn FnMut(Event),
     ) -> Result<(), ClientError> {
         self.send_streaming_approving(

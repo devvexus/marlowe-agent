@@ -190,15 +190,21 @@ struct SocketApprovals {
     writer: TcpStream,
     reader: BufReader<TcpStream>,
     next_decision: u64,
+    /// The reason given with the most recent decline, read back by the loop.
+    last_reason: Option<String>,
 }
 
 impl SocketApprovals {
     fn new(writer: TcpStream, reader: BufReader<TcpStream>) -> Self {
-        Self { writer, reader, next_decision: 1 }
+        Self { writer, reader, next_decision: 1, last_reason: None }
     }
 }
 
 impl ApprovalGate for SocketApprovals {
+    fn decline_reason(&self) -> Option<String> {
+        self.last_reason.clone()
+    }
+
     fn await_approval(&mut self, radius: &BlastRadius) -> bool {
         let decision = self.next_decision;
         self.next_decision += 1;
@@ -222,13 +228,22 @@ impl ApprovalGate for SocketApprovals {
             return false;
         }
 
+        // Cleared before the ask, so a reason from an earlier decline cannot be reported against
+        // this one.
+        self.last_reason = None;
+
         let mut line = String::new();
         match self.reader.read_line(&mut line) {
             Ok(0) | Err(_) => false,
             Ok(_) => match serde_json::from_str::<Request>(line.trim()) {
                 // The reply must name the decision it is answering. A client that answered a
                 // stale prompt would otherwise approve whatever is pending now.
-                Ok(Request::Approve { decision: d, granted }) if d == decision => granted,
+                Ok(Request::Approve { decision: d, granted, reason }) if d == decision => {
+                    if !granted {
+                        self.last_reason = reason.filter(|r| !r.trim().is_empty());
+                    }
+                    granted
+                }
                 _ => false,
             },
         }

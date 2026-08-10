@@ -423,7 +423,7 @@ impl marlowe_view::Produce for Session {
         match intent {
             Intent::Send(text) => self.submit(&text, now_ms),
             Intent::Interrupt => self.interrupt(now_ms),
-            Intent::Approve { granted } => self.resolve_approval(granted, now_ms),
+            Intent::Approve { granted, .. } => self.resolve_approval(granted, now_ms),
             Intent::ForceState(state) => self.force_state(state, now_ms),
             Intent::Compact => {
                 let turns = self.view.pager.turn.max(1);

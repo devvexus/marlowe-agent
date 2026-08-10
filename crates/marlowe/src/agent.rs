@@ -103,7 +103,7 @@ pub fn ask(
     client
         .ask_streaming_approving(
             message,
-            &mut |event| approve_at_the_terminal(event),
+            &mut |event| (approve_at_the_terminal(event), None),
             &mut |event| events.push(event),
         )
         .map_err(|e| e.to_string())?;

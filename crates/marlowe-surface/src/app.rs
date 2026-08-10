@@ -96,6 +96,10 @@ pub struct App {
     pub diagnostic_lines: Vec<String>,
     /// Requests waiting for the driver to hand to a producer. Drained by [`App::drain_intents`].
     outbox: Vec<Intent>,
+    /// `Some` while the user is typing a reason for declining. **Only reachable from the live
+    /// approval window**, and leaving it does not answer — `Esc` returns to the three keys rather
+    /// than dismissing the question, because a dismissed question is a hung turn.
+    pub decline_reason: Option<String>,
     /// Which control-strip dropdown is open. Was `Picker::open` on the producer's side; open-ness
     /// is a property of looking at a control, not of the control.
     pub picker_open: Option<ControlId>,
@@ -245,6 +249,7 @@ impl App {
     pub fn new(view: SessionView) -> Result<Self, crate::keys::KeyConflict> {
         let keys = KeyRegistry::build(&view)?;
         Ok(Self {
+            decline_reason: None,
             view,
             pending: None,
             client_lines: Vec::new(),
@@ -614,6 +619,9 @@ impl App {
 
         // 1. §B9's overlay is modal. It is the only element permitted to dim the frame, and while
         //    it is up it is the only thing that answers a key.
+        if self.view.pending_approval.is_some() {
+            return self.on_pending_approval_key(key);
+        }
         if self.view.approval.is_some() {
             return self.on_approval_key(key);
         }
@@ -1110,14 +1118,65 @@ Action::Redraw
         ORDER[(i + 1) % ORDER.len()]
     }
 
+    /// The live window: **yes, no, or no-with-a-reason.**
+    ///
+    /// There is no dismiss key and that is deliberate. The daemon is blocked on this answer, so a
+    /// window that could be closed without sending one would hang the turn with nothing on screen
+    /// explaining why.
+    fn on_pending_approval_key(&mut self, key: Key) -> Action {
+        // Typing a reason. Enter sends the decline with it; Esc goes back to the three keys.
+        if let Some(buf) = self.decline_reason.as_mut() {
+            match key {
+                Key::Char(c) => {
+                    buf.push(c);
+                    return Action::Redraw;
+                }
+                Key::Backspace => {
+                    buf.pop();
+                    return Action::Redraw;
+                }
+                Key::Enter => {
+                    let reason = self.decline_reason.take().unwrap_or_default();
+                    self.ask(Intent::Approve {
+                        granted: false,
+                        reason: Some(marlowe_view::notice::Echo(reason)),
+                    });
+                    return Action::Redraw;
+                }
+                Key::Esc => {
+                    // Back to the question, NOT out of it.
+                    self.decline_reason = None;
+                    return Action::Redraw;
+                }
+                _ => return Action::None,
+            }
+        }
+
+        match key {
+            Key::Char('y') | Key::Char('Y') => {
+                self.ask(Intent::Approve { granted: true, reason: None });
+                Action::Redraw
+            }
+            Key::Char('n') | Key::Char('N') | Key::Esc => {
+                self.ask(Intent::Approve { granted: false, reason: None });
+                Action::Redraw
+            }
+            Key::Char('o') | Key::Char('O') => {
+                self.decline_reason = Some(String::new());
+                Action::Redraw
+            }
+            _ => Action::None,
+        }
+    }
+
     fn on_approval_key(&mut self, key: Key) -> Action {
         match key {
             Key::Enter => {
-                self.ask(Intent::Approve { granted: true });
+                self.ask(Intent::Approve { granted: true, reason: None });
                 Action::Redraw
             }
             Key::Esc => {
-                self.ask(Intent::Approve { granted: false });
+                self.ask(Intent::Approve { granted: false, reason: None });
                 Action::Redraw
             }
             Key::Char('e') => {
@@ -1125,7 +1184,7 @@ Action::Redraw
                 // producer directly, which dismissed the overlay whether or not anything had
                 // actually been declined -- a surface deciding an approval outcome, which is the
                 // one thing 8.2 says it must never do.
-                self.ask(Intent::Approve { granted: false });
+                self.ask(Intent::Approve { granted: false, reason: None });
                 self.client_note(
                     Notice::ApprovalResolved {
                         disposition: marlowe_view::Disposition::OpenedForEditing,
@@ -1141,7 +1200,7 @@ Action::Redraw
                 // **Send-as-Marlowe is not yet a distinct intent, and this says so rather than
                 // pretending.** It declines the impersonating send; the delegated one needs a
                 // producer that can perform it, which is Session E.
-                self.ask(Intent::Approve { granted: false });
+                self.ask(Intent::Approve { granted: false, reason: None });
                 self.client_note(
                     Notice::NotBuilt {
                         capability: Capability::SendAsMarlowe,

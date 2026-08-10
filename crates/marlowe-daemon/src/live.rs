@@ -20,9 +20,10 @@
 //! worker thread and events arrive on a channel that [`Produce::tick`] drains, which keeps every
 //! frame a pure function of `(state, now_ms)`.
 
-use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError};
 use std::thread;
 
+use marlowe_view::approval::PendingApproval;
 use marlowe_view::view::{Intent, IntentError, SessionView};
 use marlowe_view::Produce;
 
@@ -40,6 +41,12 @@ pub struct LiveSession {
     unreachable: Option<String>,
     /// Whether the `Status`/`Runs` handshake has run. False until after the first frame.
     connected: bool,
+    /// Where an approval answer is posted back to the turn thread.
+    ///
+    /// **The daemon is blocked on the other end of this.** It is the one piece of state with a
+    /// process waiting on it, which is why `Intent::Approve` must always send something and why
+    /// the window has no dismiss key — a closed window with no answer is a hung turn.
+    answer: Option<SyncSender<(bool, Option<String>)>>,
 }
 
 impl LiveSession {
@@ -82,7 +89,7 @@ impl LiveSession {
         // connection that has not been attempted. Invariant 4 is about degrading VISIBLY, not
         // about calling every unfinished thing a degradation.
         view.status.degraded = None;
-        Self { client, view, inbox: None, unreachable: None, connected: false }
+        Self { client, view, inbox: None, unreachable: None, connected: false, answer: None }
     }
 
     /// Do the handshake. Called after the first frame is on screen.
@@ -128,7 +135,7 @@ impl LiveSession {
                         if let Ok(runs) = client.send(&crate::protocol::Request::Runs) {
                             project::apply_events(&mut view, &runs);
                         }
-                        Self { view, client, inbox: None, unreachable: None, connected: true }
+                        Self { view, client, inbox: None, unreachable: None, connected: true, answer: None }
                     }
                     None => Self::degraded(client, "the daemon answered without a status frame"),
                 }
@@ -148,7 +155,14 @@ impl LiveSession {
             live_runs: 0,
         });
         view.status.detail = format!("{detail} · start one with `marlowe --serve`");
-        Self { client, view, inbox: None, unreachable: Some(detail.to_string()), connected: true }
+        Self {
+            client,
+            view,
+            inbox: None,
+            unreachable: Some(detail.to_string()),
+            connected: true,
+            answer: None,
+        }
     }
 
     /// Whether a daemon answered. Printed at startup — ADR-029's rule generalised: **the active
@@ -167,18 +181,32 @@ impl LiveSession {
         self.view.status.detail = "working on it — esc to interrupt".into();
         let client = self.client.clone();
         let (tx, rx) = mpsc::channel();
+        // **Rendezvous, not a queue.** `sync_channel(0)` means the send blocks until the turn
+        // thread takes it, so an answer cannot be posted into a buffer nobody reads.
+        let (answer_tx, answer_rx) = mpsc::sync_channel::<(bool, Option<String>)>(0);
         thread::spawn(move || {
             // **Streamed, not collected.** `ask` returns a `Vec` once the daemon closes the
-            // connection; `ask_streaming` pushes each event into the channel as the line lands,
-            // which is what lets `tick()` draw partial output.
+            // connection; the streaming form pushes each event into the channel as the line
+            // lands, which is what lets `tick()` draw partial output.
             let tx_err = tx.clone();
-            if let Err(e) = client.ask_streaming(&message, |event| {
-                let _ = tx.send(event);
-            }) {
+            let tx_prompt = tx.clone();
+            let result = client.ask_streaming_approving(
+                &message,
+                // **This blocks the turn thread, which is correct**: the daemon is sitting on the
+                // socket read waiting for this answer, and the UI thread keeps drawing. A
+                // disconnected receiver means the surface went away mid-question, and the honest
+                // answer to a question nobody is there to answer is no.
+                &mut |_prompt| answer_rx.recv().unwrap_or((false, None)),
+                &mut |event| {
+                    let _ = tx_prompt.send(event);
+                },
+            );
+            if let Err(e) = result {
                 let _ = tx_err.send(Event::Error { detail: e.to_string() });
             }
         });
         self.inbox = Some(rx);
+        self.answer = Some(answer_tx);
     }
 }
 
@@ -200,14 +228,23 @@ impl Produce for LiveSession {
                 capability: marlowe_view::notice::Capability::InterruptingALiveTurn,
                 arrives: marlowe_view::notice::Milestone::M2SessionE,
             }),
-            // **The one real dependency, and it refuses rather than fabricating.**
-            // `Event::Approval` carries {decision, verb, scope, reversible} — no novelty and no
-            // ceiling. Building a `BlastRadius` from it would mean defaulting both, and a defaulted
-            // ceiling is a claim about promotion logic nobody made. ADR-030 §8.
-            Intent::Approve { .. } => Err(IntentError::NotBuilt {
-                capability: marlowe_view::notice::Capability::ApprovalOverWire,
-                arrives: marlowe_view::notice::Milestone::M2SessionE,
-            }),
+            // **Answered, as of M2 C2f.** It does not build a §B9 `BlastRadius` — `Effect` has
+            // no fetch variant and `Ceiling` has no producer until M6 — so the window renders
+            // `PendingApproval`, which states what is known and names what is not. See that
+            // type's header.
+            Intent::Approve { granted, reason } => {
+                let Some(tx) = self.answer.as_ref() else {
+                    // No turn is waiting. Refusing by name beats silently dropping an answer.
+                    return Err(IntentError::NotADemo("no approval is pending"));
+                };
+                let reason = reason.map(|e| e.0).filter(|r| !r.trim().is_empty());
+                // The window closes on the answer, not on the keypress that opened the editor.
+                self.view.pending_approval = None;
+                // A failed send means the turn thread has gone; the daemon has already given up
+                // waiting, so there is nothing left to answer.
+                let _ = tx.send((granted, reason));
+                Ok(())
+            }
             Intent::ForceState(_) => Err(IntentError::NotADemo("/state")),
             Intent::Undo(_) => Err(IntentError::NotBuilt {
                 capability: marlowe_view::notice::Capability::Undo,
@@ -254,6 +291,22 @@ impl Produce for LiveSession {
             }
         }
         if !batch.is_empty() {
+            // **`decision != 0` is the one that is waiting for an answer.** Id 0 is the loop's
+            // render-only announcement that it is about to ask; raising the window for it would
+            // put up a question nothing is listening to the answer of.
+            for e in &batch {
+                if let Event::Approval { decision, verb, scope, reversible, novelty } = e {
+                    if *decision != 0 {
+                        self.view.pending_approval = Some(PendingApproval {
+                            decision: *decision,
+                            verb: verb.clone(),
+                            scope: scope.clone(),
+                            reversible: *reversible,
+                            novelty: novelty.clone(),
+                        });
+                    }
+                }
+            }
             project::apply_events(&mut self.view, &batch);
         }
     }
@@ -292,14 +345,31 @@ mod tests {
         );
     }
 
+    /// **An approval with no turn waiting is refused by name, not silently dropped.**
+    ///
+    /// The dangerous direction is the other one: an answer that goes nowhere leaves the daemon
+    /// blocked on a read forever, and the screen would show a dismissed window over a hung turn.
+    #[test]
+    fn approving_when_nothing_is_pending_refuses_rather_than_dropping_the_answer() {
+        let mut s = LiveSession::connect_on_port("t", 1);
+        let err = s
+            .apply(Intent::Approve { granted: true, reason: None })
+            .expect_err("there is no turn to approve");
+        assert!(
+            err.to_string().contains("no approval is pending"),
+            "the refusal must say what was wrong: {err}"
+        );
+    }
+
     #[test]
     fn every_intent_the_surface_can_form_is_answered_or_refused_by_name() {
         // ADR-030 §6. A silent no-op would make a working build and a broken one look identical,
         // so each unimplemented arm must produce an error a user can read.
         let mut s = LiveSession::connect_on_port("t", 1);
+        // **`Approve` left this list in M2 C2f** — it is answered now, not refused, and its own
+        // test is below. Keeping it here would have asserted that a working feature still fails.
         for intent in [
             Intent::Interrupt,
-            Intent::Approve { granted: true },
             Intent::ForceState(marlowe_view::StatusState::Idle),
             Intent::Undo(1),
             Intent::Compact,

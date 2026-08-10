@@ -1317,8 +1317,20 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   unattended `--ask` has nobody to approve anything. `decision: 0` — the loop's render-only
   announcement — is deliberately **not** answered, or a spare approval sits on the wire for the
   next question.
-  **THE TUI STILL CANNOT.** `live.rs` reads `Event::Approval` and drops it. `--tui` is therefore
-  the wrong surface for testing approvals; use `--ask`.
+  **THE TUI CAN NOW TOO.** A modal window offers **y / n / o** — o being a decline that carries a
+  reason, which the engine passes to the model verbatim (`ApprovalGate::decline_reason`, a
+  defaulted method so no other gate had to change). "Declined" tells the model to stop; "declined
+  because X" tells it what an acceptable call looks like.
+  **The window has no dismiss key, deliberately.** The daemon is blocked on a `sync_channel(0)`
+  rendezvous, so a window that closed without answering would hang the turn with nothing on
+  screen explaining why. `Esc` is a decline, not a dismissal; `Esc` inside the reason editor
+  returns to the question rather than leaving it. Both asserted, with a negative control that an
+  unrelated key neither answers nor closes it.
+  **It renders `PendingApproval`, not §B9's `BlastRadius`, and that is a finding rather than a
+  shortcut.** The first tool ever to need an approval is a fetch, and `Effect` has no fetch
+  variant — `Delete`, `Write`, `Send`, `Execute`, none of which describe retrieving a URL. And
+  `Ceiling` has no producer until M6. So the window states what is known and prints *ceiling
+  unknown* rather than inventing two fields to reuse the richer type.
   **NOTHING HAS CROSSED THIS ON A REAL TURN.** Both halves are tested against each other over a
   real socket (`approval_round_trip.rs`) and neither test runs a model. Treat the end-to-end path
   as unverified until an approval is observed on a real turn with a real fetch.

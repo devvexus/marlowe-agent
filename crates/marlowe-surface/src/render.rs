@@ -165,7 +165,10 @@ pub fn draw(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     // painted straight over it — a menu that was there, then wasn't, with no error anywhere.
     draw_open_dropdown(app, theme, &tree, &c, buf);
 
-    if app.view().approval.is_some() {
+    // The live window takes precedence: something is blocked waiting on it.
+    if app.view().pending_approval.is_some() {
+        crate::overlay::draw_pending_approval(app, theme, area, buf);
+    } else if app.view().approval.is_some() {
         crate::overlay::draw_approval(app, theme, area, buf);
     }
 }

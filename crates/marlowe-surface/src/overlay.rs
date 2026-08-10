@@ -102,3 +102,86 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     block.render(overlay, buf);
     Paragraph::new(lines).render(text, buf);
 }
+
+/// The **live** approval window: yes, no, or no-with-a-reason.
+///
+/// # Why this is not `draw_approval`
+///
+/// That one renders §B9's [`marlowe_view::approval::BlastRadius`], which the live path cannot
+/// build: `Effect` has no fetch variant and `Ceiling` has no producer until the trust ledger at
+/// M6. See `PendingApproval`'s header. Rather than invent an effect and a ceiling to reuse the
+/// richer overlay, this draws what the permission layer actually knows and **prints what it does
+/// not** — `ceiling unknown` is on screen, not omitted.
+///
+/// **There is no dismiss key.** The daemon is blocked on the answer, so a window that could be
+/// closed without sending one would hang the turn with nothing explaining why.
+pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
+    let Some(p) = &app.view().pending_approval else {
+        return;
+    };
+
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                let s = cell.style();
+                cell.set_style(
+                    s.remove_modifier(Modifier::BOLD)
+                        .add_modifier(Modifier::DIM)
+                        .fg(ratatui::style::Color::DarkGray),
+                );
+            }
+        }
+    }
+
+    let w = 64.min(area.width.saturating_sub(4));
+    let mut lines: Vec<Line> = vec![
+        Line::from(Span::styled(p.headline(), theme.bright())),
+        Line::from(""),
+        Line::from(Span::styled(p.detail(), theme.dim())),
+        Line::from(""),
+    ];
+
+    match &app.decline_reason {
+        // Typing a reason. The cursor is a block so it is obvious the window is taking input
+        // rather than waiting on one of the three keys.
+        Some(text) => {
+            lines.push(Line::from(Span::styled("declining — why?", theme.normal())));
+            lines.push(Line::from(Span::styled(format!("{text}\u{2588}"), theme.bright())));
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("↵ ", theme.bright()),
+                Span::styled("send    ", theme.normal()),
+                Span::styled("esc ", theme.bright()),
+                Span::styled("back to the question", theme.normal()),
+            ]));
+        }
+        None => lines.push(Line::from(vec![
+            Span::styled("y ", theme.bright()),
+            Span::styled("yes    ", theme.normal()),
+            Span::styled("n ", theme.bright()),
+            Span::styled("no    ", theme.normal()),
+            Span::styled("o ", theme.bright()),
+            Span::styled("other — no, with a reason", theme.normal()),
+        ])),
+    }
+
+    let h = lines.len() as u16 + 2;
+    let overlay = Rect {
+        x: area.x + (area.width.saturating_sub(w)) / 2,
+        y: area.y + (area.height.saturating_sub(h)) / 2,
+        width: w,
+        height: h.min(area.height),
+    };
+    Clear.render(overlay, buf);
+    // Amber, not red: this is a question, not a failure. Red is for a conflict or something
+    // irreversible, and a fetch that has not happened yet is neither.
+    let tone = if p.reversible { marlowe_view::Tone::Amber } else { marlowe_view::Tone::Red };
+    let border = Style::default().fg(theme.tone(tone));
+    let block = Block::bordered()
+        .border_type(BorderType::Double)
+        .border_style(border)
+        .title(Span::styled("approval", border));
+    let text = inner(overlay);
+    block.render(overlay, buf);
+    Paragraph::new(lines).render(text, buf);
+}

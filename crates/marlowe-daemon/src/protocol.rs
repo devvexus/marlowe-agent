@@ -30,7 +30,9 @@ pub enum Request {
     Runs,
     /// Approve or decline a pending decision (§B9). The harness enforces; the model never sees
     /// this path.
-    Approve { decision: u64, granted: bool },
+    /// **`reason` is only meaningful on a decline.** "No, because ..." is a different
+    /// instruction to the model than "no": it usually says what an acceptable call would be.
+    Approve { decision: u64, granted: bool, reason: Option<String> },
     /// Re-send a session's turns so a reconnecting client can rebuild its view.
     ///
     /// **The screen and the model disagreed without this.** The daemon owns the session; a client
