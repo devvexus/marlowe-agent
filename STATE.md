@@ -1299,29 +1299,28 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
 
 ### M2 C2e - outstanding, highest first
 
-- **PARTLY CLOSED (C2f): `web` has an executor, TLS exists, and the daemon can now ASK.**
-  `SocketApprovals` writes `Event::Approval` and blocks reading one line back **on the connection
-  that is already open** — the daemon is serial, so a `Request::Approve` on a second connection is
-  only read after the turn it answers has been denied. That arm now says so instead of reading as
-  a missing feature. Every failure is a denial: hang-up, malformed reply, and a reply naming a
-  different decision, each with its own test over a real socket pair.
-  **STILL NOT USABLE END TO END, and this is the honest gap:** (a) **no client answers the prompt
-  yet** — `live.rs` reads `Event::Approval` and does nothing with it, and the TUI has no approval
-  UI; (b) `interactive()` is still `DenyAll`, so `web` is not exposed. **The gate has unit tests
-  and nothing has crossed it**, which is precisely the shape CLAUDE.md warns about — treat it as
-  unverified until a real approval is observed on a real turn.
-  **§B9 is partly served:** the prompt carries the blast radius and now `novelty`, as an `Option`
-  that is never defaulted. **There is still no ceiling** — no producer exists until the trust
-  ledger at M6, and defaulting one would be a claim about promotion logic nobody has written.
-  `recall` and `use` are unchanged. The original entry, for the record:
-- **`web`, `recall` and `use` have no executors and are NOT exposed.** `web` is the one that
-  matters: it is a core tool and removing it from the exposed set hides the problem rather than
-  fixing it. **Decision taken, not yet built: mimic Claude Code - fetch AND search, any host, with
-  approval.** Blocked on two things. (a) There is **no TLS anywhere in this workspace**;
-  `marlowe-provider/src/http.rs` is a hand-rolled plaintext TCP client for localhost Ollama whose
-  own header says "no https, no redirect following". Needs `rustls` - a new dependency, so an ADR.
-  (b) `interactive()` is `EgressPolicy::DenyAll`, so even a working executor is blocked at the
-  boundary - brief section 13 territory, needs a `DECISIONS.md` entry, not a quiet flip.
+- **`web` IS EXPOSED. ADR-032 is implemented and approved.** `interactive()` holds
+  `EgressPolicy::AllowApproved { granted: [] }` and exposes eight tools. The three deny-shaped
+  policies are now genuinely different and the difference is the decision: `DenyAll` is
+  **structural and unwidenable** (the quarantined reader holds it, and `grant()` is a no-op on
+  it), a declared `Allow` list is **terminal** (a tool cannot ask its way past a list somebody
+  wrote), and `AllowApproved` is a **question** — empty by default, widened one host at a time by
+  a human, session-scoped, never persisted. Brief §8's allowlist-by-default holds with an empty
+  default set rather than a `*`.
+  **The ask fires on a check the consequence level cannot reach**: `web` is `Inert`, so the tier
+  comparison would allow it outright, and ADR-002's Inert exemption only stands while egress
+  allowlisting covers the tool. The prompt names the host — asserted, because that is what makes
+  per-call approval a replacement for the allowlist rather than a button.
+  **STILL NOT USABLE END TO END: no client answers the prompt.** `live.rs` reads
+  `Event::Approval` and drops it; the TUI has no approval UI. So in the daemon every `web` call to
+  an ungranted host now reaches the gate, gets no answer, and is denied — honestly, by name. **The
+  gate has unit tests over a real socket pair and NOTHING HAS CROSSED IT on a real turn.** Treat
+  it as unverified until it has.
+  **§B9 is partly served:** blast radius and `novelty` (an `Option`, never defaulted). **No
+  ceiling** — no producer until the trust ledger at M6, and defaulting one would be a claim about
+  promotion logic nobody has written.
+  `recall` and `use` remain unexposed and unimplemented.
+
 - ~~**The trust floor latches on an ordinary workspace read.**~~ **CLOSED, M2 C2f** — and the
   diagnosis was neither of the two candidates. The trust class at ingest and the floor derivation
   were both correct; the *announcement* fired on any downward move. The trigger was not a `read` at

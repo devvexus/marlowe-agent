@@ -126,12 +126,45 @@ pub enum EgressPolicy {
     /// reach the open web" is a decision somebody made and a reviewer can find, rather than a
     /// `*` that appeared in a pattern list.
     AllowAnyHost,
+    /// **Nothing reachable by default; each host reachable only by a human approving it.**
+    /// ADR-032 §3.1.
+    ///
+    /// # Why this is not `Allow { hosts: vec![] }` and not `DenyAll`
+    ///
+    /// It behaves like an empty allowlist and it is a different *thing*, and collapsing the two
+    /// would lose the distinction the whole design rests on:
+    ///
+    /// - [`DenyAll`](Self::DenyAll) is **structural**: this run reaches no network and no runtime
+    ///   event can change that. The quarantined reader holds it, and §5's narrowing rule and
+    ///   ADR-022's trifecta argument both depend on it being unwidenable.
+    /// - [`Allow`](Self::Allow) is a **declaration**: the run named its hosts in advance and is
+    ///   held to them. A tool cannot ask its way past a list somebody wrote.
+    /// - This is **extensible**: the set starts empty and grows one host at a time, by a person
+    ///   who was shown what it was for.
+    ///
+    /// Brief §8's *allowlist by default* is satisfied because **the default set is empty, not
+    /// `*`**. An approved host is an allowlist entry a human wrote at the moment they were shown
+    /// the blast radius — a stronger position than a list guessed at months earlier.
+    ///
+    /// `granted` is **session-scoped and never persisted**: it stops the second fetch of the same
+    /// host re-asking, and anything longer-lived needs the trust ledger and an answer to "what
+    /// revokes this", neither of which exists (M6).
+    AllowApproved { granted: Vec<HostPattern> },
 }
 
 impl Default for EgressPolicy {
     fn default() -> Self {
         Self::DenyAll
     }
+}
+
+/// Whether a tool's DECLARED host patterns admit this host.
+///
+/// Split out because the ask-or-refuse branch needs the manifest half of `permits` without the
+/// policy half: a run that may ask still cannot ask about a host the tool never declared it could
+/// reach. Two sets intersected, and neither alone is the answer.
+pub fn declared_admits(declared: &[HostPattern], host: &Host) -> bool {
+    declared.iter().any(|p| pattern_admits(p.as_str(), host))
 }
 
 impl EgressPolicy {
@@ -145,6 +178,34 @@ impl EgressPolicy {
             EgressPolicy::DenyAll => false,
             EgressPolicy::AllowAnyHost => true,
             EgressPolicy::Allow { hosts } => hosts.iter().any(|p| pattern_admits(p.as_str(), host)),
+            // Already approved this session. A host not here is not *denied* — it is unasked.
+            // See `may_ask`, which is what turns that distinction into an outcome.
+            EgressPolicy::AllowApproved { granted } => {
+                granted.iter().any(|p| pattern_admits(p.as_str(), host))
+            }
+        }
+    }
+
+    /// Whether an ungranted host may be **asked about** rather than refused outright.
+    ///
+    /// This is the one place the three deny-shaped policies differ, and the difference is the
+    /// whole of ADR-032: `DenyAll` and a declared `Allow` list are terminal, and `AllowApproved`
+    /// is a question. A single "is this host permitted" boolean cannot express it, which is why
+    /// this is a second method rather than a flag on the first.
+    pub fn may_ask(&self) -> bool {
+        matches!(self, EgressPolicy::AllowApproved { .. })
+    }
+
+    /// Record a host a human approved, for the remainder of this run.
+    ///
+    /// **Only `AllowApproved` can widen, and it can only widen this way.** Calling this on any
+    /// other policy does nothing — a `DenyAll` run that could be widened at runtime would make
+    /// the quarantined reader's containment a matter of what code ran, not of what it declared.
+    pub fn grant(&mut self, host: &Host) {
+        if let EgressPolicy::AllowApproved { granted } = self {
+            if !granted.iter().any(|p| pattern_admits(p.as_str(), host)) {
+                granted.push(HostPattern::new(host.as_str()));
+            }
         }
     }
 

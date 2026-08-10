@@ -235,15 +235,26 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     assert_eq!(registry.len(), 10);
 
     let profile = CapabilityProfile::interactive();
-    // **Registered is ten; exposed is seven.** `web`, `recall` and `use` are compiled in and have
-    // no executor, so exposing them handed the model tools it could call and never run. The gap
+    // **Registered is ten; exposed is eight.** `recall` and `use` are compiled in and have no
+    // executor, so exposing them would hand the model tools it could call and never run. The gap
     // between these two numbers is the honest statement of what is built — and
-    // `verify_every_exposed_tool_is_runnable` is what keeps it from closing by accident.
-    assert_eq!(profile.exposed_tools().len(), 7);
+    // `verify_every_exposed_tool_is_runnable` is what keeps it from closing by accident. `web`
+    // moved across that gap in M2 C2f by gaining an executor, which is the guard working in the
+    // direction nobody tests for.
+    assert_eq!(profile.exposed_tools().len(), 8);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");
 
-    // Egress is denied by default rather than defaulted to something convenient.
-    assert_eq!(*profile.egress(), marlowe_permission::EgressPolicy::DenyAll);
+    // **Nothing is reachable by default** — and the default set is EMPTY rather than `*`, which
+    // is how brief §8's allowlist-by-default is satisfied by a policy that can still be widened
+    // one host at a time by a human (ADR-032 §3.1).
+    assert_eq!(
+        *profile.egress(),
+        marlowe_permission::EgressPolicy::AllowApproved { granted: Vec::new() }
+    );
+    assert!(
+        !profile.egress().grants(&marlowe_permission::Host::from_url("https://example.com/").unwrap()),
+        "a fresh interactive run reaches nothing until somebody approves a host"
+    );
 }

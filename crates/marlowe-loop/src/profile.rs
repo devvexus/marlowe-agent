@@ -171,21 +171,29 @@ impl CapabilityProfile {
 
     /// The interactive coding profile: all eleven, no egress until the user grants it.
     pub fn interactive() -> Self {
-        // **Only what can actually run.** `web`, `recall` and `use` are registered and
-        // unimplemented — `FileSystemTools` has arms for four tools, and the three loop-control
-        // tools are `ModelStep` variants. Exposing the rest gave the model three tools it could
-        // see, call correctly, and never execute, which is what made "check the weather" produce a
-        // model arguing with an error it could not read.
+        // **Only what can actually run.** `recall` and `use` are registered and unimplemented —
+        // exposing a tool the host cannot execute gave the model something it could see, call
+        // correctly, and never run, which is what made "check the weather" produce a model
+        // arguing with an error it could not read.
         //
-        // They come back the moment they have executors, and `verify_every_exposed_tool_is_runnable`
-        // is what makes that a build failure rather than a discovery.
-        let tools = ["read", "edit", "find", "bash", "ask", "remember", "run"]
+        // **`web` came back in M2 C2f**, which is the rule working rather than an exception to it:
+        // it has an executor now (`marlowe-exec`, fetch-only over `marlowe-net`), so
+        // `verify_every_exposed_tool_is_runnable` permits it. It was removed and restored by the
+        // same check, without anyone having to remember either time.
+        let tools = ["read", "edit", "find", "bash", "web", "ask", "remember", "run"]
             .iter()
             .map(|t| ToolId::new(*t))
             .collect();
         Self::new(
-            ExposedSet::new(tools).expect("ten fits in twelve"),
-            EgressPolicy::DenyAll,
+            ExposedSet::new(tools).expect("eight fits in twelve"),
+            // **ADR-032 §3.1: nothing reachable by default, each host by human approval.**
+            //
+            // Not `DenyAll`, which is structural and unwidenable — the quarantined reader holds
+            // that, and §5's narrowing rule depends on it. Not `Allow { hosts }`, which is a list
+            // somebody guessed at in advance. The set starts **empty**, so brief §8's
+            // allowlist-by-default holds with an empty default rather than a `*`, and it grows one
+            // host at a time by a person who was shown the blast radius.
+            EgressPolicy::AllowApproved { granted: Vec::new() },
             InterruptPolicy::Interruptible,
             ModelRoute::Orchestrator,
             true,
@@ -363,11 +371,21 @@ mod tests {
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        // **Seven, not ten.** `web`, `recall` and `use` are registered and unimplemented; exposing
-        // them handed the model three tools it could call and never execute. Four executable
-        // builtins plus the three loop-control tools is what can actually be reached today.
-        assert_eq!(i.exposed_tools().len(), 7);
-        assert_eq!(*i.egress(), EgressPolicy::DenyAll, "egress is granted, never assumed");
+        // **Eight, not ten.** `recall` and `use` are registered and unimplemented; exposing them
+        // handed the model tools it could call and never execute. `web` rejoined in M2 C2f when
+        // it gained an executor — removed and restored by the same guard, without anyone having
+        // to remember either time.
+        assert_eq!(i.exposed_tools().len(), 8);
+        assert_eq!(
+            *i.egress(),
+            EgressPolicy::AllowApproved { granted: Vec::new() },
+            "the set starts EMPTY: egress is granted per host by a human, never assumed. This is              not DenyAll — that is structural and unwidenable, and the quarantined reader holds it"
+        );
+        assert!(i.egress().may_ask(), "an ungranted host is a question here, not a refusal");
+        assert!(
+            !CapabilityProfile::quarantined_reader().egress().may_ask(),
+            "the quarantined reader may never ask its way onto the network"
+        );
     }
 
     #[test]

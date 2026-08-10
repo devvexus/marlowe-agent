@@ -352,6 +352,7 @@ impl<S: PathScope> Adjudicator<S> {
         }
 
         // ── 4. egress ────────────────────────────────────────────────────────────────
+        let mut egress_needs_approval = false;
         for spec in manifest.params().iter().filter(|p| p.ty == ParamType::Url) {
             let Some(value) = req.args.get(&spec.name).and_then(ArgValue::as_text) else {
                 continue;
@@ -360,7 +361,16 @@ impl<S: PathScope> Adjudicator<S> {
                 // A URL that will not parse is refused, not guessed at. See `egress`.
                 Err(e) => Some(BlockReason::EgressNotAllowed { host: e.to_string() }),
                 Ok(host) if !req.egress.permits(&host, manifest.hosts()) => {
-                    Some(BlockReason::EgressNotAllowed { host: host.as_str().to_string() })
+                    // **An ungranted host under `AllowApproved` is UNASKED, not denied.**
+                    // ADR-032 §3.1. The manifest's own declaration still binds — a run that may
+                    // ask cannot ask about a host the tool never declared it could reach, which
+                    // is why the intersection is checked before this branch and not after.
+                    if req.egress.may_ask() && crate::egress::declared_admits(manifest.hosts(), &host) {
+                        egress_needs_approval = true;
+                        None
+                    } else {
+                        Some(BlockReason::EgressNotAllowed { host: host.as_str().to_string() })
+                    }
                 }
                 Ok(_) => None,
             };
@@ -390,6 +400,17 @@ impl<S: PathScope> Adjudicator<S> {
         // explicit rule: it would look like a policy while behaving like a constant.
         if manifest.consequence() == ConsequenceLevel::Irreversible {
             let outcome = Outcome::NeedsApproval { tier: RiskTier::Irreversible };
+            return Adjudication { decision: decide(outcome, reasons), handles };
+        }
+
+        // **An ungranted host asks, whatever the consequence level says.** ADR-032 §3.1.
+        //
+        // `web` is `Inert`, so the tier comparison below would allow it outright — and ADR-002
+        // permits that exemption *only* while egress allowlisting covers the tool. Under
+        // `AllowApproved` the list is no longer fixed in advance, so the approval prompt is what
+        // replaces it, and it has to fire on a check the consequence level cannot reach.
+        if egress_needs_approval {
+            let outcome = Outcome::NeedsApproval { tier: RiskTier::for_consequence(manifest.consequence()) };
             return Adjudication { decision: decide(outcome, reasons), handles };
         }
 
@@ -506,6 +527,91 @@ mod tests {
                 "{v:?} rendered to nothing, so it would vanish from an approval prompt"
             );
         }
+    }
+
+    /// **The three deny-shaped policies are not the same, and ADR-032 turns on the difference.**
+    ///
+    /// `DenyAll` is structural and terminal. A declared `Allow` list is a declaration and is also
+    /// terminal — a tool cannot ask its way past a list somebody wrote. `AllowApproved` starts
+    /// empty and is a *question*. All three refuse an ungranted host; only one of them asks, and
+    /// a single "is this permitted" boolean cannot express that.
+    #[test]
+    fn an_ungranted_host_asks_under_allow_approved_and_is_refused_under_the_others() {
+        let r = registry();
+        let call = || Args::new().text("url", "https://example.com/page");
+        let taint = || TaintSet::new().with("url", TrustClass::UserAsserted);
+
+        // Structural: the quarantined reader's policy. Terminal refusal.
+        let d = adjudicate(&r, "web", call(), taint(), EgressPolicy::DenyAll, Tier::Act);
+        assert!(
+            matches!(d.outcome, Outcome::Blocked { .. }),
+            "DenyAll must never become a question: {:?}",
+            d.outcome
+        );
+
+        // Declared in advance, and this host is not on it. Also terminal.
+        let d = adjudicate(
+            &r,
+            "web",
+            call(),
+            taint(),
+            EgressPolicy::allow(&["docs.internal"]),
+            Tier::Act,
+        );
+        assert!(
+            matches!(d.outcome, Outcome::Blocked { .. }),
+            "a declared list is a declaration, not an opening bid: {:?}",
+            d.outcome
+        );
+
+        // Extensible and empty: nothing is reachable, and this one ASKS.
+        let d = adjudicate(
+            &r,
+            "web",
+            call(),
+            taint(),
+            EgressPolicy::AllowApproved { granted: Vec::new() },
+            Tier::Act,
+        );
+        assert!(
+            matches!(d.outcome, Outcome::NeedsApproval { .. }),
+            "an ungranted host under AllowApproved is unasked, not denied: {:?}",
+            d.outcome
+        );
+        // **§B9: and the prompt names the host.** ADR-002's Inert exemption for `web` rests on
+        // egress allowlisting; approve-any-host weakens that, and per-call approval replaces it
+        // only if the human can see what they are approving.
+        assert!(
+            d.blast_radius.scope.contains("example.com"),
+            "the approval prompt must name the host: {:?}",
+            d.blast_radius.scope
+        );
+
+        // Once granted, it runs without asking again.
+        let mut policy = EgressPolicy::AllowApproved { granted: Vec::new() };
+        policy.grant(&Host::from_url("https://example.com/page").expect("a host"));
+        let d = adjudicate(&r, "web", call(), taint(), policy, Tier::Act);
+        assert!(
+            matches!(d.outcome, Outcome::Allowed | Outcome::AllowedBatched { .. }),
+            "a host the human approved does not re-ask for the rest of the run: {:?}",
+            d.outcome
+        );
+    }
+
+    /// `grant` only widens the policy that is allowed to widen. A `DenyAll` run that could be
+    /// widened at runtime would make the quarantined reader's containment a property of what code
+    /// ran rather than of what it declared.
+    #[test]
+    fn granting_a_host_does_nothing_to_a_policy_that_may_not_be_widened() {
+        let host = Host::from_url("https://example.com/").expect("a host");
+        let mut deny = EgressPolicy::DenyAll;
+        deny.grant(&host);
+        assert_eq!(deny, EgressPolicy::DenyAll, "DenyAll is unwidenable");
+        assert!(!deny.grants(&host));
+
+        let mut declared = EgressPolicy::allow(&["docs.internal"]);
+        declared.grant(&host);
+        assert!(!declared.grants(&host), "a declared list is not extended by an approval");
     }
 
     #[test]

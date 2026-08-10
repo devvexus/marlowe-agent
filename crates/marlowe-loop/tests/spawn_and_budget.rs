@@ -1436,7 +1436,10 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             unreachable!("not called")
         }
         fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-            ["read", "edit", "find", "bash"]
+            // **`web` joined in M2 C2f and this stub had to follow**, which is the guard working
+            // in the direction nobody writes a test for: it fires when the shipped profile grows
+            // a tool the host does not claim, not only when a host shrinks.
+            ["read", "edit", "find", "bash", "web"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()
