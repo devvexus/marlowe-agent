@@ -49,6 +49,25 @@ use crate::turn::{ToolLineState, TurnEvent};
 /// meaningless id, and it keeps the wire shape uniform.
 pub const CONTROL_CALL_ID: &str = "control";
 
+/// Said when a human was asked and declined **with** a reason. The reason goes between this and
+/// [`DECLINED_ADVICE`], verbatim — §B9's answer belongs to the user, not to a paraphrase.
+const DECLINED_WITH_REASON: &str =
+    "The user was asked to approve this call and DECLINED. Their reason: ";
+
+/// The half that follows the user's words. Split from the prose above so the reason cannot be
+/// reworded on its way through a `format!`.
+const DECLINED_ADVICE: &str = "
+
+They are present and can approve a different call, so this is NOT a hard block and the tool is NOT unavailable. Do not repeat this exact call. Read the reason as guidance: it usually says what an acceptable call would look like. If it points at one, propose that. If it means the approach itself is unwanted, say so plainly and move on.";
+
+/// Said when a human was asked and declined without explaining.
+const DECLINED_NO_REASON: &str = "The user was asked to approve this call and DECLINED, without giving a reason.
+
+They are present and can approve a different call, so this is NOT a hard block and the tool is NOT unavailable. Do not repeat this exact call. If a narrower or different call would serve the same goal, propose it. Otherwise ask the user what they would prefer, in one sentence.";
+
+/// Said when there was **nobody to ask**. The only case where "unavailable" is true.
+const NO_APPROVAL_SURFACE: &str = "This tool needs a human to approve each call, and no interactive approval surface is attached to this run, so it cannot be approved. The call was not executed and retrying it will fail the same way. Tell the user plainly that the tool is unavailable in this session, and continue with the tools that are.";
+
 /// The structural bound on a non-converging run.
 ///
 /// Failure paths table: *"Non-converging retry — bounded structurally by tool-call and step
@@ -830,25 +849,28 @@ impl<S: PathScope> Engine<S> {
                     // "Declined" says stop; "declined because the host is untrusted" says what a
                     // better call would look like. When the human gave one, it goes to the model
                     // verbatim rather than being summarised into the generic refusal.
-                    let why = match ports.approvals.decline_reason() {
-                        Some(r) => format!(
-                            "The user declined this call and gave a reason: {r}
-
-Do not retry                              the same call. Take the reason seriously — it usually says what an                              acceptable call would be, or that this is not something to do at all."
-                        ),
-                        None => "This tool needs a human to approve each call, and no interactive                              approval surface is attached to this run, so it cannot be approved.                              The call was not executed and retrying it will fail the same way.                              Tell the user plainly that the tool is unavailable in this session,                              and continue with the tools that are."
-                            .to_string(),
+                    // **Three different situations, three different instructions.** They were
+                    // one message, and it was the unattended one — so a user declining in the TUI
+                    // was telling the model that no approval surface existed, and the model
+                    // reasonably concluded the capability was hard-blocked and stopped trying.
+                    // **Three situations, three instructions. They were one message, and it
+                    // was the unattended one.**
+                    //
+                    // Found on the first live approval in the TUI: the user declined, and the
+                    // model was told *"no interactive approval surface is attached to this run"* —
+                    // false, the surface was on screen — so it reported the capability
+                    // hard-blocked and stopped attempting anything at all. A refusal the model
+                    // cannot act on *correctly* is worse than one it cannot read, because it acts
+                    // on it confidently.
+                    let why = match (
+                        ports.approvals.is_interactive(),
+                        ports.approvals.decline_reason(),
+                    ) {
+                        (true, Some(r)) => format!("{DECLINED_WITH_REASON}{r}{DECLINED_ADVICE}"),
+                        (true, None) => DECLINED_NO_REASON.to_string(),
+                        (false, _) => NO_APPROVAL_SURFACE.to_string(),
                     };
-                    self.tool_error_ref(
-                        call_ref,
-                        state,
-                        &tool,
-                        "This tool needs a human to approve each call, and no interactive \
-                         approval surface is attached to this run, so it cannot be approved. \
-                         The call was not executed and retrying it will fail the same way. \
-                         Tell the user plainly that the tool is unavailable in this session, \
-                         and continue with the tools that are.",
-                    );
+                    self.tool_error_ref(call_ref, state, &tool, &why);
                     self.refused_line(ports, call_id, &tool, &adjudication, "declined", "declined");
                     return;
                 }

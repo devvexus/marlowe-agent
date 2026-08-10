@@ -1326,6 +1326,15 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   screen explaining why. `Esc` is a decline, not a dismissal; `Esc` inside the reason editor
   returns to the question rather than leaving it. Both asserted, with a negative control that an
   unrelated key neither answers nor closes it.
+  **A DECLINE IS NOT A HARD BLOCK, and telling the model it was is the defect the first live
+  approval found.** One refusal message served both situations and it was the unattended one:
+  declining in the TUI handed the model *"no interactive approval surface is attached to this
+  run"* — false, the window was on screen — so it reported the capability hard-blocked and
+  stopped attempting anything. `ApprovalGate::is_interactive` (defaulted `false`) now splits
+  three cases: declined-with-a-reason carries the user's words verbatim as guidance,
+  declined-without says a different call may still be approved, and only the genuinely
+  unattended case says the tool is unavailable. **A refusal the model cannot act on correctly is
+  worse than one it cannot read, because it acts on it confidently.**
   **It renders `PendingApproval`, not §B9's `BlastRadius`, and that is a finding rather than a
   shortcut.** The first tool ever to need an approval is a fetch, and `Effect` has no fetch
   variant — `Delete`, `Write`, `Send`, `Execute`, none of which describe retrieving a URL. And

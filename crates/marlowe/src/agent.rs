@@ -115,6 +115,11 @@ pub fn ask(
 struct TerminalApprovals;
 
 impl marlowe_loop::ApprovalGate for TerminalApprovals {
+    /// A terminal is attached; that is the whole point of this gate.
+    fn is_interactive(&self) -> bool {
+        true
+    }
+
     fn await_approval(&mut self, radius: &marlowe_permission::BlastRadius) -> bool {
         approve_at_the_terminal(&Event::Approval {
             decision: 0,

@@ -201,6 +201,11 @@ impl SocketApprovals {
 }
 
 impl ApprovalGate for SocketApprovals {
+    /// A client is on the other end of this socket, so somebody can be asked.
+    fn is_interactive(&self) -> bool {
+        true
+    }
+
     fn decline_reason(&self) -> Option<String> {
         self.last_reason.clone()
     }

@@ -293,6 +293,28 @@ impl TurnSink for () {
 
 /// Approvals are **enforced by the harness, not requested by the model** (§8.2).
 pub trait ApprovalGate {
+    /// **Whether a human is actually there to ask.**
+    ///
+    /// Defaulted `false`, which is the safe direction: a gate that cannot ask says so.
+    ///
+    /// # Why the loop needs this and `await_approval`'s bool is not enough
+    ///
+    /// `false` from `await_approval` conflates two situations that call for opposite behaviour
+    /// from the model:
+    ///
+    /// - **Nobody could be asked.** Retrying anything in this class will fail identically, so the
+    ///   right move is to say the tool is unavailable and carry on without it.
+    /// - **Somebody was asked and said no.** A human is present and can approve a *different*
+    ///   call. Giving up on the whole capability is wrong.
+    ///
+    /// Observed live the first time the TUI window shipped: declined once, the model was handed
+    /// *"no interactive approval surface is attached to this run"* — a false statement, since the
+    /// surface was on screen — and refused to attempt anything further, citing a hard block. The
+    /// message was written for the unattended case and reused for the attended one.
+    fn is_interactive(&self) -> bool {
+        false
+    }
+
     /// Why the last refusal was refused, when the human gave a reason.
     ///
     /// **Defaulted, so no existing gate had to change.** A gate that cannot collect a reason

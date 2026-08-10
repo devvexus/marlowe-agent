@@ -1227,6 +1227,103 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
     );
 }
 
+/// **A decline by a present human is not a hard block, and the model must not be told it is.**
+/// (M2 C2f, found on the first live TUI approval.)
+///
+/// One message served both situations, and it was the unattended one: *"no interactive approval
+/// surface is attached to this run … retrying it will fail the same way."* Declining in the TUI
+/// therefore told the model that no surface existed — false, it was on screen — and the model
+/// reasonably reported the capability hard-blocked and stopped trying anything.
+///
+/// The three cases are asserted together because the defect was that they were one.
+#[test]
+fn a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked() {
+    /// Refuses, and says whether a human was there and what they said.
+    struct Gate {
+        interactive: bool,
+        reason: Option<String>,
+    }
+    impl marlowe_loop::ApprovalGate for Gate {
+        fn is_interactive(&self) -> bool {
+            self.interactive
+        }
+        fn decline_reason(&self) -> Option<String> {
+            self.reason.clone()
+        }
+        fn await_approval(&mut self, _r: &marlowe_permission::BlastRadius) -> bool {
+            false
+        }
+    }
+
+    let rendered_with = |gate: Gate| -> String {
+        let mut e = engine();
+        let mut driver = ScriptDriver::new(vec![
+            step(
+                ModelStep::one_call(
+                    ToolId::new("bash"),
+                    marlowe_permission::Args::new().text("command", "echo hi"),
+                ),
+                100,
+            ),
+            say("stopped", 100),
+        ]);
+        let mut summarizer = EmptySummarizer;
+        let mut tools = ScriptedTools::default();
+        let mut approvals = gate;
+        let mut sink = CollectingSink::default();
+        let mut control = marlowe_loop::NoControl;
+        let mut clock = FrozenClock(1_700_000_000_000);
+        let mut recorder = MemoryRecorder::default();
+        let mut ports = Ports {
+            driver: &mut driver,
+            summarizer: &mut summarizer,
+            tools: &mut tools,
+            memory: None,
+            approvals: &mut approvals,
+            sink: &mut sink,
+            control: &mut control,
+            clock: &mut clock,
+            recorder: &mut recorder,
+        };
+        let mut run = root(Budget::interactive());
+        let mut state = SessionState::new(run.session, "Marlowe.");
+        let mut prov = Provenance::new();
+        let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+        e.assembler().assemble(&state).rendered()
+    };
+
+    // 1. Nobody could be asked. This is the only case where "unavailable" is true.
+    let unattended = rendered_with(Gate { interactive: false, reason: None });
+    assert!(
+        unattended.contains("no interactive approval surface"),
+        "an unattended run must still say so: {unattended}"
+    );
+
+    // 2. A human declined, silently. The tool is NOT unavailable.
+    let declined = rendered_with(Gate { interactive: true, reason: None });
+    assert!(
+        !declined.contains("no interactive approval surface"),
+        "THE DEFECT: a present human declining must not be reported as an absent surface.          The model reads this and stops trying anything at all:
+{declined}"
+    );
+    assert!(
+        declined.contains("DECLINED"),
+        "it must say what actually happened: {declined}"
+    );
+
+    // 3. A human declined with a reason, which is guidance rather than a dead end.
+    let with_reason =
+        rendered_with(Gate { interactive: true, reason: Some("wrong host".into()) });
+    assert!(
+        with_reason.contains("wrong host"),
+        "the user's reason must reach the model verbatim: {with_reason}"
+    );
+    assert!(
+        !with_reason.contains("no interactive approval surface"),
+        "still not an absent surface: {with_reason}"
+    );
+}
+
 /// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
 ///
 /// Completion is the absence of an action, and an empty reply is technically that — so without a
