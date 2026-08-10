@@ -87,13 +87,19 @@ in a prior harness", which is a prior about a different system. §C7 amended to 
 
 ### Still open
 
-- **PARALLEL TOOL CALLS ARE THE NEXT TASK** (the human's direction). `ModelStep::ToolCall` is
-  singular. **The silent drop is closed as of this commit**: `parse_step` took `calls.first()`, so a
-  model emitting three calls had two actions it believed it took that never happened, with nothing
-  reporting the loss — worse than the singular type, which is at least honest. The streaming path
-  now returns a **non-retriable `ProviderError`** naming the count and refusing rather than running
-  a third of them. **When the loop executes every call, revert v2.md's one-call-per-turn line IN
-  THE SAME COMMIT** — the prompt must never lead the harness.
+- ~~**PARALLEL TOOL CALLS**~~ — **DONE.** `ModelStep::ToolCall` carries `Vec<ToolInvocation>`; the
+  loop executes every call; each result is attributed by a harness-assigned id reaching
+  `/api/chat` as `tool_calls[].id` and `tool_call_id`. `persona/v2.md` reverted in the same commit.
+  Three states, in order, and the middle one is worth remembering: **silent drop → loud refusal →
+  real support.** Refusing to run a third of a plan beats running a third and reporting nothing.
+  **Taint is computed once per batch and that is correct rather than cheap** — every call was
+  composed before any sibling's result existed, so a per-call recomputation would block a call on
+  content its author never saw. The latch is not holed by ordering: the batch's results latch the
+  floor before the *next* adjudication. Both halves asserted in one test, because either alone
+  passes on a broken build in the opposite direction.
+  **One judgement call to review:** a control tool (`done`/`ask`/`run`) inside a multi-call batch
+  takes precedence and returns its control step, since it ends or reshapes the run. Not a silent
+  drop, but a semantic choice nobody ratified.
 - **`interactive()` is still `EgressPolicy::DenyAll`**, so `web` has an executor and is not exposed.
   ADR-032 §3.1 (`AllowApproved`) is **PROPOSED, not approved** — it needs the human, and it needs an
   interactive approval surface the daemon does not have (`DenyUnattended` returns false, which is
@@ -1443,6 +1449,25 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   quarantined reader. Both cases are tested so the two cannot be confused.
 
 ## Open questions for the human
+
+0. **FOUR PLACES WHERE UNTRUSTED CONTENT SHAPES A DECISION THROUGH A PATH NOBODY HAS LOOKED AT.**
+   ADR-036 §5 established that the (action, target) question — *who chose the thing that determines
+   the outcome* — applies where there is **no tool, no argument and no permission check**. That
+   generalization was found in one domain and immediately implicates four others, none of which has
+   been examined:
+
+   | Where | The value untrusted content could shape | Why nobody has looked |
+   |---|---|---|
+   | **Ranking inputs** | query text and candidate text both reach the cross-encoder. A page that shapes a query shapes what is retrieved *and* what is injected | the rerank is treated as a quality mechanism, not a decision surface |
+   | **Cache keys** | a key derived from attacker-influenced text lets one request's result be served for another | there is no cache yet — which is why now is when it is cheap |
+   | **Memory derivation lineage** | `derived_from` is already a declared `Target` on `remember`, but the **harness-side** resolution of lineage during consolidation is not the same path | the tool argument is guarded; the internal path was never asked the question |
+   | **Consolidation merge decisions** | whether two memories are *the same fact* is the identity question of ADR-036 §4, inside the memory system, on content that may be untrusted | it predates the framing entirely |
+
+   **The tell they share:** each decides something using text whose author is not established, and
+   in each the trust floor is either uniform or absent, so the latch cannot discriminate (see the
+   CLAUDE.md ledger entry). This is a question rather than a finding — **none of the four has been
+   confirmed exploitable and none has been confirmed safe.** Examining one is a session's work;
+   deciding they are fine without looking is the failure this project keeps recording.
 
 1. **HP14 has an experiment attached, not an answer** — needs a consenting cohort at M6.
 2. **QA accuracy needs an API credential.** A key and a small HTTP client in `tools/`. Offline

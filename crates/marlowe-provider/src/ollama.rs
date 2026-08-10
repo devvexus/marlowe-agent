@@ -384,7 +384,12 @@ impl OllamaDriver {
                         w.tool_calls
                             .iter()
                             .map(|c| {
+                                // `id` pairs this call with the `tool_call_id` on its result.
+                                // Without it a batch of three calls to the same tool returns
+                                // three results the model cannot tell apart, so a partial
+                                // failure reads as a total one.
                                 serde_json::json!({
+                                    "id": c.id,
                                     "function": { "name": c.name, "arguments": c.arguments }
                                 })
                             })
@@ -393,6 +398,9 @@ impl OllamaDriver {
                 }
                 if let Some(n) = &w.tool_name {
                     msg["tool_name"] = serde_json::Value::String(n.clone());
+                }
+                if let Some(id) = &w.tool_call_id {
+                    msg["tool_call_id"] = serde_json::Value::String(id.clone());
                 }
             }
             messages.push(msg);
@@ -702,33 +710,9 @@ impl ModelDriver for OllamaDriver {
 
         // Reassembled into the same shape the non-streaming path produced, so `parse_step` is
         // unchanged and the four loop-control tools keep their routing.
-        let emitted_calls = tool_calls.len();
         let mut message = serde_json::json!({ "content": text });
         if !tool_calls.is_empty() {
             message["tool_calls"] = serde_json::Value::Array(tool_calls);
-        }
-        // **A dropped call must never be silent.** (M2 C2f.)
-        //
-        // `parse_step` takes `calls.first()`. Against a model that emits three calls in one
-        // message that is not "we execute one of them" — it is **two actions the model believes it
-        // took that never happened, with nothing anywhere reporting the loss**. That is strictly
-        // worse than the singular type: the type is at least honest, and the drop is invisible to
-        // the model, the user, the journal and the tests.
-        //
-        // Failing the call loudly and non-retriably is the correct interim behaviour. Parallel
-        // execution is the next session's work; until the loop can run every call, refusing to run
-        // a third of them beats pretending.
-        if emitted_calls > 1 {
-            return Err(ProviderError {
-                detail: format!(
-                    "the model emitted {} tool calls in one message and this build executes one \
-                     call per turn. Refusing rather than running the first and discarding the \
-                     rest, which would be two actions the model believes it took that never \
-                     happened. Parallel execution is not yet built.",
-                    emitted_calls
-                ),
-                retriable: false,
-            });
         }
         let step = parse_step(&message);
         Ok(ModelCall { usage, step })
@@ -762,8 +746,19 @@ const CONTROL_TOOLS: [&str; 3] = ["ask", "remember", "run"];
 /// from is not evidence, and the harness computes taint from the context view instead.
 pub fn parse_step(message: &serde_json::Value) -> ModelStep {
     if let Some(calls) = message.get("tool_calls").and_then(|c| c.as_array()) {
-        if let Some(first) = calls.first() {
-            let function = first.get("function");
+        // **Every call, not `calls.first()`.**
+        //
+        // Taking the first and discarding the rest was silent: a model emitting three calls had
+        // two actions it believed it took that never happened, with nothing reporting the loss to
+        // the model, the user, the journal or a test. That was closed first by a loud refusal and
+        // is now closed properly by executing all of them.
+        //
+        // Ids are assigned HERE, by the harness, and never read from the model's own `id` field.
+        // A model that could name its own calls could collide two results deliberately, and a
+        // batch of three `read`s is exactly where a collision would be unreadable.
+        let mut batch: Vec<marlowe_loop::ToolInvocation> = Vec::new();
+        for (i, call) in calls.iter().enumerate() {
+            let function = call.get("function");
             let name = function
                 .and_then(|f| f.get("name"))
                 .and_then(|n| n.as_str())
@@ -795,14 +790,26 @@ pub fn parse_step(message: &serde_json::Value) -> ModelStep {
                 //
                 // A model naming `done` is answering. The body becomes the reply, and a reply
                 // with no tool call ends the turn.
+                //
+                // **A control tool ends or reshapes the run, so it is never batched.** `done`
+                // answers, `ask` escalates, `run` spawns. If one appears alongside others the
+                // control step wins and the siblings are reported rather than dropped — the
+                // reporting is what makes this different from `calls.first()`.
                 if name == "done" {
                     return ModelStep::Say(done_body(&args, message));
                 }
                 if CONTROL_TOOLS.contains(&name) {
                     return control_step(name, &args, message);
                 }
-                return ModelStep::ToolCall { tool: ToolId::new(name), args };
+                batch.push(marlowe_loop::ToolInvocation {
+                    id: format!("call_{}", i + 1),
+                    tool: ToolId::new(name),
+                    args,
+                });
             }
+        }
+        if !batch.is_empty() {
+            return ModelStep::ToolCall { calls: batch };
         }
     }
     let content = message.get("content").and_then(|c| c.as_str()).unwrap_or_default();
@@ -946,9 +953,10 @@ mod tests {
             }]
         });
         match parse_step(&msg) {
-            ModelStep::ToolCall { tool, args } => {
-                assert_eq!(tool.as_str(), "read");
-                assert_eq!(args.get("path"), Some(&ArgValue::Text("src/main.rs".into())));
+            ModelStep::ToolCall { calls } => {
+                assert_eq!(calls.len(), 1);
+                assert_eq!(calls[0].tool.as_str(), "read");
+                assert_eq!(calls[0].args.get("path"), Some(&ArgValue::Text("src/main.rs".into())));
             }
             other => panic!("expected a tool call, got {other:?}"),
         }
@@ -1116,7 +1124,8 @@ fn recover_leaked_call(content: &str) -> Option<ModelStep> {
     if CONTROL_TOOLS.contains(&name) {
         return Some(control_step(name, &args, &serde_json::Value::Null));
     }
-    Some(ModelStep::ToolCall { tool: ToolId::new(name), args })
+    // A recovered leaked call is always a single call — the syntax cannot express a batch.
+    Some(ModelStep::one_call(ToolId::new(name), args))
 }
 
 #[cfg(test)]
@@ -1129,9 +1138,13 @@ mod leaked_call_tests {
             "content": "<function=read><parameter=path>notes.md</parameter></function>"
         });
         match parse_step(&msg) {
-            ModelStep::ToolCall { tool, args } => {
-                assert_eq!(tool.as_str(), "read");
-                assert_eq!(args.get("path").and_then(ArgValue::as_text), Some("notes.md"));
+            ModelStep::ToolCall { calls } => {
+                assert_eq!(calls.len(), 1);
+                assert_eq!(calls[0].tool.as_str(), "read");
+                assert_eq!(
+                    calls[0].args.get("path").and_then(ArgValue::as_text),
+                    Some("notes.md")
+                );
             }
             other => panic!("leaked markup was not recovered: {other:?}"),
         }

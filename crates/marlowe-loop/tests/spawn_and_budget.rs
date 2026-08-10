@@ -481,13 +481,10 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
         // The child names a memory id the *user* mentioned to the parent. In the child that is
         // a model-composed target, and the child's window floor is what decides it.
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("remember"),
-                args: marlowe_permission::Args::new()
+            ModelStep::one_call(ToolId::new("remember"), marlowe_permission::Args::new()
                     .text("text", "a claim")
                     .text("derived_from", "m-secret")
-                    .text("payload_kind", "fact"),
-            },
+                    .text("payload_kind", "fact")),
             100,
         ),
         say("done", 100),
@@ -715,18 +712,12 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
     let mut driver = ScriptDriver::new(vec![
         // a fetched page enters the window
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("web"),
-                args: marlowe_permission::Args::new().text("url", "https://docs.example.com/x"),
-            },
+            ModelStep::one_call(ToolId::new("web"), marlowe_permission::Args::new().text("url", "https://docs.example.com/x")),
             100,
         ),
         // ...and now the model proposes a shell command
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("bash"),
-                args: marlowe_permission::Args::new().text("command", "rm -rf /"),
-            },
+            ModelStep::one_call(ToolId::new("bash"), marlowe_permission::Args::new().text("command", "rm -rf /")),
             100,
         ),
         say("stopped", 100),
@@ -809,26 +800,17 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
         // `find` with only `pattern` — Inert, and it declares no path, so the `Unavailable`
         // scope in `engine()` is never consulted. An ordinary workspace read.
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("find"),
-                args: marlowe_permission::Args::new().text("pattern", "TODO"),
-            },
+            ModelStep::one_call(ToolId::new("find"), marlowe_permission::Args::new().text("pattern", "TODO")),
             100,
         ),
         // Two composed Targets AFTER the result is in view, not one: a second iteration is what
         // would expose a banner that re-announces on every pass.
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("bash"),
-                args: marlowe_permission::Args::new().text("command", "echo one"),
-            },
+            ModelStep::one_call(ToolId::new("bash"), marlowe_permission::Args::new().text("command", "echo one")),
             100,
         ),
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("bash"),
-                args: marlowe_permission::Args::new().text("command", "echo two"),
-            },
+            ModelStep::one_call(ToolId::new("bash"), marlowe_permission::Args::new().text("command", "echo two")),
             100,
         ),
         say("stopped", 100),
@@ -1031,6 +1013,218 @@ fn the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing() {
         })
         .count();
     assert_eq!(announced, 0, "a toolless run must never claim it read untrusted content");
+}
+
+/// **A partially-failing batch tells the model WHICH call failed.** (M2 C2f.)
+///
+/// Three calls in one message: two `find`s that run and a `read` that path scoping refuses. The
+/// model must be able to tell them apart, and `tool_name` cannot do it — two of the three share a
+/// name. Without `tool_call_id` a partial failure reads as a total one, or the model retries the
+/// call that worked.
+#[test]
+fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::ToolCall {
+                calls: vec![
+                    marlowe_loop::ToolInvocation {
+                        id: "call_1".into(),
+                        tool: ToolId::new("find"),
+                        args: marlowe_permission::Args::new().text("pattern", "alpha"),
+                    },
+                    // `Unavailable` path scoping refuses this one, and only this one.
+                    marlowe_loop::ToolInvocation {
+                        id: "call_2".into(),
+                        tool: ToolId::new("read"),
+                        args: marlowe_permission::Args::new().text("path", "/etc/passwd"),
+                    },
+                    marlowe_loop::ToolInvocation {
+                        id: "call_3".into(),
+                        tool: ToolId::new("find"),
+                        args: marlowe_permission::Args::new().text("pattern", "beta"),
+                    },
+                ],
+            },
+            100,
+        ),
+        say("stopped", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("root"),
+        SessionId::from_name("s"),
+        CapabilityProfile::new(
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("read")]).unwrap(),
+            marlowe_permission::EgressPolicy::DenyAll,
+            marlowe_loop::InterruptPolicy::Interruptible,
+            marlowe_loop::ModelRoute::Orchestrator,
+            false,
+            false,
+        )
+        .unwrap(),
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    // **All three were attempted**, which is the whole point — the old adapter ran one.
+    let results: Vec<_> = state
+        .volatile
+        .iter()
+        .filter(|b| b.source == marlowe_loop::SourceKind::ToolResults)
+        .collect();
+    assert_eq!(results.len(), 3, "every call in the batch produces a result");
+
+    // Each carries a DISTINCT call id, and the ids match the ones the assistant turn declared.
+    let ids: Vec<&str> = results
+        .iter()
+        .filter_map(|b| b.wire.as_ref()?.tool_call_id.as_deref())
+        .collect();
+    assert_eq!(ids, vec!["call_1", "call_2", "call_3"], "results are attributed in order");
+
+    // **One assistant turn declaring all three**, not three turns. `/api/chat` puts `tool_calls`
+    // on the assistant message, and three separate turns would misrepresent what the model did.
+    let declared: Vec<usize> = state
+        .volatile
+        .iter()
+        .filter_map(|b| b.wire.as_ref())
+        .filter(|w| !w.tool_calls.is_empty())
+        .map(|w| w.tool_calls.len())
+        .collect();
+    assert_eq!(declared, vec![3], "one assistant turn, declaring the whole batch");
+
+    // The failure is legible as ONE failure among three.
+    let blocked: Vec<&str> = results
+        .iter()
+        .filter(|b| b.wire.as_ref().is_some_and(|w| w.tool_failed))
+        .filter_map(|b| b.wire.as_ref()?.tool_call_id.as_deref())
+        .collect();
+    assert_eq!(blocked, vec!["call_2"], "exactly the refused call is marked failed, by id");
+    assert_eq!(tools.calls.len(), 2, "the refused call never reached the executor");
+}
+
+/// **A batch is not a hole in ADR-023's latch.** (M2 C2f.)
+///
+/// Taint is computed once, from the pre-batch view — which is *correct*, because every call in the
+/// batch was composed before any of their results existed, so none can have been shaped by a
+/// sibling. The property that must hold is the ordering: the floor latches from the batch's
+/// results before the NEXT batch is adjudicated.
+///
+/// So `web`-then-`bash` **inside one batch** both run, and the same `bash` **in the next batch** is
+/// refused. Asserting only the first half would pass on a build with no latch at all; asserting
+/// only the second would pass on a build that recomputed taint mid-batch, which would be wrong for
+/// a different reason. Both halves, in one test.
+#[test]
+fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
+    let mut e = engine();
+    let composed = || marlowe_permission::Args::new().text("command", "echo composed");
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::ToolCall {
+                calls: vec![
+                    marlowe_loop::ToolInvocation {
+                        id: "call_1".into(),
+                        tool: ToolId::new("find"),
+                        args: marlowe_permission::Args::new().text("pattern", "x"),
+                    },
+                    marlowe_loop::ToolInvocation {
+                        id: "call_2".into(),
+                        tool: ToolId::new("bash"),
+                        args: composed(),
+                    },
+                ],
+            },
+            100,
+        ),
+        // The next turn's identical call, now after the untrusted result is in view.
+        step(ModelStep::one_call(ToolId::new("bash"), composed()), 100),
+        say("stopped", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    // Every result is untrusted, so the batch's own results lower the floor.
+    let mut tools = ScriptedTools {
+        body: Some("a fetched page".into()),
+        trust: Some(TrustClass::UntrustedContent),
+        ..Default::default()
+    };
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("root"),
+        SessionId::from_name("s"),
+        CapabilityProfile::new(
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("bash")]).unwrap(),
+            marlowe_permission::EgressPolicy::DenyAll,
+            marlowe_loop::InterruptPolicy::Interruptible,
+            marlowe_loop::ModelRoute::Orchestrator,
+            false,
+            false,
+        )
+        .unwrap(),
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    // Half one: inside the batch, `bash` ran. Its command predates the sibling's result, and
+    // blocking it would be blocking a call on content its author had never seen.
+    assert_eq!(
+        tools.calls.iter().filter(|(t, _)| t == "bash").count(),
+        1,
+        "the in-batch shell command must run: it was composed before the sibling's result existed"
+    );
+
+    // Half two: the identical call in the NEXT turn is refused, because the batch's results
+    // latched the floor first. This is the half that makes the batch not a hole.
+    let rendered = e.assembler().assemble(&state).rendered();
+    assert!(
+        rendered.contains("[bash blocked]"),
+        "the same command in the next turn must be refused — the batch's results latch the floor \
+         before the next adjudication:\n{rendered}"
+    );
+    assert_eq!(
+        run.trust_floor(),
+        TrustClass::UntrustedContent,
+        "the batch's own results moved the run's floor"
+    );
 }
 
 /// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
@@ -1300,11 +1494,11 @@ fn a_blocked_tool_call_still_emits_a_tool_line() {
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("read"),
-                // Path scoping is `Unavailable` in this engine, so this is refused.
-                args: marlowe_permission::Args::new().text("path", "/etc/passwd"),
-            },
+            // Path scoping is `Unavailable` in this engine, so this is refused.
+            ModelStep::one_call(
+                ToolId::new("read"),
+                marlowe_permission::Args::new().text("path", "/etc/passwd"),
+            ),
             10,
         ),
         say("could not read it", 10),
@@ -1371,11 +1565,11 @@ fn a_refusal_tells_the_model_what_happened_and_whether_to_retry() {
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
         step(
-            ModelStep::ToolCall {
-                tool: ToolId::new("read"),
-                // Path scoping is `Unavailable` here, so this is refused.
-                args: marlowe_permission::Args::new().text("path", "/etc/passwd"),
-            },
+            // Path scoping is `Unavailable` here, so this is refused.
+            ModelStep::one_call(
+                ToolId::new("read"),
+                marlowe_permission::Args::new().text("path", "/etc/passwd"),
+            ),
             10,
         ),
         say("could not read it", 10),

@@ -42,6 +42,13 @@ use crate::run::{
 };
 use crate::turn::{ToolLineState, TurnEvent};
 
+/// The call id used for LOOP-CONTROL steps (`run`, `remember`, `ask`).
+///
+/// These are `ModelStep` variants rather than tool-host executions, so they are never part of a
+/// batch and never need to be told apart from a sibling. Naming the constant beats threading a
+/// meaningless id, and it keeps the wire shape uniform.
+pub const CONTROL_CALL_ID: &str = "control";
+
 /// The structural bound on a non-converging run.
 ///
 /// Failure paths table: *"Non-converging retry — bounded structurally by tool-call and step
@@ -602,15 +609,14 @@ impl<S: PathScope> Engine<S> {
                     return LoopOutcome::Escalated { question };
                 }
 
-                ModelStep::ToolCall { tool, args } => {
-                    self.tool_call(
+                ModelStep::ToolCall { calls } => {
+                    self.tool_batch(
                         run,
                         state,
                         provenance,
                         ports,
                         &view,
-                        tool,
-                        args,
+                        calls,
                         &last_reasoning,
                     );
                 }
@@ -661,6 +667,61 @@ impl<S: PathScope> Engine<S> {
 
     /// One adjudicated tool call.
     #[allow(clippy::too_many_arguments)]
+    /// Every call the model emitted in one message, executed in order.
+    ///
+    /// # Taint is computed ONCE, from the pre-batch view, and that is correct rather than cheap
+    ///
+    /// Every call here was composed by the model **before it saw any of their results**. So no
+    /// call in this batch can have been shaped by another call's output — that output did not
+    /// exist when the arguments were written. Adjudicating all of them against the same pre-batch
+    /// floor therefore reflects exactly the information the model actually had.
+    ///
+    /// **The batch is not a hole in ADR-023, and the reason is the ordering rather than a second
+    /// check.** The results all land in `state` together; the floor latches from the **worst** of
+    /// them at the top of the next iteration, before the next model call and before any further
+    /// adjudication. So `web` and `bash` in one batch is safe — `bash`'s command predates the page
+    /// — while `web` in one batch and `bash` in the next is refused, which is the case that
+    /// matters. A batch cannot launder a target through its own sibling.
+    ///
+    /// A per-call recomputation would be **wrong**, not merely expensive: it would block a call on
+    /// content its author had never seen.
+    fn tool_batch(
+        &mut self,
+        run: &mut Run,
+        state: &mut SessionState,
+        provenance: &Provenance,
+        ports: &mut Ports<'_>,
+        view: &crate::context::ContextView,
+        calls: Vec<crate::driver::ToolInvocation>,
+        reasoning: &str,
+    ) {
+        if calls.is_empty() {
+            return;
+        }
+
+        // **One assistant turn declaring every call**, pushed before any outcome is known. A
+        // `tool` result with no assistant turn behind it leaves the model unable to see that it
+        // called anything — observed live, the model reading `[bash blocked] declined` and
+        // reasoning *"I don't think I actually called bash yet"*. An attempt is a turn whether or
+        // not it was permitted, and a batch is one turn, not N.
+        state.push(Block::assistant_turn(
+            String::new(),
+            (!reasoning.is_empty()).then(|| reasoning.to_string()),
+            calls
+                .iter()
+                .map(|c| crate::context::WireToolCall {
+                    id: c.id.clone(),
+                    name: c.tool.to_string(),
+                    arguments: c.args.to_json(),
+                })
+                .collect(),
+        ));
+
+        for call in calls {
+            self.tool_call(run, state, provenance, ports, view, call.tool, call.args, &call.id);
+        }
+    }
+
     fn tool_call(
         &mut self,
         run: &mut Run,
@@ -670,10 +731,10 @@ impl<S: PathScope> Engine<S> {
         view: &crate::context::ContextView,
         tool: ToolId,
         args: Args,
-        // This model call's reasoning. Stored on the turn that made the call so a replay can
-        // show it — only the FINAL call's reasoning used to survive, on the reply block, so every
-        // thinking block from a multi-step turn was lost the moment the window closed.
-        reasoning: &str,
+        // The harness-assigned id of THIS call, so its result can be attributed to it. In a batch
+        // of three `read`s the tool name is the same three times, and a model that cannot tell
+        // which one failed reads a partial failure as a total one.
+        call_ref: &str,
     ) {
         let call_id = self.next_call_id;
         self.next_call_id += 1;
@@ -689,7 +750,7 @@ impl<S: PathScope> Engine<S> {
         let Some(manifest) = self.registry.manifest(&tool) else {
             // Not registered. Blocked here rather than at execution, so the reason reads as
             // "no such tool" and not as a fault in a tool that does not exist.
-            self.tool_error(state, &tool, "no such tool is registered");
+            self.tool_error(state, &tool, "no such tool is registered", call_ref);
             return;
         };
         let manifest = manifest.clone();
@@ -715,23 +776,8 @@ impl<S: PathScope> Engine<S> {
             serde_json::to_value(&adjudication.decision).unwrap_or(json!({})),
         );
 
-        // **The assistant turn that made this call, recorded before ANY outcome is known.**
-        //
-        // `/api/chat` carries `tool_calls` on the assistant message, and a `tool` result with no
-        // assistant turn behind it leaves the model unable to see that it called anything. It used
-        // to be pushed after adjudication, so a REFUSED call produced a result with no call —
-        // observed live, the model reading `[bash blocked] declined` and reasoning *"I don't think
-        // I actually called bash yet, so this must have been some automatic response"*.
-        //
-        // An attempt is a turn whether or not it was permitted.
-        state.push(Block::assistant_turn(
-            String::new(),
-            (!reasoning.is_empty()).then(|| reasoning.to_string()),
-            vec![crate::context::WireToolCall {
-                name: tool.to_string(),
-                arguments: args.to_json(),
-            }],
-        ));
+        // The assistant turn declaring this call was pushed by `tool_batch`, once for the
+        // whole batch.
 
         match &adjudication.decision.outcome {
             Outcome::Blocked { reason } => {
@@ -758,7 +804,7 @@ impl<S: PathScope> Engine<S> {
                     refusal_prose(reason, &tool),
                     self.expected_params(&tool)
                 );
-                self.tool_error(state, &tool, &why);
+                self.tool_error(state, &tool, &why, call_ref);
                 // **The user sees the refusal too.** Both refusal paths used to return here,
                 // before the `ToolLine` below — so the model was told and the screen was not.
                 // A run that refuses three calls and then answers looked like a model that never
@@ -780,7 +826,8 @@ impl<S: PathScope> Engine<S> {
                 if !ports.approvals.await_approval(&adjudication.decision.blast_radius) {
                     self.record(ports, EventKind::ApprovalDenied, run, state, json!({}));
                     // The loop continues; it does not retry around a refusal.
-                    self.tool_error(
+                    self.tool_error_ref(
+                        call_ref,
                         state,
                         &tool,
                         "This tool needs a human to approve each call, and no interactive \
@@ -854,12 +901,13 @@ impl<S: PathScope> Engine<S> {
                 None => format!("{} · ref {hash} ({bytes} B)", outcome.summary.render()),
             },
         };
-        state.push(Block::tool_result(
+        state.push(Block::tool_result_for(
             text,
             tool.as_str(),
             outcome.trust,
             Some(outcome.summary.render()),
             outcome.failed,
+            call_ref,
         ));
     }
 
@@ -873,18 +921,19 @@ impl<S: PathScope> Engine<S> {
     ) {
         // Depth and subagent count are declared caps, checked before anything is created.
         let Some(child_budget) = run.budget.slice_for(&run.spent, req.share) else {
-            self.tool_error(state, &ToolId::new("run"), "depth budget exhausted");
+            self.tool_error(state, &ToolId::new("run"), "depth budget exhausted", CONTROL_CALL_ID);
             return;
         };
         if run.spent.subagents >= run.budget.subagents {
-            self.tool_error(state, &ToolId::new("run"), "subagent budget exhausted");
+            self.tool_error(state, &ToolId::new("run"), "subagent budget exhausted", CONTROL_CALL_ID);
             return;
         }
 
         // A narrowing, never a widening.
         for t in &req.tools {
             if !run.profile.exposed_tools().contains(t) {
-                self.tool_error(
+                self.tool_error_ref(
+                    CONTROL_CALL_ID,
                     state,
                     &ToolId::new("run"),
                     &format!("`{t}` is not available to this run and cannot be given to a child"),
@@ -899,7 +948,7 @@ impl<S: PathScope> Engine<S> {
             match ExposedSet::new(req.tools.clone()) {
                 Ok(s) => s,
                 Err(e) => {
-                    self.tool_error(state, &ToolId::new("run"), &e.to_string());
+                    self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
                     return;
                 }
             },
@@ -911,7 +960,7 @@ impl<S: PathScope> Engine<S> {
         ) {
             Ok(p) => p,
             Err(e) => {
-                self.tool_error(state, &ToolId::new("run"), &e.to_string());
+                self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
                 return;
             }
         };
@@ -1032,13 +1081,31 @@ impl<S: PathScope> Engine<S> {
         });
     }
 
-    fn tool_error(&mut self, state: &mut SessionState, tool: &ToolId, why: &str) {
-        state.push(Block::tool_result_blocked(
+    /// `tool_error` with the id first, for call sites whose message is a multi-line `format!`.
+    fn tool_error_ref(
+        &mut self,
+        call_ref: &str,
+        state: &mut SessionState,
+        tool: &ToolId,
+        why: &str,
+    ) {
+        self.tool_error(state, tool, why, call_ref);
+    }
+
+    fn tool_error(
+        &mut self,
+        state: &mut SessionState,
+        tool: &ToolId,
+        why: &str,
+        call_ref: &str,
+    ) {
+        state.push(Block::tool_result_blocked_id(
             format!("[{tool} blocked] {why}"),
             tool.as_str(),
             // The harness computed this, so it is agent-observed. A blocked-call notice that
             // inherited the call's own taint would be unreadable by the very next step.
             TrustClass::AgentObserved,
+            call_ref,
         ));
     }
 

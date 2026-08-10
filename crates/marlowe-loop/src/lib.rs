@@ -40,7 +40,7 @@ pub use context::{
     estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
     SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, WireTurn, WireToolCall};
 pub use control::{EphemeralControl, ResumeError, RunControl};
-pub use driver::{
+pub use driver::{ToolInvocation, 
     ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
     ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,

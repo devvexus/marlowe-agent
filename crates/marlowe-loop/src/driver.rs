@@ -71,18 +71,57 @@ pub struct SpawnRequest {
     pub reads_untrusted: bool,
 }
 
+/// One call inside a [`ModelStep::ToolCall`] batch.
+///
+/// **`id` is assigned by the HARNESS, never read from the model.** It is what a result is
+/// attributed to: `/api/chat` carries `tool_calls[].id` on the assistant message and
+/// `tool_call_id` on each result, and without it a batch of three calls to the same tool comes
+/// back as three results the model cannot tell apart — which is the failure that makes a partial
+/// batch failure unreadable. Taking the model's own id would let it collide two results
+/// deliberately.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolInvocation {
+    pub id: String,
+    pub tool: ToolId,
+    pub args: Args,
+}
+
 /// ARCHITECTURE §3's `match step`. Closed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModelStep {
     /// Prose for the user. Streams to the surface as `TurnEvent::TextDelta`.
     Say(String),
+    /// One or more tool calls the model emitted **in a single message**.
+    ///
     /// **No taint field.** Provenance is computed by the harness from the context view; a
     /// model that could label its own arguments would be the security boundary.
-    ToolCall { tool: ToolId, args: Args },
+    ///
+    /// # Why a batch is one step rather than several
+    ///
+    /// The model emitted every call in this vector **before seeing any of their results**. That is
+    /// not an implementation detail — it is what makes computing taint **once for the batch**
+    /// correct rather than a shortcut. No call here can have been shaped by another call's output,
+    /// because none of that output existed when the model composed them.
+    ///
+    /// It also makes the batch the right unit for the latch: the results all enter the view
+    /// together, the floor latches from the **worst** of them at the top of the next iteration, and
+    /// the next batch is adjudicated against the lowered floor. See `Engine::tool_batch`.
+    ToolCall { calls: Vec<ToolInvocation> },
     MemoryWrite(ClaimRequest),
     Spawn(SpawnRequest),
     /// Escalate with a decision package. The run does not hold a channel open.
     Ask(String),
+}
+
+impl ModelStep {
+    /// The single-call case, which is most of them. Exists so a batch of one does not have to be
+    /// spelled out at every construction site, and so there is **one** representation of a tool
+    /// call rather than a scalar variant and a vector variant that drift.
+    pub fn one_call(tool: ToolId, args: Args) -> Self {
+        ModelStep::ToolCall {
+            calls: vec![ToolInvocation { id: "call_1".to_string(), tool, args }],
+        }
+    }
 }
 
 // **There is no `Done` variant, and that is M2 C2e's correction.**

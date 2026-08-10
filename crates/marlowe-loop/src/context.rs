@@ -132,6 +132,8 @@ pub fn estimate_tokens(text: &str) -> u32 {
 /// see [`WireTurn`].
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct WireToolCall {
+    /// Harness-assigned. Matches the `tool_call_id` on the result block this call produced.
+    pub id: String,
     pub name: String,
     pub arguments: serde_json::Value,
 }
@@ -171,6 +173,13 @@ pub struct WireTurn {
     pub tool_calls: Vec<WireToolCall>,
     /// Which tool produced this result. Tool blocks only.
     pub tool_name: Option<String>,
+    /// Which CALL produced this result — the `id` of the `ToolInvocation`. Tool blocks only.
+    ///
+    /// **`tool_name` is not sufficient and that is the whole reason this exists.** A batch of three
+    /// `read` calls comes back as three results with the same name, and a model that cannot tell
+    /// which one failed cannot correct the one that failed. It reads a partial failure as a total
+    /// one, or retries the wrong call.
+    pub tool_call_id: Option<String>,
     /// The §B6 line's right-hand side, as it was rendered when the call ran.
     ///
     /// **Kept rather than recovered.** A replay that re-derived it from the block's prose would
@@ -214,6 +223,36 @@ impl Block {
     /// A refusal, which is a tool result that failed before it ran.
     pub fn tool_result_blocked(text: impl Into<String>, tool: &str, trust: TrustClass) -> Self {
         Self::tool_result(text, tool, trust, Some("blocked".to_string()), true)
+    }
+
+    /// The same, attributed to the call that was refused, so a partially-refused batch is legible.
+    pub fn tool_result_blocked_id(
+        text: impl Into<String>,
+        tool: &str,
+        trust: TrustClass,
+        call_id: &str,
+    ) -> Self {
+        let mut b = Self::tool_result(text, tool, trust, Some("blocked".to_string()), true);
+        if let Some(w) = b.wire.as_mut() {
+            w.tool_call_id = Some(call_id.to_string());
+        }
+        b
+    }
+
+    /// A tool result attributed to the CALL as well as the tool.
+    pub fn tool_result_for(
+        text: impl Into<String>,
+        tool: &str,
+        trust: TrustClass,
+        summary: Option<String>,
+        failed: bool,
+        call_id: &str,
+    ) -> Self {
+        let mut b = Self::tool_result(text, tool, trust, summary, failed);
+        if let Some(w) = b.wire.as_mut() {
+            w.tool_call_id = Some(call_id.to_string());
+        }
+        b
     }
 
     /// A tool result, attributed to the tool that produced it.

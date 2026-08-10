@@ -191,11 +191,8 @@ impl ClockSource for FrozenClock {
 /// actually comes from.
 pub fn work(tokens: u64) -> ModelCall {
     step(
-        ModelStep::ToolCall {
-            tool: marlowe_tools::ToolId::new("read"),
-            args: marlowe_permission::Args::new()
-                .with("path", marlowe_permission::ArgValue::Text("./notes.md".into())),
-        },
+        ModelStep::one_call(marlowe_tools::ToolId::new("read"), marlowe_permission::Args::new()
+                .with("path", marlowe_permission::ArgValue::Text("./notes.md".into()))),
         tokens,
     )
 }

@@ -128,15 +128,12 @@ fn a_real_fetched_page_latches_the_floor_and_it_holds_after_the_page_is_trimmed_
     // for every untrusted block to fall out of it, which needs enough *trusted* results after it.
     //
     // Each refused `bash` is a `ToolResults` block at `AgentObserved`, which is exactly that.
-    let mut script = vec![ModelStep::ToolCall {
-        tool: ToolId::new("web"),
-        args: Args::new().text("url", PAGE),
-    }];
+    let mut script = vec![ModelStep::one_call(ToolId::new("web"), Args::new().text("url", PAGE))];
     for i in 0..7 {
-        script.push(ModelStep::ToolCall {
-            tool: ToolId::new("bash"),
-            args: Args::new().text("command", format!("echo composed-{i}")),
-        });
+        script.push(ModelStep::one_call(
+            ToolId::new("bash"),
+            Args::new().text("command", format!("echo composed-{i}")),
+        ));
     }
     script.push(ModelStep::Say("stopped".into()));
     let mut driver = ScriptDriver(script);

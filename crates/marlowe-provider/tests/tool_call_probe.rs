@@ -128,7 +128,13 @@ fn measure_tool_call_reliability() {
             }
 
             match call.map(|c| c.step) {
-                Ok(ModelStep::ToolCall { tool, args }) => {
+                // The probe measures whether the model names the right tool with the right
+                // target. A batch is scored on its FIRST call — the probe's prompts each ask for
+                // one action, so a batch here would itself be a finding, and scoring the first is
+                // what keeps the measurement comparable with the 12/12 baseline in `DEFAULT_MODEL`.
+                Ok(ModelStep::ToolCall { calls }) if !calls.is_empty() => {
+                    let tool = &calls[0].tool;
+                    let args = &calls[0].args;
                     let named_right = tool.as_str() == *want_tool;
                     if named_right {
                         well_formed += 1;

@@ -35,11 +35,16 @@ response."* `OllamaDriver::parse_step` does `calls.first()` and **silently disca
 is worse than a missing tool: a missing tool returns an error the model can read, and a dropped call
 simply never happens.
 
-v2 currently says **one call per turn**, which is what the loop does.
+**CLOSED (M2 C2f).** `ModelStep::ToolCall` now carries a `Vec<ToolInvocation>`, the loop executes
+every call in it, and each result is attributed to its call by a harness-assigned id — so a batch
+of three where one fails tells the model *which* one. `<tool_use>` reverts to permitting
+parallelism **in the same commit as the loop change**, which was the ordering constraint: the
+prompt must never lead the harness.
 
-> **PENDING (M2 C2f):** parallel tool execution is being built, at the human's direction. When the
-> loop executes every call in a model step, this section reverts to permitting parallelism — **in
-> the same commit as the loop change, never before it.** The prompt must not lead the harness.
+The interim state is worth keeping in the record. Between the two, the adapter returned a
+**non-retriable `ProviderError`** naming the count and refusing the whole batch. That was worse
+than the eventual behaviour and better than the original: refusing to run a third of a plan beats
+running a third of it and reporting nothing.
 
 ### `<untrusted_content>` — kept, and it is redundancy rather than the mechanism
 
