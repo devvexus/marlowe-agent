@@ -10,6 +10,11 @@ marlowe-contract.workspace = true
 marlowe-journal.workspace = true
 marlowe-memory.workspace = true
 marlowe-daemon.workspace = true
+# The in-process `--ask` path supplies its own ApprovalGate, which is a loop type over a
+# permission type. It reaches neither through the daemon's re-exports on purpose: a CLI that
+# borrowed them would make the daemon's public surface accidental.
+marlowe-loop.workspace = true
+marlowe-permission.workspace = true
 marlowe-provider.workspace = true
 marlowe-stub.workspace = true
 marlowe-view.workspace = true

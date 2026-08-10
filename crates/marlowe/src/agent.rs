@@ -80,7 +80,16 @@ pub fn ask(
             config.context_tokens = n;
         }
         let mut daemon = Daemon::open(config).map_err(|e| e.to_string())?;
-        render(&daemon.ask("cli", message));
+        // **The in-process path prompts too.**
+        //
+        // `Daemon::ask` uses the deny-by-default gate, which is correct for a daemon nobody is
+        // attached to — and wrong here, because somebody *is* attached: this is a terminal. Left
+        // as it was, the most natural command (`marlowe --ask`, no daemon running) would decline
+        // every approval and read as a broken gate rather than an absent surface.
+        let mut events = Vec::new();
+        let mut gate = TerminalApprovals;
+        daemon.ask_streaming_with("cli", message, &mut gate, |e| events.push(e));
+        render(&events);
         return Ok(());
     }
 
@@ -100,6 +109,21 @@ pub fn ask(
         .map_err(|e| e.to_string())?;
     render(&events);
     Ok(())
+}
+
+/// The in-process gate, for `--ask` with no daemon running. Same prompt, no socket in between.
+struct TerminalApprovals;
+
+impl marlowe_loop::ApprovalGate for TerminalApprovals {
+    fn await_approval(&mut self, radius: &marlowe_permission::BlastRadius) -> bool {
+        approve_at_the_terminal(&Event::Approval {
+            decision: 0,
+            verb: radius.verb.clone(),
+            scope: radius.scope.clone(),
+            reversible: radius.reversible,
+            novelty: radius.novelty.as_ref().map(|n| format!("{n:?}")),
+        })
+    }
 }
 
 /// §B9 at the command line: **state the blast radius, take one answer, default to no.**
