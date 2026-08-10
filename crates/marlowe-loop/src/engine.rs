@@ -826,6 +826,19 @@ impl<S: PathScope> Engine<S> {
                 if !ports.approvals.await_approval(&adjudication.decision.blast_radius) {
                     self.record(ports, EventKind::ApprovalDenied, run, state, json!({}));
                     // The loop continues; it does not retry around a refusal.
+                    // **A refusal with a reason is a different instruction to the model.**
+                    // "Declined" says stop; "declined because the host is untrusted" says what a
+                    // better call would look like. When the human gave one, it goes to the model
+                    // verbatim rather than being summarised into the generic refusal.
+                    let why = match ports.approvals.decline_reason() {
+                        Some(r) => format!(
+                            "The user declined this call and gave a reason: {r}
+
+Do not retry                              the same call. Take the reason seriously — it usually says what an                              acceptable call would be, or that this is not something to do at all."
+                        ),
+                        None => "This tool needs a human to approve each call, and no interactive                              approval surface is attached to this run, so it cannot be approved.                              The call was not executed and retrying it will fail the same way.                              Tell the user plainly that the tool is unavailable in this session,                              and continue with the tools that are."
+                            .to_string(),
+                    };
                     self.tool_error_ref(
                         call_ref,
                         state,

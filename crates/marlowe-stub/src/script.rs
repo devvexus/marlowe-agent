@@ -110,6 +110,7 @@ impl Session {
                     elapsed_min: 22,
                 },
                 approval: None,
+        pending_approval: None,
                 meter: MeterSource::None,
                 runs: runs_pane(),
                 schedule: schedule_pane(),

@@ -50,6 +50,10 @@ pub struct SessionView {
     /// `Some` while §B9's overlay is up. The producer decides; the surface renders and reports the
     /// answer back as [`Intent::Approve`].
     pub approval: Option<BlastRadius>,
+    /// `Some` while a **live** approval is waiting — see [`crate::approval::PendingApproval`] for
+    /// why this is not the field above. The daemon is blocked on the answer, so this is the one
+    /// piece of view state with a process waiting on the other end of it.
+    pub pending_approval: Option<crate::approval::PendingApproval>,
     /// What the amplitude source reported this frame, **including that there is no source**.
     pub meter: MeterSource,
     pub runs: Vec<Item>,
@@ -306,6 +310,7 @@ mod tests {
             pager: Pager { turn: 0, compacted: 0, lineage: 0 },
             ambient: Ambient { fill_pct: 0, spend_cents: 0, elapsed_min: 0 },
             approval: None,
+            pending_approval: None,
             meter: MeterSource::None,
             runs: Vec::new(),
             schedule: Vec::new(),

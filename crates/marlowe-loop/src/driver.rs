@@ -293,6 +293,20 @@ impl TurnSink for () {
 
 /// Approvals are **enforced by the harness, not requested by the model** (§8.2).
 pub trait ApprovalGate {
+    /// Why the last refusal was refused, when the human gave a reason.
+    ///
+    /// **Defaulted, so no existing gate had to change.** A gate that cannot collect a reason
+    /// returns `None` and the model is told only that it was declined — which is what every gate
+    /// did before this existed.
+    ///
+    /// It is a second method rather than a richer return type because the alternative was
+    /// rewriting every implementation and every test double to carry a field almost all of them
+    /// would leave empty. The reason belongs to the *refusal*, and asking for it after the answer
+    /// is the shape that matches.
+    fn decline_reason(&self) -> Option<String> {
+        None
+    }
+
     fn await_approval(&mut self, radius: &BlastRadius) -> bool;
 }
 

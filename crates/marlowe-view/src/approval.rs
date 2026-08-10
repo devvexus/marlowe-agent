@@ -358,3 +358,59 @@ mod tests {
         assert!(r.why().starts_with("routine for this class"), "{}", r.why());
     }
 }
+
+/// **The live approval, which is deliberately NOT [`BlastRadius`].**
+///
+/// §B9's overlay is the target and this is not it. The first tool that ever actually needed an
+/// approval — `web`, fetching a URL — cannot be expressed as one, and finding that out is what
+/// this type records:
+///
+/// 1. **[`Effect`] has no fetch variant.** `Delete`, `Write`, `Send` and `Execute`. `Send` is
+///    about sending *to* somebody and `Execute` is about a process; neither describes "retrieve
+///    this URL". The enum was written before anything could reach the network.
+/// 2. **[`Ceiling`] has no producer.** It comes from the trust ledger, which is M6. Both of its
+///    variants are claims about promotion — `Promotable { agreements, needed }` states a count
+///    nobody is counting, and `AtCeiling` states that promotion is impossible. Choosing either
+///    would be inventing the answer to §B9's hardest question.
+///
+/// So rather than fabricate two fields to reuse a richer type, the live path carries **exactly
+/// what the permission layer actually knows** and says so on screen. A partial prompt that admits
+/// what it does not know is a better basis for a decision than a complete-looking one with two
+/// invented fields — and it cannot be mistaken for the finished overlay while it looks like this.
+///
+/// **This type is expected to disappear.** When `Effect` gains a fetch variant and the ledger can
+/// produce a `Ceiling`, the live path builds a real `BlastRadius` and this goes away rather than
+/// living on beside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingApproval {
+    /// Matches the daemon's decision id. The answer must name it, or a reply could be read as the
+    /// answer to a later question.
+    pub decision: u64,
+    pub verb: String,
+    /// Every declared Target, rendered — including the numeric ones, which used to be dropped.
+    pub scope: String,
+    pub reversible: bool,
+    /// `None` renders as *not assessed*, never as "routine".
+    pub novelty: Option<String>,
+}
+
+impl PendingApproval {
+    /// The line the user reads first.
+    pub fn headline(&self) -> String {
+        format!("{} · {}", self.verb, self.scope)
+    }
+
+    /// What is known about consequence, and what is not. Both halves, always.
+    pub fn detail(&self) -> String {
+        let reversible = if self.reversible {
+            "reversible"
+        } else {
+            "NOT reversible"
+        };
+        let novelty = match &self.novelty {
+            Some(n) => n.clone(),
+            None => "novelty not assessed".to_string(),
+        };
+        format!("{reversible} · {novelty} · ceiling unknown (trust ledger is M6)")
+    }
+}

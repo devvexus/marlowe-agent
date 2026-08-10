@@ -76,6 +76,7 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
         pager: Pager { turn: 0, compacted: 0, lineage: 0 },
         ambient: Ambient { fill_pct: 0, spend_cents: 0, elapsed_min: 0 },
         approval: None,
+        pending_approval: None,
         // No telemetry, so no reading. See this module's header.
         meter: MeterSource::None,
         runs: Vec::new(),
