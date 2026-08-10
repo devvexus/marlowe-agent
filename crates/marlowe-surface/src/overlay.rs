@@ -133,7 +133,13 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
         }
     }
 
-    let w = 64.min(area.width.saturating_sub(4));
+    // **Wider, and it WRAPS.** The first version was a fixed 64 with no wrap, so
+    // `web · https://a-long-host.example.com/some/path` lost its tail off the right edge — and
+    // the scope line is the one thing the user is actually deciding about. Silently truncating
+    // it is the same defect as `blast_radius` dropping a target it could not stringify, one
+    // layer up: an approval prompt that does not show the whole target is a prompt you cannot
+    // trust, and it looks complete either way.
+    let w = 76.min(area.width.saturating_sub(4));
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(p.headline(), theme.bright())),
         Line::from(""),
@@ -183,5 +189,7 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
         .title(Span::styled("approval", border));
     let text = inner(overlay);
     block.render(overlay, buf);
-    Paragraph::new(lines).render(text, buf);
+    Paragraph::new(lines)
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .render(text, buf);
 }

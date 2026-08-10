@@ -400,17 +400,29 @@ impl PendingApproval {
         format!("{} · {}", self.verb, self.scope)
     }
 
-    /// What is known about consequence, and what is not. Both halves, always.
+    /// What is known about consequence. **Only what varies.**
+    ///
+    /// The first version printed *"reversible · novelty not assessed · ceiling unknown (trust
+    /// ledger is M6)"*, and two of those three are **constants**: there is no novelty producer
+    /// and no ceiling producer, so they said the same thing on every prompt and would keep
+    /// saying it until M6. That is a note about the implementation, and §B1's rule is that
+    /// implementation detail belongs under `--dev` rather than in the interface — the user is
+    /// deciding whether to allow a fetch, not auditing which subsystems exist.
+    ///
+    /// **Not fabricating a field and not displaying its absence are different requirements**, and
+    /// the first version confused them. The type still refuses to invent a ceiling; it just
+    /// stopped announcing that it had refused.
     pub fn detail(&self) -> String {
-        let reversible = if self.reversible {
-            "reversible"
+        let mut parts = vec![if self.reversible {
+            "reversible".to_string()
         } else {
-            "NOT reversible"
-        };
-        let novelty = match &self.novelty {
-            Some(n) => n.clone(),
-            None => "novelty not assessed".to_string(),
-        };
-        format!("{reversible} · {novelty} · ceiling unknown (trust ledger is M6)")
+            "NOT reversible".to_string()
+        }];
+        // Shown only when there is one. When novelty gains a producer this starts appearing on
+        // its own, with no further change here.
+        if let Some(n) = &self.novelty {
+            parts.push(n.clone());
+        }
+        parts.join(" · ")
     }
 }
