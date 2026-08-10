@@ -1385,6 +1385,19 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   human approves something they would have refused. **Highest-consequence finding of the tool
   audit.** `adjudicate.rs` is section-13 guarded: this needs a `DECISIONS.md` entry **before** it
   is fixed.
+- **CLOSING THE TUI WINDOW WITH THE X DOES NOT STOP THE DAEMON.** Found 2026-08-10 during the
+  first live approval test. `tui.rs` sends `Request::Shutdown` on exit, and that fires on a
+  *graceful* quit — closing the window terminates the process outright, so the teardown never
+  runs and the detached daemon (C2d gave it `DETACHED_PROCESS`, correctly) outlives it. The
+  symptom is the one this project has already paid for twice: the next launch reconnects to a
+  daemon serving pre-change code. **The staleness banner caught it** — `--status` reported *"this
+  daemon's binary is 17 min older than the source it was built from"*, which is `staleness.rs`
+  doing exactly its job. Needs a console control handler on Windows.
+- **There is no CLI shutdown, so a daemon left behind can only be killed.** `Request::Shutdown`
+  and `Client::shutdown()` both exist; no mode reaches them (`--serve`, `--ask`, `--status`,
+  `--launch`, `--tui`, `--classic`, `--doctor`, `--eval-adapter`). Until a `--shutdown` mode
+  lands, the graceful path is to write `{"op":"shutdown"}` to the daemon port — which still
+  honours the refuse-while-a-run-is-live guard, unlike `Stop-Process`.
 - **`--ask` cannot talk to a running daemon.** No `--daemon-port`; it always runs in-process, so
   two `--ask` invocations get two daemons and two empty sessions. The TUI is unaffected.
 - **Session memory is in-process only.** The store lives on `Daemon`; it does not survive a restart.
