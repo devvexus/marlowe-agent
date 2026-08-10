@@ -406,6 +406,52 @@ Anthropic's published results give the shape and the price: an orchestrator-work
 - **Progressive delivery.** Findings stream as they land. A ten-minute research run that shows nothing for ten minutes is unusable regardless of final quality.
 - **Research runs are resumable.** Interrupted at minute seven, resumed at minute seven.
 
+> ### AMENDED 2026-08-10 (M2 C2f). Argument: **ADR-037**. Channels: **ADR-036**. Search: **ADR-035**.
+>
+> **ORCHESTRATOR-WORKER IS A CONSEQUENCE OF ADR-023, NOT A DESIGN PREFERENCE.** The paragraph above
+> presents it as the shape Anthropic's results recommend. It is also the only shape the permission
+> layer permits, and that is the stronger statement.
+>
+> A run that has read untrusted content can never compose a Target again. **Every source channel
+> returns `UntrustedContent`** — arXiv, Crossref and Wikipedia included, because §2.8 binds trust to
+> origin and the origin is outside. So **every research worker is a tainted run by construction, and
+> the orchestrator that acts on their findings must be a separate run that never touched a page.**
+> A design that puts reading and acting in one run does not run: the harness refuses it at the
+> `adjudicate` call, without consulting the model. Verified live 2026-08-10 against a real fetched
+> page — 7 composed shell commands issued, 7 refused.
+>
+> Three consequences: a worker cannot **write memory** (ADR-022 forbids a quarantined reader holding
+> `MemoryWrite`), a worker cannot **write the report** (an artifact is an action on a target), and
+> the **condensed return is the entire security interface** rather than a context-budget device.
+>
+> **Four additions to the requirements above:**
+>
+> 1. **Three model roles, not two.** A **compression** model between research and report. ADR-008 is
+>    amended; it had no entry for the component that enforces "condensed structured returns".
+> 2. **Collaborative planning.** The orchestrator presents a plan and the user confirms or modifies
+>    it **before any source is read**. This is *"make the scaling rule explicit and inspectable"* in
+>    the one form that cannot rot — an inspectable rule nobody inspects is a comment, and a plan that
+>    blocks on approval is inspected every time. It is also where the cost estimate §10.3 requires
+>    belongs, turning the 15× multiplier from a surprise into a quote.
+> 3. **Hybrid sourcing by construction.** Web plus **Marlowe's own memory as the local corpus** —
+>    already retrieved by a measured stack, and the one corpus no competitor has. Memory retrieval
+>    happens in the clean orchestrator; page reading happens in tainted workers. Retrieved memory
+>    keeps its own trust class and is never bucketed with fetched content.
+> 4. **The verification pass is REQUIRED, and the reason is our model.** The 2026 *"Cited but Not
+>    Verified"* benchmark found open-source models materially worse at fact-checking than frontier
+>    models, and Marlowe runs a **9B locally** (ADR-028). The separate pass is the mitigation for a
+>    measured weakness of the model this project chose — not defence-in-depth. **A run whose
+>    verification pass did not execute does not produce a report; it produces a refusal naming what
+>    is missing.**
+>
+> **General web search is one channel and frequently the worst one.** ADR-036 specifies an
+> extensible keyless registry over 11+ channels — arXiv, PubMed, Crossref, Semantic Scholar,
+> Wikidata, GitHub, HN, Stack Exchange, RSS, sitemaps, SearXNG — with **deduplication over identity
+> rather than route**, because a research agent that counts one source three times has manufactured
+> corroboration and it is invisible in the output. **Channel selection is a routing decision, not a
+> fan-out**; querying every channel for every question is the excessive-subagent-spawning failure
+> this section already names.
+
 ### 10.3 Research acceptance criteria
 
 - **DeepResearch Bench** (100 PhD-level tasks, 22 fields): report RACE (comprehensiveness, insight/depth, instruction-following, readability, scored against expert reference reports) and FACT (effective citation count and citation accuracy). Target: RACE at or above expert-reference parity; **citation accuracy ≥ 95%**.

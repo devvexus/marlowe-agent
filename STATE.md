@@ -98,11 +98,36 @@ in a prior harness", which is a prior about a different system. §C7 amended to 
   ADR-032 §3.1 (`AllowApproved`) is **PROPOSED, not approved** — it needs the human, and it needs an
   interactive approval surface the daemon does not have (`DenyUnattended` returns false, which is
   why `bash` reads `declined` unconditionally).
-- **Search: a keyed API is the decision, and the human supplies the credential.** Candidates:
-  **Brave Search API** (independent index, generous free tier, single `X-Subscription-Token`
-  header) and **Google Custom Search JSON API** (needs an API key *and* a CSE id, 100 queries/day
-  free). A scrape was rejected — it breaks weekly. `web`'s description still promises search and is
-  corrected when search lands.
+- **Search is RESOLVED and needs no credential: self-hosted SearXNG. ADR-035.** The keyed-API note
+  that was here is superseded — the keyed landscape is *contracting* (Bing API deprecated Aug 2025,
+  Google CSE closed to new customers and discontinued 1 Jan 2027, Brave requires a card), so a keyed
+  backend builds on shrinking supply and fails K6 by construction.
+  **The registry has no credential concept at all** (ADR-036 §2) — not a default-off flag, no field:
+  a channel that needs a key cannot be *described*, so it cannot be registered. Stronger than a
+  load-time error, because a field that exists is a field a future session fills in.
+  `web`'s description still promises search and is corrected when search lands.
+- **DESIGN ONLY, NOT BUILT — the research stack. ADR-035, ADR-036, ADR-037. M3 owns it and durable
+  runs are its precondition.** Brief §10 and ADR-008 are amended. The three things to read before
+  proposing anything here: **deduplication is over identity, not route** (a Source has N routes; a
+  derived work is an *edge*, never a merge; corroboration counts **independent roots**);
+  **`Unresolved` counts as one and displays as two**, because under-merging manufactures
+  corroboration invisibly while over-merging is visible; and **an identifier self-asserted by
+  fetched content is a claim, not an identity** (ADR-036 §5) — otherwise a page printing a real DOI
+  merges into that paper and inherits its standing.
+- **A SECURITY PRINCIPLE GENERALIZED FOR THE FIRST TIME, and the generalization is unexplored.**
+  ADR-036 §5. ADR-023's (action, target) split has always been about tool arguments — a path, a
+  host, a command. Deduplication has **no tool, no argument and no permission check anywhere near
+  it**, and the rule holds anyway, because the property was never about tools: it is about *who
+  chose the thing that determines an outcome*. Note that the taint latch cannot help here — every
+  route is `UntrustedContent`, so the floor is already at the bottom and stops discriminating.
+  **Named as a generalization rather than a fifth instance, and the same shape is unexamined in at
+  least four places**: ranking inputs, cache keys, memory derivation lineage, and consolidation
+  merge decisions.
+- **Two ADRs carry INDICATIVE figures that must not become load-bearing.** ADR-035's keyed-API
+  dates and ADR-037's Gemini/Anthropic token costs came from the human's research and **were not
+  re-verified by either party**. Both are marked in place. They are order-of-magnitude calibration;
+  no threshold, budget default or acceptance criterion derives from them, and a session budgeting
+  against them measures first.
 - **`drop(cwd)` in `marlowe-exec`'s `bash` does nothing** — `Option<&ScopedPath>` is `Copy`, so the
   line that claims to hold the handle until after the spawn is decorative. The handle is genuinely
   held (by the `Adjudication`), so this is a false comment rather than a broken guard. Compiler

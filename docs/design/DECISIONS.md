@@ -1024,6 +1024,21 @@ task role, declared in `CapabilityProfile`, not by user preference.
 This is the single largest cost lever in the system (§12), and it is what makes continuous
 offline consolidation affordable enough to be the default rather than a paid feature.
 
+> **AMENDED 2026-08-10 (M2 C2f) — a THIRD role: compression. ADR-037 §2.**
+>
+> The table above has a research/search role and a synthesis role. It does not have a **compression**
+> role, and compression is folded into "extraction", which is a different job: extraction pulls
+> fields out of a document; **compression decides what survives contact with the orchestrator.**
+>
+> That makes it the enforcement point for brief §10's *"condensed structured returns"* — the
+> requirement that stops an orchestrator's context accumulating worker transcripts — and after
+> ADR-037 §6 it is also the **security interface**, because everything the orchestrator will ever
+> act on passes through it. **The component enforcing both currently has no entry in this table.**
+>
+> `ModelRoute` gains a compression role. It is the role most likely to be handed to the strong model
+> "just for now", which is how a 15× token multiplier becomes 25× with nobody deciding — so it is
+> named here rather than left to the first implementation's convenience.
+
 ## ADR-009 · No structural signature on the memory envelope
 
 **Context.** `CONTRACTS.md` §3.1 pins `MemoryEntry` with `embedding_ref: Option<VectorId>`. M9's
