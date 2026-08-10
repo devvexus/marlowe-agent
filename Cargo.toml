@@ -11,6 +11,9 @@ members = [
     "crates/marlowe-permission",
     "crates/marlowe-loop",
     "crates/marlowe-exec",
+    # ADR-031. The whole of the TLS supply-chain surface, in one crate that depends on nothing of
+    # Marlowe's — so `marlowe-provider` can keep proving the default path reaches no network.
+    "crates/marlowe-net",
     "crates/marlowe-provider",
     "crates/marlowe-daemon",
     "crates/marlowe",
@@ -40,6 +43,7 @@ marlowe-tools = { path = "crates/marlowe-tools" }
 marlowe-permission = { path = "crates/marlowe-permission" }
 marlowe-loop = { path = "crates/marlowe-loop" }
 marlowe-exec = { path = "crates/marlowe-exec" }
+marlowe-net = { path = "crates/marlowe-net" }
 marlowe-provider = { path = "crates/marlowe-provider" }
 marlowe-daemon = { path = "crates/marlowe-daemon" }
 

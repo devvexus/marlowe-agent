@@ -17,6 +17,24 @@ This is a gap worth closing early and cheaply. Persona is roughly twenty lines i
 of the system prompt (v1.0 §6). The cost is negligible; the cost of *not* deciding is that the
 character becomes an accident and then becomes load-bearing before anyone notices.
 
+> **AMENDED 2026-08-10 (M2 C2f). "Roughly twenty lines" and "negligible" no longer describe the
+> shipped artifact.** `persona/v2.md` is 230 lines and **~3,544 tokens by the assembler's
+> estimator — 11.5% of the 30,720-token effective window**, against v1's ~409 tokens and 1.3%.
+>
+> The trade was made deliberately and the reasoning is in `persona/README.md`: v2 is a working
+> prompt that measurably performs better with this model class, and the specificity is where the
+> performance lives. §C4's required behaviours in particular are more enforceable as v2's explicit
+> `<words_to_avoid>` and `<self_check>` lists than as this document's prose.
+>
+> **What the cost actually is, stated so nobody re-derives it as a surprise.** The stable tier is
+> not trimmable, so the persona is never truncated to fit — it displaces everything else, and §6's
+> compaction trigger at 70% fill arrives correspondingly earlier. A future session investigating
+> early compaction should find this named rather than have to measure it.
+>
+> **The constraint that replaces "twenty lines": every line must be enforceable or measurable.**
+> Length was never the real requirement; it was a proxy for "no room for decoration". That is the
+> property to hold, and §C7's probe set is what holds it.
+
 **Why it matters more here than in a chat product.** The thing being built is an agent that
 speaks unprompted (§A5), drafts in the user's name (§A3), and eventually acts without asking
 (§A8). All three require the user to have a stable model of who they are dealing with. A voice
@@ -39,6 +57,21 @@ thing you did not want to hear without softening it into uselessness.
 world-weary narration. A user should never be able to point at a sentence and say *that's the
 gimmick*. The character shows in what Marlowe chooses to say and what it declines to say, not in
 ornament.
+
+> **OPEN 2026-08-10 (M2 C2f) — which Marlowe is the anchor is not settled, and the two differ.**
+>
+> This section derives the register from **Chandler's** Marlowe, the detective. The prompt adopted
+> as v2 derived it from **Christopher Marlowe**, the poet who *"looked into the abyss of forbidden
+> knowledge and didn't flinch."*
+>
+> Those are not the same disposition. The detective is **restraint** — notices more than he says.
+> The poet is **transgression** — says the thing others will not. They overlap on *unimpressed*
+> and *unflinching*, and they diverge on economy, which is most of §C1's "Is" list.
+>
+> **`persona/v2.md` states neither namesake**, because §C8 forbids backstory outright, and the
+> behavioural properties both readings agree on are stated directly instead. That resolves the
+> artifact without resolving the question. **If the poet is the intended anchor, this section is
+> what needs rewriting — not the artifact.** Flagged for the human; not decided here.
 
 ### Is
 
@@ -173,6 +206,21 @@ understatement does not, since prosody makes it read as flat rather than wry. Li
 
 **Third-party visible** — not Marlowe's register at all. See §C2, item 4.
 
+> **AMENDED 2026-08-10 (M2 C2f).** `persona/v2.md` specifies the **terminal register only**, and
+> says so in its own terms: *"Your output is read in a terminal. The interface carries the
+> structure, so your prose carries none."*
+>
+> This is the correction that matters in the translation. The adopted prompt opened its voice
+> section with *"You are a voice-first system. Your output is spoken aloud through TTS"*, and
+> derived the no-markdown rule from that. **The rule is right and the reason was wrong for this
+> system.** Marlowe is terminal-native; there is no TTS path, `MeterSource::None` is the honest
+> report of a daemon with no voice pipeline, and a persona claiming to be spoken aloud would have
+> been the same defect as the `<vision>` section that was cut.
+>
+> Voice and Messaging remain specified above and **unimplemented**. When either lands, its
+> register is a delta on the terminal one, not a rewrite — and the artifact will need a surface
+> selector, which it does not currently have.
+
 ---
 
 ## C6. Implementation
@@ -230,6 +278,20 @@ Persona is testable. Treat it as such or it will drift silently.
 **The regression suite runs on every model change and every persona version.** A persona edit
 that improves discrimination while degrading the sycophancy score is a net loss and must fail.
 
+> **STATUS 2026-08-10: the suite does not exist, and v2 shipped without it.** No probe set has been
+> built, so not one number in the table above has ever been produced — for v1 or for v2.
+>
+> This is stated here rather than left as an absence because the absence is invisible: nothing
+> fails, nothing warns, and the table reads like a specification that is being met. **A persona
+> version was adopted on the strength of "it performed well in a prior harness", which is a prior
+> about a different system and not a measurement on this one** — the same shape as every other
+> carried-forward number this project has had to retract.
+>
+> The cheapest useful subset, in order: the **sycophancy probe** (§C4 is the requirement most
+> likely to erode and the one a model swap moves), then **drop-condition compliance** (100%, a
+> single failure blocking), then **cold-start honesty**. Length discipline and the emoji grep are
+> nearly free and can run against any transcript.
+
 ---
 
 ## C8. Anti-Requirements
@@ -266,9 +328,41 @@ that improves discrimination while degrading the sycophancy score is a net loss 
 
 ---
 
-## C10. Draft Persona Text (v1)
+## C10. Persona Text
 
-To be pinned as `persona/v1.md` after review. Prescriptive, provider-independent, ~20 lines.
+> ### AMENDED 2026-08-10 (M2 C2f) — the artifact is now the source, and this section is not.
+>
+> **`persona/v2.md` is the shipped persona text. It is not reproduced here.**
+>
+> The direction of authority has inverted, and that is the point of the amendment. v1 was drafted
+> in this document and *copied* to `persona/v1.md`; the artifact was the copy. Keeping a second
+> full text in a requirements document is the same hazard §C6 names when it forbids the persona
+> being a string in the code — two texts, one reviewed, and no mechanism that notices when they
+> diverge. `persona_emission.rs::the_persona_text_exists_in_exactly_one_place` enforces this
+> against Rust source; a Markdown copy would evade that test while creating the identical problem.
+>
+> **v2 was adopted from a working prompt from a prior harness**, translated rather than copied.
+> `persona/README.md` records what was cut (sections describing tools that do not exist), what was
+> inverted (`<tool_use>`, which told the model to parallelize against a loop that discards all but
+> the first call), and what was preserved from v1 that the source lacked (§C2's five drop
+> conditions in full, §C3's cold-start honesty, the emoji and exclamation absolutes).
+>
+> **Where v2 is better than this document's prose, this document defers to it.** §C4's required
+> behaviours and §C1's "Is not" list are dispositions stated in paragraphs; v2 states them as an
+> explicit `<words_to_avoid>` list and a pre-response `<self_check>`. Those are enforceable in a
+> way prose is not — a probe can grep for "great question" and cannot grep for "not sycophantic".
+> §C4 and §C1 remain the *requirement*; v2 is the more specific expression of it, and a conflict
+> between them is resolved in v2's favour unless the conflict is with a §C7 acceptance criterion.
+>
+> **§C7 is unchanged and is not deferred to.** The probe set is the scoreboard for this document
+> exactly as `eval/` is for the implementation, and v2 has **not yet been run against it** — no
+> sycophancy score, no discrimination score, no drop-condition run exists for v2. Adopting a
+> prompt because it performed well elsewhere is a reasonable prior; it is not a measurement on
+> this system, and §C7 is what turns one into the other. **This is the open item.**
+
+### The v1 draft, retained for the diff
+
+Pinned verbatim as `persona/v1.md`, and superseded. Prescriptive, provider-independent, ~20 lines.
 
 > You are Marlowe.
 >

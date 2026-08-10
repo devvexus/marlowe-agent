@@ -64,10 +64,48 @@ requirements only when the design docs do not answer the question.
   believing a number, ask what it would read if the thing you actually care about were broken; if
   the answer is "the same", it is a proxy and it is not evidence.
 
-  The ledger, for the last three, because the count is only useful if it is auditable:
+  The ledger, for the last four, because the count is only useful if it is auditable:
   **12** — `Deserialize` routing around a validating constructor (M2 A; the first caught by design).
   **13** — R@1 counting a superseded fact as a hit, so every R@1 in the project was inflated
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
+  **15** — the trust-floor banner, which is the widest gap yet between what fired and what was
+  claimed (M2 C2f).
+
+- **The banner said "read untrusted content" and the trigger was the string `"Marlowe."`.** The
+  fifteenth instance, and the one to quote when explaining the family, because the distance between
+  the event and the claim is the largest this project has produced.
+
+  The loop emitted `Degraded{TrustFloorLatched}` whenever the run's floor **moved**; the surface
+  renders that as *"read untrusted · composed targets blocked"*. A run starts at `UserAsserted`, and
+  the assembler constructs the stable tier on every assemble with the `Identity` block —
+  `"Marlowe."` — at `AgentObserved`. **So it fired on the first assemble of every run that has ever
+  run**, before the model spoke and before any tool existed in the turn; the first assistant turn
+  (`AgentInferred`) fired it again. The negative control reads `left: 2, right: 0`: **two banners on
+  a run with no tools at all**, both clauses false.
+
+  Nothing was broken. The trust class at ingest was right, the floor arithmetic was right, and
+  `adjudicate` blocks at `<= UntrustedContent` exactly as specified. **The event fired on *floor
+  moved*, the text asserted *floor reached untrusted*, and the banner read identically whether or
+  not the guard worked** — so it was never evidence about the guard, and a latch that fires on
+  everything means nothing at the moment it starts to matter. Closed by making
+  `marlowe_permission::blocks_composed_targets` the single definition, called by the adjudicator at
+  its enforcement site *and* by the loop to decide whether to speak.
+
+- **A trim-dependent assertion needs a control that fails when no trim occurred.** Second subsystem
+  after the three-attempt `Notice` control, and the same question in a new place: *would this still
+  fail if the thing it names never happened?*
+
+  `adr023_live.rs` asserts the trust floor holds **after the untrusted block is trimmed out of the
+  view**. Its first run passed — at a 4 KB window where both pages fitted, **nothing was trimmed,
+  and the property the test is named for never occurred**. The window size, not the code, decided
+  whether the test tested anything, and it reported success either way.
+
+  Two further attempts failed for real reasons worth keeping: `clear_tool_results` **preserves the
+  trust class**, so masking alone can never raise the view's floor; and a fetch-succeeded guard
+  reading the *view* is in direct opposition to the property, passing only when the eviction did
+  **not** happen. The guard now reads the emitted §B6 line, which survives both masking and
+  trimming. **Any assertion whose subject is "X was removed" carries an assertion that X was
+  removed.**
 - **A measurement is scoped to the system it was taken on. Carrying it forward requires
   re-measuring, not citing.** The sibling of the rule above, and the harder one to catch: the number
   is *correct*, the reasoning about it is sound, and it is simply **about a different system**. There

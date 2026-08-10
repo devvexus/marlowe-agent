@@ -20,6 +20,7 @@ use marlowe_journal::EventKind;
 use crate::turn::DegradedPath;
 use marlowe_permission::{
     Adjudicator, Args, BlockReason, EgressPolicy, Outcome, PathScope, Request, Tier,
+    blocks_composed_targets,
 };
 use marlowe_tools::{ExposedSet, Metric, ResultSummary, ToolId, ToolRegistry};
 use serde_json::json;
@@ -344,17 +345,42 @@ impl<S: PathScope> Engine<S> {
 
             // ── latch the run's trust floor ──────────────────────────────────────────
             //
-            // Monotonic and permanent. Announced when it moves, because a guard that engages
-            // silently is a guard nobody can confirm engaged.
+            // Monotonic and permanent. **The journal records every move; the screen claims only
+            // the move that costs the run something.** Those are two audiences and they were one
+            // branch.
+            //
+            // The branch used to emit `Degraded{TrustFloorLatched}` on ANY downward move. A run
+            // starts at `UserAsserted`, and the first block below that — an assistant turn
+            // (`AgentInferred`), a tool result from a plain workspace read (`AgentObserved`), or
+            // even a nudge — moves the floor. So every live run printed
+            // *"read untrusted · composed targets blocked"* at the second iteration, with both
+            // clauses false: nothing untrusted had been read, and `AgentObserved` blocks nothing.
+            //
+            // **The capability-report family, once more.** The event fired on *floor moved*, the
+            // text asserted *floor reached untrusted*, and the banner read the same either way —
+            // so it said nothing about the guard while looking like it did. A latch that fires on
+            // everything is a latch that means nothing, which matters precisely when `web` makes
+            // it live.
+            //
+            // The threshold is `marlowe_permission::blocks_composed_targets`, the same function
+            // the adjudicator refuses on. Restating it here as a constant is how the screen and
+            // the wall drift apart again.
             if let Some(floor) = run.latch_trust_floor(view.trust_floor()) {
                 self.record(
                     ports,
                     EventKind::TrustFloorLatched,
                     run,
                     state,
-                    json!({ "floor": format!("{floor:?}") }),
+                    json!({
+                        "floor": format!("{floor:?}"),
+                        "blocks_composed_targets": blocks_composed_targets(floor),
+                    }),
                 );
-                ports.sink.emit(TurnEvent::Degraded { what: DegradedPath::TrustFloorLatched });
+                // Monotonic, so this transition happens at most once per run: edge-triggered
+                // without needing a second flag to remember it fired.
+                if blocks_composed_targets(floor) {
+                    ports.sink.emit(TurnEvent::Degraded { what: DegradedPath::TrustFloorLatched });
+                }
             }
 
             let empty_tools = ExposedSet::new(Vec::new()).expect("an empty set is within the cap");

@@ -1005,10 +1005,31 @@ pub enum ArgumentRole {
     Payload,   // inert body content: a draft, a summary, a message body
 }
 
-pub struct ParamSpec { pub name: String, pub role: ArgumentRole, pub ty: ParamType }
+pub struct ParamSpec {
+    pub name: String,
+    pub role: ArgumentRole,
+    pub ty: ParamType,
+    /// AMENDED 2026-08-10 (ADR-034). What the EXECUTOR demands. A separate question from `role`,
+    /// which answers what untrusted content may never shape. Absent in a raw manifest => optional.
+    pub required: bool,
+}
 
 pub enum ManifestProvenance { FirstParty, UserReviewed { at: Timestamp }, ThirdParty }
 ```
+
+> **AMENDED 2026-08-10 (M2 C2f) — `ParamSpec` gains `required`. ADR-034.**
+>
+> The schema's `required` array was derived from `ArgumentRole::Target`. One switch answered two
+> questions — *what may untrusted content shape* and *what can the tool not run without* — and they
+> disagreed on **eleven parameters across ten builtins**, in both directions: nine marked required
+> that are not (`bash.cwd`, which the executor defaults to the workspace, so the model invented one
+> on every call) and two the executor demands that the schema called optional (`find.pattern`,
+> `edit.content` — a schema-valid call the executor rejects).
+>
+> **This amendment is retroactive on the document, not on the code**: the field shipped in
+> `de18ace` and §7.3 continued to pin the three-field struct. A pinned contract that shipped code
+> contradicts is worse than an absent one, because it is what a boundary-crossing change gets
+> checked against. Recorded plainly rather than quietly corrected.
 
 **Default-deny, enforced at load time:**
 

@@ -702,9 +702,33 @@ impl ModelDriver for OllamaDriver {
 
         // Reassembled into the same shape the non-streaming path produced, so `parse_step` is
         // unchanged and the four loop-control tools keep their routing.
+        let emitted_calls = tool_calls.len();
         let mut message = serde_json::json!({ "content": text });
         if !tool_calls.is_empty() {
             message["tool_calls"] = serde_json::Value::Array(tool_calls);
+        }
+        // **A dropped call must never be silent.** (M2 C2f.)
+        //
+        // `parse_step` takes `calls.first()`. Against a model that emits three calls in one
+        // message that is not "we execute one of them" — it is **two actions the model believes it
+        // took that never happened, with nothing anywhere reporting the loss**. That is strictly
+        // worse than the singular type: the type is at least honest, and the drop is invisible to
+        // the model, the user, the journal and the tests.
+        //
+        // Failing the call loudly and non-retriably is the correct interim behaviour. Parallel
+        // execution is the next session's work; until the loop can run every call, refusing to run
+        // a third of them beats pretending.
+        if emitted_calls > 1 {
+            return Err(ProviderError {
+                detail: format!(
+                    "the model emitted {} tool calls in one message and this build executes one \
+                     call per turn. Refusing rather than running the first and discarding the \
+                     rest, which would be two actions the model believes it took that never \
+                     happened. Parallel execution is not yet built.",
+                    emitted_calls
+                ),
+                retriable: false,
+            });
         }
         let step = parse_step(&message);
         Ok(ModelCall { usage, step })

@@ -35,6 +35,22 @@ use crate::egress::{EgressPolicy, Host};
 use crate::scope::{Access, PathScope, ScopedPath};
 use crate::taint::TaintSet;
 
+/// Whether a Target composed at this trust class is refused.
+///
+/// **The single definition of ADR-023's blocking threshold.** The check below is its only
+/// enforcement site; `marlowe-loop` calls it to decide whether the latch has reached the class
+/// that actually costs the run something, so the banner on screen and the refusal in this file
+/// cannot disagree.
+///
+/// It is a function rather than a constant restated in the loop for a specific reason. The loop
+/// used to announce on *any* downward move of the floor — `UserAsserted → AgentObserved`, which
+/// blocks nothing — under a banner reading *"read untrusted · composed targets blocked"*. Two
+/// sides silently disagreed about what the floor moving meant, and the screen made the stronger
+/// claim. One definition, called from both, is what closes that.
+pub fn blocks_composed_targets(origin: TrustClass) -> bool {
+    origin <= TrustClass::UntrustedContent
+}
+
 /// One argument's value. Structured, per §12: *"the loop never hands over raw prose for a
 /// Target parameter"*.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -52,6 +68,32 @@ impl ArgValue {
         match self {
             ArgValue::Text(s) => Some(s),
             _ => None,
+        }
+    }
+
+    /// This value as it appears in a §B9 blast radius. **Total, and exhaustively matched.**
+    ///
+    /// `blast_radius` used to build the scope line with `as_text`, which returns `None` for every
+    /// variant but `Text` — so a declared Target that was a number **was silently dropped from the
+    /// line a human approves against**. The known instance is `run.budget_micros_usd`, typed
+    /// `Amount`: §B9 requires the blast radius be stated, and the spend ceiling had never once
+    /// appeared in it. That is precisely the case where somebody approves what they would have
+    /// refused.
+    ///
+    /// The defect was the `filter_map`, not the missing `Amount` arm. A renderer that drops what it
+    /// cannot express fails silently and re-breaks on the next variant added. This match has no
+    /// wildcard, so **a new `ArgValue` variant is a compile error here** rather than an omission in
+    /// an approval prompt.
+    pub fn render(&self) -> String {
+        match self {
+            ArgValue::Text(s) => s.clone(),
+            ArgValue::Integer(n) => n.to_string(),
+            // Micros are the storage unit and not a unit a human approves in. Rendering it raw
+            // would put `2500000` in front of someone and invite them to read it as dollars.
+            ArgValue::Amount(micros) => {
+                format!("{}.{:06} (spend ceiling)", micros / 1_000_000, micros % 1_000_000)
+            }
+            ArgValue::Boolean(b) => b.to_string(),
         }
     }
 }
@@ -177,7 +219,10 @@ fn blast_radius(
         .params()
         .iter()
         .filter(|p| p.role == ArgumentRole::Target)
-        .filter_map(|p| args.get(&p.name).and_then(ArgValue::as_text).map(|v| v.to_string()))
+        // **`render`, not `as_text`.** See `ArgValue::render`: `as_text` returned `None` for every
+        // non-`Text` variant, so a numeric Target vanished from the line rather than appearing in
+        // it — a shorter prompt that looked complete.
+        .filter_map(|p| args.get(&p.name).map(ArgValue::render))
         .collect();
     BlastRadius {
         verb: manifest.tool().to_string(),
@@ -255,7 +300,7 @@ impl<S: PathScope> Adjudicator<S> {
                     continue;
                 }
                 let origin = req.taint.of(name);
-                if origin <= TrustClass::UntrustedContent {
+                if blocks_composed_targets(origin) {
                     let reason =
                         BlockReason::UntrustedTarget { param: name.clone(), origin };
                     return Adjudication {
@@ -408,6 +453,59 @@ mod tests {
             novelty: None,
         })
         .decision
+    }
+
+    /// **§B9's blast radius must state every declared Target, including the ones that are not
+    /// strings.** (M2 C2f, ADR-032 §3.2.)
+    ///
+    /// `run.budget_micros_usd` is a Target typed `Amount`. The scope line was built with
+    /// `as_text`, which returns `None` for it, so **the spend ceiling had never appeared in an
+    /// approval prompt** — §B9 requires the blast radius stated, and a human was being asked to
+    /// approve a spawn with the amount silently absent.
+    ///
+    /// The assertion is on the ceiling being *present and readable*, not on the exact spelling, so
+    /// a formatting change does not train anyone to update the test without reading it.
+    #[test]
+    fn a_numeric_target_appears_in_the_scope_line_a_human_approves() {
+        let r = registry();
+        let args = Args::new()
+            .text("task", "summarise the repo")
+            .with("budget_micros_usd", ArgValue::Amount(2_500_000));
+        let d = adjudicate(
+            &r,
+            "run",
+            args,
+            TaintSet::new()
+                .with("task", TrustClass::UserAsserted)
+                .with("budget_micros_usd", TrustClass::UserAsserted),
+            EgressPolicy::DenyAll,
+            Tier::Act,
+        );
+        assert!(
+            d.blast_radius.scope.contains("2.500000"),
+            "the spend ceiling is a declared Target and must be in the line the human reads. \
+             This is the case where somebody approves what they would have refused. scope was: \
+             {:?}",
+            d.blast_radius.scope
+        );
+    }
+
+    /// The negative control for the above: the renderer is **total**, so a value it cannot
+    /// stringify cannot exist. Without this, `render` could regrow a `_ => String::new()` arm and
+    /// the test above would still pass on `Amount` while silently dropping the next variant.
+    #[test]
+    fn every_arg_value_variant_renders_to_something_a_human_can_read() {
+        for v in [
+            ArgValue::Text("x".into()),
+            ArgValue::Integer(-3),
+            ArgValue::Amount(1),
+            ArgValue::Boolean(false),
+        ] {
+            assert!(
+                !v.render().trim().is_empty(),
+                "{v:?} rendered to nothing, so it would vanish from an approval prompt"
+            );
+        }
     }
 
     #[test]

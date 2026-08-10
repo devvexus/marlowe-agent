@@ -831,7 +831,15 @@ impl Daemon {
 ///
 /// **The check that matters is emission, not loading.** See
 /// `marlowe-provider/tests/persona_emission.rs`.
-const PERSONA: &str = include_str!("../../../persona/v1.md");
+///
+/// **v2 as of M2 C2f.** It is 8.7× the size of v1 — ~3,544 tokens against ~409 by the assembler's
+/// three-chars-per-token estimator, which is **11.5% of the 30,720-token effective window**,
+/// permanently, in every request. That is a real cost and it is deliberate; it is recorded here
+/// because a stable-tier artifact that grows silently is a compaction trigger that fires earlier
+/// than anyone expects, with nothing naming the cause. The stable tier is not trimmable
+/// (`SourceKind::trimmable`), so it will never be truncated to fit — it will push everything else
+/// out first.
+const PERSONA: &str = include_str!("../../../persona/v2.md");
 
 /// The run's identity, which §C6 places in the stable tier *alongside* the persona rather than as
 /// part of it. Kept separate so the artifact stays deployment-independent: a persona that named

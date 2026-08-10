@@ -796,6 +796,243 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
     );
 }
 
+/// One scripted run: an inert workspace search whose result carries `trust`, then two composed
+/// shell commands, then a reply. Returns what the surface was told, what actually executed, and
+/// the floor the run ended on.
+///
+/// **The tool is the same in every cell and only `trust` varies.** That is what makes a cell
+/// reading zero evidence about the guard rather than evidence about the harness: the identical
+/// path emits one in another cell.
+fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        // `find` with only `pattern` — Inert, and it declares no path, so the `Unavailable`
+        // scope in `engine()` is never consulted. An ordinary workspace read.
+        step(
+            ModelStep::ToolCall {
+                tool: ToolId::new("find"),
+                args: marlowe_permission::Args::new().text("pattern", "TODO"),
+            },
+            100,
+        ),
+        // Two composed Targets AFTER the result is in view, not one: a second iteration is what
+        // would expose a banner that re-announces on every pass.
+        step(
+            ModelStep::ToolCall {
+                tool: ToolId::new("bash"),
+                args: marlowe_permission::Args::new().text("command", "echo one"),
+            },
+            100,
+        ),
+        step(
+            ModelStep::ToolCall {
+                tool: ToolId::new("bash"),
+                args: marlowe_permission::Args::new().text("command", "echo two"),
+            },
+            100,
+        ),
+        say("stopped", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools {
+        body: Some("a line from the workspace".into()),
+        trust: Some(trust),
+        ..Default::default()
+    };
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("root"),
+        SessionId::from_name("s"),
+        CapabilityProfile::new(
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("bash")]).unwrap(),
+            marlowe_permission::EgressPolicy::DenyAll,
+            marlowe_loop::InterruptPolicy::Interruptible,
+            marlowe_loop::ModelRoute::Orchestrator,
+            false,
+            false,
+        )
+        .unwrap(),
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    let announced = sink
+        .events
+        .iter()
+        .filter(|ev| {
+            matches!(
+                ev,
+                marlowe_loop::TurnEvent::Degraded {
+                    what: marlowe_loop::DegradedPath::TrustFloorLatched
+                }
+            )
+        })
+        .count();
+    let shells = tools.calls.iter().filter(|(t, _)| t == "bash").count();
+    (announced, shells, run.trust_floor())
+}
+
+/// **The banner claims what the wall does, at every trust class.** (M2 C2f, item 1.)
+///
+/// The defect this pins: the loop announced `Degraded{TrustFloorLatched}` on *any* downward move
+/// of the floor, and the surface renders that as *"read untrusted · composed targets blocked"*.
+/// A run starts at `UserAsserted`, so the first assistant turn (`AgentInferred`) or the first
+/// plain workspace read (`AgentObserved`) tripped it — and **every live run printed the banner at
+/// its second iteration with both clauses false.**
+///
+/// It is the capability-report family that CLAUDE.md tracks. The event fired on *floor moved*,
+/// the text asserted *floor reached untrusted*, and the banner read the same whether or not the
+/// guard was working — so it was never evidence about the guard. A latch that fires on everything
+/// means nothing, which is the state it must not be in when `web` makes it live.
+///
+/// Asserted as the agreement rather than as either half: across all four classes, the surface
+/// announces **iff** the adjudicator refuses.
+#[test]
+fn the_latch_announces_exactly_when_a_composed_target_is_actually_blocked() {
+    for trust in [
+        TrustClass::UserAsserted,
+        TrustClass::AgentObserved,
+        TrustClass::AgentInferred,
+        TrustClass::UntrustedContent,
+    ] {
+        let (announced, shells, floor) = run_latching(trust);
+        let blocks = marlowe_permission::blocks_composed_targets(floor);
+
+        assert_eq!(
+            announced,
+            usize::from(blocks),
+            "at tool trust {trust:?} the run ended on floor {floor:?}, which \
+             blocks_composed_targets={blocks} — the banner must agree with the wall, and it \
+             announced {announced} time(s)"
+        );
+        assert_eq!(
+            shells,
+            if blocks { 0 } else { 2 },
+            "at tool trust {trust:?}, floor {floor:?}: the composed shell commands must run \
+             exactly when the banner stays silent. {shells} ran"
+        );
+    }
+}
+
+/// The half of the above that a reader will want stated without arithmetic, plus the property
+/// the `usize::from(blocks)` above hides: it is announced **once**, not once per iteration.
+#[test]
+fn an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once() {
+    let (announced, shells, floor) = run_latching(TrustClass::AgentObserved);
+    assert_eq!(
+        announced, 0,
+        "a plain workspace read moves the floor UserAsserted -> AgentObserved and blocks \
+         nothing; announcing it is the false claim this test exists for"
+    );
+    assert_eq!(shells, 2, "and the composed calls still run");
+    assert_eq!(floor, TrustClass::AgentInferred, "the floor did move — it is the CLAIM that was wrong");
+
+    let (announced, shells, floor) = run_latching(TrustClass::UntrustedContent);
+    assert_eq!(
+        announced, 1,
+        "untrusted content in view announces, and announces ONCE across two later iterations \
+         — the latch is monotonic, so the transition happens at most once"
+    );
+    assert_eq!(shells, 0, "and every composed Target after it is refused");
+    assert_eq!(floor, TrustClass::UntrustedContent);
+}
+
+/// **What actually tripped the banner was Marlowe's own name.** (M2 C2f, item 1.)
+///
+/// STATE recorded this as firing *"after a plain `read`"*. The read was never needed. The
+/// assembler constructs the stable tier on every assemble and the `Identity` block — the string
+/// `"Marlowe."` — is `AgentObserved` (`context.rs`, `Assembler::assemble`). A run starts at
+/// `UserAsserted`, so **the floor moved on the first assemble of every run that has ever run**,
+/// before the model spoke and before any tool executed. The first assistant turn
+/// (`AgentInferred`) then moved it a second time.
+///
+/// So the product printed *"read untrusted · composed targets blocked"* on **iteration one of
+/// every run**, and again at the first assistant turn: the negative control for the fix above
+/// reads `left: 2, right: 0` on a multi-iteration run for exactly those two moves. A run that
+/// replies immediately, as here, only gets as far as the first.
+///
+/// The floor moving here is CORRECT and is left alone: `AgentObserved` is genuinely the worst
+/// class in view, and `taint_for` needs that value. Only the claim was wrong. This test pins both
+/// halves so a later change cannot "fix" the trajectory instead of the claim.
+#[test]
+fn the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![say("nothing to do", 100)]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    assert_eq!(tools.calls.len(), 0, "no tool ran, which is the point");
+
+    // The JOURNAL still records the whole trajectory — an audit that only recorded the blocking
+    // move could not answer "when did this run stop being user-asserted".
+    let floors: Vec<String> = recorder
+        .payloads(EventKind::TrustFloorLatched)
+        .iter()
+        .filter_map(|p| p.get("floor").and_then(|f| f.as_str()).map(str::to_string))
+        .collect();
+    assert_eq!(
+        floors,
+        vec!["AgentObserved".to_string()],
+        "the identity block alone moves the floor on the first assemble, with no tool call \
+         anywhere in the run"
+    );
+
+    // ...and the SCREEN claims nothing, because nothing is blocked.
+    let announced = sink
+        .events
+        .iter()
+        .filter(|ev| {
+            matches!(
+                ev,
+                marlowe_loop::TurnEvent::Degraded {
+                    what: marlowe_loop::DegradedPath::TrustFloorLatched
+                }
+            )
+        })
+        .count();
+    assert_eq!(announced, 0, "a toolless run must never claim it read untrusted content");
+}
+
 /// **An empty turn must never quietly succeed.** (M2 C2e, issue 2.)
 ///
 /// Completion is the absence of an action, and an empty reply is technically that — so without a

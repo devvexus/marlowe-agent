@@ -341,11 +341,107 @@ impl<S: PathScope> FileSystemTools<S> {
     }
 }
 
+impl<S: PathScope> FileSystemTools<S> {
+    /// `web` — fetch. ADR-031.
+    ///
+    /// **Egress was already decided before this runs.** The adjudicator checked the URL's host
+    /// against the run's `EgressPolicy` intersected with the manifest's declared hosts, and a
+    /// refusal never reaches an executor. This function does not re-check and must not: a second
+    /// egress implementation inside a networking call site is how the two sides come to disagree.
+    ///
+    /// **Redirects are NOT followed here, and that is the security design rather than a
+    /// shortcut.** A redirect is a second egress destination chosen by the host being fetched —
+    /// untrusted content selecting a target. Following it inside this function would mean
+    /// re-implementing the allowlist check where the taint layer cannot see it. Instead the
+    /// `Location` is returned as a *result*, and following it requires a fresh `web` call that
+    /// goes through the real adjudicator, with the real taint, like any other target.
+    ///
+    /// The consequence is deliberate and worth naming: once this run has read a page, ADR-023's
+    /// latch blocks model-composed targets, so **the model generally cannot follow the redirect**.
+    /// That is the trifecta break working, not a defect. The path is a quarantined reader.
+    ///
+    /// **Nothing here parses the body.** Bytes and a content type go back; extraction is a
+    /// separate module and a separate session.
+    fn web(&mut self, a: &Args) -> ToolOutcome {
+        let Some(url) = a.get("url").and_then(ArgValue::as_text) else {
+            // `query` exists in the manifest for a search this build does not have. Saying so
+            // plainly beats a refusal the model reads as "the URL was malformed".
+            return failed(
+                "web",
+                "`url` is required. This build fetches a single URL and does not search, so \
+                 `query` alone cannot be answered — supply a full https:// URL.",
+            );
+        };
+
+        let target = match marlowe_net::Target::parse(url) {
+            Ok(t) => t,
+            Err(e) => return failed("web", e.to_string()),
+        };
+
+        match marlowe_net::fetch(&target) {
+            Err(e) => failed("web", e.to_string()),
+            Ok(res) => {
+                if let Some(location) = res.redirect_to {
+                    return ToolOutcome {
+                        summary: ResultSummary::with_detail(
+                            vec![Metric::State("redirect")],
+                            format!("{} -> {location}", res.status),
+                        ),
+                        body: ToolBody::Inline(format!(
+                            "{} redirected to {location}. It was NOT followed: a redirect target \
+                             is chosen by the site, so it is checked like any other target. Call \
+                             `web` again with that URL if it is what you want.",
+                            res.final_url
+                        )),
+                        // The harness observed the status and the header. The BODY is what would
+                        // be untrusted, and none of it is being returned here.
+                        trust: TrustClass::AgentObserved,
+                        failed: false,
+                        wall_ms: 0,
+                        preview: None,
+                    };
+                }
+
+                // Lossy on purpose: a page is bytes, and the alternative to replacing invalid
+                // sequences is refusing to show the user's own requested page over an encoding
+                // detail. Extraction will do this properly with the charset.
+                let text = String::from_utf8_lossy(&res.bytes).into_owned();
+                let bytes = res.bytes.len() as u64;
+                let (body, _, preview) = body_for(text);
+                ToolOutcome {
+                    summary: ResultSummary::with_detail(
+                        vec![
+                            Metric::State(if res.status < 400 { "ok" } else { "http" }),
+                            Metric::Count { n: bytes, unit: "bytes" },
+                        ],
+                        format!(
+                            "{} {}",
+                            res.status,
+                            res.content_type.as_deref().unwrap_or("no content-type")
+                        ),
+                    ),
+                    body,
+                    // **The whole point.** ADR-002's exemption for `web` being Inert rests on this
+                    // being UntrustedContent, and this is the first place in the system where that
+                    // class is produced from something genuinely outside.
+                    trust: TrustClass::UntrustedContent,
+                    failed: res.status >= 400,
+                    wall_ms: 0,
+                    preview,
+                }
+            }
+        }
+    }
+}
+
 impl<S: PathScope> ToolHost for FileSystemTools<S> {
-    /// **The four this host actually has arms for.** Kept beside the match below so the two
+    /// **The five this host actually has arms for.** Kept beside the match below so the two
     /// cannot drift; `every_declared_tool_has_a_match_arm` asserts they agree.
     fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-        ["read", "edit", "find", "bash"].iter().map(|t| marlowe_tools::ToolId::new(*t)).collect()
+        ["read", "edit", "find", "bash", "web"]
+            .iter()
+            .map(|t| marlowe_tools::ToolId::new(*t))
+            .collect()
     }
 
     fn execute(&mut self, tool: &ToolId, args: &Args, adjudication: &Adjudication) -> ToolOutcome {
@@ -357,6 +453,7 @@ impl<S: PathScope> ToolHost for FileSystemTools<S> {
             "edit" => self.edit(args, adjudication),
             "find" => self.find(args, adjudication, &declared),
             "bash" => self.bash(args, adjudication),
+            "web" => self.web(args),
             other => failed("tool", format!("`{other}` has no executor in this build")),
         }
     }

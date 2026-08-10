@@ -1,5 +1,124 @@
 # State
 
+## M2 C2f — the latch met real untrusted content. `561 tests` (from 550).
+
+**ADR-023's four properties confirmed against a genuinely fetched page, and the fourth had never
+been exercised by anything.** `cargo test -p marlowe-exec --test adr023_live -- --ignored`.
+
+```
+view floor: AgentInferred   run floor: UntrustedContent   pages in view: 0
+7 composed shell commands issued, 7 refused, 0 executed
+```
+
+The view's floor **rose** as the page fell out of the budget; the run's latched floor did not follow
+it up; every composed Target stayed blocked. That is the exact hole the latch was built to close —
+the assembler dropping a block to stay inside budget silently handing back privileges — and until
+now the only evidence for it was a `Block` a test constructed and labelled itself.
+
+### The latch fired on Marlowe's own name, on every run that has ever run
+
+**Item 1's diagnosis was a fourth candidate: not the trust class at ingest, not the floor
+derivation — the ANNOUNCEMENT.** Ingest is right (`read` returns `AgentObserved`), the floor
+arithmetic is right, and `adjudicate` blocks at `<= UntrustedContent`. The loop emitted
+`Degraded{TrustFloorLatched}` on **any** downward move, and the surface renders that as
+*"read untrusted · composed targets blocked"*.
+
+A run starts at `UserAsserted`. The assembler constructs the stable tier on every assemble and the
+`Identity` block — the string `"Marlowe."` — is `AgentObserved`. **So the floor moved on the first
+assemble of every run, before the model spoke and before any tool ran**, and the first assistant
+turn (`AgentInferred`) moved it again. The negative control reads `left: 2, right: 0`: the product
+printed the banner **twice**, on a run with no tools at all, with both clauses false.
+
+**The capability-report family, once more.** The event fired on *floor moved*; the text asserted
+*floor reached untrusted*; the banner read the same either way, so it was never evidence about the
+guard. A latch that fires on everything means nothing — which is the state it must not have been in
+when `web` made it live.
+
+`marlowe_permission::blocks_composed_targets` is now the single definition, called by
+`adjudicate.rs` at its enforcement site **and** by the loop to decide whether to announce. The
+journal still records every move; only the screen is gated. Three tests, one asserting the
+agreement across all four trust classes rather than either half.
+
+### `web` ships, fetch-only. ADR-031, ADR-032.
+
+**`marlowe-net` is a new crate depending on nothing of Marlowe's** — `rustls` + vendored
+`webpki-roots`, blocking, no async runtime. `marlowe-provider` still has no TLS, so ADR-028's
+"the default path reaches no network" stays a property rather than a comment.
+
+**Redirects are not followed, and ADR-031 §2.5 was amended during implementation to say so.** The
+first draft said *"followed, re-adjudicated per hop"*; writing the executor showed that means **a
+second implementation of the egress check**, in a networking call site, checked against a policy
+the executor had to be handed. The shipped shape is smaller and stronger: the `Location` comes back
+as a result and following it needs a fresh `web` call through the real adjudicator. The cost is
+real — after reading a page the latch blocks composed targets, so a redirect is usually a dead end.
+That is the trifecta break, not a defect.
+
+**The fetch primitive returns bytes + content-type and does not parse.** Extraction is a separate
+module and a separate session, deliberately: an extractor that panics must not take the egress path
+with it.
+
+### The blast radius was dropping targets it could not stringify
+
+`blast_radius` built the scope line with `as_text`, which returns `None` for every variant but
+`Text`. **A declared Target that was a number vanished from the line a human approves against** —
+`run.budget_micros_usd` is `Amount`, so §B9's required blast radius had never once shown a spend
+ceiling. `ArgValue::render` is total with no wildcard, so a new variant is a compile error here
+rather than an omission in an approval prompt.
+
+This was done **before** `web` could ship, not beside it: ADR-002 lets `web` be `Inert` only because
+egress allowlisting covers it, approve-any-host weakens that, and per-call approval replaces it only
+if the prompt shows the host.
+
+### Persona v2 — adopted from a prior harness, translated. ADR-033.
+
+`persona/v2.md` ships. **Cut, because they described tools that do not exist:** `<vision>` (which
+instructed the model to *"never say I can't see"*), `<redteam_routing>`, `<git>`, the search half of
+`<knowledge_and_search>`, most of `<memory_and_continuity>`.
+
+**The dangerous one was not a cut.** `<tool_use>`'s first rule was *"emit multiple independent tool
+calls in a single response"*. `parse_step` does `calls.first()` and **discards the rest silently** —
+worse than a missing tool, which at least returns a readable error. v2 says one call per turn.
+
+**~3,544 tokens against v1's ~409 — 11.5% of the effective window**, permanently, in the
+non-trimmable stable tier. §C0's *"roughly twenty lines … negligible"* is amended.
+
+**§C7's probe set does not exist and never has**, for v1 or v2. Adoption rests on "it performed well
+in a prior harness", which is a prior about a different system. §C7 amended to say so.
+
+### Still open
+
+- **PARALLEL TOOL CALLS ARE THE NEXT TASK** (the human's direction). `ModelStep::ToolCall` is
+  singular. **The silent drop is closed as of this commit**: `parse_step` took `calls.first()`, so a
+  model emitting three calls had two actions it believed it took that never happened, with nothing
+  reporting the loss — worse than the singular type, which is at least honest. The streaming path
+  now returns a **non-retriable `ProviderError`** naming the count and refusing rather than running
+  a third of them. **When the loop executes every call, revert v2.md's one-call-per-turn line IN
+  THE SAME COMMIT** — the prompt must never lead the harness.
+- **`interactive()` is still `EgressPolicy::DenyAll`**, so `web` has an executor and is not exposed.
+  ADR-032 §3.1 (`AllowApproved`) is **PROPOSED, not approved** — it needs the human, and it needs an
+  interactive approval surface the daemon does not have (`DenyUnattended` returns false, which is
+  why `bash` reads `declined` unconditionally).
+- **Search: a keyed API is the decision, and the human supplies the credential.** Candidates:
+  **Brave Search API** (independent index, generous free tier, single `X-Subscription-Token`
+  header) and **Google Custom Search JSON API** (needs an API key *and* a CSE id, 100 queries/day
+  free). A scrape was rejected — it breaks weekly. `web`'s description still promises search and is
+  corrected when search lands.
+- **`drop(cwd)` in `marlowe-exec`'s `bash` does nothing** — `Option<&ScopedPath>` is `Copy`, so the
+  line that claims to hold the handle until after the spawn is decorative. The handle is genuinely
+  held (by the `Adjudication`), so this is a false comment rather than a broken guard. Compiler
+  warns.
+- **The duplicate `ADR-028` in DECISIONS.md is flagged, not renumbered** — citations across
+  STATE.md, CLAUDE.md and eight RESULT.md files would break.
+- **§C1's namesake conflict is unresolved**: Chandler's detective (restraint) vs Christopher
+  Marlowe the poet (transgression). v2 names neither; §C8 forbids backstory.
+
+### One §13 row is now LIVE-verified rather than pipe-verified
+
+Editing `crates/marlowe-permission/src/adjudicate.rs` **produced a real permission prompt, which
+the human approved.** That is the stronger claim CLAUDE.md asks for and it now holds for exactly
+one row. Every other row remains pipe-verified; one observed prompt says nothing about the others.
+
+
 ## M2 C2e addendum - five defects, every one reported from use. `550 tests`.
 
 **Found by using it, in one sitting, after the milestone work was already committed.** Two of
@@ -1149,6 +1268,9 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
 
 ### M2 C2e - outstanding, highest first
 
+- **PARTLY CLOSED (C2f): `web` has an executor and TLS exists.** It is still not exposed, because
+  `interactive()` is still `DenyAll` — ADR-032 is proposed and unapproved. `recall` and `use` are
+  unchanged. The original entry, for the record:
 - **`web`, `recall` and `use` have no executors and are NOT exposed.** `web` is the one that
   matters: it is a core tool and removing it from the exposed set hides the problem rather than
   fixing it. **Decision taken, not yet built: mimic Claude Code - fetch AND search, any host, with
@@ -1157,10 +1279,15 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   own header says "no https, no redirect following". Needs `rustls` - a new dependency, so an ADR.
   (b) `interactive()` is `EgressPolicy::DenyAll`, so even a working executor is blocked at the
   boundary - brief section 13 territory, needs a `DECISIONS.md` entry, not a quiet flip.
-- **The trust floor latches on an ordinary workspace read.** Every live run prints
-  `! read untrusted content - composed targets blocked for this run` after a plain `read`. ADR-023
-  is doing what it says; the question is whether a workspace read should move the floor at all.
-  Unchased.
+- ~~**The trust floor latches on an ordinary workspace read.**~~ **CLOSED, M2 C2f** — and the
+  diagnosis was neither of the two candidates. The trust class at ingest and the floor derivation
+  were both correct; the *announcement* fired on any downward move. The trigger was not a `read` at
+  all: the stable tier's `Identity` block is `AgentObserved`, so it fired on the first assemble of
+  every run. See the C2f section at the top.
+- ~~**`ParamSpec` conflates a security role with an arity question**~~ — **CLOSED.** The code
+  landed in `de18ace`; C2f added the missing paperwork (ADR-034, CONTRACTS §7.3 amended, which had
+  been pinning a three-field struct that shipped code contradicted). Descriptions were corrected in
+  the same commit; only `web`'s remains, pending search. Original entry:
 - **`ParamSpec` conflates a security role with an arity question, and the pin is APPROVED to move.**
   `required` in the JSON schema is derived from `ArgumentRole::Target` - but Target answers *what
   untrusted content may never shape*, not *what the executor demands*. **11 measured mismatches**:
@@ -1176,6 +1303,12 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   `line.contains`), `edit` says "atomic" (it is `set_len(0)` + rewrite), `read` says "blob, or
   reference" (no parameter accepts either). Model-visible prose that makes the model call things
   wrongly and then blame itself.
+- ~~**`run.budget_micros_usd` never appears in the approval prompt's scope line**~~ — **CLOSED
+  (C2f)**, via ADR-032 §3.2 and a §13-approved change to `adjudicate.rs`. `ArgValue::render` is
+  total and wildcard-free. **The parser half is still open**: `parse_step` still emits `Integer`
+  for a declared `Amount`, so the declared type is never the runtime variant. That no longer hides
+  the ceiling — `render` handles `Integer` too — but the coercion-by-declared-type is unbuilt.
+  Original entry:
 - **`run.budget_micros_usd` types as `Amount`, which `parse_step` can never produce** - it emits
   `ArgValue::Integer`. `blast_radius` collects targets via `as_text`, which returns `None` for
   `Integer`, **so the spend ceiling never appears in the approval prompt's scope line**. Section B9

@@ -25,8 +25,13 @@ use marlowe_loop::{Assembler, Block, CallLimits, ContextView, SessionId, Session
 use marlowe_provider::{OllamaDriver, Routing};
 use marlowe_tools::{builtin_registry, ExposedSet, ToolId};
 
-/// A phrase from `persona/v1.md` distinctive enough that no other stable-tier text would contain
+/// A phrase from `persona/v2.md` distinctive enough that no other stable-tier text would contain
 /// it, and short enough to survive reflowing the artifact.
+///
+/// **It survived the v1 → v2 rewrite deliberately.** The line is one of v1's best and it carries
+/// §C1's "Unimpressed" directly, so keeping it costs nothing and means the marker did not have to
+/// be re-chosen at the same moment the artifact changed — which is when a marker is most likely to
+/// be re-chosen badly.
 ///
 /// **Not the whole file**, deliberately: asserting byte equality would make every wording change a
 /// test failure, which trains people to update the assertion without reading it. A marker fails
@@ -36,7 +41,7 @@ const MARKER: &str = "You are not impressed";
 fn view_with_persona() -> ContextView {
     // Built the way the daemon builds it: the persona goes into `identity`, the assembler puts
     // identity in the stable tier, and the driver turns the stable tier into `system` messages.
-    let persona = include_str!("../../../persona/v1.md");
+    let persona = include_str!("../../../persona/v2.md");
     let mut state = SessionState::new(SessionId::new(), persona);
     state.push(Block::new(
         SourceKind::History,

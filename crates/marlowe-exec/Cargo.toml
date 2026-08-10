@@ -9,6 +9,7 @@ marlowe-contract.workspace = true
 marlowe-loop.workspace = true
 marlowe-permission.workspace = true
 marlowe-tools.workspace = true
+marlowe-net.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "0.38", features = ["fs", "process"] }

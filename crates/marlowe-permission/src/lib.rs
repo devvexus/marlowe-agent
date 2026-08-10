@@ -33,7 +33,9 @@ pub mod egress;
 pub mod scope;
 pub mod taint;
 
-pub use adjudicate::{Adjudication, Adjudicator, ArgValue, Args, Request};
+pub use adjudicate::{
+    Adjudication, Adjudicator, ArgValue, Args, Request, blocks_composed_targets,
+};
 pub use decision::{
     ActionClass, BlastRadius, BlockReason, DecisionId, NoveltyReason, Outcome, PermissionDecision,
     Reason, RiskTier, Tier,
