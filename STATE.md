@@ -1311,11 +1311,17 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   comparison would allow it outright, and ADR-002's Inert exemption only stands while egress
   allowlisting covers the tool. The prompt names the host — asserted, because that is what makes
   per-call approval a replacement for the allowlist rather than a button.
-  **STILL NOT USABLE END TO END: no client answers the prompt.** `live.rs` reads
-  `Event::Approval` and drops it; the TUI has no approval UI. So in the daemon every `web` call to
-  an ungranted host now reaches the gate, gets no answer, and is denied — honestly, by name. **The
-  gate has unit tests over a real socket pair and NOTHING HAS CROSSED IT on a real turn.** Treat
-  it as unverified until it has.
+  **THE CLI CAN NOW APPROVE.** `Client::send_streaming_approving` answers inline, on the same
+  socket, because the daemon is blocked on that read. `marlowe --ask` prompts at the terminal with
+  the blast radius and defaults to no; stdin at EOF (a pipe, a script) declines, because an
+  unattended `--ask` has nobody to approve anything. `decision: 0` — the loop's render-only
+  announcement — is deliberately **not** answered, or a spare approval sits on the wire for the
+  next question.
+  **THE TUI STILL CANNOT.** `live.rs` reads `Event::Approval` and drops it. `--tui` is therefore
+  the wrong surface for testing approvals; use `--ask`.
+  **NOTHING HAS CROSSED THIS ON A REAL TURN.** Both halves are tested against each other over a
+  real socket (`approval_round_trip.rs`) and neither test runs a model. Treat the end-to-end path
+  as unverified until an approval is observed on a real turn with a real fetch.
   **§B9 is partly served:** blast radius and `novelty` (an `Option`, never defaulted). **No
   ceiling** — no producer until the trust ledger at M6, and defaulting one would be a claim about
   promotion logic nobody has written.
