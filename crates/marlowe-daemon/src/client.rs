@@ -88,6 +88,31 @@ impl Client {
         request: &Request,
         mut on_event: impl FnMut(Event),
     ) -> Result<(), ClientError> {
+        // A caller that supplies no decider cannot approve anything, and the honest answer for
+        // that is a refusal rather than a default. `false` here is the same fail-closed rule the
+        // daemon's gate applies to a client that hangs up.
+        self.send_streaming_approving(request, &mut |_| false, &mut on_event)
+    }
+
+    /// As [`Self::send_streaming`], answering approval prompts with `decide`.
+    ///
+    /// # The answer goes back on the SAME connection
+    ///
+    /// The daemon is serial: the turn that raised the prompt is holding the only connection being
+    /// served, so a `Request::Approve` opened on a second socket is read only after the decision
+    /// it answers has already been denied. The exchange therefore happens inline, in this loop —
+    /// which is also why `decide` blocks: the daemon is waiting on the read.
+    ///
+    /// **`decision: 0` is not answered.** That is the loop's render-only announcement that it is
+    /// about to ask (`TurnEvent::ApprovalPrompt`); the gate's own prompt carries an id from 1.
+    /// Answering both would put two replies on the wire for one question, and the second would be
+    /// read as the answer to whatever came next.
+    pub fn send_streaming_approving(
+        &self,
+        request: &Request,
+        decide: &mut dyn FnMut(&Event) -> bool,
+        on_event: &mut dyn FnMut(Event),
+    ) -> Result<(), ClientError> {
         let stream = self.connect()?;
         // No whole-turn deadline. A model that takes two minutes is working, and a deadline here
         // would kill exactly the long turns streaming exists to make bearable. The per-read
@@ -110,7 +135,23 @@ impl Client {
                         continue;
                     }
                     match serde_json::from_str::<Event>(line.trim()) {
-                        Ok(e) => on_event(e),
+                        Ok(e) => {
+                            if let Event::Approval { decision, .. } = &e {
+                                let decision = *decision;
+                                if decision != 0 {
+                                    // Show it before asking — the decider is a human, and §B9's
+                                    // whole point is that they see the blast radius first.
+                                    on_event(e.clone());
+                                    let granted = decide(&e);
+                                    let reply = Request::Approve { decision, granted };
+                                    crate::protocol::write_line(&mut writer, &reply).map_err(
+                                        |e| ClientError::Closed { detail: e.to_string() },
+                                    )?;
+                                    continue;
+                                }
+                            }
+                            on_event(e)
+                        }
                         Err(e) => return Err(ClientError::Closed { detail: e.to_string() }),
                     }
                 }
@@ -166,6 +207,20 @@ impl Client {
     ) -> Result<(), ClientError> {
         self.send_streaming(
             &Request::Ask { session: self.session.clone(), message: message.to_string() },
+            on_event,
+        )
+    }
+
+    /// A turn whose approval prompts are answered by `decide`.
+    pub fn ask_streaming_approving(
+        &self,
+        message: &str,
+        decide: &mut dyn FnMut(&Event) -> bool,
+        on_event: &mut dyn FnMut(Event),
+    ) -> Result<(), ClientError> {
+        self.send_streaming_approving(
+            &Request::Ask { session: self.session.clone(), message: message.to_string() },
+            decide,
             on_event,
         )
     }

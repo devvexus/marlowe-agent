@@ -91,6 +91,32 @@ requirements only when the design docs do not answer the question.
   `marlowe_permission::blocks_composed_targets` the single definition, called by the adjudicator at
   its enforcement site *and* by the loop to decide whether to speak.
 
+- **A UNIFORMLY-TAINTED POPULATION IS WHERE A TRUST FLOOR RUNS OUT, and this constrains every
+  future use of the taint mechanism.** Found designing ADR-036 §5, and it is the most general thing
+  this project has produced.
+
+  The taint machinery is a **floor**: `min` over a lineage, `min` over a window, latched monotonic
+  per run. A floor discriminates only while the population it covers is *mixed*. In a research
+  worker every source is `UntrustedContent` — arXiv and Crossref included, because §2.8 binds trust
+  to origin — so **the floor is already at the bottom, every value is equally tainted, and the
+  mechanism has no remaining power to tell one from another.** It is not broken and it has not
+  failed; it is saturated, and a saturated floor is silent in exactly the way a green probe beside a
+  hung product is silent.
+
+  **The question that survives saturation is not "how trusted is this value" but "who asserted
+  it".** ADR-036 §5 is one instance: an identifier from a channel authoritative for that namespace
+  is an identity, and the same identifier printed on a fetched page is a *claim*. Both are
+  `UntrustedContent`. The floor cannot separate them; provenance can.
+
+  Generalised, for the next domain: **wherever a value chosen by untrusted content determines an
+  outcome, ask who asserted it — even when there is no tool, no argument and no permission check in
+  sight.** And ask it *especially* where everything is tainted, because that is precisely where the
+  existing guard reads "blocked" for every value and therefore says nothing about any of them.
+  Four unexamined places are listed as open question 0 in `STATE.md`.
+
+  **This is why ADR-023 is a floor AND ADR-036 needs an authority rule** — two mechanisms, because
+  they answer different questions, and the second only becomes visible once the first saturates.
+
 - **A trim-dependent assertion needs a control that fails when no trim occurred.** Second subsystem
   after the three-attempt `Notice` control, and the same question in a new place: *would this still
   fail if the thing it names never happened?*
@@ -230,6 +256,18 @@ first four cost time and one produced a false report.
 | 4 | **A session reports a real error in the other's mid-edit** | A `profile.write` arity mismatch was accurate when observed and had been resolved minutes earlier |
 | 5 | **…and it happens in both directions** | A missing `DegradedPath::ModelUnavailable` was reported against `marlowe-loop` between the tool call that *used* it and the tool call that *defined* it, seconds apart |
 | 6 | **One session's build invalidates another's measurement** | A 16-core `cargo build` ran straight through a parallel session's timed queries and inflated every stage ~10%. The table it produced looked complete and was wrong |
+
+**7 — and this one was self-inflicted, on this machine, in this project.** Checking a result with
+`cargo test --workspace ... ; cargo test --workspace ...` in one command runs the suite **twice**.
+The two runs race over one `target/` and one set of scratch ports, and the second reported **two
+failures that do not exist** — 572 pass cleanly when the suite is run once. The same double
+invocation, repeated all session, is also the likeliest trigger for a **0x139 kernel bugcheck**
+under memory exhaustion: a 16-core rebuild plus ONNX Runtime with the CUDA feature is not a load to
+run two of.
+
+**Run the suite ONCE, to a file, and grep the file as many times as you like.** Bound compilation
+with `--jobs 4`. A cheap-looking `cmd; cmd` that re-runs the expensive thing is the shape to watch
+for — it does not read as a second run.
 
 **6 is the one that does not announce itself.** Forms 1–5 produce a wrong branch, a swept file or
 a false error report — all visible. A build stealing CPU from a timed query produces a **complete,

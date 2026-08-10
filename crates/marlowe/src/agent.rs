@@ -84,9 +84,64 @@ pub fn ask(
         return Ok(());
     }
 
-    let events = client.ask(message).map_err(|e| e.to_string())?;
+    // **Collected, then rendered — but the approval is answered inline.**
+    //
+    // `render` resolves retractions across the whole list, which streaming cannot do (stdout
+    // cannot be un-written), so the events are still gathered before printing. What changed is
+    // that the gathering loop now answers §B9 prompts as they arrive: the daemon is blocked
+    // reading the reply, so this cannot be deferred to the end.
+    let mut events = Vec::new();
+    client
+        .ask_streaming_approving(
+            message,
+            &mut |event| approve_at_the_terminal(event),
+            &mut |event| events.push(event),
+        )
+        .map_err(|e| e.to_string())?;
     render(&events);
     Ok(())
+}
+
+/// §B9 at the command line: **state the blast radius, take one answer, default to no.**
+///
+/// It reads stdin. When stdin is not a terminal — a pipe, a script, `< /dev/null` — `read_line`
+/// returns EOF and this returns `false`. That is the correct outcome and not a degradation: an
+/// unattended `--ask` has nobody to approve anything, and approving because nothing objected is
+/// the failure §8.2 puts enforcement in the harness to prevent.
+///
+/// Everything goes to **stderr**, so a piped `--ask` still produces clean output.
+fn approve_at_the_terminal(event: &Event) -> bool {
+    let Event::Approval { verb, scope, reversible, novelty, .. } = event else {
+        return false;
+    };
+    eprintln!();
+    eprintln!("  approval needed: {verb}");
+    eprintln!("  on:              {scope}");
+    eprintln!(
+        "  reversible:      {}",
+        if *reversible { "yes" } else { "NO — this cannot be undone" }
+    );
+    match novelty {
+        Some(n) => eprintln!("  novelty:         {n}"),
+        // §B9 wants a novelty reason and a ceiling. Neither is fabricated when absent: a
+        // defaulted "routine" would be a claim about promotion logic nobody has written.
+        None => eprintln!("  novelty:         not assessed (the trust ledger is M6)"),
+    }
+    eprint!("  approve? [y/N] ");
+    let _ = std::io::Write::flush(&mut std::io::stderr());
+
+    let mut line = String::new();
+    match std::io::stdin().read_line(&mut line) {
+        Ok(0) | Err(_) => {
+            eprintln!("no answer available — declined");
+            false
+        }
+        Ok(_) => {
+            let yes = matches!(line.trim().to_ascii_lowercase().as_str(), "y" | "yes");
+            eprintln!("{}", if yes { "approved" } else { "declined" });
+            yes
+        }
+    }
 }
 
 pub fn status(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
