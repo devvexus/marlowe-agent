@@ -1295,6 +1295,39 @@ choosing between them means measuring them. On this hardware that is sequential,
 be done as one run. A proposal that treats a strong/cheap split as free is a proposal that has not
 priced the measurement. Recorded here so it does not surface as a surprise inside one.
 
+### The persona scare, and what it actually was
+
+**Reported as "the persona seems to have cracked": lowercase, chatty, addressing the USER as
+Marlowe, and fabricating a cause — *"looks like a display glitch"* — which `<operating_principles>`
+forbids in the same breath.** It would not reproduce, and the investigation is worth keeping
+because most of it was ruling things out.
+
+**Ruled out with evidence, in order:** the persona reaches the model complete (10,833 chars, in
+`system[0]`, on all eight captured turns); system messages are obeyed (control: a system message
+saying *reply with exactly BANANA* returns BANANA); three consecutive system messages survive,
+though the shape is non-standard and was worth suspecting; roles alternate correctly across turns;
+and multi-turn through `--ask` holds register. The model's sampling defaults are aggressive —
+`temperature 1`, **`presence_penalty 1.5`**, which actively penalises reusing phrasing and is
+therefore hostile to a consistent register — but tamed sampling was not better on a short
+exchange. **That one is unproven rather than cleared: a long context is where a presence penalty
+would bite hardest.**
+
+**A wrong turn worth recording.** `/api/show` reports this model's template as `{{ .Prompt }}` —
+thirteen characters, rendering neither `.System` nor `.Messages` — and the obvious conclusion is
+that the prompt is discarded. **It is not.** Ollama uses a built-in renderer for this architecture
+and ignores that field. The BANANA control is what caught it, and it was run only because the
+conclusion was too convenient. *A capability report about a template is not a report about what
+the model received.*
+
+**Most likely cause: a stale daemon**, which is circumstantial and is stated as such — same
+binary, same persona, same prompts, same model, and it will not reproduce. It is also the failure
+with prior form: three times before, twice on this day alone. The window-close fix removes the
+main way a stale daemon survives a rebuild.
+
+**What the capture did prove, on a real turn:** `assistant tool_calls=2`, two `web` results, ids
+`call_1`/`call_2` matched by `tool_call_id`. **Parallel tool calls, live**, with the attribution
+that makes a partial failure legible.
+
 ## Known issues
 
 ### M2 C2e - outstanding, highest first
@@ -1381,6 +1414,8 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   **It still cannot spawn, and inventing the missing pieces is what §5 forbids**: a spawn's
   capability profile, budget and orphan policy must be *declared at spawn, never inferred*, and
   the model supplies a task. **Needs an ADR about who declares the contract.** M2 D.
+- ~~**Descriptions promise operations that do not exist.**~~ **CLOSED.** `bash`, `find`, `edit`
+  and `read` in `de18ace`; `web` in C2f. Original entry:
 - **Descriptions promise operations that do not exist.** `bash` says "persistent shell session"
   (`spawn_shell` runs a fresh `cmd /C` per call), `find` says "index-backed symbol lookup" (it is
   `line.contains`), `edit` says "atomic" (it is `set_len(0)` + rewrite), `read` says "blob, or
@@ -1428,6 +1463,14 @@ priced the measurement. Recorded here so it does not surface as a surprise insid
   `--launch`, `--tui`, `--classic`, `--doctor`, `--eval-adapter`). Until a `--shutdown` mode
   lands, the graceful path is to write `{"op":"shutdown"}` to the daemon port — which still
   honours the refuse-while-a-run-is-live guard, unlike `Stop-Process`.
+- ~~**`--ask` cannot talk to a running daemon.**~~ **THE ENTRY WAS WRONG, and it cost this session
+  time.** `--ask` *does* use a running daemon on the default port — three `--ask` calls held one
+  conversation across turns, which the entry says is impossible. What it lacked was
+  **`--daemon-port`**, added in C2f: without it you cannot reach a scratch daemon and, worse, you
+  cannot tell which daemon answered. That is how a `--dev` dump came back empty — the request had
+  gone over the socket to a daemon started *without* `--dev`, which reads as a broken instrument
+  rather than as the wrong process. Verified: with the flag it reaches the scratch daemon, without
+  it it does not. Original entry:
 - **`--ask` cannot talk to a running daemon.** No `--daemon-port`; it always runs in-process, so
   two `--ask` invocations get two daemons and two empty sessions. The TUI is unaffected.
 - **Session memory is in-process only.** The store lives on `Daemon`; it does not survive a restart.

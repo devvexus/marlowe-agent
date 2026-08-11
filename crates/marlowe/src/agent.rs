@@ -66,8 +66,18 @@ pub fn ask(
     dev: bool,
     context: Option<u32>,
     thinking: bool,
+    port: Option<u16>,
 ) -> Result<(), String> {
-    let client = Client::new("cli");
+    // **`--daemon-port` reaches `--ask` as of M2 C2f.** Without it every `--ask` went to
+    // whatever sat on the default port, which made two things impossible: talking to a scratch
+    // daemon, and knowing which daemon answered. It cost real time in this session: a `--dev`
+    // dump produced nothing because the request had gone over the socket to a daemon started
+    // WITHOUT `--dev`, and that reads as a broken instrument rather than as the wrong process.
+    let mut client = Client::new("cli");
+    if let Some(p) = port {
+        client = client.with_port(p);
+    }
+    let client = client;
 
     if !client.daemon_is_up() {
         // Announced, never silent.

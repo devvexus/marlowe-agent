@@ -117,6 +117,20 @@ requirements only when the design docs do not answer the question.
   **This is why ADR-023 is a floor AND ADR-036 needs an authority rule** — two mechanisms, because
   they answer different questions, and the second only becomes visible once the first saturates.
 
+- **A TEMPLATE IS NOT WHAT THE MODEL RECEIVED, and the control took one command.** M2 C2f, while
+  chasing a persona that appeared not to apply. Ollama's `/api/show` reports this model's template
+  as `{{ .Prompt }}` — thirteen characters, rendering neither `.System` nor `.Messages` — and the
+  obvious reading is that the system prompt is discarded. It is not: Ollama uses a built-in
+  renderer for the architecture and ignores that field.
+
+  The conclusion was announced before it was tested, and it was wrong. What caught it was a
+  **BANANA control** — a system message saying *reply with exactly the word BANANA* — which came
+  back `BANANA`. One command, and it was only run because the conclusion was too convenient.
+
+  Same family as `get_providers()` reporting *registered* rather than *where nodes ran*: a
+  description of a mechanism is not a measurement of its output. **Ask what the model actually
+  received, not what the configuration says it should have.**
+
 - **A trim-dependent assertion needs a control that fails when no trim occurred.** Second subsystem
   after the three-attempt `Notice` control, and the same question in a new place: *would this still
   fail if the thing it names never happened?*

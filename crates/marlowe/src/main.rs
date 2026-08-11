@@ -16,7 +16,7 @@ use std::io::{self, BufReader};
 use std::path::PathBuf;
 
 const USAGE: &str = "\
-marlowe --ask <question> [--workspace <DIR>] [--dev] [--context <TOKENS>]
+marlowe --ask <question> [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKENS>]
 marlowe --serve [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKENS>]
         [--no-thinking]
 marlowe --status
@@ -273,6 +273,7 @@ fn main() {
                     args.iter().any(|a| a == "--dev"),
                     context,
                     thinking,
+                    flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
                 ),
                 None => Err("--ask requires a question, e.g. `marlowe --ask \"read notes.md\"`"
                     .to_string()),
