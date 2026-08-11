@@ -31,6 +31,11 @@ use crate::client::Client;
 use crate::project;
 use crate::protocol::Event;
 
+/// Did the daemon refuse? An `Error` frame in the reply means it did.
+fn refused(events: &[Event]) -> bool {
+    events.iter().any(|e| matches!(e, Event::Error { .. }))
+}
+
 /// A live session against a running daemon.
 pub struct LiveSession {
     client: Client,
@@ -83,6 +88,9 @@ impl LiveSession {
             degraded: None,
             rerank_provider: "…".into(),
             live_runs: 0,
+            // Nothing has been asked yet; an invented list would be the surface holding state
+            // the daemon has not supplied.
+            models: Vec::new(),
         });
         view.status.detail = "connecting to the daemon".into();
         // Not `degraded`: nothing has failed yet, and saying so would be a claim about a
@@ -153,6 +161,7 @@ impl LiveSession {
             degraded: Some(format!("{detail} · start one with `marlowe --serve`")),
             rerank_provider: "unavailable".into(),
             live_runs: 0,
+            models: Vec::new(),
         });
         view.status.detail = format!("{detail} · start one with `marlowe --serve`");
         Self {
@@ -255,21 +264,46 @@ impl Produce for LiveSession {
                 arrives: marlowe_view::notice::Milestone::M2SessionD,
             }),
             Intent::Select { control, option } => {
-                // The daemon runs one model in one workspace, so the only selectable value is the
-                // one already live. Selecting it is a no-op; selecting anything else is refused by
-                // name rather than silently ignored.
                 let p = self.view.picker(control);
                 if option == p.selected {
-                    Ok(())
-                } else {
-                    Err(IntentError::NoSuchOption {
+                    return Ok(());
+                }
+                let Some(chosen) = p.options.get(option).cloned() else {
+                    return Err(IntentError::NoSuchOption {
                         control,
-                        given: p
-                            .options
-                            .get(option)
-                            .cloned()
-                            .unwrap_or_else(|| option.to_string()),
-                    })
+                        given: option.to_string(),
+                    });
+                };
+
+                // **Model is the one control that can now actually change**, because the daemon can
+                // answer for it: it enumerates what the endpoint holds and refuses anything else by
+                // name. Everything else — workspace, profile, autonomy — is still single-valued,
+                // and selecting a different value is refused rather than silently ignored.
+                //
+                // **The view is not patched optimistically.** The daemon replies with a fresh
+                // `Status` and the client re-projects it, so what the strip shows is what the
+                // daemon accepted. A local mutation here would be the surface inventing state, and
+                // it would show the wrong model for the whole turn if the daemon refused.
+                if control == marlowe_view::ControlId::Model {
+                    match self.client.send(&crate::protocol::Request::SetModel {
+                        model: chosen.clone(),
+                    }) {
+                        Ok(events) => {
+                            // Extracted rather than inlined: `vocabulary.rs` scans this function's
+                            // text for a catch-all arm, and a `find_map` closure reads the same to
+                            // a scanner. The guard is right to be crude — it is protecting
+                            // ADR-030 §6, that an unhandled `Intent` must be a build error — so the
+                            // code moves rather than the guard.
+                            if refused(&events) {
+                                return Err(IntentError::OptionUnavailable { control, given: chosen });
+                            }
+                            project::apply_events(&mut self.view, &events);
+                            Ok(())
+                        }
+                        Err(_) => Err(IntentError::OptionUnavailable { control, given: chosen }),
+                    }
+                } else {
+                    Err(IntentError::NoSuchOption { control, given: chosen })
                 }
             }
         }

@@ -90,6 +90,15 @@ pub enum Refusal {
     /// Both fields come from the command registry's own table, never composed at a call site.
     Usage { command: &'static str, expects: &'static str },
     NoSuchOption { control: ControlId, given: Echo },
+    /// A selectable option the **producer** declined — the model exists in the picker but the
+    /// endpoint will not serve it right now.
+    ///
+    /// **Carries only the echoed name, no reason string.** ADR-030 §5: no `Notice` variant may hold
+    /// a `String`, and the reason is not this type's to state — it is the daemon's, and it already
+    /// travels on `StatusReport::degraded`, which the band renders. Two channels for one fact would
+    /// be the second-source shape; this one says *which control and which value*, and the band says
+    /// *why*.
+    OptionUnavailable { control: ControlId, given: Echo },
 }
 
 /// A capability that exists in the design and not yet in the build.
@@ -265,6 +274,13 @@ impl Refusal {
             Refusal::NoSuchOption { control, given } => {
                 format!("{} has no option {given:?}.", control.name())
             }
+            // **Points at the band rather than restating it.** The reason is the daemon's and
+            // already renders there; saying it twice would be two sources for one fact, and the
+            // one here would be a copy that can go stale.
+            Refusal::OptionUnavailable { control, given } => format!(
+                "{} cannot use {given:?} right now. The band says why.",
+                control.name()
+            ),
         }
     }
 }

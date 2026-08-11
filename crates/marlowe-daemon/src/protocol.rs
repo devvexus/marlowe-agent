@@ -43,6 +43,17 @@ pub enum Request {
     /// It replays **render-only events** — the same frames a live turn produces — so §2.14 still
     /// holds: the client is re-projecting what the daemon owns, not taking custody of it.
     Replay { session: String },
+    /// Change the model the daemon routes to.
+    ///
+    /// **A request, not an assignment.** The daemon verifies the endpoint actually has it and
+    /// refuses by name otherwise — §2.14 again: the client proposes, the daemon decides, and the
+    /// picker re-reads the daemon's answer rather than assuming its own optimism was accepted.
+    ///
+    /// The conversation is unaffected: the session store is keyed by name, not by model, so a
+    /// switch mid-conversation continues the same thread with a different model. The **disclosure**
+    /// changes with it, which is the point — `capability_for` reports NOT MEASURED for anything but
+    /// the one model that has been.
+    SetModel { model: String },
     /// Stop the daemon.
     ///
     /// **Invariant 6 says a run survives the client that started it, not that the daemon is
@@ -115,6 +126,17 @@ pub struct StatusReport {
     /// Runs the daemon currently owns. Non-zero across a client restart is what makes
     /// invariant 6 observable rather than asserted.
     pub live_runs: usize,
+    /// Every model this machine's Ollama holds that the daemon would accept, `model` included.
+    ///
+    /// **The daemon's answer, not the client's guess.** §2.14: the surface holds no state the
+    /// daemon lacks, so the model picker is built from this list rather than from a literal. Cloud
+    /// tags are **excluded** — `Routing::uniform` refuses them, so offering one would be a control
+    /// that produces a refusal on selection.
+    ///
+    /// Empty when the endpoint is unreachable, which is the truthful reading: the picker then
+    /// carries only the configured model and `degraded` says why.
+    #[serde(default)]
+    pub models: Vec<String>,
 }
 
 /// Read one NDJSON value per line.
@@ -217,6 +239,7 @@ mod tests {
             degraded: None,
             rerank_provider: "cpu-sequential".into(),
             live_runs: 0,
+            models: vec!["qwen3.5:9b".into()],
         };
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("rerank_provider"), "{json}");

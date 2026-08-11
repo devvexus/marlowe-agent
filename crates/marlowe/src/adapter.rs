@@ -19,7 +19,7 @@ use marlowe_contract::{
 use marlowe_journal::{Journal, Profile};
 use marlowe_memory::consolidate::{self, Policy};
 use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
-use marlowe_memory::OperatingPoint;
+use marlowe_memory::{Coverage, OperatingPoint};
 use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::rerank::CrossEncoder;
@@ -132,6 +132,11 @@ pub struct Adapter {
     /// per-query cost is one `Instant::now()` and nine null checks. The profiled and unprofiled
     /// runs go through one call site, so they cannot be two different pipelines.
     profile: Option<RetrievalProfile>,
+    /// Which arm of K1 condition 3's controlled comparison this run is in. `Declared` ships.
+    ///
+    /// Held on the adapter rather than passed per call so one process cannot answer some queries
+    /// gated and others not — a mixed run would produce an ASR attributable to nothing.
+    coverage: Coverage,
 }
 
 impl Adapter {
@@ -155,6 +160,7 @@ impl Adapter {
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
         rerank: RerankSettings,
+        coverage: Coverage,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
         // **Loaded here, beside the gate, and a bad artifact stops the process.** Same rule the
@@ -172,6 +178,7 @@ impl Adapter {
             cross_encoder,
             rerank,
             diagnostics.retrieval_profile,
+            coverage,
         )
     }
 
@@ -197,6 +204,9 @@ impl Adapter {
             cross_encoder,
             rerank,
             retrieval_profile,
+            // The fit path computes features and gates nothing, so no arm applies. Passed rather
+            // than defaulted inside `start_with`, so there is exactly one way in.
+            Coverage::Declared,
         )
     }
 
@@ -208,6 +218,7 @@ impl Adapter {
         cross_encoder: Option<CrossEncoder>,
         rerank: RerankSettings,
         retrieval_profile: Option<&Path>,
+        coverage: Coverage,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let profile = Profile::init(profile_root)?;
         let journal = Journal::open(&profile)?;
@@ -233,6 +244,7 @@ impl Adapter {
             cross_encoder,
             rerank,
             profile: retrieval_profile.map(RetrievalProfile::create).transpose()?,
+            coverage,
         })
     }
 
@@ -437,7 +449,9 @@ impl Adapter {
         };
 
         let scoring = match &self.mode {
-            Mode::Gated(gate, op, _) => Scoring::Gated { gate, operating_point: op },
+            Mode::Gated(gate, op, _) => {
+                Scoring::Gated { gate, operating_point: op, coverage: self.coverage }
+            }
             Mode::FitDump(_) => Scoring::FitDump,
         };
         // One call site for both configurations. See `Adapter::profile` and
@@ -460,6 +474,12 @@ impl Adapter {
                 }
                 None => Rerank::Off,
             },
+            // **`ThisSession`, and it must never change here.** LongMemEval flattens each case's
+            // haystack into one history whose `session_id` is the query id, so a profile-wide scope
+            // would let every case see every other case's turns. Every published R@1, the
+            // precision/coverage curve and every poisoning number are computed under this scope;
+            // widening it would not improve them, it would invalidate them.
+            marlowe_memory::retrieve::RetrievalScope::ThisSession,
             &mut probe,
         );
         // Captured HERE, the instant the pipeline returns. Reading it later — inside the profile
@@ -470,7 +490,14 @@ impl Adapter {
         debug_assert_injection_valid(&selection.injected);
 
         let (version, threshold) = match &self.mode {
-            Mode::Gated(gate, _, _) => (GATE_VERSION.to_string(), gate.threshold()),
+            // **The measurement arm is stamped on the wire.** A run in the un-gated control arm
+            // must not be reportable as the shipped configuration: `Coverage::Full` appends
+            // `+coverage-full` to the gate version, so an ASR read off an artifact carries which
+            // arm produced it rather than depending on a command line nobody kept.
+            Mode::Gated(gate, _, _) => (
+                format!("{GATE_VERSION}{}", self.coverage.stamp()),
+                gate.threshold(),
+            ),
             // A mode that computed features but calibrated nothing must not be stampable as
             // one that gated. Same rule as Session A's `ungated-v0`.
             Mode::FitDump(_) => (FIT_ONLY_VERSION.to_string(), 0.0),

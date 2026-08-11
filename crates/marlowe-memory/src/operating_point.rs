@@ -188,6 +188,57 @@ impl Abstention {
     }
 }
 
+/// Whether the declared cut point is in force. **A measurement control, and `Declared` ships.**
+///
+/// # Why this exists
+///
+/// After M2 Session D the poisoning suite reported ASR 0.000 across all five families — and it was
+/// still vacuous. Before D2 the reason was that the gate injected nothing ever; after D2 it is that
+/// the declared 10%-coverage point abstains on nearly everything. **An attack that fails because
+/// nothing is injected is indistinguishable from one a guard caught**, and reporting 0.000 as a
+/// security result would be the capability-report family applied to a defence.
+///
+/// The pair that discriminates is ASR at `Declared` versus ASR at `Full`. If both are ~0, the ASRs
+/// are measuring the gate's candidate set and the operating point is doing no security work at all.
+///
+/// # Why this is not a bare boolean, and which direction the danger runs
+///
+/// CLAUDE.md's standing warning is about a default-off switch forgotten in a harness target string,
+/// which measures one system under another's label. Here the shipped configuration is `Declared`, so
+/// **forgetting the flag yields the truthful label** — the dangerous default would be `Full`.
+/// It is still an explicit value at the command line and it is **stamped on every retrieval
+/// response's gate version**, so a run always records which one produced it rather than leaving a
+/// reader to infer it from a command line nobody kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Coverage {
+    /// The shipped path: inject rank 1 only when the margin clears the published cut point.
+    Declared,
+    /// **Measurement only.** Admit rank 1 whenever a margin exists, ignoring the threshold. This is
+    /// not a configuration anyone may ship: it is the un-gated arm of a controlled comparison, and
+    /// K1 condition 3 fails a configuration that injects at low precision to raise coverage.
+    Full,
+}
+
+impl Coverage {
+    /// The suffix appended to the gate stamp, so a scored run carries its own arm.
+    pub fn stamp(&self) -> &'static str {
+        match self {
+            Self::Declared => "",
+            Self::Full => "+coverage-full",
+        }
+    }
+
+    /// Parse an explicit command-line value. **No default here**; the caller decides, and
+    /// `main.rs` documents that an omitted flag means `Declared`.
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "declared" => Some(Self::Declared),
+            "full" => Some(Self::Full),
+            _ => None,
+        }
+    }
+}
+
 /// What the operating point decided for one query.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Admission {
@@ -218,6 +269,7 @@ pub fn decide(
     rank_one: Option<f32>,
     rank_two: Option<f32>,
     point: &OperatingPoint,
+    coverage: Coverage,
 ) -> Admission {
     let no = |a: Abstention| Admission { admit_rank_one: false, margin: None, abstention: Some(a) };
 
@@ -239,7 +291,15 @@ pub fn decide(
     match (rank_one, rank_two) {
         (Some(top), Some(runner)) => {
             let margin = top - runner;
-            if margin >= point.margin_threshold() {
+            // **The ONLY behavioural difference between the two arms**, and it is deliberately one
+            // comparison rather than a branch that skips stages: the candidate set, the ranking, the
+            // rerank and the top-1 rule are identical, so a difference in ASR between the arms is
+            // attributable to the threshold and to nothing else.
+            let clears = match coverage {
+                Coverage::Declared => margin >= point.margin_threshold(),
+                Coverage::Full => true,
+            };
+            if clears {
                 Admission { admit_rank_one: true, margin: Some(margin), abstention: None }
             } else {
                 Admission {
@@ -296,15 +356,15 @@ mod tests {
         let p = OperatingPoint::load().unwrap();
         let t = p.margin_threshold();
 
-        let over = decide(5, true, Some(10.0), Some(10.0 - t - 0.01), &p);
+        let over = decide(5, true, Some(10.0), Some(10.0 - t - 0.01), &p, Coverage::Declared);
         assert!(over.admit_rank_one, "a margin clearly above the cut point must inject");
 
-        let under = decide(5, true, Some(10.0), Some(10.0 - t + 0.01), &p);
+        let under = decide(5, true, Some(10.0), Some(10.0 - t + 0.01), &p, Coverage::Declared);
         assert!(!under.admit_rank_one, "a margin below it must abstain");
         assert_eq!(under.abstention, Some(Abstention::BelowThreshold));
 
         // The boundary is inclusive, matching `margins >= cut` in publish_precision_coverage.py.
-        let exact = decide(5, true, Some(t), Some(0.0), &p);
+        let exact = decide(5, true, Some(t), Some(0.0), &p, Coverage::Declared);
         assert!(exact.admit_rank_one, "the offline selection is `>=`, so this one must be too");
     }
 
@@ -312,7 +372,7 @@ mod tests {
     #[test]
     fn the_margin_is_recorded_even_when_it_falls_short() {
         let p = OperatingPoint::load().unwrap();
-        let v = decide(5, true, Some(3.0), Some(2.5), &p);
+        let v = decide(5, true, Some(3.0), Some(2.5), &p, Coverage::Declared);
         assert_eq!(v.margin, Some(0.5));
         assert!(!v.admit_rank_one);
     }
@@ -322,16 +382,16 @@ mod tests {
     fn every_abstention_reason_is_distinguishable_from_the_others() {
         let p = OperatingPoint::load().unwrap();
 
-        assert_eq!(decide(0, true, None, None, &p).abstention, Some(Abstention::NoCandidates));
-        assert_eq!(decide(5, false, None, None, &p).abstention, Some(Abstention::NoReranker));
-        assert_eq!(decide(1, true, Some(9.0), None, &p).abstention, Some(Abstention::NoRunnerUp));
+        assert_eq!(decide(0, true, None, None, &p, Coverage::Declared).abstention, Some(Abstention::NoCandidates));
+        assert_eq!(decide(5, false, None, None, &p, Coverage::Declared).abstention, Some(Abstention::NoReranker));
+        assert_eq!(decide(1, true, Some(9.0), None, &p, Coverage::Declared).abstention, Some(Abstention::NoRunnerUp));
         assert_eq!(
-            decide(5, true, Some(9.0), None, &p).abstention,
+            decide(5, true, Some(9.0), None, &p, Coverage::Declared).abstention,
             Some(Abstention::MarginUndefined),
             "rank 2 outside the rerank budget: the margin would cross a key boundary"
         );
         assert_eq!(
-            decide(5, true, None, Some(1.0), &p).abstention,
+            decide(5, true, None, Some(1.0), &p, Coverage::Declared).abstention,
             Some(Abstention::MarginUndefined),
             "and so is rank 1 unreranked, which `_ =>` must catch rather than only the rank-2 case"
         );
@@ -344,24 +404,71 @@ mod tests {
     #[test]
     fn without_a_reranker_nothing_injects_however_good_the_scores_look() {
         let p = OperatingPoint::load().unwrap();
-        let v = decide(10, false, Some(99.0), Some(-99.0), &p);
+        let v = decide(10, false, Some(99.0), Some(-99.0), &p, Coverage::Declared);
         assert!(!v.admit_rank_one);
         assert_eq!(v.abstention, Some(Abstention::NoReranker));
         // The control: identical scores WITH a reranker do inject, so the refusal above is about
         // the reranker's absence and not about the inputs.
-        assert!(decide(10, true, Some(99.0), Some(-99.0), &p).admit_rank_one);
+        assert!(decide(10, true, Some(99.0), Some(-99.0), &p, Coverage::Declared).admit_rank_one);
     }
 
     /// At most one memory is ever admitted. The published point is a top-1 claim.
     #[test]
     fn admission_is_rank_one_alone_and_the_type_cannot_express_a_slate() {
         let p = OperatingPoint::load().unwrap();
-        let v = decide(50, true, Some(20.0), Some(0.0), &p);
+        let v = decide(50, true, Some(20.0), Some(0.0), &p, Coverage::Declared);
         assert!(v.admit_rank_one);
         // `Admission` carries a bool, not a count or a list: a slate is not representable, so a
         // later change cannot widen coverage by admitting rank 2 without changing this type and
         // reading this test.
         let _: bool = v.admit_rank_one;
+    }
+
+    /// **The control arm differs from the shipped arm in the threshold and in nothing else.**
+    ///
+    /// This is what makes an ASR comparison between the two attributable. If `Full` also changed the
+    /// candidate set, the ranking or the top-1 rule, a difference in ASR would have several possible
+    /// causes and the comparison would answer no question.
+    #[test]
+    fn full_coverage_admits_exactly_where_declared_abstains_on_the_margin_and_nowhere_else() {
+        let p = OperatingPoint::load().unwrap();
+        let t = p.margin_threshold();
+
+        // Below the cut point: the one case where the two arms differ.
+        let below = (5, true, Some(1.0), Some(1.0 - t + 0.5));
+        assert!(!decide(below.0, below.1, below.2, below.3, &p, Coverage::Declared).admit_rank_one);
+        assert!(decide(below.0, below.1, below.2, below.3, &p, Coverage::Full).admit_rank_one);
+
+        // Every other abstention reason is structural and must be IDENTICAL in both arms —
+        // otherwise `Full` is not "the same system without the threshold", it is a different one.
+        for (n, rerank, r1, r2) in [
+            (0usize, true, None, None),               // no candidates
+            (5, false, Some(9.0), Some(1.0)),         // no reranker
+            (1, true, Some(9.0), None),               // no runner-up
+            (5, true, Some(9.0), None),               // margin undefined
+        ] {
+            let d = decide(n, rerank, r1, r2, &p, Coverage::Declared);
+            let f = decide(n, rerank, r1, r2, &p, Coverage::Full);
+            assert_eq!(
+                d.abstention, f.abstention,
+                "the arms must differ ONLY on the threshold comparison; they differ at n={n}"
+            );
+            assert_eq!(d.admit_rank_one, f.admit_rank_one);
+        }
+    }
+
+    /// The arm travels with the run's own stamp, so a scored artifact says which produced it.
+    #[test]
+    fn the_measurement_arm_is_recorded_rather_than_left_to_a_command_line_nobody_kept() {
+        assert_eq!(Coverage::Declared.stamp(), "", "the shipped arm does not decorate the stamp");
+        assert!(!Coverage::Full.stamp().is_empty(), "the measurement arm must be visible");
+        assert_eq!(Coverage::parse("declared"), Some(Coverage::Declared));
+        assert_eq!(Coverage::parse("full"), Some(Coverage::Full));
+        // No default, no fuzzy matching: an unrecognised value is a refusal at the command line,
+        // not a silent fallback to the shipped arm.
+        assert_eq!(Coverage::parse("Full"), None);
+        assert_eq!(Coverage::parse(""), None);
+        assert_eq!(Coverage::parse("off"), None);
     }
 
     /// **The rule about precision, enforced rather than documented.**

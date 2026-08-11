@@ -29,6 +29,62 @@ pub fn default_profile_root() -> PathBuf {
     base.join("marlowe").join("default-profile")
 }
 
+/// List what this machine's Ollama holds, so `--model` is a choice from a list rather than a guess.
+///
+/// **Three things are stated per model and none of them is inferred.**
+///
+/// * whether it is the one this daemon would route to by default
+/// * whether it is a **cloud tag**, which `Routing::uniform` refuses by name — shown rather than
+///   filtered out, because a user who has one pulled will otherwise pick it and get a refusal they
+///   could not have anticipated
+/// * whether its tool-call reliability has been **measured**. Exactly one model has been
+///   (`qwen3.5:9b`, 12/12 on 2026-08-08); every other line says so. Selecting an unmeasured model is
+///   allowed and is the user's call — what is not allowed is quietly reporting the measured model's
+///   number under a different name. See `marlowe_provider::capability_for`.
+pub fn models() -> Result<(), String> {
+    use marlowe_provider::{is_cloud_tag, Availability, LocalEndpoint, Routing, DEFAULT_MODEL};
+
+    let endpoint = LocalEndpoint::default_ollama();
+    // Probed against the DEFAULT model purely so the probe has a routing to check; the list it
+    // returns is the machine's, not that model's.
+    let routing = Routing::uniform(DEFAULT_MODEL).map_err(|e| e.to_string())?;
+    let available = match Availability::probe(&endpoint, &routing) {
+        Availability::Ready { models } => models,
+        Availability::ModelMissing { available, .. } => available,
+        other => return Err(other.remedy()),
+    };
+
+    if available.is_empty() {
+        println!("no models. Pull one with `ollama pull qwen3.5:9b`.");
+        return Ok(());
+    }
+
+    println!("{} model(s) on this machine:\n", available.len());
+    for m in &available {
+        let mut notes: Vec<String> = Vec::new();
+        if m == DEFAULT_MODEL {
+            notes.push("default".to_string());
+        }
+        if is_cloud_tag(m) {
+            notes.push("CLOUD TAG — refused; ADR-028 keeps the default path local".to_string());
+        }
+        notes.push(
+            if m == DEFAULT_MODEL {
+                "tool calls 12/12 measured 2026-08-08".to_string()
+            } else {
+                "tool-call reliability NOT MEASURED".to_string()
+            },
+        );
+        println!("  {m:<28} {}", notes.join(" · "));
+    }
+    println!("\nChoose one with `marlowe --serve --model <NAME>` (or `--ask --model <NAME>`).");
+    println!(
+        "A model this machine does not have is refused at startup and the refusal lists what it \
+         does have."
+    );
+    Ok(())
+}
+
 pub fn serve(
     workspace: PathBuf,
     profile_root: PathBuf,
@@ -37,9 +93,18 @@ pub fn serve(
     context: Option<u32>,
     thinking: bool,
     reranking: Option<PathBuf>,
+    model: Option<String>,
 ) -> Result<(), String> {
     let mut config = DaemonConfig::new(profile_root, workspace);
     config.reranking = reranking;
+    // **A chosen model does not inherit the default's measured reliability.** `capability_for`
+    // returns `unmeasured` for anything but `DEFAULT_MODEL`, so `--status` reads "tool-call
+    // reliability NOT MEASURED" rather than reporting qwen3.5:9b's 12/12 under another name.
+    // A model this machine does not have is refused by `Availability::probe`, which names what it
+    // does have — so a typo is a list, not a hang.
+    if let Some(m) = model {
+        config.model = m;
+    }
     if let Some(p) = port {
         config.port = p;
     }

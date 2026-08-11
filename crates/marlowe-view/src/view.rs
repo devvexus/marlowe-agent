@@ -195,6 +195,9 @@ pub enum IntentError {
     NotADemo(&'static str),
     /// The argument did not name anything. Carries what the options were.
     NoSuchOption { control: ControlId, given: String },
+    /// The option exists and the **producer** declined it. The reason travels on the status band's
+    /// `degraded`, not here — see `Refusal::OptionUnavailable`.
+    OptionUnavailable { control: ControlId, given: String },
     /// The producer cannot do this yet, and says which milestone owns it.
     ///
     /// **Typed, not a `String`** — for the same reason `Notice` is (ADR-030 §5), and so a refusal
@@ -221,6 +224,12 @@ impl IntentError {
                     given: crate::notice::Echo::new(given.clone()),
                 })
             }
+            IntentError::OptionUnavailable { control, given } => {
+                Notice::Refused(crate::notice::Refusal::OptionUnavailable {
+                    control: *control,
+                    given: crate::notice::Echo::new(given.clone()),
+                })
+            }
         }
     }
 }
@@ -235,6 +244,11 @@ impl std::fmt::Display for IntentError {
             IntentError::NoSuchOption { control, given } => {
                 write!(f, "{} has no option {given:?}", control.name())
             }
+            IntentError::OptionUnavailable { control, given } => write!(
+                f,
+                "{} cannot use {given:?} right now; the band says why",
+                control.name()
+            ),
             IntentError::NotBuilt { capability, arrives } => write!(
                 f,
                 "{} is not built. It lands in {}.",

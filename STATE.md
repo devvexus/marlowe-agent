@@ -1,6 +1,132 @@
 # State
 
-## M2 Session D — memory is wired. `607 tests` (from 583). Conformance **CONFORMS** for the first time.
+## NEXT SESSION IS A FULL SECURITY REVIEW. Read this first.
+
+**The five layers are in `CLAUDE.md` and must be known by number.** What follows is what Session D
+established about them — including one finding that is a shipped-requirement gap, not a to-do.
+
+### LAYER 1 IS HALF-SHIPPED, AND THAT IS THE HEADLINE
+
+`CapabilityProfile::quarantined_reader()` exists and is load-time enforced:
+`reads_untrusted && !exposed_tools.is_empty()` refuses to construct. **The component exists. The
+routing does not.** `ModelStep::Spawn` is constructed nowhere outside tests, so nothing puts a
+quarantined child between `web` and the main run.
+
+Brief §8.2's required control has two sentences. The first is built. **The second — *"the component
+with tool access receives sanitized structured input, never raw untrusted text"* — is violated
+today**: `web` hands raw page text straight into the context of the run that holds `bash`, `edit`
+and the filesystem. Reader and doer are collapsed, which §8.2 names as the configuration that makes
+deployments exploitable. The gap arrived when C2f shipped `web` without the route, and it was not
+noticed then.
+
+**Consequences to carry into the review:**
+
+- **Layer 3 is currently doing layer 1's job**, which is why a fetch kills `bash` for the rest of a
+  run. That is the guard compensating, not the guard misbehaving. The human reported it as *"after
+  fetching web data all his tools get turned off. seems dumb"* — the read is right and the cause is
+  the missing control. (Narrower than "all": §9 exempts `Inert`, so `read`, `find`, `recall` and
+  `ask` still work; `bash`, `edit` and `web` lose model-composed targets.)
+- **It is NOT blocked on the spawn contract.** An earlier claim in this session that it was is
+  wrong. §5 forbids *inferring* a child's profile, budget and orphan policy; for `web` the harness
+  declares all three (constant `quarantined_reader()`, budget sliced from the parent, dies with the
+  parent) and the model decides nothing.
+- **What genuinely does not exist is the extractor** — page bytes → structured analysis.
+  `CondensedResult` is already the return shape. Deferred deliberately in C2f (*"an extractor that
+  panics must not take the egress path with it"*), and **owned by no milestone**.
+
+### What the review can and cannot get from the eval suite
+
+**`marlowe_eval`'s §4 wire reaches layer 2 and the ingest actor check, and nothing else.**
+ingest/retrieve/consolidate speak to a process with no loop, no tools and no egress, so **no
+poisoning ASR from it is evidence about layers 1, 3 or 4.** Those need loop-level tests —
+`profile.rs`'s load-time refusal and `adr023_live.rs` are the existing ones.
+
+**The ASR control ran and the answer is real** (`runs/m2-session-d/RESULT-ASR-CONTROL.md`): removing
+the K1 cut point raised injected volume ~61% (`retrieval_tokens` 9.625 → 15.5) and **every ASR stayed
+0.000**. So the operating point is not what stops these attacks — but n=4 per family on an 8-query
+fixture cannot distinguish 0.00 from 0.20. **Do not quote these ASRs as resistance.**
+
+**The K1 gate is not a security layer.** It is relevance. §8.1: *"Filtering does not work.
+Containment works."*
+
+### Live-verified this session, and the distinction matters
+
+| | |
+|---|---|
+| Layer 3 blocks composed targets after a real fetch | **live** — 7 issued, 7 refused (C2f) |
+| `bash` through the approval window on a real turn | **live** — prompt shown, human approved, executed |
+| `web` egress approval on a real turn | **live** |
+| ADR-038's floor reaching the write path | **live** — `agent_inferred` before a fetch, `untrusted_content` after |
+| Layer 2 propagation | **measured** — 16 checked, 0 failed, non-vacuous |
+| Layer 1 quarantine | **load-time enforced, never exercised** — nothing spawns |
+| Layer 4 egress `AllowApproved` | approved, per-host, session-held; **not shipped** |
+| Layer 5 trust ledger | **not built — M6** |
+
+### Two §13 holes, unfixed on purpose, both needing a decision before code
+
+1. **Consolidation merge.** Clusters on **text cosine alone**, no trust term, representative is the
+   **latest**. A newer attacker-authored near-duplicate supersedes a genuine `UserAsserted` belief
+   out of the candidate set — **eviction**, not laundering, and no layer covers it. Not reachable in
+   the product today (consolidation is unwired); reachable on the eval path.
+2. **`effective_trust` is inert in the ranker.** The gate artifact declares it *"zero variance across
+   the fit split… would become load-bearing the moment the feature starts varying"* — and ADR-038 is
+   that moment. **Filed first as a security hole and CORRECTED to a quality finding**: §5.6 says
+   untrusted memories may inform *analysis* but not authorize *action*, so being read is the
+   specification and layer 3 governs the rest.
+
+Either change moves a registered number and needs a pre-registration first.
+
+### One rule invented this session that nobody has ratified
+
+`correct_claim` **refuses a correction whose effective trust is below its target's**. Superseding
+evicts the target from auto-injection, so allowing it would let a tainted run delete a user-asserted
+belief through an ordinary tool call. Conservative, costs a legitimate case, recoverable via
+`remember`. **Keep or drop it deliberately.**
+
+---
+
+## M2 Session D — memory is wired. `617 tests` (from 583). Conformance **CONFORMS** for the first time.
+
+### After the `850b512` commit, this session also shipped
+
+- **D2b — the daemon retrieves.** `select_for_injection` had exactly one caller, the eval adapter, so
+  conformance and the poisoning suite exercised injection while **the daemon contained none**. A
+  property measured on one path and claimed for another. `RetrievalState` is now **announced** at
+  startup and on `--status`: `live · <dir>` or `WRITE-ONLY · <why>`.
+- **D3 — `recall` has an executor and is exposed** (nine tools, not eight). `marlowe_daemon::recall`.
+  **Deliberately not gated by the operating point**: §3.6 requires it to see tombstoned and unmatured
+  entries, which auto-injection must not. Live: remember → restart → `recall` → correct answer, with
+  `injected 0` proving auto-injection contributed nothing.
+- **`correct` and `forget`** — CONTRACTS §3.5's other two methods, built on `remember_claim` so the
+  trust rule cannot diverge. **Neither is exposed as a tool**: `BUILTIN_TOOLS` is still ten, and the
+  exposure shape is an open decision.
+- **The template bug.** A qwen3-next model returned `Jinja Exception: System message must be at the
+  beginning`. The wire emitted one `system` message **per block** plus one mid-conversation for
+  injected memory. Now exactly one, at position 0. `qwen3.5:9b` accepted the old shape, which is why
+  it survived — the wire was validated against the one model anybody ran.
+- **Model selection.** `--models`, `--model`, and a **working TUI picker** built from the daemon's
+  list. A non-default model reports **NOT MEASURED** rather than inheriting qwen3.5:9b's 12/12.
+- **Cross-session scoping is now declared.** `RetrievalScope::{ThisSession, Profile}`. The eval keeps
+  `ThisSession` — widening it would let every LongMemEval case see every other's turns and invalidate
+  every published number. The daemon uses `Profile`, because a session there is a *client name*, so
+  `--ask` memories were invisible to TUI injection. **The declared operating point was calibrated on
+  session-scoped pools; under `Profile` the margin distribution differs, so
+  `PRECISION-COVERAGE.md`'s coverage and precision do NOT describe the product.**
+- **Tool descriptions and schemas rewritten** against their executors. Two parameters deleted for
+  being accepted and silently dropped: `ask.options`, and **`recall.payload_kind`** — a model
+  filtering by kind believed it had filtered and got an unfiltered answer.
+
+### Still outstanding
+
+- **Vectors at write time.** The daemon embeds nothing, so the dense cue scores 0.0 for every
+  candidate and product retrieval is lexical + rerank — below what the eval path measures.
+  Deliberately **not** done before the security review: it is a scored-path change with no
+  measurement attached.
+- **`correct`/`forget` exposure** — two new manifests, or a `supersedes` argument on `remember`, or
+  CLI-only. Needs a decision.
+- **`web` through a quarantined child** — see the top of this file.
+- **Unattended egress** — blocks *"research he did solo"*, which is a REQUIRED capability
+  (`docs/requirements/proposed-research-memory.md`).
 
 **`remember` writes, beliefs survive a restart, and `recall` reaches them.** Verified live against a
 real model, not in a test process. `runs/m2-session-d/` holds `PREDICTION.md` (written first),

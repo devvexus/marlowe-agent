@@ -16,11 +16,24 @@ about a running one.
 | A | X-close while **idle** stops the daemon | **PASS** — no listener after |
 | B | X-close **mid-turn** leaves the daemon running | **PASS** — listener survived |
 | B2 | The conversation is there on the way back in | **PASS**, after the failure below was diagnosed |
-| C | `bash` through the approval window on a real turn | **not yet run** |
+| C | `bash` through the approval window on a real turn | **PASS** — prompt shown, human approved, command executed |
 
 The console control handler fires on `CTRL_CLOSE_EVENT`, and `TURN_IN_FLIGHT` mirrors
 `session.is_busy()` correctly in **both** directions. Neither disagreed, so the busy mirror is right
 and C2e's mid-turn conversation loss has not been reintroduced.
+
+## C is closed, and it was the last one
+
+**`bash` reached the approval window on a real turn, the human approved, and the command ran.**
+Until now both halves were tested against each other over a socket (`approval_round_trip.rs`) with
+no model in the loop, and STATE.md's standing note was *"treat the end-to-end path as unverified
+until an approval is observed on a real turn."* It has been.
+
+An approved `web` fetch crossed the same modal earlier in the session, so the surface now has two
+independent live confirmations rather than one — different tool, different consequence tier
+(`Inert` + egress vs `Irreversible`), same gate.
+
+**Every live item this session opened with is now closed.**
 
 ## B2 failed on the first attempt, and the cause was not what it looked like
 

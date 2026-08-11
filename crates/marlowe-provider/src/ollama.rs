@@ -40,6 +40,28 @@ pub const DEFAULT_MODEL: &str = "qwen3.5:9b";
 ///
 /// A build that changes `DEFAULT_MODEL` and not this is a build that discloses one model's
 /// number under another model's name — so the pair is asserted in `tests`.
+/// What is measured about `model` — and **nothing is measured about any model but the default.**
+///
+/// # This is the measurement-transfer family, closed at the one place it would happen
+///
+/// [`default_capability`] carries `12/12 well-formed, measured 2026-08-08` — a reading taken on
+/// `qwen3.5:9b` and on nothing else. The moment a user can choose their own model, the obvious
+/// implementation hands that same struct back for every choice, and `--status` reports one model's
+/// measured reliability under another's name. The number would be correct, the reasoning sound, and
+/// it would be about a different system.
+///
+/// So a non-default model gets [`ModelCapability::unmeasured`], which renders **"tool-call
+/// reliability NOT MEASURED on this machine"**. That is a worse-looking status line and a true one,
+/// and it is the disclosure ADR-028 asks for: the user picked the model, so the user is the one who
+/// needs to know nobody has measured it.
+pub fn capability_for(model: &str) -> ModelCapability {
+    if model == DEFAULT_MODEL {
+        default_capability()
+    } else {
+        ModelCapability::unmeasured(model)
+    }
+}
+
 pub fn default_capability() -> ModelCapability {
     ModelCapability {
         model: DEFAULT_MODEL.to_string(),
@@ -335,13 +357,50 @@ impl OllamaDriver {
         // right discriminator: what the user asserted is `user`, what the agent inferred is
         // `assistant`, and a tool's output is `tool`.
         let mut messages = Vec::new();
-        for block in view.stable.iter() {
-            messages.push(serde_json::json!({ "role": "system", "content": block.text }));
-        }
-        // Project files, skills and tool schemas describe the world rather than speak in it, so
-        // they stay `system`: they are context the assistant has, not turns anybody took.
-        for block in view.context.iter() {
-            messages.push(serde_json::json!({ "role": "system", "content": block.text }));
+
+        // ── ONE system message, at position 0. This is a chat-template constraint. ──────
+        //
+        // **Reported live against a qwen3-next model:** Ollama returned HTTP 400 with
+        // `Jinja Exception: System message must be at the beginning`. Templates differ in what
+        // they tolerate, and several of the newer ones accept **exactly one** system message and
+        // require it first. This emitted one per stable block and one per context block — a
+        // dozen — and then a further one mid-conversation for injected memory (below). qwen3.5's
+        // template accepted all of it, which is why it went unnoticed.
+        //
+        // `/api/chat` itself is fine with the old shape; the *template* is not, and the template is
+        // the provider's. So the wire is built to the strictest common shape rather than to what
+        // one model happens to allow — the alternative is a per-model branch, and a wire format
+        // that varies by model is the thing that makes a model swap a debugging session.
+        //
+        // Blocks keep their identity in the view; this only concatenates their **text** for
+        // transport. Order is stable-then-context, unchanged, so the persona still leads and the
+        // prefix is still cache-friendly.
+        let system: Vec<&str> = view
+            .stable
+            .iter()
+            // Project files, skills and tool schemas describe the world rather than speak in it,
+            // so they belong here too: context the assistant has, not turns anybody took.
+            .chain(view.context.iter())
+            // **Injected memory joins the system message rather than sitting mid-conversation.**
+            // It lives in the volatile tier because it is trimmable, but on the wire it is context,
+            // not a turn — the old code already said so by giving it `role: system`, and that is
+            // precisely what put a system message after the user's turn and broke the template.
+            // Attributing it to the user instead would make a recalled fact indistinguishable from
+            // something they just said, and §B1 keeps memory out of the interface, which starts
+            // with not pretending it was spoken.
+            .chain(
+                view.volatile
+                    .iter()
+                    .filter(|b| b.source == SourceKind::InjectedMemory),
+            )
+            .map(|b| b.text.as_str())
+            .filter(|t| !t.trim().is_empty())
+            .collect();
+        if !system.is_empty() {
+            messages.push(serde_json::json!({
+                "role": "system",
+                "content": system.join("\n\n"),
+            }));
         }
         for block in view.volatile.iter() {
             let role = match block.source {
@@ -353,10 +412,10 @@ impl OllamaDriver {
                         _ => "user",
                     }
                 }
-                // Injected memory is context, not a turn. Attributing it to the user would make a
-                // recalled fact indistinguishable from something they just said — and §B1 keeps
-                // memory out of the interface, which starts with not pretending it was spoken.
-                SourceKind::InjectedMemory => "system",
+                // Already emitted, in the single leading system message. Skipped here rather than
+                // given a role, because a `system` message at this position is what broke a
+                // qwen3-next template with `System message must be at the beginning`.
+                SourceKind::InjectedMemory => continue,
                 _ => "user",
             };
             let mut msg = serde_json::json!({ "role": role, "content": block.text });

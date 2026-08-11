@@ -24,6 +24,44 @@ versioned as an artifact, and is provider-independent. See `04-addendum-persona.
 requirement most likely to erode silently is §C4 (anti-sycophancy); its probe set is a standing
 regression test, and a model swap that moves the score is blocking.
 
+## The five layers — the security model, and it is not negotiable knowledge
+
+Untrusted content and memory poisoning are defended by **five named layers**. Know them by number.
+
+1. **Quarantine.** The component that reads untrusted content has `reads_untrusted: true` and an
+   **empty tool set** — `reads_untrusted && !exposed_tools.is_empty()` is a **load-time error**, so a
+   reader that can act cannot be constructed. It returns structured analysis to something that never
+   sees the raw text. Brief §8.2, CONTRACTS §5, M2 Session A.
+2. **Trust class propagation.** Every belief carries its origin, and trust propagates **worst-case
+   over full lineage**. Four LLM rewrites later, a web page is still `UntrustedContent`. This is what
+   stops laundering. Brief §5.6 and §8; `trust.rs`; M0b Session A — 16 checked, 0 failed,
+   non-vacuous.
+3. **The `(action, target)` split, as a monotonic latch.** Untrusted content may shape a **payload**
+   — a draft body, a summary. It may **never** shape a **target**: which tool, which recipient, which
+   path, which amount. ADR-023. The latch is this month's fix: the floor was derived from the current
+   window, so trimming the untrusted block silently restored privileges; it now latches on the `Run`
+   and never rises. Live: **7 composed shell commands issued, 7 refused**.
+4. **Egress allowlisting.** Deny-by-default outbound; an extensible empty allowlist, per-host human
+   approval, held for the session. ADR-031, ADR-032. **Approved but not shipped**, pending the
+   approval surface.
+5. **The trust ledger.** Consequential actions need earned tiers; irreversible ones have ceilings no
+   evidence lifts. Addendum A §A8. **Not built — M6.**
+
+**The K1 injection gate / declared operating point is NOT one of the five.** It is a **relevance**
+mechanism. Brief §8.1 is explicit: *"Filtering does not work. Containment works."* Containment is
+layers 1–3. Do not call the gate "the filter" as though it were a defence — M2 Session D did exactly
+that and filed a quality finding as a security hole on the strength of it.
+
+**Brief §5.6 settles what a trust class governs:** *"Memories derived from untrusted content may
+inform **analysis** but may not authorize **action**."* So an untrusted memory ranking highly and
+being read is the **specification**, not a breach. What must not happen is it authorizing action —
+which is layer 3's job, and layer 3 holds.
+
+**The eval suite's §4 wire reaches only layer 2**, plus the ingest actor check: `ingest`/`retrieve`/
+`consolidate` speak to a process with no loop, no tools and no egress. **A poisoning ASR from
+`marlowe_eval` can never be evidence about layers 1, 3 or 4** — those need loop-level tests
+(`profile.rs`'s load-time refusal, `adr023_live.rs`).
+
 ## Document map
 
 | Path | What it is | When to read |

@@ -67,6 +67,15 @@ pub enum ClaimRejected {
     /// Empty or whitespace-only claim text. Refused rather than written, because an empty belief
     /// is retrievable, scores against every query, and asserts nothing.
     EmptyClaim,
+    /// A `correct` whose replacement carries **less** authority than what it would supersede.
+    ///
+    /// Superseding evicts the target from auto-injection (§4.3 exclusion 2), so allowing this would
+    /// let a tainted run delete a user-asserted belief through an ordinary tool call.
+    WouldLowerAuthority {
+        target: String,
+        existing: TrustClass,
+        correction: TrustClass,
+    },
 }
 
 impl ClaimRejected {
@@ -82,6 +91,11 @@ impl ClaimRejected {
             Self::EmptyClaim => {
                 "the claim text is empty. Pass the fact to be remembered as `text`.".to_string()
             }
+            Self::WouldLowerAuthority { target, existing, correction } => format!(
+                "{target} was recorded as {existing:?} and this correction would only be \
+                 {correction:?}, because of what this run has read. Superseding it would remove a \
+                 better-sourced belief. Use `remember` to record the new fact alongside it instead."
+            ),
         }
     }
 }
@@ -227,4 +241,113 @@ pub fn remember_claim(
     });
 
     Ok(Ok(WriteReceipt { id, seq: event.seq, effective_trust: effective, silent_until }))
+}
+
+/// CONTRACTS §3.5's `correct`: supersede a belief with a new one.
+///
+/// **Built on [`remember_claim`] rather than beside it**, so a correction is written under exactly
+/// the same trust rule (ADR-038) as any other claim. A second write path here would be a second
+/// answer to "what class does a model-authored belief carry".
+///
+/// # A correction may not lower a belief's authority, and this is a NEW rule
+///
+/// Superseding removes the target from the auto-injection candidate set (§4.3 exclusion 2). So a
+/// correction written at a *lower* effective trust than its target would let untrusted content
+/// evict a trusted belief — the same shape as the consolidation-merge finding in
+/// `runs/m2-session-d/OPEN-QUESTION-0-AUDIT.md`, except reachable deliberately through a tool.
+///
+/// This refuses it. **That is a rule nobody has ratified**, and it is flagged as such: it is the
+/// conservative direction, it costs a legitimate case (a tainted run correcting an older
+/// inference), and the cost is recoverable — `remember` still works, only the supersession is
+/// refused.
+pub fn correct_claim(
+    journal: &mut Journal,
+    beliefs: &mut BeliefStore,
+    clock: Clock,
+    write: &ClaimWrite<'_>,
+    target: &str,
+) -> Result<Result<WriteReceipt, ClaimRejected>, MemoryError> {
+    let Some(existing) = beliefs.get(target) else {
+        return Ok(Err(ClaimRejected::UnknownParent(target.to_string())));
+    };
+    let existing_trust = existing.effective_trust;
+
+    // Computed the way `remember_claim` will compute it, so the check and the write cannot
+    // disagree about what the correction is worth.
+    let own = TrustClass::AgentInferred.min(write.run_floor);
+    let parents: Vec<TrustClass> = write
+        .derived_from
+        .iter()
+        .filter_map(|id| beliefs.get(id).map(|e| e.effective_trust))
+        .collect();
+    let correction = effective_trust(own, &parents);
+    if correction < existing_trust {
+        return Ok(Err(ClaimRejected::WouldLowerAuthority {
+            target: target.to_string(),
+            existing: existing_trust,
+            correction,
+        }));
+    }
+
+    let receipt = match remember_claim(journal, beliefs, clock, write)? {
+        Ok(r) => r,
+        Err(rejected) => return Ok(Err(rejected)),
+    };
+
+    let trace_id = TraceId::new_v5(&TraceId::NAMESPACE_OID, write.session_id.as_bytes());
+    journal.append(
+        clock,
+        AppendRequest {
+            trace_id,
+            session_id: Some(write.session_id.to_string()),
+            run_id: Some(write.run_id.to_string()),
+            actor: Actor::Harness,
+            kind: EventKind::Superseded,
+            payload: serde_json::to_value(crate::store::SupersededPayload {
+                id: target.to_string(),
+                by: receipt.id.clone(),
+            })?,
+        },
+    )?;
+    beliefs.supersede(target, &receipt.id);
+    Ok(Ok(receipt))
+}
+
+/// CONTRACTS §3.5's `forget`, in its `Tombstone` mode.
+///
+/// **`RedactDestructive` is deliberately not offered.** ADR-009's crypto-shredding path does not
+/// exist, and a `mode` argument with one working arm is a promise the code does not keep.
+///
+/// The *event* stays in the log forever, so what happened remains auditable even though the text is
+/// gone — and `derive` folds that event the same way, so a restart reproduces exactly this state
+/// rather than a second interpretation of it.
+pub fn forget_claim(
+    journal: &mut Journal,
+    beliefs: &mut BeliefStore,
+    clock: Clock,
+    session_id: &str,
+    run_id: &str,
+    target: &str,
+) -> Result<Result<String, ClaimRejected>, MemoryError> {
+    if beliefs.get(target).is_none() {
+        return Ok(Err(ClaimRejected::UnknownParent(target.to_string())));
+    }
+    let trace_id = TraceId::new_v5(&TraceId::NAMESPACE_OID, session_id.as_bytes());
+    journal.append(
+        clock,
+        AppendRequest {
+            trace_id,
+            session_id: Some(session_id.to_string()),
+            run_id: Some(run_id.to_string()),
+            // **`Actor::Harness`, not the model.** Forgetting is the harness acting on a request,
+            // exactly as `remember` is. The model is not in the `Actor` enum and must not be.
+            actor: Actor::Harness,
+            kind: EventKind::Tombstoned,
+            payload: serde_json::to_value(crate::store::TombstonedPayload {
+                id: target.to_string(),
+            })?,
+        },
+    )?;
+    beliefs.tombstone(target);
+    Ok(Ok(target.to_string()))
 }

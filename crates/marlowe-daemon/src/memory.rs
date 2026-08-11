@@ -213,10 +213,33 @@ impl DaemonMemory {
             query_text,
             now_ms,
             max_tokens,
-            &Scoring::Gated { gate: &self.gate, operating_point: &self.operating_point },
+            // **The product is always the declared arm.** `Coverage::Full` is the un-gated control
+            // for one offline comparison; there is no path that reaches it from the daemon, and
+            // there must not be — K1 condition 3 fails a configuration that injects at low
+            // precision to raise coverage, so shipping the control arm would fail the criterion by
+            // construction.
+            &Scoring::Gated {
+                gate: &self.gate,
+                operating_point: &self.operating_point,
+                coverage: marlowe_memory::Coverage::Declared,
+            },
             &self.vectors,
             None,
             &mut rerank,
+            // **Profile-wide, and this is the product diverging from the measured configuration.**
+            //
+            // A session here is a *client name* — the TUI connects as `tui`, `--ask` as `cli` — so
+            // under `ThisSession` a memory written at the CLI is invisible to auto-injection in the
+            // TUI, and the eleven-week callback cannot cross surfaces. `recall` has always been
+            // profile-wide, so this also ends an asymmetry where explicit search saw what injection
+            // could not.
+            //
+            // **The declared operating point was calibrated on session-scoped pools.** Widening the
+            // pool changes the rank-1/rank-2 margin distribution, so `PRECISION-COVERAGE.md`'s
+            // coverage and precision describe `ThisSession` and not this. The cut point is still
+            // the best available threshold in the graph's own units; what it is not is a measured
+            // description of what happens here. See `RetrievalScope`.
+            marlowe_memory::retrieve::RetrievalScope::Profile,
         );
         debug_assert_injection_valid(&selection.injected);
 

@@ -11,7 +11,36 @@ or the gate's feature set has been changed. Both holes need a §13 decision.
 
 ---
 
-## 1. Ranking inputs — **CONFIRMED HOLE**
+> ## CORRECTION, 2026-08-11, after the five-layer model was stated
+>
+> **Finding 1 below was filed as a confirmed security hole. Against the architecture's five layers it
+> is not one, and the over-claim is mine.** The five layers are: **1** quarantine (a reader with
+> tools is unconstructable), **2** worst-case trust propagation over lineage, **3** the
+> `(action, target)` split as a monotonic latch, **4** egress allowlisting, **5** the trust ledger
+> (M6, unbuilt).
+>
+> **The K1 injection gate is not among them.** It is a *relevance* mechanism, and brief §8.1 is
+> explicit that *"filtering does not work; containment works."* Containment is layers 1–3.
+>
+> Brief §5.6 settles finding 1 directly: *"Memories derived from untrusted content may inform
+> **analysis** but may not authorize **action**."* An untrusted memory competing on equal terms for
+> what gets **read** is the specification. Layer 2 labels and propagates; layer 3 stops the label
+> authorizing action, monotonically, verified live at 7 issued / 7 refused. `effective_trust` being
+> inert *in the ranker* touches neither.
+>
+> **What survives from finding 1 is not a containment claim:** Marlowe can be made to *say* something
+> false from a poisoned memory, and the rank margin is a quantity an attacker can optimise. That is a
+> quality-and-honesty problem and should have been filed as one.
+>
+> **Finding 4 stands unchanged.** Eviction of a genuine belief is neither laundering nor action
+> authorization, so no layer covers it.
+>
+> Also corrected: the ASR control varied the injection gate, which is **not** a security layer, so
+> ASR staying at 0.000 across both arms is the *expected* result rather than a discovery. And the
+> eval's §4 wire reaches only layer 2 plus the ingest actor check — layers 1, 3 and 4 are loop-level
+> and have loop-level evidence (`profile.rs`'s load-time refusal; `adr023_live.rs`).
+
+## 1. Ranking inputs — ~~CONFIRMED HOLE~~ **NOT A SECURITY HOLE; a quality finding. See the correction above.**
 
 > *"query text and candidate text both reach the cross-encoder. A page that shapes a query shapes
 > what is retrieved and what is injected."*

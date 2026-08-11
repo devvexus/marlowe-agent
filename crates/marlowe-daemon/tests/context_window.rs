@@ -104,6 +104,7 @@ fn a_completed_turn_does_not_repeat_its_reply_in_the_done_frame() {
         degraded: None,
         rerank_provider: "cpu".into(),
         live_runs: 0,
+        models: Vec::new(),
     });
 
     apply_events(

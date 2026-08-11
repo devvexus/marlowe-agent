@@ -37,6 +37,6 @@ pub mod think;
 pub use capability::{ModelCapability, ToolCallReport};
 pub use marlowe_permission::ArgValue;
 pub use http::{HttpError, LocalEndpoint};
-pub use ollama::{DEFAULT_CONTEXT_TOKENS, MODEL_CONTEXT_CEILING, default_capability, Availability, OllamaDriver, DEFAULT_MODEL};
-pub use routing::{Routing, RoutingError};
+pub use ollama::{DEFAULT_CONTEXT_TOKENS, MODEL_CONTEXT_CEILING, capability_for, default_capability, Availability, OllamaDriver, DEFAULT_MODEL};
+pub use routing::{is_cloud_tag, Routing, RoutingError};
 pub use think::{Segment, Split, ThinkSplitter};

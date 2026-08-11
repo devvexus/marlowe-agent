@@ -208,6 +208,22 @@ impl BeliefStore {
         }
     }
 
+    /// Apply a `Tombstoned` event to the in-memory view.
+    ///
+    /// **The text is cleared, not merely the tier demoted**, matching what `derive` does when it
+    /// folds the same event on replay. Two paths producing different in-memory states from one
+    /// journal entry is the two-sides-silently-disagree shape, and here it would be invisible until
+    /// a restart changed what `recall` returned.
+    ///
+    /// Silent on an unknown id, for the reason [`Self::supersede`] gives: the journal is the
+    /// authority, and `derive` raises `EventForUnknownMemory` where an unresolvable edge belongs.
+    pub fn tombstone(&mut self, id: &str) {
+        if let Some(e) = self.entries.get_mut(id) {
+            e.fidelity = Fidelity::Tombstone;
+            e.text.clear();
+        }
+    }
+
     /// Section 4.3 — the auto-injection candidate set, live-only.
     ///
     /// ADR-003 makes the live-only hot index a **requirement, not an optimization**: the

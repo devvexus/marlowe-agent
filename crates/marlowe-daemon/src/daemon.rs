@@ -19,7 +19,7 @@ use marlowe_loop::{
 };
 use marlowe_permission::scope::WorkspaceScope;
 use marlowe_permission::{BlastRadius, Tier};
-use marlowe_provider::{default_capability, Availability, LocalEndpoint, OllamaDriver, Routing};
+use marlowe_provider::{capability_for, Availability, LocalEndpoint, OllamaDriver, Routing};
 use marlowe_tools::builtin_registry;
 
 use crate::protocol::{Event, Request, StatusReport};
@@ -448,13 +448,34 @@ impl Daemon {
     pub fn status(&self) -> StatusReport {
         let endpoint = LocalEndpoint::default_ollama();
         let routing = Routing::uniform(&self.config.model);
+        // **One probe, two answers.** The availability check already enumerates what the endpoint
+        // holds, so asking again for the picker would be a second source of the same fact — the
+        // shape ADR-029 forbids for `rerank_provider` and the shape this project has logged a dozen
+        // instances of.
+        let mut models: Vec<String> = Vec::new();
         let degraded = match &routing {
             Err(e) => Some(e.to_string()),
             Ok(r) => {
                 let a = Availability::probe(&endpoint, r);
+                match &a {
+                    Availability::Ready { models: m } => models = m.clone(),
+                    Availability::ModelMissing { available, .. } => models = available.clone(),
+                    _ => {}
+                }
                 (!a.is_ready()).then(|| a.remedy())
             }
         };
+        // Cloud tags are dropped rather than shown: `Routing::uniform` refuses them, so offering
+        // one in a picker builds a control whose only outcome is a refusal. `marlowe --models`
+        // lists them *and* marks them refused, which is the right place for that — a list a person
+        // reads, not a control a person operates.
+        models.retain(|m| !marlowe_provider::is_cloud_tag(m));
+        // The configured model is always selectable, even with the endpoint down. A picker that
+        // omitted the value it is currently reporting would be internally inconsistent.
+        if !models.iter().any(|m| *m == self.config.model) {
+            models.push(self.config.model.clone());
+        }
+        models.sort();
         // **Announced, loudly, and ahead of everything else.** A daemon serving stale code
         // produces symptoms that look like bugs in whatever was just changed, and the reflex is to
         // debug the change. Invariant 4's rule applies: degrade visibly, and name the remedy.
@@ -463,10 +484,33 @@ impl Daemon {
             version: env!("CARGO_PKG_VERSION").to_string(),
             workspace: self.config.workspace.display().to_string(),
             model: self.config.model.clone(),
-            model_disclosure: default_capability().disclosure(),
+            // **Keyed to the model this daemon actually routes to.** Handing back the default's
+            // measured reliability for a user-chosen model would report one model's number under
+            // another's name -- see `capability_for`.
+            model_disclosure: capability_for(&self.config.model).disclosure(),
             degraded,
             rerank_provider: self.config.rerank_provider.clone(),
             live_runs: self.live_runs(),
+            models,
+        }
+    }
+
+    /// Switch the model this daemon routes to. **Refused by name if the endpoint does not have it.**
+    ///
+    /// A silent accept would leave the picker showing a model that every subsequent turn fails
+    /// against, and the failure would present as a broken model rather than as a bad choice.
+    pub fn set_model(&mut self, model: &str) -> Result<(), String> {
+        if model == self.config.model {
+            return Ok(());
+        }
+        let endpoint = LocalEndpoint::default_ollama();
+        let routing = Routing::uniform(model).map_err(|e| e.to_string())?;
+        match Availability::probe(&endpoint, &routing) {
+            Availability::Ready { .. } => {
+                self.config.model = model.to_string();
+                Ok(())
+            }
+            other => Err(other.remedy()),
         }
     }
 
@@ -582,7 +626,7 @@ impl Daemon {
             routing,
             builtin_registry().expect("the builtins loaded a moment ago"),
         )
-        .with_capability(default_capability())
+        .with_capability(capability_for(&self.config.model))
         .with_context_tokens(self.config.context_tokens)
         .with_thinking(self.config.thinking);
 
@@ -940,6 +984,15 @@ impl Daemon {
                             _ => {}
                         }
                     }
+                }
+            }
+            Request::SetModel { model } => {
+                // Answered with a fresh `Status`, never with a bare acknowledgement. The client
+                // then re-projects the daemon's own report — including the new disclosure — rather
+                // than patching its view with what it hoped had happened.
+                match self.set_model(&model) {
+                    Ok(()) => on_event(Event::Status(self.status())),
+                    Err(detail) => on_event(Event::Error { detail }),
                 }
             }
             Request::Shutdown => {

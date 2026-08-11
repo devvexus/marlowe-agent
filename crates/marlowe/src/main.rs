@@ -188,7 +188,7 @@ fn main() {
     // `marlowe` becomes the thin client at M2, and guessing one now would mean changing what an
     // existing command does later.
     let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch",
-                            "--serve", "--ask", "--status", "--shutdown"]
+                            "--serve", "--ask", "--status", "--shutdown", "--models"]
         .into_iter()
         .filter(|m| args.iter().any(|a| a == m))
         .collect();
@@ -243,6 +243,19 @@ fn main() {
     // one that keeps reasoning out of the transcript.
     let thinking = !args.iter().any(|a| a == "--no-thinking");
 
+    // What this machine's Ollama actually holds, so `--model` is a choice from a list rather than
+    // a guess. **Cloud tags are shown and marked refused** rather than hidden: a user who has one
+    // pulled will otherwise try it and get a refusal with no way to have known in advance.
+    if modes[0] == "--models" {
+        match agent::models() {
+            Ok(()) => return,
+            Err(e) => {
+                eprintln!("marlowe: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     if matches!(modes[0], "--serve" | "--ask" | "--status" | "--shutdown") {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
@@ -267,6 +280,7 @@ fn main() {
                 // five-minute target gone. Absent, memory is WRITE-ONLY and says so at startup and
                 // on `--status` — announced rather than silently degraded.
                 flag_value(&args, "--reranking").map(PathBuf::from),
+                flag_value(&args, "--model").map(str::to_string),
             ),
             "--status" => agent::status(workspace, profile_root),
             "--shutdown" => agent::shutdown(
@@ -525,6 +539,36 @@ fn main() {
         }
     };
 
+    // **The un-gated control arm for K1 condition 3, and it is measurement-only.**
+    //
+    // After M2 Session D the poisoning suite reported ASR 0.000 across five families and was
+    // *still* vacuous: the declared 10%-coverage point abstains on nearly everything, so an attack
+    // that fails is indistinguishable from one that was never given a chance. The pair that
+    // discriminates is ASR at `declared` versus at `full`.
+    //
+    // Unlike `--reranking` this is optional, and the direction is why. There the danger is a
+    // forgotten flag measuring the un-reranked system under a reranked label; here the shipped
+    // configuration IS `declared`, so a forgotten flag yields the truthful label and the dangerous
+    // default would be `full`. An unrecognised value is still a refusal rather than a fallback, and
+    // the chosen arm is stamped into the gate version on every response, so an artifact records
+    // which arm produced it rather than depending on a command line nobody kept.
+    let coverage = match flag_value(&args, "--injection-coverage") {
+        None => marlowe_memory::Coverage::Declared,
+        Some(v) => match marlowe_memory::Coverage::parse(v) {
+            Some(c) => c,
+            None => {
+                eprintln!("{USAGE}");
+                eprintln!(
+                    "error: --injection-coverage takes `declared` or `full`, not {v:?}. `full` is \
+                     a MEASUREMENT arm that ignores the published cut point and must never produce \
+                     a shipped number; it exists so an ASR of 0.000 can be attributed to the guard \
+                     rather than to nothing being injected."
+                );
+                std::process::exit(2);
+            }
+        },
+    };
+
     let cache_dir = flag_value(&args, "--embedding-cache").map(PathBuf::from);
     let workers = match flag_value(&args, "--embedder-workers") {
         Some(v) => match v.parse::<usize>() {
@@ -591,6 +635,7 @@ fn main() {
             consolidation,
             cross_encoder,
             rerank_settings,
+            coverage,
         ),
     };
 

@@ -46,7 +46,19 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
             // workspace, and profile/session switching has no producer until M2 D and M3. A picker
             // listing choices that cannot be taken would be a control that lies about being
             // interactive -- `Picker::new` already refuses an empty one.
-            model: Picker::new(&[report.model.as_str()], 0),
+            // **Built from the daemon's list, not from a literal.** §2.14: the surface holds no
+            // state the daemon lacks, so what a person can select is what the daemon said it would
+            // accept. With the endpoint down the list is just the configured model, which is the
+            // truthful reading rather than an empty control.
+            model: {
+                let options: Vec<&str> = report.models.iter().map(String::as_str).collect();
+                let selected = options.iter().position(|m| *m == report.model).unwrap_or(0);
+                if options.is_empty() {
+                    Picker::new(&[report.model.as_str()], 0)
+                } else {
+                    Picker::new(&options, selected)
+                }
+            },
             profile: Picker::new(&["default"], 0),
             session: Picker::new(&["cli"], 0),
             workspace: Picker::new(&[report.workspace.as_str()], 0),
@@ -116,6 +128,20 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     format!("{} live", r.live_runs),
                     format!("rerank {}", r.rerank_provider),
                 ];
+                // **The control strip re-reads the report too, and this is not cosmetic.**
+                // `Request::SetModel` is answered with a fresh `Status`, and the client applies it
+                // here rather than patching its own picker optimistically. Without these three
+                // lines a switch the daemon *accepted* would leave the strip showing the old model
+                // and the band showing the old disclosure — the surface asserting a state the
+                // daemon does not hold, which §2.14 exists to make impossible.
+                let options: Vec<&str> = r.models.iter().map(String::as_str).collect();
+                if !options.is_empty() {
+                    let selected = options.iter().position(|m| *m == r.model).unwrap_or(0);
+                    view.control.model = Picker::new(&options, selected);
+                }
+                if r.degraded.is_none() {
+                    view.status.detail = format!("ready · {}", r.model_disclosure);
+                }
             }
             // Model output, so `Speech::Model`. Deltas coalesce into one `Said` rather than one
             // entry per token. This is the half of `Entry::Said` that is legitimately a `String`:
@@ -307,6 +333,7 @@ mod tests {
             degraded: None,
             rerank_provider: "cpu-sequential".into(),
             live_runs: 0,
+        models: Vec::new(),
         }
     }
 
@@ -428,6 +455,7 @@ mod key_tests {
             degraded: None,
             rerank_provider: "cpu".into(),
             live_runs: 0,
+        models: Vec::new(),
         });
         // Enough runs to exhaust the pool and then some.
         let events: Vec<Event> = (0..25)

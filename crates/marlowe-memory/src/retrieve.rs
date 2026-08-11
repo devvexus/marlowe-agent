@@ -22,7 +22,7 @@ use crate::cue::dense::{self, vectors::VectorStore};
 use crate::cue::lexical;
 use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
-use crate::operating_point::{Abstention, OperatingPoint};
+use crate::operating_point::{Abstention, Coverage, OperatingPoint};
 use crate::probe::{Stage, StageProbe};
 use crate::rerank::CrossEncoder;
 use crate::store::BeliefStore;
@@ -190,6 +190,11 @@ pub enum Scoring<'a> {
     Gated {
         gate: &'a FrozenGate,
         operating_point: &'a OperatingPoint,
+        /// **Required, and `Declared` is the only value that ships.** `Full` is the un-gated arm of
+        /// the controlled comparison that tells an ASR of 0.000 caused by a guard from one caused
+        /// by nothing being injected. A field rather than a default so a run cannot be in the
+        /// measurement arm without having said so.
+        coverage: Coverage,
     },
     /// Feature-dump mode, used only by `tools/fit_gate.py`. Computes features so they can be
     /// written to a side file, calibrates nothing, and gates nothing — so it selects exactly
@@ -221,6 +226,42 @@ pub enum Rerank<'a> {
         /// configuration and execute another; the retrieval profile records the value per query.
         batched: bool,
     },
+}
+
+/// Which beliefs a retrieval may consider: this session's, or the whole profile's.
+///
+/// # Why this is declared rather than assumed, and why the two callers differ
+///
+/// **The eval must stay `ThisSession`.** LongMemEval flattens each case's haystack into one history
+/// whose `session_id` is the query id, so a profile-wide scope would let every case see every other
+/// case's turns. Every published R@1, the precision/coverage curve and the poisoning numbers are all
+/// computed under session scoping; widening it there would not improve them, it would invalidate
+/// them.
+///
+/// **The product wants `Profile`, and without it memory does not work.** A session in the daemon is
+/// a *client name* — the TUI connects as `tui`, `--ask` as `cli` — so under `ThisSession` a memory
+/// written at the CLI is invisible to auto-injection in the TUI, and the eleven-week callback cannot
+/// happen across surfaces. `recall` has always been profile-wide (`recall_candidates` has no session
+/// filter), so this also ends an asymmetry where explicit search could see what injection could not.
+///
+/// # THE CALIBRATION DOES NOT TRANSFER ACROSS THIS BOUNDARY, and that is not fixable here
+///
+/// The declared operating point's margin threshold was measured on **session-scoped** pools — on
+/// LongMemEval, roughly one session's turns per query. Under `Profile` the candidate pool is the
+/// whole store, so the rank-1/rank-2 margin distribution is a different distribution, and the
+/// published coverage (10.0%) and precision are **statements about the `ThisSession` configuration
+/// only**.
+///
+/// The cut point is still the best available threshold and it is still in the graph's own logit
+/// units. What must not happen is anyone quoting `docs/design/PRECISION-COVERAGE.md`'s numbers as a
+/// description of the product's behaviour. Re-measuring under `Profile` needs a corpus with
+/// cross-session structure, which LongMemEval is not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetrievalScope {
+    /// Only beliefs whose `source_session_id` matches the request. The measured configuration.
+    ThisSession,
+    /// Every belief in the profile. What a person means by "remember".
+    Profile,
 }
 
 /// Q2's registered budget, and therefore the shipped candidate count.
@@ -368,6 +409,7 @@ pub fn select_for_injection<'a>(
     vectors: &VectorStore,
     query_vector: Option<&[f32]>,
     rerank: &mut Rerank<'_>,
+    scope: RetrievalScope,
 ) -> Selection<'a> {
     select_for_injection_probed(
         beliefs,
@@ -379,6 +421,7 @@ pub fn select_for_injection<'a>(
         vectors,
         query_vector,
         rerank,
+        scope,
         &mut (),
     )
 }
@@ -402,6 +445,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     vectors: &VectorStore,
     query_vector: Option<&[f32]>,
     rerank: &mut Rerank<'_>,
+    scope: RetrievalScope,
     probe: &mut P,
 ) -> Selection<'a> {
     probe.enter(Stage::Candidates);
@@ -413,7 +457,10 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     probe.enter(Stage::Scope);
     let scoped: Vec<&MemoryEntry> = candidates
         .into_iter()
-        .filter(|e| e.source_session_id == session_id)
+        .filter(|e| match scope {
+            RetrievalScope::ThisSession => e.source_session_id == session_id,
+            RetrievalScope::Profile => true,
+        })
         .collect();
 
     probe.enter(Stage::Lexical);
@@ -650,7 +697,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     // the change undetectable. ADR-019 replaced the single-point criterion with a published curve
     // and a declared point exactly because the gate cannot express a confident subset.
     let (cut, gate_ordered) = match scoring {
-        Scoring::Gated { operating_point, .. } => (Some(*operating_point), true),
+        Scoring::Gated { operating_point, coverage, .. } => (Some((*operating_point, *coverage)), true),
         Scoring::FitDump => (None, false),
     };
 
@@ -665,13 +712,14 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     // Under `FitDump` the old behaviour is preserved exactly: no cut point, fill the budget by
     // recency. `tools/fit_gate.py` reads the dump rather than the injected set, and a fit run that
     // changed shape here would calibrate against a candidate set no scoring run ever has.
-    let admitted: Vec<usize> = if let Some(op) = cut {
+    let admitted: Vec<usize> = if let Some((op, coverage)) = cut {
         let verdict = crate::operating_point::decide(
             order.len(),
             !matches!(rerank, Rerank::Off),
             rank_one,
             rank_two,
             op,
+            coverage,
         );
         rerank_margin = verdict.margin;
         abstention = verdict.abstention;
@@ -859,7 +907,7 @@ mod tests {
     #[test]
     fn nothing_is_injected_before_maturation() {
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", 2_000, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off, RetrievalScope::ThisSession);
         assert!(sel.injected.is_empty());
         assert_eq!(sel.considered, 0, "and nothing was even a candidate");
     }
@@ -868,7 +916,7 @@ mod tests {
     fn only_the_requested_session_is_scoped() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off, RetrievalScope::ThisSession);
         assert_eq!(sel.injected.len(), 2);
         assert!(sel.injected.iter().all(|i| i.memory_id != "m-c"));
         assert_eq!(sel.considered, 3, "considered counts the whole candidate set");
@@ -886,10 +934,11 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
         assert_eq!(sel.scoped, 2, "both were scored");
         assert_eq!(sel.above_threshold, 1, "only one cleared the threshold");
@@ -953,10 +1002,11 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
 
         assert_eq!(sel.scoped, 3, "all three were scored");
@@ -1002,10 +1052,11 @@ mod tests {
             "quarterly headcount forecast",
             now,
             7000,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
         assert_eq!(sel.scoped, 2);
         assert_eq!(sel.above_threshold, 0);
@@ -1026,10 +1077,11 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
         assert_eq!(sel.scored.len(), 2, "both, not just the one that passed");
         assert!(sel.scored.iter().any(|c| !c.passes));
@@ -1039,7 +1091,7 @@ mod tests {
     fn the_dump_order_is_stable() {
         let now = 3_000 + MATURATION_WINDOW_MS;
         let beliefs = store();
-        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off);
+        let sel = select_for_injection(&beliefs, "s-1", "ingest", now, 7000, &dump(), &VectorStore::default(), None, &mut Rerank::Off, RetrievalScope::ThisSession);
         let ids: Vec<&str> = sel.scored.iter().map(|c| c.entry.id.as_str()).collect();
         assert_eq!(ids, vec!["m-a", "m-b"], "sorted by id, so two runs write the same bytes");
     }
@@ -1050,8 +1102,8 @@ mod tests {
         let gate = test_gate();
         let beliefs = store();
         let ids = |s: &Selection| s.injected.iter().map(|i| i.memory_id.clone()).collect::<Vec<_>>();
-        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op() }, &VectorStore::default(), None, &mut Rerank::Off);
-        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op() }, &VectorStore::default(), None, &mut Rerank::Off);
+        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared }, &VectorStore::default(), None, &mut Rerank::Off, RetrievalScope::ThisSession);
+        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared }, &VectorStore::default(), None, &mut Rerank::Off, RetrievalScope::ThisSession);
         assert_eq!(ids(&a), ids(&b));
     }
 
@@ -1166,10 +1218,11 @@ mod tests {
             "ingest",
             now,
             7000,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
         // With reranking off nothing carries a score, so the key must fall through to `score`
         // and reproduce Session F's ordering exactly.
@@ -1196,10 +1249,11 @@ mod tests {
             "why is the ingest job timing out",
             now,
             1,
-            &Scoring::Gated { gate: &gate, operating_point: &op() },
+            &Scoring::Gated { gate: &gate, operating_point: &op(), coverage: Coverage::Declared },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
+            RetrievalScope::ThisSession,
         );
         assert_eq!(sel.above_threshold, 1, "the gate still passed it");
         assert!(sel.injected.is_empty());

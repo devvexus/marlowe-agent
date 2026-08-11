@@ -121,7 +121,12 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
     let regs = [
         registration(
             "bash",
-            "Run a shell command in the workspace. Each call is a fresh shell: nothing persists between calls.",
+            // Every clause is checkable: `spawn_shell` runs one `cmd /C` (or `sh -c`) per call, so
+            // nothing carries over; `adjudicate` returns `NeedsApproval` for `Irreversible`
+            // unconditionally, before any tier comparison, so the approval is not tier-dependent.
+            // The last sentence is routing advice, not a capability claim — a shell CAN read files,
+            // which is exactly why a model reaches for it when the answer is in memory instead.
+            "Run a shell command in the workspace. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.",
             "bash",
             2_048,
             Irreversible,
@@ -134,7 +139,10 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "read",
-            "Read a file in the workspace, by workspace-relative path.",
+            // `range`'s format was undocumented anywhere the model could see it: the generated
+            // parameter description for a `Text` payload is "Optional. text." `slice_lines` splits
+            // on `-`, parses both sides, and takes `skip(a-1).take(b-a+1)` — 1-based and inclusive.
+            "Read a file in the workspace, by workspace-relative path. `range` selects lines by 1-based inclusive number, e.g. \"20-60\".",
             "read",
             8_192,
             Inert,
@@ -144,7 +152,13 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "edit",
-            "Replace a file's contents, or write a new file.",
+            // Three claims, each from the executor: `existing.find(replacing)` takes the FIRST
+            // occurrence; a miss returns `failed("edit", "`replacing` was not found in the file")`;
+            // with no `replacing` the handle is truncated and rewritten with `content`. The parent
+            // directory is the walk's rule, not this tool's — only the LAST component is opened
+            // `CreateOrOpen`, so a missing parent is `Unopenable`, which
+            // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.
+            "Replace a file's contents, or write a new file. With `replacing`, the first exact occurrence of that text is replaced, and the call fails if it is not found; without it the whole file is overwritten. The parent directory must already exist.",
             "edit",
             2_048,
             Reversible,
@@ -161,13 +175,23 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "find",
-            "Search the workspace for a literal substring, line by line.",
+            // `line.contains(pattern)` — a literal substring, and the result line is built as
+            // `{relative}:{n+1}: {line}`. `collect` enumerates with `read_dir`, so `path` names a
+            // directory, and it stops at `FIND_FILE_CAP` (2000). `.` is the spelling the scope
+            // accepts for the workspace root — `request::validate` drops `.` components, and
+            // `executors.rs::find_reports_matches_and_how_many_files_it_actually_read` passes it.
+            "Search files under a directory for a literal substring, line by line. Not a regex and not a symbol index. `path` is the directory to search: pass \".\" for the whole workspace. Matches come back as `path:line: text`, over at most 2000 files.",
             "find",
             8_192,
             Inert,
             &[WORKSPACE],
             &[],
-            vec![payload_req("pattern", Text), target_opt("path", ParamType::Path)],
+            // **`path` is REQUIRED, and that is the executor's demand rather than the role's.**
+            // `find` opens `handle_for(a, "path")` and returns "no adjudicated handle for `path`"
+            // when it is absent — and the adjudicator only opens a handle for an argument that was
+            // supplied. So a call omitting `path` was schema-valid and could never succeed, which
+            // is the mismatch ADR-034 separated the two fields to make visible.
+            vec![payload_req("pattern", Text), target_req("path", ParamType::Path)],
         ),
         registration(
             "web",
@@ -186,17 +210,40 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "recall",
-            "Search memory explicitly, including things that were forgotten.",
+            // **The description now says WHEN to reach for it, because that is what was missing.**
+            // Observed live: asked when a deploy script runs — an answer that was in memory, with
+            // `recall` exposed and executable — the model called `bash` (`ls -la`), was refused, and
+            // then answered from a directory listing that never happened. "Search memory
+            // explicitly" describes the mechanism and never told it this was the moment.
+            //
+            // Every clause is `daemon::recall`: it reads `recall_candidates()` (§4.3 hot ∪ cold,
+            // tombstones and unmatured included, which auto-injection withholds), scores with
+            // `cue::lexical` (BM25 over tokens, no stemming and no stop list — so the user's own
+            // words are the ones that match), drops zero scores, and truncates at `RECALL_LIMIT`.
+            // The withholding half is not taken on trust either:
+            // `retrieve.rs::nothing_is_injected_before_maturation` is the injection path refusing
+            // an entry that `recall_candidates()` returns unconditionally.
+            "Search Marlowe's own memory: what the user said in earlier sessions, and what Marlowe has learned. Reach for this FIRST when a question touches anything from before — ahead of guessing, and ahead of reading the filesystem. It also returns entries nothing else surfaces: ones not yet matured, and ones forgotten. Matching is by word, so reuse the user's. Up to 5 results.",
             "recall",
             8_192,
             Inert,
             &[],
             &[],
-            vec![payload_req("query", Text), target_opt("payload_kind", Text)],
+            // **`payload_kind` is gone.** `RecallTools::recall` reads `query` and nothing else, so
+            // the argument was accepted, ignored, and never reported — a model that passed
+            // `payload_kind: "commitment"` believed it had filtered and got an unfiltered answer.
+            // That is worse than `web`'s removed `query`, which at least failed loudly. It comes
+            // back when the executor filters on it.
+            vec![payload_req("query", Text)],
         ),
         registration(
             "remember",
-            "Ask the harness to record a claim. The harness adjudicates, stamps and signs it.",
+            // CONTRACTS §3.5's naming hazard: the tool is a REQUEST, not a write the model performs.
+            // `DaemonMemory::remember` adjudicates the claim, maps `payload_kind` through a closed
+            // set (an unknown value is refused by name), appends through the signed journal, and
+            // returns `"{id} · {trust:?} · injectable after {ms}"` — so the receipt's three fields
+            // are named here rather than left for the model to parse blind.
+            "Ask the harness to record something worth keeping. A request, not a write: the harness adjudicates it, stamps and signs it, and can refuse. What comes back is a receipt — the entry's id, the trust class the harness derived for it, and when it becomes injectable.",
             "remember",
             1_024,
             Consequential,
@@ -224,7 +271,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "run",
-            "Spawn, steer or await a child run.",
+            // **"Spawn, steer or await" named three operations, and the model can reach none.**
+            // `ollama::control_step` routes a model's `run` call to an ordinary `ToolCall`, no host
+            // declares a `run` executor, and `ModelStep::Spawn` — the only thing that reaches
+            // `Engine::spawn` — is constructed nowhere outside `spawn_and_budget.rs`. There is also
+            // no steer and no await: the parameters are a task and a child's capability profile,
+            // with no run id among them. Saying so is the `web`-does-not-search precedent; it comes
+            // back when M2 D decides who declares the spawn contract (§5: never inferred).
+            "Delegate a sub-task to a child run. This build cannot spawn one yet, so the call is refused — do the work in this run instead.",
             "run",
             1_024,
             Consequential,
@@ -243,13 +297,21 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "ask",
-            "Escalate to the user with a decision package.",
+            // What actually happens: `control_step` builds `ModelStep::Ask(question)`, the engine
+            // records `ApprovalRequested`, sets `RunStatus::Paused { AwaitingAnswer }` and returns
+            // `LoopOutcome::Escalated`. So the run stops until the user answers — which is the part
+            // worth knowing before calling it. "A decision package" named a shape nothing builds.
+            "Put a question to the user and wait. The run pauses until they answer. For a choice that is theirs to make — not for confirming work you could simply do.",
             "ask",
             2_048,
             Inert,
             &[],
             &[],
-            vec![payload_req("question", Text), payload_opt("options", Text)],
+            // **`options` is gone, for `web`'s `query` reason.** `control_step` reads `question`
+            // (falling back to the message body) and nothing else, and `ModelStep::Ask` carries a
+            // single `String` — so a model that listed options had them silently dropped on the way
+            // to a user who never saw them.
+            vec![payload_req("question", Text)],
         ),
     ];
 
@@ -280,6 +342,32 @@ mod tests {
 
         let ids: Vec<ToolId> = BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
         assert!(r.expose(&ids).is_ok(), "all ten fit in one exposed set");
+    }
+
+    /// **A description that hit the cap was cut mid-sentence and nothing said so.**
+    ///
+    /// `Description::new` truncates at [`MAX_DESCRIPTION_CHARS`] silently — correctly, because the
+    /// budget must hold for third-party prose that arrives as bytes. But for the builtins the cap
+    /// is a drafting error rather than an attack, and the failure is invisible: the tool list still
+    /// renders, the model still gets a description, and the half of the sentence that said *"the
+    /// call fails if it is not found"* is simply gone.
+    ///
+    /// Strictly less than the cap, not `<=`: a truncated description is exactly `MAX` characters,
+    /// so `<=` would pass on the one case this exists to catch.
+    #[test]
+    fn no_builtin_description_is_silently_truncated() {
+        use crate::registry::MAX_DESCRIPTION_CHARS;
+        let r = builtin_registry().unwrap();
+        for reg in r.iter() {
+            let n = reg.description.text().chars().count();
+            assert!(
+                n < MAX_DESCRIPTION_CHARS,
+                "`{}`'s description is {n} chars and the cap is {MAX_DESCRIPTION_CHARS}, so it \
+                 reached the model cut off mid-sentence: {:?}",
+                reg.id,
+                reg.description.text()
+            );
+        }
     }
 
     #[test]

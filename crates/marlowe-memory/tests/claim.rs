@@ -211,6 +211,170 @@ fn an_unknown_parent_is_refused_and_the_refusal_is_in_the_log() {
     let _ = fs::remove_dir_all(&f.dir);
 }
 
+// ── correct / forget — CONTRACTS §3.5's other two methods ─────────────────────────────
+
+/// A correction supersedes, and the superseded belief leaves auto-injection but stays recallable.
+#[test]
+fn a_correction_supersedes_the_old_belief_without_deleting_it() {
+    let mut f = fixture("correct");
+    let old = remember_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-c", "the deploy runs on Fridays", TrustClass::UserAsserted),
+    )
+    .unwrap()
+    .unwrap();
+
+    let new = marlowe_memory::correct_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-c", "the deploy runs on Tuesdays", TrustClass::UserAsserted),
+        &old.id,
+    )
+    .unwrap()
+    .unwrap();
+
+    let matured = T0 + MATURATION_WINDOW_MS + 1;
+    let injectable: Vec<&str> =
+        f.beliefs.injection_candidates(matured).iter().map(|e| e.id.as_str()).collect();
+    assert_eq!(
+        injectable,
+        vec![new.id.as_str()],
+        "§4.3 exclusion 2 removes the superseded belief from auto-injection"
+    );
+    // **Still recallable.** Correction is not deletion — "I used to think X" is exactly what §3.6's
+    // explicit path exists to answer, and a correction that erased the old value would make the
+    // system unable to explain itself.
+    assert_eq!(f.beliefs.recall_candidates().len(), 2);
+    assert_eq!(f.beliefs.get(&old.id).unwrap().superseded_by.as_deref(), Some(new.id.as_str()));
+
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
+/// **The new rule, with both directions.** A tainted run may not evict a better-sourced belief.
+#[test]
+fn a_correction_may_not_lower_a_beliefs_authority_but_an_equal_one_may() {
+    let mut f = fixture("authority");
+    let trusted = remember_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-a", "the release train leaves Thursday", TrustClass::UserAsserted),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(trusted.effective_trust, TrustClass::AgentInferred);
+
+    // A run that has read a page writes at UntrustedContent — below the target.
+    let refused = marlowe_memory::correct_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-a", "actually it leaves Monday", TrustClass::UntrustedContent),
+        &trusted.id,
+    )
+    .unwrap();
+    assert!(
+        matches!(refused, Err(ClaimRejected::WouldLowerAuthority { .. })),
+        "a tainted run must not evict a better-sourced belief: {refused:?}"
+    );
+    assert!(f.beliefs.get(&trusted.id).unwrap().superseded_by.is_none(), "and nothing moved");
+
+    // The control: an equally-sourced correction is allowed, so the refusal above is about
+    // authority and not about corrections never working.
+    let allowed = marlowe_memory::correct_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-a", "it leaves Monday", TrustClass::UserAsserted),
+        &trusted.id,
+    )
+    .unwrap();
+    assert!(allowed.is_ok(), "an equal-authority correction must work: {allowed:?}");
+
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
+/// Forgetting clears the text, leaves the record, and survives a rebuild identically.
+///
+/// **The rebuild half is the one with teeth.** `tombstone` and `derive` are two paths folding one
+/// event; if they disagreed, the store would look right until the next restart and then change
+/// under the user — invisible in every in-process test.
+#[test]
+fn forgetting_clears_the_text_and_a_rebuild_reproduces_exactly_that() {
+    let mut f = fixture("forget");
+    let a = remember_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        &claim("s-f", "a secret worth forgetting", TrustClass::UserAsserted),
+    )
+    .unwrap()
+    .unwrap();
+
+    marlowe_memory::forget_claim(
+        &mut f.journal,
+        &mut f.beliefs,
+        Clock::new(T0),
+        "s-f",
+        "run-f",
+        &a.id,
+    )
+    .unwrap()
+    .unwrap();
+
+    let live = f.beliefs.get(&a.id).unwrap();
+    assert!(live.text.is_empty(), "the text is gone");
+    assert_eq!(live.fidelity, marlowe_contract::Fidelity::Tombstone);
+    assert!(
+        f.beliefs.injection_candidates(T0 + MATURATION_WINDOW_MS + 1).is_empty(),
+        "§4.3 exclusion 1: a tombstone never competes for injection"
+    );
+
+    let rebuilt = BeliefStore::derive(&f.journal, marlowe_memory::DERIVATION_VERSION).unwrap();
+    let after = rebuilt.get(&a.id).expect("the RECORD survives; only the text is cleared");
+    assert!(after.text.is_empty(), "the fold must reach the same state as the live path");
+    assert_eq!(after.fidelity, marlowe_contract::Fidelity::Tombstone);
+
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
+#[test]
+fn correcting_or_forgetting_something_that_does_not_exist_is_refused() {
+    let mut f = fixture("unknown-target");
+    let missing = "m-nope";
+    assert_eq!(
+        marlowe_memory::forget_claim(
+            &mut f.journal,
+            &mut f.beliefs,
+            Clock::new(T0),
+            "s",
+            "r",
+            missing
+        )
+        .unwrap(),
+        Err(ClaimRejected::UnknownParent(missing.to_string()))
+    );
+    assert_eq!(
+        marlowe_memory::correct_claim(
+            &mut f.journal,
+            &mut f.beliefs,
+            Clock::new(T0),
+            &claim("s", "a replacement", TrustClass::UserAsserted),
+            missing,
+        )
+        .unwrap(),
+        Err(ClaimRejected::UnknownParent(missing.to_string()))
+    );
+    assert!(
+        f.beliefs.recall_candidates().is_empty(),
+        "a refused correction must not leave its replacement behind"
+    );
+    let _ = fs::remove_dir_all(&f.dir);
+}
+
 #[test]
 fn an_empty_claim_is_refused_rather_than_written() {
     let mut f = fixture("empty");

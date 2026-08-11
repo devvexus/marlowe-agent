@@ -29,6 +29,7 @@ fn view() -> marlowe_view::SessionView {
         degraded: None,
         rerank_provider: "cpu".into(),
         live_runs: 0,
+        models: Vec::new(),
     })
 }
 
