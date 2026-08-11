@@ -59,7 +59,7 @@ Containment works."*
 | ADR-038's floor reaching the write path | **live** — `agent_inferred` before a fetch, `untrusted_content` after |
 | Layer 2 propagation | **measured** — 16 checked, 0 failed, non-vacuous |
 | Layer 1 quarantine | **load-time enforced, never exercised** — nothing spawns |
-| Layer 4 egress `AllowApproved` | approved, per-host, session-held; **not shipped** |
+| Layer 4 egress `AllowApproved` | **SHIPPED and live-verified.** `interactive()` holds `AllowApproved { granted: [] }`; `grant()` widens one host at a time; a real `web` fetch was approved through the TUI modal this session. An earlier line in this file said "approved but not shipped" — that was stale and was carried forward without checking |
 | Layer 5 trust ledger | **not built — M6** |
 
 ### Two §13 holes, unfixed on purpose, both needing a decision before code
