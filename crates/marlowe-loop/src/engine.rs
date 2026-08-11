@@ -674,19 +674,56 @@ impl<S: PathScope> Engine<S> {
                         // there is no unsigned write path (invariant 2). The loop does not
                         // append a MemoryWritten event itself — that is the memory component's
                         // to emit, because it is the one that signs.
+                        // **ADR-038: the run's latched floor goes with the claim.** Not the
+                        // view's floor — the view is trimmable, so a block evicted to stay
+                        // inside budget would let a write happen at a class the run had
+                        // already forfeited. That is the same hole ADR-023 closed for tool
+                        // arguments, and a memory outlives the run that wrote it.
+                        let run_floor = run.trust_floor();
+                        // Read before the host is borrowed, and read ONCE: the belief's
+                        // `created_at`, its maturation deadline and the `MemoryWritten` event
+                        // recording it are the same instant or the log cannot be replayed.
+                        let now_ms = ports.clock.now_ms();
                         let outcome = match ports.memory.as_mut() {
-                            Some(m) => m.remember(run.id, &claim),
+                            Some(m) => {
+                                m.remember(run.id, state.session, &claim, run_floor, now_ms)
+                            }
                             None => Err("memory is not wired in this build".to_string()),
                         };
-                        let (kind, text) = match &outcome {
-                            Ok(receipt) => {
-                                (EventKind::MemoryWritten, format!("[remembered] {receipt}"))
-                            }
+                        // **The loop records the REFUSAL and never the write.** The comment above
+                        // has always said so; until M2 Session D wired a memory host the code did
+                        // the opposite, and it was invisible because the loop's event was the only
+                        // one in the log.
+                        //
+                        // With a host wired, one `remember` produced TWO `MemoryWritten` events:
+                        // the memory component's signed `MemoryWrittenPayload`, and this one
+                        // carrying `{"text": ...}`. `BeliefStore::derive` decodes *every*
+                        // `MemoryWritten` into a `MemoryWrittenPayload`, so the second failed with
+                        // `missing field 'id'` — **and the daemon refused to start on the next
+                        // restart.** Found by a real end-to-end run; every unit test passed, because
+                        // the memory crate's tests call `remember_claim` directly and the daemon's
+                        // durability test calls the host directly. Neither crosses the seam where
+                        // both writers meet.
+                        //
+                        // A refusal is still journalled here, and must be: a claim the host never
+                        // saw — no memory wired, an unrecognised payload kind — is refused by
+                        // nobody else, and a refusal inferred from absence is not a refusal anyone
+                        // can measure (§4.6). `MemoryWriteRejected` is not a belief-store input, so
+                        // the fold ignores it by kind rather than choking on its shape.
+                        let text = match &outcome {
+                            Ok(receipt) => format!("[remembered] {receipt}"),
                             Err(why) => {
-                                (EventKind::MemoryWriteRejected, format!("[not remembered] {why}"))
+                                let text = format!("[not remembered] {why}");
+                                self.record(
+                                    ports,
+                                    EventKind::MemoryWriteRejected,
+                                    run,
+                                    state,
+                                    json!({ "text": text }),
+                                );
+                                text
                             }
                         };
-                        self.record(ports, kind, run, state, json!({ "text": text }));
                         state.push(Block::new(
                             SourceKind::History,
                             text,

@@ -12,9 +12,10 @@ use marlowe_exec::FileSystemTools;
 use marlowe_journal::{Journal, Profile};
 use crate::clock::SystemClock;
 use marlowe_loop::{
-    ApprovalGate, Budget, CapabilityProfile, Engine, GovernanceConstraint,
+    ApprovalGate, Budget, CapabilityProfile, ClockSource, Engine, GovernanceConstraint,
     JournalRecorder, LoopOutcome, MemoryRecorder, NoControl, OutputContract, Ports, Provenance,
     Run, RunId, SessionId, SessionState, Summarizer, ToolLineState, TurnEvent, TurnSink,
+    MEMORY_TOKEN_BUDGET,
 };
 use marlowe_permission::scope::WorkspaceScope;
 use marlowe_permission::{BlastRadius, Tier};
@@ -62,6 +63,16 @@ pub struct DaemonConfig {
     /// and the assembler's window, so §6's 70% compaction trigger is computed against the window
     /// the provider actually has.
     pub context_tokens: u32,
+    /// The cross-encoder directory. `None` makes memory **write-only**, announced by
+    /// [`crate::memory::RetrievalState`] and printed by `--status`.
+    ///
+    /// Not required, deliberately, and this is the one place this session accepts an absent
+    /// dependency rather than a load-time error. The eval adapter requires it because a run without
+    /// it measures a different system under the same label; the product's failure mode is
+    /// different — refusing to start would make a 60 MB model an install-time dependency of being
+    /// able to talk at all, which is K6. What must never happen is retrieval silently not running,
+    /// and that is what the announcement closes.
+    pub reranking: Option<PathBuf>,
 }
 
 impl DaemonConfig {
@@ -78,6 +89,7 @@ impl DaemonConfig {
             dev: false,
             thinking: true,
             context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,
+            reranking: None,
         }
     }
 }
@@ -295,9 +307,30 @@ struct SessionMemory {
     provenance: Provenance,
 }
 
+/// The one place a tool host is built.
+///
+/// **A single constructor is the fix for a real gap**, not a tidy-up. `verify_every_exposed_tool_is_runnable`
+/// is only evidence about the turn if it is handed the same host the turn runs; two construction
+/// sites is two hosts that can drift, and the drift is invisible in the direction that matters —
+/// a runtime host missing an executor the verified one had would pass startup and fail on the call.
+fn build_tool_host(
+    workspace: &std::path::Path,
+    beliefs: std::sync::Arc<std::sync::Mutex<marlowe_memory::BeliefStore>>,
+) -> Result<crate::recall::RecallTools<FileSystemTools<WorkspaceScope>>, DaemonError> {
+    let scope = WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
+    Ok(crate::recall::RecallTools::new(
+        FileSystemTools::new(scope, workspace.to_path_buf()),
+        beliefs,
+    ))
+}
+
 pub struct Daemon {
     config: DaemonConfig,
-    journal: Journal,
+    /// One log, two writers inside a turn: the loop's recorder and the memory host.
+    journal: std::sync::Arc<std::sync::Mutex<Journal>>,
+    /// M2 Session D. `memory: None` used to be passed to every turn — which was concealing that
+    /// there was no single-claim write path to wire, not merely that it was unwired.
+    memory: crate::memory::DaemonMemory,
     runs: BTreeMap<String, RunSummary>,
     /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
     sessions: BTreeMap<String, SessionMemory>,
@@ -337,19 +370,6 @@ impl Daemon {
         // unverified platform and refused paths later would present as broken tools.
         WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
 
-        // **Refuse to start rather than offer a tool that cannot run.** A daemon that starts and
-        // then fails every `web` call presents as a broken model; this names the tool instead.
-        // Checked here, before a port is bound or a journal is opened, because it is a statement
-        // about the build and not about this machine.
-        {
-            let scope = WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
-            let host = FileSystemTools::new(scope, config.workspace.clone());
-            marlowe_loop::verify_every_exposed_tool_is_runnable(
-                CapabilityProfile::interactive().exposed_tools(),
-                &host,
-            )?;
-        }
-
         let profile = if config.profile_root.join("profile.json").exists() {
             Profile::open(&config.profile_root)
         } else {
@@ -365,13 +385,55 @@ impl Daemon {
             detail: e.to_string(),
         })?;
 
+        // **Shared, because one turn has two writers.** The loop records through it and the memory
+        // host signs through it, and a second `Journal` would be a second append-only log — the
+        // one thing this project's core abstraction says there is exactly one of. See
+        // `marlowe_loop::record::SharedJournalRecorder`.
+        let journal = std::sync::Arc::new(std::sync::Mutex::new(journal));
+
+        // **Beliefs are rebuilt from the log here**, which is what makes memory durable across a
+        // restart without any new persistence machinery. A derivation failure stops the daemon
+        // rather than starting it with an empty store: a silently forgotten store is
+        // indistinguishable from a first run, and would report itself healthy.
+        let memory = crate::memory::DaemonMemory::open(
+            std::sync::Arc::clone(&journal),
+            profile.manifest().derivation_version,
+            config.reranking.as_deref(),
+        )
+        .map_err(|e| DaemonError::Profile {
+            root: config.profile_root.display().to_string(),
+            detail: format!("the belief store could not be derived from the journal: {e}"),
+        })?;
+
+        // **Refuse to start rather than offer a tool that cannot run.** A daemon that starts and
+        // then fails every `recall` call presents as a broken model; this names the tool instead.
+        //
+        // **It verifies the host it will actually use.** Until M2 Session D this checked a bare
+        // `FileSystemTools` while the turn ran a different object — and when `recall` gained its
+        // executor the guard refused a daemon that could in fact run it. It failed loudly, which
+        // was luck: the same gap in the other direction — a runtime host with FEWER executors than
+        // the verified one — would pass here and fail on the turn, which is precisely the `done`
+        // defect that cost a run 155 seconds. `build_tool_host` is now the only way to construct
+        // one, so the two cannot differ.
+        marlowe_loop::verify_every_exposed_tool_is_runnable(
+            CapabilityProfile::interactive().exposed_tools(),
+            &build_tool_host(&config.workspace, memory.beliefs())?,
+        )?;
+
         Ok(Self {
             config,
             journal,
+            memory,
             runs: BTreeMap::new(),
             sessions: BTreeMap::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    /// What the retrieval half of memory is doing. Printed at startup; see
+    /// [`crate::memory::RetrievalState`].
+    pub fn memory_state(&self) -> &crate::memory::RetrievalState {
+        self.memory.state()
     }
 
     pub fn shutdown_handle(&self) -> Arc<AtomicBool> {
@@ -639,7 +701,19 @@ impl Daemon {
                 return;
             }
         };
-        let mut tools = FileSystemTools::new(tool_scope, self.config.workspace.clone());
+        // **`recall` gets its executor here.** STATE.md predicted the consequence: `consolidation()`
+        // exposes `recall`, so `verify_every_exposed_tool_is_runnable` would refuse the moment
+        // memory was wired — *"the guard firing then is the guard working"*. It fires against a
+        // host that can now answer, which is the resolution rather than an exemption.
+        let _ = tool_scope;
+        let mut tools = match build_tool_host(&self.config.workspace, self.memory.beliefs()) {
+            Ok(h) => h,
+            Err(e) => {
+                mark(&mut self.runs, "failed", 0);
+                on_event(Event::Error { detail: e.to_string() });
+                return;
+            }
+        };
         let mut summarizer = PassthroughSummarizer;
         let mut sink = CallbackSink { on_event: &mut on_event };
         let mut control = NoControl;
@@ -683,14 +757,51 @@ impl Daemon {
             TrustClass::UserAsserted,
         ));
 
+        // ── §4.2 retrieval, before the model speaks ────────────────────────────────────
+        //
+        // **M2 Session D, and the half that makes memory a product feature rather than a
+        // measurement.** `select_for_injection` had exactly one caller — the eval adapter — so
+        // conformance, `repro` and the poisoning suite all exercised injection while the daemon,
+        // the thing a person actually talks to, contained no retrieval at all. A property measured
+        // on one path and claimed for another is this project's most-logged mistake, and D2 shipped
+        // it before D2b caught it.
+        //
+        // **§B1 is binding: none of this is visible in the interface.** No banner, no citation, no
+        // tool line. The user experiences memory through Marlowe knowing things. The diagnostic
+        // goes to the daemon's stderr under `--dev` only.
+        //
+        // The block carries the memories' own trust floor, never a class chosen here. Injecting an
+        // untrusted memory at a higher class is precisely the laundering §3.3 exists to close, and
+        // `ContextView::trust_floor` is `min` over all blocks including this one — so a recalled
+        // web-derived belief correctly drops the run's floor and blocks composed targets.
+        let now_for_memory = clock.now_ms();
+        let retrieved = self.memory.retrieve(session, message, now_for_memory, MEMORY_TOKEN_BUDGET);
+        if self.config.dev {
+            eprintln!(
+                "[dev] memory: {} · injected {} · margin {:?} · abstained {:?}",
+                self.memory.state().headline(),
+                retrieved.count,
+                retrieved.margin,
+                retrieved.abstention.map(|a| a.as_str()),
+            );
+        }
+        if !retrieved.is_empty() {
+            state.push(marlowe_loop::Block::new(
+                marlowe_loop::SourceKind::InjectedMemory,
+                retrieved.text.clone(),
+                retrieved.floor,
+            ));
+        }
+
         let trace = run.trace_id;
-        let mut recorder = JournalRecorder::new(&mut self.journal, trace);
+        let mut recorder =
+            marlowe_loop::record::SharedJournalRecorder::new(std::sync::Arc::clone(&self.journal), trace);
         let outcome = {
             let mut ports = Ports {
                 driver: &mut driver,
                 summarizer: &mut summarizer,
                 tools: &mut tools,
-                memory: None,
+                memory: Some(&mut self.memory),
                 approvals,
                 sink: &mut sink,
                 control: &mut control,

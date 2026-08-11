@@ -180,7 +180,16 @@ impl CapabilityProfile {
         // it has an executor now (`marlowe-exec`, fetch-only over `marlowe-net`), so
         // `verify_every_exposed_tool_is_runnable` permits it. It was removed and restored by the
         // same check, without anyone having to remember either time.
-        let tools = ["read", "edit", "find", "bash", "web", "ask", "remember", "run"]
+        // **`recall` joined in M2 Session D**, by the same rule that brought `web` back in C2f: it
+        // has an executor now (`crate::recall` in the daemon, over the belief store), so
+        // `verify_every_exposed_tool_is_runnable` permits it. Exposing it is what makes memory
+        // reachable at all — auto-injection is gated at 10% coverage and withholds unmatured
+        // beliefs entirely, so without this tool a memory written a minute ago is unreachable by
+        // any path. §5.5: *"recall recovered by making the agent's explicit memory search tool
+        // excellent."*
+        //
+        // `use` remains unexposed: still no executor.
+        let tools = ["read", "edit", "find", "bash", "web", "recall", "ask", "remember", "run"]
             .iter()
             .map(|t| ToolId::new(*t))
             .collect();
@@ -371,11 +380,22 @@ mod tests {
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        // **Eight, not ten.** `recall` and `use` are registered and unimplemented; exposing them
-        // handed the model tools it could call and never execute. `web` rejoined in M2 C2f when
-        // it gained an executor — removed and restored by the same guard, without anyone having
-        // to remember either time.
-        assert_eq!(i.exposed_tools().len(), 8);
+        // **Nine, not ten.** `use` is registered and unimplemented; exposing it would hand the
+        // model a tool it could call and never execute. `web` rejoined in M2 C2f and `recall` in
+        // M2 Session D, each when it gained an executor — added and removed by the same guard,
+        // without anyone having to remember either time. That is the whole point of
+        // `verify_every_exposed_tool_is_runnable`: the exposed set is derived from what is
+        // runnable rather than maintained beside it.
+        assert_eq!(i.exposed_tools().len(), 9);
+        assert!(
+            i.exposed_tools().iter().any(|t| t.as_str() == "recall"),
+            "recall is what makes a memory written a minute ago reachable at all: auto-injection \
+             withholds unmatured beliefs and covers 10% of queries even after they mature"
+        );
+        assert!(
+            !i.exposed_tools().iter().any(|t| t.as_str() == "use"),
+            "`use` still has no executor"
+        );
         assert_eq!(
             *i.egress(),
             EgressPolicy::AllowApproved { granted: Vec::new() },

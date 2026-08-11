@@ -379,6 +379,13 @@ impl ContextView {
     }
 }
 
+/// §5.7's memory budget, in tokens.
+///
+/// Named rather than repeated: the assembler's per-source cap and the number a retrieval call is
+/// given must be the same one, or the caller asks for more than the view will keep and the
+/// difference is invisible.
+pub const MEMORY_TOKEN_BUDGET: u32 = 7_000;
+
 /// §6's compaction trigger. **Never at exhaustion.**
 pub const COMPACTION_TRIGGER: f32 = 0.70;
 
@@ -412,7 +419,7 @@ impl SourceBudgets {
         by_source.insert(SourceKind::ToolResults, pct(20));
         // §5.7's budget, in absolute tokens rather than a percentage: it is a pinned figure
         // that K1's precision numbers are *defined* at, so it must not scale with the window.
-        by_source.insert(SourceKind::InjectedMemory, 7_000);
+        by_source.insert(SourceKind::InjectedMemory, MEMORY_TOKEN_BUDGET);
         by_source.insert(SourceKind::ChildResults, pct(5));
         Self { by_source }
     }

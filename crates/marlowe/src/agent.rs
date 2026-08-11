@@ -36,8 +36,10 @@ pub fn serve(
     dev: bool,
     context: Option<u32>,
     thinking: bool,
+    reranking: Option<PathBuf>,
 ) -> Result<(), String> {
     let mut config = DaemonConfig::new(profile_root, workspace);
+    config.reranking = reranking;
     if let Some(p) = port {
         config.port = p;
     }
@@ -53,6 +55,10 @@ pub fn serve(
     );
     let port = config.port;
     let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
+    // **Announced, never inferred.** ADR-029's rule applied to memory: a daemon whose retrieval
+    // half is not running behaves exactly like one whose store is empty, and those are very
+    // different facts to a person wondering why Marlowe does not remember.
+    eprintln!("marlowe: memory retrieval {}", daemon.memory_state().headline());
     eprintln!("marlowe: daemon listening on 127.0.0.1:{port}");
     eprintln!("marlowe: runs are owned here and survive the client that started them");
     daemon.serve().map_err(|e| e.to_string())

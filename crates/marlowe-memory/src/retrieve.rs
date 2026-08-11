@@ -22,6 +22,7 @@ use crate::cue::dense::{self, vectors::VectorStore};
 use crate::cue::lexical;
 use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
+use crate::operating_point::{Abstention, OperatingPoint};
 use crate::probe::{Stage, StageProbe};
 use crate::rerank::CrossEncoder;
 use crate::store::BeliefStore;
@@ -176,7 +177,20 @@ fn surviving_sessions(
 /// no path where a calibrated stamp can be produced without a calibrated gate.
 pub enum Scoring<'a> {
     /// The shipping path.
-    Gated(&'a FrozenGate),
+    ///
+    /// **`operating_point` is a required field, not an `Option`.** K1 condition 3 is binding: a
+    /// configuration that injects at low precision to raise coverage fails outright. A nullable
+    /// cut point would be a path where injection happens with no declared operating point, which
+    /// is the thing the criterion forbids — and it would be reached by forgetting an argument
+    /// rather than by deciding anything.
+    ///
+    /// It is a field on `Gated` rather than a third variant because the absence of a
+    /// "gate is optional" variant is the point (see the enum's own doc), and the same reasoning
+    /// applies here: there is no calibrated injection without a calibrated cut point.
+    Gated {
+        gate: &'a FrozenGate,
+        operating_point: &'a OperatingPoint,
+    },
     /// Feature-dump mode, used only by `tools/fit_gate.py`. Computes features so they can be
     /// written to a side file, calibrates nothing, and gates nothing — so it selects exactly
     /// as Session A did (recency, then the budget) and stamps `uncalibrated-fit-only`.
@@ -278,6 +292,24 @@ pub struct Selection<'a> {
     pub reranked: u32,
     /// How many distinct sessions [`session_keys`] derived from the scoped candidates.
     pub derived_sessions: u32,
+
+    /// The rank-1 minus rank-2 **cross-encoder** margin on the shipped ranking key — the quantity
+    /// the declared operating point thresholds.
+    ///
+    /// **Not [`ScoredCandidate::margin`]**, which is the winning *cue's* lead over its own runner-up
+    /// in that cue's raw units. Two different numbers whose names differ by a word, and the
+    /// published curve is computed on this one.
+    ///
+    /// `None` means the margin is not defined for this query — fewer than two candidates, or rank 1
+    /// or rank 2 outside the rerank budget. [`Selection::abstention`] says which.
+    pub rerank_margin: Option<f32>,
+
+    /// Why nothing was injected, when nothing was. `None` means something was.
+    ///
+    /// Recorded rather than left to be inferred from an empty `injected`: "abstained because the
+    /// margin was below the cut point" and "abstained because there were no candidates at all" are
+    /// different facts about the system, and only one of them is the operating point doing its job.
+    pub abstention: Option<Abstention>,
 }
 
 /// Dense cosine for every candidate, in the candidate set's order.
@@ -399,7 +431,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
         .iter()
         .zip(vectors.into_iter())
         .map(|(entry, f)| match scoring {
-            Scoring::Gated(gate) => {
+            Scoring::Gated { gate, .. } => {
                 let v = gate.judge(&f);
                 ScoredCandidate {
                     entry,
@@ -448,7 +480,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     // lever and needs its own registration.
     probe.enter(Stage::Prune);
     let mut pruning_applied = false;
-    if matches!(scoring, Scoring::Gated(_)) {
+    if matches!(scoring, Scoring::Gated { .. }) {
         let keys = session_keys(&scoped, SESSION_GAP_MS);
         for (candidate, key) in scored.iter_mut().zip(keys.iter()) {
             candidate.session_key = *key;
@@ -530,8 +562,24 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     probe.enter(Stage::Assemble);
     let mut order: Vec<usize> = (0..scored.len()).collect();
     match scoring {
-        Scoring::Gated(_) => {
-            order.retain(|i| scored[*i].passes);
+        Scoring::Gated { .. } => {
+            // **The isotonic gate no longer filters, and this is ADR-019 rather than a relaxation.**
+            //
+            // `order.retain(|i| scored[*i].passes)` used to run here. Per ADR-016 the frozen gate's
+            // smallest expressible operating point spans 100% of queries — a *perfect* retrieval
+            // system scores 0.8483 against a 0.95 threshold — so `passes` is false for every
+            // candidate and this line emptied the order on every query. That is why nothing has
+            // ever been injected, and it is not a statement about retrieval quality.
+            //
+            // K1 was amended (ADR-019) to replace the single-point criterion with a published
+            // curve and a *declared operating point* on the rank-1/rank-2 rerank margin, precisely
+            // because the gate cannot express a confident subset. That point is now the admission
+            // rule, applied below. Keeping this retain as well would AND the two, injection would
+            // stay dead, and the change would be undetectable — which is what
+            // `runs/m2-session-d/PREDICTION.md` predicted and then caught.
+            //
+            // `passes` is still computed, still dumped, and still reported as `above_threshold`.
+            // It no longer decides.
             // Three levels, declared in `runs/session-e/PREREGISTRATION.json` BEFORE the fit.
             //
             // Both scoring levels are CONTINUOUS and query-local, which is the ADR-010 constraint
@@ -583,13 +631,65 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
             });
         }
     }
-    let above_threshold = order.len() as u32;
+    // Still "how many cleared the gate's threshold", which is what the field has always meant and
+    // what the eval report reads. Counted directly now that the order is no longer filtered by it —
+    // deriving it from `order.len()` would silently redefine it as "how many were scored".
+    let above_threshold = scored.iter().filter(|c| c.passes).count() as u32;
+
+    // ── K1 condition 3: the declared operating point, and the abstention path ──────────
+    //
+    // **The published point is a TOP-1 claim.** `publish_precision_coverage.py` scores a query
+    // correct when `c["gold"][i1]` — rank 1 alone. Nothing was ever measured about rank 2, so
+    // injecting a slate at this threshold would be quoting a precision nobody computed. Hence at
+    // most one memory, and the §5.7 token budget becomes an upper bound that does not bind.
+    //
+    // **It REPLACES the isotonic gate's `passes` filter rather than stacking on it.** Per ADR-016
+    // the frozen gate's smallest expressible operating point spans 100% of queries — a perfect
+    // retrieval system scores 0.8483 against a 0.95 threshold — so `passes` is false for
+    // everything and nothing has ever been injected. ANDing the two would leave injection dead and
+    // the change undetectable. ADR-019 replaced the single-point criterion with a published curve
+    // and a declared point exactly because the gate cannot express a confident subset.
+    let (cut, gate_ordered) = match scoring {
+        Scoring::Gated { operating_point, .. } => (Some(*operating_point), true),
+        Scoring::FitDump => (None, false),
+    };
+
+    let mut rerank_margin: Option<f32> = None;
+    let mut abstention: Option<Abstention> = None;
+    // The two logits the decision reads. Extracted here; judged by
+    // `operating_point::decide`, which is a pure function so the rule can be tested without a
+    // 60 MB ONNX graph. See its doc for why that matters.
+    let rank_one = order.first().and_then(|i| scored[*i].rerank_score);
+    let rank_two = order.get(1).and_then(|i| scored[*i].rerank_score);
+
+    // Under `FitDump` the old behaviour is preserved exactly: no cut point, fill the budget by
+    // recency. `tools/fit_gate.py` reads the dump rather than the injected set, and a fit run that
+    // changed shape here would calibrate against a candidate set no scoring run ever has.
+    let admitted: Vec<usize> = if let Some(op) = cut {
+        let verdict = crate::operating_point::decide(
+            order.len(),
+            !matches!(rerank, Rerank::Off),
+            rank_one,
+            rank_two,
+            op,
+        );
+        rerank_margin = verdict.margin;
+        abstention = verdict.abstention;
+        if verdict.admit_rank_one {
+            vec![order[0]]
+        } else {
+            Vec::new()
+        }
+    } else {
+        order
+    };
+    let _ = gate_ordered;
 
     let mut injected = Vec::new();
     let mut tokens = 0u32;
     let mut budget_exhausted = false;
 
-    for index in order {
+    for index in admitted {
         let candidate = &scored[index];
         let cost = estimate_tokens(&candidate.entry.text);
         if tokens + cost > max_tokens {
@@ -634,6 +734,8 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
         pruning_applied,
         reranked,
         derived_sessions,
+        rerank_margin,
+        abstention,
     }
 }
 
@@ -658,6 +760,17 @@ mod tests {
     use super::*;
     use crate::entry::MATURATION_WINDOW_MS;
     use marlowe_contract::{PayloadKind, TrustClass};
+
+    /// The **shipped** operating point, not a convenient one.
+    ///
+    /// These tests predate the cut point and were written against a path that injected whatever
+    /// cleared the gate. They all run `Rerank::Off`, so under the declared point they now abstain
+    /// with [`Abstention::NoReranker`] — which is the correct new behaviour and is asserted
+    /// directly in `injection_operating_point.rs` rather than being smuggled in here by loading a
+    /// threshold chosen to keep old assertions green.
+    fn op() -> OperatingPoint {
+        OperatingPoint::load().expect("the shipped artifact")
+    }
 
     fn entry(id: &str, session: &str, text: &str, created: i64) -> MemoryEntry {
         MemoryEntry {
@@ -773,20 +886,35 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
         );
         assert_eq!(sel.scoped, 2, "both were scored");
         assert_eq!(sel.above_threshold, 1, "only one cleared the threshold");
-        assert_eq!(sel.injected.len(), 1);
-        assert_eq!(sel.injected[0].memory_id, "m-a");
-        assert!(sel.injected[0].calibrated_precision >= crate::gate::THRESHOLD);
+
+        // **The gate's filtering is this test's subject and it is unchanged.** What changed is
+        // what happens next: the gate's verdict no longer decides injection on its own. Per
+        // ADR-016 the isotonic gate cannot express a confident subset — its smallest operating
+        // point spans 100% of queries — so K1's declared cut point on the rerank margin is what
+        // admits, and with `Rerank::Off` there is no margin at all.
+        //
+        // The surviving candidate is still identifiable in `scored`, which is what the feature
+        // dump and every offline number are computed over. Asserting it there keeps the property
+        // the test is named for without asserting the old injection behaviour.
+        let passed: Vec<&str> =
+            sel.scored.iter().filter(|c| c.passes).map(|c| c.entry.id.as_str()).collect();
+        assert_eq!(passed, vec!["m-a"], "the gate still picks the same candidate");
+        let winner = sel.scored.iter().find(|c| c.passes).unwrap();
+        assert!(winner.calibrated_precision >= crate::gate::THRESHOLD);
         assert!(
-            sel.injected[0].score > 0.0,
-            "the wire carries the winning cue's z -- a real score, not Session A's zero"
+            winner.score > 0.0,
+            "the winning cue's z is a real score, not Session A's zero"
         );
+
+        assert!(sel.injected.is_empty(), "no reranker, no margin, no injection");
+        assert_eq!(sel.abstention, Some(Abstention::NoReranker));
     }
 
     #[test]
@@ -825,7 +953,7 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
@@ -874,7 +1002,7 @@ mod tests {
             "quarterly headcount forecast",
             now,
             7000,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
@@ -898,7 +1026,7 @@ mod tests {
             "why is the ingest job timing out",
             now,
             7000,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
@@ -922,8 +1050,8 @@ mod tests {
         let gate = test_gate();
         let beliefs = store();
         let ids = |s: &Selection| s.injected.iter().map(|i| i.memory_id.clone()).collect::<Vec<_>>();
-        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None, &mut Rerank::Off);
-        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated(&gate), &VectorStore::default(), None, &mut Rerank::Off);
+        let a = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op() }, &VectorStore::default(), None, &mut Rerank::Off);
+        let b = select_for_injection(&beliefs, "s-1", "ingest job", now, 7000, &Scoring::Gated { gate: &gate, operating_point: &op() }, &VectorStore::default(), None, &mut Rerank::Off);
         assert_eq!(ids(&a), ids(&b));
     }
 
@@ -1038,7 +1166,7 @@ mod tests {
             "ingest",
             now,
             7000,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
@@ -1068,14 +1196,23 @@ mod tests {
             "why is the ingest job timing out",
             now,
             1,
-            &Scoring::Gated(&gate),
+            &Scoring::Gated { gate: &gate, operating_point: &op() },
             &VectorStore::default(),
             None,
             &mut Rerank::Off,
         );
         assert_eq!(sel.above_threshold, 1, "the gate still passed it");
-        assert!(sel.budget_exhausted, "and the budget is what cut it");
         assert!(sel.injected.is_empty());
         assert!(sel.retrieval_tokens <= 1);
+        // **`budget_exhausted` is no longer what stops this, and that is the change rather than a
+        // regression.** With no cross-encoder there is no margin, so the declared operating point
+        // abstains *before* the budget loop is reached — nothing is admitted, so nothing can be
+        // cut. The budget's own behaviour is unchanged and is still exercised wherever a memory is
+        // admitted; what moved is which guard fires first on this fixture.
+        assert_eq!(
+            sel.abstention,
+            Some(Abstention::NoReranker),
+            "the operating point decides before the budget does"
+        );
     }
 }

@@ -1584,10 +1584,16 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             unreachable!("not called")
         }
         fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-            // **`web` joined in M2 C2f and this stub had to follow**, which is the guard working
-            // in the direction nobody writes a test for: it fires when the shipped profile grows
-            // a tool the host does not claim, not only when a host shrinks.
-            ["read", "edit", "find", "bash", "web"]
+            // **`web` joined in M2 C2f and `recall` in M2 Session D; this stub had to follow both
+            // times**, which is the guard working in the direction nobody writes a test for: it
+            // fires when the shipped profile grows a tool the host does not claim, not only when a
+            // host shrinks. Twice now the failure has been a correct refusal rather than a bug.
+            //
+            // `recall`'s real executor is `marlowe_daemon::recall::RecallTools`, because it needs
+            // the belief store and `marlowe-exec` must not learn about beliefs. That is why this
+            // crate's stub names it rather than running it — and why the daemon verifies **the host
+            // it will actually use**, a gap that was open until Session D closed it.
+            ["read", "edit", "find", "bash", "web", "recall"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()

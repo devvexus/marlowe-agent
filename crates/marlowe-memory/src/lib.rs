@@ -17,21 +17,25 @@
 
 #![forbid(unsafe_code)]
 
+pub mod claim;
 pub mod consolidate;
 pub mod cue;
 pub mod entry;
 pub mod error;
 pub mod gate;
 pub mod ingest;
+pub mod operating_point;
 pub mod probe;
 pub mod rerank;
 pub mod retrieve;
 pub mod store;
 pub mod trust;
 
+pub use claim::{remember_claim, ClaimRejected, ClaimWrite, WriteReceipt};
 pub use entry::{memory_id, MemoryEntry, MemoryId, MATURATION_WINDOW_MS};
 pub use error::MemoryError;
 pub use gate::{FrozenGate, GateError, FIT_ONLY_VERSION, GATE_VERSION, THRESHOLD};
 pub use ingest::{ingest, IngestOutcome};
+pub use operating_point::{Abstention, OperatingPoint, OperatingPointError};
 pub use store::{BeliefStore, DERIVATION_VERSION};
 pub use trust::{check_actor, effective_trust, trust_for_channel, RejectionReason};

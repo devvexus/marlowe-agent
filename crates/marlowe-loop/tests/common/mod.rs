@@ -160,11 +160,31 @@ impl TurnSink for CollectingSink {
 #[derive(Default)]
 pub struct RecordingMemory {
     pub claims: Vec<ClaimRequest>,
+    /// The run floor each claim arrived with. **Recorded rather than ignored**: ADR-038 makes the
+    /// floor the deciding input to a claim's trust class, and a double that dropped it would let
+    /// every write-path test pass while the loop handed down whatever it liked.
+    pub floors: Vec<marlowe_contract::TrustClass>,
+    /// The session each claim was scoped to. Recorded for the same reason as `floors`: a claim
+    /// written to the wrong session is retrievable by nobody, and nothing else would notice.
+    pub sessions: Vec<marlowe_loop::run::SessionId>,
+    /// The clock reading each claim was written at. Recorded so a test can assert the memory write
+    /// and the run share one time base rather than two.
+    pub times: Vec<i64>,
 }
 
 impl MemoryHost for RecordingMemory {
-    fn remember(&mut self, _run: RunId, claim: &ClaimRequest) -> Result<String, String> {
+    fn remember(
+        &mut self,
+        _run: RunId,
+        session: marlowe_loop::run::SessionId,
+        claim: &ClaimRequest,
+        run_floor: marlowe_contract::TrustClass,
+        now_ms: i64,
+    ) -> Result<String, String> {
         self.claims.push(claim.clone());
+        self.floors.push(run_floor);
+        self.sessions.push(session);
+        self.times.push(now_ms);
         Ok(format!("m-{}", self.claims.len()))
     }
 }

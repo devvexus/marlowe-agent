@@ -1050,6 +1050,7 @@ dependencies = [
  "marlowe-exec",
  "marlowe-journal",
  "marlowe-loop",
+ "marlowe-memory",
  "marlowe-permission",
  "marlowe-provider",
  "marlowe-tools",

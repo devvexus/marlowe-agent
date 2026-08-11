@@ -9,6 +9,7 @@ marlowe-contract.workspace = true
 marlowe-exec.workspace = true
 marlowe-journal.workspace = true
 marlowe-loop.workspace = true
+marlowe-memory.workspace = true
 marlowe-permission.workspace = true
 marlowe-provider.workspace = true
 marlowe-tools.workspace = true

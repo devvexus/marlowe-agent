@@ -260,6 +260,13 @@ fn main() {
                 args.iter().any(|a| a == "--dev"),
                 context,
                 thinking,
+                // **Optional here, unlike `--eval-adapter`, and the difference has a reason.**
+                // A scoring run without it measures a different system under the same label, so
+                // there it is a refusal. For the product the failure mode is the opposite: making
+                // a 60 MB model an install-time dependency of being able to talk is K6's
+                // five-minute target gone. Absent, memory is WRITE-ONLY and says so at startup and
+                // on `--status` — announced rather than silently degraded.
+                flag_value(&args, "--reranking").map(PathBuf::from),
             ),
             "--status" => agent::status(workspace, profile_root),
             "--shutdown" => agent::shutdown(

@@ -235,13 +235,13 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     assert_eq!(registry.len(), 10);
 
     let profile = CapabilityProfile::interactive();
-    // **Registered is ten; exposed is eight.** `recall` and `use` are compiled in and have no
-    // executor, so exposing them would hand the model tools it could call and never run. The gap
-    // between these two numbers is the honest statement of what is built — and
+    // **Registered is ten; exposed is nine.** `use` alone is compiled in with no executor, so
+    // exposing it would hand the model a tool it could call and never run. The gap between these
+    // two numbers is the honest statement of what is built — and
     // `verify_every_exposed_tool_is_runnable` is what keeps it from closing by accident. `web`
-    // moved across that gap in M2 C2f by gaining an executor, which is the guard working in the
-    // direction nobody tests for.
-    assert_eq!(profile.exposed_tools().len(), 8);
+    // crossed that gap in M2 C2f and **`recall` in M2 Session D**, each by gaining an executor,
+    // which is the guard working in the direction nobody tests for.
+    assert_eq!(profile.exposed_tools().len(), 9);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");

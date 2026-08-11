@@ -32,6 +32,8 @@ pub mod client;
 pub mod clock;
 pub mod daemon;
 pub mod live;
+pub mod memory;
+pub mod recall;
 pub mod project;
 mod staleness;
 pub mod protocol;

@@ -38,7 +38,7 @@ pub mod turn;
 pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS};
 pub use context::{
     estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
-    SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, WireTurn, WireToolCall};
+    SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, MEMORY_TOKEN_BUDGET, WireTurn, WireToolCall};
 pub use control::{EphemeralControl, ResumeError, RunControl};
 pub use driver::{ToolInvocation, 
     ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,

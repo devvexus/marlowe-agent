@@ -279,7 +279,57 @@ pub const CONTROL_TOOLS: [&str; 3] = ["ask", "remember", "run"];
 /// The memory port. Wired to `marlowe-memory` in Session D.
 pub trait MemoryHost {
     /// Adjudicate, stamp, sign, append — or reject. There is no other write path.
-    fn remember(&mut self, run: crate::run::RunId, claim: &ClaimRequest) -> Result<String, String>;
+    ///
+    /// # `run_floor` is required, and passing it is the whole of ADR-038
+    ///
+    /// A model-authored claim is written at `min(AgentInferred, run_floor)`. `trust_for_channel`
+    /// cannot answer this — it is total over `Channel` with no default arm, and a model is not a
+    /// channel, correctly, because §3.3 binds trust to *origin* and the model is not an origin.
+    ///
+    /// **Bare `AgentInferred` is a laundering path and it is reachable today.** A run that fetches
+    /// a page and then calls `remember` would write attacker-shaped text one full class above
+    /// `UntrustedContent`, with the page's origin nowhere in the record, and that memory would then
+    /// compete for rank 1 at injection on equal terms with everything else. `profile.rs`'s
+    /// `reads_untrusted && may_write_memory` guard does not cover it: that closes the *quarantined
+    /// reader*, and an ordinary `interactive()` run reads untrusted content and may write memory,
+    /// both by design.
+    ///
+    /// **It is a parameter rather than something the implementation reaches for**, for the same
+    /// reason `Provenance::taint_for` takes `latched` rather than deriving it: the run owns the
+    /// latch, the latch is monotonic, and a host that re-derived the floor could derive a higher
+    /// one. Writing a memory composes a *durable* target out of run content — the longest-lived
+    /// composition the system performs — so this is the one place the latch must not be computed
+    /// and then discarded.
+    ///
+    /// The implementation applies the `min`, not the caller: the trust computation belongs in the
+    /// crate that owns §3.3, and a loop that handed down a finished class would be a second
+    /// implementation of it.
+    /// # `session` is required, and without it a written claim is unreachable
+    ///
+    /// Retrieval scopes candidates by `e.source_session_id == session_id`. A claim written with no
+    /// session — or with a placeholder — is a belief that exists, is signed, is durable, and can
+    /// **never be retrieved**. That failure is silent in exactly the wrong way: `remember` returns
+    /// a receipt, the journal shows the write, and every later query behaves as though the memory
+    /// were not there.
+    ///
+    /// Taken as a parameter rather than held on the host because one host serves every session.
+    /// It mirrors `Recorder::append`, which takes run **and** session for the same reason.
+    /// # `now_ms` comes from the run's clock, and a host must never read its own
+    ///
+    /// A belief's `created_at` and its maturation deadline are the same time base the run is
+    /// journalled against. A memory host reading a system clock would put the write at a different
+    /// instant from the `MemoryWritten` event recording it — two components disagreeing about now,
+    /// in a log whose whole value is that it can be replayed. §4.5's rule is scoped to the §4.1/4.6
+    /// paths; this is the same discipline applied where it is not strictly required, because the
+    /// alternative is a second clock nobody declared.
+    fn remember(
+        &mut self,
+        run: crate::run::RunId,
+        session: crate::run::SessionId,
+        claim: &ClaimRequest,
+        run_floor: marlowe_contract::TrustClass,
+        now_ms: i64,
+    ) -> Result<String, String>;
 }
 
 /// The surface port. Render-only: §2.14, surfaces hold no policy.

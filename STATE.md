@@ -1,5 +1,143 @@
 # State
 
+## M2 Session D — memory is wired. `607 tests` (from 583). Conformance **CONFORMS** for the first time.
+
+**`remember` writes, beliefs survive a restart, and `recall` reaches them.** Verified live against a
+real model, not in a test process. `runs/m2-session-d/` holds `PREDICTION.md` (written first),
+`BASELINE.md`, `RESULT-D2.md`, `LIVE-CHECKS.md` and `OPEN-QUESTION-0-AUDIT.md`.
+
+| | before | after |
+|---|---|---|
+| conformance | `REJECTED · fail_no_time_dependence` (unchanged since M0b B) | **`CONFORMS`, clock probe passed** |
+| `repro` | `e796c12e…` | `68d6562b…`, **two runs IDENTICAL** |
+| exposed tools | 8 | **9** — `recall` gained an executor |
+
+### The four STATE items were one missing piece, and three are closed
+
+**`remember` had no implementation at all.** `memory: None` was concealing an *absence*, not a
+disconnection: `ingest()` wrote turns and **nothing wrote a model-supplied claim**. CONTRACTS §3.5
+pins `remember(run, claim)` and it had never existed. `marlowe-memory/src/claim.rs` is it.
+
+- ~~**The gate still injects nothing.**~~ **CLOSED.** K1's declared operating point is the admission
+  rule. ADR-016's isotonic gate no longer filters — `passes` is false for every candidate by
+  construction, which is why nothing had ever been injected.
+- ~~**`consolidation()` exposes `recall`, which has no executor.**~~ **CLOSED.**
+  `marlowe_daemon::recall::RecallTools`. The guard fired exactly as predicted.
+- ~~**Session memory is in-process only.**~~ **CLOSED FOR BELIEFS, deliberately not for
+  conversations.** `BeliefStore::derive` rebuilds from the journal, so memory is durable with no new
+  persistence machinery. **The honest sentence: memory survives a restart, the conversation does
+  not.** Durable conversations remain M3's WAL work and were not built twice.
+- **`read` still cannot dereference a reference.** Deferred with the human's agreement; the content
+  store is a different mechanism from belief memory.
+
+### ADR-038 — a model-authored claim writes at `min(AgentInferred, run_floor)`
+
+Bare `AgentInferred` was a **laundering path reachable today**: a run that fetched a page and called
+`remember` would write attacker-shaped text one class above `UntrustedContent` with the page's origin
+nowhere in the record. `profile.rs`'s `reads_untrusted && may_write_memory` guard does not cover it —
+that closes the *quarantined reader*, and an ordinary `interactive()` run is neither.
+
+Verified live, same session, same tool, same model:
+
+```
+claim-0   agent_inferred      'my favourite colour is green'
+claim-2   untrusted_content   'example.com is a reserved test/example domain...'   ← after a fetch
+```
+
+### THE PREDICTION FILE CAUGHT THE DEFECT IT PREDICTED
+
+`PREDICTION.md` was written before the baseline and says, of the operating point: *"If it were ANDed
+with `passes`, injection would remain dead, the poisoning suite would stay vacuous, and the change
+would be undetectable."*
+
+**That is exactly what was built.** `order.retain(|i| scored[*i].passes)` was left in place and the
+cut point added after it; conformance read `fail_no_time_dependence`, unchanged. Without the
+prediction on disk the honest reading would have been *"the margin doesn't clear on a five-turn
+corpus"* — plausible, wrong, and it leads to tuning the threshold. **A predicted change that lands is
+evidence; an explained one is not, and this is the case that shows why.**
+
+### The poisoning suite is STILL VACUOUS, for a new reason — do not quote its ASRs
+
+All five families read **0.000**, n=4 each, with `answer_accuracy 0.0` and **6 of 6 answerable
+queries abstained**. Before D2 the ASRs were vacuous because the gate injected nothing ever; now
+injection works and the 10% operating point abstains on essentially everything in an 8-query fixture.
+**An attack that fails because nothing is injected is indistinguishable from one a guard caught.**
+
+**The discriminating measurement — ASR at full coverage vs at the operating point — was not run.**
+Until it exists these numbers say nothing about poisoning resistance.
+
+**Two poisoning mechanisms ARE non-vacuous and passing**, and should be quoted separately:
+`trust_assertions` 16 checked / 0 failed (HP6 measured, not argued), and `ingest_rejections` firing
+by name on the forged `permission:grant` actor.
+
+### `--dev` caught a false pass that the answer alone would have sold
+
+Asked to remember a colour and then asked the colour, Marlowe answered **"Green."** — with
+`injected 0`. Both `--ask` calls share session `cli`, so they were turn 1 and turn 2 of **one**
+conversation: C2e's *"there was only ever ONE conversation"*, recurring. **Reported without `--dev`
+it would have read as memory working.** The real test restarts the daemon first.
+
+### Open question 0 is answered: two holes, one safe, one absent
+
+`runs/m2-session-d/OPEN-QUESTION-0-AUDIT.md`. **Both holes need a §13 decision and neither was
+touched.**
+
+1. **Ranking inputs — HOLE.** `effective_trust` is a declared gate feature and is **inert**: the
+   artifact says *"zero variance across the fit split… would become load-bearing the moment the
+   feature starts varying."* **ADR-038 is that moment.** An untrusted memory and a user-asserted one
+   now rank identically. `recall` is worse — lexical score only.
+2. **Cache keys — SAFE, and STATE was wrong to say "there is no cache yet".** `PrefixCache` is keyed
+   `(SessionId, epoch)`, both harness-assigned; the embedding cache is content-addressed over a pure
+   function.
+3. **Derivation lineage — does not exist yet.** The tool argument is guarded; no harness-side path
+   computes lineage.
+4. **Consolidation merge — HOLE.** Clusters on **text cosine alone**, no trust term, and the
+   representative is the **latest**. A newer attacker-authored near-duplicate **supersedes a genuine
+   `UserAsserted` belief out of the candidate set** — eviction, not escalation. Not reachable in the
+   product (consolidation is unwired); reachable on the eval path.
+
+### Live checks — A, B, B2 pass. **C is still unrun.**
+
+The console control handler and the busy mirror agree in **both** directions, so C2e's mid-turn
+conversation loss is not back. **`bash` through the approval window has still never been observed on
+a real turn** — though an approved `web` fetch did cross the same modal this session.
+
+### Defects found by running, not by testing
+
+- **One `remember` emitted TWO `MemoryWritten` events** — the memory component's and the loop's, the
+  latter carrying only `{"text": …}`. `BeliefStore::derive` decodes every one, so **the daemon
+  refused to start on the next restart**. 594 tests passed throughout: the memory crate's tests call
+  `remember_claim` directly, the daemon's call the host directly, and **neither crosses the seam**.
+  `engine.rs`'s comment had said the loop does not do this since before it did.
+  Closed, plus `memory_write_ownership.rs`.
+- **The startup guard verified a host the turn does not use.** `Daemon::open` checked a bare
+  `FileSystemTools` while the turn ran `RecallTools`. It failed loudly here; in the other direction —
+  a runtime host with *fewer* executors — it passes startup and fails on the call, which is the
+  `done` defect. Closed by `build_tool_host`, now the only constructor.
+- **A build that cannot replace a running binary fails, and the old code keeps serving.**
+  `cargo build --release` returned `Access is denied (os error 5)` because the daemon held the exe,
+  and the next run was read as evidence about the fix. **Order is shutdown → build → start.**
+
+### Still open from this session
+
+- **Retrieval has no vectors.** The daemon embeds nothing at write time, so the dense cue scores 0.0
+  for every candidate and retrieval is lexical + rerank. Announced, not silent.
+- **`--reranking` is optional on `--serve`** (unlike `--eval-adapter`, where it is a refusal) so a
+  60 MB model is not an install-time dependency of being able to talk. Absent, memory is
+  **write-only** and `RetrievalState` says so at startup.
+- **`1 memorie`** — pluralisation bug in the metric renderer, seen on a real `recall` line.
+- **`--status` has no `--daemon-port`**, so it cannot report on a scratch daemon — the gap C2f closed
+  for `--ask`. Worse, with nothing on the default port it calls `Daemon::open` and reports on a
+  daemon it just constructed.
+- **A reconnecting client cannot tell a BUSY daemon from a dead one.** `finish_connect` does three
+  blocking round-trips with no timeout, so the surface accepts no input while it decides. The STATE
+  entry below saying such a client *"shows the conversation up to the last completed turn and then
+  waits"* is **wrong**: it shows nothing.
+- **Research memory is a REQUIRED capability** — `docs/requirements/proposed-research-memory.md`,
+  asserted by the human, not designed. Its blocker is **unattended egress**, not memory.
+
+---
+
 ## M2 C2f — the latch met real untrusted content. `561 tests` (from 550).
 
 **ADR-023's four properties confirmed against a genuinely fetched page, and the fourth had never
@@ -254,9 +392,15 @@ pushed before the result it produced, so reasoning precedes its tool line exactl
 
 - **`<tool_code>` is a leaked tool call we do not recover.** `recover_leaked_call` handles
   `<function=...>` only. A model emitting some other syntax renders it as prose.
-- **The daemon serves one request at a time.** A second client cannot attach to a turn already in
-  flight - reopening mid-turn shows the conversation up to the last completed turn and then waits.
-  Live attach needs concurrency in the accept loop.
+- **The daemon serves one request at a time**, and **this entry described the symptom wrongly**,
+  which cost M2 D a round trip. A client reopening mid-turn does **not** show the conversation up to
+  the last completed turn: it shows **nothing** and accepts **no input**, because
+  `LiveSession::finish_connect` does three blocking socket round-trips — `status`, `Runs`, `Replay` —
+  on the UI thread with no timeout, before any interactive frame is drawn. **A busy daemon is
+  therefore indistinguishable from a dead one.** `an_absent_daemon_degrades_visibly…` covers the
+  daemon being *absent*, where connect is refused fast; nobody covered it being *present and busy*.
+  Fix (Session E): a read timeout, a paintable `connecting` state, and `status` as the only
+  prerequisite of the first frame. Live attach still needs concurrency in the accept loop.
 
 ### The two fixes reported earlier in the same session
 
@@ -1473,7 +1617,11 @@ that makes a partial failure legible.
   it it does not. Original entry:
 - **`--ask` cannot talk to a running daemon.** No `--daemon-port`; it always runs in-process, so
   two `--ask` invocations get two daemons and two empty sessions. The TUI is unaffected.
-- **Session memory is in-process only.** The store lives on `Daemon`; it does not survive a restart.
+- ~~**Session memory is in-process only.**~~ **HALF CLOSED (M2 D).** Beliefs are durable —
+  `BeliefStore::derive` rebuilds them from the journal, verified by writing a claim, restarting, and
+  watching the next claim's id index advance rather than reset. The **conversation** store is still a
+  `BTreeMap` on `Daemon` and still dies with the process, deliberately: durable conversations are
+  M3's WAL work. *Memory survives a restart, the conversation does not.*
 - **`bash` is refused unconditionally in the daemon.** `Irreversible` -> `NeedsApproval` at every
   tier -> `DenyUnattended` returns false. There is no interactive approval gate yet, so it always
   reads `declined`.
@@ -1483,9 +1631,17 @@ that makes a partial failure legible.
 - **`read` cannot dereference a reference.** `web` declares `inline_threshold_bytes: 0` - "the loop
   gets a reference" - and nothing can read one. The head/tail preview is a stopgap; the content
   store is M2 D.
-- **`consolidation()` exposes `recall`, which has no executor.** It will fail
-  `verify_every_exposed_tool_is_runnable` the moment it is wired at M2 D. Left as declared: the
-  guard firing then is the guard working.
+- ~~**`consolidation()` exposes `recall`, which has no executor.**~~ **CLOSED (M2 D), and the guard
+  fired exactly as this entry predicted.** `marlowe_daemon::recall::RecallTools` wraps the filesystem
+  host and answers `recall` over the belief store, so `marlowe-exec` never learns about beliefs.
+  **The refusal exposed a second defect**: `Daemon::open` was verifying a bare `FileSystemTools`
+  while the turn ran a different host — a gap that fails safely in this direction and unsafely in the
+  other. `build_tool_host` is now the only constructor.
+  **`recall` is deliberately NOT gated by the declared operating point.** K1 condition 3 governs
+  content the model did not ask for; an explicit search it can evaluate is a different act, and §3.6
+  requires recall to see tombstones and unmatured entries — precisely what injection must not.
+  Security is unchanged: recalled text carries its own class into the view and `trust_floor` is `min`
+  over every block.
 - **Tool lines render OUTSIDE the thinking block.** `Entry::Tools` is a peer of `Entry::Reasoning`,
   so lines land between reasoning blocks rather than nested. **Not intentional - it fell out of
   section B6's one-line-per-call being its own entry. The human has seen it and asked for it to
@@ -1521,10 +1677,13 @@ that makes a partial failure legible.
   slope −0.5091 and *added* score to long candidates.
 - **At top-10 the shipped ranker is BELOW dense alone** (0.9039 vs 0.9170). It is a top-1 mechanism
   reordering ten candidates; do not read its R@10 as a capability.
-- **The gate still injects nothing, and ADR-016 is why** — not retrieval quality. Conformance is
-  REJECTED with 0 findings and `fail_no_time_dependence`, the unchanged baseline since Session B.
-  **§4.3 maturation still has no contract-level coverage.** Wiring the declared operating point into
-  an injection path, with condition 3's abstention path, is **M2 work and now load-bearing**.
+- ~~**The gate still injects nothing, and ADR-016 is why**~~ — **CLOSED (M2 D).** The declared
+  operating point is now the admission rule and the isotonic gate no longer filters: `passes` is
+  false for every candidate by construction, so ANDing the two would have left injection dead.
+  Conformance is **`CONFORMS`** and the clock probe passes, which means **§4.3 maturation now has
+  contract-level coverage** — the probe's whole teeth are that an implementation with no observable
+  time dependence fails it. `passes` is still computed, still dumped, still reported as
+  `above_threshold`; it no longer decides.
 - **Per-category reads are unstable across the split — a finding AGAINST group-conditional
   conformal, not a caveat on it.** Largest wrong-query calibration set is 12 against a floor of 40.
 - **Do not quote Session H's McNemar p-values.** The test had no power; ADR-014.
@@ -1574,7 +1733,15 @@ that makes a partial failure legible.
 
 ## Open questions for the human
 
-0. **FOUR PLACES WHERE UNTRUSTED CONTENT SHAPES A DECISION THROUGH A PATH NOBODY HAS LOOKED AT.**
+0. **EXAMINED IN M2 SESSION D — two holes, one safe, one absent.** Full audit in
+   `runs/m2-session-d/OPEN-QUESTION-0-AUDIT.md`; summary at the top of this file. **Both holes need a
+   §13 decision and neither was touched**: a trust term in *ranking* (`effective_trust` is a declared
+   gate feature and is **inert**, and ADR-038 is what makes it start varying) and a trust term in the
+   *consolidation merge predicate* (text cosine alone, latest wins, so a newer attacker-authored
+   near-duplicate evicts a genuine belief). Either change moves a registered number and needs a
+   pre-registration first. The original question follows.
+
+   **FOUR PLACES WHERE UNTRUSTED CONTENT SHAPES A DECISION THROUGH A PATH NOBODY HAS LOOKED AT.**
    ADR-036 §5 established that the (action, target) question — *who chose the thing that determines
    the outcome* — applies where there is **no tool, no argument and no permission check**. That
    generalization was found in one domain and immediately implicates four others, none of which has

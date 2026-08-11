@@ -65,6 +65,79 @@ impl Recorder for JournalRecorder<'_> {
     }
 }
 
+/// The real one, when the journal has **two** users inside one turn.
+///
+/// # Why this exists, rather than a second journal or a wider `Recorder`
+///
+/// M2 Session D wires memory into the daemon, and a memory write is a *signed* append —
+/// `marlowe_memory::ingest` takes `&mut Journal` because invariant 2 says there is no unsigned
+/// write path. The loop already holds the journal for the whole turn through [`JournalRecorder`],
+/// so the moment `Ports.memory` is something other than `None` there are two mutable borrows of
+/// one `Journal`. That is not a borrow-checker inconvenience: it is the honest shape of one
+/// append-only log with two writers in it.
+///
+/// The two alternatives were both worse. A second journal would give memory its own log, and the
+/// project's core abstraction is that there is exactly one. Routing memory writes through
+/// [`Recorder`] would point `marlowe-memory` at `marlowe-loop` — the wrong direction — and would
+/// force memory events through a signature that fixes `Actor::Harness` and demands a run and a
+/// session that a consolidation write does not have.
+///
+/// **Nothing about the signed write path changes here.** `Journal::append` is the same call with
+/// the same signature over the same bytes; what moved is who holds the handle. The borrow is taken
+/// per append and never spans a call into anything that could borrow again — `engine.rs` computes a
+/// `remember` outcome and *then* records the event, sequentially — so the `RefCell` cannot be
+/// re-entered. If a future change makes it re-entrant it panics loudly at the second borrow, which
+/// is the direction this project prefers over a write that silently does not happen.
+/// `Arc<Mutex<_>>` rather than `Rc<RefCell<_>>`, and that is a correction rather than a preference:
+/// the daemon is held in an `Arc<Mutex<Daemon>>` and moved between threads, so an `Rc` does not
+/// compile. It is still **serial** — the accept loop serves one connection to completion — but
+/// "single-threaded in behaviour" and "never crosses a thread" are different claims, and only the
+/// second would have justified `Rc`.
+pub struct SharedJournalRecorder {
+    journal: std::sync::Arc<std::sync::Mutex<Journal>>,
+    trace_id: uuid::Uuid,
+}
+
+impl SharedJournalRecorder {
+    pub fn new(
+        journal: std::sync::Arc<std::sync::Mutex<Journal>>,
+        trace_id: uuid::Uuid,
+    ) -> Self {
+        Self { journal, trace_id }
+    }
+}
+
+impl Recorder for SharedJournalRecorder {
+    fn append(
+        &mut self,
+        clock: Clock,
+        kind: EventKind,
+        run: RunId,
+        session: SessionId,
+        payload: serde_json::Value,
+    ) -> Result<Seq, String> {
+        self.journal
+            // A poisoned lock means a previous append panicked mid-write. That is not survivable
+            // in silence — invariant 7 — and continuing would append after an event whose state
+            // nobody knows.
+            .lock()
+            .expect("the journal lock was poisoned by a panicking append")
+            .append(
+                clock,
+                AppendRequest {
+                    trace_id: self.trace_id,
+                    session_id: Some(session.to_string()),
+                    run_id: Some(run.to_string()),
+                    actor: Actor::Harness,
+                    kind,
+                    payload,
+                },
+            )
+            .map(|e| e.seq)
+            .map_err(|e| e.to_string())
+    }
+}
+
 /// An in-memory recorder, for tests and for the pre-daemon path.
 ///
 /// It records the same sequence the journal would. It is **not** a no-op: a recorder that

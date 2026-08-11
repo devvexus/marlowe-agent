@@ -19,6 +19,7 @@ use marlowe_contract::{
 use marlowe_journal::{Journal, Profile};
 use marlowe_memory::consolidate::{self, Policy};
 use marlowe_memory::gate::{FrozenGate, FIT_ONLY_VERSION, GATE_VERSION};
+use marlowe_memory::OperatingPoint;
 use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::rerank::CrossEncoder;
@@ -39,7 +40,10 @@ use crate::profile::RetrievalProfile;
 /// Both may carry a dump. The dump is a diagnostic side channel and never changes what goes on
 /// the wire; the mode is what decides whether a gate exists.
 enum Mode {
-    Gated(FrozenGate, Option<FeatureDump>),
+    /// **The operating point is carried beside the gate, not derived at the call site.**
+    /// K1 condition 3's cut point and the gate are two calibrations, and a mode that held one
+    /// without the other would be a scoring path with no declared abstention rule.
+    Gated(FrozenGate, OperatingPoint, Option<FeatureDump>),
     FitDump(FeatureDump),
 }
 
@@ -153,11 +157,17 @@ impl Adapter {
         rerank: RerankSettings,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let gate = FrozenGate::load()?;
+        // **Loaded here, beside the gate, and a bad artifact stops the process.** Same rule the
+        // gate follows: deferring to the first retrieval turns a build-time mistake into a
+        // per-query error the harness scores as a class B failure — a wrong number instead of no
+        // number. It also refuses an artifact measured on a graph this build does not pin, which
+        // is the measurement-transfer family closed before it can happen rather than after.
+        let operating_point = OperatingPoint::load()?;
         let dump = diagnostics.gate_features.map(FeatureDump::create).transpose()?;
         Self::start_with(
             profile_root,
             embedder,
-            Mode::Gated(gate, dump),
+            Mode::Gated(gate, operating_point, dump),
             consolidation,
             cross_encoder,
             rerank,
@@ -427,7 +437,7 @@ impl Adapter {
         };
 
         let scoring = match &self.mode {
-            Mode::Gated(gate, _) => Scoring::Gated(gate),
+            Mode::Gated(gate, op, _) => Scoring::Gated { gate, operating_point: op },
             Mode::FitDump(_) => Scoring::FitDump,
         };
         // One call site for both configurations. See `Adapter::profile` and
@@ -460,7 +470,7 @@ impl Adapter {
         debug_assert_injection_valid(&selection.injected);
 
         let (version, threshold) = match &self.mode {
-            Mode::Gated(gate, _) => (GATE_VERSION.to_string(), gate.threshold()),
+            Mode::Gated(gate, _, _) => (GATE_VERSION.to_string(), gate.threshold()),
             // A mode that computed features but calibrated nothing must not be stampable as
             // one that gated. Same rule as Session A's `ungated-v0`.
             Mode::FitDump(_) => (FIT_ONLY_VERSION.to_string(), 0.0),
@@ -470,8 +480,27 @@ impl Adapter {
         // directions**. Injecting nothing IS the abstention outcome, so an empty set must
         // carry a reason rather than be reported as a non-abstention.
         let abstained = selection.injected.is_empty();
+        // **The operating point's own verdict comes first, because it is the one that decided.**
+        //
+        // `Selection::abstention` is a five-way distinction and `AbstentionReason` is the pinned
+        // four-variant wire enum from CONTRACTS §4.2. The wire is NOT widened to fit — `eval/` is
+        // the scoreboard and the contract is pinned, so the finer reason stays internal and reaches
+        // `--dev`. Four of the five collapse onto `NoCandidateAboveThreshold`, which is true of
+        // every one of them: no candidate was admitted by the declared cut point, whether because
+        // its margin fell short, because there was no runner-up to take a margin against, because
+        // rank 1 or 2 was outside the rerank budget, or because no cross-encoder is loaded at all.
         let abstention_reason = if !abstained {
             None
+        } else if let Some(reason) = selection.abstention {
+            Some(match reason {
+                marlowe_memory::Abstention::NoCandidates => AbstentionReason::NoCandidates,
+                marlowe_memory::Abstention::NoRunnerUp
+                | marlowe_memory::Abstention::MarginUndefined
+                | marlowe_memory::Abstention::BelowThreshold
+                | marlowe_memory::Abstention::NoReranker => {
+                    AbstentionReason::NoCandidateAboveThreshold
+                }
+            })
         } else if selection.budget_exhausted {
             Some(AbstentionReason::BudgetExhausted)
         } else if selection.scoped > 0 && selection.above_threshold == 0 {
@@ -487,8 +516,8 @@ impl Adapter {
 
         let dumped = match &mut self.mode {
             Mode::FitDump(dump) => Some((dump, false)),
-            Mode::Gated(_, Some(dump)) => Some((dump, true)),
-            Mode::Gated(_, None) => None,
+            Mode::Gated(_, _, Some(dump)) => Some((dump, true)),
+            Mode::Gated(_, _, None) => None,
         };
         if let Some((dump, gated)) = dumped {
             if let Err(e) = dump
