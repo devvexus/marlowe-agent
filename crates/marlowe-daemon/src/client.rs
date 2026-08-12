@@ -15,8 +15,9 @@
 //! no daemon **starts one** — and says so, because a process appearing on a machine without the
 //! user being told is exactly what a well-behaved tool does not do.
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write as _};
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::protocol::{Event, Request};
@@ -30,14 +31,40 @@ pub enum ClientError {
     Closed { detail: String },
     #[error("could not start a daemon: {detail}")]
     Spawn { detail: String },
+    /// The daemon on this port belongs to a different profile — or a different user.
+    #[error("the daemon on 127.0.0.1:{port} refused this connection: {detail}")]
+    Refused { port: u16, detail: String },
 }
 
-/// Everything the client holds. **Three fields, none of them run state.**
-#[derive(Debug, Clone)]
+/// Everything the client holds. **Four fields, none of them run state.**
+///
+/// The fourth is the profile root, which is not run state either: it is where the socket token
+/// lives (see [`crate::auth`]). The client reads it, it never writes it, and it holds nothing
+/// derived from it between calls.
+#[derive(Clone)]
 pub struct Client {
     port: u16,
     session: String,
     connect_timeout: Duration,
+    profile_root: PathBuf,
+}
+
+/// The value is redacted, the FIELD NAMES are not.
+///
+/// `the_client_holds_no_run_state` scans this dump for `run`, `transcript`, `cache` and so on —
+/// that assertion is about the client's *shape*, so it needs every field named. It does not need
+/// the user's home directory in it, and a derived `Debug` would put it there: on a machine whose
+/// user directory happened to contain one of those words the test would fail for a reason that has
+/// nothing to do with the property. Redacting the path keeps the assertion about the type.
+impl std::fmt::Debug for Client {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Client")
+            .field("port", &self.port)
+            .field("session", &self.session)
+            .field("connect_timeout", &self.connect_timeout)
+            .field("profile_root", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Client {
@@ -50,12 +77,27 @@ impl Client {
             // first measured version of this did exactly that. Loopback either answers at once
             // or is not there, so the probe is short by design.
             connect_timeout: Duration::from_millis(40),
+            profile_root: crate::default_profile_root(),
         }
     }
 
     pub fn with_port(mut self, port: u16) -> Self {
         self.port = port;
         self
+    }
+
+    /// Point the client at a non-default profile — which is what decides **which token it offers**.
+    ///
+    /// A client aimed at a daemon serving another profile is refused rather than served, and the
+    /// error says so. That is a default that makes a mismatch *observable*: the failing path still
+    /// exists and it is named.
+    pub fn with_profile_root(mut self, root: impl Into<PathBuf>) -> Self {
+        self.profile_root = root.into();
+        self
+    }
+
+    pub fn profile_root(&self) -> &Path {
+        &self.profile_root
     }
 
     pub fn port(&self) -> u16 {
@@ -70,11 +112,48 @@ impl Client {
         self.connect_timeout
     }
 
+    /// Connect **and authenticate**.
+    ///
+    /// # The token goes here, not at the call sites
+    ///
+    /// Every request path in this file goes through `connect`, so putting the preamble here is the
+    /// same rule as a validating constructor: there is no way to open a served connection without
+    /// offering the token. A version that wrote it in `send` and `send_streaming_approving`
+    /// separately would be two places to forget it, and the one that got forgotten would still
+    /// work against a daemon — until the daemon started checking.
+    ///
+    /// # It does NOT wait for an acknowledgement
+    ///
+    /// The daemon serves one connection at a time (`serve`), so a read here would block behind any
+    /// turn already in flight — and this is on the path §B13 budgets 150 ms to. The token is
+    /// written and the client proceeds; a refusal arrives as the daemon's first and only event,
+    /// which [`Self::check_refusal`] turns into [`ClientError::Refused`].
     fn connect(&self) -> Result<TcpStream, ClientError> {
         let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, self.port));
-        TcpStream::connect_timeout(&addr, self.connect_timeout).map_err(|e| {
-            ClientError::NoDaemon { port: self.port, detail: e.to_string() }
-        })
+        let mut stream = TcpStream::connect_timeout(&addr, self.connect_timeout)
+            .map_err(|e| ClientError::NoDaemon { port: self.port, detail: e.to_string() })?;
+        // An absent token is offered as the empty string rather than skipped. The daemon reads a
+        // preamble line unconditionally, so writing nothing would make it read the REQUEST as the
+        // token — refusing correctly, but for a reason nobody could diagnose.
+        let token = crate::auth::read_token(&self.profile_root).unwrap_or_default();
+        stream
+            .write_all(format!("{token}\n").as_bytes())
+            .and_then(|()| stream.flush())
+            .map_err(|e| ClientError::Closed { detail: e.to_string() })?;
+        Ok(stream)
+    }
+
+    /// Turn the daemon's refusal event into a typed error.
+    ///
+    /// The marker is a shared constant rather than a sentence matched by eye — one definition, read
+    /// on both sides, so rewording the message cannot silently stop the client recognising it.
+    fn check_refusal(&self, event: &Event) -> Option<ClientError> {
+        match event {
+            Event::Error { detail } if detail.starts_with(crate::auth::REFUSED) => {
+                Some(ClientError::Refused { port: self.port, detail: detail.clone() })
+            }
+            _ => None,
+        }
     }
 
     /// Send one request and hand each event to `on_event` **as it arrives**.
@@ -136,6 +215,9 @@ impl Client {
                     }
                     match serde_json::from_str::<Event>(line.trim()) {
                         Ok(e) => {
+                            if let Some(refused) = self.check_refusal(&e) {
+                                return Err(refused);
+                            }
                             if let Event::Approval { decision, .. } = &e {
                                 let decision = *decision;
                                 if decision != 0 {
@@ -186,7 +268,12 @@ impl Client {
                         continue;
                     }
                     match serde_json::from_str::<Event>(line.trim()) {
-                        Ok(e) => events.push(e),
+                        Ok(e) => {
+                            if let Some(refused) = self.check_refusal(&e) {
+                                return Err(refused);
+                            }
+                            events.push(e)
+                        }
                         Err(e) => {
                             return Err(ClientError::Closed { detail: e.to_string() });
                         }

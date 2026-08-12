@@ -17,16 +17,12 @@ use marlowe_daemon::{Client, Daemon, DaemonConfig};
 
 /// Where the profile lives when nobody says otherwise.
 ///
-/// Under the user's data directory rather than the workspace: a journal inside the workspace
-/// would be reachable by `read`, and ARCHITECTURE invariant 8 requires the journal to sit
-/// **outside the model's filesystem scope** so that forgetting is not cosmetic.
+/// **Delegated, not duplicated.** The body moved to `marlowe_daemon` when the socket token landed:
+/// the client resolves a profile root to find the token, and the client cannot see this crate. Two
+/// copies of a path that has to match on both ends is exactly the shape that lets a mismatch go
+/// unobserved, so there is one.
 pub fn default_profile_root() -> PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA")
-        .or_else(|| std::env::var_os("XDG_DATA_HOME"))
-        .or_else(|| std::env::var_os("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("marlowe").join("default-profile")
+    marlowe_daemon::default_profile_root()
 }
 
 /// List what this machine's Ollama holds, so `--model` is a choice from a list rather than a guess.
@@ -144,7 +140,7 @@ pub fn ask(
     // daemon, and knowing which daemon answered. It cost real time in this session: a `--dev`
     // dump produced nothing because the request had gone over the socket to a daemon started
     // WITHOUT `--dev`, and that reads as a broken instrument rather than as the wrong process.
-    let mut client = Client::new("cli");
+    let mut client = Client::new("cli").with_profile_root(profile_root.clone());
     if let Some(p) = port {
         client = client.with_port(p);
     }
@@ -262,8 +258,8 @@ fn approve_at_the_terminal(event: &Event) -> bool {
 ///
 /// **It refuses while a run is in flight**, which is invariant 6 where it means something: a run
 /// outlives the client that started it. There is no WAL, so stopping mid-run loses the run.
-pub fn shutdown(port: Option<u16>) -> Result<(), String> {
-    let mut client = Client::new("cli");
+pub fn shutdown(port: Option<u16>, profile_root: PathBuf) -> Result<(), String> {
+    let mut client = Client::new("cli").with_profile_root(profile_root);
     if let Some(p) = port {
         client = client.with_port(p);
     }
@@ -279,7 +275,7 @@ pub fn shutdown(port: Option<u16>) -> Result<(), String> {
 }
 
 pub fn status(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
-    let client = Client::new("cli");
+    let client = Client::new("cli").with_profile_root(profile_root.clone());
     let events = if client.daemon_is_up() {
         client.status().map_err(|e| e.to_string())?
     } else {

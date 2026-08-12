@@ -335,6 +335,12 @@ pub struct Daemon {
     /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
     sessions: BTreeMap<String, SessionMemory>,
     shutdown: Arc<AtomicBool>,
+    /// The socket token. See [`crate::auth`] — loopback is per-machine, not per-user.
+    ///
+    /// Held on the daemon rather than re-read per connection: a token file replaced under a running
+    /// daemon must not change who it will serve, and re-reading would make that possible for anyone
+    /// who could write the profile root.
+    token: String,
 }
 
 impl Daemon {
@@ -420,6 +426,16 @@ impl Daemon {
             &build_tool_host(&config.workspace, memory.beliefs())?,
         )?;
 
+        // **Minted before the listener binds, and a failure here refuses to start.** A daemon that
+        // could not establish a token would otherwise have to choose between serving everyone and
+        // serving no one, and the first of those is the vulnerability this closes.
+        let token = crate::auth::ensure_token(&config.profile_root).map_err(|e| {
+            DaemonError::Profile {
+                root: config.profile_root.display().to_string(),
+                detail: format!("the socket token could not be established: {e}"),
+            }
+        })?;
+
         Ok(Self {
             config,
             journal,
@@ -427,6 +443,7 @@ impl Daemon {
             runs: BTreeMap::new(),
             sessions: BTreeMap::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
+            token,
         })
     }
 
@@ -1065,6 +1082,41 @@ impl Daemon {
     fn serve_one(&mut self, stream: TcpStream) -> std::io::Result<()> {
         let mut writer = stream.try_clone()?;
         let mut reader = BufReader::new(stream);
+
+        // ---- Authentication, before anything is parsed as a request ----------------------------
+        //
+        // **The CONNECTION is authenticated, not the request.** `Request` is an internally-tagged
+        // enum, so a token field would have to go on every variant and every variant's construction
+        // site — and the one variant somebody forgot would be an unauthenticated request that
+        // deserialized fine. One preamble line cannot be forgotten per-variant.
+        //
+        // **Bounded, because the daemon is serial.** `serve` holds one connection at a time, so a
+        // peer that connects and says nothing would hang every other client. That is true of the
+        // request read as well and always has been; it is closed here because this is the read a
+        // port scanner reaches first. The timeout is cleared before the turn, where a two-minute
+        // model call is working rather than dead.
+        reader
+            .get_ref()
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .ok();
+        let mut preamble = String::new();
+        let offered = match reader.read_line(&mut preamble) {
+            Ok(0) => return Ok(()), // Connected and hung up. A probe, not a client.
+            Ok(_) => preamble.trim().to_string(),
+            // A peer that connects and sends nothing gets nothing. Writing the refusal would tell
+            // a scanner a daemon is here; closing tells it only that something accepted.
+            Err(_) => return Ok(()),
+        };
+        if !crate::auth::matches(&self.token, &offered) {
+            crate::protocol::write_line(
+                &mut writer,
+                &Event::Error { detail: crate::auth::refusal() },
+            )?;
+            return Ok(());
+        }
+        reader.get_ref().set_read_timeout(None).ok();
+        // ----------------------------------------------------------------------------------------
+
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
             return Ok(());

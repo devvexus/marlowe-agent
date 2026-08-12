@@ -285,6 +285,10 @@ fn main() {
             "--status" => agent::status(workspace, profile_root),
             "--shutdown" => agent::shutdown(
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+                // The profile root decides which token is offered, so `--shutdown` needs it for
+                // the same reason `--ask` does: a daemon serving another profile refuses, and
+                // saying so beats a silent no-op.
+                profile_root,
             ),
             _ => match flag_value(&args, "--ask") {
                 Some(message) => agent::ask(

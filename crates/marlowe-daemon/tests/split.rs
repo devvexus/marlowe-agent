@@ -90,7 +90,7 @@ fn a_status_request_answers_without_touching_a_model() {
     });
 
     // Give the listener a moment to bind.
-    let client = Client::new("s").with_port(port);
+    let client = Client::new("s").with_port(port).with_profile_root(fx.root.join("profile"));
     let mut ready = false;
     for _ in 0..50 {
         if client.daemon_is_up() {
@@ -134,7 +134,7 @@ fn the_daemon_owns_the_run_across_a_client_disconnect() {
         let _ = daemon.serve();
     });
 
-    let client = Client::new("s1").with_port(port);
+    let client = Client::new("s1").with_port(port).with_profile_root(fx.root.join("profile"));
     for _ in 0..50 {
         if client.daemon_is_up() {
             break;
@@ -152,7 +152,7 @@ fn the_daemon_owns_the_run_across_a_client_disconnect() {
     drop(client);
 
     // A DIFFERENT client, on a new connection, still sees the daemon's runs.
-    let second = Client::new("s2").with_port(port);
+    let second = Client::new("s2").with_port(port).with_profile_root(fx.root.join("profile"));
     let runs = second.send(&Request::Runs).expect("runs answers");
     assert!(
         runs.iter().any(|e| matches!(e, Event::Run { .. })),
@@ -179,7 +179,7 @@ fn a_turn_with_no_model_degrades_with_a_remedy_rather_than_failing() {
         let _ = daemon.serve();
     });
 
-    let client = Client::new("s").with_port(port);
+    let client = Client::new("s").with_port(port).with_profile_root(fx.root.join("profile"));
     for _ in 0..50 {
         if client.daemon_is_up() {
             break;

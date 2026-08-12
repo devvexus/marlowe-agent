@@ -28,6 +28,23 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// How a refusal is recognised on the wire.
+///
+/// Defined once and read by both halves — the daemon prefixes its refusal event with it and
+/// [`crate::client::Client`] matches on it. A sentence matched by eye in two files is a string
+/// that drifts the first time someone improves the wording, and the half that stops matching
+/// fails open into "some unexplained error" rather than "you were refused".
+pub const REFUSED: &str = "unauthenticated:";
+
+/// What the user is told when the token does not match.
+pub fn refusal() -> String {
+    format!(
+        "{REFUSED} this daemon is serving a different profile, or a different user. \
+         A client authenticates with the token in its own profile root; run `marlowe --serve` \
+         for this profile, or point the client at the right one with --profile-root."
+    )
+}
+
 /// Where the token lives, beside the journal it protects access to.
 pub fn token_path(profile_root: &Path) -> PathBuf {
     profile_root.join("daemon.token")

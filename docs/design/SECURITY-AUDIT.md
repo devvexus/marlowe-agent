@@ -1,8 +1,32 @@
 # Security audit — read-only sweep, 2026-08-12
 
-**Status: ACCUMULATING. Nothing in this document has been fixed.** It is a findings log with
-proposed fixes, produced by parallel read-only audit agents. `marlowe-net` (the fetch path) was
-excluded from scope by the owner.
+**Status: BEING WORKED THROUGH.** It is a findings log with proposed fixes, produced by parallel
+read-only audit agents. `marlowe-net` (the fetch path) was excluded from scope by the owner.
+
+**The body below is left as it was written**, including the present tense. It is the audit as
+taken, and rewriting an entry once it is fixed loses the only record of what the code did. What is
+fixed is listed here, and each row names the test that fails if the fix is reverted — because a fix
+with no such test is a claim, and this project has logged seventeen of those.
+
+### Fixed
+
+| # | Finding | Fix | Reverting it fails |
+|---|---|---|---|
+| G1 | panic message carries ~256 chars of the document to the orchestrator | every extractor entry point is panic-bounded; no error detail quotes input | `marlowe-extract` `multibyte::no_error_detail_ever_quotes_the_document` |
+| G2–G4 | three char-boundary panics, all reachable with one `é` | slice at char boundaries; offsets recomputed after a flush | `multibyte::*` (5 cases) |
+| G8, G9 | a stray `</script>` reopens a skipped container; raw text ends at a look-alike tag | skip depth keyed on the element stack; raw-text end requires a terminator | `multibyte::a_stray_closing_tag_cannot_reopen_a_skipped_container`, `…does_not_end_at_a_lookalike_closing_tag` |
+| G11 | an unclosed `<title>` makes the whole document the title | title capped at 8 KiB | `multibyte::an_unclosed_title_does_not_become_the_whole_document` |
+| G17 | fields after a non-ASCII JSON string are swallowed | byte/char index corrected | `multibyte::fields_after_a_non_ascii_json_string_are_not_swallowed` |
+| 4 | the daemon socket has no authentication | a per-profile token, offered as a connection preamble, checked **before dispatch** | `marlowe-daemon` `socket_auth::*` (5 cases) |
+
+**Finding 4's fix was verified by removing the check**, not by reading it: with the comparison
+disabled, an unauthenticated stranger's `{"op":"shutdown"}` was **dispatched and stopped the
+daemon**. That is the failure the test names, observed. Two of the five stayed green under the
+mutation — the served-token control and the silent-peer timeout — which is what tells you the other
+three are about the comparison and not about the socket.
+
+The client-self-approval half of finding 4 is **not** closed by this and is not claimed to be: a
+token proves *which user* is connected, not that a human saw the prompt. See B2.
 
 Each finding carries the auditor's own confidence rating. **Confidence is not verification** — a
 `certain` rating means the code was read, not that the exploit was executed. Items marked

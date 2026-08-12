@@ -51,4 +51,27 @@ pub use protocol::{Event, Request, StatusReport};
 /// user's filesystem and answered from a routable address would be a remote code execution
 /// service. If a remote client is ever wanted, it is a separate decision with authentication in
 /// it, argued in `DECISIONS.md`.
+///
+/// **Loopback is per-machine, not per-user**, which is why [`auth`] exists: binding here does not
+/// keep another logged-in user off the socket.
 pub const DEFAULT_DAEMON_PORT: u16 = 11435;
+
+/// Where the profile lives when nobody says otherwise.
+///
+/// Under the user's data directory rather than the workspace: a journal inside the workspace would
+/// be reachable by `read`, and ARCHITECTURE invariant 8 requires the journal to sit **outside the
+/// model's filesystem scope** so that forgetting is not cosmetic.
+///
+/// **This is the single definition, and it moved here so it could be.** It used to live in
+/// `marlowe::agent`, which the client cannot see — so a client resolving the default profile root
+/// for [`auth`] would have needed a second copy of this function, and two copies of a path that
+/// must match is the shape that makes a mismatch unobservable. `marlowe::agent::default_profile_root`
+/// now delegates.
+pub fn default_profile_root() -> std::path::PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .or_else(|| std::env::var_os("XDG_DATA_HOME"))
+        .or_else(|| std::env::var_os("HOME"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    base.join("marlowe").join("default-profile")
+}

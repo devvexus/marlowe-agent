@@ -25,6 +25,18 @@ fn fake_daemon(decision: u64) -> (u16, std::sync::mpsc::Receiver<Option<Request>
         let mut writer = stream.try_clone().expect("clone");
         let mut reader = BufReader::new(stream);
 
+        // **The auth preamble comes first.** A fake that skipped it would read the token AS the
+        // request and this file's whole claim — "the two halves agree about the protocol" — would
+        // be false in the one place it is asserted. The fake does not check the value; whether a
+        // wrong token is refused is `socket_auth.rs`'s subject, not this one's.
+        let mut preamble = String::new();
+        reader.read_line(&mut preamble).expect("preamble");
+        assert!(
+            !preamble.trim().starts_with('{'),
+            "the client must offer a token line before its request, and this looks like the \
+             request: {preamble}"
+        );
+
         // The client's request.
         let mut line = String::new();
         reader.read_line(&mut line).expect("request");
