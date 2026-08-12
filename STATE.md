@@ -135,6 +135,105 @@ set and printed a confident "0 events".
 
 ---
 
+## M0c SESSION M — CROSS-ENCODER RERANKING IS SATURATED, AND THE GPU BUDGET IS NOT THE CONSTRAINT
+
+**`runs/session-m0c-m/`. Pre-registration committed BEFORE any pool was reconstructed (`4373111`);
+result at `c1fb6b0`. NOTHING SHIPPED — the registered floor was not cleared. No crate was touched.**
+
+**The session opened as "build cue 3" and the premise did not survive the record.** The human asked
+*"I think we tried this one before"* and was right: **Session G arm 4 already measured temporal and
+refuted it.** Questions carrying a parseable window are 12/229 (5.24%); within temporal-reasoning,
+**1 of 59 (1.69%)**. Held-out effect **−0.0087**, one pool emptied, one case lost gold it held at
+rank 1. LongMemEval's temporal questions are *interval arithmetic over two named events*, not window
+queries. **The kill condition registered that morning was "firing rate below 0.20"; the measured
+value had been 0.0169 on disk since Session G.**
+
+**And the mechanism was aimed at a solved sub-problem.** On this corpus turns within a session are
+1 s apart and sessions are days apart, so a temporal cue is a *session selector* — which Session G's
+decomposition puts at **4 cases against 77** for within-session ranking.
+
+### The real constraint was a measurement scoped to the wrong hardware
+
+**Every reranker cost figure ever used to reject a model in this project is a 1-thread CPU number.**
+The human's correction: *"the 1-vCPU was a minimum, a fallback. Assume all deployers have a GPU but
+always be capable if it's just 1 vCPU. The 300 ms was for voice, which is only enabled if you have a
+good GPU. Thus, rank everything on the GPU."*
+
+The rejection numbers described the **fallback floor** and were read as though they described the
+**target** — the standing failure family applied to a hardware boundary, and it had gated the model
+choice for four sessions.
+
+### What thirty cells on the GPU say
+
+Fit split, n = 229, CUDA batched, RTX 4080 SUPER, seq 256. `frontier.json`.
+
+| | R@1 | ms p50 | vs 300 ms |
+|---|---|---|---|
+| shipped — L-2-ft, depth 10 | 0.7555 | **7.0** | inside |
+| **best — L-6-ft, depth 30** | **0.7729** | **37.1** | inside |
+| most expensive cell measured | — | **203.7** | still inside |
+
+- **Floor +0.02, reused verbatim from M0c Session A. Best cell is +0.0174. It does not clear, so
+  NOTHING IS PROMOTED and held-out was not touched.** The precedent for holding the line is one
+  session old: M0c A's slate arm was **+0.0087 fit, −0.0044 held-out**.
+- **Capacity is refuted across a 17× parameter range.** Three 184–278M cross-encoders lose to a
+  fine-tuned 16M model by 17–27 points on fit. Session I's L-2→L-6 null recorded that it *"says
+  nothing about bge, jina or mxbai"* — **it now says it.**
+- **The fit split flatters the fine-tunes and the honest number is smaller.**
+  `session_j_finetune.py` records `"trained_on": "fit split only"`, so ft models saw these queries
+  and un-tuned ones did not. **Quote ADR-018's held-out +0.0699, never the 17-point fit gap.** The
+  depth comparisons are clean — same model in both arms.
+- **EVERY ONE OF THE THIRTY CELLS FITS THE GPU BUDGET.** Given 8× the compute the shipped path uses,
+  R@1 moves +0.0174 and stops. **There is budget here that cannot be usefully spent.**
+
+**Two independent lines now say cross-encoder reranking is saturated on this corpus**: M0c Session A
+put four *architectures* on the separation and moved top-1 on 2 of 229; this session put nine
+*pretrained scorers* on it, 16M→278M across four architectures, and moved it below the floor.
+
+`R@1 = input_recall × conditional_accuracy` is now fully mapped. **Input recall is solved** — 0.9825
+at depth 30, the whole pruned pool, for 37 ms. **Conditional accuracy is the wall**: best 0.8200, it
+*falls* with depth, and R@1 0.95 would need **0.967**.
+
+### Carried forward
+
+- **An LLM reranker is UNTESTED, not refuted.** Declined by the human before the sweep. It is now
+  the only untested mechanism with a plausible path to the required conditional accuracy, and the
+  case for it is *stronger* after this sweep because the sweep closed the alternative.
+- **Supersession is the other named lever** — +0.1666 on knowledge-update R@1_current by M0c A's
+  oracle — blocked on **HP2 entity identity**, not on ranking.
+- **One held-out read would settle whether +0.0174 survives the split.** The argument both ways is
+  in `RESULT.md` and was deliberately NOT acted on; spending that read is the human's call.
+
+### Two instrument facts worth keeping
+
+1. **Batch invariance on the shipped graph is 0.000000 on CPU and 0.000324 on CUDA.** Re-measured
+   per graph rather than inherited — inherited, the move would never have been seen. Consistent with
+   ADR-029, whose gate is GPU→GPU determinism (passes) plus cross-provider *ranking* equivalence
+   (passes: re-scoring the shipped graph on GPU returns R@1 0.7555 exactly).
+2. **Session L's RESULT.md §6 — *"GPU is closed on correctness"* — is STALE, and its own ADR-029
+   reverses it.** The original spike compared each CUDA repeat against the **CPU** reference rather
+   than against the other repeats, reporting cross-provider disagreement as within-provider
+   nondeterminism. GPU→GPU determinism was never broken.
+
+### THE SHARED-CHECKOUT HAZARD FIRED TWICE IN THIS SESSION, BOTH SELF-INFLICTED
+
+Recorded because CLAUDE.md's table is only useful if new instances are added to it.
+
+1. **Form 3 — a commit swept the other session's in-flight edits.** `4373111` carries M2 Session E's
+   `engine.rs`, `run.rs`, `egress_grant.rs`, CLAUDE.md and STATE.md under a pre-registration message.
+   The `git add` was targeted; **the index already held their staged changes, and `git commit` takes
+   everything staged, not everything you just added.** That is the mechanism, and it is not what the
+   table's entry describes (`git add -A`) — a targeted add is not sufficient protection.
+   **Deliberately NOT unpicked with `reset --soft`**: the other session is live in this checkout, and
+   moving shared `HEAD` under it is form 1/2, which is worse than a mislabelled commit.
+2. **Form 4 — a test count read from the other session's working tree, reported as a baseline.** The
+   handoff said 617 at `524cfc1`; a suite run at session start read **619** and that was published in
+   this file as a correction to the handoff. **The handoff was right.** Session E's two new Layer 1
+   tests were already in the working tree, so 619 was *their* number. Nothing downstream depends on
+   it — this session touched no crate — but the correction was false and is withdrawn.
+
+---
+
 ## M0b SHIPPED 40% OF ITS NAMED MECHANISM AND CLOSED WITHOUT SAYING SO
 
 **Found 2026-08-11, reading M0b's own scope against the code.** This is a brief for whoever builds
