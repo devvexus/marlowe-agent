@@ -1,0 +1,26 @@
+{
+  "_what": "Held-out read #2 this session. Configuration fixed BEFORE the read.",
+  "_written_before_the_read": true,
+  "_honest_provenance": "L-4-ft-w1 was SELECTED BY LOOKING AT FIT. It was not registered in advance; the pre-registered PRIMARY was the six-way fusion, which read only +0.0044. This is structurally the same act as arm B (a model chosen on fit: +0.0698 fit -> +0.0087 held-out, an 8x collapse). It is being read anyway because the user asked for the highest attainable number and because the alternative -- quoting 0.9432 without a held-out read -- would be worse.",
+  "configuration_FIXED": {
+    "slate": "top 30 of the pre-rerank cue key",
+    "stage_1_narrow": "ms-marco-MiniLM-L-2-v2-ft-session-j scores 30, keep top 10",
+    "stage_2_pick": "ms-marco-MiniLM-L-4-v2-ft-w1 ranks the narrowed 10",
+    "admit": "top 3",
+    "max_seq": 256, "batch": 1
+  },
+  "secondary_declared": "RRF over all six Session-J-recipe fine-tunes (the original PRIMARY)",
+  "fit_results_being_tested": {
+    "L4_alone": {"R@1": 0.7904, "R@3": 0.9432, "cond@3": 0.9600},
+    "all_6_fusion": {"R@1": 0.8035, "R@3": 0.9345, "cond@3": 0.9511},
+    "shipped_cascade_pair": {"R@1": 0.7860, "R@3": 0.9301, "cond@3": 0.9467}
+  },
+  "REGISTERED_PREDICTION": {
+    "held_out_R@3": "0.880 to 0.910. The already-read cascade pair was fit 0.9301 -> held-out 0.8865, a 0.044 fit/held-out offset. Applying the same offset to 0.9432 gives ~0.899.",
+    "held_out_R@1": "0.690 to 0.730",
+    "collapse_risk": "HIGH and higher than the last read, because the model was selected on fit. If L-4 reads at or below the already-measured 0.8865, the selection did not transfer and I will say so.",
+    "what_would_falsify": "held-out R@3 <= 0.8865 (no better than the cascade pair already read)",
+    "capacity_claim_to_check": "L-4 (19M) beating L-2 (16M) and L-12 (33M) is a FIT observation. If it does not hold held-out, the non-monotone capacity curve is a fit artifact."
+  },
+  "no_further_tuning": "No other graph, depth, narrow width or fusion will be tried on held-out after this."
+}

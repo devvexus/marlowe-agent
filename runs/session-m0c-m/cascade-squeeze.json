@@ -1,0 +1,105 @@
+{
+  "_what": "cond@3 squeeze: fuse every Session-J-recipe fine-tune in the cascade's stage 2",
+  "_split": "fit",
+  "_rule_fixed_before_measurement": "PRIMARY = RRF over all six Session-J-recipe fine-tunes, k=60. ft-m-* excluded (different negatives; arm B is a known fit-overfitter).",
+  "_rrf_k": 60,
+  "_slate": 30,
+  "_narrow": 10,
+  "input_recall": 0.9825,
+  "after_narrowing": 0.9782,
+  "union_oracle_cond3": 0.9778,
+  "missed_by_every_graph": [
+    "09d032c9",
+    "75f70248",
+    "c4f10528",
+    "dad224aa",
+    "e8a79c70"
+  ],
+  "cells": {
+    "ms-marco-MiniLM-L-2-v2-ft-session-j": {
+      "R@1": 0.7686,
+      "R@3": 0.9258,
+      "conditional_top3": 0.9422
+    },
+    "ms-marco-MiniLM-L-6-v2-ft-session-j": {
+      "R@1": 0.7729,
+      "R@3": 0.9214,
+      "conditional_top3": 0.9378
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-w1": {
+      "R@1": 0.7686,
+      "R@3": 0.9258,
+      "conditional_top3": 0.9422
+    },
+    "ms-marco-MiniLM-L-4-v2-ft-w1": {
+      "R@1": 0.7904,
+      "R@3": 0.9432,
+      "conditional_top3": 0.96
+    },
+    "ms-marco-MiniLM-L-6-v2-ft-w1": {
+      "R@1": 0.7729,
+      "R@3": 0.9214,
+      "conditional_top3": 0.9378
+    },
+    "ms-marco-MiniLM-L-12-v2-ft-w1": {
+      "R@1": 0.7424,
+      "R@3": 0.9258,
+      "conditional_top3": 0.9422
+    },
+    "PRIMARY all 6": {
+      "R@1": 0.8035,
+      "R@3": 0.9345,
+      "conditional_top3": 0.9511,
+      "members": [
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        "ms-marco-MiniLM-L-2-v2-ft-w1",
+        "ms-marco-MiniLM-L-4-v2-ft-w1",
+        "ms-marco-MiniLM-L-6-v2-ft-w1",
+        "ms-marco-MiniLM-L-12-v2-ft-w1"
+      ]
+    },
+    "session-j pair (shipped cascade)": {
+      "R@1": 0.786,
+      "R@3": 0.9301,
+      "conditional_top3": 0.9467,
+      "members": [
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "ms-marco-MiniLM-L-6-v2-ft-session-j"
+      ]
+    },
+    "first 3 of the declared order": {
+      "R@1": 0.7686,
+      "R@3": 0.9301,
+      "conditional_top3": 0.9467,
+      "members": [
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        "ms-marco-MiniLM-L-2-v2-ft-w1"
+      ]
+    },
+    "first 4 of the declared order": {
+      "R@1": 0.786,
+      "R@3": 0.9345,
+      "conditional_top3": 0.9511,
+      "members": [
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        "ms-marco-MiniLM-L-2-v2-ft-w1",
+        "ms-marco-MiniLM-L-4-v2-ft-w1"
+      ]
+    },
+    "first 5 of the declared order": {
+      "R@1": 0.8079,
+      "R@3": 0.9301,
+      "conditional_top3": 0.9467,
+      "members": [
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        "ms-marco-MiniLM-L-2-v2-ft-w1",
+        "ms-marco-MiniLM-L-4-v2-ft-w1",
+        "ms-marco-MiniLM-L-6-v2-ft-w1"
+      ]
+    }
+  }
+}

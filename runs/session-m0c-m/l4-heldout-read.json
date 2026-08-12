@@ -1,0 +1,35 @@
+{
+  "_split": "heldout",
+  "_prereg": "PREREGISTRATION-L4-HELDOUT.json",
+  "baseline": {
+    "R@1": 0.6725,
+    "R@2": 0.8122,
+    "R@3": 0.8515,
+    "R@5": 0.8865,
+    "R@1_current": 0.5852
+  },
+  "input_recall_30": 0.9782,
+  "arms": {
+    "PRIMARY  L-4-ft-w1 alone": {
+      "R@1": 0.6594,
+      "R@2": 0.8384,
+      "R@3": 0.869,
+      "R@5": 0.9127,
+      "cond@3": 0.8884
+    },
+    "SECONDARY all-6 RRF": {
+      "R@1": 0.6769,
+      "R@2": 0.8472,
+      "R@3": 0.8908,
+      "R@5": 0.917,
+      "cond@3": 0.9107
+    },
+    "already-read cascade pair": {
+      "R@1": 0.6987,
+      "R@2": 0.8428,
+      "R@3": 0.8865,
+      "R@5": 0.917,
+      "cond@3": 0.9062
+    }
+  }
+}

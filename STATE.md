@@ -1,5 +1,60 @@
 # State
 
+## BEST HELD-OUT R@3 = 0.8908 (+0.0393, p = 0.0225). THE FIT-SELECTED ARM CAME LAST.
+
+**Two held-out reads spent. `runs/session-m0c-m/{cascade,l4}-heldout-read.json`.** Gates on both:
+the shipped key reproduced published held-out R@1 **0.6725**, R@1_current **0.5852**, R@5 **0.8865**
+and R@3 **0.8515** exactly, and the depth-10 cue slate equalled the set the binary actually reranked
+on **229/229**.
+
+| held-out | baseline | **all-6 RRF** | cascade pair | L-4-ft alone |
+|---|---|---|---|---|
+| **R@3** | 0.8515 | **0.8908** | 0.8865 | 0.8690 |
+| McNemar | — | **11 g / 2 l, p = 0.0225** | 10 g / 2 l, p = 0.0386 | 7 g / 3 l, p = 0.3438 |
+| R@5 | 0.8865 | **0.9170** | 0.9170 | 0.9127 |
+| R@1 | 0.6725 | 0.6769 | **0.6987** | 0.6594 |
+| cond@3 | — | **0.9107** | 0.9062 | 0.8884 |
+| input recall | 0.9039 | **0.9782** | 0.9782 | 0.9782 |
+
+**Configuration:** slate 30 on the pre-rerank cue key → shipped L-2-ft narrows to 10 → **RRF (k=60)
+over all six Session-J-recipe fine-tunes** → admit top 3. All six are Tier A and digest-pinned.
+
+**Since `ADMIT_TOP_K = 3` now ships, R@3 IS the product metric**, so the six-way fusion is the right
+configuration despite the cascade pair's better R@1.
+
+### THE FIT ORDERING INVERTED EXACTLY WHERE IT WAS SELECTED
+
+| | fit | held-out |
+|---|---|---|
+| L-4-ft-w1 alone | **0.9432** (1st) | **0.8690** (last) |
+| all-6 RRF | 0.9345 (2nd) | **0.8908** (1st) |
+| cascade pair | 0.9301 (3rd) | 0.8865 (2nd) |
+
+L-4-ft was **picked by looking at fit**; the pre-registration said so before the read and predicted
+0.880–0.910 with falsification at ≤0.8865. **It read 0.8690 — OUTSIDE the band, FALSIFIED**, dropped
+0.074 fit→held-out, and pushed R@1 *below* the untouched baseline (0.6594 vs 0.6725).
+
+**The all-6 fusion was never chosen on a number.** Its rule — *"fuse every graph trained the same
+way, no subset"* — was fixed in `cascade_squeeze.py`'s docstring before the model loaded, precisely
+so fit could not select it. It ranked 2nd on fit and 1st on held-out. **Second demonstration in one
+session**: z-sum beat RRF on fit (R@1 0.7991 vs 0.7860) and read +0.0000 held-out while RRF held.
+
+### TWO CLAIMS THIS KILLS, ONE OF THEM MINE FROM AN HOUR EARLIER
+
+1. **The non-monotone capacity curve is a FIT ARTIFACT.** L-4 (19M) beating L-2 (16M) and L-12 (33M)
+   at fixed fine-tuning — cond@3 0.9600 vs 0.9422 vs 0.9422 — does not survive. The honest reading
+   reverts to **capacity is flat at fixed fine-tuning**, now measured across 15M→33M with four
+   same-recipe graphs rather than inferred from two.
+2. **"95% R@3 is in range" was a FIT statement and I should have labelled it.** On fit the 6-graph
+   union oracle is cond@3 0.9778 → R@3 0.9607, above 0.95. Held-out needs cond@3 = 0.95/0.9782 =
+   **0.9711** against a measured **0.9107**. **Not close.**
+
+**The instrument validated itself**: `L-2-ft-w1` reproduces `L-2-ft-session-j` to four decimals on
+every metric and to the same smoke margin (3.993); `L-6-ft-w1` matches `L-6-ft-session-j` (4.992).
+W1's recipe *is* Session J's recipe, which is what licenses L-4 and L-12 as same-recipe comparisons.
+
+---
+
 ## SHIPPED THIS SESSION — the admission rule. The cascade did NOT ship, and the reason is measured.
 
 **`crates/marlowe-memory` builds; `cargo test -p marlowe-memory` = 181 passed, 0 failed.** No git
