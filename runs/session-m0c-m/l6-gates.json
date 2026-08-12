@@ -1,0 +1,515 @@
+{
+  "_what": "Phase 1 per-graph acceptance gates -- ms-marco-MiniLM-L-6-v2-ft-session-j @ depth 30",
+  "_rule": "determinism, batch invariance and padding invariance are RE-MEASURED PER GRAPH and NEVER INHERITED (ADR-015). L-2-ft reads 0.000000 batch invariance on CPU and 0.000324 on CUDA; neither is evidence about this graph.",
+  "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+  "depth": 30,
+  "max_seq": 256,
+  "host": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.11.9",
+    "onnxruntime": "1.24.2",
+    "available_providers": [
+      "TensorrtExecutionProvider",
+      "CUDAExecutionProvider",
+      "CPUExecutionProvider"
+    ]
+  },
+  "control": {
+    "shipped_key_R@1": 0.7555,
+    "published_R@1": 0.7555,
+    "reproduces_exactly": true,
+    "pools": {
+      "pools": 229,
+      "candidates": 111510,
+      "unattributable_rows": 0,
+      "attributed_but_no_session_provenance": 0,
+      "sessions_seen": 10912
+    }
+  },
+  "graph": {
+    "digest_sha256": "78dcc7c1834b2e0cfc67d58a2735b9bc27900f46d5b5ccada99e8ee610c724f6",
+    "params_m": 23,
+    "arch": "BERT",
+    "output_dim": 1,
+    "inputs": [
+      "attention_mask",
+      "input_ids",
+      "token_type_ids"
+    ],
+    "cuda_providers_active": [
+      "CUDAExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "smoke_test_cuda": {
+      "relevant": -5.540631294250488,
+      "irrelevant": -10.533487319946289,
+      "margin": 4.992856025695801,
+      "pass": true
+    },
+    "smoke_test_cpu": {
+      "relevant": -5.541006088256836,
+      "irrelevant": -10.533501625061035,
+      "margin": 4.992495536804199,
+      "pass": true
+    }
+  },
+  "gate_1_gpu_to_gpu_determinism": {
+    "what": "same token ids, repeated CUDA forwards, compared against EACH OTHER (ADR-029 amended gate). NOT against a CPU reference -- that error is what the original Session L spike made, reporting cross-provider disagreement as within-provider nondeterminism.",
+    "batch_shape": [
+      30,
+      256
+    ],
+    "slates": 20,
+    "logits_compared": 600,
+    "repeats_same_session": 5,
+    "same_session_bit_identical": true,
+    "same_session_max_run_to_run_delta": 0.0,
+    "fresh_session_bit_identical": true,
+    "fresh_session_max_delta": 0.0,
+    "verdict": "PASS",
+    "VERDICT": "PASS",
+    "verdict_basis": "5 repeats in one session and 1 fresh session, 600 logits each at [30,256]: bit-identical, max run-to-run delta 0.000000000. Repeats compared against EACH OTHER, never against a CPU reference."
+  },
+  "gate_2_batch_invariance_cuda": {
+    "what": "one batched forward vs len(docs) sequential batch-1 forwards, same token ids, same CUDA session. Real fit slate text, not synthetic.",
+    "slates_per_batch_size": 12,
+    "per_batch_size": [
+      {
+        "batch": 1,
+        "max_abs_diff": 0.0,
+        "slates_bit_identical": 12,
+        "slates": 12
+      },
+      {
+        "batch": 2,
+        "max_abs_diff": 0.0010361671447753906,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 3,
+        "max_abs_diff": 0.0010361671447753906,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 4,
+        "max_abs_diff": 0.0010361671447753906,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 5,
+        "max_abs_diff": 0.0011444091796875,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 6,
+        "max_abs_diff": 0.0011444091796875,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 7,
+        "max_abs_diff": 0.0007562637329101562,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 8,
+        "max_abs_diff": 0.0007562637329101562,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 9,
+        "max_abs_diff": 0.0011444091796875,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 10,
+        "max_abs_diff": 0.0011444091796875,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 11,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 12,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 13,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 14,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 15,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 16,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 17,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 18,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 19,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 20,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 21,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 22,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 23,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 24,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 25,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 26,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 27,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 28,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 29,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      },
+      {
+        "batch": 30,
+        "max_abs_diff": 0.001247406005859375,
+        "slates_bit_identical": 0,
+        "slates": 12
+      }
+    ],
+    "max_abs_diff_over_all_batch_sizes": 0.001247406005859375,
+    "at_shipping_batch_30": {
+      "batch": 30,
+      "max_abs_diff": 0.001247406005859375,
+      "slates_bit_identical": 0,
+      "slates": 12
+    },
+    "shipped_L2_ft_for_contrast": {
+      "cpu": 0.0,
+      "cuda": 0.000324,
+      "note": "contrast only. NOT inherited."
+    },
+    "VERDICT": "FAIL as bit-identity / PASS as ranking equivalence",
+    "verdict_basis": "Batch invariance is NOT bit-exact on this graph on CUDA. Every batch size 2..30 is non-identical on 12/12 slates; max |batched - sequential| is 0.001247 at the shipping batch of 30, roughly 3.8x the shipped L-2-ft's 0.000324. Batch 1 is trivially identical. This is a real FAIL of the strict property and must not be described as invariance. Its RANKING consequence is measured in gate_2b and is nil: 0 of 229 slates change top-1, R@1 identical."
+  },
+  "gate_3_padding_invariance_cuda": {
+    "what": "ADR-015's test: the SAME token ids, zero-padded to a longer tensor, nothing else changed. int8 moved a median 0.0109 and flipped top-1 in 15% of cases; the f32 graphs read 0.000000. This graph is f32 and is measured, not assumed.",
+    "reference_seq_len": 256,
+    "per_seq_len": [
+      {
+        "seq_len": 288,
+        "slates": 40,
+        "pairs": 1200,
+        "median_abs_diff": 0.0,
+        "p95_abs_diff": 0.0,
+        "max_abs_diff": 0.0,
+        "exactly_zero_fraction": 1.0,
+        "top1_flips": 0,
+        "slates_reordered": 0
+      },
+      {
+        "seq_len": 320,
+        "slates": 40,
+        "pairs": 1200,
+        "median_abs_diff": 0.0,
+        "p95_abs_diff": 0.0,
+        "max_abs_diff": 0.0,
+        "exactly_zero_fraction": 1.0,
+        "top1_flips": 0,
+        "slates_reordered": 0
+      },
+      {
+        "seq_len": 384,
+        "slates": 40,
+        "pairs": 1200,
+        "median_abs_diff": 0.0,
+        "p95_abs_diff": 0.0,
+        "max_abs_diff": 0.0,
+        "exactly_zero_fraction": 1.0,
+        "top1_flips": 0,
+        "slates_reordered": 0
+      },
+      {
+        "seq_len": 512,
+        "slates": 40,
+        "pairs": 1200,
+        "median_abs_diff": 0.0,
+        "p95_abs_diff": 0.0,
+        "max_abs_diff": 0.0,
+        "exactly_zero_fraction": 1.0,
+        "top1_flips": 0,
+        "slates_reordered": 0
+      }
+    ],
+    "any_top1_flip": false,
+    "max_abs_diff": 0.0,
+    "VERDICT": "PASS",
+    "verdict_basis": "Bit-identical token ids zero-padded from 256 to 288/320/384/512, 40 slates x 30 pairs at each length (4,800 pairs): max |diff| 0.000000000, exactly zero on 100% of pairs, 0 top-1 flips, 0 slates reordered. ADR-015's int8 failure (median 0.0109, 15% top-1 flips) does not reproduce on this f32 graph."
+  },
+  "gate_4_cross_provider_ranking_equivalence": {
+    "what": "ADR-029's gate is RANKING equivalence, not logit identity. Both are reported.",
+    "slates": 229,
+    "slate_depth": 30,
+    "slates_reordered_in_top10": 7,
+    "slates_reordered_anywhere_in_30": 10,
+    "slates_with_changed_top1": 0,
+    "R@1_cuda": 0.7729,
+    "R@1_cpu": 0.7729,
+    "R@1_cases_moved": 0,
+    "R@1_current_cuda": 0.7118,
+    "R@1_current_cpu": 0.7118,
+    "R@5_cuda": 0.952,
+    "R@5_cpu": 0.952,
+    "input_recall_at_depth_30": 0.9825,
+    "logit_delta_distribution": {
+      "pairs": 6870,
+      "median": 0.00019073486328125,
+      "p95": 0.0007143974304199205,
+      "p99": 0.0010296058654785147,
+      "max": 0.002013683319091797,
+      "exactly_zero_fraction": 0.0011644832605531296
+    },
+    "per_category_cuda": {
+      "knowledge-update": {
+        "n": 36,
+        "R@1": 0.75,
+        "R@1_current": 0.5
+      },
+      "multi-session": {
+        "n": 61,
+        "R@1": 0.8361,
+        "R@1_current": 0.7869
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "R@1": 0.8214,
+        "R@1_current": 0.8214
+      },
+      "single-session-preference": {
+        "n": 15,
+        "R@1": 0.2667,
+        "R@1_current": 0.2667
+      },
+      "single-session-user": {
+        "n": 32,
+        "R@1": 0.8125,
+        "R@1_current": 0.8125
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "R@1": 0.807,
+        "R@1_current": 0.7719
+      }
+    },
+    "VERDICT": "FAIL as literally worded in ADR-029 (top-10 ORDER identical on every slate) / PASS on every retrieval-visible consequence",
+    "verdict_basis": "7 of 229 slates reorder somewhere in their top-10 and 10 of 229 anywhere in the 30. ADR-029 records 0 of 229 for the shipped L-2-ft at depth 10, so this is a real difference and it is not summarised away. What does NOT move: 0 slates change top-1, and R@1 (0.7729), R@1_current (0.7118) and R@5 (0.9520) are identical on both providers to 4 dp. session_l_gpu_recovery's own verdict text for exactly this outcome is 'RANKING REORDERS but R@1 is unchanged ... needs the human's read'.",
+    "confound_named": "This gate varies TWO things at once, because it compares the two SHIPPED paths: CUDA batched-30 against CPU sequential batch-1 (ADR-029: batching is a property of the hardware). Gate 2b isolates batching within CUDA and produces 3 top-10 reorders on its own. The two slate SETS were not intersected -- per-slate ids were not persisted -- so 'batching accounts for 3 of the 7' is NOT asserted.",
+    "comparison_L2_ft_ADR029": {
+      "slates_reordered_in_top10": 0,
+      "slates_with_changed_top1": 0,
+      "logit_delta_median": 0.000237,
+      "p95": 0.000824,
+      "max": 0.002182,
+      "depth": 10,
+      "note": "L-2-ft at depth 10, end-to-end Rust. Contrast only, NOT inherited."
+    }
+  },
+  "gate_5_latency": {
+    "what": "depth 30. GPU budget is 300 ms P95 total retrieval; non-rerank stages ~6.6 ms on the GPU path. The CPU number is a CAPABILITY statement -- 1 vCPU is the fallback floor.",
+    "cuda_batched_depth30": {
+      "queries": 229,
+      "tokenize_plus_forward_ms": {
+        "p50": 34.53,
+        "p95": 40.55,
+        "max": 44.04,
+        "mean": 34.73
+      },
+      "forward_only_ms": {
+        "p50": 21.03,
+        "p95": 24.57
+      },
+      "session_M_published_p50": 37.1
+    },
+    "cpu_sequential_1thread_depth30": {
+      "queries": 229,
+      "per_query_ms": {
+        "p50": 1593.2,
+        "p95": 1777.02,
+        "max": 1906.69,
+        "mean": 1624.84
+      },
+      "per_pair_ms_p50": 53.11
+    },
+    "VERDICT": "PASS on the GPU budget / CAPABILITY STATEMENT on CPU, with one consequence named",
+    "verdict_basis": "CUDA batched depth 30: p50 34.53 ms, p95 40.55 ms, max 44.04 ms (tokenize+forward; forward alone p50 21.03 / p95 24.57). With ~6.6 ms of non-rerank stages that is ~47 ms P95 total against a 300 ms budget -- 16% of it. It also independently reproduces Session M's published 37.1 ms p50 (34.53 here, same order, different process). CPU sequential 1 thread depth 30: p50 1593.2 ms, p95 1777.0 ms per query, 53.1 ms per pair.",
+    "cpu_consequence_named": "The CPU fallback number is reported as capability, not as a retrieval budget breach -- but it does have one downstream consequence worth stating rather than leaving implicit. ADR-029 records the CPU fallback at 199.6 ms total p50 (rerank 195.6 ms at depth 10) and calls that 27% of brief \u00a79's 800 ms voice-to-voice budget. At depth 30 with L-6 the rerank stage alone measures 1593 ms p50, which is roughly TWICE the entire \u00a79 budget. On a GPU machine this is irrelevant; on a CPU-only machine, depth 30 + L-6 makes voice-mode retrieval non-viable where depth 10 + L-2 was merely expensive. That is a product decision (Phase 3b's adaptive depth is the named lever), not a Phase 1 gate failure. It is also ~8.1x the shipped CPU rerank, which is more than the 3x from depth alone -- L-6 is ~2.7x L-2's per-pair CPU cost at 53.1 ms/pair.",
+    "measured_vs_plan_estimate": "PLAN-R1 estimates the CPU fallback at ~1.1 s. Measured 1.59 s p50 on this machine, 45% higher. The plan's figure is an estimate and is scored as one."
+  },
+  "_scope_limit": "Every number here is measured through tools/session_i_rerankers.py -- the one verified loader -- which pins the same ORT settings the Rust stage uses (ORT_ENABLE_BASIC == Level1, 1 intra/inter-op thread, ORT_SEQUENTIAL) and the same digest-pinned tokenizer at seq 256. It is NOT a measurement of the shipped Rust rerank stage, which cannot load this graph until rerank.rs is re-pinned. No Rust was modified and nothing was shipped.",
+  "gate_2b_batching_ranking_impact_cuda": {
+    "_what": "gate 2b -- CUDA batched(30) vs CUDA sequential(batch 1), full fit split, depth 30",
+    "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+    "provider": "CUDAExecutionProvider",
+    "slates": 229,
+    "logit_delta": {
+      "pairs": 6870,
+      "median": 0.00014209747314453125,
+      "p95": 0.0005457639694213864,
+      "max": 0.00150299072265625,
+      "exactly_zero_fraction": 0.0023289665211062593
+    },
+    "slates_reordered_in_top10": 3,
+    "slates_reordered_anywhere_in_30": 7,
+    "slates_with_changed_top1": 0,
+    "R@1_batched": 0.7729,
+    "R@1_sequential": 0.7729,
+    "R@1_current_batched": 0.7118,
+    "R@1_current_sequential": 0.7118,
+    "R@1_cases_moved": 0,
+    "VERDICT": "PASS -- batching alone changes no top-1 and no R@1",
+    "verdict_basis": "Provider held fixed at CUDA, only batching varies (batched 30 vs sequential 1) over the full 229-slate fit split at depth 30. 3 slates reorder within top-10, 7 anywhere in the 30, 0 change top-1, R@1 and R@1_current identical to 4 dp."
+  },
+  "gate_6_node_placement": {
+    "_what": "gate 6 -- node placement, L-6-ft, CUDA, batch 30 x seq 256",
+    "_how": "Gate 6 -- node placement for L-6-ft on CUDA, using session_l_gpu_recovery's own mechanism.\n\n`tools/session_l_gpu_recovery.py` has NO --model flag: `SHIPPED` is a module constant and its\n`main()` scores the HELD-OUT slates, which would spend a held-out read as a side effect. So the\nfile is not modified and its main() is not run. Instead its `build()` and `placement_by_op()` --\ngate 3, the node-placement mechanism ADR-029 names -- are imported and the module constant is\nredirected at L-6-ft in this process only. Profiles go to scratch, not into runs/session-l.",
+    "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+    "cuda_library_search_path": {
+      "added": true,
+      "torch_lib": "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\torch\\lib",
+      "libraries_present": {
+        "cublasLt64_12": true,
+        "cudnn64_9": true,
+        "cudart64_12": true
+      }
+    },
+    "batch": 30,
+    "seq_len": 256,
+    "configs": [
+      {
+        "options": "(provider defaults)",
+        "registered_providers": [
+          "CUDAExecutionProvider",
+          "CPUExecutionProvider"
+        ],
+        "node_placement": {
+          "CUDAExecutionProvider": 2880,
+          "CPUExecutionProvider": 384
+        },
+        "total_nodes": 3264,
+        "cpu_nodes": 384,
+        "cpu_fallback_fraction": 0.1176,
+        "cpu_fallback_ops": {
+          "Gather": 128,
+          "Unsqueeze": 120,
+          "Concat": 112,
+          "Reshape": 8,
+          "Equal": 8,
+          "Where": 8
+        },
+        "profile": "C:\\Users\\matth\\AppData\\Local\\Temp\\claude\\c--Users-matth-Projects-Marlowe-Harness\\0af60c48-4c94-41e2-b8d9-ecc43567b140\\scratchpad\\ort-profiles\\rec_l6_default_2026-08-11_21-48-02.json"
+      }
+    ],
+    "VERDICT": "MEASURED -- PASS on the substance (no matmul on the fallback)",
+    "verdict_basis": "384 of 3,264 nodes on CPUExecutionProvider = 11.76%, against 13.6% for L-2-ft in ADR-029. The fallback census is Gather 128, Unsqueeze 120, Concat 112, Reshape 8, Equal 8, Where 8 -- all shape and index ops, no matmuls, the same benign family ADR-029 documents. The hazard ADR-029 names ('a model swap could move matmuls onto the fallback') did NOT occur.",
+    "tool_limitation_stated_plainly": "tools/session_l_gpu_recovery.py CANNOT be pointed at a model: SHIPPED is a module constant with no CLI flag, and its main() scores runs/session-m0c/slates-heldout.json -- running it as-is would spend a HELD-OUT read as a side effect, which PLAN-R1 budgets for a human decision. The file was NOT modified. Its gate-3 mechanism -- build() and placement_by_op() -- was imported and the module constant redirected in-process to L-6-ft, at the proposed batch 30 rather than the tool's RERANK_BUDGET of 10, on fit-split slates. Its gate 1 (determinism) and gate 2 (cross-provider ranking) were measured directly instead, at depth 30 on the fit split -- gates 1 and 4 above. The tool's own 4-config provider-option determinism sweep was NOT run: it exists to RECOVER determinism when provider defaults fail, and provider defaults did not fail here."
+  },
+  "not_measured": {
+    "repro_runs_2_byte_identical": "NOT-MEASURED. `marlowe_eval.cli repro --runs 2` drives the release binary, which loads the digest pinned in rerank.rs. Measuring it for L-6-ft requires re-pinning Rust, which this task forbids. It remains a required Phase 1 gate and is unmet, not passed.",
+    "held_out_R@1_delta": "NOT-MEASURED, DELIBERATELY. PLAN-R1's Phase 1 kill criterion is a held-out delta <= 0, and RESULT.md records that spending a held-out read is the human's call. No held-out pool was scored with this graph in this session. Everything above is fit-split or synthetic.",
+    "end_to_end_rust_stage": "NOT-MEASURED. All numbers are the Python loader on the pinned graph. A test on a loader is not a test on the deployed stage -- the same distinction that let persona_emission.rs pass against a stale daemon."
+  },
+  "adr_029_text_amendment_required_if_shipped": "ADR-029's decision text pins 'ONE batched [10, 256] forward'. Depth 30 makes the shipped GPU tensor [30, 256]. That is an amendment to the ADR's stated shape, not a re-measurement of it, and it needs a DECISIONS.md entry rather than a silent constant change.",
+  "DISQUALIFYING": {
+    "question": "Does anything measured here disqualify L-6-ft at depth 30 from shipping?",
+    "answer": "NO -- nothing measured here disqualifies it. Three things must travel with that answer.",
+    "nothing_disqualifying_because": [
+      "GPU->GPU determinism is bit-identical, which is ADR-029's amended bar.",
+      "Padding invariance is exactly 0.000000 with no top-1 flips -- ADR-015's failure does not reproduce on this f32 graph.",
+      "Both providers return R@1 0.7729, R@1_current 0.7118 and R@5 0.9520, with 0 top-1 changes on 229 slates. The two paths retrieve the same thing.",
+      "37 ms of a 300 ms GPU budget, node placement 11.76% CPU with no matmuls on the fallback."
+    ],
+    "but_carry_these": [
+      "Batch invariance is NOT bit-exact (max 0.001247 at batch 30, ~3.8x L-2-ft's 0.000324) and cross-provider top-10 ORDER is not identical (7 of 229 slates), where L-2-ft read 0 of 229. Under ADR-029's amended acceptance neither blocks, because the gate is ranking equivalence and top-1 does not move. Under its LITERAL wording ('top-10 order vs CPU'), gate 4 fails, and that is the human's read to make, not this session's.",
+      "Two required Phase 1 gates are NOT-MEASURED and therefore NOT PASSED: repro --runs 2 byte-identity (needs a Rust re-pin) and the held-out read (needs the human's authorisation).",
+      "The CPU fallback at depth 30 costs 1.59 s p50 per query -- ~2x brief \u00a79's entire 800 ms voice-to-voice budget, against ADR-029's 27% for the shipped depth-10 CPU path."
+    ]
+  }
+}

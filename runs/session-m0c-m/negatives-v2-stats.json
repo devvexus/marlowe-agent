@@ -1,0 +1,228 @@
+{
+  "_what": "M0c Session M Phase 2 prep \u2014 three negative classes Session J's same-session miner cannot reach. Mined only; nothing trained, nothing shipped.",
+  "sources": {
+    "split": "tools/split.json",
+    "corpus": "data/longmemeval_s_cleaned.json",
+    "deployed_ranking": "runs/session-k/fit/ via sweep_reranker_frontier.shipped_order",
+    "session_j_baseline": "runs/session-j/training-pairs.jsonl"
+  },
+  "control": {
+    "_why": "deployed_top_k is the deployed competitor set only if the reconstruction is the deployed ranking. The script refuses to write if this does not match.",
+    "fit_r_at_1_reconstructed": 0.7555,
+    "fit_r_at_1_published": 0.7555,
+    "pass": true,
+    "pools": {
+      "pools": 229,
+      "candidates": 111510,
+      "unattributable_rows": 0,
+      "attributed_but_no_session_provenance": 0,
+      "sessions_seen": 10912
+    }
+  },
+  "constants": {
+    "DEPLOYED_TOP_K_DEPTH": 10,
+    "CROSS_SESSION_CAP": 4,
+    "CROSS_SESSION_MAX_PER_SESSION": 1,
+    "QUESTION_ECHO_CAP": 4,
+    "VAL_FRACTION": 0.2,
+    "SHORT_ANSWER_CHARS": 4,
+    "classes_mined": [
+      "deployed_top_k",
+      "cross_session",
+      "question_echo"
+    ]
+  },
+  "queries": {
+    "fit_total": 251,
+    "excluded_by_heldout_haystack_rule": [
+      "2ebe6c92"
+    ],
+    "excluded_count": 1,
+    "no_usable_gold_turn": [
+      "0ddfec37_abs",
+      "2133c1b5_abs",
+      "2311e44b_abs",
+      "60bf93ed_abs",
+      "6aeb4375_abs",
+      "80ec1f4f_abs",
+      "ba358f49_abs",
+      "f4f1d8a4_abs"
+    ],
+    "no_reconstructed_pool": [
+      "6456829e_abs",
+      "982b5123_abs",
+      "a3838d2b",
+      "c8090214_abs",
+      "c9f37c46",
+      "edced276_abs",
+      "gpt4_0a05b494",
+      "gpt4_2f56ae70",
+      "gpt4_4cd9eba1",
+      "gpt4_70e84552_abs",
+      "gpt4_9a159967",
+      "gpt4_b4a80587",
+      "gpt4_c27434e8_abs",
+      "gpt4_fe651585_abs"
+    ],
+    "_no_pool_note": "load_pools drops abstention cases and cases whose gold turn produced no surviving candidate. deployed_top_k is undefined for those; the other two classes still cover them, so the classes do not span identical query sets.",
+    "with_pairs": 242
+  },
+  "per_class": {
+    "deployed_top_k": {
+      "pairs": 3103,
+      "queries_covered": 227,
+      "distinct_sessions_drawn_from": 691,
+      "negatives_from_the_gold_turn_own_session": 1056,
+      "train_pairs": 2475,
+      "val_pairs": 628
+    },
+    "cross_session": {
+      "pairs": 1892,
+      "queries_covered": 242,
+      "distinct_sessions_drawn_from": 968,
+      "negatives_from_the_gold_turn_own_session": 0,
+      "train_pairs": 1544,
+      "val_pairs": 348
+    },
+    "question_echo": {
+      "pairs": 1892,
+      "queries_covered": 242,
+      "distinct_sessions_drawn_from": 655,
+      "negatives_from_the_gold_turn_own_session": 554,
+      "train_pairs": 1544,
+      "val_pairs": 348
+    }
+  },
+  "false_negative_filter": {
+    "_what": "a mined negative that states the gold answer is a label error that actively teaches the wrong thing. Counted at the point of selection: these are candidates that WOULD have entered the training set.",
+    "rule": "whitespace-normalised, case-insensitive containment with alphanumeric lookarounds",
+    "dropped_per_class": {
+      "deployed_top_k": 327,
+      "cross_session": 477,
+      "question_echo": 391
+    },
+    "dropped_distinct_turns_per_class": {
+      "deployed_top_k": 143,
+      "cross_session": 136,
+      "question_echo": 131
+    },
+    "_two_units": "dropped_per_class counts PAIRS prevented \u2014 the unit that matters for label noise in the training set, and it is amplified by the ~1.9 gold turns a query has. dropped_distinct_turns_per_class counts the underlying turns.",
+    "dropped_per_class_from_answers_under_4_chars": {
+      "deployed_top_k": 248,
+      "cross_session": 469,
+      "question_echo": 338
+    },
+    "_short_answer_caveat": "50 of 242 mined fit answers are under 4 characters and mostly bare numerals, where containment is a weak reading of 'this turn states the answer'. Reported separately rather than folded in.",
+    "gold_turns_skipped_per_class": {
+      "deployed_top_k": 729,
+      "cross_session": 0,
+      "question_echo": 522
+    }
+  },
+  "heldout_haystack_leak_filter": {
+    "_what": "Session J's registered rule \u2014 no training pair may come from a session present in ANY held-out haystack. It excluded ONE query there because negatives never left the gold session. Two of these three classes leave it, so the rule now removes real candidates and the count is the measurement of that.",
+    "sessions_in_both_haystacks": 2182,
+    "dropped_per_class": {
+      "deployed_top_k": 291,
+      "cross_session": 772,
+      "question_echo": 248
+    }
+  },
+  "fold_structure": {
+    "_what": "Session J's union-find over (query, gold session). Split by CONVERSATION.",
+    "conversation_groups": 248,
+    "train_queries": 200,
+    "val_queries": 50,
+    "agreement_with_session_j": {
+      "_why": "reproducing the logic is not evidence that it reproduced. Every query present in both files must land on the same side, or the Phase 2 validation number is not comparable to Session J's.",
+      "shared_queries": 242,
+      "same_fold": 242,
+      "pass": true
+    }
+  },
+  "rank1_competitor": {
+    "_what": "the number that says whether deployed_top_k does its job. Fit queries whose rank-1 is not gold, and what happened to that rank-1 turn.",
+    "failing_queries": 56,
+    "rank1_became_a_negative": 49,
+    "rank1_dropped_answer_filter": 4,
+    "rank1_dropped_leak_filter": 3,
+    "rank1_label_artifacts": [
+      {
+        "query_id": "dad224aa",
+        "turn_id": "6de8645d_1-2"
+      },
+      {
+        "query_id": "e3fc4d6e",
+        "turn_id": "answer_sharegpt_5m7gg5F_0-0"
+      },
+      {
+        "query_id": "gpt4_5dcc0aab",
+        "turn_id": "answer_099c1b6c_3-4"
+      },
+      {
+        "query_id": "gpt4_e414231f",
+        "turn_id": "answer_e28c1f0e_1-0"
+      }
+    ],
+    "_artifact_note": "these are cases where the turn that 'beat' gold states the gold answer, so the loss is a measurement artifact rather than a ranking error. Training against them as negatives would teach the model to reject a correct answer."
+  },
+  "class_balance_against_session_j": {
+    "_why": "so the mix is a deliberate choice rather than an accident of the mining rule.",
+    "session_j": {
+      "entity_overlap": 1876,
+      "long_assistant": 1851,
+      "opposite_role": 1867,
+      "temporal_adjacency": 1304
+    },
+    "session_j_total": 6898,
+    "v2": {
+      "deployed_top_k": 3103,
+      "cross_session": 1892,
+      "question_echo": 1892
+    },
+    "v2_total": 6887,
+    "combined_total": 13785
+  },
+  "examples": [
+    {
+      "negative_class": "deployed_top_k",
+      "query_id": "001be529",
+      "fold": "val",
+      "question": "How long did I wait for the decision on my asylum application?",
+      "positive": "I've been using Zillow and HotPads, but I haven't tried the others. I'll definitely check them out. By the way, speaking of waiting, it's crazy how long it took for my asylum application to get approved. Over a year of uncertainty was really tough. But at least it's behind me now, and I can focus on",
+      "negative": "That's really helpful, thanks. My maximum monthly rent budget is $800. I have some savings for a security deposit and first month's rent. I'm not eligible for any government assistance programs. For location, I need to be close to public transportation and my volunteer job. I'm open to any type of a",
+      "negative_role": "user",
+      "turn_gap": -2,
+      "same_session_as_gold": true
+    },
+    {
+      "negative_class": "cross_session",
+      "query_id": "001be529",
+      "fold": "val",
+      "question": "How long did I wait for the decision on my asylum application?",
+      "positive": "I've been using Zillow and HotPads, but I haven't tried the others. I'll definitely check them out. By the way, speaking of waiting, it's crazy how long it took for my asylum application to get approved. Over a year of uncertainty was really tough. But at least it's behind me now, and I can focus on",
+      "negative": "The American Civil War was fought from 1861 to 1865 and was a major turning point in the history of the United States. The main cause of the war was the disagreement over the issue of slavery and states' rights.\n\nSlavery had been a contentious issue in the United States since its founding, and the d",
+      "negative_role": "assistant",
+      "turn_gap": null,
+      "same_session_as_gold": false
+    },
+    {
+      "negative_class": "question_echo",
+      "query_id": "001be529",
+      "fold": "val",
+      "question": "How long did I wait for the decision on my asylum application?",
+      "positive": "I've been using Zillow and HotPads, but I haven't tried the others. I'll definitely check them out. By the way, speaking of waiting, it's crazy how long it took for my asylum application to get approved. Over a year of uncertainty was really tough. But at least it's behind me now, and I can focus on",
+      "negative": "I'm so glad to hear that your asylum application has been approved! That must be a huge weight off your shoulders. The waiting process can be incredibly stressful and uncertain, and it's amazing that you've made it through that challenging time.\n\nIt's great that you're now focusing on building your ",
+      "negative_role": "assistant",
+      "turn_gap": 1,
+      "same_session_as_gold": true
+    }
+  ],
+  "output": {
+    "pairs_file": "C:/Users/matth/Projects/Marlowe_Harness/runs/session-m0c-m/training-pairs-v2.jsonl",
+    "location": "runs/session-m0c-m",
+    "bytes": 14315091,
+    "sha256": "76bcbf7f50875bbcc12741b7399dcf19c3ca7e4f1dd069b869c15497952ad283",
+    "pairs": 6887
+  }
+}

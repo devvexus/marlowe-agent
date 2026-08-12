@@ -1,0 +1,49 @@
+{
+  "_what": "HELD-OUT READ -- one configuration, spent deliberately",
+  "_split": "heldout",
+  "_floor_status": {
+    "registered_floor": 0.02,
+    "fit_delta_of_this_config": 0.0174,
+    "cleared": false,
+    "_note": "The floor was NOT cleared on fit. This read was taken at the human's explicit direction. The bar is not moved; the argument is recorded in the module docstring."
+  },
+  "reranker": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+  "depth": 30,
+  "provider": "CUDAExecutionProvider",
+  "digest": "78dcc7c1834b2e0cfc67d58a2735b9bc27900f46d5b5ccada99e8ee610c724f6",
+  "n": 229,
+  "baseline": {
+    "R@1": 0.6725,
+    "R@1_current": 0.5852,
+    "R@5": 0.8865
+  },
+  "new": {
+    "R@1": 0.6769,
+    "R@1_current": 0.607,
+    "R@5": 0.9214,
+    "input_recall": 0.9782,
+    "conditional_accuracy": 0.692
+  },
+  "delta": {
+    "R@1": 0.0044,
+    "R@1_current": 0.0218
+  },
+  "mcnemar_R@1": {
+    "gained": 20,
+    "lost": 19,
+    "discordant": 39,
+    "p_two_sided": 1.0,
+    "significant_at_0.05": false
+  },
+  "mcnemar_R@1_current": {
+    "gained": 23,
+    "lost": 18,
+    "discordant": 41,
+    "p_two_sided": 0.532709,
+    "significant_at_0.05": false
+  },
+  "latency_ms_per_query": {
+    "p50": 38.72,
+    "p95": 44.6
+  }
+}

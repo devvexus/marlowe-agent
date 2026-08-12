@@ -1,0 +1,224 @@
+{
+  "_what": "Read-only audit of what training GROUP M0c Session A's listwise arm L1 actually used, and whether its null (-0.0131 out-of-fold R@1, 13 discordant, p = 0.5811) bears on LCE (Localized Contrastive Estimation).",
+  "_scope": "No code changed, nothing trained, no held-out read, no git write. All citations are file:line in this checkout as of 2026-08-11.",
+  "_question": "A listwise loss carries more information than a pointwise one ONLY IF the group is the group seen at inference. Was L1's group the deployed pipeline's own top-k, drawn by the shipped pre-rerank key, at the deployed depth?",
+
+  "VERDICT": "LCE WAS EFFECTIVELY TESTED",
+  "verdict_one_line": "L1's training group WAS the deployed group: the shipped pre-rerank key's top-10 over the pruned survivor pool, at the deployed depth of 10, with the loss a genuine multi-positive listwise softmax cross-entropy over exactly that group. The condition LCE names was satisfied, so the null does apply to LCE-as-group-construction and RESEARCH.md §2's headline rationale is refuted.",
+
+  "verdict_qualified": {
+    "what_the_null_DOES_bear_on": "The LCE mechanism as stated in RESEARCH.md §2 -- 'matching the sampling depth to the deployment depth recovers the effectiveness lost to train/inference candidate-distribution mismatch'. That match was already in place. Rebuilding the group from the deployed pipeline is not new work; it is what L1 did. Re-running §2 as written should be expected to reproduce -0.0131.",
+    "what_the_null_does_NOT_bear_on": "Listwise training AT VOLUME. L1 saw ~136 gradient-carrying groups per fold for at most 8 epochs. Under the scaling-law framing RESEARCH.md §0.3 invokes, the listwise data exponent (-0.43/-0.50) is a claim about training EXPOSURE, and L1 supplied essentially none. The registered arm that would have tested this -- L2, listwise with mined-slate augmentation -- was never run (see `finding_L2_was_never_run`).",
+    "why_this_distinction_is_not_a_hedge": "They are separable by a control. A run at group-construction held fixed and volume raised (L2) separates them; a run at volume held fixed and group construction randomised separates them the other way. Neither has been done. What HAS been done is the group-construction arm, and it is null.",
+    "the_specific_RESEARCH_md_sentence_that_is_FALSE": "RESEARCH.md:154 -- 'Do not use a bare BM25 or bare-dense pool: that is a different distribution, and it is very likely what the failed listwise experiment used.' It is not what the failed listwise experiment used. The group was the shipped gate order over the pruned pool at depth 10."
+  },
+
+  "1_what_was_L1s_group": {
+    "answer": "The 10 candidates stored in runs/session-m0c/slates-fit.json, in shipped order, one group per fit query.",
+    "provenance_chain": [
+      {
+        "step": 1,
+        "what": "A real run of the shipped binary dumps every scored candidate with its cue scores, gate score/margin and pruning verdict.",
+        "cite": "tools/session_h_pools.py:42 -- ALL_RUN = REPO / 'runs' / 'session-f' / 'all'; tools/reach_head_r3_slate.py:66-96 load_pool reads scored-candidates.ndjson columns lex/den/score/margin/survived/rerank"
+      },
+      {
+        "step": 2,
+        "what": "Fidelity gate: the held-out half cut from that dump must reproduce Session F's published held-out top-1 exactly, which is what licenses using the fit half.",
+        "cite": "tools/session_h_pools.py:75-107 fidelity_gate"
+      },
+      {
+        "step": 3,
+        "what": "The slate is reconstructed as: derive sessions by occurred_at_ms gap -> prune to the union of each cue's top-N sessions -> order by the gate key -> take the first BUDGET.",
+        "cite": "tools/session_i_seqlen.py:53 BUDGET = 10; tools/session_i_seqlen.py:68-72 shipped_slate",
+        "quoted_code": "def shipped_slate(pool: Pool, gap_ms: int, prune_n: int) -> np.ndarray:\n    \"\"\"Unchanged from Phase 0.1. Slate membership does not depend on the sequence length.\"\"\"\n    keys = derived_keys(pool, gap_ms)\n    pruned = np.flatnonzero(prune_mask(pool, keys, prune_n))\n    return pruned[gate_order(pool, pruned)[:BUDGET]]"
+      },
+      {
+        "step": 4,
+        "what": "Its two parameters are read from the Session H registration, not restated -- session_gap_ms = 1800000, prune_N = 3, both frozen.",
+        "cite": "tools/session_j_arm7.py:305-306; runs/session-h/PREREGISTRATION.json:21-29"
+      },
+      {
+        "step": 5,
+        "what": "Each slate member is scored once by the shipped graph and cached; the cache is runs/session-j/rerank-scores-{split}-L-2-v2-ft-session-j-f32-seq256.json.",
+        "cite": "tools/session_j_arm7.py:106-116 cache_path, :119-158 score_slates"
+      },
+      {
+        "step": 6,
+        "what": "build_head_slates.py reads that cache, pins its digest, re-sorts each slate into shipped rerank order, and REFUSES to write unless the reconstructed R@1 equals the published shipped figure.",
+        "cite": "tools/build_head_slates.py:27, :34 PINNED_DIGEST, :37-41 shipped_slate_order, :132-139 refusal",
+        "quoted_code": "if len(records) != CANONICAL_N or round(r_at_1, 4) != want:\n    raise SystemExit(\n        f\"REFUSING to write {split}: reconstructed R@1 {r_at_1:.4f} on n={len(records)}, \"\n        f\"canonical is {want} on n={CANONICAL_N}. The slate this dataset describes is not \"\n        f\"the shipped ranking.\"\n    )"
+      },
+      {
+        "step": 7,
+        "what": "m0c_cv_arms.py trains L1 on those records, one group per query.",
+        "cite": "tools/m0c_cv_arms.py:41 SLATES, :201-205 load_all, :208-219 tokenize (one encode_batch of (question, text) over the record's 10 texts)"
+      }
+    ],
+    "verified_group_shape_measured_from_the_artifact": {
+      "n_groups_fit": 229,
+      "group_size": "10 for all 229 records (measured: {10: 229})",
+      "mean_positives_per_group": 1.45,
+      "groups_with_no_gold": 18,
+      "median_distinct_sessions_per_group": 4
+    }
+  },
+
+  "2_was_it_the_DEPLOYED_group": {
+    "answer": "YES, on all three axes: the shipped pre-rerank key, the pruned survivor pool, and depth 10.",
+    "the_shipped_rust_this_is_compared_against": {
+      "cite": "crates/marlowe-memory/src/retrieve.rs:271 and :544-557",
+      "quoted_code": "pub const RERANK_BUDGET: usize = 10;\n...\nlet mut slate: Vec<usize> =\n    (0..scored.len()).filter(|i| scored[*i].survived_pruning).collect();\nslate.sort_by(|a, b| {\n    let (x, y) = (&scored[*a], &scored[*b]);\n    y.score\n        .total_cmp(&x.score)\n        .then_with(|| y.margin.total_cmp(&x.margin))\n        .then_with(|| x.entry.id.cmp(&y.entry.id))\n});\nslate.truncate(*budget);",
+      "the_python_equivalent": "tools/reach_rerank_fit.py:152-160 gate_order -> np.lexsort((-margin, -score)) restricted to survivors, with the dump's stable row order as the final tiebreak; tools/reach_session_h_pruning.py:98-103 prune_mask -> union of each cue's top-N sessions; CUES = ('lexical_bm25','dense_cosine') at :39",
+      "correspondence": "score desc, margin desc, id asc over survived_pruning candidates, truncated at 10 -- the same three keys and the same filter in both implementations."
+    },
+    "independent_confirmation_that_it_reproduces_the_shipped_ranking": [
+      "build_head_slates.py refuses unless R@1 == 0.7555 (fit) / 0.6725 (heldout) on n = 229 -- tools/build_head_slates.py:32-33, :132-139. Both files on disk carry 'r_at_1': 0.7555 / 0.6725.",
+      "tools/m0c_slate_rules.py:86 registers 'gate top10 (SHIPPED CONTROL)' as gate_order(p)[:10] and :252-260 refuses to write unless it reproduces the published split figure. It passed on both splits (runs/session-m0c/slate-rules-{fit,heldout}.json, 'control_reproduces_shipped': true).",
+      "tools/m0c_encode_slates.py:110-118 additionally asserts 229/229 top-1 agreement between the torch checkpoint and the cached shipped ONNX logits before any head is trained."
+    ],
+    "not_a_random_or_corpus_wide_pool": "The pool is ~490 candidates per query from the binary's own dump; the group is not sampled from it. It is the exact deployed top-10, deterministic given the query.",
+    "one_residual_that_is_NOT_a_group_defect": "The slate is a faithful OFFLINE RECONSTRUCTION of the deployed selection, not a live call into the binary. It is gated by three independent equalities above (fidelity gate, canonical R@1 refusal, 229/229 top-1 agreement), which is stronger evidence than a live call without a control. Recorded so the claim is 'reconstructed and checked' rather than 'the pipeline was invoked'."
+  },
+
+  "3_what_was_the_loss": {
+    "answer": "An actual listwise loss: multi-positive softmax cross-entropy over the group's 10 logits. Not pairwise-within-a-group and not pointwise with grouped batching.",
+    "cite": "tools/m0c_cv_arms.py:77-82 (the CV path that produced -0.0131); identical function at tools/m0c_train_arms.py:75-86 (the single-slice path)",
+    "quoted_code": "def listwise_loss(scores: torch.Tensor, gold: torch.Tensor) -> torch.Tensor:\n    logp = torch.log_softmax(scores, dim=-1)\n    has = gold.any(dim=-1)\n    if not has.any():\n        return scores.sum() * 0.0\n    return -(torch.logsumexp(logp.masked_fill(~gold, float(\"-inf\"))[has], dim=-1)).mean()",
+    "reading": "log_softmax is taken over dim=-1, the CANDIDATE axis of one slate. That is LCE's objective form exactly, generalised to multiple positives via logsumexp over the gold members (-log sum_{g in gold} p_g). Slates with no gold carry no gradient and are dropped -- m0c_train_arms.py:78-80 states why.",
+    "how_the_group_enters_the_optimiser": {
+      "cite": "tools/m0c_cv_arms.py:140-156 build_batches (each entry is one slate, unsqueeze(0)), :184-192 training loop",
+      "quoted_code": "for ep in range(1, args.epochs + 1):\n    arm.train()\n    for j in rng.permutation(len(b_tr)):\n        b = b_tr[j]\n        loss = listwise_loss(arm.slate_scores(b), b[\"gold\"])",
+      "note": "One optimiser step per slate. The softmax normaliser is the 10 candidates of that slate and nothing else -- no cross-slate in-batch negatives, which is the correct LCE construction (the normaliser must be the inference group)."
+    },
+    "arm_definition": {
+      "cite": "tools/m0c_cv_arms.py:222-226",
+      "quoted_code": "ARMS = {\n    \"S1\":  {\"tune_encoder\": False, \"use_head\": True},\n    \"L1\":  {\"tune_encoder\": True,  \"use_head\": False},\n    \"LS1\": {\"tune_encoder\": True,  \"use_head\": True},\n}",
+      "reading": "L1 fine-tunes the encoder end to end (no set head), so the listwise gradient reaches the token-level encoder. Inference is 10 independent pair passes -- runs/session-m0c/PREREGISTRATION.json /arms/L1.../inference: 'IDENTICAL to shipped -- 10 independent pair passes at seq 256, batch 1.'"
+    }
+  },
+
+  "4_what_negatives_were_in_the_group": {
+    "answer": "The 9 (mean 8.55) non-gold members of the deployed top-10. L1 did NOT inherit Session J's mined pool.",
+    "session_j_pool_for_contrast": {
+      "cite": "tools/session_j_mine_negatives.py:94-96",
+      "quoted_code": "for sid, session in zip(inst[\"haystack_session_ids\"], inst[\"haystack_sessions\"]):\n    if sid not in gold_sessions:\n        continue",
+      "consequence": "Every one of the 6,898 Session J pairs draws its negative from inside the gold turn's own session, in four classes (temporal_adjacency, entity_overlap, opposite_role, long_assistant), capped at 4 per query per class -- tools/session_j_mine_negatives.py:49, :116-125."
+    },
+    "measured_composition_of_L1s_negative_pool": {
+      "_method": "Read runs/session-m0c/slates-fit.json, group by the session prefix of turn_id (session_id + '-' + turn_index), compare each non-gold member's session against the set of sessions holding a gold member of the same slate.",
+      "queries_with_gold_in_slate": 211,
+      "non_gold_slate_members_over_those_queries": 1778,
+      "cross_session_negatives": 804,
+      "cross_session_fraction": 0.4522,
+      "mean_cross_session_negatives_per_slate": 3.81,
+      "median_cross_session_negatives_per_slate": 4,
+      "contrast": "Session J: 0 of 6,898 negatives leave the gold session. L1: 45.2% of negatives leave the gold session. These are materially different distributions and L1's is the deployed one."
+    },
+    "the_one_place_Session_Js_pool_still_touches_L1": {
+      "what": "INITIALISATION, not the group.",
+      "cite": "tools/m0c_cv_arms.py:43 MODEL_DIR = models/ms-marco-MiniLM-L-2-v2-ft-session-j; :117-119 AutoModelForSequenceClassification.from_pretrained(MODEL_DIR / 'pytorch-reference')",
+      "reading": "L1 is CONTINUED training from a checkpoint already pairwise-MarginMSE fine-tuned on the within-session pool, at lr 1e-5 for <= 8 epochs. LCE is normally applied from a pretrained LM, not on top of an in-domain pairwise adaptation. This is a real confound and it is on the INITIALISATION axis, not the group axis. It is the only untested lever this audit found that could plausibly change the objective verdict without changing the group."
+    }
+  },
+
+  "5_group_size_vs_inference_slate": {
+    "training_group_size": 10,
+    "inference_slate_size": 10,
+    "shipped_constant": "crates/marlowe-memory/src/retrieve.rs:271 -- pub const RERANK_BUDGET: usize = 10",
+    "match": true,
+    "note": "LCE's key hyperparameter (group size, swept as a heat map against first-stage depth) was FIXED at the deployed depth. That is the matched setting, not an arbitrary one -- but it means no group-size curve exists for this system."
+  },
+
+  "6_was_the_groups_composition_ever_varied": {
+    "answer": "NO. Group composition was fixed at one rule for every L1 run.",
+    "evidence": [
+      "tools/m0c_cv_arms.py has one SLATES path (:41) and no group-construction flag; --arms, --folds, --epochs, --lr-*, --d-model/--layers/--heads/--dropout, --tag are the only knobs (:231-242).",
+      "tools/m0c_train_arms.py likewise reads slates-fit.json only (:43, :312).",
+      "runs/session-m0c/cv-arms.json records ONE hyperparameter block for all three arms; there is no second cv-arms*.json with a different group rule (directory listing of runs/session-m0c/ shows only cv-arms.json and cv-arm-s2.json)."
+    ],
+    "consequence_for_the_strength_of_the_null": "The null is a single-cell result on the group axis. It establishes that the deployed group at the deployed depth, at this data volume, from this initialisation, does not beat pointwise. It does not sweep anything.",
+    "what_DID_vary_and_is_a_different_axis": "tools/m0c_slate_rules.py sweeps 12 slate-ADMISSION rules (gate/dense/lex orders, unions, depths 10-20) -- but that sweep changes the INFERENCE slate and re-ranks it with the FROZEN shipped cross-encoder (:183-199, one score cache shared across rules). No arm was retrained on an alternative group."
+  },
+
+  "finding_L2_was_never_run": {
+    "severity": "material -- it is the registered arm that would have separated group construction from training volume, and the amendment's prose asserts it ran",
+    "what_was_registered": {
+      "cite": "runs/session-m0c/PREREGISTRATION.json:116 /arms/L2_listwise_with_mined_slate_augmentation",
+      "what": "L1, plus synthetic slates assembled from Session J's 6,898 mined hard negatives (temporal_adjacency, entity_overlap, opposite_role, long_assistant).",
+      "why": "229 real fit slates is a small listwise corpus. The mined negatives are already fit-only and already conversation-split."
+    },
+    "what_exists": "Nothing. `grep '\"L2\"' tools/ runs/session-m0c/` returns only the registration entry. No tool builds a synthetic slate; no artifact records an L2 number; RESULT.md's arm table (runs/session-m0c/RESULT.md:102-106) lists S1, L1, LS1, S2 -- LS1 is not in the original registration.",
+    "the_claim_that_does_not_match": {
+      "cite": "runs/session-m0c/PREREGISTRATION-AMENDMENT-1.json /why_an_amendment_and_not_a_quiet_addition/_the_honest_account",
+      "quoted": "The original registration named four ranking arms (L1, L2, S1, S2) and one selector (C1). All four ranking arms were built and cross-validated and ALL FOUR ARE NULL.",
+      "reading": "L2 was not built. The amendment's own /the_four_original_ranking_arms_as_measured block silently substitutes LS1_encoder_plus_head_jointly in L2's place. The count of four is preserved; the membership is not. Same family as the project's standing 'a declared control that nothing reads' -- a registered arm whose absence is invisible because a different arm occupies its row."
+    },
+    "why_it_matters_here": "L2 is EXACTLY the volume lever this audit identifies as the surviving open question, and it was registered before the null and then not executed. Its absence is why the null cannot be read as bearing on listwise-at-volume."
+  },
+
+  "the_numbers_the_null_actually_rests_on": {
+    "source": "runs/session-m0c/cv-arms.json /arms/L1",
+    "oof_r_at_1": 0.7424,
+    "shipped_r_at_1": 0.7555,
+    "delta": -0.0131,
+    "changed_top1": 31,
+    "gained": 5,
+    "lost": 8,
+    "discordant": 13,
+    "exact_mcnemar_p": 0.5811,
+    "alpha_attainable": true,
+    "best_epochs_per_fold": [4, 1, 3, 7, 1],
+    "training_volume_measured_from_the_artifact": {
+      "_method": "Re-derived the deterministic sha256 conversation folds (m0c_cv_arms.py:60-74) and the inner 20% carve, read-only, without training.",
+      "conversations": 228,
+      "outer_fold_sizes": [47, 46, 46, 45, 45],
+      "inner_train_groups_per_fold": [146, 147, 147, 147, 147],
+      "gradient_carrying_groups_per_fold": [136, 135, 137, 136, 139],
+      "reading": "Between 135 and 139 listwise groups per fold, each seen at most 8 times. For scale, LCE's reported gains are measured on MS MARCO with ~500k training queries. This is the quantity RESEARCH.md §0.3's data-exponent argument is about, and it was ~10^-3 of the reference setting."
+    },
+    "a_second_L1_number_that_should_not_be_quoted": {
+      "artifact": "runs/session-m0c/arm-l1-fit.json -- val_r_at_1 0.8043 vs baseline_val 0.7826, fit_r_at_1 0.7642",
+      "why_not": "That is the single 46-case validation slice the session itself retired: 'It read S1 at 0.8261 and L1 at 0.8043 -- 38 against 37 queries... Replacing it with 5-fold CV moved S1's apparent gain from +0.0435 to +0.0044' (runs/session-m0c/RESULT.md:117-122). The CV number is the instrument."
+    }
+  },
+
+  "what_would_settle_the_residual_uncertainty": {
+    "the_residual": "Not 'was the group the deployed group' -- that is answered. The residual is whether listwise training at ~136 groups per fold from an already-pairwise-adapted checkpoint had enough exposure to express any advantage at all.",
+    "single_decisive_experiment": {
+      "name": "Run L2 as registered, unchanged, against L1 as the control.",
+      "why_it_is_decisive": "It holds the group RULE's inference-relevance constant in the sense that matters (the real deployed slates stay in the mix) and moves only volume, by adding synthetic groups built from Session J's 6,898 already-fit-only, already-conversation-split negatives. If L2 is also null on the same 5-fold CV instrument, the objective axis is dead at both volumes reachable without new annotation and RESEARCH.md's staged plan should drop §2. If L2 moves, the M0c-A null is a volume null and §2 was right for the wrong reason.",
+      "cost": "One training run on the existing artifacts. No new corpus pass, no new graph, no new tensor shape.",
+      "the_control_it_needs_so_it_is_not_a_proxy": "Per this project's standing rule, a volume experiment needs a run in which the named thing did not happen. The control is L1 re-run on the SAME code path with the augmentation set empty; if L2 and that control read identically, the augmentation did not fire and the number is about nothing. Assert the count of synthetic groups actually entering the optimiser, not the flag that requested them."
+    },
+    "a_second_experiment_only_if_the_first_moves": {
+      "name": "Initialise L1 from the base ms-marco-MiniLM-L-2-v2 rather than the Session J MarginMSE checkpoint.",
+      "why": "The only untested lever this audit found that is neither group nor volume. LCE is a from-pretrained recipe; L1 applied it as a second adaptation on top of an in-domain pairwise one, and a listwise gradient arriving after a pairwise one has already shaped the score scale is not the setting the literature measures."
+    },
+    "explicitly_NOT_worth_running": "RESEARCH.md §2 as written -- 'run the actual deployed pipeline (gate + pruning included) over the training queries and take its top-k minus the gold'. That is a description of runs/session-m0c/slates-fit.json. Building it again would reproduce -0.0131."
+  },
+
+  "citations_index": {
+    "group_construction": [
+      "tools/session_i_seqlen.py:53, :68-72",
+      "tools/reach_session_h_pruning.py:39, :52-76, :98-103",
+      "tools/reach_rerank_fit.py:152-160",
+      "tools/session_j_arm7.py:106-116, :119-158, :305-306",
+      "tools/build_head_slates.py:27, :32-34, :37-41, :112-139",
+      "crates/marlowe-memory/src/retrieve.rs:271, :544-557"
+    ],
+    "loss_and_training": [
+      "tools/m0c_cv_arms.py:41, :43, :60-74, :77-82, :117-119, :140-156, :159-198, :222-226, :231-242",
+      "tools/m0c_train_arms.py:43-45, :75-86, :217-286"
+    ],
+    "negatives": ["tools/session_j_mine_negatives.py:49, :86-125, :207-234"],
+    "verification_of_the_slate": ["tools/m0c_encode_slates.py:69-118", "tools/m0c_slate_rules.py:52-53, :86, :183-199, :252-260", "tools/session_h_pools.py:42, :52-107"],
+    "results_and_registration": [
+      "runs/session-m0c/cv-arms.json",
+      "runs/session-m0c/arm-l1-fit.json",
+      "runs/session-m0c/RESULT.md:100-122",
+      "runs/session-m0c/PREREGISTRATION.json:116",
+      "runs/session-m0c/PREREGISTRATION-AMENDMENT-1.json",
+      "runs/session-m0c-m/RESEARCH.md:88-92, :130-166"
+    ]
+  }
+}
