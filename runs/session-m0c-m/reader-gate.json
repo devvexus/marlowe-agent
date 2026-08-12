@@ -1,0 +1,151 @@
+{
+  "_what": "SQuAD-v2 span readers, gated. Head = best passage span minus null span.",
+  "_max_seq": 256,
+  "_excluded": {
+    "bert-large-uncased-wwm-squad2": "download stalled at 591 MB (model.onnx.part). EXCLUDED ON AVAILABILITY, not refused on merit."
+  },
+  "results": {
+    "mobilebert-uncased-squad-v2": {
+      "digest": "d0468b173b53ac9357eea5138a285107a71e4ac8ad5796fd7cf89b5d780301af",
+      "provider": "CPUExecutionProvider",
+      "inputs": [
+        "attention_mask",
+        "input_ids",
+        "token_type_ids"
+      ],
+      "smoke": {
+        "answering": 19.8227,
+        "topical_no_answer": 3.1902,
+        "margin": 16.6325,
+        "pass": true,
+        "_detail": {
+          "answering": {
+            "span": 9.553700923919678,
+            "null": -10.268986701965332,
+            "score": 19.82268762588501,
+            "n_passage_tokens": 17
+          },
+          "topical_no_answer": {
+            "span": -8.061609983444214,
+            "null": -11.251792907714844,
+            "score": 3.19018292427063,
+            "n_passage_tokens": 31
+          }
+        }
+      },
+      "determinism": {
+        "values": [
+          19.82268762588501,
+          19.82268762588501,
+          19.82268762588501
+        ],
+        "pass": true
+      },
+      "padding_invariance": {
+        "by_length": {
+          "256": 19.822688,
+          "320": 19.822688,
+          "384": 19.822688
+        },
+        "max_abs_diff": 0.0,
+        "identical": true
+      },
+      "cpu_ms_per_pair": 103.38,
+      "admitted": true
+    },
+    "tinyroberta-squad2": {
+      "digest": "58255873e66f7b160ea74632a8270dde1772976cb3888fa0ee09d660191ed8b2",
+      "provider": "CPUExecutionProvider",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "smoke": {
+        "answering": 10.554,
+        "topical_no_answer": -13.201,
+        "margin": 23.7549,
+        "pass": true,
+        "_detail": {
+          "answering": {
+            "span": 18.046588897705078,
+            "null": 7.492598056793213,
+            "score": 10.553990840911865,
+            "n_passage_tokens": 16
+          },
+          "topical_no_answer": {
+            "span": -2.9257702827453613,
+            "null": 10.275182247161865,
+            "score": -13.200952529907227,
+            "n_passage_tokens": 29
+          }
+        }
+      },
+      "determinism": {
+        "values": [
+          10.553990840911865,
+          10.553990840911865,
+          10.553990840911865
+        ],
+        "pass": true
+      },
+      "padding_invariance": {
+        "by_length": {
+          "256": 10.553991,
+          "320": 10.553991,
+          "384": 10.553991
+        },
+        "max_abs_diff": 0.0,
+        "identical": true
+      },
+      "cpu_ms_per_pair": 185.5,
+      "admitted": true
+    },
+    "roberta-base-squad2": {
+      "digest": "c8a6cf87089f3c92ba4ee35610fdd3c03f38136fb10133a19ffd23e71d60e49c",
+      "provider": "CPUExecutionProvider",
+      "inputs": [
+        "attention_mask",
+        "input_ids"
+      ],
+      "smoke": {
+        "answering": 7.2905,
+        "topical_no_answer": -1.8588,
+        "margin": 9.1493,
+        "pass": true,
+        "_detail": {
+          "answering": {
+            "span": 13.86962604522705,
+            "null": 6.579166650772095,
+            "score": 7.290459394454956,
+            "n_passage_tokens": 16
+          },
+          "topical_no_answer": {
+            "span": -0.6911921799182892,
+            "null": 1.1676166951656342,
+            "score": -1.8588088750839233,
+            "n_passage_tokens": 29
+          }
+        }
+      },
+      "determinism": {
+        "values": [
+          7.290459394454956,
+          7.290459394454956,
+          7.290459394454956
+        ],
+        "pass": true
+      },
+      "padding_invariance": {
+        "by_length": {
+          "256": 7.290459,
+          "320": 7.290459,
+          "384": 7.290459
+        },
+        "max_abs_diff": 0.0,
+        "identical": true
+      },
+      "cpu_ms_per_pair": 386.52,
+      "admitted": true
+    }
+  }
+}
