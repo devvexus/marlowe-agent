@@ -205,6 +205,9 @@ struct Parser<'a> {
 
 const MAX_STACK: usize = 512;
 const MAX_LINKS: usize = 5_000;
+/// Ceiling on the raw `<title>` slice. Titles are a line; anything beyond this is a malformed
+/// document, not a title.
+const MAX_TITLE_BYTES: usize = 4_096;
 const MAX_HEADINGS: usize = 2_000;
 
 impl<'a> Parser<'a> {
@@ -379,11 +382,21 @@ impl<'a> Parser<'a> {
         // `if (a < b)` inside a script cannot open an element.
         if RAW_TEXT.contains(&name) && !self_closing {
             let close = format!("</{name}");
-            let end = find_ci(self.src, self.pos, close.as_bytes());
+            // **A raw-text element ends at `</name` followed by a TERMINATOR, not at `</name`.**
+            // Without the check, `<script>var s="</scriptX>";INSTRUCTIONS</script>` ended the
+            // script early and the remainder was parsed as markup and emitted as prose -- inert
+            // JavaScript in a browser, visible instructions here.
+            let end = find_close_tag(self.src, self.pos, close.as_bytes());
             let body_end = end.unwrap_or(self.src.len());
             if name == "title" {
                 if self.title.is_none() {
-                    self.title = Some(self.text[self.pos..body_end].to_string());
+                    // **Capped.** With no `</title>`, `body_end` is end-of-input, so the entire
+                    // document became the title -- copied again by `decode_entities` and again by
+                    // `collapse`, stored permanently in the document store, and prepended to the
+                    // text by `corpus::render`, bypassing `MAX_TEXT_CHARS` on every path.
+                    let end = body_end.min(self.pos.saturating_add(MAX_TITLE_BYTES));
+                    let end = crate::floor_char_boundary(self.text, end.min(self.text.len()));
+                    self.title = Some(self.text[self.pos..end.max(self.pos)].to_string());
                 }
             } else if name == "script" || name == "style" {
                 self.script_chars += body_end - self.pos;
@@ -396,6 +409,9 @@ impl<'a> Parser<'a> {
             return;
         }
 
+        // **Raw-text elements returned above without incrementing `skip_depth`**, so anything
+        // that decrements it on close is decrementing a counter this branch never raised. See
+        // `close`.
         if SKIP_CONTENT.contains(&name) {
             self.skip_depth += 1;
         }
@@ -414,7 +430,7 @@ impl<'a> Parser<'a> {
     fn close(&mut self, name: &str) {
         if name == "a" {
             if let Some((url, from)) = self.anchor.take() {
-                let text = collapse(&self.current[from.min(self.current.len())..]);
+                let text = collapse(&self.current[self.mark(from)..]);
                 self.current_links += text.len();
                 if self.links.len() < MAX_LINKS && !url.is_empty() {
                     self.links.push(Link { url, text });
@@ -422,7 +438,7 @@ impl<'a> Parser<'a> {
             }
         }
         if let Some((level, from)) = self.heading.take() {
-            let text = collapse(&self.current[from.min(self.current.len())..]);
+            let text = collapse(&self.current[self.mark(from)..]);
             if !text.is_empty() && self.headings.len() < MAX_HEADINGS {
                 self.headings.push(Heading { level, text });
             }
@@ -431,7 +447,19 @@ impl<'a> Parser<'a> {
         if is_block(name) {
             self.flush_block();
         }
-        if SKIP_CONTENT.contains(&name) {
+        // **Only decrement for a skip element this parser actually opened.**
+        //
+        // `script` and `style` are in both `RAW_TEXT` and `SKIP_CONTENT`, and `open`'s raw-text
+        // branch returns before the increment -- so every `</script>` in a document decremented a
+        // counter no `<script>` had raised, and `saturating_sub` hid it. One stray `</script>`
+        // inside `<svg>` reopened the SVG body as ordinary text: content a human auditing the page
+        // cannot see, which is exactly what makes it useful for shaping a summary.
+        // **Keyed on the element stack, not on a counter.** A bare counter was not enough: `<svg>`
+        // raised it and a stray `</script>` — a different name — spent it, so the SVG body still
+        // reopened. The stack is the only structure that knows *which* element is open, and
+        // raw-text elements never reach it (their branch returns first), so `</script>` cannot
+        // find a `script` there and cannot decrement.
+        if SKIP_CONTENT.contains(&name) && self.stack.iter().any(|s| s == name) {
             self.skip_depth = self.skip_depth.saturating_sub(1);
         }
         if BOILERPLATE.contains(&name) {
@@ -446,6 +474,18 @@ impl<'a> Parser<'a> {
         if let Some(at) = self.stack.iter().rposition(|s| s == name) {
             self.stack.truncate(at);
         }
+    }
+
+    /// Resolve a start offset recorded when an inline element opened.
+    ///
+    /// **`.min(len)` was not enough, and that is subtle.** `from` is captured at open time and
+    /// `flush_block` calls `self.current.clear()`, so the offset is stale immediately -- for a
+    /// heading, within the same call, because `open` records it and then flushes. Clamping to the
+    /// new length keeps the index in bounds but says nothing about it being a CHAR boundary, so
+    /// `<p>a<h1>e-acute</h1>` panicked on a two-byte character. Clamp, then walk back to a
+    /// boundary.
+    fn mark(&self, from: usize) -> usize {
+        crate::floor_char_boundary(&self.current, from.min(self.current.len()))
     }
 
     fn push_text(&mut self, from: usize, to: usize) {
@@ -599,6 +639,23 @@ fn find_from(hay: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
         .find(|i| hay[*i..].starts_with(needle))
 }
 
+/// Find a raw-text element's real closing tag: `</name` followed by whitespace, `/` or `>`.
+fn find_close_tag(hay: &[u8], from: usize, needle_lower: &[u8]) -> Option<usize> {
+    let mut at = from;
+    loop {
+        let hit = find_ci(hay, at, needle_lower)?;
+        let after = hit + needle_lower.len();
+        let terminated = match hay.get(after) {
+            None => true,
+            Some(b) => matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0c | b'/' | b'>'),
+        };
+        if terminated {
+            return Some(hit);
+        }
+        at = hit + 1;
+    }
+}
+
 /// Case-insensitive search, used for raw-text closing tags (`</SCRIPT>` is legal).
 fn find_ci(hay: &[u8], from: usize, needle_lower: &[u8]) -> Option<usize> {
     if from >= hay.len() || needle_lower.is_empty() {
@@ -687,8 +744,14 @@ pub(crate) fn decode_entities(s: &str) -> String {
             i = next;
             continue;
         }
-        // An entity is short; a `&` with no `;` within 32 chars is a literal ampersand.
-        let limit = (i + 32).min(s.len());
+        // An entity is short; a `&` with no `;` within 32 bytes is a literal ampersand.
+        //
+        // **`floor_char_boundary`, because `i + 32` is an arbitrary byte offset.** `i` is the
+        // index of an ASCII `&`, but nothing makes `i + 32` a boundary: `&` followed by 30 ASCII
+        // characters and then any multi-byte character puts byte 32 inside it, and the slice
+        // panics. That panic then propagated out of `rayon`'s fan-out and, via the payload,
+        // carried 256 bytes of the document to the orchestrator.
+        let limit = crate::floor_char_boundary(s, (i + 32).min(s.len()));
         let Some(semi) = s[i..limit].find(';').map(|r| i + r) else {
             out.push('&');
             i += 1;

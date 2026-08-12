@@ -115,7 +115,13 @@ fn json(src: &str, warnings: &mut Vec<Warning>) -> String {
             }
             '"' => {
                 let (s, next) = read_json_string(src, i);
-                for _ in 0..next.saturating_sub(i).saturating_sub(1) {
+                // **Advance by POSITION, not by a byte count used as a step count.**
+                //
+                // `next - i - 1` is a byte distance; using it as a number of `char_indices` steps
+                // over-advanced on any non-ASCII string and silently swallowed the following
+                // fields. A dataset in any non-English language lost data with no warning --
+                // "silently wrong", which is the failure `charset.rs` exists to prevent.
+                while chars.peek().is_some_and(|(j, _)| *j < next) {
                     chars.next();
                 }
                 // A string followed by `:` is a key; anything else is a value.
@@ -199,7 +205,17 @@ fn read_json_string(src: &str, open: usize) -> (String, usize) {
                             continue;
                         }
                     }
-                    other => out.push(other as char),
+                    other => {
+                        // **Decode the whole character before advancing.**
+                        //
+                        // `i += 2` stepped one byte past the backslash and one byte INTO a
+                        // multi-byte escaped character, after which the `_` arm sliced at a
+                        // non-boundary and panicked. `["\<e-acute>"]` was enough.
+                        let ch = src[i + 1..].chars().next().unwrap_or(other as char);
+                        out.push(ch);
+                        i += 1 + ch.len_utf8();
+                        continue;
+                    }
                 }
                 i += 2;
                 continue;

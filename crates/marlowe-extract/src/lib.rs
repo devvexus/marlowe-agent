@@ -278,6 +278,26 @@ pub fn extract(input: &Input<'_>) -> Result<Document, ExtractError> {
         return Ok(Document::empty(Format::PlainText, 0));
     }
 
+    // **The guard covers `sniff` too.** It was installed one line below it, which put the first
+    // code to touch attacker bytes outside the boundary whose comment says "EVERY extractor". A
+    // control placed where the danger was noticed rather than where it lives -- the exact thing
+    // the comment below warns about, in the comment's own function.
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let format = sniff::detect(input.bytes, input.content_type, input.url);
+        (format, extract_by_format(input, format))
+    }));
+    return match outcome {
+        Ok((_, result)) => result,
+        Err(_panic) => Err(ExtractError::Backend {
+            format: "unknown",
+            detail: "the extractor panicked on this document (recovered; the rest of the batch \
+                     is unaffected)"
+                .to_string(),
+        }),
+    };
+
+    #[allow(unreachable_code)]
+    {
     let format = sniff::detect(input.bytes, input.content_type, input.url);
 
     // **EVERY extractor runs under a panic guard, not just the PDF one.**
@@ -296,17 +316,26 @@ pub fn extract(input: &Input<'_>) -> Result<Document, ExtractError> {
     }));
     match outcome {
         Ok(result) => result,
-        Err(panic) => {
-            let detail = panic
-                .downcast_ref::<&str>()
-                .map(|s| (*s).to_string())
-                .or_else(|| panic.downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "the extractor panicked".to_string());
+        Err(_panic) => {
+            // **The payload is DROPPED, and that is the whole point.**
+            //
+            // Rust's char-boundary panic reads `byte index N is not a char boundary; it is inside
+            // 'x' (bytes a..b) of `<the first ~256 characters of the string>``. Downcasting that
+            // to a String and interpolating it put a 256-byte window of the DOCUMENT into
+            // `ExtractError::Backend`, which `web`'s `unreadable` arm then emitted at
+            // `AgentObserved` -- no model call, no quarantine. The comment at that call site says
+            // the raw bytes are not a fallback "on the one path nobody tests"; the panic message
+            // was that path.
+            //
+            // A panic payload is attacker-influenced text by construction. It goes to nobody.
             Err(ExtractError::Backend {
                 format: format.as_str(),
-                detail: format!("{detail} (recovered; the rest of the batch is unaffected)"),
+                detail: "the extractor panicked on this document (recovered; the rest of the \
+                         batch is unaffected)"
+                    .to_string(),
             })
         }
+    }
     }
 }
 
