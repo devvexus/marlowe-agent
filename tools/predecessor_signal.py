@@ -98,20 +98,29 @@ def main() -> int:
         for i in idxs:
             c = pool.candidates[i]
             # turn_id is "{session_id}-{turn_index}", so the predecessors are addressable directly.
-            p1 = p2 = None
+            p1 = p2 = n1 = n2 = None
             if c.sid is not None and c.turn_index is not None:
                 if c.turn_index >= 1:
                     p1 = t.get(f"{c.sid}-{c.turn_index - 1}")
                 if c.turn_index >= 2:
                     p2 = t.get(f"{c.sid}-{c.turn_index - 2}")
+                # SUCCESSORS. Different hypothesis from the predecessors, and a better one: an
+                # assistant reply RESTATES what the user just said, so a gold turn's reply should
+                # echo the answer while a topic-question's reply is generic advice. Sessions
+                # strictly alternate (verified 32324/32324), so +1 is the other speaker and +2 is
+                # the same one.
+                n1 = t.get(f"{c.sid}-{c.turn_index + 1}")
+                n2 = t.get(f"{c.sid}-{c.turn_index + 2}")
             if p1 is None:
                 missing += 1
             s1 = ce.score(pool.question, p1, MAX_SEQ) if p1 else None
             s2 = ce.score(pool.question, p2, MAX_SEQ) if p2 else None
+            t1 = ce.score(pool.question, n1, MAX_SEQ) if n1 else None
+            t2 = ce.score(pool.question, n2, MAX_SEQ) if n2 else None
             rec.append({
                 "is_gold": bool(pool.gold[i]),
                 "whole": c.rerank_score,
-                "prev1": s1, "prev2": s2,
+                "prev1": s1, "prev2": s2, "next1": t1, "next2": t2,
                 "has_prev1": p1 is not None, "turn_index": c.turn_index,
             })
         lat.append((time.perf_counter() - t0) * 1000.0)
@@ -125,7 +134,7 @@ def main() -> int:
     print(f"\nREACH CHECK -- predecessor score by class ({missing} candidates had no predecessor)")
     print(f"{'':22}{'GOLD median':>14}{'NON-GOLD':>12}{'delta':>9}{'n gold':>8}")
     reach = {}
-    for nm in ("prev1", "prev2"):
+    for nm in ("prev1", "prev2", "next1", "next2"):
         g = [c[nm] for r in rows.values() for c in r if c["is_gold"] and c[nm] is not None]
         b = [c[nm] for r in rows.values() for c in r if not c["is_gold"] and c[nm] is not None]
         d = float(np.median(g) - np.median(b)) if g and b else 0.0
@@ -135,7 +144,7 @@ def main() -> int:
         print(f"{nm:<22}{np.median(g):>14.4f}{np.median(b):>12.4f}{d:>+9.4f}{len(g):>8}")
     # the same contrast RELATIVE to the candidate's own score -- a predecessor that is high
     # because the whole session is on-topic is not a signal about this candidate
-    for nm in ("prev1", "prev2"):
+    for nm in ("prev1", "prev2", "next1", "next2"):
         g = [c[nm] - c["whole"] for r in rows.values() for c in r
              if c["is_gold"] and c[nm] is not None and c["whole"] is not None]
         b = [c[nm] - c["whole"] for r in rows.values() for c in r
@@ -172,14 +181,14 @@ def main() -> int:
 
     arms = [ev(whole, "control (shipped)")]
     # PARAMETER-FREE, which is the only form worth believing after four threshold collapses.
-    arms.append(ev(lambda c: whole(c) + pv(c, "prev1"), "ce + prev1        (weight 1, no knob)"))
-    arms.append(ev(lambda c: whole(c) + pv(c, "prev2"), "ce + prev2        (weight 1, no knob)"))
-    arms.append(ev(lambda c: whole(c) + 0.5 * (pv(c, "prev1") + pv(c, "prev2")),
-                   "ce + mean(prev1,prev2)"))
-    arms.append(ev(lambda c: pv(c, "prev1"), "prev1 alone"))
+    for nm in ("prev1", "prev2", "next1", "next2"):
+        arms.append(ev(lambda c, n=nm: whole(c) + pv(c, n), f"ce + {nm}   (weight 1, no knob)"))
+        arms.append(ev(lambda c, n=nm: whole(c) - pv(c, n) if c[n] is not None else whole(c),
+                       f"ce - {nm}   (SIGN CONTROL)"))
+    arms.append(ev(lambda c: pv(c, "next1"), "next1 alone"))
     # shape only -- NOT the result, and the sweep is printed so a knob cannot be read as a finding
     for lam in (0.25, 0.5):
-        arms.append(ev(lambda c, l=lam: whole(c) + l * pv(c, "prev1"), f"[shape only] ce + {lam}*prev1"))
+        arms.append(ev(lambda c, l=lam: whole(c) + l * pv(c, "next1"), f"[shape only] ce + {lam}*next1"))
 
     print(f"\n{'rule':<38}{'gain':>6}{'lost':>6}{'net':>6}{'R@1':>9}   >0.084 g/l/n")
     for a in arms:
@@ -189,6 +198,7 @@ def main() -> int:
 
     dest = Path(args.out) if args.out else (
         OUT.with_name("predecessor-signal-heldout.json") if args.heldout else OUT)
+    dest = dest if dest.is_absolute() else (REPO / dest)
     dest.write_text(json.dumps({
         "_what": "does a candidate's PRECEDING turn discriminate whether it holds the answer",
         "_measurement_only": True,
@@ -202,7 +212,7 @@ def main() -> int:
         "ms_per_query": round(float(np.median(lat)), 1), "rows": rows,
     }, indent=2) + "\n", encoding="utf-8")
     print(f"\n{np.median(lat):.0f} ms/query")
-    print(f"wrote {dest.relative_to(REPO)}")
+    print(f"wrote {dest}")
     return 0
 
 
