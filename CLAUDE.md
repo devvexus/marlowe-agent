@@ -35,10 +35,19 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    **SHIPPED AND ROUTED as of M2 Session E (ADR-039), and both halves are now real.** The load-time
    error was built in Session A; the *routing* was missing until E, so between C2f and E `web` handed
    raw page text into the run holding `bash` — §8.2's second sentence violated in the product.
-   `Engine::condense_untrusted` now sends every untrusted tool result through a quarantined child and
+   `Engine::condense_batch` now sends every untrusted tool result through a quarantined child and
    hands the parent a validated summary. **Keyed on the trust class, not the tool name**: the trigger
    is `blocks_composed_targets`, the same function the adjudicator enforces on, so a new tool
    returning untrusted content is covered without anyone remembering to add it.
+
+   **The unit is the GROUP, not the call, as of ADR-041.** N fetched pages cost **one** child, one
+   model call and one subagent slot — it was one of each *per page*, which made a thirty-page
+   research pass impossible (it paused at the 8-subagent cap, and the eighth reader held ~0.3% of
+   the budget because `BudgetShare::Small` slices *remaining*). Containment is unchanged: same empty
+   tool set, same `DenyAll` egress, same validated contract, same fail-closed paths. What was
+   per-page was only the cost. The trade is that one context holds several attacker-controlled
+   documents, so A can influence how B is described — a **fidelity** risk, not an escalation one,
+   bounded by `MAX_SOURCES_PER_READER = 6`.
    **Consequence to know before touching layer 3: no tool result can taint a parent any more.** The
    only remaining source of `UntrustedContent` in a run's own window is **injected memory**. Layer 3
    is still reachable and non-vacuous, but a test that establishes taint via a tool result now
@@ -94,6 +103,27 @@ requirements only when the design docs do not answer the question.
 
 - **Read `STATE.md` at session start. Update it before you stop.** This is what makes session
   N+1 not start from zero.
+
+- **HEAVY WORK NEVER RUNS ON THE MAIN DAEMON THREAD, AND THREAD COUNTS ARE DERIVED FROM THE
+  MACHINE.** Two halves of one rule, both about a box with a lot of cores.
+
+  **Nothing CPU-heavy — extraction, parsing, PDF decoding, embedding — executes on the thread that
+  serves the interface.** The tempting shortcut is the single-item fast path: run a batch of one
+  inline and skip the thread spawn. That is exactly the case that hurts, because a batch of one is
+  the *common* case and one `web` call on a 2 MB PDF is hundreds of milliseconds of parsing. Run
+  inline it lands on the daemon's thread, the surface stops repainting, and the user sees a freeze
+  with no indication why. `FileSystemTools::execute_batch` therefore offloads **unconditionally**;
+  a thread spawn is tens of microseconds and is never the thing to optimise away.
+
+  **No hardcoded thread counts, pool sizes or fan-out widths.** `marlowe_net::io_concurrency()` is
+  the single definition and everything routes through it — `marlowe-exec`'s `batch_concurrency()`
+  and `corpus::default_concurrency()` both delegate rather than keeping a second constant that
+  would drift. It is **4 x cores, floor 8**, and the multiple is the point: a fetch is blocked on a
+  socket with the CPU idle, so sizing an I/O pool to the core count leaves most of the machine
+  parked. CPU-bound work is the opposite and needs no arithmetic — `extract_many` runs on `rayon`'s
+  global pool, which is already the core count. Pass `0` as a concurrency argument to mean *decide
+  for me*; workers are then capped at the amount of work, so a two-document corpus does not spawn
+  sixty-four threads.
 - **Contracts in `CONTRACTS.md` are pinned.** If one is wrong, stop and raise it. Never silently
   change a schema — other work depends on it.
 - **One milestone at a time.** Scope is whatever `ROADMAP.md` marks current. If a task pulls you
@@ -119,6 +149,22 @@ requirements only when the design docs do not answer the question.
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
   **15** — the trust-floor banner, which is the widest gap yet between what fired and what was
   claimed (M2 C2f).
+
+- **A ZERO BUDGET DIMENSION MEANS "ALREADY EXHAUSTED", NOT "MAY NOT USE".** The **seventeenth**
+  instance, found building ADR-041, and it is the cheapest possible mistake to make.
+
+  The quarantined reader holds no tools, so expressing that as `tool_calls: 0, subagents: 0` reads
+  like documentation. `Budget::exhausted` compares `spent >= budget`, so `0 >= 0` fired on the
+  reader's **first iteration**: it paused before its first model call, returned nothing, and every
+  fetched page came back to the parent as *"the content could not be condensed"*. **A quarantine
+  that had silently stopped reading anything at all**, with the containment still perfect and the
+  product useless.
+
+  Nothing was broken in the budget code; the number meant the opposite of what it looked like.
+  Capabilities are withheld **structurally** — `ExposedSet::empty()` means there is no tool to call,
+  `depth: 0` means `slice_for` refuses a spawn — and the counters are `1` purely so the check does
+  not fire on entry. **Ask of any limit written as zero: does this code read zero as a floor or as a
+  ceiling?**
 
 - **A DECLARED CONTROL THAT NOTHING READS, with a green test asserting the declaration.** The
   **sixteenth** instance, found in M2 Session E while establishing layer 1's blast radius.

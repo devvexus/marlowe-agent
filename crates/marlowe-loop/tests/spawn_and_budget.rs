@@ -1199,17 +1199,25 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
             },
             100,
         ),
-        // **One scripted reply per condensation.** This fixture marks EVERY tool result
-        // untrusted, so each of the batch's two calls is condensed by its own quarantined child,
-        // and each child makes one model call against this same driver. Getting this wrong does
-        // not fail loudly -- the child simply eats the next turn's step and the parent runs a
-        // shorter script than the author intended, which is how the first attempt at this update
-        // read `1` where it expected `2`.
-        say("the find result is about widgets", 50), // child for the batch's `find`
-        say("the shell result is about widgets", 50), // child for the batch's `bash`
+        // **ONE scripted reply for the whole run, and the count is the cost model (ADR-041).**
+        //
+        // This fixture marks every tool result untrusted, so all three executions are condensed.
+        // Two changes cut what that costs, and neither touches the four properties below:
+        //
+        //   1. a group of untrusted results is read by ONE quarantined child, and
+        //   2. condensed documents are cached by CONTENT hash.
+        //
+        // `ScriptedTools` returns byte-identical bodies, so only the FIRST condensation is a cache
+        // miss; the batch's `bash` and the next turn's `bash` are both hits and cost no model call
+        // at all. (`find` is Inert and `bash` is Irreversible, so they are separate groups — see
+        // `tests/batch_grouping.rs`.)
+        //
+        // Getting this count wrong does not fail loudly: a child eats the next turn's step and the
+        // parent runs a shorter script than the author intended, which is exactly how this read
+        // `1` where it expected `2`.
+        say("the find result is about widgets", 50), // the only cache miss
         // The next turn's identical call.
         step(ModelStep::one_call(ToolId::new("bash"), composed()), 100),
-        say("the shell result is about widgets", 50), // child for that `bash`
         say("stopped", 100),
     ]);
     let mut summarizer = EmptySummarizer;

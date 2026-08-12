@@ -142,13 +142,29 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `range`'s format was undocumented anywhere the model could see it: the generated
             // parameter description for a `Text` payload is "Optional. text." `slice_lines` splits
             // on `-`, parses both sides, and takes `skip(a-1).take(b-a+1)` — 1-based and inclusive.
-            "Read a file in the workspace, by workspace-relative path. `range` selects lines by 1-based inclusive number, e.g. \"20-60\".",
+            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). `range` selects lines by 1-based inclusive number, e.g. \"20-60\".",
             "read",
             8_192,
             Inert,
             &[WORKSPACE],
             &[],
-            vec![target_req("path", ParamType::Path), payload_opt("range", Text)],
+            // **`path` became optional when `ref` arrived, and ADR-034's rule is preserved rather
+            // than broken.** That rule is *a parameter the executor cannot run without is
+            // required*; `read` now has two ways to name its subject, so neither one alone is
+            // structurally mandatory. A call supplying neither is refused by the executor with a
+            // message naming both — the one case ADR-034 exists to prevent is a call that is
+            // schema-valid and can NEVER succeed, and that is not this.
+            //
+            // `ref` is a **Target**, not a payload: it selects which document is read, and §9's
+            // whole point is that untrusted content may not choose a target. A ref the model read
+            // from a `web` result is `AgentObserved` (the store's ids are harness-computed), so
+            // the ordinary flow adjudicates; a ref composed out of a fetched page's own text would
+            // carry that page's class and be blocked by the same check as any other target.
+            vec![
+                target_opt("path", ParamType::Path),
+                target_opt("ref", Text),
+                payload_opt("range", Text),
+            ],
         ),
         registration(
             "edit",

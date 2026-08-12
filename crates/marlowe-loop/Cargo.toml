@@ -11,5 +11,7 @@ marlowe-permission.workspace = true
 marlowe-tools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# **Content addressing must be collision-resistant, not merely fast.** See ADR-043.
+blake3.workspace = true
 thiserror.workspace = true
 uuid.workspace = true

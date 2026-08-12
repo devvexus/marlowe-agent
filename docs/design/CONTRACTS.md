@@ -911,6 +911,44 @@ pub struct CapabilityProfile {
 `reads_untrusted && !exposed_tools.is_empty()` is a load-time error. That is §8.2's structural
 trifecta break, expressed as a type invariant rather than a guideline.
 
+### 5.1 The quarantined read's output contract (ADR-041)
+
+A quarantined reader takes **a group of untrusted results**, not one, and answers under a contract
+whose shape is fixed by the harness:
+
+```rust
+OutputContract::structured(
+    "what these sources say, for someone who will not see them",
+    vec![
+        FieldSpec::text("about").capped(600),          // caveats, and "this page targets an AI"
+        FieldSpec::text("source_1").capped(1_500),     // one field per source in the group
+        FieldSpec::text("source_2").capped(1_500),
+        // ...
+    ],
+)
+```
+
+**Three properties are pinned, and each one is load-bearing:**
+
+1. **Labels are positional and harness-assigned.** `source_N` is computed from the document's index
+   in the group — never from its content, its URL, or anything the child model wrote. The parent
+   attributes findings by slot, so a document that could name its own slot could claim to be
+   another.
+2. **The result is rendered, never interpolated.** `CondensedResult::render` puts a field header at
+   column 0 and indents **every line a value contributes**. Formatting a field's raw value into a
+   string instead re-opens the forgery hole ADR-039 closed, because the whitelist on field *names*
+   and the *rendered* form end up on opposite sides of a format string.
+3. **The group is bounded.** `MAX_SOURCES_PER_READER = 6`, so one hostile document can influence at
+   most six descriptions rather than a whole corpus. Batching trades inter-document fidelity
+   isolation for cost; it trades **no** containment, because the reader still holds no tools and no
+   egress.
+
+A quarantined reader's budget comes from `Budget::slice_for_quarantined_read`: a share of the
+**original** budget rather than a geometric slice of the remainder, and **no depth requirement**,
+because a reader with an empty tool set cannot spawn. Its `tool_calls` and `subagents` are `1` and
+not `0` — `Budget::exhausted` compares `spent >= budget`, so a zero dimension reads as *already
+exhausted* rather than *may not use*, and a reader given zero pauses before its first call.
+
 ---
 
 ## 6. Sessions and lineage

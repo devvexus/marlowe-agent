@@ -235,6 +235,26 @@ or reaches the replay path.
 Conflating these is the trap. A workspace file read can inline *and* carry
 `untrusted_content` — informing analysis while being barred from targeting a gated tool call.
 
+**A tool result carrying the class that blocks composed targets does not enter the run's window at
+all.** It is read by a quarantined child and the parent receives a validated summary
+(ADR-039). Since ADR-041 the unit is the **group**, not the call:
+
+```
+model emits [web, web, web, edit, web]
+        │
+        ├─ group [web web web]   ← Inert: executed CONCURRENTLY (ADR-040)
+        │        └─ ONE quarantined reader, 1 model call, 1 subagent
+        ├─ group [edit]          ← mutating: alone, in position
+        └─ group [web]
+```
+
+Grouping is by declared `ConsequenceLevel` over **maximal runs of consecutive** `Inert` calls, so a
+mutating call never moves relative to anything around it. The justification for running a group
+concurrently is *not* the note on `ModelStep::ToolCall` — that establishes no call was **shaped by**
+another's output, which is a claim about data flow and says nothing about side-effect ordering.
+
+Condensed documents are cached by content hash, so a repeated document costs no model call.
+
 ### 2.9 Permission and approval layer ⚑
 
 **Owns** consequence evaluation, the `(action, target)` provenance check, risk-tiered

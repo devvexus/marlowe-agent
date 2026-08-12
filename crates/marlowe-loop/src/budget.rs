@@ -138,6 +138,72 @@ impl Budget {
         })
     }
 
+    /// What fraction of the **original** token budget one quarantined read may spend.
+    ///
+    /// A quarter. Generous on purpose: this reader is the only thing standing between a fetched
+    /// page and the run, and a reader too poor to summarise does not fail — it returns something
+    /// worse, which is indistinguishable from a page that had little to say.
+    pub const QUARANTINED_READ_NUMERATOR: u64 = 2;
+    pub const QUARANTINED_READ_DENOMINATOR: u64 = 8;
+
+    /// The slice a **quarantined read** gets. Deliberately not [`slice_for`], and the two
+    /// differences were each a bug in effect.
+    ///
+    /// # 1. A share of the ORIGINAL budget, not of what remains
+    ///
+    /// `slice_for` takes its fraction of `remaining`, which for a repeated operation decays
+    /// geometrically: read 1 gets ⅛ of B, read 2 gets ⅛ of what is left, and **read 8's reader
+    /// holds about 0.3% of the original budget.** Nothing reports that. The reader simply returns
+    /// a worse summary, and a degraded summary of an attacker-controlled page is precisely the
+    /// output nobody can audit.
+    ///
+    /// Here the share is taken from `self` — the original — and then clamped by what actually
+    /// remains, so every read is offered the same allocation until the run is genuinely out of
+    /// budget, at which point the caller fails closed with a message that says so.
+    ///
+    /// # 2. Depth is not consumed, because the reader cannot spawn
+    ///
+    /// `slice_for` refuses at `depth == 0`, which is correct for a subagent that might spawn its
+    /// own. A quarantined reader holds `ExposedSet::empty()`, so it structurally **cannot** call
+    /// `run` — it has no need of depth and returning `None` for it was a capability that
+    /// disappeared with distance from the root. Live consequence: a run four levels deep could
+    /// fetch a page and then never read it, receiving *"no budget remained to condense it"* while
+    /// the real cause was depth. The child is given `depth: 0` and `subagents: 0`, which is what
+    /// a run that cannot spawn actually needs.
+    pub fn slice_for_quarantined_read(&self, spent: &Budget) -> Option<Budget> {
+        let left = self.remaining(spent);
+        if left.tokens == 0 || left.wall_ms == 0 {
+            return None;
+        }
+        let share = |original: u64, remaining: u64| {
+            original
+                .saturating_mul(Self::QUARANTINED_READ_NUMERATOR)
+                .checked_div(Self::QUARANTINED_READ_DENOMINATOR)
+                .unwrap_or(0)
+                .min(remaining)
+        };
+        Some(Budget {
+            tokens: share(self.tokens, left.tokens),
+            wall_ms: share(self.wall_ms, left.wall_ms),
+            // **1, not 0, and the difference is not cosmetic.**
+            //
+            // [`Budget::exhausted`] compares `spent >= budget`, so a dimension set to zero reads
+            // as *already exhausted* rather than *may not use*. A reader handed `tool_calls: 0`
+            // paused before its first model call, returned nothing, and the parent reported "the
+            // content could not be condensed" — a quarantine that silently stopped reading
+            // anything at all.
+            //
+            // The capability is withheld structurally instead, which is stronger than a counter:
+            // the profile is `ExposedSet::empty()`, so there is no tool to call, and `depth: 0`
+            // means `slice_for` refuses any spawn. These numbers exist only to keep the budget
+            // check from firing on the first iteration.
+            tool_calls: 1,
+            subagents: 1,
+            depth: 0,
+            micros_usd: share(self.micros_usd, left.micros_usd),
+        })
+    }
+
     /// Accumulate a step's cost.
     pub fn add(&mut self, other: &Budget) {
         self.tokens = self.tokens.saturating_add(other.tokens);

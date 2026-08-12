@@ -1,5 +1,82 @@
 # State
 
+## TOOLS/PARALLELISM SESSION — EXTRACTION EXISTS, FETCHES RUN CONCURRENTLY, READS ARE BATCHED
+
+**Three ADRs: ADR-040 (`marlowe-extract` + fetch path), ADR-041 (batched quarantined reads).**
+Written in a session scoped to the tools; the loop change in ADR-041 was explicitly authorised.
+
+| Crate | Tests |
+|---|---|
+| `marlowe-loop` | **89** |
+| `marlowe-extract` (NEW) | **57** |
+| `marlowe-daemon` | **53** |
+| `marlowe-net` (rewritten) | **14** |
+| `marlowe-exec` | **12** |
+
+### What changed
+
+1. **`marlowe-extract`** — the module ADR-031's header promised and nobody wrote. `web` was doing
+   `from_utf8_lossy` on raw responses. HTML (hand-rolled, no DOM), PDF, docx/xlsx/pptx/epub, XML,
+   text/MD/JSON/CSV, charset via `encoding_rs`. **498 MB/s, 88.2% reduction.**
+2. **`marlowe-net` rebuilt** — shared TLS config (the session cache had nowhere to live before, so
+   resumption was structurally impossible), keep-alive pool, gzip/brotli, DNS cache, `Send + Sync`.
+3. **Batched tool calls are genuinely parallel** — grouped by declared `ConsequenceLevel`, so
+   `Inert` runs concurrently and mutating calls stay alone and in position. Measured on the real
+   `Engine`: **2008 ms → 252 ms, max overlap 1 → 8**.
+4. **One quarantined reader per group** (ADR-041) — N pages cost 1 child, 1 model call, 1 subagent.
+   Containment unchanged; only the cost was ever per-page.
+
+### Measured, on a 7800X3D (8 cores / 16 threads)
+
+Live corpus, 24 documents / 7 hosts, best-of-3: **1074 ms → 294 ms**, plateauing **~3.6× from 12
+workers up**. An earlier single unrepeated reading said 6.11× — **that was noise**; between-run
+variance exceeds between-level differences past the plateau. Network 946 ms vs extract 396 ms
+summed, 4.5× overlap. Peak working set **74.3 MB**. 23 read, 0 failures, 0 warnings.
+
+**The constraint is hosts, not threads.** 24 docs over 7 hosts means workers past ~12 just queue at
+the same servers. A **per-host concurrency cap** is the change the data argues for — not a higher
+global width. NOT DONE.
+
+### Phase 4 — the document store (ADR-042), SHIPPED
+
+ARCHITECTURE §2.2's content store existed as a paragraph for two milestones and had no code.
+Built now: `marlowe_extract::store::DocumentStore`, content-addressed, `Send + Sync`, populated by
+every `web` fetch.
+
+**The observation it rests on: a result carrying zero attacker-authored bytes needs no quarantine
+at all.** A `DocumentRef` is a hash plus counts — `chars`, `links`, `headings`, `has_title` (that
+one exists, never what it says), and warning *kinds* as fixed harness constants. A page can
+influence those numbers; it cannot author them, and **a number cannot carry an instruction**.
+
+**`web` now returns the ref INSTEAD of the page**, at `AgentObserved`. Content returns through one
+door only: `read(ref=…)` at `UntrustedContent`, condensed by ADR-041's quarantined reader.
+
+`read` gained an optional `ref` **Target** beside an optional `path`. ADR-034's rule is preserved,
+not broken: it says *a parameter the executor cannot run without is required*, and `read` now has
+two ways to name its subject. A refused `path` and a call naming neither get **different** messages
+— telling a model whose traversal was just blocked that it "gave neither" points it at the wrong
+correction (caught by `an_escape_never_reaches_an_executor_at_all`).
+
+**Fetching 30 pages now costs 0 model calls.** Reading costs 1 per group, only for documents
+actually opened.
+
+**ADR-037 was read and is NOT being built**: it is marked *"PROPOSED — design only. Do not build.
+M3 owns this."*
+
+### Adversarial suite — `marlowe-loop/tests/injection_attempts.rs`, 10 tests, all contained
+
+Direct instruction in body; **a fully compromised reader that relays the payload verbatim**;
+ANSI/C0 escapes from a page and from the reader; field-header forgery; a page impersonating the
+harness's own quarantine banner; instructions in `<script>` and in comments; a 400 KB repeated
+payload. Each pairs the property with a **control asserting the payload did reach the child**, so a
+pass cannot be a fetch that never happened. No hostile page moved the parent's trust floor and none
+produced a tool call.
+
+### Open
+- **No OCR.** Image-only PDFs are detected and reported (`Warning::NoTextLayer`), never silently
+  returned as empty. This is the real gap in "any document must be readable".
+- Per-host fetch cap (above).
+
 ## BEST HELD-OUT R@3 = 0.8908 (+0.0393, p = 0.0225). THE FIT-SELECTED ARM CAME LAST.
 
 **Two held-out reads spent. `runs/session-m0c-m/{cascade,l4}-heldout-read.json`.** Gates on both:

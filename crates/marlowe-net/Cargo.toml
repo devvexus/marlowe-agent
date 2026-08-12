@@ -15,3 +15,9 @@ rustls = { version = "0.23", default-features = false, features = ["std", "ring"
 # underneath the binary with no version and no test.
 webpki-roots = "0.26"
 thiserror = "2"
+# **Content-Encoding is a transport concern, so it lives with the transport.** Both are pure Rust
+# and neither touches the TLS path. `flate2` was already in the workspace lockfile (zero new
+# crates); `brotli` costs four. Together they are the single largest wall-clock win available on
+# the fetch path — HTML compresses 3-5x, and those are bytes that never cross the network.
+flate2 = "1"
+brotli = "7"

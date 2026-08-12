@@ -40,12 +40,15 @@ pub use context::{
     estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
     SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, MEMORY_TOKEN_BUDGET, WireTurn, WireToolCall};
 pub use control::{EphemeralControl, ResumeError, RunControl};
-pub use driver::{ToolInvocation, 
+pub use driver::{BatchItem, ToolInvocation,
     ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
     ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,
 };
-pub use engine::{coerce_to_declared_types, Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS, MAX_STEPS};
+pub use engine::{
+    coerce_to_declared_types, Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS,
+    MAX_SOURCES_PER_READER, MAX_STEPS,
+};
 pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
 pub use provenance::Provenance;
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};

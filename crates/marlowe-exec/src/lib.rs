@@ -36,8 +36,12 @@
 // DESCRIPTOR to the child instead of the path string Windows is forced to use.
 #![deny(unsafe_code)]
 
+pub mod corpus;
+
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 
 use marlowe_contract::TrustClass;
 use marlowe_loop::{ToolBody, ToolHost, ToolOutcome};
@@ -64,11 +68,35 @@ pub const BASH_TIMEOUT_MS: u64 = 120_000;
 pub struct FileSystemTools<S: PathScope> {
     scope: S,
     workspace: PathBuf,
+    /// ARCHITECTURE §2.2's content store, scoped to fetched documents.
+    ///
+    /// **Every fetched document lands here, whole**, and the run receives a `DocumentRef` — a
+    /// hash and a set of counts with no bytes of the page in it. Today the extracted text ALSO
+    /// still flows to the run through layer 1's quarantined reader, so nothing regresses; the
+    /// store is what makes the next step possible, where the text stops flowing at all and is
+    /// pulled only when something asks a question of it. See `docs/design/adr/ADR-042`.
+    store: marlowe_extract::store::DocumentStore,
 }
 
 impl<S: PathScope> FileSystemTools<S> {
     pub fn new(scope: S, workspace: impl Into<PathBuf>) -> Self {
-        Self { scope, workspace: workspace.into() }
+        Self {
+            scope,
+            workspace: workspace.into(),
+            store: marlowe_extract::store::DocumentStore::new(),
+        }
+    }
+
+    /// Share one store across hosts. The daemon builds a single host today, so this exists for the
+    /// case where a corpus must outlive one of them.
+    pub fn with_store(mut self, store: marlowe_extract::store::DocumentStore) -> Self {
+        self.store = store;
+        self
+    }
+
+    /// The documents fetched so far. The dereference path reads from here.
+    pub fn store(&self) -> &marlowe_extract::store::DocumentStore {
+        &self.store
     }
 }
 
@@ -160,8 +188,25 @@ fn handle_for<'a>(a: &'a Adjudication, param: &str) -> Option<&'a ScopedPath> {
 
 impl<S: PathScope> FileSystemTools<S> {
     fn read(&self, args: &Args, a: &Adjudication) -> ToolOutcome {
+        // **The dereference path.** `engine.rs` has anticipated this since M2: *"The content store
+        // lands at M2 D and the `read`-a-reference path with it."* Until it existed, a reference
+        // was a hash the model could not turn back into anything, so `web` had to ship the page.
+        if let Some(id) = text_arg(args, "ref") {
+            return self.read_ref(id, args);
+        }
         let Some(scoped) = handle_for(a, "path") else {
-            return failed("read", "no adjudicated handle for `path`");
+            // **Two different failures, two different messages.** A `path` that was supplied and
+            // refused has no handle; so does a call that named no subject at all. Collapsing them
+            // told a model whose traversal had just been blocked that it had "given neither",
+            // which is false and points it at the wrong correction.
+            return if args.get("path").is_some() {
+                failed("read", "no adjudicated handle for `path`")
+            } else {
+                failed(
+                    "read",
+                    "supply either `path` (a workspace-relative file) or `ref` (the id a `web` result reported). Neither was given.",
+                )
+            };
         };
         let mut text = String::new();
         if let Err(e) = clone_and_read(scoped, &mut text) {
@@ -342,6 +387,48 @@ impl<S: PathScope> FileSystemTools<S> {
 }
 
 impl<S: PathScope> FileSystemTools<S> {
+    /// Read a fetched document back out of the store. **This is where untrusted text re-enters.**
+    ///
+    /// `web` no longer returns page content, so this is the ONLY way a fetched document reaches a
+    /// run — which is what makes the boundary auditable: one function, one trust class, one place
+    /// layer 1 has to fire. The result is `UntrustedContent`, so the loop condenses it through a
+    /// quarantined reader exactly as before.
+    ///
+    /// The consequence worth stating: a research pass that fetches thirty pages and reads three of
+    /// them pays for **three**, not thirty.
+    fn read_ref(&self, id: &str, args: &Args) -> ToolOutcome {
+        let Some(document) = self.store.get(id) else {
+            return failed(
+                "read",
+                format!(
+                    "no fetched document has ref {id:?}. Refs are reported by `web` and last for this session; fetch the URL again if you need it."
+                ),
+            );
+        };
+        let mut text = crate::corpus::render(&document);
+        if let Some(range) = text_arg(args, "range") {
+            text = slice_lines(&text, range);
+        }
+        let chars = text.len() as u64;
+        let (body, _, preview) = body_for(text);
+        ToolOutcome {
+            summary: ResultSummary::with_detail(
+                vec![
+                    Metric::State("doc"),
+                    Metric::Count { n: chars, unit: "chars" },
+                ],
+                format!("{} · {}", document.format.as_str(), id),
+            ),
+            body,
+            // **Unchanged by the round trip through the store.** A document does not become
+            // trustworthy by being written down and read back; storing it is not laundering.
+            trust: TrustClass::UntrustedContent,
+            failed: false,
+            wall_ms: 0,
+            preview,
+        }
+    }
+
     /// `web` — fetch. ADR-031.
     ///
     /// **Egress was already decided before this runs.** The adjudicator checked the URL's host
@@ -362,7 +449,7 @@ impl<S: PathScope> FileSystemTools<S> {
     ///
     /// **Nothing here parses the body.** Bytes and a content type go back; extraction is a
     /// separate module and a separate session.
-    fn web(&mut self, a: &Args) -> ToolOutcome {
+    fn web(&self, a: &Args) -> ToolOutcome {
         let Some(url) = a.get("url").and_then(ArgValue::as_text) else {
             // `query` exists in the manifest for a search this build does not have. Saying so
             // plainly beats a refusal the model reads as "the URL was malformed".
@@ -378,54 +465,100 @@ impl<S: PathScope> FileSystemTools<S> {
             Err(e) => return failed("web", e.to_string()),
         };
 
-        match marlowe_net::fetch(&target) {
-            Err(e) => failed("web", e.to_string()),
-            Ok(res) => {
-                if let Some(location) = res.redirect_to {
-                    return ToolOutcome {
-                        summary: ResultSummary::with_detail(
-                            vec![Metric::State("redirect")],
-                            format!("{} -> {location}", res.status),
-                        ),
-                        body: ToolBody::Inline(format!(
-                            "{} redirected to {location}. It was NOT followed: a redirect target \
-                             is chosen by the site, so it is checked like any other target. Call \
-                             `web` again with that URL if it is what you want.",
-                            res.final_url
-                        )),
-                        // The harness observed the status and the header. The BODY is what would
-                        // be untrusted, and none of it is being returned here.
-                        trust: TrustClass::AgentObserved,
-                        failed: false,
-                        wall_ms: 0,
-                        preview: None,
-                    };
-                }
+        let fetched = match marlowe_net::fetch(&target) {
+            Ok(res) => res,
+            Err(e) => return failed("web", e.to_string()),
+        };
+        let status = fetched.status;
+        let content_type = fetched.content_type.clone();
+        let wire = fetched.wire_bytes;
+        let raw_bytes = fetched.bytes.len();
 
-                // Lossy on purpose: a page is bytes, and the alternative to replacing invalid
-                // sequences is refusing to show the user's own requested page over an encoding
-                // detail. Extraction will do this properly with the charset.
-                let text = String::from_utf8_lossy(&res.bytes).into_owned();
-                let bytes = res.bytes.len() as u64;
+        match crate::corpus::read(url, fetched) {
+            crate::corpus::Outcome::Redirect { status, location, .. } => ToolOutcome {
+                summary: ResultSummary::with_detail(
+                    vec![Metric::State("redirect")],
+                    format!("{status} -> {location}"),
+                ),
+                body: ToolBody::Inline(format!(
+                    "{url} redirected to {location}. It was NOT followed: a redirect target \
+                     is chosen by the site, so it is checked like any other target. Call \
+                     `web` again with that URL if it is what you want."
+                )),
+                // The harness observed the status and the header. The BODY is what would
+                // be untrusted, and none of it is being returned here.
+                trust: TrustClass::AgentObserved,
+                failed: false,
+                wall_ms: 0,
+                preview: None,
+            },
+
+            // **Extraction failed, so nothing readable exists — and the raw bytes are NOT a
+            // fallback.** Handing over undecodable input would put the exact material this
+            // change exists to remove back into the window, on the one path nobody tests.
+            crate::corpus::Outcome::Unreadable { detail, .. } => ToolOutcome {
+                summary: ResultSummary::with_detail(
+                    vec![Metric::State("unreadable"), Metric::Bytes { n: raw_bytes as u64 }],
+                    format!("{status} {}", content_type.as_deref().unwrap_or("no content-type")),
+                ),
+                body: ToolBody::Inline(format!(
+                    "{url} returned {raw_bytes} bytes that could not be turned into text: \
+                     {detail}. Nothing was read."
+                )),
+                trust: TrustClass::AgentObserved,
+                failed: true,
+                wall_ms: 0,
+                preview: None,
+            },
+
+            crate::corpus::Outcome::Unreachable { detail, .. } => failed("web", detail),
+
+            crate::corpus::Outcome::Read { document, wire_bytes, .. } => {
+                // **Stored whole, before anything is summarised.** The reference this produces
+                // carries a hash and counts and no bytes of the page — see
+                // `marlowe_extract::store`, where that property is asserted directly.
+                let reference = self.store.put(url, wire_bytes, document);
+                // ── ADR-042. THE PAGE DOES NOT COME BACK. ────────────────────────────────────
+                //
+                // What crosses is a `DocumentRef`: a hash and a set of counts, every one of them
+                // measured by the harness. There is no substring of the page anywhere in it — no
+                // title, no headings, no description, no snippet — which is why this result is
+                // `AgentObserved` rather than `UntrustedContent`.
+                //
+                // **That reclassification is the whole win, and it is not a relaxation.** Layer 1
+                // condenses untrusted results because attacker *prose* is crossing; a page can
+                // influence these numbers but cannot author them, and a number cannot carry an
+                // instruction. So a fetch now costs **no model call at all**, and the agent can
+                // decide what to read while having read nothing.
+                //
+                // The content is still reachable, through exactly one door: `read(ref=…)`, which
+                // returns it at `UntrustedContent` and goes through the quarantined reader.
+                let text = reference.render();
+                let chars = reference.chars as u64;
                 let (body, _, preview) = body_for(text);
                 ToolOutcome {
                     summary: ResultSummary::with_detail(
                         vec![
-                            Metric::State(if res.status < 400 { "ok" } else { "http" }),
-                            Metric::Count { n: bytes, unit: "bytes" },
+                            Metric::State(if status < 400 { "ok" } else { "http" }),
+                            Metric::Count { n: chars, unit: "chars" },
                         ],
                         format!(
-                            "{} {}",
-                            res.status,
-                            res.content_type.as_deref().unwrap_or("no content-type")
+                            "{status} {} · {} · {} B wire · read it with ref {}",
+                            reference.format.as_str(),
+                            content_type.as_deref().unwrap_or("no content-type"),
+                            wire,
+                            reference.hash
                         ),
                     ),
                     body,
-                    // **The whole point.** ADR-002's exemption for `web` being Inert rests on this
-                    // being UntrustedContent, and this is the first place in the system where that
-                    // class is produced from something genuinely outside.
-                    trust: TrustClass::UntrustedContent,
-                    failed: res.status >= 400,
+                    // **`AgentObserved`, and the justification is the absence of content, not a
+                    // judgement about the site.** The harness fetched some bytes and measured
+                    // them; what it is reporting is its own measurements. The moment any
+                    // attacker-authored substring is added to this result, this must go back to
+                    // `UntrustedContent` — `marlowe-extract`'s `store` tests assert the absence
+                    // that licenses it, and `web_returns_no_page_content` asserts it here.
+                    trust: TrustClass::AgentObserved,
+                    failed: status >= 400,
                     wall_ms: 0,
                     preview,
                 }
@@ -445,6 +578,99 @@ impl<S: PathScope> ToolHost for FileSystemTools<S> {
     }
 
     fn execute(&mut self, tool: &ToolId, args: &Args, adjudication: &Adjudication) -> ToolOutcome {
+        self.dispatch(tool, args, adjudication)
+    }
+
+    /// **Run the batch concurrently.** This is what makes *"fetch these 30 sites"* one round of
+    /// work instead of thirty.
+    ///
+    /// # What licenses the concurrency, stated precisely
+    ///
+    /// Not the fact that the model emitted the calls together — that argument is about data flow
+    /// and says nothing about side effects. The loop only ever hands this method a group of calls
+    /// whose manifests declare `ConsequenceLevel::Inert` — *"pure reads, no side effects"* — so
+    /// `edit` and `bash` are never in a group of more than one and never overlap with anything.
+    /// See `Engine::run_group`.
+    ///
+    /// Every item was adjudicated individually before arriving here, including the per-host egress
+    /// check: thirty URLs is thirty separate allowlist decisions, and a refused one never reaches
+    /// this method. **Nothing about permission is batched.**
+    ///
+    /// # Threads, not an executor
+    ///
+    /// These calls are network-bound, so the useful width is well above the core count and the
+    /// threads spend their lives parked on sockets. `marlowe-net`'s `Client` is `Send + Sync` and
+    /// holds the shared connection pool, DNS cache and TLS session cache, so concurrent fetches to
+    /// one host reuse connections rather than racing to open thirty.
+    fn execute_batch(&mut self, items: &[marlowe_loop::BatchItem<'_>]) -> Vec<ToolOutcome> {
+        if items.is_empty() {
+            return Vec::new();
+        }
+
+        // **STANDING RULE: extraction never runs on the caller's thread, not even for one call.**
+        //
+        // The obvious optimisation here is to run a single-item batch inline and skip the thread.
+        // That is exactly what must not happen: a batch of one is the common case, and a single
+        // `web` call on a 2 MB PDF is hundreds of milliseconds of parsing. Run inline, that lands
+        // on the daemon's thread and the interface stops responding for the duration — the user
+        // sees a frozen surface and no indication why.
+        //
+        // The caller still *blocks* here, because `ToolHost` is synchronous by design. What it no
+        // longer does is *perform the parse*. On a machine with this many cores, spending one
+        // thread-spawn (tens of microseconds) to keep heavy CPU work off the thread that draws the
+        // screen is not a trade worth thinking about twice.
+        let workers = items.len().min(batch_concurrency());
+        let slots: Vec<Mutex<Option<ToolOutcome>>> =
+            (0..items.len()).map(|_| Mutex::new(None)).collect();
+        let next = AtomicUsize::new(0);
+        // `&*self`, so every worker shares one host. `PathScope` is already `Send + Sync` and
+        // every executor takes `&self`, which is what makes this a borrow rather than a redesign.
+        let me: &Self = self;
+
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    if i >= items.len() {
+                        break;
+                    }
+                    let item = &items[i];
+                    let outcome = me.dispatch(item.tool, item.args, item.adjudication);
+                    *slots[i].lock().expect("batch slot poisoned") = Some(outcome);
+                });
+            }
+        });
+
+        // **In input order.** The loop attributes results to calls positionally, so a reordering
+        // here would hand the model one call's result under another call's id.
+        slots
+            .into_iter()
+            .map(|s| {
+                s.into_inner()
+                    .expect("batch slot poisoned")
+                    .expect("every slot is filled before the scope ends")
+            })
+            .collect()
+    }
+}
+
+/// How wide to run a batch on **this** machine. **Derived, never hardcoded.**
+///
+/// Delegates to [`marlowe_net::io_concurrency`] rather than keeping a second constant: a batch
+/// here is `Inert` calls, overwhelmingly `web` fetches, so it is the same I/O-bound question and
+/// two answers to it would drift.
+///
+/// The CPU half needs no arithmetic at all: extraction runs on `rayon`'s global pool, already
+/// sized to the core count, and each worker extracts its own document — so network waits and
+/// parsing overlap without a second pool to tune.
+pub fn batch_concurrency() -> usize {
+    marlowe_net::io_concurrency()
+}
+
+impl<S: PathScope> FileSystemTools<S> {
+    /// The one dispatch table. `execute` and `execute_batch` both route through it so the serial
+    /// and concurrent paths cannot come to disagree about what a tool name means.
+    fn dispatch(&self, tool: &ToolId, args: &Args, adjudication: &Adjudication) -> ToolOutcome {
         // The declared globs are the manifest's; the adjudicator already matched the model's
         // argument against them. `find` needs them again for its own opens.
         let declared = [PathGlob::new("./**")];

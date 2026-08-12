@@ -14,6 +14,10 @@ members = [
     # ADR-031. The whole of the TLS supply-chain surface, in one crate that depends on nothing of
     # Marlowe's — so `marlowe-provider` can keep proving the default path reaches no network.
     "crates/marlowe-net",
+    # The extraction half of the `web` path. ADR-031's header promised this module and it was
+    # never written: until now `web` handed raw `from_utf8_lossy` bytes to the model. Depends on
+    # nothing of Marlowe's, exactly as `marlowe-net` does not — fetching and parsing stay split.
+    "crates/marlowe-extract",
     "crates/marlowe-provider",
     "crates/marlowe-daemon",
     "crates/marlowe",
@@ -44,6 +48,7 @@ marlowe-permission = { path = "crates/marlowe-permission" }
 marlowe-loop = { path = "crates/marlowe-loop" }
 marlowe-exec = { path = "crates/marlowe-exec" }
 marlowe-net = { path = "crates/marlowe-net" }
+marlowe-extract = { path = "crates/marlowe-extract" }
 marlowe-provider = { path = "crates/marlowe-provider" }
 marlowe-daemon = { path = "crates/marlowe-daemon" }
 

@@ -252,6 +252,18 @@ pub enum ToolBody {
     Reference { hash: String, bytes: u64 },
 }
 
+/// One already-adjudicated call, handed to [`ToolHost::execute_batch`].
+///
+/// **Carrying the `Adjudication` is what makes this safe.** A host receives these only after the
+/// permission layer has allowed each one individually; the batch is a scheduling unit, never a
+/// permission unit. There is no path by which a host can execute something that was not
+/// adjudicated on its own.
+pub struct BatchItem<'a> {
+    pub tool: &'a ToolId,
+    pub args: &'a Args,
+    pub adjudication: &'a marlowe_permission::Adjudication,
+}
+
 /// The execution port. Implementations land in Session C.
 pub trait ToolHost {
     fn execute(
@@ -260,6 +272,40 @@ pub trait ToolHost {
         args: &Args,
         adjudication: &marlowe_permission::Adjudication,
     ) -> ToolOutcome;
+
+    /// Execute a whole adjudicated batch, **returning outcomes in input order**.
+    ///
+    /// # Why this exists, and why it is defaulted
+    ///
+    /// The model emits every call in a batch *before seeing any of their results* — see
+    /// [`ModelStep::ToolCall`], where that is established as a correctness property rather than an
+    /// observation. Calls in one batch therefore cannot have influenced one another, which is
+    /// exactly the condition under which running them concurrently changes nothing about what
+    /// they compute.
+    ///
+    /// The loop used to call [`ToolHost::execute`] in a `for` loop, so thirty `web` fetches cost
+    /// thirty sequential round trips. Measured on the real `Engine`: an 8-call batch of 250 ms
+    /// calls took **2008 ms with a maximum of 1 execution in flight**.
+    ///
+    /// **The default implementation is the old behaviour, exactly.** A host that does not override
+    /// this is serial and correct, so no existing implementor changes meaning by the trait growing
+    /// this method — and a host overrides it only when it can say something specific about which
+    /// of *its* tools are safe to overlap. That judgement belongs to the host, which knows what
+    /// its executors touch; it does not belong to the loop, which does not.
+    ///
+    /// # The contract an override must honour
+    ///
+    /// 1. **Return exactly `items.len()` outcomes, in input order.** The loop attributes results
+    ///    to calls positionally.
+    /// 2. **Never reorder observable side effects that could conflict.** Concurrency is a promise
+    ///    the host makes about its own executors, not one the loop makes on its behalf.
+    /// 3. **Never execute an item the loop did not hand over.** Every item here was adjudicated.
+    fn execute_batch(&mut self, items: &[BatchItem<'_>]) -> Vec<ToolOutcome> {
+        items
+            .iter()
+            .map(|i| self.execute(i.tool, i.args, i.adjudication))
+            .collect()
+    }
 
     /// Every tool this host has an executor for.
     ///
