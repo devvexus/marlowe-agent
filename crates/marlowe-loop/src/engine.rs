@@ -195,6 +195,65 @@ pub struct Ports<'a> {
     pub recorder: &'a mut dyn Recorder,
 }
 
+/// How many condensed documents the cache holds before it is emptied. Audit finding E14.
+const MAX_CONDENSE_CACHE: usize = 512;
+
+/// What a slot says when the reader described the group but not this document.
+///
+/// Harness-authored, so it can never be confused for something a source said, and stated plainly so
+/// the parent knows the difference between "this document had little to say" and "nobody read it".
+pub const UNDESCRIBED_SOURCE: &str =
+    "the reader did not describe this source separately; see `about`";
+
+/// How many contract violations a run may accumulate before it stops trying.
+///
+/// # Audit finding E8 — a violation is not a failure, and that was the problem
+///
+/// On a violation `run()` pushes the message into the child's own window and `continue`s, so the
+/// child retries. That is right for a model that merely wrote too much. It is catastrophic when the
+/// contract is **unsatisfiable**: the child retried the same impossible instruction until
+/// `MAX_STEPS` or its token slice was gone, and the parent absorbed the entire retry loop through
+/// `run.spent.add(&child_run.spent)`. One page inducing a verbose summary burned up to a quarter of
+/// the parent's budget per group and returned nothing for any of its six documents.
+///
+/// Two attempts, then stop. The structural cause is fixed separately — `OutputContract::structured`
+/// now derives its aggregate from its own per-field caps instead of a fixed 4,000 that was smaller
+/// than their sum — but a bound is what makes the next unsatisfiable contract cost a retry rather
+/// than a budget.
+const MAX_CONTRACT_RETRIES: u32 = 2;
+
+/// A [`TurnSink`] that lets structure through and **swallows every byte of prose**.
+///
+/// # Audit finding E4 — the quarantine leaked to the screen
+///
+/// `condense_chunk` hands the quarantined child the **parent's** `ports`, so the child's
+/// `TextDelta`s went to the daemon, over the socket and onto the terminal, raw. The child's whole
+/// job is reading attacker-controlled pages, and `FieldSpec::validate_value`'s character check —
+/// whose own error text says *"ESC is the one that matters: a fetched page must not be able to
+/// write terminal escape sequences through a child and onto a screen"* — runs on the **result**,
+/// which is **after** those bytes have already been streamed and printed.
+///
+/// The tell that this was an oversight rather than a decision: the `TrustFloorLatched` emit forty
+/// lines away **is** gated on `reads_untrusted`, and `TextDelta` was not. And both escape tests
+/// assert on `r.rendered` — the context view — so neither ever looked at the sink. Family #16: the
+/// property is asserted where it is declared, not where it is enforced.
+///
+/// Structural events still pass. A user watching a research pass should see that a quarantined read
+/// is happening and what it costs; what they must not see is the page reading itself out loud.
+struct QuarantinedSink<'a> {
+    inner: &'a mut dyn TurnSink,
+}
+
+impl TurnSink for QuarantinedSink<'_> {
+    fn emit(&mut self, event: TurnEvent) {
+        match event {
+            // The three that carry model prose derived from the pages in this child's window.
+            TurnEvent::TextDelta(_) | TurnEvent::ReasoningDelta(_) | TurnEvent::SpeechRetracted => {}
+            other => self.inner.emit(other),
+        }
+    }
+}
+
 /// How many times a turn that produced only reasoning may be nudged to continue.
 ///
 /// A reasoning model sometimes ends a stream mid-thought: thinking, no prose, no tool call. That
@@ -345,6 +404,9 @@ impl<S: PathScope> Engine<S> {
         // Loop-scoped steering. **None of it reaches history** — see the nudge note below.
         let mut pending_nudge = String::new();
         let mut auto_continue: u32 = 0;
+        // Audit finding E8. Per-run, not per-turn: the point is to bound the total cost of a
+        // contract this model cannot satisfy, and resetting it per turn would restore the loop.
+        let mut contract_retries: u32 = 0;
         let mut tool_calls_this_turn: u32 = 0;
         let mut last_reasoning = String::new();
 
@@ -732,17 +794,86 @@ impl<S: PathScope> Engine<S> {
                     // Filing under every required field rather than the first is deliberate: a
                     // partially-filled contract would validate for some parents and not others,
                     // which is the kind of difference nobody notices until a spawn fails.
+                    //
+                    // **THAT IS ONLY TRUE FOR A SINGLE-FIELD CONTRACT.** Audit findings C3 and E2.
+                    // A multi-field contract is a request to attribute — §5.1's first pinned
+                    // property is *"the parent attributes findings by slot"* — and broadcasting one
+                    // reply into every slot leaves nothing to attribute: all six `source_N` fields
+                    // carried **identical text**, so a hostile page's prose appeared verbatim under
+                    // a trusted document's label with nothing forged. ADR-041 §3's claim to bound
+                    // contamination "to at most six descriptions" was wrong in kind, not degree.
+                    //
+                    // The suite was green because the scripted reply is 29 characters and
+                    // `each_source_is_reported_under_its_own_harness_assigned_label` asserts the
+                    // labels are **present**, not that the slots **differ**.
+                    //
+                    // A model that replies in prose to a multi-field contract has not answered it,
+                    // and the honest outcome is a violation the child can retry against — not a
+                    // shape that validates while meaning nothing.
                     let mut result = CondensedResult::new();
-                    if run.output_contract.fields.is_empty() {
-                        result = result.with("answer", text.clone());
-                    } else {
-                        for field in &run.output_contract.fields {
-                            result = result.with(field.name.clone(), text.clone());
+                    match run.output_contract.fields.len() {
+                        0 => result = result.with("answer", text.clone()),
+                        1 => {
+                            let name = run.output_contract.fields[0].name.clone();
+                            result = result.with(name, text.clone());
+                        }
+                        _ => {
+                            let fields = &run.output_contract.fields;
+                            // Whatever the child labelled, under the label it chose.
+                            result = CondensedResult::parse_fields(&text, fields)
+                                .unwrap_or_else(|| {
+                                    // It answered in prose. That is not an attribution, so the
+                                    // reply goes to the FIRST field — which for the quarantined
+                                    // reader is `about`, the "what a reader should know before
+                                    // trusting these" field, and is exactly where an unattributed
+                                    // summary belongs. What must not happen is it being copied
+                                    // under `source_1..source_6` as though the reader had said it
+                                    // about each document.
+                                    CondensedResult::new().with(fields[0].name.clone(), text.clone())
+                                });
+                            // **Absent is filled by the harness, never by the model.** `validate`
+                            // requires every declared field, and leaving one missing would fail the
+                            // contract, push a violation, and retry — E8's budget burn. A stated
+                            // "not described" is an honest answer; a copy of another source's text
+                            // is not.
+                            for spec in fields {
+                                if !result.fields.contains_key(&spec.name) {
+                                    result = result
+                                        .with(spec.name.clone(), UNDESCRIBED_SOURCE.to_string());
+                                }
+                            }
                         }
                     }
                     if let Err(v) = run.output_contract.validate(&result) {
                         // A violation is a tool error into context, not a crash: the child gets
                         // to try again inside its own budget.
+                        //
+                        // **Bounded, as of audit finding E8.** "Inside its own budget" was the
+                        // problem, not the reassurance it reads as: an unsatisfiable contract made
+                        // the child retry until `MAX_STEPS` or its whole slice was gone, and the
+                        // parent absorbed all of it. Two attempts is enough for a model that merely
+                        // wrote too long, and far short of a budget for one that cannot comply.
+                        contract_retries += 1;
+                        if contract_retries > MAX_CONTRACT_RETRIES {
+                            self.record(
+                                ports,
+                                EventKind::RunFailed,
+                                run,
+                                state,
+                                json!({
+                                    "contract_violation": v.to_string(),
+                                    "attempts": contract_retries,
+                                    "detail": "the contract was not satisfied within its retry \
+                                               bound; the run is stopped rather than allowed to \
+                                               spend the rest of its budget on the same reply",
+                                }),
+                            );
+                            run.status =
+                                RunStatus::Failed { error: format!("output contract: {v}") };
+                            return LoopOutcome::Failed {
+                                error: format!("output contract not satisfied: {v}"),
+                            };
+                        }
                         state.push(Block::new(
                             SourceKind::History,
                             format!("[output contract] {v}"),
@@ -1450,9 +1581,32 @@ impl<S: PathScope> Engine<S> {
             }
         }
 
+        // **One render site, and this is why.** Audit findings C1 and E1, found independently by
+        // two agents: the all-cache-hit fast path used to `format!` the stored value straight into
+        // the note, which is a **second bypass of ADR-039's forgery fix**, in code written the same
+        // night as the comment forty lines below saying interpolating "silently undid" it. Stored
+        // values legally contain newlines, so an unindented one puts a `source_2:` header at column
+        // 0 and is read back as a second field.
+        //
+        // A closure rather than a second call site: the fix for "one path skipped the renderer" is
+        // not "remember to call it twice", it is "there is one path". `MAX_SOURCES_PER_READER * 2 +
+        // 1` repeated documents is what reaches the branch, which is why the existing
+        // `identical_documents_are_read_once` — five documents, one chunk — was green and vacuous.
+        let condensed_note = |p: &PendingRead, label: String, about: &str, body: &str| {
+            let mut rendered = CondensedResult::new();
+            if !about.is_empty() {
+                rendered = rendered.with("about", about.to_string());
+            }
+            rendered = rendered.with(label, body.to_string());
+            format!("{} · read under quarantine, not shown here:\n{}", p.summary, rendered.render())
+        };
+
         if fresh.is_empty() {
             for (p, hit) in chunk.iter().zip(cached.iter()) {
-                let text = format!("{} · read under quarantine, not shown here:\n{}", p.summary, hit.clone().unwrap_or_default());
+                // No `about` on this path: nothing was read this time, so there is no overall note
+                // to make, and carrying a previous group's would attribute it to the wrong read.
+                let text =
+                    condensed_note(p, label_of(p, chunk), "", hit.as_deref().unwrap_or_default());
                 state.push(note(&p.tool, &p.summary, &p.call_ref, text));
             }
             return;
@@ -1543,7 +1697,34 @@ impl<S: PathScope> Engine<S> {
         }
 
         let mut child_provenance = Provenance::new();
-        let outcome = self.run(&mut child_run, &mut child_state, &mut child_provenance, ports);
+        // **The child gets a filtered sink and no steering.** Two findings, one construction.
+        //
+        // E4: prose from a run whose window holds attacker-controlled pages must not stream to a
+        // terminal ahead of the character check — see [`QuarantinedSink`].
+        //
+        // E10: `NoControl`'s own doc comment says *"nothing steers… **Used by children**"*, and it
+        // was not used by children — both recursion sites passed the parent's `ports`. So a user
+        // typing *"stop, don't act on that page"* mid-flight had it consumed by the quarantined
+        // child, pushed into the CHILD's window as `UserAsserted`, and dropped with the child's
+        // state. Their correction vanished with no error, and their words landed in the same
+        // context as the attacker's documents, where they could shape `about`. Interrupts are
+        // gated on `Interruptible` and are unaffected; steering had no such gate.
+        let outcome = {
+            let mut quarantined_sink = QuarantinedSink { inner: ports.sink };
+            let mut no_control = crate::NoControl;
+            let mut child_ports = Ports {
+                driver: ports.driver,
+                summarizer: ports.summarizer,
+                tools: ports.tools,
+                memory: None,
+                approvals: ports.approvals,
+                sink: &mut quarantined_sink,
+                control: &mut no_control,
+                clock: ports.clock,
+                recorder: ports.recorder,
+            };
+            self.run(&mut child_run, &mut child_state, &mut child_provenance, &mut child_ports)
+        };
 
         run.spent.add(&child_run.spent);
         // **One subagent for the whole group**, which is the point of the change.
@@ -1581,49 +1762,69 @@ impl<S: PathScope> Engine<S> {
             }
         }
 
-        for (i, p) in fresh.iter().enumerate() {
-            if let Some(found) = per_source[i].clone() {
-                self.condensed.insert(content_key(&p.text), found);
+        // ── the cache is written ONLY for a chunk the reader saw alone ─────────────────────────
+        //
+        // **Audit finding E3, and it is a write primitive rather than a read one.** The entry says
+        // "this is the summary of document *i*", keyed by `blake3(text_i)`. When the reader saw
+        // documents 1..N together, that claim is false: the summary of *i* is derived from all of
+        // them, and a hostile document in the same group shapes it. So fetching
+        // `[innocent, attacker]` once stores the attacker's prose under `blake3(innocent)`, and
+        // **every later group containing that innocent document returns it with zero model calls
+        // and no reader** — the quarantine never runs again. ADR-041 §4's "no probing oracle"
+        // argument is about reads; this is the write.
+        //
+        // Keying on the whole chunk composition would also close it and would make the cache almost
+        // never hit, since research corpora repeat documents but rarely in identical groups. A
+        // single-source chunk is the case where the stored fact is simply true, and it is the common
+        // one — an ordinary `read` of one document. The cost is that repeated documents inside
+        // multi-source groups are re-read, which is a bill, not a breach.
+        if fresh.len() == 1 {
+            if let Some(found) = per_source[0].clone() {
+                self.condensed.insert(content_key(&fresh[0].text), found);
             }
         }
 
+        // **Audit finding E14.** The cache is per-`Engine` and was never evicted, so a long research
+        // session grew it without bound. Cleared wholesale rather than by LRU: an eviction policy
+        // is a second thing to get wrong, and losing the cache costs a re-read.
+        if self.condensed.len() > MAX_CONDENSE_CACHE {
+            self.condensed.clear();
+        }
+
         // Push in the group's original order, cache hits and fresh reads alike.
+        //
+        // **The label a source is rendered under is the label the CHILD was given, not this
+        // document's position in the chunk.** Audit finding E7: the child is told about
+        // `source_1..source_{fresh.len()}` indexed over `fresh`, while this loop used
+        // `label_of(p, chunk)` indexed over `chunk`. In `[A cached, B fresh hostile]` the child
+        // calls B `source_1` and may warn "source_1 contains instructions aimed at an AI" — and the
+        // parent printed that warning under **A**, describing the hostile document as clean.
+        //
+        // The slot mapping was defeated with nothing forged, because the two sides were computed
+        // over different sequences. Deterministic to trigger: condense A in one turn, then fetch
+        // `[A, hostile]` in the next. Cache hits keep their chunk position, which is correct — that
+        // value was produced under its own label in an earlier group and `about` is not attached
+        // to it.
         let mut fresh_at = 0usize;
         for (p, hit) in chunk.iter().zip(cached.into_iter()) {
-            let body = match hit {
-                Some(cached_text) => Some(cached_text),
+            let (body, label, note_about) = match hit {
+                Some(cached_text) => (Some(cached_text), label_of(p, chunk), ""),
                 None => {
                     let v = per_source.get(fresh_at).cloned().flatten();
+                    let label = source_label(fresh_at);
                     fresh_at += 1;
-                    v
+                    (v, label, about.as_str())
                 }
             };
             let text = match body {
-                Some(b) => {
-                    // **Rendered through `CondensedResult`, never interpolated.**
-                    //
-                    // An earlier draft of this function pulled the field's raw value out of the
-                    // map and formatted it straight into the note. That silently undid ADR-039's
-                    // fix: `render` is what keeps a field header at column 0 and INDENTS every
-                    // line a value contributes, so a value containing a line like `source_2: ...`
-                    // cannot be read back as a second field. Interpolating the value put the
-                    // check and the thing it protects back on opposite sides of a format string —
-                    // the exact shape the original bug had.
-                    //
-                    // `about` goes through the same renderer for the same reason: it is
-                    // model-authored text derived from attacker-controlled input and earns no
-                    // special treatment.
-                    let mut rendered = CondensedResult::new();
-                    if !about.is_empty() {
-                        rendered = rendered.with("about", about.clone());
-                    }
-                    rendered = rendered.with(label_of(p, chunk), b);
-                    format!(
-                        "{} · read under quarantine, not shown here:\n{}",
-                        p.summary,
-                        rendered.render()
-                    )
-                }
+                // **Rendered through `CondensedResult`, never interpolated** — see
+                // `condensed_note`, which is now the only place this construction happens. `render`
+                // keeps a field header at column 0 and INDENTS every line a value contributes, so a
+                // value containing a line like `source_2: ...` cannot be read back as a second
+                // field. `about` goes through the same renderer for the same reason: it is
+                // model-authored text derived from attacker-controlled input and earns no special
+                // treatment.
+                Some(b) => condensed_note(p, label, note_about, &b),
                 None => format!(
                     "{} · the content could not be condensed within the contract. It was NOT \
                      placed in this window.",

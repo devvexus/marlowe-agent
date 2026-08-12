@@ -94,10 +94,25 @@ struct Harness {
     tool_calls: usize,
     rendered: String,
     floor: TrustClass,
+    /// Every byte of prose the sink received. **Audit finding E4's subject.** The two existing
+    /// escape tests assert on `rendered` — the context view — so neither ever looked here, and the
+    /// child's stream to the terminal was invisible to the whole suite.
+    sink_text: String,
 }
 
 /// Drive one turn containing `n` `web` calls, with a first step that emits them all as one batch.
 fn drive(n: usize, identical: bool, child_reply: &str) -> Harness {
+    drive_with(n, identical, std::iter::repeat(child_reply.to_string()).take(12).collect())
+}
+
+/// As [`drive`], with a **distinct reply per model call**.
+///
+/// Needed because the child and the parent both finish by speaking, and a harness that gives them
+/// the same words cannot tell their output apart — which made the first version of
+/// `nothing_the_quarantined_reader_says_reaches_the_surface` fail against a working filter: the
+/// marker it found on the sink was the *parent's* answer, not the child's. Reply 0 goes to the
+/// quarantined reader; the rest to the parent.
+fn drive_with(n: usize, identical: bool, replies: Vec<String>) -> Harness {
     let views = Arc::new(Mutex::new(Vec::new()));
     let model_calls = Arc::new(Mutex::new(0usize));
 
@@ -121,7 +136,7 @@ fn drive(n: usize, identical: bool, child_reply: &str) -> Harness {
     let mut driver = BatchThenReplies {
         first: Some(ModelStep::ToolCall { calls }),
         inner: Counting {
-            replies: std::iter::repeat(child_reply.to_string()).take(12).collect(),
+            replies,
             seen: Arc::clone(&views),
             calls: Arc::clone(&model_calls),
         },
@@ -155,12 +170,15 @@ fn drive(n: usize, identical: bool, child_reply: &str) -> Harness {
     };
     let _ = engine.run(&mut run, &mut state, &mut prov, &mut ports);
 
+    let sink_text = sink.text();
+
     Harness {
         views,
         model_calls,
         tool_calls: tools.calls,
         rendered: engine.assembler().assemble(&state).rendered(),
         floor: run.trust_floor(),
+        sink_text,
     }
 }
 
@@ -374,5 +392,92 @@ fn with_no_budget_for_a_reader_the_page_is_not_placed_in_the_window() {
     assert!(
         !rendered.contains(MARKER),
         "when a reader cannot run, the page must NOT be the fallback:\n{rendered}"
+    );
+}
+
+/// **Audit findings C3 and E2, asserted where the engine uses the mechanism.**
+///
+/// The reply used to be filed under **every** declared field, so all six `source_N` slots carried
+/// identical text — a hostile page's prose printed verbatim under a trusted document's label, with
+/// nothing forged. §5.1's first pinned property is *"the parent attributes findings by slot"*, and
+/// there was nothing to attribute.
+///
+/// **This test exists because the unit tests could not see it.** `condense_integrity.rs` asserts on
+/// `CondensedResult::parse_fields` and `OutputContract::structured` directly, and restoring the
+/// broadcast in `engine.rs` left every one of them green — the property asserted where the helper
+/// is defined rather than where it is used. That is the sixteenth-instance family, committed while
+/// fixing it, and this is the assertion that discriminates.
+#[test]
+fn an_unattributed_reply_does_not_appear_under_any_sources_label() {
+    const MARKER: &str = "HOSTILE-PROSE-THAT-DESCRIBES-NO-PARTICULAR-SOURCE";
+    let mut replies = vec![MARKER.to_string()];
+    replies.extend(std::iter::repeat("finished".to_string()).take(11));
+    let h = drive_with(2, false, replies);
+
+    // Control: it reached the parent's context at all, under the field that means "not attributed
+    // to any one source". Without this the absence below could be an absence of anything to find.
+    assert!(h.rendered.contains(MARKER), "premise: the reply arrived:
+{}", h.rendered);
+    assert!(
+        h.rendered.contains(marlowe_loop::UNDESCRIBED_SOURCE),
+        "a slot the reader did not fill must say so rather than borrow another source's text:
+{}",
+        h.rendered
+    );
+
+    // The marker appears once per document under `about`, and never under a `source_N` label.
+    // Counting is what discriminates: the broadcast put it under BOTH, so the count doubles.
+    let under_about = h.rendered.matches(MARKER).count();
+    assert_eq!(
+        under_about, 2,
+        "two documents, so `about` carries it twice. More means it was also filed under a source          label, which is the broadcast this closes:
+{}",
+        h.rendered
+    );
+}
+
+/// **Audit finding E4.** The quarantined child's prose does not reach the sink.
+///
+/// `condense_chunk` handed the child the **parent's** `ports`, so its `TextDelta`s went to the
+/// daemon, over the socket and onto the terminal — raw, and *before* `FieldSpec::validate_value`'s
+/// character check, whose own error text says a fetched page must not be able to write terminal
+/// escape sequences through a child and onto a screen. The tell that it was an oversight: the
+/// `TrustFloorLatched` emit forty lines away **is** gated on `reads_untrusted`, and `TextDelta`
+/// was not.
+///
+/// **The child and the parent must say different things here**, or the test cannot tell whose
+/// words reached the surface. The first version of this used one reply for both and failed against
+/// a working filter — it was finding the parent's answer.
+#[test]
+fn nothing_the_quarantined_reader_says_reaches_the_surface() {
+    const CHILD_SAYS: &str = "CHILD-PROSE-THAT-MUST-NOT-REACH-A-TERMINAL";
+    const PARENT_SAYS: &str = "PARENT-ANSWER-WHICH-IS-THE-WHOLE-POINT-OF-A-SURFACE";
+    let mut replies = vec![CHILD_SAYS.to_string()];
+    replies.extend(std::iter::repeat(PARENT_SAYS.to_string()).take(11));
+    let h = drive_with(2, false, replies);
+
+    // Control: the child really did speak, and its words did reach the parent's CONTEXT — which is
+    // where a condensed read belongs. So the sink's silence is a filter and not an empty run.
+    assert!(
+        h.rendered.contains(CHILD_SAYS),
+        "premise: the reader spoke and was condensed into context:
+{}",
+        h.rendered
+    );
+
+    assert!(
+        !h.sink_text.contains(CHILD_SAYS),
+        "the quarantined reader streamed to the surface:
+{}",
+        h.sink_text
+    );
+
+    // The negative control, and it is the one that matters: a sink that dropped EVERYTHING would
+    // pass the line above while making the product silent.
+    assert!(
+        h.sink_text.contains(PARENT_SAYS),
+        "the parent's own answer must still reach the surface:
+{}",
+        h.sink_text
     );
 }

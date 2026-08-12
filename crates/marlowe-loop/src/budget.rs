@@ -127,14 +127,27 @@ impl Budget {
         }
         let left = self.remaining(spent);
         Some(Budget {
-            tokens: share.apply_u64(left.tokens),
-            wall_ms: share.apply_u64(left.wall_ms),
-            tool_calls: share.apply_u32(left.tool_calls),
+            // **Every dimension floors at 1 while the parent still has any.** Audit findings C4 and
+            // C5 — the seventeenth instance again, twice, in the function that hands budgets out.
+            //
+            // `Budget::exhausted` compares `spent >= budget`, so a sliced dimension that rounds to
+            // **zero means ALREADY EXHAUSTED, not "may not use"**: the child pauses before its
+            // first model call and returns nothing, and the caller reports a refusal whose stated
+            // reason is not the real one. `share` is 2/8, so any dimension below 4 rounds to zero —
+            // and `left.subagents.saturating_sub(1)` makes the **eighth** subagent born exhausted
+            // even at a full budget, because it is itself the eighth.
+            //
+            // Withholding a capability is done structurally elsewhere — `ExposedSet::empty()` means
+            // there is no tool to call, `depth: 0` means `slice_for` refuses a spawn. A counter set
+            // to zero is not a prohibition, it is a spent budget.
+            tokens: at_least_one_u64(share.apply_u64(left.tokens), left.tokens),
+            wall_ms: at_least_one_u64(share.apply_u64(left.wall_ms), left.wall_ms),
+            tool_calls: at_least_one_u32(share.apply_u32(left.tool_calls), left.tool_calls),
             // A child may not spawn more children than its parent had left, and it starts one
             // short because it is itself one of them.
-            subagents: left.subagents.saturating_sub(1),
+            subagents: at_least_one_u16(left.subagents.saturating_sub(1), left.subagents),
             depth: self.depth - 1,
-            micros_usd: share.apply_u64(left.micros_usd),
+            micros_usd: at_least_one_u64(share.apply_u64(left.micros_usd), left.micros_usd),
         })
     }
 
@@ -183,8 +196,8 @@ impl Budget {
                 .min(remaining)
         };
         Some(Budget {
-            tokens: share(self.tokens, left.tokens),
-            wall_ms: share(self.wall_ms, left.wall_ms),
+            tokens: at_least_one_u64(share(self.tokens, left.tokens), left.tokens),
+            wall_ms: at_least_one_u64(share(self.wall_ms, left.wall_ms), left.wall_ms),
             // **1, not 0, and the difference is not cosmetic.**
             //
             // [`Budget::exhausted`] compares `spent >= budget`, so a dimension set to zero reads
@@ -200,7 +213,9 @@ impl Budget {
             tool_calls: 1,
             subagents: 1,
             depth: 0,
-            micros_usd: share(self.micros_usd, left.micros_usd),
+            // C4: `micros_usd` is the dimension the first pass at instance 17 did not
+            // enumerate, and it is the one whose failure mode is money.
+            micros_usd: at_least_one_u64(share(self.micros_usd, left.micros_usd), left.micros_usd),
         })
     }
 
@@ -243,6 +258,36 @@ impl BudgetShare {
 
     fn apply_u32(self, v: u32) -> u32 {
         ((v as u64).saturating_mul(self.numerator()) / 8) as u32
+    }
+}
+
+
+/// A sliced dimension is never zero while the parent still has some of it.
+///
+/// See [`Budget::slice_for`] for why: `exhausted` compares `spent >= budget`, so zero reads as
+/// *already spent*, and a child handed a zero pauses before its first call. `remaining == 0` is the
+/// one case where zero is the truth, and it is passed through so the caller's own guard can see it.
+fn at_least_one_u64(sliced: u64, remaining: u64) -> u64 {
+    if remaining == 0 {
+        0
+    } else {
+        sliced.max(1)
+    }
+}
+
+fn at_least_one_u32(sliced: u32, remaining: u32) -> u32 {
+    if remaining == 0 {
+        0
+    } else {
+        sliced.max(1)
+    }
+}
+
+fn at_least_one_u16(sliced: u16, remaining: u16) -> u16 {
+    if remaining == 0 {
+        0
+    } else {
+        sliced.max(1)
     }
 }
 

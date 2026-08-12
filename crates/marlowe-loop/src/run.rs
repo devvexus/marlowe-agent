@@ -217,10 +217,7 @@ impl FieldSpec {
         for c in value.chars() {
             let permitted = match c {
                 '\n' | '\t' => self.ty == FieldType::Text,
-                _ => {
-                    let cp = c as u32;
-                    !(cp < 0x20 || cp == 0x7F || (0x80..=0x9F).contains(&cp))
-                }
+                _ => is_renderable(c),
             };
             if !permitted {
                 return Err(ContractViolation::DisallowedCharacter {
@@ -231,6 +228,56 @@ impl FieldSpec {
         }
         Ok(())
     }
+}
+
+/// Whether a character may appear in a contract value.
+///
+/// # Audit finding C2 — the old check was C0/C1/DEL and nothing else
+///
+/// That leaves three families through, and each one defeats a specific defence in this file:
+///
+/// * **U+2028 / U+2029** (LINE and PARAGRAPH SEPARATOR). Mandatory line breaks that
+///   `str::lines()` does **not** split on — so [`CondensedResult::render`] cannot indent what
+///   follows one, and the whole column-0 forgery defence is bypassed by a character it never
+///   sees. Worse, two consumers in this repo disagree: the memory tokenizer *does* treat them as
+///   line breaks, so the same bytes are one line here and two lines there.
+/// * **U+202A–U+202E, U+2066–U+2069** (BiDi embeddings and overrides — Trojan Source). The
+///   two-space indent that is the entire forgery defence is a **visual** property, and an RLO can
+///   move it. What is rendered indented can be displayed as though it were not.
+/// * **U+200B–U+200D, U+2060, U+FEFF** (zero-width). `evil<ZWSP>.example` displays as
+///   `evil.example` and tokenizes as one term, while every `assert!(!contains("evil.example"))`
+///   in the suite reads clean. A test that cannot see the string it is looking for is not a test.
+///
+/// One predicate, so the render side and the validate side cannot come to disagree about what a
+/// character is. `Cf` covers the BiDi and zero-width families by category rather than by a list
+/// that would need extending with each Unicode revision; `Zl`/`Zp` are the two separators.
+pub fn is_renderable(c: char) -> bool {
+    let cp = c as u32;
+    if cp < 0x20 || cp == 0x7F || (0x80..=0x9F).contains(&cp) {
+        return false;
+    }
+    // Zl and Zp. Rust has no category API in std, and these are the entire membership of both.
+    if c == '\u{2028}' || c == '\u{2029}' {
+        return false;
+    }
+    // Cf — format characters. Enumerated by range rather than pulled in as a Unicode-tables
+    // dependency: these are the blocks that reach text in practice, and the interesting ones
+    // (BiDi, zero-width, the deprecated tag block used for smuggling) are all here.
+    !matches!(cp,
+        0x00AD                    // SOFT HYPHEN
+        | 0x0600..=0x0605 | 0x061C | 0x06DD | 0x070F
+        | 0x08E2 | 0x110BD | 0x110CD
+        | 0x180E
+        | 0x200B..=0x200F         // zero-width space/non-joiner/joiner, LRM, RLM
+        | 0x202A..=0x202E         // BiDi embedding and OVERRIDE — Trojan Source
+        | 0x2060..=0x2064 | 0x2066..=0x206F  // word joiner, invisible ops, BiDi isolates
+        | 0xFEFF                  // ZERO WIDTH NO-BREAK SPACE / BOM
+        | 0xFFF9..=0xFFFB         // interlinear annotation
+        | 0x13430..=0x1343F       // Egyptian format controls
+        | 0x1BCA0..=0x1BCA3
+        | 0x1D173..=0x1D17A       // musical beam/slur controls
+        | 0xE0000..=0xE007F       // TAG characters — the classic invisible-instruction channel
+    )
 }
 
 /// A sane default for a worker return: enough for findings, far short of a transcript.
@@ -247,12 +294,29 @@ impl OutputContract {
     }
 
     /// A contract whose fields are typed and capped individually.
+    /// **The aggregate is derived from the per-field caps, not fixed.** Audit findings C3 and E8.
+    ///
+    /// It was a flat [`DEFAULT_RESULT_MAX_CHARS`] — 4,000 — while the quarantined reader's own
+    /// contract declares `about`(600) plus six `source_N`(1,500), which is **9,600**. So the
+    /// contract asked for more than it would accept: at six sources the aggregate capped the whole
+    /// reply at roughly 571 characters per field, and no correct answer existed.
+    ///
+    /// That is not merely a tight budget, it is E8's engine. A violation does not fail the child —
+    /// it is pushed into the child's window and the loop `continue`s — so the child retried an
+    /// arithmetically unsatisfiable instruction until `MAX_STEPS` or its token slice was gone, and
+    /// the parent absorbed the whole retry loop through `run.spent.add(&child_run.spent)`. A page
+    /// inducing a verbose summary burned up to a quarter of the parent's budget per group and
+    /// returned nothing for all six documents.
+    ///
+    /// The sum plus a small allowance for the field headers themselves is the honest number: a
+    /// contract's aggregate should be *satisfiable by filling every field it declares*.
     pub fn structured(description: impl Into<String>, fields: Vec<FieldSpec>) -> Self {
-        Self {
-            description: description.into(),
-            fields,
-            max_chars: DEFAULT_RESULT_MAX_CHARS,
-        }
+        let per_field: usize = fields.iter().map(|f| f.max_chars).sum();
+        // `saturating_add` because `answer()` declares `usize::MAX`; a contract mixing that with
+        // anything else must not wrap to a cap of nearly zero.
+        let headroom = fields.len().saturating_mul(64);
+        let max_chars = per_field.saturating_add(headroom).max(DEFAULT_RESULT_MAX_CHARS);
+        Self { description: description.into(), fields, max_chars }
     }
 
     /// The contract a top-level interactive run finishes against.
@@ -379,6 +443,74 @@ impl CondensedResult {
             }
         }
         out.trim_end().to_string()
+    }
+
+    /// Read a child's prose reply back into the fields its contract asked for.
+    ///
+    /// # Why this exists at all
+    ///
+    /// Audit findings C3 and E2. A child finishes by *speaking*, and the loop used to file that one
+    /// reply under **every** declared field — so a six-source contract came back with six identical
+    /// slots, and §5.1's *"the parent attributes findings by slot"* had nothing to attribute. A
+    /// hostile page's prose was printed verbatim under a trusted document's label with nothing
+    /// forged. The suite missed it because the scripted reply is 29 characters and the test asserts
+    /// the labels are *present*, not that the slots *differ*.
+    ///
+    /// The child is already instructed to *"fill one field per source, using the labels exactly as
+    /// given"*, so parsing labelled output back is the protocol; the absence of a parser was the
+    /// gap.
+    ///
+    /// # The three rules, each of which is a defence
+    ///
+    /// 1. **A header is a declared field name, at column 0, followed by `:`.** Nothing else opens a
+    ///    field, so a value cannot introduce a field the contract never asked for — the same
+    ///    column-0 rule [`Self::render`] relies on, read in the other direction.
+    /// 2. **First occurrence wins.** A later `source_1:` inside another value cannot overwrite what
+    ///    was already attributed.
+    /// 3. **Unmatched fields stay absent**, so the contract's own `validate` fails and the parent
+    ///    reports that the content could not be condensed. Absent beats invented.
+    ///
+    /// Returns `None` when the reply names no declared field at all — the child answered in prose,
+    /// which for a multi-field contract is not an answer.
+    pub fn parse_fields(text: &str, fields: &[FieldSpec]) -> Option<Self> {
+        let mut out = Self::new();
+        let mut current: Option<&str> = None;
+        let mut buf: Vec<&str> = Vec::new();
+
+        let flush = |out: &mut Self, name: Option<&str>, buf: &mut Vec<&str>| {
+            if let Some(n) = name {
+                // Only if absent: rule 2.
+                if !out.fields.contains_key(n) {
+                    out.fields.insert(n.to_string(), buf.join("\n").trim().to_string());
+                }
+            }
+            buf.clear();
+        };
+
+        for line in text.lines() {
+            // Rule 1: no `trim_start`. An indented `source_2:` is a value line, exactly as
+            // `render` guarantees when it writes one.
+            let header = line.split_once(':').and_then(|(name, rest)| {
+                fields.iter().find(|f| f.name == name).map(|f| (f.name.as_str(), rest))
+            });
+            match header {
+                Some((name, rest)) => {
+                    flush(&mut out, current, &mut buf);
+                    current = Some(name);
+                    if !rest.trim().is_empty() {
+                        buf.push(rest.trim_start());
+                    }
+                }
+                None => buf.push(line),
+            }
+        }
+        flush(&mut out, current, &mut buf);
+
+        if out.fields.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
 }
 

@@ -47,13 +47,13 @@ pub use driver::{BatchItem, ToolInvocation,
 };
 pub use engine::{
     coerce_to_declared_types, Engine, LoopOutcome, Ports, KEEP_TOOL_RESULTS,
-    MAX_SOURCES_PER_READER, MAX_STEPS,
+    MAX_SOURCES_PER_READER, MAX_STEPS, UNDESCRIBED_SOURCE,
 };
 pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
 pub use provenance::Provenance;
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};
 pub use run::{
-    CondensedResult, ContractViolation, OrphanPolicy, OutputContract, PauseReason, Run, RunId,
-    RunStatus, SessionId, DEFAULT_RESULT_MAX_CHARS,
+    is_renderable, CondensedResult, ContractViolation, FieldSpec, FieldType, OrphanPolicy,
+    OutputContract, PauseReason, Run, RunId, RunStatus, SessionId, DEFAULT_RESULT_MAX_CHARS,
 };
 pub use turn::{DegradedPath, ToolLineState, TurnEvent};
