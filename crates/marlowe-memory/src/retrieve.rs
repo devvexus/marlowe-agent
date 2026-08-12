@@ -415,7 +415,24 @@ pub struct ScoredCandidate<'a> {
     /// outside the reranking budget. It never means "scored zero": a cross-encoder logit is signed
     /// and near-zero is a real, middling score, so a `0.0` sentinel would be indistinguishable from
     /// a genuine reading.
+    ///
+    /// **Under the cascade this stays the SHIPPED graph's logit and is not overwritten with a
+    /// fusion score.** K1's operating point is calibrated in this graph's logit units; writing an
+    /// RRF score (~0.03) into the field the cut point is compared against would silently compare
+    /// two different quantities and the abstention rule would read as noise. The fusion's opinion
+    /// lives in [`Self::fusion_rank`] instead.
     pub rerank_score: Option<f32>,
+    /// The candidate's 0-based position under the GPU cascade's rank fusion, if it ran.
+    ///
+    /// `None` means the cascade did not run, or this candidate was outside the narrowed set. It is
+    /// the ranking key's **highest-priority level when present**, ahead of `rerank_score`, because
+    /// the fusion is what was measured at held-out R@3 0.8908 — the shipped logit alone reads
+    /// 0.8865.
+    ///
+    /// **A rank, not a score, deliberately.** RRF is defined over ranks; keeping the rank means the
+    /// dump records what the fusion actually decided rather than a float whose scale is an artifact
+    /// of `RRF_K` and the number of members.
+    pub fusion_rank: Option<u32>,
 }
 
 pub struct Selection<'a> {
@@ -605,6 +622,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
                     session_key: 0,
                     survived_pruning: true,
                     rerank_score: None,
+                    fusion_rank: None,
                 }
             }
             // No gate ran. Zero is the honest report of "nothing scored this", and
@@ -620,6 +638,7 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
                 session_key: 0,
                 survived_pruning: true,
                 rerank_score: None,
+                fusion_rank: None,
             },
         })
         .collect();
@@ -768,6 +787,22 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
                 let (x, y) = (&scored[*a], &scored[*b]);
                 y.survived_pruning
                     .cmp(&x.survived_pruning)
+                    // **The cascade's fusion rank outranks the single graph's logit when it exists.**
+                    // Held-out: the fusion reads R@3 0.8908, the shipped logit alone 0.8865. Absent
+                    // (no GPU, so no cascade) every candidate is `None` and this level is inert —
+                    // the CPU path's ordering is bit-identical to what it was before this level
+                    // existed, which is what makes the GPU gate a pure addition.
+                    //
+                    // `None` must sort AFTER any `Some` for the same reason it does for
+                    // `rerank_score` below: a candidate outside the narrowed set has no fusion
+                    // opinion, and absence must never beat a real one. `Option`'s own ordering puts
+                    // `None` first, so it is written out rather than derived.
+                    .then_with(|| match (x.fusion_rank, y.fusion_rank) {
+                        (Some(p), Some(q)) => p.cmp(&q), // ascending: rank 0 is best
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => std::cmp::Ordering::Equal,
+                    })
                     // `None` sorts AFTER any `Some`, so an unreranked candidate never outranks a
                     // reranked one on the absence of a score. `Option`'s own ordering puts `None`
                     // first, which is the opposite, so it is written out rather than derived.

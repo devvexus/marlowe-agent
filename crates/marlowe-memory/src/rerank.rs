@@ -112,6 +112,63 @@ pub const MODEL_SHA256: &str = "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7
 pub const TOKENIZER_SHA256: &str =
     "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963";
 
+/// The graphs the GPU cascade fuses, **digest-pinned exactly as the shipped graph is**.
+///
+/// M0c Session M2, held-out, n = 229: RRF (k = 60) over these six, applied to the ten candidates
+/// the shipped graph narrows a 30-wide slate down to, reads **R@3 0.8908** against the shipped
+/// path's **0.8515** — +0.0393, McNemar 11 gained / 2 lost, **p = 0.0225**. `cond@3` 0.9062 →
+/// 0.9107, input recall 0.9039 → 0.9782.
+///
+/// **The membership is a RULE, not a selection.** It is *every* graph trained on Session J's recipe
+/// — same pairs file, same MarginMSE, same delta rule, same seed, same conversation fold — with no
+/// subset chosen. That rule was fixed in `tools/cascade_squeeze.py`'s docstring before any model
+/// loaded, and it is why this configuration is trustworthy: on fit it ranked **second**, behind
+/// `ms-marco-MiniLM-L-4-v2-ft-w1` alone at 0.9432. Held-out, L-4 alone read **0.8690 — last**, below
+/// the untouched baseline on R@1. The arm picked by looking at fit lost; the arm picked by a rule
+/// won. Do not "improve" this list by scoring candidates on the fit split.
+///
+/// The `ft-m-*` family is excluded for a stated reason: different negative mining
+/// (`deployed_top_k`), and arm B is on the record as fit 0.8253 → held-out 0.6812.
+///
+/// **The first entry is the narrower** and must remain the shipped graph, because the 30 → 10
+/// narrowing was measured with it (retention 0.9956).
+pub const FUSION_GRAPHS: &[(&str, &str)] = &[
+    // The shipped graph, and the one that narrows. Its digest is MODEL_SHA256.
+    (
+        "ms-marco-MiniLM-L-2-v2-ft-session-j",
+        "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0",
+    ),
+    (
+        "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        "78dcc7c1834b2e0cfc67d58a2735b9bc27900f46d5b5ccada99e8ee610c724f6",
+    ),
+    (
+        "ms-marco-MiniLM-L-2-v2-ft-w1",
+        "cc4df68c30d319cab3d74c166f4de18c4ade7e8c1fccd1fbc1512bdffee58b96",
+    ),
+    (
+        "ms-marco-MiniLM-L-4-v2-ft-w1",
+        "f6324276380fbc6a6a34864c077a94d5227d9719d9d5dfbc80bcb8695078fddb",
+    ),
+    (
+        "ms-marco-MiniLM-L-6-v2-ft-w1",
+        "bbfb8a0831db882397c2b83f1c108e233320e1c257c923216357d2c48e25e050",
+    ),
+    (
+        "ms-marco-MiniLM-L-12-v2-ft-w1",
+        "b1a374f3cd2752af2143d4f01853282a9a1d4e7ee8137e82c5827291b26ccdd6",
+    ),
+];
+
+/// Reciprocal-rank-fusion constant. Cormack et al.'s published default.
+///
+/// **Fixed before any number existed and never swept.** A `k` chosen after seeing a result is the
+/// tunable knob this project has four fit→held-out collapses from.
+pub const RRF_K: f32 = 60.0;
+
+/// All fusion members share one tokenizer, so [`TOKENIZER_SHA256`] pins every one of them.
+/// Verified against `runs/session-m0c-m/capacity-manifest.json`: every member records
+/// `tokenizer.json` = `0d3aef59…`.
 pub const MODEL_FILE: &str = "model.onnx";
 pub const TOKENIZER_FILE: &str = "tokenizer.json";
 
@@ -328,9 +385,65 @@ impl CrossEncoder {
         Self::load_with(dir, threads, RerankProvider::Cpu)
     }
 
+    /// Load a **fusion member** by name, digest-pinned from [`FUSION_GRAPHS`].
+    ///
+    /// The shipped graph has exactly one pinned digest and that is deliberate. This does not relax
+    /// it: the name must appear in `FUSION_GRAPHS`, whose digests are compiled in, so an unknown
+    /// directory is refused before any file is read. There is no caller-supplied digest and no way
+    /// to pass one — that would turn the pin into a parameter, which is the same as not having it.
+    ///
+    /// `models_root` is the parent directory; the member's own name is joined to it.
+    pub fn load_fusion_member(
+        models_root: &Path,
+        name: &str,
+        provider: RerankProvider,
+    ) -> Result<Self, RerankError> {
+        let expected = FUSION_GRAPHS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, sha)| *sha)
+            .ok_or_else(|| RerankError::Missing {
+                path: models_root.join(name),
+                dir: format!(
+                    "{name} is not in FUSION_GRAPHS; the {} pinned members are {:?}",
+                    FUSION_GRAPHS.len(),
+                    FUSION_GRAPHS.iter().map(|(n, _)| *n).collect::<Vec<_>>()
+                ),
+            })?;
+        Self::load_pinned(&models_root.join(name), expected, SHIPPED_THREADS, provider)
+    }
+
+    /// Can a CUDA session actually be **constructed** on this machine?
+    ///
+    /// **This is a construction, never an availability list, and the difference is the whole
+    /// point.** Session G's spike found CUDA *listed* as available while failing to create on a
+    /// missing `cublasLt64_12.dll`, after which ORT registered CPU and scored happily — producing a
+    /// "GPU" figure within 1% of the 1-thread CPU one. `error_on_failure()` makes that a hard error
+    /// instead of a silent fallback, so "it constructed" means something.
+    ///
+    /// **What this still does NOT establish.** `ort` 2.0.0-rc.10 exposes no node placement, and
+    /// Session L measured **13.6% of nodes running on CPU** under a successfully registered CUDA
+    /// session — all shape/index ops, no matmuls. So this answers *"did a CUDA session construct"*,
+    /// not *"did every node run on the GPU"*. Do not write a comment here claiming otherwise.
+    ///
+    /// It loads the shipped graph, because probing with a graph the product does not use would
+    /// measure the availability of something else.
+    pub fn cuda_available(shipped_dir: &Path) -> bool {
+        Self::load_with(shipped_dir, SHIPPED_THREADS, RerankProvider::Cuda).is_ok()
+    }
+
     /// Load at an explicit thread count AND provider.
     pub fn load_with(
         dir: &Path,
+        threads: usize,
+        provider: RerankProvider,
+    ) -> Result<Self, RerankError> {
+        Self::load_pinned(dir, MODEL_SHA256, threads, provider)
+    }
+
+    fn load_pinned(
+        dir: &Path,
+        model_sha: &'static str,
         threads: usize,
         provider: RerankProvider,
     ) -> Result<Self, RerankError> {
@@ -349,7 +462,7 @@ impl CrossEncoder {
             });
         }
 
-        pinned(&model_path, MODEL_SHA256, dir)?;
+        pinned(&model_path, model_sha, dir)?;
         pinned(&tokenizer_path, TOKENIZER_SHA256, dir)?;
 
         let text = std::fs::read_to_string(&tokenizer_path).map_err(|source| RerankError::Io {
