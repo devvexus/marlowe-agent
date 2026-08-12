@@ -1,0 +1,42 @@
+{
+  "_what": "proposition-level vs turn-level BM25 indexing, fit split",
+  "_measurement_only": true,
+  "_the_reading": "prop_minus_turn is the isolated effect of the UNIT, because both columns use the same BM25 implementation. the shipped column is context only.",
+  "control_fit_r1": 0.7555,
+  "n": 229,
+  "mean_propositions_per_query": 4202.013100436681,
+  "input_recall": [
+    {
+      "depth": 5,
+      "shipped": 0.8341,
+      "my_turn": 0.8079,
+      "my_prop": 0.7205,
+      "prop_minus_turn": -0.0873
+    },
+    {
+      "depth": 10,
+      "shipped": 0.9214,
+      "my_turn": 0.8777,
+      "my_prop": 0.7991,
+      "prop_minus_turn": -0.0786
+    },
+    {
+      "depth": 20,
+      "shipped": 0.9738,
+      "my_turn": 0.9389,
+      "my_prop": 0.8777,
+      "prop_minus_turn": -0.0611
+    },
+    {
+      "depth": 30,
+      "shipped": 0.9825,
+      "my_turn": 0.9563,
+      "my_prop": 0.9083,
+      "prop_minus_turn": -0.048
+    }
+  ],
+  "median_gold_rank": {
+    "turn": 1.0,
+    "prop": 2.0
+  }
+}
