@@ -1,0 +1,51 @@
+{
+  "_what": "input recall by slate draw rule at fixed depth -- can re-ordering buy the recall that deepening buys, without deepening's cond@3 cost?",
+  "_split": "fit",
+  "_rrf_k": 60,
+  "_rrf_k_fixed_before_measurement": true,
+  "_gate": {
+    "fit_R@1": 0.7555,
+    "published": 0.7555,
+    "cue_slate_exact": 229
+  },
+  "_cond3_used_for_projection": 0.9763,
+  "results": {
+    "shipped (CONTROL)": {
+      "ir@10": 0.9214,
+      "ir@20": 0.9738,
+      "projected_R@3_at_depth10": 0.8996
+    },
+    "bm25": {
+      "ir@10": 0.9039,
+      "ir@20": 0.9563,
+      "projected_R@3_at_depth10": 0.8825
+    },
+    "dense": {
+      "ir@10": 0.9083,
+      "ir@20": 0.9694,
+      "projected_R@3_at_depth10": 0.8868
+    },
+    "rrf k=60": {
+      "ir@10": 0.9476,
+      "ir@20": 0.9694,
+      "projected_R@3_at_depth10": 0.9251
+    },
+    "bm25 (no pruning level)": {
+      "ir@10": 0.8777,
+      "ir@20": 0.9301,
+      "projected_R@3_at_depth10": 0.8569
+    },
+    "dense (no pruning level)": {
+      "ir@10": 0.9214,
+      "ir@20": 0.9607,
+      "projected_R@3_at_depth10": 0.8996
+    },
+    "rrf k=60 (no pruning level)": {
+      "ir@10": 0.9389,
+      "ir@20": 0.9738,
+      "projected_R@3_at_depth10": 0.9166
+    },
+    "either_cue_oracle@10": 0.952,
+    "either_cue_oracle@20": 0.9782
+  }
+}

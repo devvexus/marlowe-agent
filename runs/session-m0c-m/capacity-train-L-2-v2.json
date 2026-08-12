@@ -1,0 +1,75 @@
+{
+  "name": "ms-marco-MiniLM-L-2-v2-ft-w1",
+  "base": "ms-marco-MiniLM-L-2-v2",
+  "base_checkpoint": "cross-encoder/ms-marco-MiniLM-L-2-v2",
+  "base_is_already_finetuned": false,
+  "arch": "BERT (fine-tuned, M0c Session M W1)",
+  "params_m": 15,
+  "layers": 2,
+  "hidden": 384,
+  "max_seq": 512,
+  "digests": {
+    "model.onnx": "cc4df68c30d319cab3d74c166f4de18c4ade7e8c1fccd1fbc1512bdffee58b96",
+    "tokenizer.json": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963"
+  },
+  "pairs_file": "runs/session-j/training-pairs.jsonl",
+  "negative_classes": [
+    "entity_overlap",
+    "long_assistant",
+    "opposite_role",
+    "temporal_adjacency"
+  ],
+  "training_pairs": 5612,
+  "loss": "marginmse",
+  "target_margin_delta": 2.926574,
+  "delta_source": "median margin over fit cases THIS BASE already ranks first (Session J's rule, recomputed per base exactly as session_j_finetune.py does)",
+  "slate_cache": "runs/session-j/rerank-scores-fit-L-2-v2-f32-seq256.json",
+  "hyperparameters": {
+    "epochs": 3,
+    "lr": 2e-05,
+    "batch": 32,
+    "max_len": 256,
+    "seed": 7
+  },
+  "comparability_check": {
+    "xenova_onnx_r_at_1": 0.5983,
+    "pytorch_r_at_1": 0.5983,
+    "pearson": 1.0,
+    "max_abs_logit_difference": 5e-05,
+    "agree": true
+  },
+  "session_j_recorded": {
+    "delta": 2.926574,
+    "onnx_r1": 0.5983,
+    "base_val": 0.6809,
+    "best_epoch": 2,
+    "fit_val": 0.7447
+  },
+  "base_val_r_at_1": 0.6809,
+  "best_epoch": 2,
+  "fit_val_r_at_1": 0.7447,
+  "fit_val_history": [
+    {
+      "epoch": 0,
+      "val_r_at_1": 0.6809,
+      "train_loss": null
+    },
+    {
+      "epoch": 1,
+      "val_r_at_1": 0.7234,
+      "train_loss": 4.5541
+    },
+    {
+      "epoch": 2,
+      "val_r_at_1": 0.7447,
+      "train_loss": 1.8213
+    },
+    {
+      "epoch": 3,
+      "val_r_at_1": 0.7447,
+      "train_loss": 1.361
+    }
+  ],
+  "trained_on": "fit split only",
+  "_export_gap": "SELF-VALIDATED ONLY. A PyTorch-to-ONNX export produced in this session cannot be checked against an external authority. Digest pinning, torch-vs-ORT agreement, and per-graph determinism / batch / padding invariance are what stand behind it."
+}

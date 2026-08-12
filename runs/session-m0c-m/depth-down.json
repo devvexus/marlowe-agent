@@ -1,0 +1,1442 @@
+{
+  "_what": "M0c Session M / W2 -- rerank depth swept DOWNWARD, FIT split, GPU",
+  "slate_drawn_on": "pre-rerank cue key (cue_order), validated against the dump",
+  "provider": "CUDAExecutionProvider",
+  "max_seq": 256,
+  "control": {
+    "n": 229,
+    "R@1": 0.7555,
+    "R@1_current": 0.6987,
+    "R@5": 0.917,
+    "per_category": {
+      "knowledge-update": {
+        "n": 36,
+        "R@1": 0.7222,
+        "R@1_current": 0.4722
+      },
+      "multi-session": {
+        "n": 61,
+        "R@1": 0.8033,
+        "R@1_current": 0.7705
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "R@1": 0.7857,
+        "R@1_current": 0.7857
+      },
+      "single-session-preference": {
+        "n": 15,
+        "R@1": 0.3333,
+        "R@1_current": 0.3333
+      },
+      "single-session-user": {
+        "n": 32,
+        "R@1": 0.8125,
+        "R@1_current": 0.8125
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "R@1": 0.7895,
+        "R@1_current": 0.7544
+      }
+    }
+  },
+  "control_published": {
+    "R@1": 0.7555,
+    "R@1_current": 0.69
+  },
+  "slate_agreement": {
+    "depth": 10,
+    "exact": 229,
+    "mismatched": 0,
+    "reranked_count_not_depth": 0,
+    "examples": []
+  },
+  "cue_only": {
+    "n": 229,
+    "R@1": 0.5633,
+    "R@1_current": 0.5284,
+    "R@5": 0.8341,
+    "per_category": {
+      "knowledge-update": {
+        "n": 36,
+        "R@1": 0.6111,
+        "R@1_current": 0.4167
+      },
+      "multi-session": {
+        "n": 61,
+        "R@1": 0.459,
+        "R@1_current": 0.4426
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "R@1": 0.7857,
+        "R@1_current": 0.7857
+      },
+      "single-session-preference": {
+        "n": 15,
+        "R@1": 0.1333,
+        "R@1_current": 0.1333
+      },
+      "single-session-user": {
+        "n": 32,
+        "R@1": 0.7188,
+        "R@1_current": 0.7188
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "R@1": 0.5614,
+        "R@1_current": 0.5614
+      }
+    }
+  },
+  "pools": {
+    "pools": 229,
+    "candidates": 111510,
+    "unattributable_rows": 0,
+    "attributed_but_no_session_provenance": 0,
+    "sessions_seen": 10912
+  },
+  "cells": [
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 1,
+      "input_recall": 0.5633,
+      "conditional_accuracy": 1.0,
+      "rerank_ms_p50": 2.0,
+      "rerank_ms_p95": 3.47,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5633,
+      "R@1_current": 0.5284,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.459,
+          "R@1_current": 0.4426
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.1333,
+          "R@1_current": 0.1333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5614,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 2,
+      "input_recall": 0.6638,
+      "conditional_accuracy": 0.9145,
+      "rerank_ms_p50": 2.4,
+      "rerank_ms_p95": 4.47,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.607,
+      "R@1_current": 0.5721,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5833,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.5246,
+          "R@1_current": 0.5082
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.75,
+          "R@1_current": 0.75
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.6316,
+          "R@1_current": 0.6316
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 3,
+      "input_recall": 0.7293,
+      "conditional_accuracy": 0.9042,
+      "rerank_ms_p50": 2.99,
+      "rerank_ms_p95": 5.34,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6594,
+      "R@1_current": 0.6201,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6389,
+          "R@1_current": 0.4444
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6066,
+          "R@1_current": 0.5738
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.6842,
+          "R@1_current": 0.6842
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 4,
+      "input_recall": 0.7904,
+      "conditional_accuracy": 0.8674,
+      "rerank_ms_p50": 3.64,
+      "rerank_ms_p95": 6.28,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6856,
+      "R@1_current": 0.6419,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.4444
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.6066
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7018,
+          "R@1_current": 0.7018
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 5,
+      "input_recall": 0.8341,
+      "conditional_accuracy": 0.8587,
+      "rerank_ms_p50": 4.36,
+      "rerank_ms_p95": 7.49,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7162,
+      "R@1_current": 0.6681,
+      "R@5": 0.8341,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7049,
+          "R@1_current": 0.6721
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7544,
+          "R@1_current": 0.7544
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 6,
+      "input_recall": 0.8734,
+      "conditional_accuracy": 0.85,
+      "rerank_ms_p50": 4.62,
+      "rerank_ms_p95": 7.08,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7424,
+      "R@1_current": 0.69,
+      "R@5": 0.8734,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7541,
+          "R@1_current": 0.7213
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7895
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 7,
+      "input_recall": 0.8952,
+      "conditional_accuracy": 0.8439,
+      "rerank_ms_p50": 5.28,
+      "rerank_ms_p95": 8.27,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7555,
+      "R@1_current": 0.7031,
+      "R@5": 0.8908,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7869,
+          "R@1_current": 0.7541
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 8,
+      "input_recall": 0.9083,
+      "conditional_accuracy": 0.8318,
+      "rerank_ms_p50": 6.0,
+      "rerank_ms_p95": 9.0,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7555,
+      "R@1_current": 0.7031,
+      "R@5": 0.9039,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8033,
+          "R@1_current": 0.7705
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 9,
+      "input_recall": 0.9127,
+      "conditional_accuracy": 0.8325,
+      "rerank_ms_p50": 6.63,
+      "rerank_ms_p95": 9.93,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7598,
+      "R@1_current": 0.7031,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.7222,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8033,
+          "R@1_current": 0.7705
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "params_m": 16,
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.82,
+      "rerank_ms_p50": 6.68,
+      "rerank_ms_p95": 9.66,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7555,
+      "R@1_current": 0.6987,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.7222,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8033,
+          "R@1_current": 0.7705
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7895,
+          "R@1_current": 0.7544
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 1,
+      "input_recall": 0.5633,
+      "conditional_accuracy": 1.0,
+      "rerank_ms_p50": 3.71,
+      "rerank_ms_p95": 5.0,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5633,
+      "R@1_current": 0.5284,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.459,
+          "R@1_current": 0.4426
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.1333,
+          "R@1_current": 0.1333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5614,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 2,
+      "input_recall": 0.6638,
+      "conditional_accuracy": 0.9145,
+      "rerank_ms_p50": 3.88,
+      "rerank_ms_p95": 5.38,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.607,
+      "R@1_current": 0.5764,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5556,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.541,
+          "R@1_current": 0.5246
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.614,
+          "R@1_current": 0.614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 3,
+      "input_recall": 0.7293,
+      "conditional_accuracy": 0.9042,
+      "rerank_ms_p50": 4.47,
+      "rerank_ms_p95": 5.99,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6594,
+      "R@1_current": 0.6245,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.4444
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6066,
+          "R@1_current": 0.5738
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.6842,
+          "R@1_current": 0.6842
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 4,
+      "input_recall": 0.7904,
+      "conditional_accuracy": 0.8784,
+      "rerank_ms_p50": 5.27,
+      "rerank_ms_p95": 7.08,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6943,
+      "R@1_current": 0.6463,
+      "R@5": null,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.6066
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7368,
+          "R@1_current": 0.7368
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 5,
+      "input_recall": 0.8341,
+      "conditional_accuracy": 0.8638,
+      "rerank_ms_p50": 5.98,
+      "rerank_ms_p95": 8.49,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7205,
+      "R@1_current": 0.6681,
+      "R@5": 0.8341,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6885,
+          "R@1_current": 0.6557
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7719,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 6,
+      "input_recall": 0.8734,
+      "conditional_accuracy": 0.85,
+      "rerank_ms_p50": 6.85,
+      "rerank_ms_p95": 9.14,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7424,
+      "R@1_current": 0.6856,
+      "R@5": 0.8734,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7377,
+          "R@1_current": 0.7049
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7895
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 7,
+      "input_recall": 0.8952,
+      "conditional_accuracy": 0.8488,
+      "rerank_ms_p50": 7.7,
+      "rerank_ms_p95": 10.02,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7598,
+      "R@1_current": 0.6987,
+      "R@5": 0.8908,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7705,
+          "R@1_current": 0.7377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 8,
+      "input_recall": 0.9083,
+      "conditional_accuracy": 0.8318,
+      "rerank_ms_p50": 8.45,
+      "rerank_ms_p95": 10.72,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7555,
+      "R@1_current": 0.6943,
+      "R@5": 0.9039,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7705,
+          "R@1_current": 0.7377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 9,
+      "input_recall": 0.9127,
+      "conditional_accuracy": 0.823,
+      "rerank_ms_p50": 9.28,
+      "rerank_ms_p95": 11.68,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7511,
+      "R@1_current": 0.69,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7705,
+          "R@1_current": 0.7377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7895,
+          "R@1_current": 0.7544
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "params_m": 23,
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.8104,
+      "rerank_ms_p50": 10.03,
+      "rerank_ms_p95": 12.88,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7467,
+      "R@1_current": 0.6856,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7705,
+          "R@1_current": 0.7377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7719,
+          "R@1_current": 0.7368
+        }
+      }
+    }
+  ]
+}

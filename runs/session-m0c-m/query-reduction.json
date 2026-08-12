@@ -1,0 +1,1632 @@
+{
+  "_what": "H-A query reduction at the cross-encoder. Fit split. Measurement only.",
+  "_registered_prediction": {
+    "V2_reduced_only": "+3 to +8 net cases on fit, concentrated in single-session-assistant and single-session-user",
+    "V1_reduced_only": "~0 or negative (loses the topic word on 2-sentence questions)",
+    "mean_vs_max": "mean beats max for both views",
+    "above_band": "positive -- a whole-slate re-score, not a near-tie tie-break"
+  },
+  "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "provider": "CPUExecutionProvider",
+  "max_seq": 256,
+  "slate_depth": 10,
+  "near_tie": 0.084,
+  "v2_patterns": [
+    "previous conversation",
+    "earlier conversation",
+    "going back to",
+    "get back to",
+    "follow up on",
+    "following up on",
+    "you mentioned",
+    "you said",
+    "you told me",
+    "as we discussed",
+    "i wanted to confirm",
+    "i was going through",
+    "i remember we",
+    "i remember you"
+  ],
+  "gate": {
+    "shipped_fit_r1": 0.7555,
+    "published": 0.7555,
+    "head_labels": {
+      "NEGATIVE": 110,
+      "POSITIVE": 26,
+      "AMBIGUOUS": 93
+    },
+    "python_full_control_r1": 0.7555,
+    "python_full_per_category": {
+      "knowledge-update": {
+        "n": 36,
+        "hits": 26,
+        "R@1": 0.7222
+      },
+      "multi-session": {
+        "n": 61,
+        "hits": 49,
+        "R@1": 0.8033
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "hits": 22,
+        "R@1": 0.7857
+      },
+      "single-session-preference": {
+        "n": 15,
+        "hits": 5,
+        "R@1": 0.3333
+      },
+      "single-session-user": {
+        "n": 32,
+        "hits": 26,
+        "R@1": 0.8125
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "hits": 45,
+        "R@1": 0.7895
+      }
+    }
+  },
+  "views": {
+    "V1_q_last": {
+      "031748ae": {
+        "reduced": "How many engineers do I lead now?",
+        "preamble": "How many engineers do I lead when I just started my new role as Senior Software Engineer?",
+        "question": "How many engineers do I lead when I just started my new role as Senior Software Engineer? How many engineers do I lead now?",
+        "category": "knowledge-update"
+      },
+      "08f4fc43": {
+        "reduced": "Mary's Church and the Ash Wednesday service at the cathedral?",
+        "preamble": "How many days had passed between the Sunday mass at St.",
+        "question": "How many days had passed between the Sunday mass at St. Mary's Church and the Ash Wednesday service at the cathedral?",
+        "category": "temporal-reasoning"
+      },
+      "16c90bf4": {
+        "reduced": "You mentioned using a light or medium-bodied beer, but I was wondering if you could remind me what type of beer you specifically recommended?",
+        "preamble": "I'm looking back at our previous conversation about the Seco de Cordero recipe from Ancash.",
+        "question": "I'm looking back at our previous conversation about the Seco de Cordero recipe from Ancash. You mentioned using a light or medium-bodied beer, but I was wondering if you could remind me what type of beer you specifically recommended?",
+        "category": "single-session-assistant"
+      },
+      "18dcd5a5": {
+        "reduced": "Can you remind me how many mummies the party will face in the temple?",
+        "preamble": "I'm going back to our previous chat about the Lost Temple of the Djinn one-shot.",
+        "question": "I'm going back to our previous chat about the Lost Temple of the Djinn one-shot. Can you remind me how many mummies the party will face in the temple?",
+        "category": "single-session-assistant"
+      },
+      "1b9b7252": {
+        "reduced": "You mentioned some great resources for guided imagery exercises, can you remind me of the website that had free exercises like 'The Mountain Meditation' and 'The Body Scan Meditation'?",
+        "preamble": "I wanted to follow up on our previous conversation about mindfulness techniques.",
+        "question": "I wanted to follow up on our previous conversation about mindfulness techniques. You mentioned some great resources for guided imagery exercises, can you remind me of the website that had free exercises like 'The Mountain Meditation' and 'The Body Scan Meditation'?",
+        "category": "single-session-assistant"
+      },
+      "1da05512": {
+        "reduced": "What do you think?",
+        "preamble": "I'm trying to decide whether to buy a NAS device now or wait.",
+        "question": "I'm trying to decide whether to buy a NAS device now or wait. What do you think?",
+        "category": "single-session-preference"
+      },
+      "28bcfaac": {
+        "reduced": "Can you remind me of the website you recommended for free lessons and exercises?",
+        "preamble": "I'm going back to our previous conversation about music theory. You mentioned some online resources for learning music theory.",
+        "question": "I'm going back to our previous conversation about music theory. You mentioned some online resources for learning music theory. Can you remind me of the website you recommended for free lessons and exercises?",
+        "category": "single-session-assistant"
+      },
+      "3249768e": {
+        "reduced": "Can you remind me what the fifth bottle was?",
+        "preamble": "I'm looking back at our previous conversation about building a cocktail bar. You recommended five bottles to make the widest variety of gin-based cocktails.",
+        "question": "I'm looking back at our previous conversation about building a cocktail bar. You recommended five bottles to make the widest variety of gin-based cocktails. Can you remind me what the fifth bottle was?",
+        "category": "single-session-assistant"
+      },
+      "41275add": {
+        "reduced": "Can you remind me of the Mayo Clinic video you recommended?",
+        "preamble": "I wanted to follow up on our previous conversation about YouTube videos for workplace posture.",
+        "question": "I wanted to follow up on our previous conversation about YouTube videos for workplace posture. Can you remind me of the Mayo Clinic video you recommended?",
+        "category": "single-session-assistant"
+      },
+      "6222b6eb": {
+        "reduced": "Can you remind me which one is implemented in the SIAC_GEE tool?",
+        "preamble": "I was going through our previous conversation about atmospheric correction methods, and I wanted to confirm - you mentioned that 6S, MAJA, and Sen2Cor are all algorithms for atmospheric correction of remote sensing images.",
+        "question": "I was going through our previous conversation about atmospheric correction methods, and I wanted to confirm - you mentioned that 6S, MAJA, and Sen2Cor are all algorithms for atmospheric correction of remote sensing images. Can you remind me which one is implemented in the SIAC_GEE tool?",
+        "category": "single-session-assistant"
+      },
+      "6e984302": {
+        "reduced": "What did I buy?",
+        "preamble": "I mentioned an investment for a competition four weeks ago?",
+        "question": "I mentioned an investment for a competition four weeks ago? What did I buy?",
+        "category": "temporal-reasoning"
+      },
+      "70b3e69b": {
+        "reduced": "Can you remind me of the example you gave of a Spanish-Catalan singer-songwriter who supports unity between Catalonia and Spain?",
+        "preamble": "I was going through our previous conversation about the impact of the political climate in Catalonia on its literature and music.",
+        "question": "I was going through our previous conversation about the impact of the political climate in Catalonia on its literature and music. Can you remind me of the example you gave of a Spanish-Catalan singer-songwriter who supports unity between Catalonia and Spain?",
+        "category": "single-session-assistant"
+      },
+      "75f70248": {
+        "reduced": "Do you think it might be my living room?",
+        "preamble": "I've been sneezing quite a bit lately.",
+        "question": "I've been sneezing quite a bit lately. Do you think it might be my living room?",
+        "category": "single-session-preference"
+      },
+      "7a8d0b71": {
+        "reduced": "Can you remind me how much was allocated for influencer marketing in the campaign plan?",
+        "preamble": "I'm looking back at our previous chat about the DHL Wellness Retreats campaign.",
+        "question": "I'm looking back at our previous chat about the DHL Wellness Retreats campaign. Can you remind me how much was allocated for influencer marketing in the campaign plan?",
+        "category": "single-session-assistant"
+      },
+      "89527b6b": {
+        "reduced": "Can you remind me what color was the scaly body of the Plesiosaur in the image?",
+        "preamble": "I'm going back to our previous conversation about the children's book on dinosaurs.",
+        "question": "I'm going back to our previous conversation about the children's book on dinosaurs. Can you remind me what color was the scaly body of the Plesiosaur in the image?",
+        "category": "single-session-assistant"
+      },
+      "8aef76bc": {
+        "reduced": "Can you remind me what sealant you recommended for the newspaper flower vase?",
+        "preamble": "I'm going back to our previous conversation about DIY home decor projects using recycled materials.",
+        "question": "I'm going back to our previous conversation about DIY home decor projects using recycled materials. Can you remind me what sealant you recommended for the newspaper flower vase?",
+        "category": "single-session-assistant"
+      },
+      "8b9d4367": {
+        "reduced": "Can you remind me of the company that employs over 40,000 people in the rug-manufacturing industry?",
+        "preamble": "I wanted to follow up on our previous conversation about private sector businesses in Chaudhary.",
+        "question": "I wanted to follow up on our previous conversation about private sector businesses in Chaudhary. Can you remind me of the company that employs over 40,000 people in the rug-manufacturing industry?",
+        "category": "single-session-assistant"
+      },
+      "8cf51dda": {
+        "reduced": "Can you remind me what were the three objectives we outlined for the project?",
+        "preamble": "I'm going back to our previous conversation about the grant aim page on molecular subtypes and endometrial cancer.",
+        "question": "I'm going back to our previous conversation about the grant aim page on molecular subtypes and endometrial cancer. Can you remind me what were the three objectives we outlined for the project?",
+        "category": "single-session-assistant"
+      },
+      "9a707b82": {
+        "reduced": "What was it?",
+        "preamble": "I mentioned cooking something for my friend a couple of days ago.",
+        "question": "I mentioned cooking something for my friend a couple of days ago. What was it?",
+        "category": "temporal-reasoning"
+      },
+      "a89d7624": {
+        "reduced": "Any suggestions on what to do there?",
+        "preamble": "I'm planning a trip to Denver soon.",
+        "question": "I'm planning a trip to Denver soon. Any suggestions on what to do there?",
+        "category": "single-session-preference"
+      },
+      "afdc33df": {
+        "reduced": "Any tips for keeping it clean?",
+        "preamble": "My kitchen's becoming a bit of a mess again.",
+        "question": "My kitchen's becoming a bit of a mess again. Any tips for keeping it clean?",
+        "category": "single-session-preference"
+      },
+      "cc539528": {
+        "reduced": "Can you remind me of the specific back-end programming languages you recommended I learn?",
+        "preamble": "I wanted to follow up on our previous conversation about front-end and back-end development.",
+        "question": "I wanted to follow up on our previous conversation about front-end and back-end development. Can you remind me of the specific back-end programming languages you recommended I learn?",
+        "category": "single-session-assistant"
+      },
+      "d6233ab6": {
+        "reduced": "Do you think it would be a good idea to attend my high school reunion?",
+        "preamble": "I've been feeling nostalgic lately.",
+        "question": "I've been feeling nostalgic lately. Do you think it would be a good idea to attend my high school reunion?",
+        "category": "single-session-preference"
+      },
+      "e3fc4d6e": {
+        "reduced": "Can you remind me who is the President's Chief Advisor for Science and Technology mentioned in the article?",
+        "preamble": "I wanted to follow up on our previous conversation about the fusion breakthrough at Lawrence Livermore National Laboratory.",
+        "question": "I wanted to follow up on our previous conversation about the fusion breakthrough at Lawrence Livermore National Laboratory. Can you remind me who is the President's Chief Advisor for Science and Technology mentioned in the article?",
+        "category": "single-session-assistant"
+      },
+      "e9327a54": {
+        "reduced": "I was wondering if you could remind me of that unique dessert shop with the giant milkshakes we talked about last time?",
+        "preamble": "I'm planning to revisit Orlando.",
+        "question": "I'm planning to revisit Orlando. I was wondering if you could remind me of that unique dessert shop with the giant milkshakes we talked about last time?",
+        "category": "single-session-assistant"
+      },
+      "e982271f": {
+        "reduced": "Can you remind me of the name of the last venue you recommended in the list of popular venues in Portland for indie music shows?",
+        "preamble": "I was going through our previous chat.",
+        "question": "I was going through our previous chat. Can you remind me of the name of the last venue you recommended in the list of popular venues in Portland for indie music shows?",
+        "category": "single-session-assistant"
+      },
+      "f523d9fe": {
+        "reduced": "Do you remember what show I used as an example, the one that only had the last season available?",
+        "preamble": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows?",
+        "question": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?",
+        "category": "single-session-assistant"
+      },
+      "fca762bc": {
+        "reduced": "You mentioned a few options, and I was wondering if you could remind me of the one that uses mnemonics to help learners memorize words and phrases?",
+        "preamble": "I wanted to follow up on our previous conversation about language learning apps.",
+        "question": "I wanted to follow up on our previous conversation about language learning apps. You mentioned a few options, and I was wondering if you could remind me of the one that uses mnemonics to help learners memorize words and phrases?",
+        "category": "single-session-assistant"
+      },
+      "gpt4_8e165409": {
+        "reduced": "Johnson, a few cuttings from my spider plant?",
+        "preamble": "How many days passed between the day I repotted the previous spider plant and the day I gave my neighbor, Mrs.",
+        "question": "How many days passed between the day I repotted the previous spider plant and the day I gave my neighbor, Mrs. Johnson, a few cuttings from my spider plant?",
+        "category": "temporal-reasoning"
+      }
+    },
+    "V2_preamble_drop": {
+      "16c90bf4": {
+        "reduced": "You mentioned using a light or medium-bodied beer, but I was wondering if you could remind me what type of beer you specifically recommended?",
+        "preamble": "I'm looking back at our previous conversation about the Seco de Cordero recipe from Ancash.",
+        "question": "I'm looking back at our previous conversation about the Seco de Cordero recipe from Ancash. You mentioned using a light or medium-bodied beer, but I was wondering if you could remind me what type of beer you specifically recommended?",
+        "category": "single-session-assistant"
+      },
+      "18dcd5a5": {
+        "reduced": "Can you remind me how many mummies the party will face in the temple?",
+        "preamble": "I'm going back to our previous chat about the Lost Temple of the Djinn one-shot.",
+        "question": "I'm going back to our previous chat about the Lost Temple of the Djinn one-shot. Can you remind me how many mummies the party will face in the temple?",
+        "category": "single-session-assistant"
+      },
+      "1b9b7252": {
+        "reduced": "You mentioned some great resources for guided imagery exercises, can you remind me of the website that had free exercises like 'The Mountain Meditation' and 'The Body Scan Meditation'?",
+        "preamble": "I wanted to follow up on our previous conversation about mindfulness techniques.",
+        "question": "I wanted to follow up on our previous conversation about mindfulness techniques. You mentioned some great resources for guided imagery exercises, can you remind me of the website that had free exercises like 'The Mountain Meditation' and 'The Body Scan Meditation'?",
+        "category": "single-session-assistant"
+      },
+      "28bcfaac": {
+        "reduced": "Can you remind me of the website you recommended for free lessons and exercises?",
+        "preamble": "I'm going back to our previous conversation about music theory. You mentioned some online resources for learning music theory.",
+        "question": "I'm going back to our previous conversation about music theory. You mentioned some online resources for learning music theory. Can you remind me of the website you recommended for free lessons and exercises?",
+        "category": "single-session-assistant"
+      },
+      "3249768e": {
+        "reduced": "You recommended five bottles to make the widest variety of gin-based cocktails. Can you remind me what the fifth bottle was?",
+        "preamble": "I'm looking back at our previous conversation about building a cocktail bar.",
+        "question": "I'm looking back at our previous conversation about building a cocktail bar. You recommended five bottles to make the widest variety of gin-based cocktails. Can you remind me what the fifth bottle was?",
+        "category": "single-session-assistant"
+      },
+      "41275add": {
+        "reduced": "Can you remind me of the Mayo Clinic video you recommended?",
+        "preamble": "I wanted to follow up on our previous conversation about YouTube videos for workplace posture.",
+        "question": "I wanted to follow up on our previous conversation about YouTube videos for workplace posture. Can you remind me of the Mayo Clinic video you recommended?",
+        "category": "single-session-assistant"
+      },
+      "6222b6eb": {
+        "reduced": "Can you remind me which one is implemented in the SIAC_GEE tool?",
+        "preamble": "I was going through our previous conversation about atmospheric correction methods, and I wanted to confirm - you mentioned that 6S, MAJA, and Sen2Cor are all algorithms for atmospheric correction of remote sensing images.",
+        "question": "I was going through our previous conversation about atmospheric correction methods, and I wanted to confirm - you mentioned that 6S, MAJA, and Sen2Cor are all algorithms for atmospheric correction of remote sensing images. Can you remind me which one is implemented in the SIAC_GEE tool?",
+        "category": "single-session-assistant"
+      },
+      "70b3e69b": {
+        "reduced": "Can you remind me of the example you gave of a Spanish-Catalan singer-songwriter who supports unity between Catalonia and Spain?",
+        "preamble": "I was going through our previous conversation about the impact of the political climate in Catalonia on its literature and music.",
+        "question": "I was going through our previous conversation about the impact of the political climate in Catalonia on its literature and music. Can you remind me of the example you gave of a Spanish-Catalan singer-songwriter who supports unity between Catalonia and Spain?",
+        "category": "single-session-assistant"
+      },
+      "89527b6b": {
+        "reduced": "Can you remind me what color was the scaly body of the Plesiosaur in the image?",
+        "preamble": "I'm going back to our previous conversation about the children's book on dinosaurs.",
+        "question": "I'm going back to our previous conversation about the children's book on dinosaurs. Can you remind me what color was the scaly body of the Plesiosaur in the image?",
+        "category": "single-session-assistant"
+      },
+      "8aef76bc": {
+        "reduced": "Can you remind me what sealant you recommended for the newspaper flower vase?",
+        "preamble": "I'm going back to our previous conversation about DIY home decor projects using recycled materials.",
+        "question": "I'm going back to our previous conversation about DIY home decor projects using recycled materials. Can you remind me what sealant you recommended for the newspaper flower vase?",
+        "category": "single-session-assistant"
+      },
+      "8b9d4367": {
+        "reduced": "Can you remind me of the company that employs over 40,000 people in the rug-manufacturing industry?",
+        "preamble": "I wanted to follow up on our previous conversation about private sector businesses in Chaudhary.",
+        "question": "I wanted to follow up on our previous conversation about private sector businesses in Chaudhary. Can you remind me of the company that employs over 40,000 people in the rug-manufacturing industry?",
+        "category": "single-session-assistant"
+      },
+      "8cf51dda": {
+        "reduced": "Can you remind me what were the three objectives we outlined for the project?",
+        "preamble": "I'm going back to our previous conversation about the grant aim page on molecular subtypes and endometrial cancer.",
+        "question": "I'm going back to our previous conversation about the grant aim page on molecular subtypes and endometrial cancer. Can you remind me what were the three objectives we outlined for the project?",
+        "category": "single-session-assistant"
+      },
+      "cc539528": {
+        "reduced": "Can you remind me of the specific back-end programming languages you recommended I learn?",
+        "preamble": "I wanted to follow up on our previous conversation about front-end and back-end development.",
+        "question": "I wanted to follow up on our previous conversation about front-end and back-end development. Can you remind me of the specific back-end programming languages you recommended I learn?",
+        "category": "single-session-assistant"
+      },
+      "e3fc4d6e": {
+        "reduced": "Can you remind me who is the President's Chief Advisor for Science and Technology mentioned in the article?",
+        "preamble": "I wanted to follow up on our previous conversation about the fusion breakthrough at Lawrence Livermore National Laboratory.",
+        "question": "I wanted to follow up on our previous conversation about the fusion breakthrough at Lawrence Livermore National Laboratory. Can you remind me who is the President's Chief Advisor for Science and Technology mentioned in the article?",
+        "category": "single-session-assistant"
+      },
+      "e982271f": {
+        "reduced": "Can you remind me of the name of the last venue you recommended in the list of popular venues in Portland for indie music shows?",
+        "preamble": "I was going through our previous chat.",
+        "question": "I was going through our previous chat. Can you remind me of the name of the last venue you recommended in the list of popular venues in Portland for indie music shows?",
+        "category": "single-session-assistant"
+      },
+      "f523d9fe": {
+        "reduced": "I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?",
+        "preamble": "I wanted to check back on our previous conversation about Netflix.",
+        "question": "I wanted to check back on our previous conversation about Netflix. I mentioned that I wanted to be able to access all seasons of old shows? Do you remember what show I used as an example, the one that only had the last season available?",
+        "category": "single-session-assistant"
+      },
+      "fca762bc": {
+        "reduced": "You mentioned a few options, and I was wondering if you could remind me of the one that uses mnemonics to help learners memorize words and phrases?",
+        "preamble": "I wanted to follow up on our previous conversation about language learning apps.",
+        "question": "I wanted to follow up on our previous conversation about language learning apps. You mentioned a few options, and I was wondering if you could remind me of the one that uses mnemonics to help learners memorize words and phrases?",
+        "category": "single-session-assistant"
+      }
+    }
+  },
+  "arms": [
+    {
+      "arm": "V1_q_last",
+      "fusion": "reduced-only",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 11,
+        "flips_gained": 3,
+        "flips_lost": 5,
+        "flips_ambiguous": 3,
+        "net_cases": -2,
+        "net_r1_delta": -0.0087,
+        "above_0.084": {
+          "gained": 3,
+          "lost": 5,
+          "ambiguous": 3,
+          "net": -2
+        },
+        "flips": [
+          {
+            "query_id": "1da05512",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.35186052322387695,
+            "category": "single-session-preference"
+          },
+          {
+            "query_id": "08f4fc43",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.1304006576538086,
+            "category": "temporal-reasoning"
+          },
+          {
+            "query_id": "89527b6b",
+            "label": "POSITIVE",
+            "orig_gap": 0.2893028259277344,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "e9327a54",
+            "label": "NEGATIVE",
+            "orig_gap": 0.6016826629638672,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "18dcd5a5",
+            "label": "NEGATIVE",
+            "orig_gap": 1.3719158172607422,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "3249768e",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.2891726493835449,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "6222b6eb",
+            "label": "POSITIVE",
+            "orig_gap": 0.8127579689025879,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "e3fc4d6e",
+            "label": "POSITIVE",
+            "orig_gap": 0.35155582427978516,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7336,
+        "delta_vs_python_full": -0.0219,
+        "delta_vs_shipped": -0.0219,
+        "cases_gained": 2,
+        "cases_lost": 7,
+        "net_cases": -5,
+        "above_0.084": {
+          "gained": 2,
+          "lost": 7,
+          "net": -5
+        },
+        "gained_ids": [
+          "75f70248",
+          "6222b6eb"
+        ],
+        "lost_ids": [
+          "e9327a54",
+          "cc539528",
+          "18dcd5a5",
+          "8cf51dda",
+          "7a8d0b71",
+          "41275add",
+          "28bcfaac"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 16,
+            "R@1": 0.5714
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 6,
+            "R@1": 0.4
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "V1_q_last",
+      "fusion": "max",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 1,
+        "flips_gained": 0,
+        "flips_lost": 0,
+        "flips_ambiguous": 1,
+        "net_cases": 0,
+        "net_r1_delta": 0.0,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 0,
+          "ambiguous": 1,
+          "net": 0
+        },
+        "flips": [
+          {
+            "query_id": "08f4fc43",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.1304006576538086,
+            "category": "temporal-reasoning"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7555,
+        "delta_vs_python_full": 0.0,
+        "delta_vs_shipped": 0.0,
+        "cases_gained": 0,
+        "cases_lost": 0,
+        "net_cases": 0,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 0,
+          "net": 0
+        },
+        "gained_ids": [],
+        "lost_ids": [],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 22,
+            "R@1": 0.7857
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "V1_q_last",
+      "fusion": "mean",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 7,
+        "flips_gained": 1,
+        "flips_lost": 3,
+        "flips_ambiguous": 3,
+        "net_cases": -2,
+        "net_r1_delta": -0.0087,
+        "above_0.084": {
+          "gained": 1,
+          "lost": 3,
+          "ambiguous": 3,
+          "net": -2
+        },
+        "flips": [
+          {
+            "query_id": "1da05512",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.35186052322387695,
+            "category": "single-session-preference"
+          },
+          {
+            "query_id": "08f4fc43",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.1304006576538086,
+            "category": "temporal-reasoning"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "3249768e",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.2891726493835449,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "6222b6eb",
+            "label": "POSITIVE",
+            "orig_gap": 0.8127579689025879,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7467,
+        "delta_vs_python_full": -0.0088,
+        "delta_vs_shipped": -0.0088,
+        "cases_gained": 1,
+        "cases_lost": 3,
+        "net_cases": -2,
+        "above_0.084": {
+          "gained": 1,
+          "lost": 3,
+          "net": -2
+        },
+        "gained_ids": [
+          "6222b6eb"
+        ],
+        "lost_ids": [
+          "cc539528",
+          "8cf51dda",
+          "41275add"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 20,
+            "R@1": 0.7143
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "V2_preamble_drop",
+      "fusion": "reduced-only",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 8,
+        "flips_gained": 3,
+        "flips_lost": 4,
+        "flips_ambiguous": 1,
+        "net_cases": -1,
+        "net_r1_delta": -0.0044,
+        "above_0.084": {
+          "gained": 3,
+          "lost": 4,
+          "ambiguous": 1,
+          "net": -1
+        },
+        "flips": [
+          {
+            "query_id": "89527b6b",
+            "label": "POSITIVE",
+            "orig_gap": 0.2893028259277344,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "18dcd5a5",
+            "label": "NEGATIVE",
+            "orig_gap": 1.3719158172607422,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "3249768e",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.2891726493835449,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "6222b6eb",
+            "label": "POSITIVE",
+            "orig_gap": 0.8127579689025879,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "e3fc4d6e",
+            "label": "POSITIVE",
+            "orig_gap": 0.35155582427978516,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.738,
+        "delta_vs_python_full": -0.0175,
+        "delta_vs_shipped": -0.0175,
+        "cases_gained": 1,
+        "cases_lost": 5,
+        "net_cases": -4,
+        "above_0.084": {
+          "gained": 1,
+          "lost": 5,
+          "net": -4
+        },
+        "gained_ids": [
+          "6222b6eb"
+        ],
+        "lost_ids": [
+          "cc539528",
+          "18dcd5a5",
+          "8cf51dda",
+          "41275add",
+          "28bcfaac"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 18,
+            "R@1": 0.6429
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "V2_preamble_drop",
+      "fusion": "max",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 0,
+        "flips_gained": 0,
+        "flips_lost": 0,
+        "flips_ambiguous": 0,
+        "net_cases": 0,
+        "net_r1_delta": 0.0,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 0,
+          "ambiguous": 0,
+          "net": 0
+        },
+        "flips": []
+      },
+      "full_slate": {
+        "R@1": 0.7555,
+        "delta_vs_python_full": 0.0,
+        "delta_vs_shipped": 0.0,
+        "cases_gained": 0,
+        "cases_lost": 0,
+        "net_cases": 0,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 0,
+          "net": 0
+        },
+        "gained_ids": [],
+        "lost_ids": [],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 22,
+            "R@1": 0.7857
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "V2_preamble_drop",
+      "fusion": "mean",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 4,
+        "flips_gained": 1,
+        "flips_lost": 3,
+        "flips_ambiguous": 0,
+        "net_cases": -2,
+        "net_r1_delta": -0.0087,
+        "above_0.084": {
+          "gained": 1,
+          "lost": 3,
+          "ambiguous": 0,
+          "net": -2
+        },
+        "flips": [
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "6222b6eb",
+            "label": "POSITIVE",
+            "orig_gap": 0.8127579689025879,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7467,
+        "delta_vs_python_full": -0.0088,
+        "delta_vs_shipped": -0.0088,
+        "cases_gained": 1,
+        "cases_lost": 3,
+        "net_cases": -2,
+        "above_0.084": {
+          "gained": 1,
+          "lost": 3,
+          "net": -2
+        },
+        "gained_ids": [
+          "6222b6eb"
+        ],
+        "lost_ids": [
+          "cc539528",
+          "8cf51dda",
+          "41275add"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 20,
+            "R@1": 0.7143
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V1_q_last",
+      "fusion": "reduced-only",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 9,
+        "flips_gained": 0,
+        "flips_lost": 8,
+        "flips_ambiguous": 1,
+        "net_cases": -8,
+        "net_r1_delta": -0.0349,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 8,
+          "ambiguous": 1,
+          "net": -8
+        },
+        "flips": [
+          {
+            "query_id": "afdc33df",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.27288150787353516,
+            "category": "single-session-preference"
+          },
+          {
+            "query_id": "e9327a54",
+            "label": "NEGATIVE",
+            "orig_gap": 0.6016826629638672,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "1b9b7252",
+            "label": "NEGATIVE",
+            "orig_gap": 1.8285069465637207,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "e982271f",
+            "label": "NEGATIVE",
+            "orig_gap": 1.8002400398254395,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "7a8d0b71",
+            "label": "NEGATIVE",
+            "orig_gap": 0.8260655403137207,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8b9d4367",
+            "label": "NEGATIVE",
+            "orig_gap": 2.2091493606567383,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7074,
+        "delta_vs_python_full": -0.0481,
+        "delta_vs_shipped": -0.0481,
+        "cases_gained": 0,
+        "cases_lost": 11,
+        "net_cases": -11,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 11,
+          "net": -11
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "e9327a54",
+          "cc539528",
+          "8cf51dda",
+          "70b3e69b",
+          "1b9b7252",
+          "e982271f",
+          "7a8d0b71",
+          "8b9d4367",
+          "41275add",
+          "28bcfaac",
+          "16c90bf4"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 11,
+            "R@1": 0.3929
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V1_q_last",
+      "fusion": "max",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 1,
+        "flips_gained": 0,
+        "flips_lost": 1,
+        "flips_ambiguous": 0,
+        "net_cases": -1,
+        "net_r1_delta": -0.0044,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 1,
+          "ambiguous": 0,
+          "net": -1
+        },
+        "flips": [
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7511,
+        "delta_vs_python_full": -0.0044,
+        "delta_vs_shipped": -0.0044,
+        "cases_gained": 0,
+        "cases_lost": 1,
+        "net_cases": -1,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 1,
+          "net": -1
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "8cf51dda"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 21,
+            "R@1": 0.75
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V1_q_last",
+      "fusion": "mean",
+      "n_queries_view_changed": 29,
+      "head_pair": {
+        "flips_total": 4,
+        "flips_gained": 0,
+        "flips_lost": 4,
+        "flips_ambiguous": 0,
+        "net_cases": -4,
+        "net_r1_delta": -0.0175,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 4,
+          "ambiguous": 0,
+          "net": -4
+        },
+        "flips": [
+          {
+            "query_id": "e9327a54",
+            "label": "NEGATIVE",
+            "orig_gap": 0.6016826629638672,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7336,
+        "delta_vs_python_full": -0.0219,
+        "delta_vs_shipped": -0.0219,
+        "cases_gained": 0,
+        "cases_lost": 5,
+        "net_cases": -5,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 5,
+          "net": -5
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "e9327a54",
+          "cc539528",
+          "8cf51dda",
+          "70b3e69b",
+          "41275add"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 17,
+            "R@1": 0.6071
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V2_preamble_drop",
+      "fusion": "reduced-only",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 8,
+        "flips_gained": 0,
+        "flips_lost": 7,
+        "flips_ambiguous": 1,
+        "net_cases": -7,
+        "net_r1_delta": -0.0306,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 7,
+          "ambiguous": 1,
+          "net": -7
+        },
+        "flips": [
+          {
+            "query_id": "f523d9fe",
+            "label": "NEGATIVE",
+            "orig_gap": 1.0891461372375488,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "3249768e",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.2891726493835449,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "1b9b7252",
+            "label": "NEGATIVE",
+            "orig_gap": 1.8285069465637207,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "e982271f",
+            "label": "NEGATIVE",
+            "orig_gap": 1.8002400398254395,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8b9d4367",
+            "label": "NEGATIVE",
+            "orig_gap": 2.2091493606567383,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7118,
+        "delta_vs_python_full": -0.0437,
+        "delta_vs_shipped": -0.0437,
+        "cases_gained": 0,
+        "cases_lost": 10,
+        "net_cases": -10,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 10,
+          "net": -10
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "f523d9fe",
+          "cc539528",
+          "8cf51dda",
+          "70b3e69b",
+          "1b9b7252",
+          "e982271f",
+          "8b9d4367",
+          "41275add",
+          "28bcfaac",
+          "16c90bf4"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 12,
+            "R@1": 0.4286
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V2_preamble_drop",
+      "fusion": "max",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 1,
+        "flips_gained": 0,
+        "flips_lost": 1,
+        "flips_ambiguous": 0,
+        "net_cases": -1,
+        "net_r1_delta": -0.0044,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 1,
+          "ambiguous": 0,
+          "net": -1
+        },
+        "flips": [
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.7511,
+        "delta_vs_python_full": -0.0044,
+        "delta_vs_shipped": -0.0044,
+        "cases_gained": 0,
+        "cases_lost": 1,
+        "net_cases": -1,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 1,
+          "net": -1
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "8cf51dda"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 21,
+            "R@1": 0.75
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    },
+    {
+      "arm": "NEGCTL preamble-only V2_preamble_drop",
+      "fusion": "mean",
+      "n_queries_view_changed": 17,
+      "head_pair": {
+        "flips_total": 4,
+        "flips_gained": 0,
+        "flips_lost": 3,
+        "flips_ambiguous": 1,
+        "net_cases": -3,
+        "net_r1_delta": -0.0131,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 3,
+          "ambiguous": 1,
+          "net": -3
+        },
+        "flips": [
+          {
+            "query_id": "cc539528",
+            "label": "NEGATIVE",
+            "orig_gap": 0.21660852432250977,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "8cf51dda",
+            "label": "NEGATIVE",
+            "orig_gap": 0.3310108184814453,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "3249768e",
+            "label": "AMBIGUOUS",
+            "orig_gap": 0.2891726493835449,
+            "category": "single-session-assistant"
+          },
+          {
+            "query_id": "41275add",
+            "label": "NEGATIVE",
+            "orig_gap": 0.42067813873291016,
+            "category": "single-session-assistant"
+          }
+        ]
+      },
+      "full_slate": {
+        "R@1": 0.738,
+        "delta_vs_python_full": -0.0175,
+        "delta_vs_shipped": -0.0175,
+        "cases_gained": 0,
+        "cases_lost": 4,
+        "net_cases": -4,
+        "above_0.084": {
+          "gained": 0,
+          "lost": 4,
+          "net": -4
+        },
+        "gained_ids": [],
+        "lost_ids": [
+          "cc539528",
+          "8cf51dda",
+          "70b3e69b",
+          "41275add"
+        ],
+        "per_category": {
+          "knowledge-update": {
+            "n": 36,
+            "hits": 26,
+            "R@1": 0.7222
+          },
+          "multi-session": {
+            "n": 61,
+            "hits": 49,
+            "R@1": 0.8033
+          },
+          "single-session-assistant": {
+            "n": 28,
+            "hits": 18,
+            "R@1": 0.6429
+          },
+          "single-session-preference": {
+            "n": 15,
+            "hits": 5,
+            "R@1": 0.3333
+          },
+          "single-session-user": {
+            "n": 32,
+            "hits": 26,
+            "R@1": 0.8125
+          },
+          "temporal-reasoning": {
+            "n": 57,
+            "hits": 45,
+            "R@1": 0.7895
+          }
+        }
+      }
+    }
+  ],
+  "mechanism_diagnostic": {
+    "V1_q_last": {
+      "fired": 29,
+      "gold": {
+        "n": 32,
+        "mean": 0.9049,
+        "median": 0.8919
+      },
+      "non_gold": {
+        "n": 258,
+        "mean": 0.7054,
+        "median": 0.6174
+      },
+      "per_query_gold_minus_distractor": {
+        "n": 26,
+        "mean": 0.3927,
+        "median": 0.3636,
+        "favour_gold": 16,
+        "favour_distractor": 10
+      },
+      "_hypothesis_requires": "NEGATIVE -- the preamble must help distractors more than gold"
+    },
+    "V2_preamble_drop": {
+      "fired": 17,
+      "gold": {
+        "n": 17,
+        "mean": 1.3728,
+        "median": 1.643
+      },
+      "non_gold": {
+        "n": 153,
+        "mean": 0.8159,
+        "median": 0.667
+      },
+      "per_query_gold_minus_distractor": {
+        "n": 17,
+        "mean": 0.5569,
+        "median": 0.744,
+        "favour_gold": 10,
+        "favour_distractor": 7
+      },
+      "_hypothesis_requires": "NEGATIVE -- the preamble must help distractors more than gold"
+    }
+  }
+}

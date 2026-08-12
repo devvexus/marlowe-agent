@@ -1,0 +1,12 @@
+{
+  "_what": "M0c Session M W1 \u2014 tokenizer.json digests. Tier A == same WordPiece tokenizer as the shipped fine-tune, so rerank.rs needs a digest re-pin and nothing else.",
+  "shipped": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "digests": {
+    "ms-marco-MiniLM-L-2-v2-ft-session-j": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963",
+    "ms-marco-MiniLM-L-2-v2-ft-w1": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963",
+    "ms-marco-MiniLM-L-4-v2-ft-w1": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963",
+    "ms-marco-MiniLM-L-6-v2-ft-session-j": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963",
+    "ms-marco-MiniLM-L-6-v2-ft-w1": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963",
+    "ms-marco-MiniLM-L-12-v2-ft-w1": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963"
+  }
+}

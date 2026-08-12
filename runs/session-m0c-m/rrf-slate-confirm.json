@@ -1,0 +1,55 @@
+{
+  "_what": "RRF slate at fixed depth, actually reranked. cond@3 re-measured per slate.",
+  "_split": "fit",
+  "_rrf_k": 60,
+  "_projection_being_tested": 0.9251,
+  "_gates": {
+    "fit_R@1": 0.7555,
+    "published": 0.7555,
+    "slate_exact": 229
+  },
+  "input_recall": {
+    "shipped@10": 0.9214,
+    "shipped@20": 0.9738,
+    "rrf@10": 0.9476,
+    "rrf@20": 0.9694
+  },
+  "cells": {
+    "shipped @10": {
+      "depth": 10,
+      "input_recall": 0.9214,
+      "R@1": 0.7555,
+      "R@2": 0.869,
+      "R@3": 0.8996,
+      "R@5": 0.917,
+      "R@10": 0.9214,
+      "R@20": 0.952,
+      "conditional_top1": 0.8199,
+      "conditional_top3": 0.9763
+    },
+    "rrf @10": {
+      "depth": 10,
+      "input_recall": 0.9476,
+      "R@1": 0.7511,
+      "R@2": 0.8646,
+      "R@3": 0.9039,
+      "R@5": 0.9389,
+      "R@10": 0.9476,
+      "R@20": 0.9651,
+      "conditional_top1": 0.7926,
+      "conditional_top3": 0.9539
+    },
+    "rrf @20": {
+      "depth": 20,
+      "input_recall": 0.9694,
+      "R@1": 0.7686,
+      "R@2": 0.869,
+      "R@3": 0.917,
+      "R@5": 0.9476,
+      "R@10": 0.9651,
+      "R@20": 0.9694,
+      "conditional_top1": 0.7928,
+      "conditional_top3": 0.946
+    }
+  }
+}

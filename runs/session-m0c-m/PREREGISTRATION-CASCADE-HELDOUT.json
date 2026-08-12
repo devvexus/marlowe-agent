@@ -1,0 +1,62 @@
+{
+  "_what": "The operating point for ONE held-out read of the cascade configuration. Written BEFORE the read, so that a number afterwards is a TEST and not a search.",
+  "_written_before_the_read": true,
+  "_split_to_be_read": "runs/session-k/heldout",
+  "_reads_spent_before_this_one": 3,
+
+  "configuration_FIXED": {
+    "slate": "top 30 of the PRE-RERANK CUE KEY (cue_only_order), survivors-first, as retrieve.rs draws it",
+    "stage_1_narrow": "ms-marco-MiniLM-L-2-v2-ft-session-j scores all 30, keep its top 10",
+    "stage_2_fuse": "fuse ms-marco-MiniLM-L-2-v2-ft-session-j and ms-marco-MiniLM-L-6-v2-ft-session-j over the narrowed 10",
+    "admit": "top 3",
+    "max_seq": 256,
+    "batch": 1,
+    "primary_fusion": "RRF, k = 60 (Cormack et al. published default, fixed before any number existed)",
+    "declared_secondary_fusion": "per-query z-normalised score sum over the narrowed 10",
+    "_why_two": "They tie on R@3 (0.9301) on fit and differ only at R@1 (0.7860 vs 0.7991 = 3 cases, plausibly noise). Both are computed from the SAME forward passes, so scoring both costs nothing. Declaring both here is what keeps this one test rather than a search; RRF is primary because it is parameter-free and scale-free, while z-sum assumes per-query normalisation over 10 points is stable."
+  },
+
+  "the_knob_disclosed": {
+    "narrow_width": 10,
+    "argument_made_before_the_number": "chosen to match the shipped slate width, so the final ranker sees the same number of candidates it does today",
+    "commitment": "NOT swept before the read. Sensitivity to narrow width is a robustness check to be run AFTER the held-out read, never a selection before it."
+  },
+
+  "fit_results_being_tested": {
+    "_all_gated": "fit R@1 0.7555 reproduced exactly; depth-10 cue slate == the candidate set the binary actually reranked, 229/229; both graphs digest-pinned and smoke-tested; control cell reproduces rk-by-depth.json's depth-30 R@3 0.9258",
+    "shipped_depth10": {"R@1": 0.7555, "R@2": 0.8690, "R@3": 0.8996, "input_recall": 0.9214, "cond@3": 0.9763},
+    "cascade_rrf": {"R@1": 0.7860, "R@2": 0.8952, "R@3": 0.9301, "input_recall": 0.9825, "cond@3": 0.9467},
+    "cascade_zsum": {"R@1": 0.7991, "R@2": 0.8952, "R@3": 0.9301, "input_recall": 0.9825, "cond@3": 0.9467},
+    "fit_delta_R@1": 0.0436,
+    "fit_delta_R@3": 0.0305
+  },
+
+  "REGISTERED_PREDICTION": {
+    "held_out_R@3": "0.870 to 0.895, against a baseline of 0.8515. I expect roughly HALF the fit gain to survive, not none: the fit gain is not a fitted threshold and not a trained parameter -- it is a slate-width change plus a fusion of two graphs neither of which was selected on this metric. That is structurally unlike the four mechanisms that collapsed (depth +0.0174->+0.0044, arm B +0.0698->+0.0087, duoBERT +0.0655->+0.0044, context decay +0.0305->-0.0087), every one of which chose a threshold or mined negatives on fit.",
+    "held_out_R@1": "0.690 to 0.720, against a baseline of 0.6725.",
+    "held_out_input_recall": "0.965 to 0.980, against 0.9039 at depth 10. This is the component I am most confident in, because input recall is a property of the CUE ORDERING and the depth constant alone -- no model, no threshold, nothing fitted. If input recall does not rise to roughly this level, the reconstruction is wrong and every other number in the read is suspect.",
+    "cond@3_on_heldout": "0.90 to 0.95, against 0.9420 at depth 10.",
+    "what_would_falsify_the_whole_arm": "held-out R@3 <= 0.8515 (no better than shipped), OR input recall failing to rise, which would mean the pipeline was not reconstructed correctly.",
+    "what_I_will_NOT_do_afterwards": "sweep narrow width, sweep depth, try a third fusion, or read again. One read, this configuration, reported whatever it says."
+  },
+
+  "reporting_requirements": {
+    "metrics": ["R@1", "R@2", "R@3", "R@5", "R@1_current", "input_recall", "conditional_top1", "conditional_top3"],
+    "significance": "McNemar exact, paired, gained/lost counts -- not an unpaired delta. At n=229 the Wilson half-width at p=0.9 is about 0.039, so an unpaired read cannot resolve this effect.",
+    "denominators": "report both the published 229 basis and the honest 234-answerable basis",
+    "stage_table": "the full conditional stage-retention table -- each stage judged only where gold reached it"
+  },
+
+  "ship_decisions_kept_SEPARATE": {
+    "1_ranking_change": "slate depth + cascade + second graph. Both graphs are Tier A (BERT/WordPiece) and already digest-pinned, so this is a re-pin and not a new component. Delivers the R@1 gain, which helps the product exactly as it stands today.",
+    "2_admission_change": "inject top-3 instead of vec![order[0]]. This is what converts R@3 into product value and it is NOT part of this read. It carries costs the record already names -- tokens against 5.7, injection precision against K1's declared operating point, and stale-fact harm -- and needs its own pre-registration."
+  },
+
+  "known_boundary": {
+    "cases_no_ranker_in_the_family_reaches": 7,
+    "of_which_single_session_preference": 4,
+    "label_oracle_limit_over_5_rankers_at_depth20": {"cond@3": 0.9686, "implied_R@3": 0.9432},
+    "pipeline_ceiling_perfect_reranker_depth30": 0.9825,
+    "statement": "R@3 = 0.9301 on fit sits about 3 cases below the label-oracle limit of this model family. Closing that needs a reranker trained for a different notion of relevance, not a configuration change."
+  }
+}

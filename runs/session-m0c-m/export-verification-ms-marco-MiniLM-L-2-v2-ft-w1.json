@@ -1,0 +1,52 @@
+{
+  "_what": "M0c Session M W1 \u2014 export gate for a graph this session trained.",
+  "model": "ms-marco-MiniLM-L-2-v2-ft-w1",
+  "digest": "cc4df68c30d319cab3d74c166f4de18c4ade7e8c1fccd1fbc1512bdffee58b96",
+  "checks": {
+    "smoke_discriminates": {
+      "relevant": -6.386447429656982,
+      "irrelevant": -10.379262924194336,
+      "margin": 3.9928154945373535,
+      "pass": true
+    },
+    "determinism": {
+      "values": [
+        -6.386447429656982,
+        -6.386447429656982,
+        -6.386447429656982
+      ],
+      "pass": true
+    },
+    "batch_invariance": {
+      "max_abs_diff": 0.0,
+      "identical": true,
+      "pairs": 8
+    },
+    "padding_invariance": {
+      "pairs": 60,
+      "median_abs_delta": 0.0,
+      "p95_abs_delta": 0.0,
+      "max_abs_delta": 0.0,
+      "invariant": true,
+      "nonzero_deltas": 0
+    },
+    "torch_vs_ort": {
+      "run": true,
+      "ort": [
+        -6.386447429656982,
+        -10.379262924194336,
+        -8.783994674682617
+      ],
+      "torch": [
+        -6.386446952819824,
+        -10.379262924194336,
+        -8.78399658203125
+      ],
+      "max_abs_delta": 1.9073486328125e-06,
+      "agrees": true
+    }
+  },
+  "pass": true,
+  "_per_graph_never_inherited": "ADR-015. Batch and padding invariance are re-measured on EVERY graph. L-2-ft's 0.000000 is a fact about that graph, not about the BERT architecture.",
+  "open_gap": "SELF-VALIDATED ONLY. There is no external authority for a model this session trained, so the unvalidated-export gap is NOT closed by these checks \u2014 it is bounded by them."
+}

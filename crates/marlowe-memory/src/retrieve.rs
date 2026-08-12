@@ -270,6 +270,120 @@ pub enum RetrievalScope {
 /// ~9 ms per pair measured at 1 thread, ten pairs is ~90 ms against §5.7's 300 ms.
 pub const RERANK_BUDGET: usize = 10;
 
+/// The deeper slate the CASCADE draws, and it is **GPU-only by measurement, not by preference**.
+///
+/// M0c Session M2 measured, held-out, n = 229: a 30-wide slate narrowed by the shipped graph to 10
+/// and fused with `ms-marco-MiniLM-L-6-v2-ft-session-j` reads **R@1 0.6987 / R@3 0.8865** against
+/// the shipped **0.6725 / 0.8515** — R@3 +0.0350, McNemar 10 gained / 2 lost, **p = 0.0386**. Input
+/// recall goes 0.9039 → 0.9782.
+///
+/// **It cannot run on the 1-vCPU target and that is a measurement, not a guess.** On the shipped
+/// pins (1 intra-thread, batch 1, CPU) the cascade reads **p50 1134 ms / p95 1278 ms** against
+/// §5.7's 300 ms budget, versus 182 / 191 ms for the shipped depth-10 path — 4.3x over. Every
+/// figure that made the cascade look affordable (38.7 ms p50) was a **CUDA** number from
+/// `runs/session-m0c-m/frontier.json`, and quoting it for a CPU deployment is the exact inversion
+/// of the error `CLAUDE.md` records as *"every rejection figure in this project was a 1-thread CPU
+/// number for a GPU target."*
+///
+/// So the plan is selected by whether a CUDA session actually **constructs** — see
+/// [`RerankPlan::select`]. It is chosen once, at load, and **announced**, because a path that
+/// silently differs from the one a number was measured on is the failure this file exists to avoid.
+pub const CASCADE_SLATE: usize = 30;
+
+/// How many candidates the cascade's first stage keeps for the second.
+///
+/// Fixed at 10 to match [`RERANK_BUDGET`] so the final ranker sees the same number of candidates it
+/// does today. **Registered before the held-out read and deliberately not swept beforehand**
+/// (`runs/session-m0c-m/PREREGISTRATION-CASCADE-HELDOUT.json`). Narrowing 30 → 10 retains gold at
+/// **0.9956**, which is why the cascade wins: the cross-encoder is excellent at narrowing and only
+/// mediocre at the final pick.
+pub const CASCADE_NARROW: usize = 10;
+
+/// How many memories the operating point admits once it decides to inject.
+///
+/// **Was 1.** Changed under direction in M0c Session M2. Held-out on the shipped ranking the gold
+/// turn is at rank 1 for **0.6725** of queries and inside the top 3 for **0.8515** — so k = 3 raises
+/// the chance the right memory is present by **+0.1790** and necessarily lowers per-memory
+/// precision, since at most one of the three can be gold.
+///
+/// **`docs/design/PRECISION-COVERAGE.md` is a top-1 artifact and does not describe this.** See the
+/// K1 block in `select_for_injection` for the full debt.
+pub const ADMIT_TOP_K: usize = 3;
+
+/// Which rerank shape this process will run, decided ONCE at load and announced.
+///
+/// # ⚠ NOT WIRED. NOTHING READS THIS YET. THE CASCADE DOES NOT SHIP.
+///
+/// `RerankPlan::select` has **no call site in the product**. `retrieve` still draws
+/// [`RERANK_BUDGET`] unconditionally and still loads one graph. This type, [`CASCADE_SLATE`] and
+/// [`CASCADE_NARROW`] are scaffolding for a change that is **not finished**, and they are marked
+/// here because `CLAUDE.md` logs *"a declared control that nothing reads"* as the sixteenth
+/// instance of this project's standing failure family — `web`'s `inline_threshold_bytes: 0`, with a
+/// green test asserting the declaration while every byte reached attention.
+///
+/// **Do not write a test asserting these constants' values.** That is the exact shape of the
+/// failure. The test that would mean something asserts the slate the executor actually drew.
+///
+/// Four things block the wiring, all real:
+///   1. `rerank.rs` pins a single [`crate::rerank::MODEL_SHA256`]; a second graph fails the digest
+///      check by construction, which is the guard working, not an obstacle to route around.
+///   2. `Rerank::CrossEncoder` holds one `&mut CrossEncoder`.
+///   3. `MAX_BATCH` is 10. Depth 30 must run **sequentially** — ADR-015's batch invariance was
+///      measured at sizes 1..10 and is **never inherited**, so a 30-row forward is an unmeasured
+///      scorer until someone measures it.
+///   4. `ms-marco-MiniLM-L-6-v2-ft-session-j` has no `cross-encoder-reference` fixture. The
+///      standing check is per-graph.
+///
+/// The two shapes have **different published numbers**, and that is the whole reason this is a
+/// named type rather than an `if` at the call site: a session reading `R@1 0.6987` must be able to
+/// tell which path produced it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RerankPlan {
+    /// Shipped, CPU-affordable. Depth 10, one graph. Held-out **R@1 0.6725 / R@3 0.8515**.
+    Shipped,
+    /// Depth 30 → narrow 10 → fuse two graphs. Held-out **R@1 0.6987 / R@3 0.8865**.
+    /// **Requires a constructed CUDA session.**
+    Cascade,
+}
+
+impl RerankPlan {
+    /// Pick the plan from whether CUDA genuinely loads.
+    ///
+    /// **The probe must be a CONSTRUCTION, never an availability list.** `ort`'s
+    /// `error_on_failure()` turns a registration failure into a hard error instead of a silent
+    /// fallback, which is what makes "it constructed" mean something. Session G's spike found CUDA
+    /// *listed* as available while failing to create on a missing `cublasLt64_12.dll`, after which
+    /// ORT registered CPU and scored happily — a "GPU" figure within 1% of the CPU one. That is
+    /// instance #1 in `CLAUDE.md`'s pipe-verified ledger: **a description of a mechanism is not a
+    /// measurement of its output.**
+    ///
+    /// **What this still does NOT cover, stated rather than implied.** `ort` 2.0.0-rc.10 exposes no
+    /// node placement, and Session L measured **13.6% of nodes running on CPU** under a
+    /// successfully registered CUDA session (all shape/index ops, no matmuls). So this answers
+    /// "did a CUDA session construct", not "did every node run on the GPU". The second question
+    /// lives in `tools/session_l_gpu_recovery.py` and is not assertable from here.
+    pub fn select(cuda_constructed: bool) -> Self {
+        if cuda_constructed { Self::Cascade } else { Self::Shipped }
+    }
+
+    /// The slate depth this plan draws.
+    pub fn slate(self) -> usize {
+        match self {
+            Self::Shipped => RERANK_BUDGET,
+            Self::Cascade => CASCADE_SLATE,
+        }
+    }
+
+    /// What `--status` and the `--dev` surface print. A plan nobody can see is a plan nobody can
+    /// check against the number they are quoting.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Shipped => "shipped · depth 10 · CPU · held-out R@1 0.6725 / R@3 0.8515",
+            Self::Cascade => "cascade · depth 30 → 10 · CUDA · held-out R@1 0.6987 / R@3 0.8865",
+        }
+    }
+}
+
 /// One candidate after scoring. The dump writes these; the selection ranks them.
 pub struct ScoredCandidate<'a> {
     pub entry: &'a MemoryEntry,
@@ -685,10 +799,30 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
 
     // ── K1 condition 3: the declared operating point, and the abstention path ──────────
     //
-    // **The published point is a TOP-1 claim.** `publish_precision_coverage.py` scores a query
-    // correct when `c["gold"][i1]` — rank 1 alone. Nothing was ever measured about rank 2, so
-    // injecting a slate at this threshold would be quoting a precision nobody computed. Hence at
-    // most one memory, and the §5.7 token budget becomes an upper bound that does not bind.
+    // **The published point is a TOP-1 claim, and as of M0c Session M2 THE CODE NO LONGER MAKES
+    // THAT CLAIM.** `publish_precision_coverage.py` scores a query correct when `c["gold"][i1]` —
+    // rank 1 alone — so `precision-coverage-heldout-v1.json` describes a system that admits one
+    // memory. `ADMIT_TOP_K` is now 3. **The artifact and the product disagree until that curve is
+    // republished at k = 3**, and this comment is the record of that debt rather than a deletion of
+    // the warning that preceded it.
+    //
+    // What IS measured, held-out, n = 229 (`runs/session-m0c-m/cascade-heldout-read.json`):
+    // the gold turn is at rank 1 for **0.6725** of queries and within the top 3 for **0.8515** on
+    // the shipped ranking. So k = 3 raises the chance the right memory is present by **+0.1790**,
+    // and necessarily lowers per-memory precision: at most one of the three can be gold, so at
+    // k = 3 at least two of every three injected memories are non-gold by construction.
+    //
+    // Three consequences, none of them measured, all of them now live:
+    //   * **§5.7 tokens.** The budget below was an upper bound that did not bind at k = 1. At k = 3
+    //     it binds, and `budget_exhausted` becomes reachable in ordinary operation.
+    //   * **K1 injection precision.** The conformal bound covers `P(inject | wrong)` for a
+    //     single-memory decision. It says nothing about a 3-memory slate.
+    //   * **Stale-fact harm.** LongMemEval marks both the stale and the current turn `has_answer`,
+    //     so a wider slate is more likely to carry a superseded value alongside the current one.
+    //     `docs/design/HARM-WEIGHTED-PRECISION.md` is the instrument; it has not been re-run.
+    //
+    // Directed change, M0c Session M2. It is deliberately a NAMED CONSTANT so that the value the
+    // product uses is greppable and a future session cannot mistake it for an incidental `[0]`.
     //
     // **It REPLACES the isotonic gate's `passes` filter rather than stacking on it.** Per ADR-016
     // the frozen gate's smallest expressible operating point spans 100% of queries — a perfect
@@ -724,7 +858,10 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
         rerank_margin = verdict.margin;
         abstention = verdict.abstention;
         if verdict.admit_rank_one {
-            vec![order[0]]
+            // The gate's verdict is still a RANK-ONE decision — `decide` reads the rank-1 and
+            // rank-2 logits and nothing else. What changed is how many memories that verdict
+            // admits, not what it is computed from.
+            order.iter().take(ADMIT_TOP_K).copied().collect()
         } else {
             Vec::new()
         }

@@ -1,0 +1,99 @@
+{
+  "_what": "R@k by rerank depth on fit, and what a 0.94 R@3 bar requires.",
+  "_split": "fit",
+  "_heldout_quoted_not_read": {
+    "R@1": 0.6725,
+    "R@3": 0.8515,
+    "R@5": 0.8865,
+    "R@10": 0.9039,
+    "_source": "STATE.md / runs/session-m0c-m/heldout-read*.json -- QUOTED, not read"
+  },
+  "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "gates": {
+    "fit_R@1": 0.7555,
+    "published": 0.7555,
+    "cue_slate_exact": 229
+  },
+  "cells": {
+    "10": {
+      "input_recall": 0.9214,
+      "R@1": 0.7555,
+      "R@2": 0.869,
+      "R@3": 0.8996,
+      "R@5": 0.917,
+      "R@10": 0.9214,
+      "R@20": 0.952,
+      "R@30": 0.9782,
+      "R@40": 0.9825,
+      "R@50": 0.9825,
+      "conditional_top3": 0.9763,
+      "required_conditional_top3_for_0.94": 1.0202,
+      "reachable": false,
+      "queries_with_fewer_survivors_than_depth": 0
+    },
+    "20": {
+      "input_recall": 0.9738,
+      "R@1": 0.7686,
+      "R@2": 0.8734,
+      "R@3": 0.9258,
+      "R@5": 0.9607,
+      "R@10": 0.9694,
+      "R@20": 0.9738,
+      "R@30": 0.9825,
+      "R@40": 0.9825,
+      "R@50": 0.9825,
+      "conditional_top3": 0.9507,
+      "required_conditional_top3_for_0.94": 0.9653,
+      "reachable": true,
+      "queries_with_fewer_survivors_than_depth": 0
+    },
+    "30": {
+      "input_recall": 0.9825,
+      "R@1": 0.7686,
+      "R@2": 0.8777,
+      "R@3": 0.9258,
+      "R@5": 0.9651,
+      "R@10": 0.9782,
+      "R@20": 0.9825,
+      "R@30": 0.9825,
+      "R@40": 0.9913,
+      "R@50": 0.9913,
+      "conditional_top3": 0.9422,
+      "required_conditional_top3_for_0.94": 0.9567,
+      "reachable": true,
+      "queries_with_fewer_survivors_than_depth": 2
+    },
+    "40": {
+      "input_recall": 0.9825,
+      "R@1": 0.7686,
+      "R@2": 0.8734,
+      "R@3": 0.917,
+      "R@5": 0.952,
+      "R@10": 0.9782,
+      "R@20": 0.9782,
+      "R@30": 0.9825,
+      "R@40": 0.9825,
+      "R@50": 0.9913,
+      "conditional_top3": 0.9333,
+      "required_conditional_top3_for_0.94": 0.9567,
+      "reachable": true,
+      "queries_with_fewer_survivors_than_depth": 23
+    },
+    "50": {
+      "input_recall": 0.9825,
+      "R@1": 0.7686,
+      "R@2": 0.8734,
+      "R@3": 0.9127,
+      "R@5": 0.9476,
+      "R@10": 0.9738,
+      "R@20": 0.9782,
+      "R@30": 0.9825,
+      "R@40": 0.9825,
+      "R@50": 0.9825,
+      "conditional_top3": 0.9289,
+      "required_conditional_top3_for_0.94": 0.9567,
+      "reachable": true,
+      "queries_with_fewer_survivors_than_depth": 77
+    }
+  }
+}

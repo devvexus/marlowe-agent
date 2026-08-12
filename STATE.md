@@ -1,5 +1,286 @@
 # State
 
+## SHIPPED THIS SESSION — the admission rule. The cascade did NOT ship, and the reason is measured.
+
+**`crates/marlowe-memory` builds; `cargo test -p marlowe-memory` = 181 passed, 0 failed.** No git
+write (a parallel session shares this checkout). `eval/` untouched.
+
+### 1. `ADMIT_TOP_K = 3` — LIVE. `retrieve.rs:311`, read at `retrieve.rs:864`.
+
+`vec![order[0]]` → `order.iter().take(ADMIT_TOP_K)`. The product injects **three** memories, not one.
+Held-out on the shipped ranking the gold turn is at rank 1 for **0.6725** and inside the top 3 for
+**0.8515**, so the right memory is present **+0.1790** more often. Directed change.
+
+**Three debts this creates, recorded in the code rather than discovered later:**
+
+- **`docs/design/PRECISION-COVERAGE.md` is a TOP-1 artifact and no longer describes the product.**
+  `publish_precision_coverage.py` scores a query correct on `c["gold"][i1]` — rank 1 alone. The
+  artifact and the binary now disagree until that curve is republished at k = 3. The comment that
+  warned about this was **amended, not deleted**.
+- **§5.7's token budget now BINDS.** At k = 1 it was an upper bound that never bit; `budget_exhausted`
+  is reachable in ordinary operation for the first time.
+- **Per-memory precision necessarily falls** — at most one of three can be gold, so ≥2 of every 3
+  injected memories are non-gold by construction. K1's conformal bound covers a single-memory
+  decision and says nothing about a 3-slate. Stale-fact harm is unmeasured;
+  `HARM-WEIGHTED-PRECISION.md` is the instrument and has not been re-run.
+
+### 2. THE CASCADE IS BLOCKED ON LATENCY, AND THE NUMBER IS THE INVERSE OF THIS PROJECT'S OWN ERROR
+
+```
+SHIPPED  L-2 @10           p50   182.0 ms   p95   191.1 ms
+CASCADE  L-2@30 + L-6@10   p50  1134.1 ms   p95  1278.1 ms      §5.7 budget: 300 ms
+```
+
+**4.3x over budget on the shipped pins** (1 intra-thread, batch 1, CPU, ADR-003's 1-vCPU target).
+Every figure that made the cascade look affordable — 38.7 ms p50 — is a **CUDA** number from
+`frontier.json`. `CLAUDE.md` records *"every rejection figure in this project was a 1-thread CPU
+number for a GPU target"*; this is the same error **inverted**, and it was caught by measuring the
+shipped path before writing the executor rather than after.
+
+### 3. `RerankPlan` EXISTS AND NOTHING READS IT. Marked, not hidden.
+
+`RerankPlan::{Shipped, Cascade}`, `CASCADE_SLATE = 30`, `CASCADE_NARROW = 10` are **scaffolding with
+no call site**. `retrieve` still draws `RERANK_BUDGET` unconditionally and still loads one graph.
+This is deliberately flagged in the doc comment as the shape of instance #16 — `web`'s
+`inline_threshold_bytes: 0`, declared, never read, with a green test asserting the declaration.
+**Do not write a test asserting these constants' values.**
+
+`RerankPlan::select` takes `cuda_constructed: bool` because the honest probe is a **construction**,
+not an availability list: `ort`'s `error_on_failure()` makes a registration failure a hard error
+instead of a silent CPU fallback. It answers *"did a CUDA session construct"*, **not** *"did every
+node run on the GPU"* — Session L measured 13.6% of nodes on CPU under a registered CUDA session,
+and `ort` 2.0.0-rc.10 exposes no node placement.
+
+**Four things block the wiring, all real, none of them routing around a guard:**
+1. `rerank.rs` pins a single `MODEL_SHA256`; a second graph fails the digest check by construction.
+2. `Rerank::CrossEncoder` holds one `&mut CrossEncoder`.
+3. `MAX_BATCH` is 10, and ADR-015's batch invariance was measured at sizes 1..10 and is **never
+   inherited** — depth 30 must run sequentially or be re-measured.
+4. `ms-marco-MiniLM-L-6-v2-ft-session-j` has no `cross-encoder-reference` fixture; that check is
+   per-graph.
+
+**So the honest status is: the admission change ships, the ranking change does not.** The
+significant held-out result (R@3 +0.0350, p = 0.0386) is realised only by the admission change; the
+cascade's R@1 +0.0262 was never significant (p = 0.286) and is now also not shipped.
+
+---
+
+## M0c SESSION M2 — THE FIRST MECHANISM IN THIS PROJECT TO SURVIVE A HELD-OUT READ.
+
+**HELD-OUT R@3 0.8515 → 0.8865, +0.0350, McNemar 10 gained / 2 lost, p = 0.0386.**
+**HELD-OUT R@1 0.6725 → 0.6987 (+0.0262). R@1_current 0.5852 → 0.6114. R@5 0.8865 → 0.9170.**
+**Input recall 0.9039 → 0.9782.** `runs/session-m0c-m/cascade-heldout-read.json`. Nothing shipped.
+
+Four gates passed before the read was believed: the shipped key reproduced published held-out R@1
+**0.6725**, R@1_current **0.5852** and R@5 **0.8865** exactly, and the depth-10 cue slate equalled
+the candidate set the binary actually reranked on **229/229** queries.
+
+### The prediction was registered first and all four bands landed
+
+`PREREGISTRATION-CASCADE-HELDOUT.json`, written before the read existed:
+
+| | predicted | got | |
+|---|---|---|---|
+| R@3 | 0.870–0.895 | **0.8865** | INSIDE |
+| R@1 | 0.690–0.720 | **0.6987** | INSIDE |
+| input recall | 0.965–0.980 | **0.9782** | INSIDE |
+| cond@3 | 0.90–0.95 | **0.9062** | INSIDE |
+
+**AND THE COLLAPSE HAPPENED TO THE ARM THAT WAS NOT PICKED, WHICH IS WHY THE SPLIT MATTERED.**
+z-sum was the better arm on fit (R@1 0.7991 vs RRF's 0.7860) and read **+0.0000 on held-out**, 10
+gained / 10 lost. RRF was registered PRIMARY on principled grounds — parameter-free, scale-free, no
+normalisation assumption — **not because it won on fit**, and it held at +0.0262. Declaring a primary
+in advance on an argument rather than on a fit number is the mechanism that saved this result.
+
+### The configuration — two constants and a graph that already ships
+
+> **slate depth 30 on the pre-rerank cue key → L-2-ft narrows to 10 → RRF(L-2-ft, L-6-ft) → top 3**
+
+Both graphs are Session J's, both Tier A, both already digest-pinned: a re-pin, not a new component.
+RRF k = 60 (Cormack's published default), fixed before any number existed. The one disclosed knob —
+narrow width 10, chosen to match the shipped slate width — was **not swept before the read**.
+
+| | fit | held-out |
+|---|---|---|
+| R@1 | 0.7555 → 0.7860 | **0.6725 → 0.6987** |
+| R@3 | 0.8996 → 0.9301 | **0.8515 → 0.8865** |
+| input recall | 0.9214 → 0.9825 | **0.9039 → 0.9782** |
+
+**The fit→held-out collapse ratio is ~1.2x on R@3**, against 4x, 8x, 15x and a sign flip for the four
+predecessors. It did not collapse because it is not a fitted threshold and not a trained parameter.
+
+---
+
+### The fit work behind it
+
+### The configuration, and it is two constants plus a graph that already ships
+
+> **slate depth 30 on the pre-rerank cue key → L-2-ft narrows to 10 → fuse L-2-ft with L-6-ft → top 3**
+
+| fit | shipped | cascade | delta |
+|---|---|---|---|
+| R@1 | 0.7555 | **0.7991** (z-sum) / 0.7860 (RRF) | **+0.0436 / +0.0305** |
+| R@2 | 0.8690 | **0.8952** | +0.0262 |
+| R@3 | 0.8996 | **0.9301** | **+0.0305** |
+| input recall | 0.9214 | **0.9825** | +0.0611 |
+| cond@3 | 0.9763 | 0.9467 | −0.0296 |
+
+Both graphs are Session J's, both Tier A, both already digest-pinned: a re-pin, not a new component.
+
+### WHY TWENTY-SEVEN MECHANISMS FOUND NOTHING — they were all aimed at the wrong stage
+
+**The cross-encoder is excellent at NARROWING and only mediocre at PICKING.** Its top-10-of-30
+retains gold at **0.9956**. Every prior mechanism tried to improve the final pick — where the
+measured ceiling on the whole post-hoc class is **+5 cases** — while the stage with real headroom
+was the slate handed to it. `retrieve.rs` drew 10 and the reranker was asked to find gold that was
+absent 7.9% of the time.
+
+**Read R@k by depth and the trade is explicit** (`tools/rk_by_depth.py`, fit):
+
+| depth | 10 | 20 | 30 | 40 | 50 |
+|---|---|---|---|---|---|
+| input recall | 0.9214 | 0.9738 | 0.9825 | 0.9825 | 0.9825 |
+| cond@3 | 0.9763 | 0.9507 | 0.9422 | 0.9333 | 0.9289 |
+| **R@3** | 0.8996 | 0.9258 | 0.9258 | 0.9170 | 0.9127 |
+
+Depth alone peaks at 0.9258 and declines. **Input recall saturates at 0.9825 — the pruning ceiling —
+and no depth reaches past it**; at depth 50, 77 of 229 pools have run out of survivors entirely. The
+cascade beats plain depth because narrowing costs almost nothing (0.9956) while widening costs
+`cond@3` monotonically.
+
+### CONDITIONAL STAGE RETENTION — each stage judged only where gold reached it (fit, depth 20)
+
+| stage | in → out | retention |
+|---|---|---|
+| ingest + §4.3 + scope | 236 → 229 | 0.9703 |
+| session pruning | 229 → 225 | **0.9825** |
+| slate draw (top-20) | 225 → 223 | **0.9911** |
+| cross-encoder top-3 | 223 → 212 | **0.9507** |
+
+Product = 212/236 = 0.8983 exactly. **Depth 20 already solves the slate stage at 0.9911**; the
+binding stage under a rank-3 read is `cond@3`.
+
+### THE LIMIT, MEASURED RATHER THAN ASSERTED
+
+A **label oracle** picking the best of five rankers per query reaches `cond@3` **0.9686** (216/223),
+implying R@3 **0.9432**. **Seven cases are missed by EVERY ranker in the family — 4 of them
+`single-session-preference`.** So 0.975 stage retention is unreachable here at any configuration,
+and 0.9301 sits ~3 cases below the family's oracle limit. Closing that needs a reranker trained for
+a different notion of relevance.
+
+### `single-session-preference` CHARACTERISED ALONE FOR THE FIRST TIME
+
+Pooled numbers hid it. Fit R@1 **0.3333**, in-slate **0.8667** (in line with every other category),
+`cond@1` **0.3846** against 0.76–0.91 elsewhere — **it fails at the head, not the slate**. It is
+immune to depth (saturates at 0.3333 by d5). Two hypotheses refuted by measurement: it is **not**
+question brevity (`single-session-user` has the shortest questions in the corpus, 4.59 content words,
+and reads 0.8125) and it is **not** a near-tie (only 13.3% inside the 0.084 band — the model is
+*confidently* wrong, with the lowest absolute top-1 logit of any category, −7.57). **R@3 doubles it
+to 0.6667 and R@5 reaches 0.8667 — exactly its input recall.**
+
+### SIX MECHANISMS CLOSED THIS SESSION, each with a control and a diagnosed cause
+
+- **slate-unique IDF mass** — net **−39** at tau=0, −42 above the band, precision 0.150 against a
+  chance base of 0.155. Control AUC 0.507, p=0.913. Both signs lose.
+- **ablation attribution concentration** — net −26, −31 above the band. **76% a sentence-count proxy**
+  (Spearman −0.54); gold is more concentrated in the 98 *solved* cases (62%) and inverts on failures.
+- **within-turn sentence dispersion** — net −43 forward, −30 inverted, random expectation −38.
+  **Cannot reach positive net at ANY tau on fit.** Gold-minus-competitor coherence is −0.0006 on
+  failures vs −0.0009 on successes, p=0.65, with an instrument positive control that moves 1 SD.
+- **query reduction at the cross-encoder** — −0.0175, and the **mechanism is inverted**: the preamble
+  contributes **+1.37 to gold vs +0.82 to non-gold**. Ordering is monotone: full 0.7555 > reduced
+  0.7380 > preamble-only 0.7118. With ADR-013 this closes the query side from both directions.
+- **RRF as a slate-draw rule** — ir@10 0.9214 → 0.9476 (+0.0262) but `cond@3` fell −0.0224 and the
+  net was **+1 case**. **`cond@3` is a property of the SLATE, not of the reranker.**
+- **fusing the cue rank into the final order** — −0.0393 R@3. The cue ordering drags gold out.
+
+### FOUR CLAIMS IN THE RECORD CORRECTED
+
+1. **The +26 head ceiling is not real.** 6 of 26 POSITIVE pairs already state the answer at rank 1,
+   against **8 of 110** on the NEGATIVE control (ratio 3.2, Fisher p=0.028; 33.3% vs 2.7% on
+   multi-token answers, p=0.0006). Hand-reading all 26 found 8 more with arbitrary gold labels —
+   `3ba21379`'s flagged gold **does not answer its own question**. Corrected above-band ceiling:
+   **8–14 cases, not 20.** Every one of the 23 prior mechanisms was scored against a denominator
+   inflated 43–70%.
+2. **Arm B did not memorise the fit split.** Its trained-on/held-apart delta is **+0.0212 (p=0.83)**
+   against the shipped graph's +0.0135 — no excess. The *"deployed_top_k negatives are
+   query-specific, so it memorised turns"* diagnosis, quoted forward as settled, is unsupported.
+   **Underpowered at n=47 — unsupported, not refuted.**
+3. **Fit-split contamination is not the cause of the 4-for-4 collapse record.** Session J's fold
+   recovered exactly (base fit-val 0.6809 and best-epoch 0.7447 both reproduced through a different
+   code path); the shipped graph's trained-on premium is **+0.0135, p=0.85** — *smaller* than the
+   cue-only order's own case-mix wobble (+0.0395). Session I's case-mix conclusion stands.
+4. **§4's unifying fact does not survive its most direct test.** *"Gold is multi-topic, distractors
+   are single-topic"* is not measurable as embedding dispersion, and the archetypal distractor is
+   **one sentence long** — undefined for the statistic, concentrated exactly on the pathology.
+
+### TWO INSTRUMENT DEFECTS FOUND, ONE IN A TOOL THAT HAD ALREADY BEEN USED
+
+- **`sweep_reranker_frontier` cannot measure depth below 10.** Its slate is
+  `shipped_order(pool)[:depth]`, whose second sort level is **the cross-encoder's own score** —
+  circular below 10. **Depth 1 would have reproduced 0.7555 and read as a passing degenerate
+  control while measuring nothing.** Every depth here is drawn on the pre-rerank cue key, gated
+  against the candidates the binary actually reranked (`rerank_score is not None`), 229/229 exact.
+- **`heldout-read-armB.json`'s `_floor_status` is copied verbatim from the depth arm** —
+  `fit_delta 0.0174, cleared false`. Arm B's fit delta was **+0.0698**, which clears the 0.02 floor
+  by 3.5×. The artifact says the one arm that earned its read took it in violation of the floor.
+  **Not edited — flagged.**
+
+### W1 AND W3 WERE STOPPED, BUT W3 FINISHED — AND IT BREAKS AN INHERITED CLAIM
+
+An earlier draft of this entry said *"neither produced a cell."* **That was wrong for W3 and is
+corrected here**, caught while staging the commit by reading the artifacts instead of trusting the
+kill signal.
+
+**W3 completed all 16 cells** (`seqlen-frontier-w3.json`), gate passed at fit R@1 0.7555:
+
+| graph | d10@256 | d10@384 | d20@256 | **d20@384** |
+|---|---|---|---|---|
+| L-2-ft | 0.7555 | 0.7598 | 0.7686 | **0.7729** |
+| L-6-ft | 0.7467 | 0.7380 | 0.7642 | 0.7511 |
+
+Longer sequences help L-2-ft (+0.0043 at both depths) and **hurt L-6-ft**. Not shipped, not read on
+held-out.
+
+**THE PART THAT MATTERS IS THE GATE, NOT THE CELLS. PADDING INVARIANCE FAILS ON THE SHIPPED f32
+GRAPH.**
+
+```
+seq 256: max_abs_delta 0.0014296  nonzero 59/60  invariant=False
+seq 320: max_abs_delta 0.0013695  nonzero 60/60  invariant=False
+seq 384: max_abs_delta 0.0013695  nonzero 60/60  invariant=False
+seq 512: max_abs_delta 0.0011578  nonzero 60/60  invariant=False
+```
+
+**The registered prediction was "0.000000 on both f32 graphs at every length". It is refuted.**
+`CLAUDE.md` and ADR-015 carry the inherited claim that *"all eight f32 graphs were invariant to
+0.000000"* — measured by Session I, on **Session I's graphs**. The **shipped** graph moves by up to
+**0.0014 logits** on bit-identical token ids re-padded to a different length, on 59 of 60 pairs.
+
+It is ~8x smaller than int8's 0.0109, so it is not the ADR-015 hazard at full strength — but it is
+**not zero**, and ADR-015's rule is that invariance is re-measured PER GRAPH and never inherited.
+**So every sequence length is formally a different scorer on this graph too**, and W3's 16 cells are
+not strictly comparable to one another. This is the standing lesson landing on the exact claim that
+was supposed to have retired it.
+
+**W1 trained four graphs** (`capacity-train-L-{2,4,6,12}-v2.json`, each with a recorded `best_epoch`)
+and produced fit rerank scores for L-4 and L-12 — but **no scored R@1 cell table**, so the capacity
+curve remains **NOT MEASURED**. The artifacts are committed so a future session resumes rather than
+retrains. The confound is real but narrower than I first stated: **fine-tuned capacity IS already
+measured across 16M→23M** (L-2-ft 0.7555 vs L-6-ft 0.7467 at d10, flat-to-inverted) — only *above*
+23M is every model pretrained.
+
+### NEXT
+
+1. **One held-out read**, configuration fixed in `PREREGISTRATION-CASCADE-HELDOUT.json`. RRF primary,
+   z-sum declared secondary, narrow width fixed at 10 and **not swept beforehand**.
+2. **Latency on the GPU path** — two models now; ~50 ms against 300 ms is an inference, not a number.
+3. **Two ship decisions, kept separate.** The ranking change delivers the R@1 gain and helps the
+   product as it stands. **The admission change (top-3 instead of `vec![order[0]]`) is what converts
+   R@3 into product value** and carries its own costs — §5.7 tokens, K1 precision, stale-fact harm.
+
+---
+
 ## M2 Session E — LAYER 1 IS SHIPPED AND WORKING. `619 tests` (from 617), `eval/` 72 unchanged.
 
 **Brief §8.2's second sentence now holds.** `web` no longer hands raw page text into the run that

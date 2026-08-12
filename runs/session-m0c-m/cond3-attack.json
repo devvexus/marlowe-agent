@@ -1,0 +1,82 @@
+{
+  "_what": "attack on cond@3 at depth 20, the one deficient stage under the rank-3 model",
+  "_split": "fit",
+  "_rrf_k": 60,
+  "_rrf_k_fixed_before_measurement": true,
+  "_target_cond3": 0.975,
+  "_input_recall": 0.9738,
+  "_mathematical_limit_R@3_at_this_depth": 0.9738,
+  "_pipeline_ceiling_R@3_pruning_bound": 0.9825,
+  "_gates": {
+    "fit_R@1": 0.7555,
+    "published": 0.7555,
+    "slate_exact": 229
+  },
+  "cells": {
+    "L-2-ft @20 (CONTROL)": {
+      "depth": 20,
+      "input_recall": 0.9738,
+      "R@1": 0.7686,
+      "R@2": 0.8734,
+      "R@3": 0.9258,
+      "R@5": 0.9607,
+      "R@10": 0.9694,
+      "R@20": 0.9738,
+      "conditional_top1": 0.7892,
+      "conditional_top3": 0.9507,
+      "gap_to_target_cond3": 0.0243
+    },
+    "L-6-ft @20": {
+      "depth": 20,
+      "input_recall": 0.9738,
+      "R@1": 0.7642,
+      "R@2": 0.8865,
+      "R@3": 0.9258,
+      "R@5": 0.9476,
+      "R@10": 0.9651,
+      "R@20": 0.9738,
+      "conditional_top1": 0.7848,
+      "conditional_top3": 0.9507,
+      "gap_to_target_cond3": 0.0243
+    },
+    "RRF(L-2, cue) @20": {
+      "depth": 20,
+      "input_recall": 0.9738,
+      "R@1": 0.7162,
+      "R@2": 0.821,
+      "R@3": 0.8865,
+      "R@5": 0.9345,
+      "R@10": 0.9607,
+      "R@20": 0.9738,
+      "conditional_top1": 0.7354,
+      "conditional_top3": 0.9103,
+      "gap_to_target_cond3": 0.0647
+    },
+    "RRF(L-2, L-6) @20": {
+      "depth": 20,
+      "input_recall": 0.9738,
+      "R@1": 0.7817,
+      "R@2": 0.8952,
+      "R@3": 0.9258,
+      "R@5": 0.9563,
+      "R@10": 0.9651,
+      "R@20": 0.9738,
+      "conditional_top1": 0.8027,
+      "conditional_top3": 0.9507,
+      "gap_to_target_cond3": 0.0243
+    },
+    "RRF(L-2, L-6, cue) @20": {
+      "depth": 20,
+      "input_recall": 0.9738,
+      "R@1": 0.7467,
+      "R@2": 0.8603,
+      "R@3": 0.8908,
+      "R@5": 0.9432,
+      "R@10": 0.9651,
+      "R@20": 0.9738,
+      "conditional_top1": 0.7668,
+      "conditional_top3": 0.9148,
+      "gap_to_target_cond3": 0.0602
+    }
+  }
+}

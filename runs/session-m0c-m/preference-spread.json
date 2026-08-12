@@ -1,0 +1,2449 @@
+{
+  "_what": "score geometry per category: is the reranker confidently wrong on preference questions, or unconfident? Logits are read from the dump, not re-scored.",
+  "_split": "fit",
+  "_band": 0.084,
+  "_gate": {
+    "fit_R@1": 0.7555,
+    "published": 0.7555
+  },
+  "per_category": {
+    "knowledge-update": {
+      "n": 36,
+      "mean_spread": 4.0884,
+      "mean_head_gap": 0.4287,
+      "median_head_gap": 0.3548,
+      "share_in_band": 0.1944,
+      "mean_top1": -6.7759,
+      "mean_q_words": 6.1389,
+      "mean_q_chars": 66.25
+    },
+    "multi-session": {
+      "n": 61,
+      "mean_spread": 3.9907,
+      "mean_head_gap": 0.4733,
+      "median_head_gap": 0.3881,
+      "share_in_band": 0.0984,
+      "mean_top1": -7.0187,
+      "mean_q_words": 6.6557,
+      "mean_q_chars": 68.3607
+    },
+    "single-session-assistant": {
+      "n": 28,
+      "mean_spread": 3.0026,
+      "mean_head_gap": 0.9237,
+      "median_head_gap": 0.8195,
+      "share_in_band": 0.0,
+      "mean_top1": -6.8274,
+      "mean_q_words": 16.25,
+      "mean_q_chars": 196.5357
+    },
+    "single-session-preference": {
+      "n": 15,
+      "mean_spread": 3.3644,
+      "mean_head_gap": 0.3233,
+      "median_head_gap": 0.2729,
+      "share_in_band": 0.1333,
+      "mean_top1": -7.5737,
+      "mean_q_words": 6.7333,
+      "mean_q_chars": 80.8
+    },
+    "single-session-user": {
+      "n": 32,
+      "mean_spread": 4.1893,
+      "mean_head_gap": 1.2224,
+      "median_head_gap": 1.2346,
+      "share_in_band": 0.0,
+      "mean_top1": -6.905,
+      "mean_q_words": 4.5938,
+      "mean_q_chars": 50.9375
+    },
+    "temporal-reasoning": {
+      "n": 57,
+      "mean_spread": 3.7169,
+      "mean_head_gap": 0.466,
+      "median_head_gap": 0.3179,
+      "share_in_band": 0.1053,
+      "mean_top1": -7.2119,
+      "mean_q_words": 8.9298,
+      "mean_q_chars": 91.2281
+    }
+  },
+  "by_hit": {
+    "knowledge-update|HIT": {
+      "n": 26,
+      "mean_spread": 4.0691,
+      "mean_head_gap": 0.4741,
+      "share_in_band": 0.1154,
+      "mean_q_words": 6.4231
+    },
+    "knowledge-update|MISS": {
+      "n": 10,
+      "mean_spread": 4.1387,
+      "mean_head_gap": 0.3106,
+      "share_in_band": 0.4,
+      "mean_q_words": 5.4
+    },
+    "multi-session|HIT": {
+      "n": 49,
+      "mean_spread": 4.0538,
+      "mean_head_gap": 0.5148,
+      "share_in_band": 0.0816,
+      "mean_q_words": 6.8776
+    },
+    "multi-session|MISS": {
+      "n": 12,
+      "mean_spread": 3.7329,
+      "mean_head_gap": 0.304,
+      "share_in_band": 0.1667,
+      "mean_q_words": 5.75
+    },
+    "single-session-assistant|HIT": {
+      "n": 22,
+      "mean_spread": 3.0851,
+      "mean_head_gap": 1.086,
+      "share_in_band": 0.0,
+      "mean_q_words": 16.1364
+    },
+    "single-session-assistant|MISS": {
+      "n": 6,
+      "mean_spread": 2.6999,
+      "mean_head_gap": 0.3284,
+      "share_in_band": 0.0,
+      "mean_q_words": 16.6667
+    },
+    "single-session-preference|HIT": {
+      "n": 5,
+      "mean_spread": 3.6026,
+      "mean_head_gap": 0.476,
+      "share_in_band": 0.0,
+      "mean_q_words": 6.2
+    },
+    "single-session-preference|MISS": {
+      "n": 10,
+      "mean_spread": 3.2453,
+      "mean_head_gap": 0.247,
+      "share_in_band": 0.2,
+      "mean_q_words": 7.0
+    },
+    "single-session-user|HIT": {
+      "n": 26,
+      "mean_spread": 4.3534,
+      "mean_head_gap": 1.3288,
+      "share_in_band": 0.0,
+      "mean_q_words": 4.5
+    },
+    "single-session-user|MISS": {
+      "n": 6,
+      "mean_spread": 3.4785,
+      "mean_head_gap": 0.7615,
+      "share_in_band": 0.0,
+      "mean_q_words": 5.0
+    },
+    "temporal-reasoning|HIT": {
+      "n": 45,
+      "mean_spread": 3.7212,
+      "mean_head_gap": 0.4708,
+      "share_in_band": 0.1111,
+      "mean_q_words": 9.5111
+    },
+    "temporal-reasoning|MISS": {
+      "n": 12,
+      "mean_spread": 3.7008,
+      "mean_head_gap": 0.4477,
+      "share_in_band": 0.0833,
+      "mean_q_words": 6.75
+    }
+  },
+  "records": [
+    {
+      "query_id": "51a45a95",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 5.2088,
+      "head_gap": 3.5966,
+      "top1": -6.0705,
+      "q_words": 4,
+      "q_chars": 49
+    },
+    {
+      "query_id": "58bf7951",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 4.5634,
+      "head_gap": 1.4639,
+      "top1": -6.4717,
+      "q_words": 5,
+      "q_chars": 54
+    },
+    {
+      "query_id": "1e043500",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.1364,
+      "head_gap": 1.3069,
+      "top1": -7.1069,
+      "q_words": 4,
+      "q_chars": 54
+    },
+    {
+      "query_id": "c5e8278d",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.0711,
+      "head_gap": 1.1323,
+      "top1": -7.1632,
+      "q_words": 4,
+      "q_chars": 42
+    },
+    {
+      "query_id": "6f9b354f",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.0876,
+      "head_gap": 1.8027,
+      "top1": -7.0936,
+      "q_words": 4,
+      "q_chars": 42
+    },
+    {
+      "query_id": "58ef2f1c",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 3.842,
+      "head_gap": 0.5846,
+      "top1": -7.3683,
+      "q_words": 6,
+      "q_chars": 70
+    },
+    {
+      "query_id": "5d3d2817",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 1.9443,
+      "head_gap": 0.4978,
+      "top1": -8.9702,
+      "q_words": 2,
+      "q_chars": 32
+    },
+    {
+      "query_id": "c960da58",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.8218,
+      "head_gap": 0.7367,
+      "top1": -7.376,
+      "q_words": 3,
+      "q_chars": 40
+    },
+    {
+      "query_id": "3b6f954b",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.3779,
+      "head_gap": 2.0109,
+      "top1": -7.0225,
+      "q_words": 4,
+      "q_chars": 47
+    },
+    {
+      "query_id": "94f70d80",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.7621,
+      "head_gap": 0.3981,
+      "top1": -7.4685,
+      "q_words": 5,
+      "q_chars": 55
+    },
+    {
+      "query_id": "ad7109d1",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.2005,
+      "head_gap": 1.277,
+      "top1": -7.1498,
+      "q_words": 4,
+      "q_chars": 35
+    },
+    {
+      "query_id": "dccbc061",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.5658,
+      "head_gap": 2.5006,
+      "top1": -6.6296,
+      "q_words": 3,
+      "q_chars": 44
+    },
+    {
+      "query_id": "21436231",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.3673,
+      "head_gap": 1.3258,
+      "top1": -6.2094,
+      "q_words": 8,
+      "q_chars": 73
+    },
+    {
+      "query_id": "95bcc1c8",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.3468,
+      "head_gap": 1.638,
+      "top1": -6.8761,
+      "q_words": 8,
+      "q_chars": 69
+    },
+    {
+      "query_id": "a06e4cfe",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.8076,
+      "head_gap": 1.9935,
+      "top1": -6.4241,
+      "q_words": 6,
+      "q_chars": 69
+    },
+    {
+      "query_id": "37d43f65",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 5.1899,
+      "head_gap": 1.1922,
+      "top1": -5.5935,
+      "q_words": 4,
+      "q_chars": 40
+    },
+    {
+      "query_id": "b86304ba",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 2.8051,
+      "head_gap": 0.0966,
+      "top1": -8.3822,
+      "q_words": 7,
+      "q_chars": 80
+    },
+    {
+      "query_id": "25e5aa4f",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 3.0889,
+      "head_gap": 1.0403,
+      "top1": -8.3991,
+      "q_words": 5,
+      "q_chars": 62
+    },
+    {
+      "query_id": "caf9ead2",
+      "category": "single-session-user",
+      "hit": false,
+      "spread": 4.627,
+      "head_gap": 0.8861,
+      "top1": -5.7095,
+      "q_words": 5,
+      "q_chars": 50
+    },
+    {
+      "query_id": "8550ddae",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.6003,
+      "head_gap": 0.7054,
+      "top1": -6.3119,
+      "q_words": 6,
+      "q_chars": 52
+    },
+    {
+      "query_id": "60d45044",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.7617,
+      "head_gap": 1.7371,
+      "top1": -7.2089,
+      "q_words": 3,
+      "q_chars": 33
+    },
+    {
+      "query_id": "3f1e9474",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.8334,
+      "head_gap": 0.3474,
+      "top1": -7.3795,
+      "q_words": 2,
+      "q_chars": 49
+    },
+    {
+      "query_id": "577d4d32",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.0338,
+      "head_gap": 0.8403,
+      "top1": -7.0257,
+      "q_words": 6,
+      "q_chars": 54
+    },
+    {
+      "query_id": "ec81a493",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.9985,
+      "head_gap": 1.277,
+      "top1": -6.0767,
+      "q_words": 8,
+      "q_chars": 76
+    },
+    {
+      "query_id": "15745da0",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 5.2933,
+      "head_gap": 1.4432,
+      "top1": -5.344,
+      "q_words": 4,
+      "q_chars": 48
+    },
+    {
+      "query_id": "e01b8e2f",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.4016,
+      "head_gap": 0.129,
+      "top1": -7.6002,
+      "q_words": 4,
+      "q_chars": 50
+    },
+    {
+      "query_id": "001be529",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.0986,
+      "head_gap": 1.5108,
+      "top1": -7.1141,
+      "q_words": 5,
+      "q_chars": 62
+    },
+    {
+      "query_id": "19b5f2b3",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.3541,
+      "head_gap": 0.8584,
+      "top1": -6.9096,
+      "q_words": 2,
+      "q_chars": 28
+    },
+    {
+      "query_id": "4fd1909e",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 5.3063,
+      "head_gap": 2.1124,
+      "top1": -5.9738,
+      "q_words": 4,
+      "q_chars": 47
+    },
+    {
+      "query_id": "8e9d538c",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.3512,
+      "head_gap": 0.5548,
+      "top1": -6.6301,
+      "q_words": 7,
+      "q_chars": 62
+    },
+    {
+      "query_id": "4100d0a0",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 3.6467,
+      "head_gap": 1.627,
+      "top1": -7.6036,
+      "q_words": 1,
+      "q_chars": 21
+    },
+    {
+      "query_id": "c14c00dd",
+      "category": "single-session-user",
+      "hit": true,
+      "spread": 4.5645,
+      "head_gap": 0.4935,
+      "top1": -6.2977,
+      "q_words": 4,
+      "q_chars": 41
+    },
+    {
+      "query_id": "6d550036",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.9093,
+      "head_gap": 0.474,
+      "top1": -7.4188,
+      "q_words": 5,
+      "q_chars": 53
+    },
+    {
+      "query_id": "gpt4_59c863d7",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.7839,
+      "head_gap": 0.5791,
+      "top1": -6.3058,
+      "q_words": 5,
+      "q_chars": 47
+    },
+    {
+      "query_id": "e831120c",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.0152,
+      "head_gap": 0.3881,
+      "top1": -6.6757,
+      "q_words": 12,
+      "q_chars": 109
+    },
+    {
+      "query_id": "gpt4_f2262a51",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 2.5089,
+      "head_gap": 0.4308,
+      "top1": -8.3487,
+      "q_words": 4,
+      "q_chars": 39
+    },
+    {
+      "query_id": "gpt4_a56e767c",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.8712,
+      "head_gap": 0.0656,
+      "top1": -6.9914,
+      "q_words": 4,
+      "q_chars": 41
+    },
+    {
+      "query_id": "6cb6f249",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7315,
+      "head_gap": 1.5792,
+      "top1": -7.3115,
+      "q_words": 7,
+      "q_chars": 54
+    },
+    {
+      "query_id": "46a3abf7",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.4206,
+      "head_gap": 0.2738,
+      "top1": -7.4593,
+      "q_words": 8,
+      "q_chars": 83
+    },
+    {
+      "query_id": "36b9f61e",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.9522,
+      "head_gap": 0.1493,
+      "top1": -7.1506,
+      "q_words": 7,
+      "q_chars": 72
+    },
+    {
+      "query_id": "28dc39ac",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.7462,
+      "head_gap": 0.7552,
+      "top1": -6.3212,
+      "q_words": 6,
+      "q_chars": 51
+    },
+    {
+      "query_id": "gpt4_2f8be40d",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 2.9328,
+      "head_gap": 0.3809,
+      "top1": -8.2242,
+      "q_words": 4,
+      "q_chars": 47
+    },
+    {
+      "query_id": "gpt4_15e38248",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7069,
+      "head_gap": 0.4211,
+      "top1": -7.5251,
+      "q_words": 9,
+      "q_chars": 86
+    },
+    {
+      "query_id": "88432d0a",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.4083,
+      "head_gap": 0.1182,
+      "top1": -7.6718,
+      "q_words": 7,
+      "q_chars": 58
+    },
+    {
+      "query_id": "d682f1a2",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7307,
+      "head_gap": 0.075,
+      "top1": -7.364,
+      "q_words": 8,
+      "q_chars": 72
+    },
+    {
+      "query_id": "gpt4_2ba83207",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.6591,
+      "head_gap": 0.7866,
+      "top1": -6.5888,
+      "q_words": 6,
+      "q_chars": 68
+    },
+    {
+      "query_id": "2ce6a0f2",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.0771,
+      "head_gap": 1.034,
+      "top1": -7.1935,
+      "q_words": 8,
+      "q_chars": 69
+    },
+    {
+      "query_id": "gpt4_d12ceb0e",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1639,
+      "head_gap": 0.8092,
+      "top1": -7.0409,
+      "q_words": 4,
+      "q_chars": 63
+    },
+    {
+      "query_id": "gpt4_31ff4165",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.3256,
+      "head_gap": 0.396,
+      "top1": -7.9409,
+      "q_words": 6,
+      "q_chars": 50
+    },
+    {
+      "query_id": "129d1232",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.874,
+      "head_gap": 0.1472,
+      "top1": -7.4154,
+      "q_words": 8,
+      "q_chars": 85
+    },
+    {
+      "query_id": "a9f6b44c",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.8327,
+      "head_gap": 0.4701,
+      "top1": -7.1081,
+      "q_words": 5,
+      "q_chars": 57
+    },
+    {
+      "query_id": "d851d5ba",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.2909,
+      "head_gap": 0.1146,
+      "top1": -6.8902,
+      "q_words": 5,
+      "q_chars": 48
+    },
+    {
+      "query_id": "gpt4_ab202e7f",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7641,
+      "head_gap": 0.2712,
+      "top1": -7.4788,
+      "q_words": 5,
+      "q_chars": 44
+    },
+    {
+      "query_id": "gpt4_e05b82a6",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.3306,
+      "head_gap": 0.204,
+      "top1": -6.5061,
+      "q_words": 9,
+      "q_chars": 95
+    },
+    {
+      "query_id": "gpt4_731e37d7",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 4.3998,
+      "head_gap": 0.237,
+      "top1": -6.8469,
+      "q_words": 9,
+      "q_chars": 80
+    },
+    {
+      "query_id": "edced276",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1216,
+      "head_gap": 0.6232,
+      "top1": -6.8791,
+      "q_words": 9,
+      "q_chars": 76
+    },
+    {
+      "query_id": "10d9b85a",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.0984,
+      "head_gap": 1.2507,
+      "top1": -7.1454,
+      "q_words": 8,
+      "q_chars": 82
+    },
+    {
+      "query_id": "e3038f8c",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.6783,
+      "head_gap": 0.0563,
+      "top1": -7.4305,
+      "q_words": 4,
+      "q_chars": 39
+    },
+    {
+      "query_id": "2b8f3739",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.5819,
+      "head_gap": 0.0286,
+      "top1": -6.6579,
+      "q_words": 7,
+      "q_chars": 83
+    },
+    {
+      "query_id": "c2ac3c61",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.0449,
+      "head_gap": 0.2227,
+      "top1": -7.1386,
+      "q_words": 5,
+      "q_chars": 50
+    },
+    {
+      "query_id": "bf659f65",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.4968,
+      "head_gap": 0.7156,
+      "top1": -7.7401,
+      "q_words": 6,
+      "q_chars": 60
+    },
+    {
+      "query_id": "gpt4_372c3eed",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7547,
+      "head_gap": 0.52,
+      "top1": -7.3447,
+      "q_words": 11,
+      "q_chars": 115
+    },
+    {
+      "query_id": "8a2466db",
+      "category": "single-session-preference",
+      "hit": true,
+      "spread": 3.7526,
+      "head_gap": 0.3944,
+      "top1": -7.4165,
+      "q_words": 5,
+      "q_chars": 76
+    },
+    {
+      "query_id": "35a27287",
+      "category": "single-session-preference",
+      "hit": true,
+      "spread": 3.1005,
+      "head_gap": 0.1978,
+      "top1": -8.1831,
+      "q_words": 7,
+      "q_chars": 84
+    },
+    {
+      "query_id": "195a1a1b",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 2.8362,
+      "head_gap": 0.1345,
+      "top1": -8.311,
+      "q_words": 3,
+      "q_chars": 61
+    },
+    {
+      "query_id": "afdc33df",
+      "category": "single-session-preference",
+      "hit": true,
+      "spread": 3.2468,
+      "head_gap": 0.2729,
+      "top1": -7.6617,
+      "q_words": 7,
+      "q_chars": 75
+    },
+    {
+      "query_id": "54026fce",
+      "category": "single-session-preference",
+      "hit": true,
+      "spread": 3.8685,
+      "head_gap": 0.4761,
+      "top1": -6.988,
+      "q_words": 6,
+      "q_chars": 84
+    },
+    {
+      "query_id": "1a1907b4",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 2.0921,
+      "head_gap": 0.1309,
+      "top1": -7.4244,
+      "q_words": 10,
+      "q_chars": 127
+    },
+    {
+      "query_id": "09d032c9",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.6384,
+      "head_gap": 0.0546,
+      "top1": -7.6195,
+      "q_words": 6,
+      "q_chars": 76
+    },
+    {
+      "query_id": "57f827a0",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.1564,
+      "head_gap": 0.0047,
+      "top1": -7.9905,
+      "q_words": 6,
+      "q_chars": 84
+    },
+    {
+      "query_id": "505af2f5",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.4194,
+      "head_gap": 0.308,
+      "top1": -7.4522,
+      "q_words": 7,
+      "q_chars": 74
+    },
+    {
+      "query_id": "75f70248",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.1858,
+      "head_gap": 0.7469,
+      "top1": -7.9546,
+      "q_words": 7,
+      "q_chars": 79
+    },
+    {
+      "query_id": "d6233ab6",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.3517,
+      "head_gap": 0.1678,
+      "top1": -7.8094,
+      "q_words": 10,
+      "q_chars": 106
+    },
+    {
+      "query_id": "1da05512",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.3874,
+      "head_gap": 0.3519,
+      "top1": -7.3804,
+      "q_words": 8,
+      "q_chars": 80
+    },
+    {
+      "query_id": "b6025781",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.4702,
+      "head_gap": 0.2137,
+      "top1": -7.2815,
+      "q_words": 8,
+      "q_chars": 69
+    },
+    {
+      "query_id": "a89d7624",
+      "category": "single-session-preference",
+      "hit": false,
+      "spread": 3.915,
+      "head_gap": 0.3566,
+      "top1": -7.2207,
+      "q_words": 5,
+      "q_chars": 72
+    },
+    {
+      "query_id": "b0479f84",
+      "category": "single-session-preference",
+      "hit": true,
+      "spread": 4.0444,
+      "head_gap": 1.0387,
+      "top1": -6.9115,
+      "q_words": 6,
+      "q_chars": 65
+    },
+    {
+      "query_id": "d3ab962e",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.4823,
+      "head_gap": 0.2497,
+      "top1": -7.4038,
+      "q_words": 6,
+      "q_chars": 74
+    },
+    {
+      "query_id": "cc06de0d",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.0062,
+      "head_gap": 0.2305,
+      "top1": -6.6348,
+      "q_words": 9,
+      "q_chars": 91
+    },
+    {
+      "query_id": "a11281a2",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.947,
+      "head_gap": 0.7311,
+      "top1": -7.08,
+      "q_words": 7,
+      "q_chars": 84
+    },
+    {
+      "query_id": "9aaed6a3",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.4809,
+      "head_gap": 0.5217,
+      "top1": -7.17,
+      "q_words": 6,
+      "q_chars": 55
+    },
+    {
+      "query_id": "1f2b8d4f",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1885,
+      "head_gap": 0.1252,
+      "top1": -6.4584,
+      "q_words": 10,
+      "q_chars": 103
+    },
+    {
+      "query_id": "d905b33f",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.2045,
+      "head_gap": 0.55,
+      "top1": -7.0272,
+      "q_words": 6,
+      "q_chars": 71
+    },
+    {
+      "query_id": "f35224e0",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.1873,
+      "head_gap": 0.464,
+      "top1": -7.2359,
+      "q_words": 7,
+      "q_chars": 103
+    },
+    {
+      "query_id": "6456829e",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.3504,
+      "head_gap": 0.3806,
+      "top1": -7.2501,
+      "q_words": 6,
+      "q_chars": 65
+    },
+    {
+      "query_id": "a4996e51",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7729,
+      "head_gap": 0.4235,
+      "top1": -7.2334,
+      "q_words": 9,
+      "q_chars": 72
+    },
+    {
+      "query_id": "3c1045c8",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.7097,
+      "head_gap": 2.0394,
+      "top1": -6.5255,
+      "q_words": 6,
+      "q_chars": 71
+    },
+    {
+      "query_id": "60036106",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 4.2706,
+      "head_gap": 0.3708,
+      "top1": -6.8895,
+      "q_words": 9,
+      "q_chars": 110
+    },
+    {
+      "query_id": "681a1674",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1526,
+      "head_gap": 0.1277,
+      "top1": -6.2007,
+      "q_words": 4,
+      "q_chars": 38
+    },
+    {
+      "query_id": "e25c3b8d",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.3847,
+      "head_gap": 0.9086,
+      "top1": -6.6358,
+      "q_words": 5,
+      "q_chars": 55
+    },
+    {
+      "query_id": "4adc0475",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1673,
+      "head_gap": 0.7247,
+      "top1": -7.1621,
+      "q_words": 8,
+      "q_chars": 94
+    },
+    {
+      "query_id": "4bc144e2",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.3605,
+      "head_gap": 0.1057,
+      "top1": -6.5599,
+      "q_words": 6,
+      "q_chars": 52
+    },
+    {
+      "query_id": "3fdac837",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.6529,
+      "head_gap": 0.1664,
+      "top1": -7.3132,
+      "q_words": 6,
+      "q_chars": 62
+    },
+    {
+      "query_id": "91b15a6e",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7539,
+      "head_gap": 0.2566,
+      "top1": -7.1632,
+      "q_words": 9,
+      "q_chars": 101
+    },
+    {
+      "query_id": "720133ac",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.1179,
+      "head_gap": 0.1723,
+      "top1": -7.0298,
+      "q_words": 7,
+      "q_chars": 63
+    },
+    {
+      "query_id": "77eafa52",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.6616,
+      "head_gap": 0.2387,
+      "top1": -6.7468,
+      "q_words": 6,
+      "q_chars": 69
+    },
+    {
+      "query_id": "0100672e",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 4.922,
+      "head_gap": 0.9614,
+      "top1": -6.2313,
+      "q_words": 5,
+      "q_chars": 57
+    },
+    {
+      "query_id": "92a0aa75",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.9487,
+      "head_gap": 0.0915,
+      "top1": -7.3656,
+      "q_words": 4,
+      "q_chars": 48
+    },
+    {
+      "query_id": "3fe836c9",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.2892,
+      "head_gap": 0.7747,
+      "top1": -6.9718,
+      "q_words": 8,
+      "q_chars": 81
+    },
+    {
+      "query_id": "6c49646a",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.9996,
+      "head_gap": 0.3235,
+      "top1": -6.1405,
+      "q_words": 6,
+      "q_chars": 59
+    },
+    {
+      "query_id": "61f8c8f8",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.9385,
+      "head_gap": 1.1538,
+      "top1": -7.1009,
+      "q_words": 8,
+      "q_chars": 76
+    },
+    {
+      "query_id": "ef9cf60a",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 5.5781,
+      "head_gap": 0.5104,
+      "top1": -5.6824,
+      "q_words": 4,
+      "q_chars": 44
+    },
+    {
+      "query_id": "09ba9854",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.2017,
+      "head_gap": 0.1198,
+      "top1": -6.959,
+      "q_words": 8,
+      "q_chars": 88
+    },
+    {
+      "query_id": "157a136e",
+      "category": "multi-session",
+      "hit": false,
+      "spread": 3.7336,
+      "head_gap": 0.0145,
+      "top1": -7.4143,
+      "q_words": 4,
+      "q_chars": 43
+    },
+    {
+      "query_id": "a3332713",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.6501,
+      "head_gap": 0.4817,
+      "top1": -6.5498,
+      "q_words": 6,
+      "q_chars": 70
+    },
+    {
+      "query_id": "a08a253f",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.8906,
+      "head_gap": 1.5805,
+      "top1": -6.1806,
+      "q_words": 6,
+      "q_chars": 49
+    },
+    {
+      "query_id": "078150f1",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 3.7434,
+      "head_gap": 0.0325,
+      "top1": -7.3246,
+      "q_words": 8,
+      "q_chars": 82
+    },
+    {
+      "query_id": "a346bb18",
+      "category": "multi-session",
+      "hit": true,
+      "spread": 4.4711,
+      "head_gap": 0.4635,
+      "top1": -6.3869,
+      "q_words": 6,
+      "q_chars": 64
+    },
+    {
+      "query_id": "gpt4_f49edff3",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 2.6448,
+      "head_gap": 0.1554,
+      "top1": -7.8669,
+      "q_words": 21,
+      "q_chars": 243
+    },
+    {
+      "query_id": "b46e15ed",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.2098,
+      "head_gap": 0.1485,
+      "top1": -7.8579,
+      "q_words": 11,
+      "q_chars": 101
+    },
+    {
+      "query_id": "gpt4_fa19884c",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.6692,
+      "head_gap": 0.3841,
+      "top1": -7.0419,
+      "q_words": 15,
+      "q_chars": 143
+    },
+    {
+      "query_id": "gpt4_4929293a",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.5407,
+      "head_gap": 0.1436,
+      "top1": -7.6237,
+      "q_words": 8,
+      "q_chars": 78
+    },
+    {
+      "query_id": "gpt4_b5700ca9",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.2892,
+      "head_gap": 0.8496,
+      "top1": -6.9516,
+      "q_words": 9,
+      "q_chars": 83
+    },
+    {
+      "query_id": "9a707b81",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.2715,
+      "head_gap": 0.4654,
+      "top1": -7.6616,
+      "q_words": 13,
+      "q_chars": 111
+    },
+    {
+      "query_id": "gpt4_1d4ab0c9",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.1559,
+      "head_gap": 0.4562,
+      "top1": -6.6844,
+      "q_words": 14,
+      "q_chars": 125
+    },
+    {
+      "query_id": "0db4c65d",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.2646,
+      "head_gap": 0.4927,
+      "top1": -6.8007,
+      "q_words": 22,
+      "q_chars": 228
+    },
+    {
+      "query_id": "gpt4_6dc9b45b",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.4178,
+      "head_gap": 1.485,
+      "top1": -6.5653,
+      "q_words": 8,
+      "q_chars": 73
+    },
+    {
+      "query_id": "gpt4_18c2b244",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 1.8717,
+      "head_gap": 0.3179,
+      "top1": -7.4891,
+      "q_words": 22,
+      "q_chars": 226
+    },
+    {
+      "query_id": "gpt4_a1b77f9c",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.2267,
+      "head_gap": 0.0514,
+      "top1": -7.3746,
+      "q_words": 12,
+      "q_chars": 137
+    },
+    {
+      "query_id": "gpt4_468eb063",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.3337,
+      "head_gap": 0.0099,
+      "top1": -7.783,
+      "q_words": 5,
+      "q_chars": 34
+    },
+    {
+      "query_id": "gpt4_7abb270c",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.2262,
+      "head_gap": 0.2631,
+      "top1": -7.4368,
+      "q_words": 6,
+      "q_chars": 71
+    },
+    {
+      "query_id": "gpt4_4fc4f797",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.3167,
+      "head_gap": 0.2817,
+      "top1": -6.3619,
+      "q_words": 12,
+      "q_chars": 128
+    },
+    {
+      "query_id": "gpt4_45189cb4",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 4.2556,
+      "head_gap": 0.9194,
+      "top1": -7.0275,
+      "q_words": 5,
+      "q_chars": 60
+    },
+    {
+      "query_id": "gpt4_e061b84f",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.8264,
+      "head_gap": 1.6882,
+      "top1": -7.435,
+      "q_words": 10,
+      "q_chars": 110
+    },
+    {
+      "query_id": "370a8ff4",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.6637,
+      "head_gap": 0.0,
+      "top1": -7.2842,
+      "q_words": 10,
+      "q_chars": 93
+    },
+    {
+      "query_id": "gpt4_d6585ce8",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.252,
+      "head_gap": 0.0941,
+      "top1": -7.4711,
+      "q_words": 10,
+      "q_chars": 115
+    },
+    {
+      "query_id": "8077ef71",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.7935,
+      "head_gap": 0.845,
+      "top1": -7.1511,
+      "q_words": 6,
+      "q_chars": 50
+    },
+    {
+      "query_id": "gpt4_8e165409",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.675,
+      "head_gap": 0.7842,
+      "top1": -7.1183,
+      "q_words": 14,
+      "q_chars": 156
+    },
+    {
+      "query_id": "bcbe585f",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.3906,
+      "head_gap": 1.5754,
+      "top1": -6.6339,
+      "q_words": 10,
+      "q_chars": 86
+    },
+    {
+      "query_id": "gpt4_98f46fc6",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.178,
+      "head_gap": 0.0882,
+      "top1": -7.7368,
+      "q_words": 7,
+      "q_chars": 82
+    },
+    {
+      "query_id": "eac54adc",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.7579,
+      "head_gap": 0.6591,
+      "top1": -7.1917,
+      "q_words": 9,
+      "q_chars": 88
+    },
+    {
+      "query_id": "gpt4_a2d1d1f6",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.0549,
+      "head_gap": 0.8042,
+      "top1": -6.8725,
+      "q_words": 11,
+      "q_chars": 87
+    },
+    {
+      "query_id": "gpt4_85da3956",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.8923,
+      "head_gap": 0.0166,
+      "top1": -6.5509,
+      "q_words": 10,
+      "q_chars": 92
+    },
+    {
+      "query_id": "gpt4_b0863698",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.4725,
+      "head_gap": 0.4307,
+      "top1": -6.761,
+      "q_words": 6,
+      "q_chars": 58
+    },
+    {
+      "query_id": "gpt4_68e94287",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.3995,
+      "head_gap": 0.2332,
+      "top1": -7.5906,
+      "q_words": 9,
+      "q_chars": 104
+    },
+    {
+      "query_id": "gpt4_7ca326fa",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.1262,
+      "head_gap": 0.3586,
+      "top1": -6.9445,
+      "q_words": 8,
+      "q_chars": 66
+    },
+    {
+      "query_id": "2ebe6c92",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.1646,
+      "head_gap": 0.5952,
+      "top1": -7.1863,
+      "q_words": 4,
+      "q_chars": 35
+    },
+    {
+      "query_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.2569,
+      "head_gap": 0.3,
+      "top1": -7.6947,
+      "q_words": 4,
+      "q_chars": 51
+    },
+    {
+      "query_id": "gpt4_e414231f",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 4.0011,
+      "head_gap": 0.468,
+      "top1": -7.2489,
+      "q_words": 5,
+      "q_chars": 52
+    },
+    {
+      "query_id": "gpt4_468eb064",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.1721,
+      "head_gap": 0.9354,
+      "top1": -7.5289,
+      "q_words": 5,
+      "q_chars": 50
+    },
+    {
+      "query_id": "9a707b82",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.618,
+      "head_gap": 0.3107,
+      "top1": -7.4815,
+      "q_words": 7,
+      "q_chars": 78
+    },
+    {
+      "query_id": "eac54add",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.337,
+      "head_gap": 0.4755,
+      "top1": -7.8984,
+      "q_words": 7,
+      "q_chars": 72
+    },
+    {
+      "query_id": "4dfccbf8",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.4967,
+      "head_gap": 0.2421,
+      "top1": -7.7385,
+      "q_words": 5,
+      "q_chars": 58
+    },
+    {
+      "query_id": "6e984302",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.7628,
+      "head_gap": 0.44,
+      "top1": -7.6535,
+      "q_words": 7,
+      "q_chars": 75
+    },
+    {
+      "query_id": "gpt4_2655b836",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.5401,
+      "head_gap": 0.1584,
+      "top1": -7.5862,
+      "q_words": 6,
+      "q_chars": 71
+    },
+    {
+      "query_id": "08f4fc43",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.8775,
+      "head_gap": 0.1304,
+      "top1": -7.1934,
+      "q_words": 12,
+      "q_chars": 117
+    },
+    {
+      "query_id": "gpt4_385a5000",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.9636,
+      "head_gap": 0.7692,
+      "top1": -7.2783,
+      "q_words": 5,
+      "q_chars": 62
+    },
+    {
+      "query_id": "bbf86515",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.3261,
+      "head_gap": 0.1457,
+      "top1": -6.6582,
+      "q_words": 9,
+      "q_chars": 92
+    },
+    {
+      "query_id": "gpt4_5dcc0aab",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 4.2964,
+      "head_gap": 0.1858,
+      "top1": -6.2295,
+      "q_words": 5,
+      "q_chars": 43
+    },
+    {
+      "query_id": "gpt4_0b2f1d21",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.1657,
+      "head_gap": 0.1233,
+      "top1": -8.0024,
+      "q_words": 9,
+      "q_chars": 99
+    },
+    {
+      "query_id": "gpt4_70e84552",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.2657,
+      "head_gap": 0.5888,
+      "top1": -7.9951,
+      "q_words": 8,
+      "q_chars": 80
+    },
+    {
+      "query_id": "982b5123",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.4978,
+      "head_gap": 0.4127,
+      "top1": -6.5927,
+      "q_words": 7,
+      "q_chars": 59
+    },
+    {
+      "query_id": "c8090214",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.0208,
+      "head_gap": 1.2508,
+      "top1": -7.0546,
+      "q_words": 9,
+      "q_chars": 80
+    },
+    {
+      "query_id": "gpt4_483dd43c",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.9401,
+      "head_gap": 0.036,
+      "top1": -6.4202,
+      "q_words": 7,
+      "q_chars": 72
+    },
+    {
+      "query_id": "gpt4_2c50253f",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.9727,
+      "head_gap": 0.8859,
+      "top1": -6.187,
+      "q_words": 4,
+      "q_chars": 49
+    },
+    {
+      "query_id": "cc6d1ec1",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.6915,
+      "head_gap": 0.1238,
+      "top1": -7.2889,
+      "q_words": 5,
+      "q_chars": 77
+    },
+    {
+      "query_id": "gpt4_8c8961ae",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.9204,
+      "head_gap": 0.2964,
+      "top1": -6.7519,
+      "q_words": 8,
+      "q_chars": 88
+    },
+    {
+      "query_id": "d01c6aa8",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.5442,
+      "head_gap": 0.2484,
+      "top1": -7.6091,
+      "q_words": 4,
+      "q_chars": 48
+    },
+    {
+      "query_id": "a3045048",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 4.0604,
+      "head_gap": 0.3011,
+      "top1": -6.8381,
+      "q_words": 9,
+      "q_chars": 74
+    },
+    {
+      "query_id": "gpt4_d31cdae3",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.5976,
+      "head_gap": 0.7736,
+      "top1": -7.1155,
+      "q_words": 11,
+      "q_chars": 118
+    },
+    {
+      "query_id": "gpt4_cd90e484",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.7361,
+      "head_gap": 0.0049,
+      "top1": -7.1789,
+      "q_words": 10,
+      "q_chars": 97
+    },
+    {
+      "query_id": "b29f3365",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 4.04,
+      "head_gap": 0.1195,
+      "top1": -7.0108,
+      "q_words": 7,
+      "q_chars": 75
+    },
+    {
+      "query_id": "gpt4_78cf46a3",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.3824,
+      "head_gap": 1.2138,
+      "top1": -7.7635,
+      "q_words": 10,
+      "q_chars": 115
+    },
+    {
+      "query_id": "gpt4_2f584639",
+      "category": "temporal-reasoning",
+      "hit": false,
+      "spread": 3.4719,
+      "head_gap": 0.3071,
+      "top1": -7.1048,
+      "q_words": 8,
+      "q_chars": 85
+    },
+    {
+      "query_id": "gpt4_5438fa52",
+      "category": "temporal-reasoning",
+      "hit": true,
+      "spread": 3.5676,
+      "head_gap": 0.716,
+      "top1": -7.519,
+      "q_words": 9,
+      "q_chars": 100
+    },
+    {
+      "query_id": "830ce83f",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 2.9925,
+      "head_gap": 0.0141,
+      "top1": -7.2069,
+      "q_words": 5,
+      "q_chars": 53
+    },
+    {
+      "query_id": "852ce960",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.4127,
+      "head_gap": 0.7019,
+      "top1": -6.6824,
+      "q_words": 7,
+      "q_chars": 83
+    },
+    {
+      "query_id": "945e3d21",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.6225,
+      "head_gap": 0.1712,
+      "top1": -7.3547,
+      "q_words": 6,
+      "q_chars": 59
+    },
+    {
+      "query_id": "d7c942c3",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.3269,
+      "head_gap": 0.9341,
+      "top1": -6.9829,
+      "q_words": 5,
+      "q_chars": 51
+    },
+    {
+      "query_id": "07741c44",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 3.6989,
+      "head_gap": 0.0574,
+      "top1": -7.4838,
+      "q_words": 4,
+      "q_chars": 42
+    },
+    {
+      "query_id": "a1eacc2a",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 4.4828,
+      "head_gap": 0.0124,
+      "top1": -6.566,
+      "q_words": 8,
+      "q_chars": 72
+    },
+    {
+      "query_id": "031748ae",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.4022,
+      "head_gap": 0.5989,
+      "top1": -6.4421,
+      "q_words": 9,
+      "q_chars": 123
+    },
+    {
+      "query_id": "4d6b87c8",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.3027,
+      "head_gap": 0.1786,
+      "top1": -6.8794,
+      "q_words": 5,
+      "q_chars": 50
+    },
+    {
+      "query_id": "0f05491a",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.696,
+      "head_gap": 0.3077,
+      "top1": -5.6678,
+      "q_words": 9,
+      "q_chars": 77
+    },
+    {
+      "query_id": "08e075c7",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.9374,
+      "head_gap": 0.9223,
+      "top1": -6.1228,
+      "q_words": 4,
+      "q_chars": 46
+    },
+    {
+      "query_id": "41698283",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.4156,
+      "head_gap": 1.2343,
+      "top1": -6.8052,
+      "q_words": 5,
+      "q_chars": 54
+    },
+    {
+      "query_id": "2698e78f",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.4482,
+      "head_gap": 0.5977,
+      "top1": -7.0145,
+      "q_words": 4,
+      "q_chars": 43
+    },
+    {
+      "query_id": "45dc21b6",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.2087,
+      "head_gap": 0.3795,
+      "top1": -7.0238,
+      "q_words": 4,
+      "q_chars": 44
+    },
+    {
+      "query_id": "5a4f22c0",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.4479,
+      "head_gap": 0.054,
+      "top1": -6.5127,
+      "q_words": 7,
+      "q_chars": 88
+    },
+    {
+      "query_id": "6071bd76",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.1074,
+      "head_gap": 0.2181,
+      "top1": -6.7022,
+      "q_words": 9,
+      "q_chars": 111
+    },
+    {
+      "query_id": "e493bb7c",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.8366,
+      "head_gap": 0.5756,
+      "top1": -7.4462,
+      "q_words": 7,
+      "q_chars": 73
+    },
+    {
+      "query_id": "72e3ee87",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.715,
+      "head_gap": 0.5725,
+      "top1": -6.4572,
+      "q_words": 7,
+      "q_chars": 73
+    },
+    {
+      "query_id": "c4ea545c",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.0338,
+      "head_gap": 0.2835,
+      "top1": -7.1692,
+      "q_words": 3,
+      "q_chars": 57
+    },
+    {
+      "query_id": "01493427",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.3635,
+      "head_gap": 0.3473,
+      "top1": -6.1408,
+      "q_words": 8,
+      "q_chars": 86
+    },
+    {
+      "query_id": "ed4ddc30",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.152,
+      "head_gap": 0.4,
+      "top1": -6.8557,
+      "q_words": 6,
+      "q_chars": 72
+    },
+    {
+      "query_id": "8fb83627",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.0486,
+      "head_gap": 0.5463,
+      "top1": -7.0054,
+      "q_words": 6,
+      "q_chars": 63
+    },
+    {
+      "query_id": "22d2cb42",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 3.5986,
+      "head_gap": 0.3623,
+      "top1": -6.8847,
+      "q_words": 3,
+      "q_chars": 35
+    },
+    {
+      "query_id": "eace081b",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 4.1207,
+      "head_gap": 0.1381,
+      "top1": -6.8662,
+      "q_words": 5,
+      "q_chars": 59
+    },
+    {
+      "query_id": "affe2881",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.9602,
+      "head_gap": 0.1265,
+      "top1": -6.8644,
+      "q_words": 7,
+      "q_chars": 65
+    },
+    {
+      "query_id": "0ddfec37",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.6974,
+      "head_gap": 0.0422,
+      "top1": -7.0694,
+      "q_words": 8,
+      "q_chars": 101
+    },
+    {
+      "query_id": "dfde3500",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.0735,
+      "head_gap": 1.4882,
+      "top1": -5.9721,
+      "q_words": 8,
+      "q_chars": 78
+    },
+    {
+      "query_id": "69fee5aa",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.9908,
+      "head_gap": 0.5097,
+      "top1": -6.1352,
+      "q_words": 6,
+      "q_chars": 60
+    },
+    {
+      "query_id": "06db6396",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 4.5774,
+      "head_gap": 0.1406,
+      "top1": -6.6021,
+      "q_words": 7,
+      "q_chars": 67
+    },
+    {
+      "query_id": "3ba21379",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 3.3926,
+      "head_gap": 0.0838,
+      "top1": -7.5921,
+      "q_words": 5,
+      "q_chars": 53
+    },
+    {
+      "query_id": "9bbe84a2",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.8499,
+      "head_gap": 0.7703,
+      "top1": -7.3102,
+      "q_words": 7,
+      "q_chars": 77
+    },
+    {
+      "query_id": "dad224aa",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 5.1844,
+      "head_gap": 0.9569,
+      "top1": -5.0577,
+      "q_words": 4,
+      "q_chars": 44
+    },
+    {
+      "query_id": "ba61f0b9",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 4.4681,
+      "head_gap": 0.0629,
+      "top1": -6.8527,
+      "q_words": 7,
+      "q_chars": 63
+    },
+    {
+      "query_id": "5c40ec5b",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 4.5969,
+      "head_gap": 0.505,
+      "top1": -6.3332,
+      "q_words": 5,
+      "q_chars": 52
+    },
+    {
+      "query_id": "c6853660",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 3.9168,
+      "head_gap": 0.316,
+      "top1": -6.8594,
+      "q_words": 9,
+      "q_chars": 100
+    },
+    {
+      "query_id": "0977f2af",
+      "category": "knowledge-update",
+      "hit": true,
+      "spread": 3.1778,
+      "head_gap": 0.2108,
+      "top1": -7.8078,
+      "q_words": 8,
+      "q_chars": 69
+    },
+    {
+      "query_id": "07741c45",
+      "category": "knowledge-update",
+      "hit": false,
+      "spread": 3.927,
+      "head_gap": 0.6108,
+      "top1": -7.2033,
+      "q_words": 4,
+      "q_chars": 42
+    },
+    {
+      "query_id": "c4f10528",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 0.8954,
+      "head_gap": 0.123,
+      "top1": -8.1822,
+      "q_words": 13,
+      "q_chars": 161
+    },
+    {
+      "query_id": "89527b6b",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 2.2641,
+      "head_gap": 0.2893,
+      "top1": -8.3671,
+      "q_words": 13,
+      "q_chars": 163
+    },
+    {
+      "query_id": "e9327a54",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.0074,
+      "head_gap": 0.6017,
+      "top1": -7.3462,
+      "q_words": 13,
+      "q_chars": 152
+    },
+    {
+      "query_id": "f523d9fe",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.4656,
+      "head_gap": 1.0891,
+      "top1": -6.9628,
+      "q_words": 20,
+      "q_chars": 236
+    },
+    {
+      "query_id": "fea54f57",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.002,
+      "head_gap": 0.3093,
+      "top1": -6.9439,
+      "q_words": 15,
+      "q_chars": 194
+    },
+    {
+      "query_id": "cc539528",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.1704,
+      "head_gap": 0.2166,
+      "top1": -6.9587,
+      "q_words": 14,
+      "q_chars": 182
+    },
+    {
+      "query_id": "18dcd5a5",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.7828,
+      "head_gap": 1.3719,
+      "top1": -7.1144,
+      "q_words": 14,
+      "q_chars": 150
+    },
+    {
+      "query_id": "488d3006",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.8192,
+      "head_gap": 1.7855,
+      "top1": -5.0526,
+      "q_words": 21,
+      "q_chars": 268
+    },
+    {
+      "query_id": "8cf51dda",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.4477,
+      "head_gap": 0.331,
+      "top1": -7.5954,
+      "q_words": 16,
+      "q_chars": 192
+    },
+    {
+      "query_id": "8aef76bc",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 4.0107,
+      "head_gap": 2.6387,
+      "top1": -5.3304,
+      "q_words": 17,
+      "q_chars": 177
+    },
+    {
+      "query_id": "71a3fd6b",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.6771,
+      "head_gap": 1.1961,
+      "top1": -6.4175,
+      "q_words": 11,
+      "q_chars": 143
+    },
+    {
+      "query_id": "70b3e69b",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.276,
+      "head_gap": 0.4017,
+      "top1": -6.2005,
+      "q_words": 21,
+      "q_chars": 258
+    },
+    {
+      "query_id": "3249768e",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 3.1676,
+      "head_gap": 0.2892,
+      "top1": -7.1848,
+      "q_words": 19,
+      "q_chars": 201
+    },
+    {
+      "query_id": "1b9b7252",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 4.0674,
+      "head_gap": 1.8285,
+      "top1": -6.193,
+      "q_words": 20,
+      "q_chars": 265
+    },
+    {
+      "query_id": "6222b6eb",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 4.3218,
+      "head_gap": 0.8128,
+      "top1": -5.9069,
+      "q_words": 22,
+      "q_chars": 287
+    },
+    {
+      "query_id": "e8a79c70",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 2.8817,
+      "head_gap": 0.1047,
+      "top1": -8.1967,
+      "q_words": 15,
+      "q_chars": 161
+    },
+    {
+      "query_id": "d596882b",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.0955,
+      "head_gap": 1.3127,
+      "top1": -6.6311,
+      "q_words": 17,
+      "q_chars": 186
+    },
+    {
+      "query_id": "e3fc4d6e",
+      "category": "single-session-assistant",
+      "hit": false,
+      "spread": 2.6687,
+      "head_gap": 0.3516,
+      "top1": -8.3679,
+      "q_words": 18,
+      "q_chars": 231
+    },
+    {
+      "query_id": "e982271f",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.8174,
+      "head_gap": 1.8002,
+      "top1": -5.9125,
+      "q_words": 16,
+      "q_chars": 167
+    },
+    {
+      "query_id": "fca762bc",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.9578,
+      "head_gap": 1.3893,
+      "top1": -6.8716,
+      "q_words": 19,
+      "q_chars": 228
+    },
+    {
+      "query_id": "7a8d0b71",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.5273,
+      "head_gap": 0.8261,
+      "top1": -6.8499,
+      "q_words": 14,
+      "q_chars": 167
+    },
+    {
+      "query_id": "8b9d4367",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 4.5965,
+      "head_gap": 2.2091,
+      "top1": -5.6287,
+      "q_words": 16,
+      "q_chars": 196
+    },
+    {
+      "query_id": "41275add",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.126,
+      "head_gap": 0.4207,
+      "top1": -8.2271,
+      "q_words": 13,
+      "q_chars": 154
+    },
+    {
+      "query_id": "4baee567",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 4.5589,
+      "head_gap": 0.4254,
+      "top1": -6.1056,
+      "q_words": 13,
+      "q_chars": 133
+    },
+    {
+      "query_id": "28bcfaac",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 3.7724,
+      "head_gap": 1.3615,
+      "top1": -6.4846,
+      "q_words": 16,
+      "q_chars": 207
+    },
+    {
+      "query_id": "16c90bf4",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.8503,
+      "head_gap": 1.0901,
+      "top1": -6.9329,
+      "q_words": 19,
+      "q_chars": 233
+    },
+    {
+      "query_id": "e48988bc",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.3019,
+      "head_gap": 0.2422,
+      "top1": -6.8927,
+      "q_words": 16,
+      "q_chars": 223
+    },
+    {
+      "query_id": "778164c6",
+      "category": "single-session-assistant",
+      "hit": true,
+      "spread": 2.5423,
+      "head_gap": 1.045,
+      "top1": -6.3107,
+      "q_words": 14,
+      "q_chars": 188
+    }
+  ]
+}

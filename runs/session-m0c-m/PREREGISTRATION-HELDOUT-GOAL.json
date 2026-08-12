@@ -1,0 +1,92 @@
+{
+  "_what": "M0c Session M, second phase. The goal changed mid-session from 'find a pattern in the retrieval failures' to a NUMBER: held-out R@1 >= 0.70, stretch 0.80. This file is written BEFORE any arm has produced a result, so that a green number later cannot be read as evidence for something nobody predicted.",
+  "_written_before_any_result_exists": true,
+  "_split_policy": "Every arm below is measured on FIT ONLY (runs/session-k/fit). A held-out read (runs/session-k/heldout) is spent only under the rationing rule in `heldout_read_policy`, and the arm's operating point is FIXED in this file before the read.",
+  "_no_llms": "A mid-session constraint from the human: NO LLMs. No generative model may appear anywhere in a mechanism. The incumbent 16M cross-encoder, the jina-v2-small embedder, and fine-tuning a 16-33M cross-encoder are all in scope; anything generative is not.",
+
+  "baseline": {
+    "held_out_R@1": 0.6725,
+    "held_out_R@1_honest_denominator_234": 0.6581,
+    "fit_R@1": 0.7555,
+    "held_out_R@2": 0.8122,
+    "held_out_R@3": 0.8515,
+    "held_out_R@5": 0.8865,
+    "held_out_R@10": 0.9039,
+    "target_primary": 0.70,
+    "target_stretch": 0.80,
+    "cases_needed_at_229_denominator": {
+      "to_reach_0.70": "+7 cases over 154",
+      "to_reach_0.80": "+29 cases over 154"
+    }
+  },
+
+  "why_the_post_hoc_space_is_not_where_the_target_lives": "23 mechanisms have been measured against the rank-1/rank-2 head decision and the measured ceiling on the whole post-hoc tie-break class is +5 cases, set by a blind coin flip below a 0.084 logit gap. +5 cases is +0.0218. That cannot reach 0.70 from 0.6725 on its own and cannot approach 0.80 at all. Wave 1 below runs the post-hoc arms anyway because they are cheap, because a well-controlled null closes the class, and because one of them (H-A) is not post-hoc. Wave 2 is where the target has to come from.",
+
+  "wave_1_post_hoc_and_diagnostic": {
+    "H-A_query_reduction_at_the_cross_encoder": {
+      "mechanism": "The cross-encoder sees [CLS] question [SEP] turn [SEP]. Nobody has ever changed the QUESTION side of that pair. ADR-013 measured query EXPANSION (PRF, entity discovery, HyDE) at the cue/embedding stage, before the cross-encoder existed. Many LongMemEval questions carry a meta-preamble that quotes a turn which is NOT the answer (89527b6b, 6222b6eb, e3fc4d6e), and the preamble dominates the match.",
+      "views_fixed_now": ["V1 = final sentence only (parameter-free)", "V2 = drop leading sentences matching a FIXED pattern list, never the final sentence"],
+      "fusions_fixed_now": ["reduced-only", "max(full, reduced)", "mean(full, reduced)"],
+      "prediction": "V2 reduced-only +3 to +8 net cases on fit, concentrated in single-session-assistant and single-session-user. V1 ~0 or negative (it discards topic words in two-sentence questions). mean beats max. Positive above the 0.084 band, because this re-scores the whole slate rather than breaking a near-tie.",
+      "negative_control": "re-score using the DROPPED PREAMBLE ALONE as the query. If that also helps, the mechanism is not what it claims.",
+      "is_post_hoc": false
+    },
+    "H-C_slate_unique_idf_mass": {
+      "mechanism": "IDF-weighted mass of a candidate's content words appearing in NO OTHER depth-10 slate member, as a fraction of its total mass. Flip the head pair at tau = 0. Distinct from the dead 'IDF non-query mass' (denominator is the SLATE, not the QUESTION) and from centroid subtraction (lexical set operation at the head, not a dense operation at the cue stage).",
+      "prediction": "+2 to +6 net cases at tau = 0 on fit. FAILS the above-0.084 test (0 or negative). High correlation (>0.5) with non_query_mass_norm_gap, in which case it is the dead feature in new clothes and must be reported as such.",
+      "is_post_hoc": true
+    },
+    "H-G_within_turn_sentence_dispersion": {
+      "mechanism": "Mean pairwise cosine among a turn's OWN sentences, embedded with jina-v2-small. Low coherence = multi-topic = gold-shaped, per the unifying fact. Flip at tau = 0. No query, no peak, no score profile, NO HYPERPARAMETER -- which is the one stated reason context decay died (its lambda was chosen from ten cells on fit).",
+      "prediction": "+3 to +8 net cases at tau = 0 on fit. FAILS the above-0.084 test. Correlates with length; the length-matched control is required and may kill it.",
+      "is_post_hoc": true
+    },
+    "H-B_leave_one_sentence_out_attribution": {
+      "mechanism": "concentration = max_i(S_full - S_-i) / sum_i |S_full - S_-i|. Measures how much the turn's score DEPENDS on one span in context. Distinct from sentence MaxP, which scores spans in ISOLATION and therefore surfaced the distractor's question-echoing span at full strength.",
+      "prediction": "+3 to +7 net cases at tau = 0 on fit. FAILS the above-0.084 test -- same family as context decay, measured by ablation instead of by windowing.",
+      "is_post_hoc": true
+    },
+    "H-D_head_decidability_audit": {
+      "mechanism": "Not a ranking rule. Measures whether the claimed +26 ceiling is real: (i) how many of the 26 POSITIVE head pairs have the gold ANSWER already stated in the rank-1 turn; (ii) THE CONTROL -- the same matcher on the 110 NEGATIVE pairs' rank-2; (iii) rank1-rank2 near-duplicate structure by Jaccard and dense cosine, split by label.",
+      "prediction": "6 to 12 of 26 POSITIVE pairs have the answer at rank 1. The control reads substantially lower (10-25% of 110). POSITIVE pairs are more near-duplicate than NEGATIVE. The corrected above-band ceiling is under 10 cases (< +0.044 R@1). If the control comes back at a similar rate, finding (i) is VOID and must be declared so."
+    }
+  },
+
+  "wave_2_where_the_target_has_to_come_from": {
+    "W1_fine_tuned_capacity_curve": {
+      "the_confound": "STATE.md records 'bigger cross-encoders' as CLOSED on the reading that 'the 278M models lose to a fine-tuned 16M by 17-27 points'. Only TWO models in this project's history have ever been fine-tuned: L-2 and L-6, both in Session J. Every larger model in frontier.json is a stock pretrained checkpoint. The comparison moved two variables at once -- capacity AND fine-tuning -- and is therefore not a measurement of capacity. This is the failure family CLAUDE.md keeps a ledger of: a measurement is scoped to the system it was taken on.",
+      "arm": "Fine-tune ms-marco-MiniLM-L-4-v2 and L-12-v2 with Session J's EXACT recipe (finetune_v2.py arm A, unchanged hyperparameters, seed, pairs, loss, delta, fold), giving the curve L-2-ft (16M) -> L-4-ft -> L-6-ft (23M) -> L-12-ft (33M) at fixed fine-tuning.",
+      "prediction": "L-12-ft beats L-2-ft on fit by +0.02 to +0.06 R@1 at matched depth. Fine-tuning is worth ~+0.16 on L-2 (0.5983 -> 0.7555); if that lift is roughly capacity-independent, L-12's pretrained 0.6332 becomes ~0.75-0.79. The curve is monotone or flat, NOT inverted. If L-12-ft is worse than L-2-ft, capacity is genuinely refuted and the old claim survives on better evidence.",
+      "why_the_collapse_risk_is_low": "Every previous fit->held-out collapse was a threshold chosen on fit (depth, context decay's lambda) or query-specific negative mining (arm B's deployed_top_k negatives, which are 'the turns that beat gold on THESE queries' by construction). Changing base capacity is neither.",
+      "shippability": "All four are BERT/WordPiece = Tier A: they load in the shipped rerank.rs with a digest re-pin and nothing else.",
+      "gates": ["arm A must reproduce fit 0.7555 AND 0 discordant queries of 229 against the shipped graph", "export verification per graph", "per-graph batch and padding invariance, never inherited (ADR-015)", "digest pin every new graph in a NEW manifest; runs/session-i/reranker-manifest.json is a record and is not edited"]
+    },
+    "W2_rerank_depth_below_10": {
+      "the_gap": "frontier.json swept depths {10, 20, 30} ONLY. Conditional accuracy falls monotonically as depth rises (0.8200 -> 0.7893 -> 0.7823). Nobody has asked what it does when depth falls.",
+      "arm": "depths 1..10 on both fine-tuned graphs. Depth 1 is a degenerate instrument check: the cross-encoder cannot reorder, so R@1 MUST equal the cue-only 0.5633.",
+      "prediction": "conditional accuracy keeps rising below 10 (~0.85-0.90 at depth 5, ~0.90-0.95 at depth 3), but the input-recall loss dominates and depths 5-8 read -0.01 to +0.01 against 0.7555. Run because it is cheap and it is a one-line product constant, NOT because a large win is expected. Any winning cell will be <= +0.015 on fit.",
+      "shippability": "one constant in retrieve.rs."
+    },
+    "W3_sequence_length_above_256": {
+      "the_expired_reason": "max_seq 256 is inherited from the int8 era. ADR-015's shape-binding is a property of INT8 graphs; the shipped path has been f32 since Session K and session_i_rerankers records max_seq 512 for it. ~11% of gold turns truncate at 256.",
+      "arm": "max_seq in {256 control, 320, 384, 512} x {L-2-ft, L-6-ft} x depths {10, 20}, with ADR-015 re-opened and CLOSED PER GRAPH before any R@1 cell is read.",
+      "prediction": "padding invariance 0.000000 on both f32 graphs at every length. Fit R@1 moves -0.01 to +0.02 at 512. If it moves, it moves UP, because a truncated gold loses its answer clause while a truncated distractor loses only more of the same topic. A flat result refutes that asymmetry and must be said.",
+      "required_subgroup": "among cases whose gold was truncated at 256, how many change outcome at 512, gained and lost separately. If R@1 moves but not on those cases, the movement is noise.",
+      "shippability": "a constant plus a re-measured invariance claim."
+    }
+  },
+
+  "queued_not_yet_launched": {
+    "W4_non_query_specific_negatives": "Arm B reached fit 0.8253 (+0.0698, McNemar 18/2, p=0.0004) and collapsed 8x to held-out +0.0087. The DIAGNOSED cause is on the record: deployed_top_k negatives are query-specific by construction, so the model memorised turns rather than the pattern. That diagnosis names a fix nobody has run -- negatives mined from OTHER conversations, so no negative can be query-specific. Launch only after W1 reports, to avoid two training jobs contending for one GPU.",
+    "W5_cue_3": "M0b shipped 2 cues of a named 5, plus no query-type router, no ANN index, no hot index. gate-frozen-v5.json contains the instruction 'Unpin at cue 3 ... and pre-register the predicate before doing so.' This is the project's largest unexplored lever, but its reach is bounded by the slate-draw loss (18 of 234) and depth 30 already showed that recovering slate losses costs conditional accuracy. Deprioritised BELOW W1 for this goal, and that ordering is recorded here so it is a decision rather than an omission."
+  },
+
+  "heldout_read_policy": {
+    "reads_already_spent_this_session": 3,
+    "rule": "A held-out read is spent only on an arm whose operating point is FIXED in writing before the read, and only when the arm is a mechanism rather than a threshold. The fit number is not the criterion -- four mechanisms cleared their fit bar and died (depth +0.0174 -> +0.0044; arm B +0.0698 -> +0.0087; duoBERT +0.0655 -> +0.0044; context decay +0.0305 -> -0.0087).",
+    "priority_order_if_multiple_arms_qualify": ["W1 fine-tuned capacity", "W3 sequence length", "W2 depth", "H-A query reduction", "any surviving post-hoc tie-break"],
+    "reporting": "R@1 and R@1_current always on separate lines, with the honest 234 denominator stated beside the published 229 one. McNemar counts, not just a delta."
+  },
+
+  "what_would_make_this_session_a_failure_rather_than_a_null": "Reporting a fit number as if it were a result; spending a held-out read as a search rather than as a test; quoting a measurement taken on a different graph, split, depth or sequence length as though it transferred; or manufacturing a recommendation when the honest answer is that the lever is closed."
+}

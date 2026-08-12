@@ -1,0 +1,41 @@
+{
+  "_what": "cascade: depth-30 slate, L-2 narrows to 10, a second ranker picks the top 3",
+  "_split": "fit",
+  "_rrf_k": 60,
+  "_slate": 30,
+  "_narrow": 10,
+  "input_recall": 0.9825,
+  "after_narrowing": 0.9782,
+  "narrowing_retention": 0.9956,
+  "_gates": {
+    "fit_R@1": 0.7555,
+    "slate_exact": 229,
+    "control_R@3": 0.9258
+  },
+  "cells": {
+    "control  L-2 top-3 of 30": {
+      "R@1": 0.7686,
+      "R@2": 0.8777,
+      "R@3": 0.9258,
+      "conditional_top3": 0.9422
+    },
+    "cascade-L6": {
+      "R@1": 0.7729,
+      "R@2": 0.8952,
+      "R@3": 0.9214,
+      "conditional_top3": 0.9378
+    },
+    "cascade-rrf": {
+      "R@1": 0.786,
+      "R@2": 0.8952,
+      "R@3": 0.9301,
+      "conditional_top3": 0.9467
+    },
+    "cascade-sum": {
+      "R@1": 0.7991,
+      "R@2": 0.8952,
+      "R@3": 0.9301,
+      "conditional_top3": 0.9467
+    }
+  }
+}

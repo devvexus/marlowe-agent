@@ -1,0 +1,6200 @@
+{
+  "_what": "W7 \u2014 fit-split fold contamination. The shipped cross-encoder was fine-tuned on the fit split (Session J); this splits the 229 fit queries by Session J's own conversation-level fold and reports the shipped graph and an untrained control on each half.",
+  "_split": "fit ONLY. runs/session-k/heldout was not opened; 0.6725 is quoted from the record.",
+  "_depth": 10,
+  "_provider": "CPUExecutionProvider",
+  "gates": {
+    "1_shipped_key_reproduces_published_fit_r1": {
+      "reconstructed": 0.7555,
+      "published": 0.7555,
+      "passed": true
+    },
+    "2_held_apart_set_matches_retrain_fold_breakdown": {
+      "here": 47,
+      "there": 47,
+      "identical": true
+    },
+    "3_recombination": {
+      "ms-marco-MiniLM-L-2-v2-ft-session-j (SHIPPED, fine-tuned ON the fit split)": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 137,
+            "R@1": 0.7569
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 35,
+            "R@1": 0.7447
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 1,
+            "R@1": 1.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 173,
+        "whole_n": 229,
+        "whole_hits": 173,
+        "recomposed_R@1": 0.7555,
+        "whole_R@1": 0.7555,
+        "reconstructs": true
+      },
+      "ms-marco-MiniLM-L-2-v2 (PRETRAINED CONTROL, never trained)": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 105,
+            "R@1": 0.5801
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 32,
+            "R@1": 0.6809
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 0,
+            "R@1": 0.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 137,
+        "whole_n": 229,
+        "whole_hits": 137,
+        "recomposed_R@1": 0.5983,
+        "whole_R@1": 0.5983,
+        "reconstructs": true
+      },
+      "cue-only order (NO cross-encoder at all \u2014 purest case-mix yardstick)": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 104,
+            "R@1": 0.5746
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 25,
+            "R@1": 0.5319
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 0,
+            "R@1": 0.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 129,
+        "whole_n": 229,
+        "whole_hits": 129,
+        "recomposed_R@1": 0.5633,
+        "whole_R@1": 0.5633,
+        "reconstructs": true
+      }
+    },
+    "4_pretrained_control_reproduces_frontier_cell": {
+      "reconstructed": 0.5983,
+      "published": 0.5983,
+      "passed": true
+    }
+  },
+  "fold": {
+    "pairs_file": "runs\\session-j\\training-pairs.jsonl",
+    "n_pairs": 6898,
+    "n_pairs_train": 5612,
+    "n_pairs_val": 1286,
+    "train_conversation_ids": [
+      "answer_016f6bd4_1",
+      "answer_016f6bd4_2",
+      "answer_02b63d04_1",
+      "answer_02b63d04_2",
+      "answer_02b63d04_3",
+      "answer_02b63d04_4",
+      "answer_02b63d04_5",
+      "answer_0714183a",
+      "answer_07664d43_1",
+      "answer_07664d43_2",
+      "answer_099c1b6c_1",
+      "answer_0b1a0942_1",
+      "answer_0b1a0942_2",
+      "answer_0d4d0347_1",
+      "answer_0d4d0347_2",
+      "answer_0d4d0348_2",
+      "answer_0dd4d99a",
+      "answer_0dd54b7c_1",
+      "answer_0eb23770_1",
+      "answer_0eb23770_2",
+      "answer_11a8f823_1",
+      "answer_11a8f823_2",
+      "answer_16ece55f_1",
+      "answer_16ece55f_2",
+      "answer_1a374afa_1",
+      "answer_1a374afa_2",
+      "answer_1bb63ea5_1",
+      "answer_1bb63ea5_2",
+      "answer_1bde8d3b",
+      "answer_1cb52d0a_1",
+      "answer_1cb52d0a_2",
+      "answer_235eb6fb",
+      "answer_2504635e_1",
+      "answer_2504635e_2",
+      "answer_2504635e_3",
+      "answer_2952aee4",
+      "answer_304511ce",
+      "answer_30f63ddb",
+      "answer_33c251f0_1",
+      "answer_33c251f0_2",
+      "answer_353d3c6d_1",
+      "answer_353d3c6d_2",
+      "answer_355c48bb",
+      "answer_35c5419d_1",
+      "answer_35c5419d_2",
+      "answer_35c5419d_3",
+      "answer_35d6c0be_1",
+      "answer_35d6c0be_2",
+      "answer_3a6f1e82_1",
+      "answer_3a6f1e82_2",
+      "answer_3be95d43_1",
+      "answer_3be95d43_2",
+      "answer_3e9fce53_1",
+      "answer_3e9fce53_2",
+      "answer_3e9fce53_3",
+      "answer_436d4309_1",
+      "answer_436d4309_2",
+      "answer_43ba3965_1",
+      "answer_47152166_1",
+      "answer_47152166_2",
+      "answer_4934b2d7_1",
+      "answer_4934b2d7_2",
+      "answer_4a97ae40_1",
+      "answer_4a97ae40_2",
+      "answer_4be1b6b4_2",
+      "answer_4be1b6b4_3",
+      "answer_4bebc783_1",
+      "answer_4bfcc250_1",
+      "answer_4bfcc250_2",
+      "answer_4bfcc250_3",
+      "answer_4bfcc250_4",
+      "answer_4dac77cb_1",
+      "answer_4dac77cb_2",
+      "answer_4fb01417_1",
+      "answer_4fb01417_2",
+      "answer_4ffa04a2_1",
+      "answer_4ffa04a2_2",
+      "answer_4ffa04a2_3",
+      "answer_4ffa04a2_4",
+      "answer_4ffa04a2_5",
+      "answer_4ffa04a2_6",
+      "answer_5237bb0b_1",
+      "answer_5237bb0b_2",
+      "answer_5404a208_1",
+      "answer_5404a208_2",
+      "answer_550bb2d1_1",
+      "answer_55a6940c_1",
+      "answer_55a6940c_2",
+      "answer_55a6940c_3",
+      "answer_581ab834_1",
+      "answer_5850de18_1",
+      "answer_5850de18_2",
+      "answer_593bdffd_1",
+      "answer_593bdffd_2",
+      "answer_593bdffd_3",
+      "answer_593bdffd_4",
+      "answer_59547700",
+      "answer_5a78688d_1",
+      "answer_5a78688d_2",
+      "answer_5ca6cd28",
+      "answer_5cdf9bd2_1",
+      "answer_5cdf9bd2_2",
+      "answer_5cdf9bd2_3",
+      "answer_5cdf9bd2_4",
+      "answer_5fcca8bc_1",
+      "answer_5fcca8bc_2",
+      "answer_60e8941a_1",
+      "answer_60e8941a_2",
+      "answer_60e8941a_abs_2",
+      "answer_626e93c4_1",
+      "answer_626e93c4_2",
+      "answer_6350aa4f_1",
+      "answer_6350aa4f_2",
+      "answer_6350aa4f_3",
+      "answer_6350aa4f_4",
+      "answer_645b0329",
+      "answer_65600ff6_abs_2",
+      "answer_6702277b_1",
+      "answer_6702277b_2",
+      "answer_679840f8",
+      "answer_6a3b5c13_1",
+      "answer_6a3b5c13_2",
+      "answer_6a3b5c13_3",
+      "answer_6a3b5c13_4",
+      "answer_6a4f8626_1",
+      "answer_6a4f8626_2",
+      "answer_6cb8f792_1",
+      "answer_6cb8f792_2",
+      "answer_6efce493_1",
+      "answer_6efce493_2",
+      "answer_6fe9fb49",
+      "answer_7093d898_1",
+      "answer_7093d898_2",
+      "answer_7093d898_3",
+      "answer_7093d898_4",
+      "answer_7093d898_5",
+      "answer_7093d898_6",
+      "answer_70dc7d08_1",
+      "answer_70dc7d08_2",
+      "answer_70dc7d08_abs_1",
+      "answer_728deb4d_1",
+      "answer_728deb4d_2",
+      "answer_728deb4d_3",
+      "answer_728deb4d_4",
+      "answer_728deb4d_5",
+      "answer_72d9aa58_1",
+      "answer_72d9aa58_2",
+      "answer_733e443a_1",
+      "answer_733e443a_2",
+      "answer_733e443a_3",
+      "answer_733e443a_4",
+      "answer_743f03a1_1",
+      "answer_743f03a1_2",
+      "answer_743f03a1_abs_1",
+      "answer_766ab8da_1",
+      "answer_766ab8da_2",
+      "answer_7726e7e9_1",
+      "answer_7726e7e9_2",
+      "answer_7726e7e9_3",
+      "answer_7a36e820_1",
+      "answer_7a36e820_2",
+      "answer_7a36e820_3",
+      "answer_7a4a93f1_1",
+      "answer_7a4a93f1_2",
+      "answer_7bdcbd23",
+      "answer_826d51da_2",
+      "answer_826d51da_3",
+      "answer_826d51da_4",
+      "answer_83c13ff9",
+      "answer_8414cc57",
+      "answer_8464304d_1",
+      "answer_8464304d_2",
+      "answer_8549e5e0",
+      "answer_85a77c48_1",
+      "answer_85a77c48_2",
+      "answer_86c505e7_1",
+      "answer_86c505e7_2",
+      "answer_872e8da2_1",
+      "answer_872e8da2_2",
+      "answer_87e3a1cb_1",
+      "answer_87e3a1cb_2",
+      "answer_8858d9dc_1",
+      "answer_8858d9dc_2",
+      "answer_8858d9dc_3",
+      "answer_8858d9dc_4",
+      "answer_88841f27_2",
+      "answer_8a42fedf_1",
+      "answer_8a42fedf_2",
+      "answer_8a42fedf_3",
+      "answer_8a791264_2",
+      "answer_8c64ce25_1",
+      "answer_8c64ce25_2",
+      "answer_8c64ce25_3",
+      "answer_8ee04a2e",
+      "answer_8f15ac24",
+      "answer_8f276838",
+      "answer_90de9b4d_1",
+      "answer_90de9b4d_2",
+      "answer_923c0221_1",
+      "answer_923c0221_2",
+      "answer_966cecbb_1",
+      "answer_966cecbb_2",
+      "answer_9793daa3_1",
+      "answer_9793daa3_2",
+      "answer_991d55e5_1",
+      "answer_991d55e5_2",
+      "answer_9af4e346_1",
+      "answer_9af4e346_2",
+      "answer_9b09d95b_1",
+      "answer_9cddca88",
+      "answer_9ef115d4_1",
+      "answer_9ef115d4_2",
+      "answer_a17423e7_1",
+      "answer_a4204937_1",
+      "answer_a4204937_2",
+      "answer_a68db5db_1",
+      "answer_a68db5db_2",
+      "answer_aa930b56_1",
+      "answer_aa930b56_2",
+      "answer_ab603dd5_1",
+      "answer_ab603dd5_2",
+      "answer_ab603dd5_abs_1",
+      "answer_add9b012_1",
+      "answer_add9b012_2",
+      "answer_b0f3dfff_1",
+      "answer_b0f3dfff_2",
+      "answer_b0fac439",
+      "answer_b10f3828_1",
+      "answer_b10f3828_2",
+      "answer_b3070ec4_1",
+      "answer_b3070ec4_2",
+      "answer_b3070ec4_abs_1",
+      "answer_b3763b6b_1",
+      "answer_b3763b6b_2",
+      "answer_b6018747_1",
+      "answer_b6018747_2",
+      "answer_b6018747_3",
+      "answer_b6018747_4",
+      "answer_b9d9150e_1",
+      "answer_b9d9150e_2",
+      "answer_babbaccb_1",
+      "answer_babbaccb_2",
+      "answer_be07688f_1",
+      "answer_be07688f_2",
+      "answer_be73098b_1",
+      "answer_be73098b_2",
+      "answer_c008e5df_1",
+      "answer_c008e5df_2",
+      "answer_c008e5df_3",
+      "answer_c4df007f_1",
+      "answer_c4e5d969_1",
+      "answer_c4e5d969_2",
+      "answer_c63c0458",
+      "answer_c65042d7_1",
+      "answer_c65042d7_2",
+      "answer_c65042d7_3",
+      "answer_c69ee1f9_1",
+      "answer_c69ee1f9_2",
+      "answer_c6a0c6c2_1",
+      "answer_c6a0c6c2_2",
+      "answer_c7ddc051_1",
+      "answer_c7ddc051_2",
+      "answer_c8354ae9",
+      "answer_c862f65a_1",
+      "answer_c862f65a_2",
+      "answer_c862f65a_3",
+      "answer_c9dfeaea_1",
+      "answer_c9dfeaea_2",
+      "answer_cb742a61",
+      "answer_cc021f81_1",
+      "answer_cc021f81_2",
+      "answer_cc021f81_3",
+      "answer_cc1ced21_1",
+      "answer_cc1ced21_2",
+      "answer_cdba3d9f_1",
+      "answer_cdba3d9f_2",
+      "answer_cf021b36_1",
+      "answer_cf021b36_2",
+      "answer_cf021b36_3",
+      "answer_cf9e3940_1",
+      "answer_cf9e3940_2",
+      "answer_cf9e3940_3",
+      "answer_d3bf812b_1",
+      "answer_d3bf812b_2",
+      "answer_d6028d6e_1",
+      "answer_d6028d6e_2",
+      "answer_d61669c7",
+      "answer_d7de9a6a_1",
+      "answer_d7de9a6a_2",
+      "answer_d8e33f5c_abs_1",
+      "answer_d97db962_1",
+      "answer_d97db962_2",
+      "answer_dba89487_1",
+      "answer_dba89487_2",
+      "answer_dba89488_1",
+      "answer_e05e4612",
+      "answer_e28c1f0e_2",
+      "answer_e552e1f9_1",
+      "answer_e552e1f9_2",
+      "answer_e6c20e52_1",
+      "answer_e6c20e52_2",
+      "answer_e6c20e52_3",
+      "answer_e7b0637e_1",
+      "answer_e7b0637e_2",
+      "answer_e7b0637e_3",
+      "answer_e9ad5914_1",
+      "answer_e9ad5914_2",
+      "answer_e9ad5914_3",
+      "answer_e9ad5914_4",
+      "answer_e9ad5914_5",
+      "answer_e9ad5914_6",
+      "answer_e9bb9500_1",
+      "answer_e9bb9500_2",
+      "answer_ec904b3c_1",
+      "answer_ec904b3c_2",
+      "answer_ec904b3c_3",
+      "answer_ec904b3c_4",
+      "answer_ed1982fc",
+      "answer_edb03329",
+      "answer_eecb10d9_1",
+      "answer_eecb10d9_2",
+      "answer_f3164f2c",
+      "answer_f377cda7_1",
+      "answer_f377cda7_2",
+      "answer_f6168136",
+      "answer_f6d6e33f_1",
+      "answer_f7b22c66",
+      "answer_f999b05b_1",
+      "answer_f999b05b_2",
+      "answer_f999b05b_3",
+      "answer_f999b05b_4",
+      "answer_f999b05b_5",
+      "answer_f999b05c_3",
+      "answer_fb793c87_1",
+      "answer_fb793c87_2",
+      "answer_feb5200f",
+      "answer_feb5f98a_1",
+      "answer_feb5f98a_2",
+      "answer_febde667_1",
+      "answer_febde667_2",
+      "answer_ff201786_1",
+      "answer_ff201786_2",
+      "answer_sharegpt_5m7gg5F_0",
+      "answer_sharegpt_81riySf_0",
+      "answer_sharegpt_H9PiM5G_0",
+      "answer_sharegpt_HFMn2ZX_0",
+      "answer_sharegpt_YkWn1Ne_0",
+      "answer_sharegpt_i0tMT9q_9",
+      "answer_sharegpt_i9adwQn_0",
+      "answer_sharegpt_m2xJfjo_0",
+      "answer_ultrachat_13075",
+      "answer_ultrachat_174360",
+      "answer_ultrachat_187684",
+      "answer_ultrachat_195444",
+      "answer_ultrachat_234453",
+      "answer_ultrachat_252214",
+      "answer_ultrachat_275993",
+      "answer_ultrachat_289157",
+      "answer_ultrachat_334948",
+      "answer_ultrachat_374124",
+      "answer_ultrachat_39395",
+      "answer_ultrachat_399000",
+      "answer_ultrachat_417348",
+      "answer_ultrachat_480665",
+      "answer_ultrachat_563222"
+    ],
+    "val_conversation_ids": [
+      "answer_1de862d6_1",
+      "answer_1de862d6_2",
+      "answer_1de862d6_3",
+      "answer_1e6d4567",
+      "answer_23759615_1",
+      "answer_23759615_2",
+      "answer_23759615_3",
+      "answer_254d8b09_1",
+      "answer_254d8b09_2",
+      "answer_35c9798c_1",
+      "answer_35c9798c_2",
+      "answer_3bf5b73b_1",
+      "answer_3bf5b73b_2",
+      "answer_3e012175",
+      "answer_419d21d5_1",
+      "answer_419d21d5_2",
+      "answer_4d3be2ab",
+      "answer_530960c1",
+      "answer_55161935",
+      "answer_57fc1954",
+      "answer_586de428",
+      "answer_5ff494b9",
+      "answer_61d1be50_1",
+      "answer_61d1be50_2",
+      "answer_6dc4305e",
+      "answer_6ea1541e_1",
+      "answer_6ea1541e_2",
+      "answer_719502eb",
+      "answer_7e9ad7b4_1",
+      "answer_7e9ad7b4_2",
+      "answer_8748f791_1",
+      "answer_8748f791_2",
+      "answer_8d015d9d_1",
+      "answer_8d015d9d_2",
+      "answer_8d015d9d_3",
+      "answer_8d015d9d_4",
+      "answer_8d015d9d_5",
+      "answer_8de18468_1",
+      "answer_8de18468_2",
+      "answer_901a6763_1",
+      "answer_901a6763_2",
+      "answer_901a6763_3",
+      "answer_901a6763_4",
+      "answer_9282283d_1",
+      "answer_9282283d_2",
+      "answer_94030872",
+      "answer_96c743d0_1",
+      "answer_96c743d0_2",
+      "answer_986de8c3",
+      "answer_9b182436",
+      "answer_a22b654d_1",
+      "answer_a22b654d_2",
+      "answer_a7b44747_1",
+      "answer_a7b44747_2",
+      "answer_b10dce5e",
+      "answer_b9e32ff8_1",
+      "answer_b9e32ff8_2",
+      "answer_bcce0b73_2",
+      "answer_c8cc60d6_1",
+      "answer_c8cc60d6_2",
+      "answer_cd345582_1",
+      "answer_cd345582_2",
+      "answer_cdbe2250_1",
+      "answer_cdbe2250_2",
+      "answer_d6d2eba8_1",
+      "answer_d6d2eba8_2",
+      "answer_d8454588_1",
+      "answer_d8454588_2",
+      "answer_da72b1b4_1",
+      "answer_da72b1b4_2",
+      "answer_e0585cb5_1",
+      "answer_e0585cb5_2",
+      "answer_ef74281f_1",
+      "answer_ef74281f_2",
+      "answer_ef74281f_3",
+      "answer_sharegpt_CaxTGYP_0",
+      "answer_sharegpt_hn3IS1q_0",
+      "answer_ultrachat_115151",
+      "answer_ultrachat_294807",
+      "answer_ultrachat_446979"
+    ],
+    "n_train_conversations": 365,
+    "n_val_conversations": 80,
+    "train_query_ids_all": [
+      "3fe836c9",
+      "4100d0a0",
+      "41275add",
+      "41698283",
+      "45dc21b6",
+      "46a3abf7",
+      "488d3006",
+      "4adc0475",
+      "4baee567",
+      "4bc144e2",
+      "4d6b87c8",
+      "4dfccbf8",
+      "4fd1909e",
+      "505af2f5",
+      "51a45a95",
+      "54026fce",
+      "577d4d32",
+      "57f827a0",
+      "58bf7951",
+      "58ef2f1c",
+      "5a4f22c0",
+      "5c40ec5b",
+      "5d3d2817",
+      "60036106",
+      "6071bd76",
+      "60d45044",
+      "61f8c8f8",
+      "6222b6eb",
+      "6456829e",
+      "6456829e_abs",
+      "681a1674",
+      "69fee5aa",
+      "6c49646a",
+      "6cb6f249",
+      "6d550036",
+      "6e984302",
+      "6f9b354f",
+      "70b3e69b",
+      "71a3fd6b",
+      "720133ac",
+      "72e3ee87",
+      "75f70248",
+      "778164c6",
+      "77eafa52",
+      "7a8d0b71",
+      "8077ef71",
+      "830ce83f",
+      "852ce960",
+      "8550ddae",
+      "88432d0a",
+      "89527b6b",
+      "8a2466db",
+      "8aef76bc",
+      "8b9d4367",
+      "8cf51dda",
+      "8e9d538c",
+      "8fb83627",
+      "91b15a6e",
+      "92a0aa75",
+      "945e3d21",
+      "94f70d80",
+      "95bcc1c8",
+      "982b5123",
+      "982b5123_abs",
+      "9a707b81",
+      "9a707b82",
+      "9aaed6a3",
+      "9bbe84a2",
+      "a06e4cfe",
+      "a08a253f",
+      "a11281a2",
+      "a1eacc2a",
+      "a3045048",
+      "a3332713",
+      "a346bb18",
+      "a3838d2b",
+      "a4996e51",
+      "a89d7624",
+      "a9f6b44c",
+      "ad7109d1",
+      "afdc33df",
+      "affe2881",
+      "b0479f84",
+      "b29f3365",
+      "b46e15ed",
+      "b6025781",
+      "b86304ba",
+      "ba61f0b9",
+      "bbf86515",
+      "bcbe585f",
+      "bf659f65",
+      "c14c00dd",
+      "c2ac3c61",
+      "c4ea545c",
+      "c4f10528",
+      "c5e8278d",
+      "c6853660",
+      "c8090214",
+      "c8090214_abs",
+      "c960da58",
+      "c9f37c46",
+      "caf9ead2",
+      "cc06de0d",
+      "cc539528",
+      "cc6d1ec1",
+      "d01c6aa8",
+      "d3ab962e",
+      "d596882b",
+      "d6233ab6",
+      "d682f1a2",
+      "d7c942c3",
+      "d851d5ba",
+      "d905b33f",
+      "dad224aa",
+      "dccbc061",
+      "dfde3500",
+      "e01b8e2f",
+      "e25c3b8d",
+      "e3038f8c",
+      "e3fc4d6e",
+      "e48988bc",
+      "e493bb7c",
+      "e831120c",
+      "e8a79c70",
+      "e9327a54",
+      "e982271f",
+      "eac54adc",
+      "eac54add",
+      "eace081b",
+      "ec81a493",
+      "ed4ddc30",
+      "edced276",
+      "edced276_abs",
+      "ef9cf60a",
+      "f35224e0",
+      "f523d9fe",
+      "fca762bc",
+      "fea54f57",
+      "gpt4_0a05b494",
+      "gpt4_0b2f1d21",
+      "gpt4_15e38248",
+      "gpt4_18c2b244",
+      "gpt4_1d4ab0c9",
+      "gpt4_2655b836",
+      "gpt4_2ba83207",
+      "gpt4_2c50253f",
+      "gpt4_2f56ae70",
+      "gpt4_2f584639",
+      "gpt4_2f8be40d",
+      "gpt4_31ff4165",
+      "gpt4_372c3eed",
+      "gpt4_385a5000",
+      "gpt4_45189cb4",
+      "gpt4_468eb063",
+      "gpt4_468eb064",
+      "gpt4_483dd43c",
+      "gpt4_4929293a",
+      "gpt4_4cd9eba1",
+      "gpt4_4fc4f797",
+      "gpt4_5438fa52",
+      "gpt4_59c863d7",
+      "gpt4_5dcc0aab",
+      "gpt4_68e94287",
+      "gpt4_6dc9b45b",
+      "gpt4_70e84552",
+      "gpt4_70e84552_abs",
+      "gpt4_731e37d7",
+      "gpt4_78cf46a3",
+      "gpt4_7abb270c",
+      "gpt4_7ca326fa",
+      "gpt4_85da3956",
+      "gpt4_8c8961ae",
+      "gpt4_8e165409",
+      "gpt4_98f46fc6",
+      "gpt4_9a159967",
+      "gpt4_a1b77f9c",
+      "gpt4_a2d1d1f6",
+      "gpt4_a56e767c",
+      "gpt4_ab202e7f",
+      "gpt4_b0863698",
+      "gpt4_b4a80587",
+      "gpt4_b5700ca9",
+      "gpt4_c27434e8_abs",
+      "gpt4_cd90e484",
+      "gpt4_d12ceb0e",
+      "gpt4_d31cdae3",
+      "gpt4_d6585ce8",
+      "gpt4_d6585ce9",
+      "gpt4_e05b82a6",
+      "gpt4_e061b84f",
+      "gpt4_e414231f",
+      "gpt4_f2262a51",
+      "gpt4_f49edff3",
+      "gpt4_fa19884c",
+      "gpt4_fe651585_abs"
+    ],
+    "val_query_ids_all": [
+      "001be529",
+      "0100672e",
+      "01493427",
+      "031748ae",
+      "06db6396",
+      "07741c44",
+      "07741c45",
+      "078150f1",
+      "08e075c7",
+      "08f4fc43",
+      "0977f2af",
+      "09ba9854",
+      "09d032c9",
+      "0db4c65d",
+      "0ddfec37",
+      "0f05491a",
+      "10d9b85a",
+      "129d1232",
+      "15745da0",
+      "157a136e",
+      "16c90bf4",
+      "18dcd5a5",
+      "195a1a1b",
+      "19b5f2b3",
+      "1a1907b4",
+      "1b9b7252",
+      "1da05512",
+      "1e043500",
+      "1f2b8d4f",
+      "21436231",
+      "22d2cb42",
+      "25e5aa4f",
+      "2698e78f",
+      "28bcfaac",
+      "28dc39ac",
+      "2b8f3739",
+      "2ce6a0f2",
+      "3249768e",
+      "35a27287",
+      "36b9f61e",
+      "370a8ff4",
+      "37d43f65",
+      "3b6f954b",
+      "3ba21379",
+      "3c1045c8",
+      "3f1e9474",
+      "3fdac837"
+    ],
+    "trained_on_query_ids": [
+      "3fe836c9",
+      "4100d0a0",
+      "41275add",
+      "41698283",
+      "45dc21b6",
+      "46a3abf7",
+      "488d3006",
+      "4adc0475",
+      "4baee567",
+      "4bc144e2",
+      "4d6b87c8",
+      "4dfccbf8",
+      "4fd1909e",
+      "505af2f5",
+      "51a45a95",
+      "54026fce",
+      "577d4d32",
+      "57f827a0",
+      "58bf7951",
+      "58ef2f1c",
+      "5a4f22c0",
+      "5c40ec5b",
+      "5d3d2817",
+      "60036106",
+      "6071bd76",
+      "60d45044",
+      "61f8c8f8",
+      "6222b6eb",
+      "6456829e",
+      "681a1674",
+      "69fee5aa",
+      "6c49646a",
+      "6cb6f249",
+      "6d550036",
+      "6e984302",
+      "6f9b354f",
+      "70b3e69b",
+      "71a3fd6b",
+      "720133ac",
+      "72e3ee87",
+      "75f70248",
+      "778164c6",
+      "77eafa52",
+      "7a8d0b71",
+      "8077ef71",
+      "830ce83f",
+      "852ce960",
+      "8550ddae",
+      "88432d0a",
+      "89527b6b",
+      "8a2466db",
+      "8aef76bc",
+      "8b9d4367",
+      "8cf51dda",
+      "8e9d538c",
+      "8fb83627",
+      "91b15a6e",
+      "92a0aa75",
+      "945e3d21",
+      "94f70d80",
+      "95bcc1c8",
+      "982b5123",
+      "9a707b81",
+      "9a707b82",
+      "9aaed6a3",
+      "9bbe84a2",
+      "a06e4cfe",
+      "a08a253f",
+      "a11281a2",
+      "a1eacc2a",
+      "a3045048",
+      "a3332713",
+      "a346bb18",
+      "a4996e51",
+      "a89d7624",
+      "a9f6b44c",
+      "ad7109d1",
+      "afdc33df",
+      "affe2881",
+      "b0479f84",
+      "b29f3365",
+      "b46e15ed",
+      "b6025781",
+      "b86304ba",
+      "ba61f0b9",
+      "bbf86515",
+      "bcbe585f",
+      "bf659f65",
+      "c14c00dd",
+      "c2ac3c61",
+      "c4ea545c",
+      "c4f10528",
+      "c5e8278d",
+      "c6853660",
+      "c8090214",
+      "c960da58",
+      "caf9ead2",
+      "cc06de0d",
+      "cc539528",
+      "cc6d1ec1",
+      "d01c6aa8",
+      "d3ab962e",
+      "d596882b",
+      "d6233ab6",
+      "d682f1a2",
+      "d7c942c3",
+      "d851d5ba",
+      "d905b33f",
+      "dad224aa",
+      "dccbc061",
+      "dfde3500",
+      "e01b8e2f",
+      "e25c3b8d",
+      "e3038f8c",
+      "e3fc4d6e",
+      "e48988bc",
+      "e493bb7c",
+      "e831120c",
+      "e8a79c70",
+      "e9327a54",
+      "e982271f",
+      "eac54adc",
+      "eac54add",
+      "eace081b",
+      "ec81a493",
+      "ed4ddc30",
+      "edced276",
+      "ef9cf60a",
+      "f35224e0",
+      "f523d9fe",
+      "fca762bc",
+      "fea54f57",
+      "gpt4_0b2f1d21",
+      "gpt4_15e38248",
+      "gpt4_18c2b244",
+      "gpt4_1d4ab0c9",
+      "gpt4_2655b836",
+      "gpt4_2ba83207",
+      "gpt4_2c50253f",
+      "gpt4_2f584639",
+      "gpt4_2f8be40d",
+      "gpt4_31ff4165",
+      "gpt4_372c3eed",
+      "gpt4_385a5000",
+      "gpt4_45189cb4",
+      "gpt4_468eb063",
+      "gpt4_468eb064",
+      "gpt4_483dd43c",
+      "gpt4_4929293a",
+      "gpt4_4fc4f797",
+      "gpt4_5438fa52",
+      "gpt4_59c863d7",
+      "gpt4_5dcc0aab",
+      "gpt4_68e94287",
+      "gpt4_6dc9b45b",
+      "gpt4_70e84552",
+      "gpt4_731e37d7",
+      "gpt4_78cf46a3",
+      "gpt4_7abb270c",
+      "gpt4_7ca326fa",
+      "gpt4_85da3956",
+      "gpt4_8c8961ae",
+      "gpt4_8e165409",
+      "gpt4_98f46fc6",
+      "gpt4_a1b77f9c",
+      "gpt4_a2d1d1f6",
+      "gpt4_a56e767c",
+      "gpt4_ab202e7f",
+      "gpt4_b0863698",
+      "gpt4_b5700ca9",
+      "gpt4_cd90e484",
+      "gpt4_d12ceb0e",
+      "gpt4_d31cdae3",
+      "gpt4_d6585ce8",
+      "gpt4_d6585ce9",
+      "gpt4_e05b82a6",
+      "gpt4_e061b84f",
+      "gpt4_e414231f",
+      "gpt4_f2262a51",
+      "gpt4_f49edff3",
+      "gpt4_fa19884c"
+    ],
+    "held_apart_query_ids": [
+      "001be529",
+      "0100672e",
+      "01493427",
+      "031748ae",
+      "06db6396",
+      "07741c44",
+      "07741c45",
+      "078150f1",
+      "08e075c7",
+      "08f4fc43",
+      "0977f2af",
+      "09ba9854",
+      "09d032c9",
+      "0db4c65d",
+      "0ddfec37",
+      "0f05491a",
+      "10d9b85a",
+      "129d1232",
+      "15745da0",
+      "157a136e",
+      "16c90bf4",
+      "18dcd5a5",
+      "195a1a1b",
+      "19b5f2b3",
+      "1a1907b4",
+      "1b9b7252",
+      "1da05512",
+      "1e043500",
+      "1f2b8d4f",
+      "21436231",
+      "22d2cb42",
+      "25e5aa4f",
+      "2698e78f",
+      "28bcfaac",
+      "28dc39ac",
+      "2b8f3739",
+      "2ce6a0f2",
+      "3249768e",
+      "35a27287",
+      "36b9f61e",
+      "370a8ff4",
+      "37d43f65",
+      "3b6f954b",
+      "3ba21379",
+      "3c1045c8",
+      "3f1e9474",
+      "3fdac837"
+    ],
+    "unassigned_query_ids": [
+      "2ebe6c92"
+    ],
+    "n_trained_on": 181,
+    "n_held_apart": 47,
+    "n_unassigned": 1
+  },
+  "partition": {
+    "ms-marco-MiniLM-L-2-v2-ft-session-j (SHIPPED, fine-tuned ON the fit split)": {
+      "all": {
+        "n": 229,
+        "R@1": 0.7555,
+        "hits": 173,
+        "R@1_current": 0.6987,
+        "R@5": 0.917,
+        "input_recall": 0.9214,
+        "conditional_accuracy": 0.8199,
+        "clopper_pearson_95": [
+          0.6945,
+          0.8097
+        ]
+      },
+      "trained_on_182": {
+        "n": 182,
+        "R@1": 0.7582,
+        "hits": 138,
+        "R@1_current": 0.7088,
+        "R@5": 0.9121,
+        "input_recall": 0.9176,
+        "conditional_accuracy": 0.8263,
+        "clopper_pearson_95": [
+          0.6894,
+          0.8185
+        ]
+      },
+      "trained_on_mined_181": {
+        "n": 181,
+        "R@1": 0.7569,
+        "hits": 137,
+        "R@1_current": 0.7072,
+        "R@5": 0.9116,
+        "input_recall": 0.9171,
+        "conditional_accuracy": 0.8253,
+        "clopper_pearson_95": [
+          0.6877,
+          0.8175
+        ]
+      },
+      "unassigned_1": {
+        "n": 1,
+        "R@1": 1.0,
+        "hits": 1,
+        "R@1_current": 1.0,
+        "R@5": 1.0,
+        "input_recall": 1.0,
+        "conditional_accuracy": 1.0,
+        "clopper_pearson_95": [
+          0.025,
+          1.0
+        ]
+      },
+      "held_apart_47": {
+        "n": 47,
+        "R@1": 0.7447,
+        "hits": 35,
+        "R@1_current": 0.6596,
+        "R@5": 0.9362,
+        "input_recall": 0.9362,
+        "conditional_accuracy": 0.7955,
+        "clopper_pearson_95": [
+          0.5965,
+          0.8606
+        ]
+      },
+      "delta_trained_minus_held_apart": 0.0135,
+      "fisher_exact_two_sided_p": 0.8504,
+      "recombination": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 137,
+            "R@1": 0.7569
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 35,
+            "R@1": 0.7447
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 1,
+            "R@1": 1.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 173,
+        "whole_n": 229,
+        "whole_hits": 173,
+        "recomposed_R@1": 0.7555,
+        "whole_R@1": 0.7555,
+        "reconstructs": true
+      }
+    },
+    "ms-marco-MiniLM-L-2-v2 (PRETRAINED CONTROL, never trained)": {
+      "all": {
+        "n": 229,
+        "R@1": 0.5983,
+        "hits": 137,
+        "R@1_current": 0.5284,
+        "R@5": 0.8996,
+        "input_recall": 0.9214,
+        "conditional_accuracy": 0.6493,
+        "clopper_pearson_95": [
+          0.5316,
+          0.6623
+        ]
+      },
+      "trained_on_182": {
+        "n": 182,
+        "R@1": 0.5769,
+        "hits": 105,
+        "R@1_current": 0.522,
+        "R@5": 0.8956,
+        "input_recall": 0.9176,
+        "conditional_accuracy": 0.6287,
+        "clopper_pearson_95": [
+          0.5016,
+          0.6497
+        ]
+      },
+      "trained_on_mined_181": {
+        "n": 181,
+        "R@1": 0.5801,
+        "hits": 105,
+        "R@1_current": 0.5249,
+        "R@5": 0.895,
+        "input_recall": 0.9171,
+        "conditional_accuracy": 0.6325,
+        "clopper_pearson_95": [
+          0.5046,
+          0.6529
+        ]
+      },
+      "unassigned_1": {
+        "n": 1,
+        "R@1": 0.0,
+        "hits": 0,
+        "R@1_current": 0.0,
+        "R@5": 1.0,
+        "input_recall": 1.0,
+        "conditional_accuracy": 0.0,
+        "clopper_pearson_95": [
+          0.0,
+          0.975
+        ]
+      },
+      "held_apart_47": {
+        "n": 47,
+        "R@1": 0.6809,
+        "hits": 32,
+        "R@1_current": 0.5532,
+        "R@5": 0.9149,
+        "input_recall": 0.9362,
+        "conditional_accuracy": 0.7273,
+        "clopper_pearson_95": [
+          0.5288,
+          0.8091
+        ]
+      },
+      "delta_trained_minus_held_apart": -0.104,
+      "fisher_exact_two_sided_p": 0.2431,
+      "recombination": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 105,
+            "R@1": 0.5801
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 32,
+            "R@1": 0.6809
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 0,
+            "R@1": 0.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 137,
+        "whole_n": 229,
+        "whole_hits": 137,
+        "recomposed_R@1": 0.5983,
+        "whole_R@1": 0.5983,
+        "reconstructs": true
+      }
+    },
+    "cue-only order (NO cross-encoder at all \u2014 purest case-mix yardstick)": {
+      "all": {
+        "n": 229,
+        "R@1": 0.5633,
+        "hits": 129,
+        "R@1_current": 0.5284,
+        "R@5": 0.8341,
+        "input_recall": 0.9214,
+        "conditional_accuracy": 0.6114,
+        "clopper_pearson_95": [
+          0.4964,
+          0.6285
+        ]
+      },
+      "trained_on_182": {
+        "n": 182,
+        "R@1": 0.5714,
+        "hits": 104,
+        "R@1_current": 0.544,
+        "R@5": 0.8407,
+        "input_recall": 0.9176,
+        "conditional_accuracy": 0.6228,
+        "clopper_pearson_95": [
+          0.4961,
+          0.6444
+        ]
+      },
+      "trained_on_mined_181": {
+        "n": 181,
+        "R@1": 0.5746,
+        "hits": 104,
+        "R@1_current": 0.547,
+        "R@5": 0.8398,
+        "input_recall": 0.9171,
+        "conditional_accuracy": 0.6265,
+        "clopper_pearson_95": [
+          0.4991,
+          0.6476
+        ]
+      },
+      "unassigned_1": {
+        "n": 1,
+        "R@1": 0.0,
+        "hits": 0,
+        "R@1_current": 0.0,
+        "R@5": 1.0,
+        "input_recall": 1.0,
+        "conditional_accuracy": 0.0,
+        "clopper_pearson_95": [
+          0.0,
+          0.975
+        ]
+      },
+      "held_apart_47": {
+        "n": 47,
+        "R@1": 0.5319,
+        "hits": 25,
+        "R@1_current": 0.4681,
+        "R@5": 0.8085,
+        "input_recall": 0.9362,
+        "conditional_accuracy": 0.5682,
+        "clopper_pearson_95": [
+          0.3808,
+          0.6789
+        ]
+      },
+      "delta_trained_minus_held_apart": 0.0395,
+      "fisher_exact_two_sided_p": 0.6255,
+      "recombination": {
+        "parts": {
+          "trained_on_181": {
+            "n": 181,
+            "hits": 104,
+            "R@1": 0.5746
+          },
+          "held_apart_47": {
+            "n": 47,
+            "hits": 25,
+            "R@1": 0.5319
+          },
+          "unassigned_1": {
+            "n": 1,
+            "hits": 0,
+            "R@1": 0.0
+          }
+        },
+        "sum_n": 229,
+        "sum_hits": 129,
+        "whole_n": 229,
+        "whole_hits": 129,
+        "recomposed_R@1": 0.5633,
+        "whole_R@1": 0.5633,
+        "reconstructs": true
+      }
+    }
+  },
+  "contamination_estimate_difference_of_differences": 0.1175,
+  "interaction_permutation_test": {
+    "pretrained": {
+      "fine_tune_gain_trained_on": 0.1813,
+      "fine_tune_gain_held_apart": 0.0638,
+      "difference_of_differences": 0.1175,
+      "permutation_p_two_sided": 0.122,
+      "n_draws": 10000,
+      "seed": 7
+    },
+    "cue-only": {
+      "fine_tune_gain_trained_on": 0.1868,
+      "fine_tune_gain_held_apart": 0.2128,
+      "difference_of_differences": -0.026,
+      "permutation_p_two_sided": 0.8545,
+      "n_draws": 10000,
+      "seed": 7
+    }
+  },
+  "heldout_r_at_1_quoted_not_read": 0.6725,
+  "head_pairs": {
+    "head_probe_gate_r1": 0.7555,
+    "split": {
+      "ALL": {
+        "n": 229,
+        "POSITIVE": 26,
+        "NEGATIVE": 110,
+        "AMBIGUOUS": 93,
+        "positive_rate": 0.1135,
+        "negative_rate": 0.4803
+      },
+      "TRAINED-ON (182)": {
+        "n": 182,
+        "POSITIVE": 21,
+        "NEGATIVE": 89,
+        "AMBIGUOUS": 72,
+        "positive_rate": 0.1154,
+        "negative_rate": 0.489
+      },
+      "HELD-APART (47)": {
+        "n": 47,
+        "POSITIVE": 5,
+        "NEGATIVE": 21,
+        "AMBIGUOUS": 21,
+        "positive_rate": 0.1064,
+        "negative_rate": 0.4468
+      }
+    },
+    "fisher_positive_rate_p": 1.0,
+    "fisher_negative_rate_p": 0.627
+  },
+  "per_query": {
+    "ms-marco-MiniLM-L-2-v2-ft-session-j": {
+      "51a45a95": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58bf7951": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "1e043500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c5e8278d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6f9b354f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58ef2f1c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "5d3d2817": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c960da58": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3b6f954b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "94f70d80": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ad7109d1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "dccbc061": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "21436231": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "95bcc1c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "a06e4cfe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "37d43f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "b86304ba": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "25e5aa4f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-user"
+      },
+      "caf9ead2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8550ddae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "60d45044": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3f1e9474": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "577d4d32": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ec81a493": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "15745da0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "e01b8e2f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "001be529": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "19b5f2b3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4fd1909e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8e9d538c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4100d0a0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c14c00dd": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6d550036": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_59c863d7": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e831120c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f2262a51": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_a56e767c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6cb6f249": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "46a3abf7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "36b9f61e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "28dc39ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2f8be40d": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_15e38248": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "88432d0a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "d682f1a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2ba83207": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "2ce6a0f2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_d12ceb0e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_31ff4165": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "129d1232": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a9f6b44c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d851d5ba": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_ab202e7f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_e05b82a6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_731e37d7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "edced276": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "10d9b85a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e3038f8c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "2b8f3739": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "c2ac3c61": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "bf659f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_372c3eed": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "8a2466db": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "35a27287": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "195a1a1b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "afdc33df": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "54026fce": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "1a1907b4": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "09d032c9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "57f827a0": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "505af2f5": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "75f70248": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d6233ab6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "1da05512": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b6025781": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "a89d7624": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b0479f84": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d3ab962e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "cc06de0d": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a11281a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "9aaed6a3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "1f2b8d4f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d905b33f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "f35224e0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6456829e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a4996e51": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3c1045c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "60036106": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "681a1674": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e25c3b8d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4adc0475": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4bc144e2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3fdac837": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "91b15a6e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "720133ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "77eafa52": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "0100672e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "92a0aa75": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "3fe836c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6c49646a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "61f8c8f8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "ef9cf60a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "09ba9854": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "157a136e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a3332713": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a08a253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "078150f1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a346bb18": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f49edff3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b46e15ed": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_fa19884c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4929293a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b5700ca9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b81": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_1d4ab0c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "0db4c65d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_6dc9b45b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_18c2b244": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a1b77f9c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb063": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7abb270c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4fc4f797": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_45189cb4": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e061b84f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "370a8ff4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "8077ef71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8e165409": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bcbe585f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_98f46fc6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "eac54adc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a2d1d1f6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_85da3956": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b0863698": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_68e94287": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7ca326fa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "2ebe6c92": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e414231f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb064": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b82": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "eac54add": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "4dfccbf8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "6e984302": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2655b836": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "08f4fc43": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_385a5000": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bbf86515": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5dcc0aab": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_0b2f1d21": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_70e84552": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "982b5123": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "c8090214": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_483dd43c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2c50253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "cc6d1ec1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8c8961ae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "d01c6aa8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "a3045048": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d31cdae3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_cd90e484": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b29f3365": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_78cf46a3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2f584639": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5438fa52": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "830ce83f": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "852ce960": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "945e3d21": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "d7c942c3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c44": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "a1eacc2a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "031748ae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "4d6b87c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0f05491a": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "08e075c7": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "41698283": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "2698e78f": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "45dc21b6": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5a4f22c0": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "6071bd76": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "e493bb7c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "72e3ee87": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c4ea545c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "01493427": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ed4ddc30": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "8fb83627": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "22d2cb42": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "eace081b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "affe2881": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0ddfec37": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dfde3500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "69fee5aa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "06db6396": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "3ba21379": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "9bbe84a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dad224aa": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ba61f0b9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5c40ec5b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c6853660": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0977f2af": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c45": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "c4f10528": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-assistant"
+      },
+      "89527b6b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e9327a54": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "f523d9fe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fea54f57": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "cc539528": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "18dcd5a5": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "488d3006": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8cf51dda": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8aef76bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "71a3fd6b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "70b3e69b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "3249768e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "1b9b7252": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "6222b6eb": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e8a79c70": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "d596882b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e3fc4d6e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e982271f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fca762bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "7a8d0b71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8b9d4367": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "41275add": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "4baee567": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "28bcfaac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "16c90bf4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e48988bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "778164c6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      }
+    },
+    "ms-marco-MiniLM-L-2-v2": {
+      "51a45a95": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58bf7951": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "1e043500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c5e8278d": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6f9b354f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58ef2f1c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "5d3d2817": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c960da58": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3b6f954b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "94f70d80": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ad7109d1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "dccbc061": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "21436231": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "95bcc1c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "a06e4cfe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "37d43f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "b86304ba": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "25e5aa4f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-user"
+      },
+      "caf9ead2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8550ddae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "60d45044": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3f1e9474": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "577d4d32": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ec81a493": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "15745da0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "e01b8e2f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "001be529": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "19b5f2b3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4fd1909e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8e9d538c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4100d0a0": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c14c00dd": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6d550036": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_59c863d7": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e831120c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f2262a51": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_a56e767c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6cb6f249": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "46a3abf7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "36b9f61e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "28dc39ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2f8be40d": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_15e38248": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "88432d0a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "d682f1a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2ba83207": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "2ce6a0f2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_d12ceb0e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_31ff4165": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "129d1232": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a9f6b44c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d851d5ba": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_ab202e7f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_e05b82a6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_731e37d7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "edced276": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "10d9b85a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e3038f8c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "2b8f3739": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "c2ac3c61": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "bf659f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_372c3eed": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "8a2466db": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "35a27287": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "195a1a1b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "afdc33df": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "54026fce": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "1a1907b4": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "09d032c9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "57f827a0": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "505af2f5": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "75f70248": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d6233ab6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "1da05512": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b6025781": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "a89d7624": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b0479f84": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d3ab962e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "cc06de0d": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a11281a2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "9aaed6a3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "1f2b8d4f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d905b33f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "f35224e0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6456829e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a4996e51": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3c1045c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "60036106": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "681a1674": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e25c3b8d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4adc0475": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4bc144e2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3fdac837": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "91b15a6e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "720133ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "77eafa52": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "0100672e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "92a0aa75": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "3fe836c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6c49646a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "61f8c8f8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "ef9cf60a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "09ba9854": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "157a136e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a3332713": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a08a253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "078150f1": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a346bb18": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f49edff3": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b46e15ed": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_fa19884c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4929293a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b5700ca9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b81": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_1d4ab0c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "0db4c65d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_6dc9b45b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_18c2b244": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a1b77f9c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb063": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7abb270c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4fc4f797": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_45189cb4": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e061b84f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "370a8ff4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "8077ef71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8e165409": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bcbe585f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_98f46fc6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "eac54adc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a2d1d1f6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_85da3956": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b0863698": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_68e94287": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7ca326fa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "2ebe6c92": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e414231f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb064": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b82": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "eac54add": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "4dfccbf8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "6e984302": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2655b836": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "08f4fc43": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_385a5000": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bbf86515": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5dcc0aab": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_0b2f1d21": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_70e84552": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "982b5123": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "c8090214": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_483dd43c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2c50253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "cc6d1ec1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8c8961ae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "d01c6aa8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "a3045048": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d31cdae3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_cd90e484": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b29f3365": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_78cf46a3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2f584639": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5438fa52": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "830ce83f": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "852ce960": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "945e3d21": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "d7c942c3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c44": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "a1eacc2a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "031748ae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "4d6b87c8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0f05491a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "08e075c7": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "41698283": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "2698e78f": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "45dc21b6": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5a4f22c0": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "6071bd76": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "e493bb7c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "72e3ee87": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c4ea545c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "01493427": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ed4ddc30": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "8fb83627": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "22d2cb42": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "eace081b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "affe2881": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0ddfec37": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dfde3500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "69fee5aa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "06db6396": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "3ba21379": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "9bbe84a2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dad224aa": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ba61f0b9": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5c40ec5b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c6853660": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0977f2af": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c45": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "c4f10528": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-assistant"
+      },
+      "89527b6b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e9327a54": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "f523d9fe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fea54f57": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "cc539528": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "18dcd5a5": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "488d3006": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8cf51dda": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8aef76bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "71a3fd6b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "70b3e69b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "3249768e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "1b9b7252": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "6222b6eb": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e8a79c70": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "d596882b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e3fc4d6e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e982271f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fca762bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "7a8d0b71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8b9d4367": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "41275add": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "4baee567": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "28bcfaac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "16c90bf4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e48988bc": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "778164c6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      }
+    },
+    "cue_only_order": {
+      "51a45a95": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58bf7951": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "1e043500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c5e8278d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6f9b354f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "58ef2f1c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "5d3d2817": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c960da58": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3b6f954b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "94f70d80": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ad7109d1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "dccbc061": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "21436231": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "95bcc1c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "a06e4cfe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "37d43f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "b86304ba": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "25e5aa4f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-user"
+      },
+      "caf9ead2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8550ddae": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "60d45044": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "3f1e9474": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "577d4d32": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "ec81a493": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "15745da0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "e01b8e2f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "001be529": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "19b5f2b3": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4fd1909e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "8e9d538c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "4100d0a0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "c14c00dd": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-user"
+      },
+      "6d550036": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_59c863d7": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e831120c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f2262a51": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_a56e767c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6cb6f249": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "46a3abf7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "36b9f61e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "28dc39ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2f8be40d": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "gpt4_15e38248": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "88432d0a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "d682f1a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_2ba83207": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "2ce6a0f2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_d12ceb0e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_31ff4165": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "129d1232": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a9f6b44c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d851d5ba": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_ab202e7f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_e05b82a6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_731e37d7": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "edced276": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "10d9b85a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e3038f8c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "2b8f3739": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "c2ac3c61": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "bf659f65": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_372c3eed": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "8a2466db": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "35a27287": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "195a1a1b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "afdc33df": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "54026fce": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "1a1907b4": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "09d032c9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "57f827a0": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "505af2f5": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "75f70248": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d6233ab6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-preference"
+      },
+      "1da05512": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b6025781": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "a89d7624": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "b0479f84": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-preference"
+      },
+      "d3ab962e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "cc06de0d": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a11281a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "9aaed6a3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "1f2b8d4f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "d905b33f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "f35224e0": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6456829e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a4996e51": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3c1045c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "60036106": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "681a1674": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "e25c3b8d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4adc0475": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "4bc144e2": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "3fdac837": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "91b15a6e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "720133ac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "77eafa52": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "0100672e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "92a0aa75": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "multi-session"
+      },
+      "3fe836c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "6c49646a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "61f8c8f8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "ef9cf60a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "09ba9854": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "157a136e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a3332713": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a08a253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "078150f1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "a346bb18": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "multi-session"
+      },
+      "gpt4_f49edff3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b46e15ed": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_fa19884c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4929293a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b5700ca9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b81": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_1d4ab0c9": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "0db4c65d": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_6dc9b45b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_18c2b244": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a1b77f9c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb063": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7abb270c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_4fc4f797": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_45189cb4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e061b84f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "370a8ff4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "8077ef71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8e165409": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bcbe585f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_98f46fc6": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "eac54adc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_a2d1d1f6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_85da3956": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_b0863698": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_68e94287": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_7ca326fa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "2ebe6c92": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d6585ce9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_e414231f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_468eb064": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "9a707b82": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "eac54add": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "4dfccbf8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "6e984302": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2655b836": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "08f4fc43": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_385a5000": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "bbf86515": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5dcc0aab": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_0b2f1d21": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_70e84552": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "982b5123": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "c8090214": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_483dd43c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2c50253f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "cc6d1ec1": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_8c8961ae": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "d01c6aa8": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "a3045048": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_d31cdae3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_cd90e484": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "b29f3365": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_78cf46a3": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_2f584639": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "gpt4_5438fa52": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "temporal-reasoning"
+      },
+      "830ce83f": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "852ce960": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "945e3d21": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "d7c942c3": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c44": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "a1eacc2a": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "031748ae": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "4d6b87c8": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0f05491a": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "08e075c7": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "41698283": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "2698e78f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "45dc21b6": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5a4f22c0": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "6071bd76": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "e493bb7c": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "72e3ee87": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c4ea545c": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "01493427": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ed4ddc30": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "8fb83627": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "22d2cb42": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "eace081b": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "affe2881": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0ddfec37": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dfde3500": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "69fee5aa": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "06db6396": {
+        "hit1": 1,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "3ba21379": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "9bbe84a2": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "dad224aa": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "ba61f0b9": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "5c40ec5b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "c6853660": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "0977f2af": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "knowledge-update"
+      },
+      "07741c45": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "knowledge-update"
+      },
+      "c4f10528": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 0,
+        "category": "single-session-assistant"
+      },
+      "89527b6b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e9327a54": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "f523d9fe": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fea54f57": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "cc539528": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "18dcd5a5": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "488d3006": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8cf51dda": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8aef76bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "71a3fd6b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "70b3e69b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "3249768e": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "1b9b7252": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "6222b6eb": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e8a79c70": {
+        "hit1": 0,
+        "hit1_current": 0,
+        "hit5": 0,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "d596882b": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e3fc4d6e": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e982271f": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "fca762bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "7a8d0b71": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "8b9d4367": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "41275add": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "4baee567": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "28bcfaac": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "16c90bf4": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "e48988bc": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      },
+      "778164c6": {
+        "hit1": 1,
+        "hit1_current": 1,
+        "hit5": 1,
+        "input_recall": 1,
+        "category": "single-session-assistant"
+      }
+    }
+  },
+  "_caveat_on_the_held_apart_47": "The held-apart 47 IS Session J's model-selection set \u2014 the best epoch of the shipped graph was chosen by fit-val R@1 over exactly these queries. So it is not trained-on, but it is not an independent test either: it is selected-on. It bounds memorisation of specific competitor turns, not selection on the fold."
+}
