@@ -49,9 +49,36 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    documents, so A can influence how B is described — a **fidelity** risk, not an escalation one,
    bounded by `MAX_SOURCES_PER_READER = 6`.
    **Consequence to know before touching layer 3: no tool result can taint a parent any more.** The
-   only remaining source of `UntrustedContent` in a run's own window is **injected memory**. Layer 3
-   is still reachable and non-vacuous, but a test that establishes taint via a tool result now
-   establishes nothing — four had to move, and one went green and vacuous on the way.
+   only remaining source of `UntrustedContent` in a run's own window is **injected memory**. A test
+   that establishes taint via a tool result now establishes nothing — four had to move, and one went
+   green and vacuous on the way.
+
+   **AND THE SENTENCE THAT USED TO END THAT PARAGRAPH — *"layer 3 is still reachable and
+   non-vacuous"* — IS FALSE OF THE DAEMON. Corrected 2026-08-12, and it is the most important thing
+   on this page.** The chain is four links and each was checked by grep, not by argument:
+   injected memory is untrusted only if some belief is `UntrustedContent`; a belief is
+   `UntrustedContent` only from `ingest` (`trust_for_channel` maps Web/Email/Messaging/Mcp/File) or
+   from `remember_claim` with an already-bottomed floor, which is circular; and **`ingest` has
+   exactly one caller in the workspace — `crates/marlowe/src/adapter.rs:304`, the `--eval-adapter`.**
+   `Channel::` appears nowhere in `crates/marlowe-daemon/src`.
+
+   So **in the shipped interactive product the latch cannot fire in a parent run at all.** It is not
+   broken; it is *unreachable*, because ADR-041 removed the only reachable trigger and the
+   replacement trigger has no production ingest path behind it. Every test that establishes taint by
+   hand-pushing an `InjectedMemory` block is measuring a state the product cannot enter — the
+   green-and-vacuous family applied to the layer's **only** remaining entry point.
+
+   This does not make ADR-041 wrong and does not mean the guard should be removed. It means the
+   number of live defences is smaller than this document has been claiming, and that the moment
+   `ingest` is wired into the product — a `web`-derived belief, an inbound-mail channel, MCP output
+   — layer 3 goes live *together with* two known defects in the same path (the compaction stamp and
+   the trim marker, below). Wire them in that order: **fix the two first, then wire ingest.**
+
+   The check that would have caught this earlier is one command: `grep -rn "\bingest("` for callers.
+   A live probe, not a unit test, is what closes it — ingest one `Channel::Web` belief into a real
+   profile, retrieve it, and assert on the emitted `TrustFloorLatched` event **and** a refused
+   composed target **across two turns**. If that probe cannot be written without the eval adapter,
+   that is itself the finding.
 2. **Trust class propagation.** Every belief carries its origin, and trust propagates **worst-case
    over full lineage**. Four LLM rewrites later, a web page is still `UntrustedContent`. This is what
    stops laundering. Brief §5.6 and §8; `trust.rs`; M0b Session A — 16 checked, 0 failed,

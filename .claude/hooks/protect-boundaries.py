@@ -123,10 +123,20 @@ def self_check(repo_root: str) -> int:
         if not os.path.exists(os.path.join(repo_root, suffix)):
             missing.append(suffix)
     # A directory entry is matched anywhere in a path, not rooted at the repo, so it is resolved
-    # by searching rather than by joining. `/persona/` is pre-emptive by design (CLAUDE.md says
-    # so) and is exempt; everything else must be findable.
-    pre_emptive = {"/persona/"}
-    wanted = {f for f in PROTECTED_DIRS if f not in pre_emptive}
+    # by searching rather than by joining.
+    #
+    # **`/persona/` used to be exempt here and no longer is.** The exemption's stated basis was
+    # that the entry is "pre-emptive by design" — guarding a directory before it existed. That
+    # stopped being true: `persona/v1.md` and `persona/v2.md` exist and `daemon.rs` does
+    # `include_str!("../../../persona/v2.md")`. So it was the ONE guarded row whose subject could
+    # move with zero signal — rename the directory and the hook matches nothing, `--self-check`
+    # returns 0, and `boundary_hook.rs` stays green. That is instance #14 reproduced on the single
+    # row where the fix had deliberately not been applied.
+    #
+    # An exemption whose justification has expired is worse than no exemption, because it reads as
+    # a considered decision. If a genuinely pre-emptive entry is added later, gate it on the
+    # directory NOT existing rather than on a hardcoded name.
+    wanted = set(PROTECTED_DIRS)
     if wanted:
         skip = {"target", ".git", "data", "models", "runs", "node_modules", "__pycache__"}
         found = set()
@@ -144,7 +154,17 @@ def self_check(repo_root: str) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) >= 3 and sys.argv[1] == "--self-check":
+    # **Gated on the flag, not on the arity, and that is the whole point.**
+    #
+    # This was `len(sys.argv) >= 3 and sys.argv[1] == "--self-check"`. Invoked as `--self-check`
+    # with the path argument missing, it fell through to the stdin branch, failed to parse JSON,
+    # and **returned 0** — so a mistyped self-check reads as "every guarded path exists". A guard
+    # whose failure mode is a silent pass is the thing this file exists to prevent, committed in
+    # the file that prevents it.
+    if len(sys.argv) >= 2 and sys.argv[1] == "--self-check":
+        if len(sys.argv) < 3:
+            print("--self-check needs a repo root", file=sys.stderr)
+            return 2
         return self_check(sys.argv[2])
 
     try:
