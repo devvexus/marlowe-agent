@@ -48,6 +48,53 @@ BATCH = 1
 SHIPPED_INT8 = "ms-marco-MiniLM-L-2-v2-int8"
 SHIPPED_INT8_DIGEST = "1857c1a59b01c1641a46a47fd85b01d98c6e15e1e48588eac1f6a97ff83479c7"
 
+# Session J's fine-tunes, pinned here because Session I's manifest predates them and that file is a
+# RECORD -- editing it would retro-fit an artifact to a later session's needs. Same treatment as
+# SHIPPED_INT8 above, for the same reason: out of manifest, still digest-pinned, never guessed.
+#
+# **The L-2 digest is asserted to equal `rerank.rs`'s MODEL_SHA256 by `load`**, so a sweep cannot
+# score a graph the binary would refuse and report it under the shipped label. That is the whole
+# hazard the constant exists to close, and it is the shape CLAUDE.md records as the reason
+# `--reranking` became a required argument: a default silently scored the OLD graph under the
+# shipped name.
+FINETUNES = {
+    "ms-marco-MiniLM-L-2-v2-ft-session-j": {
+        "digest": "9c222dac4315cfd2f33f2e865bb651a7a16bf532c11e55b7fb1a43bb041880c0",
+        "params_m": 16,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-6-v2-ft-session-j": {
+        "digest": "78dcc7c1834b2e0cfc67d58a2735b9bc27900f46d5b5ccada99e8ee610c724f6",
+        "params_m": 23,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+}
+
+# The graph the binary loads. Read from rerank.rs rather than restated, so the two cannot drift.
+SHIPPED_FINETUNE = "ms-marco-MiniLM-L-2-v2-ft-session-j"
+RERANK_RS = REPO / "crates" / "marlowe-memory" / "src" / "rerank.rs"
+
+
+def shipped_digest_from_rust() -> str:
+    """`MODEL_SHA256` as the Rust build sees it.
+
+    Parsed rather than copied. A second copy of a digest in a Python constant is exactly the
+    two-sides-silently-disagree shape this project keeps paying for: the sweep would keep scoring
+    the graph it was told about long after the binary moved to another one.
+    """
+    import re
+
+    text = RERANK_RS.read_text(encoding="utf-8")
+    match = re.search(r'MODEL_SHA256:\s*&str\s*=\s*"([0-9a-f]{64})"', text)
+    if match is None:
+        raise ModelRefused(
+            f"could not find MODEL_SHA256 in {RERANK_RS}. Refusing to fall back to a hardcoded "
+            "digest -- that is how a sweep ends up describing a graph the binary does not load."
+        )
+    return match.group(1)
+
 
 class ModelRefused(RuntimeError):
     """The model did not clear a load-time check. It does not enter any sweep."""
@@ -111,6 +158,38 @@ class CrossEncoder:
         # assumed -- `smoke_test` validates the sign and refuses the model if it is inverted.
         return float(out[1] - out[0])
 
+    def score_batch(self, query: str, docs: list[str], max_len: int = 256) -> list[float]:
+        """One forward over `len(docs)` pairs.
+
+        **Additive, and CPU callers must not use it.** ADR-029 measured the two providers going
+        OPPOSITE ways: on one CPU thread batching costs +8.8 ms, on CUDA it saves 77%. Batching is
+        a property of the hardware, so this exists for the GPU path and `score` remains the CPU
+        path's method.
+
+        Shape-safe by construction: `encode` pads every row to exactly `max_len`, so a batch is a
+        stack of equal-length rows and no row's token ids depend on what else is in the batch.
+        That is what makes batch-vs-sequential a pure cost question here -- and it is ASSERTED
+        rather than assumed by `batch_invariance`, which compares this exact path against `score`
+        on the same graph. ADR-015 is why: a shape change alone moved int8 logits by a median
+        0.0109 and flipped top-1 in 15% of cases. Re-measured per graph, never inherited -- L-2's
+        0.000000 is not evidence about bge.
+        """
+        if not docs:
+            return []
+        encs = [self.encode(query, d, max_len) for d in docs]
+        ids = np.array([e.ids for e in encs], dtype=np.int64)
+        mask = np.array([e.attention_mask for e in encs], dtype=np.int64)
+
+        feed = {"input_ids": ids, "attention_mask": mask}
+        if "token_type_ids" in self.input_names:
+            feed["token_type_ids"] = np.array([e.type_ids for e in encs], dtype=np.int64)
+        out = np.asarray(self.session.run(None, feed)[0])
+
+        if self.output_dim == 1:
+            return [float(v) for v in out.reshape(-1)]
+        out = out.reshape(len(docs), -1)
+        return [float(r[1] - r[0]) for r in out]
+
     def wordpieces(self, text: str) -> int:
         tok = self.tokenizer
         tok.no_truncation()
@@ -118,15 +197,53 @@ class CrossEncoder:
         return len(tok.encode(text).ids)
 
 
-def load(name: str) -> CrossEncoder:
-    """Load one reranker, verifying digest, provider, pair encoding and output head."""
+def load(name: str, provider: str = PROVIDER) -> CrossEncoder:
+    """Load one reranker, verifying digest, provider, pair encoding and output head.
+
+    `provider` defaults to CPU so every Session I arm loads exactly the graph it recorded. Passing
+    `CUDAExecutionProvider` is the M0c Session M path; ADR-029's deployment target is a GPU and 1
+    vCPU is the fallback floor, so both must be reachable from ONE loader. A second loader is how
+    two arms end up disagreeing about the head convention with nothing comparing them.
+
+    **The provider is asserted after construction, never merely requested.** Session G's CUDA
+    provider was listed and did not load, ORT fell back to CPU in silence, and the resulting "GPU"
+    figure landed within 1% of the CPU one. `get_available_providers()` listing CUDA proves
+    nothing; only creating the session and reading `get_providers()` back does.
+    """
     import onnxruntime as ort
     from tokenizers import Tokenizer
+
+    if provider == "CUDAExecutionProvider":
+        # ORT cannot find `cublasLt64_12.dll` on this machine without help, and the symptom is a
+        # SILENT fall back to CPU. torch ships the CUDA runtime; Session I found this and Session L
+        # used it. Not a system install, and deliberately not a PATH mutation that outlives us.
+        try:
+            import os
+
+            import torch
+
+            os.add_dll_directory(str(Path(torch.__file__).parent / "lib"))
+        except Exception:  # noqa: BLE001 - absence is reported by the provider assertion below
+            pass
 
     directory = MODELS_DIR / name
     if name == SHIPPED_INT8:
         model_file, expected, params_m, arch, max_seq = (
             directory / "model_int8.onnx", SHIPPED_INT8_DIGEST, 16, "BERT (int8)", 512)
+    elif name in FINETUNES:
+        spec = FINETUNES[name]
+        model_file, expected = directory / "model.onnx", spec["digest"]
+        params_m, arch, max_seq = spec["params_m"], spec["arch"], spec["max_seq"]
+        if name == SHIPPED_FINETUNE:
+            # The control must be the graph the binary ships, verified against rerank.rs rather
+            # than trusted. If these ever disagree the sweep's baseline is not the product's.
+            rust = shipped_digest_from_rust()
+            if rust != expected:
+                raise ModelRefused(
+                    f"{name}: rerank.rs pins MODEL_SHA256={rust}, this loader pins {expected}. "
+                    "The sweep's control would not be the shipped graph. Reconcile before "
+                    "measuring anything."
+                )
     else:
         entry = next((m for m in manifest()["models"] if m["name"] == name), None)
         if entry is None:
@@ -147,11 +264,11 @@ def load(name: str) -> CrossEncoder:
     opts.inter_op_num_threads = THREADS
     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
     opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-    session = ort.InferenceSession(str(model_file), opts, providers=[PROVIDER])
+    session = ort.InferenceSession(str(model_file), opts, providers=[provider])
 
     active = session.get_providers()
-    if PROVIDER not in active:
-        raise ModelRefused(f"{name}: requested {PROVIDER}, ORT is running {active}")
+    if provider not in active:
+        raise ModelRefused(f"{name}: requested {provider}, ORT is running {active}")
 
     tok = Tokenizer.from_file(str(directory / "tokenizer.json"))
 

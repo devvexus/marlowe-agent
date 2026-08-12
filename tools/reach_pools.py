@@ -62,6 +62,21 @@ class Candidate:
     turn_index: int | None
     occurred_at_ms: int | None
 
+    # -- added M0c Session M, DEFAULTED so every existing arm reconstructs unchanged -------------
+    #
+    # The shipped ranking key has five levels and the first two live only in these fields:
+    # survived_pruning, then rerank_score descending. Without them a reconstruction reproduces the
+    # PRE-rerank order (fitted-gate top-1, 0.5371 held-out) and cannot reproduce the shipped R@1
+    # (0.6725). Sessions G through M0c A only ever needed the cue-level order, which is why the
+    # fields were never carried and why their absence was not a defect until now.
+    memory_id: str | None = None
+    survived_pruning: bool | None = None
+    rerank_score: float | None = None
+    """The SHIPPED cross-encoder's logit. `None` means not reranked -- outside the budget, or no
+    encoder loaded. Never "scored zero": a cross-encoder logit is signed and near-zero is a real,
+    middling reading, so a 0.0 sentinel would be indistinguishable from a genuine one."""
+    session_key: int | None = None
+
 
 @dataclass(frozen=True)
 class Pool:
@@ -189,6 +204,13 @@ def load_pools(run_dir: Path = DEFAULT_RUN) -> tuple[dict[str, Pool], dict]:
                 session_at_ms=prov[2] if prov else None,
                 turn_index=prov[3] if prov else None,
                 occurred_at_ms=prov[4] if prov else None,
+                memory_id=row["memory_id"],
+                # `.get`, not `[...]`, and the difference is stated: these three arrived with the
+                # Session H rerank stage, so a Session B-G dump genuinely does not have them. A
+                # caller that needs them asserts on None rather than reading a fabricated default.
+                survived_pruning=row.get("survived_pruning"),
+                rerank_score=row.get("rerank_score"),
+                session_key=row.get("session_key"),
             )
         )
 

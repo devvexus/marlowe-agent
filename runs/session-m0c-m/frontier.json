@@ -1,0 +1,2127 @@
+{
+  "_what": "M0c Session M -- reranker frontier, FIT split, GPU",
+  "judged_by": "runs/session-m0c-m/PREREGISTRATION.json",
+  "provider": "CUDAExecutionProvider",
+  "max_seq": 256,
+  "control": {
+    "n": 229,
+    "R@1": 0.7555,
+    "R@1_current": 0.6987,
+    "R@5": 0.917,
+    "per_category": {
+      "knowledge-update": {
+        "n": 36,
+        "R@1": 0.7222,
+        "R@1_current": 0.4722
+      },
+      "multi-session": {
+        "n": 61,
+        "R@1": 0.8033,
+        "R@1_current": 0.7705
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "R@1": 0.7857,
+        "R@1_current": 0.7857
+      },
+      "single-session-preference": {
+        "n": 15,
+        "R@1": 0.3333,
+        "R@1_current": 0.3333
+      },
+      "single-session-user": {
+        "n": 32,
+        "R@1": 0.8125,
+        "R@1_current": 0.8125
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "R@1": 0.7895,
+        "R@1_current": 0.7544
+      }
+    }
+  },
+  "control_published": {
+    "R@1": 0.7555,
+    "R@1_current": 0.69
+  },
+  "pools": {
+    "pools": 229,
+    "candidates": 111510,
+    "unattributable_rows": 0,
+    "attributed_but_no_session_provenance": 0,
+    "sessions_seen": 10912
+  },
+  "cells": [
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.82,
+      "rerank_ms_p50": 7.03,
+      "rerank_ms_p95": 9.81,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7555,
+      "R@1_current": 0.6987,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.7222,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8033,
+          "R@1_current": 0.7705
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7895,
+          "R@1_current": 0.7544
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.7893,
+      "rerank_ms_p50": 14.23,
+      "rerank_ms_p95": 18.02,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7686,
+      "R@1_current": 0.7074,
+      "R@5": 0.9607,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4444
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8361,
+          "R@1_current": 0.7869
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.4667,
+          "R@1_current": 0.4667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7812,
+          "R@1_current": 0.7812
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.7823,
+      "rerank_ms_p50": 21.79,
+      "rerank_ms_p95": 26.22,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -6.386034965515137,
+          "irrelevant": -10.37906265258789,
+          "margin": 3.993027687072754,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -6.386034965515137,
+            -6.386034965515137,
+            -6.386034965515137
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.000324249267578125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7686,
+      "R@1_current": 0.7074,
+      "R@5": 0.9651,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6944,
+          "R@1_current": 0.4444
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8525,
+          "R@1_current": 0.8033
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7857,
+          "R@1_current": 0.7857
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7812,
+          "R@1_current": 0.7812
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.8246,
+          "R@1_current": 0.7895
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.8104,
+      "rerank_ms_p50": 10.43,
+      "rerank_ms_p95": 13.25,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7467,
+      "R@1_current": 0.6856,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.4722
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7705,
+          "R@1_current": 0.7377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7719,
+          "R@1_current": 0.7368
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.7848,
+      "rerank_ms_p50": 23.08,
+      "rerank_ms_p95": 27.97,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7642,
+      "R@1_current": 0.7031,
+      "R@5": 0.9476,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.5
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8197,
+          "R@1_current": 0.7705
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7895,
+          "R@1_current": 0.7544
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2-ft-session-j",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.7866,
+      "rerank_ms_p50": 37.11,
+      "rerank_ms_p95": 41.63,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": -5.540631294250488,
+          "irrelevant": -10.533487319946289,
+          "margin": 4.992856025695801,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            -5.540631294250488,
+            -5.540631294250488,
+            -5.540631294250488
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005273818969726562,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7729,
+      "R@1_current": 0.7118,
+      "R@5": 0.952,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.75,
+          "R@1_current": 0.5
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.8361,
+          "R@1_current": 0.7869
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.8214,
+          "R@1_current": 0.8214
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.807,
+          "R@1_current": 0.7719
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6493,
+      "rerank_ms_p50": 6.81,
+      "rerank_ms_p95": 9.74,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.9114603996276855,
+          "irrelevant": -11.779316902160645,
+          "margin": 16.69077730178833,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.9114603996276855,
+            4.9114603996276855,
+            4.9114603996276855
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00024127960205078125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5983,
+      "R@1_current": 0.5284,
+      "R@5": 0.8996,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.2778
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6066,
+          "R@1_current": 0.5738
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6071,
+          "R@1_current": 0.6071
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5965,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6233,
+      "rerank_ms_p50": 14.96,
+      "rerank_ms_p95": 19.37,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.9114603996276855,
+          "irrelevant": -11.779316902160645,
+          "margin": 16.69077730178833,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.9114603996276855,
+            4.9114603996276855,
+            4.9114603996276855
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00024127960205078125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.607,
+      "R@1_current": 0.5371,
+      "R@5": 0.8996,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6389,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6071,
+          "R@1_current": 0.6071
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5789,
+          "R@1_current": 0.5439
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-2-v2",
+      "tier": "A",
+      "params_m": 16,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.6178,
+      "rerank_ms_p50": 22.71,
+      "rerank_ms_p95": 27.74,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.9114603996276855,
+          "irrelevant": -11.779316902160645,
+          "margin": 16.69077730178833,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.9114603996276855,
+            4.9114603996276855,
+            4.9114603996276855
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00024127960205078125,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.607,
+      "R@1_current": 0.5371,
+      "R@5": 0.8952,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6389,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6071,
+          "R@1_current": 0.6071
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5789,
+          "R@1_current": 0.5439
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-4-v2",
+      "tier": "A",
+      "params_m": 19,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6682,
+      "rerank_ms_p50": 8.93,
+      "rerank_ms_p95": 11.31,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.855703353881836,
+          "irrelevant": -11.779863357543945,
+          "margin": 16.63556671142578,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.855703353881836,
+            4.855703353881836,
+            4.855703353881836
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00036525726318359375,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6157,
+      "R@1_current": 0.5633,
+      "R@5": 0.8952,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.623,
+          "R@1_current": 0.6066
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5789,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-4-v2",
+      "tier": "A",
+      "params_m": 19,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6413,
+      "rerank_ms_p50": 19.33,
+      "rerank_ms_p95": 22.68,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.855703353881836,
+          "irrelevant": -11.779863357543945,
+          "margin": 16.63556671142578,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.855703353881836,
+            4.855703353881836,
+            4.855703353881836
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00036525726318359375,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6245,
+      "R@1_current": 0.5633,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5965,
+          "R@1_current": 0.5789
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-4-v2",
+      "tier": "A",
+      "params_m": 19,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.64,
+      "rerank_ms_p50": 30.9,
+      "rerank_ms_p95": 35.85,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.855703353881836,
+          "irrelevant": -11.779863357543945,
+          "margin": 16.63556671142578,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.855703353881836,
+            4.855703353881836,
+            4.855703353881836
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.00036525726318359375,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6288,
+      "R@1_current": 0.5677,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6667,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8125,
+          "R@1_current": 0.8125
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.614,
+          "R@1_current": 0.5965
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6636,
+      "rerank_ms_p50": 10.4,
+      "rerank_ms_p95": 12.36,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 5.552256107330322,
+          "irrelevant": -11.419914245605469,
+          "margin": 16.97217035293579,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            5.552256107330322,
+            5.552256107330322,
+            5.552256107330322
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0014562606811523438,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6114,
+      "R@1_current": 0.5502,
+      "R@5": 0.8996,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.6066
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5714,
+          "R@1_current": 0.5714
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5614,
+          "R@1_current": 0.5263
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6323,
+      "rerank_ms_p50": 24.51,
+      "rerank_ms_p95": 28.65,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 5.552256107330322,
+          "irrelevant": -11.419914245605469,
+          "margin": 16.97217035293579,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            5.552256107330322,
+            5.552256107330322,
+            5.552256107330322
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0014562606811523438,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6157,
+      "R@1_current": 0.5459,
+      "R@5": 0.9389,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6557,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5714,
+          "R@1_current": 0.5714
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5789,
+          "R@1_current": 0.5439
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-6-v2",
+      "tier": "A",
+      "params_m": 23,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.6266,
+      "rerank_ms_p50": 39.28,
+      "rerank_ms_p95": 44.06,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 5.552256107330322,
+          "irrelevant": -11.419914245605469,
+          "margin": 16.97217035293579,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            5.552256107330322,
+            5.552256107330322,
+            5.552256107330322
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0014562606811523438,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6157,
+      "R@1_current": 0.5459,
+      "R@5": 0.9389,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6393,
+          "R@1_current": 0.5738
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5714,
+          "R@1_current": 0.5714
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5965,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-12-v2",
+      "tier": "A",
+      "params_m": 33,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.673,
+      "rerank_ms_p50": 16.35,
+      "rerank_ms_p95": 19.12,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 6.5288310050964355,
+          "irrelevant": -11.229667663574219,
+          "margin": 17.758498668670654,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            6.5288310050964355,
+            6.5288310050964355,
+            6.5288310050964355
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0022563934326171875,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6201,
+      "R@1_current": 0.5633,
+      "R@5": 0.8952,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6721,
+          "R@1_current": 0.6557
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5614,
+          "R@1_current": 0.5439
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-12-v2",
+      "tier": "A",
+      "params_m": 33,
+      "arch": "BERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6502,
+      "rerank_ms_p50": 39.29,
+      "rerank_ms_p95": 43.33,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 6.5288310050964355,
+          "irrelevant": -11.229667663574219,
+          "margin": 17.758498668670654,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            6.5288310050964355,
+            6.5288310050964355,
+            6.5288310050964355
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0022563934326171875,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6332,
+      "R@1_current": 0.5721,
+      "R@5": 0.9301,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7049,
+          "R@1_current": 0.6721
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5789,
+          "R@1_current": 0.5614
+        }
+      }
+    },
+    {
+      "model": "ms-marco-MiniLM-L-12-v2",
+      "tier": "A",
+      "params_m": 33,
+      "arch": "BERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.6445,
+      "rerank_ms_p50": 64.21,
+      "rerank_ms_p95": 70.37,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 6.5288310050964355,
+          "irrelevant": -11.229667663574219,
+          "margin": 17.758498668670654,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            6.5288310050964355,
+            6.5288310050964355,
+            6.5288310050964355
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0022563934326171875,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6332,
+      "R@1_current": 0.5677,
+      "R@5": 0.9345,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6885,
+          "R@1_current": 0.6393
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5357,
+          "R@1_current": 0.5357
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.8438,
+          "R@1_current": 0.8438
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5965,
+          "R@1_current": 0.5789
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v1-turbo-en",
+      "tier": "B",
+      "params_m": 38,
+      "arch": "JinaBERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.5735,
+      "rerank_ms_p50": 10.3,
+      "rerank_ms_p95": 12.31,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 0.2567181885242462,
+          "irrelevant": -4.5364909172058105,
+          "margin": 4.793209105730057,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            0.2567181885242462,
+            0.2567181885242462,
+            0.2567181885242462
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005806684494018555,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5284,
+      "R@1_current": 0.4978,
+      "R@5": 0.8865,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5556,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.5246,
+          "R@1_current": 0.5082
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.4643,
+          "R@1_current": 0.4643
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.6875,
+          "R@1_current": 0.6875
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.4912
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v1-turbo-en",
+      "tier": "B",
+      "params_m": 38,
+      "arch": "JinaBERT",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.5381,
+      "rerank_ms_p50": 26.59,
+      "rerank_ms_p95": 29.51,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 0.2567181885242462,
+          "irrelevant": -4.5364909172058105,
+          "margin": 4.793209105730057,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            0.2567181885242462,
+            0.2567181885242462,
+            0.2567181885242462
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005806684494018555,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.524,
+      "R@1_current": 0.4934,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5556,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.5082,
+          "R@1_current": 0.4918
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.4643,
+          "R@1_current": 0.4643
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.6875,
+          "R@1_current": 0.6875
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.4912
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v1-turbo-en",
+      "tier": "B",
+      "params_m": 38,
+      "arch": "JinaBERT",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.5111,
+      "rerank_ms_p50": 41.94,
+      "rerank_ms_p95": 46.07,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 0.2567181885242462,
+          "irrelevant": -4.5364909172058105,
+          "margin": 4.793209105730057,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            0.2567181885242462,
+            0.2567181885242462,
+            0.2567181885242462
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0005806684494018555,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5022,
+      "R@1_current": 0.4716,
+      "R@5": 0.8996,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5556,
+          "R@1_current": 0.4167
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.459,
+          "R@1_current": 0.4426
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.4643,
+          "R@1_current": 0.4643
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2667,
+          "R@1_current": 0.2667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.6875,
+          "R@1_current": 0.6875
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.4912,
+          "R@1_current": 0.4737
+        }
+      }
+    },
+    {
+      "model": "bge-reranker-base",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6398,
+      "rerank_ms_p50": 31.73,
+      "rerank_ms_p95": 36.14,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.190475940704346,
+          "irrelevant": -10.195091247558594,
+          "margin": 14.38556718826294,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.190475940704346,
+            4.190475940704346,
+            4.190475940704346
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.1021575927734375e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5895,
+      "R@1_current": 0.5546,
+      "R@5": 0.8908,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5278,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6066,
+          "R@1_current": 0.5902
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6786,
+          "R@1_current": 0.6786
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.6667,
+          "R@1_current": 0.6667
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.6875,
+          "R@1_current": 0.6875
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.4912,
+          "R@1_current": 0.4912
+        }
+      }
+    },
+    {
+      "model": "bge-reranker-base",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6279,
+      "rerank_ms_p50": 75.05,
+      "rerank_ms_p95": 80.51,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.190475940704346,
+          "irrelevant": -10.195091247558594,
+          "margin": 14.38556718826294,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.190475940704346,
+            4.190475940704346,
+            4.190475940704346
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.1021575927734375e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.6114,
+      "R@1_current": 0.5721,
+      "R@5": 0.9083,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5278,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6721,
+          "R@1_current": 0.6393
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6786,
+          "R@1_current": 0.6786
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.6,
+          "R@1_current": 0.6
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.5088
+        }
+      }
+    },
+    {
+      "model": "bge-reranker-base",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.6178,
+      "rerank_ms_p50": 116.43,
+      "rerank_ms_p95": 123.55,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 4.190475940704346,
+          "irrelevant": -10.195091247558594,
+          "margin": 14.38556718826294,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            4.190475940704346,
+            4.190475940704346,
+            4.190475940704346
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.1021575927734375e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.607,
+      "R@1_current": 0.5677,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5278,
+          "R@1_current": 0.3333
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.6557,
+          "R@1_current": 0.623
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6786,
+          "R@1_current": 0.6786
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.6,
+          "R@1_current": 0.6
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7188,
+          "R@1_current": 0.7188
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.5088
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v2-base-multilingual",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.5213,
+      "rerank_ms_p50": 33.69,
+      "rerank_ms_p95": 37.88,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 1.5576295852661133,
+          "irrelevant": -3.7394020557403564,
+          "margin": 5.29703164100647,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            1.5576295852661133,
+            1.5576295852661133,
+            1.5576295852661133
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 1.3470649719238281e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.4803,
+      "R@1_current": 0.4541,
+      "R@5": 0.8952,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.4167,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.4262,
+          "R@1_current": 0.3934
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6429,
+          "R@1_current": 0.6429
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.5938,
+          "R@1_current": 0.5938
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.5088
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v2-base-multilingual",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.5023,
+      "rerank_ms_p50": 85.34,
+      "rerank_ms_p95": 94.32,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 1.5576295852661133,
+          "irrelevant": -3.7394020557403564,
+          "margin": 5.29703164100647,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            1.5576295852661133,
+            1.5576295852661133,
+            1.5576295852661133
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 1.3470649719238281e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.4891,
+      "R@1_current": 0.4585,
+      "R@5": 0.917,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.4167,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.4262,
+          "R@1_current": 0.377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6429,
+          "R@1_current": 0.6429
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.625,
+          "R@1_current": 0.625
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5263,
+          "R@1_current": 0.5263
+        }
+      }
+    },
+    {
+      "model": "jina-reranker-v2-base-multilingual",
+      "tier": "B",
+      "params_m": 278,
+      "arch": "XLM-RoBERTa",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.4978,
+      "rerank_ms_p50": 131.23,
+      "rerank_ms_p95": 144.71,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 1.5576295852661133,
+          "irrelevant": -3.7394020557403564,
+          "margin": 5.29703164100647,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            1.5576295852661133,
+            1.5576295852661133,
+            1.5576295852661133
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 1.3470649719238281e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.4891,
+      "R@1_current": 0.4629,
+      "R@5": 0.9127,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.4167,
+          "R@1_current": 0.3056
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.4098,
+          "R@1_current": 0.377
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6429,
+          "R@1_current": 0.6429
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.2,
+          "R@1_current": 0.2
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.625,
+          "R@1_current": 0.625
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5439,
+          "R@1_current": 0.5439
+        }
+      }
+    },
+    {
+      "model": "mxbai-rerank-base-v1",
+      "tier": "B",
+      "params_m": 184,
+      "arch": "DeBERTa-v3",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.6161,
+      "rerank_ms_p50": 55.84,
+      "rerank_ms_p95": 60.86,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 3.345726251602173,
+          "irrelevant": -6.2593183517456055,
+          "margin": 9.605044603347778,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            3.345726251602173,
+            3.345726251602173,
+            3.345726251602173
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.4717063903808594e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5677,
+      "R@1_current": 0.5153,
+      "R@5": 0.8777,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.5833,
+          "R@1_current": 0.3611
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.541,
+          "R@1_current": 0.5082
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.6786,
+          "R@1_current": 0.6786
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.4,
+          "R@1_current": 0.4
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.75,
+          "R@1_current": 0.75
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.4737,
+          "R@1_current": 0.4386
+        }
+      }
+    },
+    {
+      "model": "mxbai-rerank-base-v1",
+      "tier": "B",
+      "params_m": 184,
+      "arch": "DeBERTa-v3",
+      "depth": 20,
+      "input_recall": 0.9738,
+      "conditional_accuracy": 0.6144,
+      "rerank_ms_p50": 132.72,
+      "rerank_ms_p95": 141.2,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 3.345726251602173,
+          "irrelevant": -6.2593183517456055,
+          "margin": 9.605044603347778,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            3.345726251602173,
+            3.345726251602173,
+            3.345726251602173
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.4717063903808594e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5983,
+      "R@1_current": 0.5371,
+      "R@5": 0.9127,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.5902,
+          "R@1_current": 0.5246
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7143,
+          "R@1_current": 0.7143
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.4,
+          "R@1_current": 0.4
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7812,
+          "R@1_current": 0.7812
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.4912,
+          "R@1_current": 0.4561
+        }
+      }
+    },
+    {
+      "model": "mxbai-rerank-base-v1",
+      "tier": "B",
+      "params_m": 184,
+      "arch": "DeBERTa-v3",
+      "depth": 30,
+      "input_recall": 0.9825,
+      "conditional_accuracy": 0.6089,
+      "rerank_ms_p50": 203.7,
+      "rerank_ms_p95": 212.24,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 3.345726251602173,
+          "irrelevant": -6.2593183517456055,
+          "margin": 9.605044603347778,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            3.345726251602173,
+            3.345726251602173,
+            3.345726251602173
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 5.4717063903808594e-05,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.5983,
+      "R@1_current": 0.5371,
+      "R@5": 0.9258,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.6111,
+          "R@1_current": 0.3889
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.5738,
+          "R@1_current": 0.5082
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.7143,
+          "R@1_current": 0.7143
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.4,
+          "R@1_current": 0.4
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.7812,
+          "R@1_current": 0.7812
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.5088,
+          "R@1_current": 0.4737
+        }
+      }
+    }
+  ]
+}
