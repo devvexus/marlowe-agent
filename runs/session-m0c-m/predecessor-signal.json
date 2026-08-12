@@ -1,0 +1,6078 @@
+{
+  "_what": "does a candidate's PRECEDING turn discriminate whether it holds the answer",
+  "_measurement_only": true,
+  "_split": "fit",
+  "_note": "rules are scored PARAMETER-FREE at weight 1.0. lambda-swept cells are printed for shape and are explicitly not the result: four mechanisms this session died because their operating point was selected on fit, including one that was never trained at all.",
+  "control_r1": 0.7555,
+  "top": 3,
+  "candidates_without_predecessor": 256,
+  "reach_check": {
+    "prev1": {
+      "gold_median": -10.96682357788086,
+      "nongold_median": -10.82507038116455,
+      "delta": -0.1418,
+      "n_gold": 144,
+      "n_nongold": 287
+    },
+    "prev2": {
+      "gold_median": -8.801753997802734,
+      "nongold_median": -8.53492784500122,
+      "delta": -0.2668,
+      "n_gold": 137,
+      "n_nongold": 278
+    },
+    "prev1_minus_own": {
+      "gold_median": -3.495105266571045,
+      "nongold_median": -2.6946353912353516,
+      "delta": -0.8005
+    },
+    "prev2_minus_own": {
+      "gold_median": -1.624253273010254,
+      "nongold_median": -0.6217098236083984,
+      "delta": -1.0025
+    }
+  },
+  "arms": [
+    {
+      "rule": "control (shipped)",
+      "gained": 0,
+      "lost": 0,
+      "net": 0,
+      "r1": 0.7555,
+      "above": {
+        "g": 0,
+        "l": 0,
+        "n": 0
+      }
+    },
+    {
+      "rule": "ce + prev1        (weight 1, no knob)",
+      "gained": 7,
+      "lost": 76,
+      "net": -69,
+      "r1": 0.4541,
+      "above": {
+        "g": 4,
+        "l": 72,
+        "n": 26
+      }
+    },
+    {
+      "rule": "ce + prev2        (weight 1, no knob)",
+      "gained": 8,
+      "lost": 78,
+      "net": -70,
+      "r1": 0.4498,
+      "above": {
+        "g": 6,
+        "l": 74,
+        "n": 29
+      }
+    },
+    {
+      "rule": "ce + mean(prev1,prev2)",
+      "gained": 6,
+      "lost": 75,
+      "net": -69,
+      "r1": 0.4541,
+      "above": {
+        "g": 4,
+        "l": 71,
+        "n": 28
+      }
+    },
+    {
+      "rule": "prev1 alone",
+      "gained": 9,
+      "lost": 107,
+      "net": -98,
+      "r1": 0.3275,
+      "above": {
+        "g": 6,
+        "l": 101,
+        "n": 33
+      }
+    },
+    {
+      "rule": "[shape only] ce + 0.25*prev1",
+      "gained": 6,
+      "lost": 57,
+      "net": -51,
+      "r1": 0.5328,
+      "above": {
+        "g": 5,
+        "l": 53,
+        "n": 22
+      }
+    },
+    {
+      "rule": "[shape only] ce + 0.5*prev1",
+      "gained": 6,
+      "lost": 62,
+      "net": -56,
+      "r1": 0.5109,
+      "above": {
+        "g": 4,
+        "l": 58,
+        "n": 27
+      }
+    }
+  ],
+  "ms_per_query": 8.3,
+  "rows": {
+    "001be529": [
+      {
+        "is_gold": true,
+        "whole": -7.11409854888916,
+        "prev1": -11.256064414978027,
+        "prev2": -9.184725761413574,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.62491226196289,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.106439590454102,
+        "prev1": -11.062698364257812,
+        "prev2": -9.452756881713867,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "0100672e": [
+      {
+        "is_gold": false,
+        "whole": -6.231263637542725,
+        "prev1": -10.997888565063477,
+        "prev2": -9.452471733093262,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.192662239074707,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.422680377960205,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "01493427": [
+      {
+        "is_gold": true,
+        "whole": -6.140779495239258,
+        "prev1": -10.85152816772461,
+        "prev2": -8.303789138793945,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -6.4880547523498535,
+        "prev1": -10.630979537963867,
+        "prev2": -8.211102485656738,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.463613510131836,
+        "prev1": -9.930471420288086,
+        "prev2": -8.730619430541992,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "031748ae": [
+      {
+        "is_gold": true,
+        "whole": -6.442085266113281,
+        "prev1": -7.4235005378723145,
+        "prev2": -7.041134357452393,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.040966987609863,
+        "prev1": -10.93353271484375,
+        "prev2": -9.063339233398438,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.4237213134765625,
+        "prev1": -7.041134357452393,
+        "prev2": -10.93353271484375,
+        "has_prev1": true,
+        "turn_index": 9
+      }
+    ],
+    "06db6396": [
+      {
+        "is_gold": true,
+        "whole": -6.602121353149414,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.742718696594238,
+        "prev1": -11.160791397094727,
+        "prev2": -8.557360649108887,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -6.839072227478027,
+        "prev1": -11.003602981567383,
+        "prev2": -8.830894470214844,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "07741c44": [
+      {
+        "is_gold": false,
+        "whole": -7.483828544616699,
+        "prev1": -10.82211685180664,
+        "prev2": -7.541290760040283,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.54123592376709,
+        "prev1": -11.116647720336914,
+        "prev2": -9.063163757324219,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.635250091552734,
+        "prev1": -10.88029670715332,
+        "prev2": -8.45849609375,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "07741c45": [
+      {
+        "is_gold": false,
+        "whole": -7.203322410583496,
+        "prev1": -10.841715812683105,
+        "prev2": -8.377708435058594,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.814099311828613,
+        "prev1": -11.130295753479004,
+        "prev2": -7.019833087921143,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.855487823486328,
+        "prev1": -9.08625602722168,
+        "prev2": -8.184944152832031,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "078150f1": [
+      {
+        "is_gold": true,
+        "whole": -7.324554920196533,
+        "prev1": -11.193660736083984,
+        "prev2": -9.48701286315918,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.357053756713867,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.339906692504883,
+        "prev1": -11.18140983581543,
+        "prev2": -9.694210052490234,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "08e075c7": [
+      {
+        "is_gold": true,
+        "whole": -6.122796058654785,
+        "prev1": -11.175331115722656,
+        "prev2": -8.82703971862793,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.045093536376953,
+        "prev1": -11.193809509277344,
+        "prev2": -8.914464950561523,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.933111190795898,
+        "prev1": -10.908679962158203,
+        "prev2": -9.36861515045166,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "08f4fc43": [
+      {
+        "is_gold": true,
+        "whole": -7.1934003829956055,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.323801040649414,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.517941474914551,
+        "prev1": -11.122544288635254,
+        "prev2": -9.628847122192383,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "0977f2af": [
+      {
+        "is_gold": true,
+        "whole": -7.8078107833862305,
+        "prev1": -10.991006851196289,
+        "prev2": -9.179343223571777,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.018571853637695,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -9.049053192138672,
+        "prev1": -11.084341049194336,
+        "prev2": -9.208394050598145,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "09ba9854": [
+      {
+        "is_gold": true,
+        "whole": -6.958950042724609,
+        "prev1": -9.745048522949219,
+        "prev2": -7.903298854827881,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.078701019287109,
+        "prev1": -9.339271545410156,
+        "prev2": -8.35384750366211,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.249518394470215,
+        "prev1": -8.845650672912598,
+        "prev2": -6.958737373352051,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "09d032c9": [
+      {
+        "is_gold": false,
+        "whole": -7.619477272033691,
+        "prev1": -10.738420486450195,
+        "prev2": -8.430397033691406,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.674120903015137,
+        "prev1": -10.635032653808594,
+        "prev2": -8.156230926513672,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.959587097167969,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "0db4c65d": [
+      {
+        "is_gold": true,
+        "whole": -6.800714492797852,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.293413162231445,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.9353227615356445,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "0ddfec37": [
+      {
+        "is_gold": true,
+        "whole": -7.069433212280273,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.111634731292725,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.333314895629883,
+        "prev1": -10.982912063598633,
+        "prev2": -9.166058540344238,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "0f05491a": [
+      {
+        "is_gold": true,
+        "whole": -5.667823791503906,
+        "prev1": -6.181931495666504,
+        "prev2": -6.594436168670654,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -5.9755330085754395,
+        "prev1": -9.858532905578613,
+        "prev2": -7.496667861938477,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -6.032164096832275,
+        "prev1": -5.668760299682617,
+        "prev2": -6.181931495666504,
+        "has_prev1": true,
+        "turn_index": 11
+      }
+    ],
+    "10d9b85a": [
+      {
+        "is_gold": true,
+        "whole": -7.145357608795166,
+        "prev1": -11.201798439025879,
+        "prev2": -9.261077880859375,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.396014213562012,
+        "prev1": -11.017412185668945,
+        "prev2": -9.73493766784668,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -10.125210762023926,
+        "prev1": -8.730094909667969,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      }
+    ],
+    "129d1232": [
+      {
+        "is_gold": true,
+        "whole": -7.41536808013916,
+        "prev1": -11.296932220458984,
+        "prev2": -9.368496894836426,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.562575817108154,
+        "prev1": -11.263169288635254,
+        "prev2": -8.036649703979492,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.645574569702148,
+        "prev1": -10.94873332977295,
+        "prev2": -7.415854454040527,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "15745da0": [
+      {
+        "is_gold": true,
+        "whole": -5.343962669372559,
+        "prev1": -10.636883735656738,
+        "prev2": -6.873645782470703,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -6.787205219268799,
+        "prev1": -10.892950057983398,
+        "prev2": -8.155649185180664,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -6.8738203048706055,
+        "prev1": -10.067928314208984,
+        "prev2": -7.438677787780762,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "157a136e": [
+      {
+        "is_gold": false,
+        "whole": -7.414278507232666,
+        "prev1": -11.050018310546875,
+        "prev2": -9.553744316101074,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.428808212280273,
+        "prev1": -10.799687385559082,
+        "prev2": -7.761953830718994,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.761196136474609,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "16c90bf4": [
+      {
+        "is_gold": true,
+        "whole": -6.932853698730469,
+        "prev1": -8.399214744567871,
+        "prev2": -8.021835327148438,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -8.022904396057129,
+        "prev1": -8.459151268005371,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.09742546081543,
+        "prev1": -8.766891479492188,
+        "prev2": -8.628036499023438,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "18dcd5a5": [
+      {
+        "is_gold": true,
+        "whole": -7.114433288574219,
+        "prev1": -8.817513465881348,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.486349105834961,
+        "prev1": -11.17331314086914,
+        "prev2": -9.703910827636719,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.548970222473145,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "195a1a1b": [
+      {
+        "is_gold": false,
+        "whole": -8.310991287231445,
+        "prev1": -11.03559398651123,
+        "prev2": -8.540241241455078,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.44546890258789,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.539973258972168,
+        "prev1": -10.993011474609375,
+        "prev2": -8.944082260131836,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "19b5f2b3": [
+      {
+        "is_gold": true,
+        "whole": -6.909612655639648,
+        "prev1": -11.263717651367188,
+        "prev2": -7.9923319816589355,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.768022537231445,
+        "prev1": -10.980836868286133,
+        "prev2": -6.909329891204834,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.861057281494141,
+        "prev1": -11.121889114379883,
+        "prev2": -7.768013954162598,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "1a1907b4": [
+      {
+        "is_gold": false,
+        "whole": -7.424378395080566,
+        "prev1": -10.896610260009766,
+        "prev2": -7.494377136230469,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.555262088775635,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.572432518005371,
+        "prev1": -10.612589836120605,
+        "prev2": -8.02288818359375,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "1b9b7252": [
+      {
+        "is_gold": true,
+        "whole": -6.192968845367432,
+        "prev1": -8.375971794128418,
+        "prev2": -8.021146774291992,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -8.021475791931152,
+        "prev1": -8.467939376831055,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.376012802124023,
+        "prev1": -8.021146774291992,
+        "prev2": -8.467939376831055,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "1da05512": [
+      {
+        "is_gold": false,
+        "whole": -7.380363464355469,
+        "prev1": -10.07499885559082,
+        "prev2": -7.37975549697876,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.732223987579346,
+        "prev1": -10.767346382141113,
+        "prev2": -8.047172546386719,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.918311595916748,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "1e043500": [
+      {
+        "is_gold": true,
+        "whole": -7.106904983520508,
+        "prev1": -11.095069885253906,
+        "prev2": -9.070489883422852,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.413763046264648,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.7470121383667,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "1f2b8d4f": [
+      {
+        "is_gold": true,
+        "whole": -6.458378314971924,
+        "prev1": -10.516450881958008,
+        "prev2": -7.475344181060791,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -6.58354377746582,
+        "prev1": -9.137539863586426,
+        "prev2": -7.211669445037842,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.211824417114258,
+        "prev1": -9.462735176086426,
+        "prev2": -7.465383052825928,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "21436231": [
+      {
+        "is_gold": true,
+        "whole": -6.20942497253418,
+        "prev1": -9.747051239013672,
+        "prev2": -7.535285949707031,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.535239219665527,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.741508483886719,
+        "prev1": -10.82507038116455,
+        "prev2": -9.077192306518555,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "22d2cb42": [
+      {
+        "is_gold": false,
+        "whole": -6.884679794311523,
+        "prev1": -10.369211196899414,
+        "prev2": -7.247178554534912,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.2470269203186035,
+        "prev1": -11.18221378326416,
+        "prev2": -9.452241897583008,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.336590766906738,
+        "prev1": -11.110913276672363,
+        "prev2": -8.743467330932617,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "25e5aa4f": [
+      {
+        "is_gold": false,
+        "whole": -8.399140357971191,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.439396858215332,
+        "prev1": -11.301469802856445,
+        "prev2": -9.562982559204102,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -10.706703186035156,
+        "prev1": -9.899643898010254,
+        "prev2": -11.488030433654785,
+        "has_prev1": true,
+        "turn_index": 11
+      }
+    ],
+    "2698e78f": [
+      {
+        "is_gold": true,
+        "whole": -7.014528274536133,
+        "prev1": -11.14402961730957,
+        "prev2": -8.914999961853027,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.612234115600586,
+        "prev1": -9.923145294189453,
+        "prev2": -8.693735122680664,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.669856071472168,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "28bcfaac": [
+      {
+        "is_gold": true,
+        "whole": -6.484649181365967,
+        "prev1": -8.379924774169922,
+        "prev2": -7.844810962677002,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.846146106719971,
+        "prev1": -8.590221405029297,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.131914138793945,
+        "prev1": -8.360807418823242,
+        "prev2": -6.4839863777160645,
+        "has_prev1": true,
+        "turn_index": 5
+      }
+    ],
+    "28dc39ac": [
+      {
+        "is_gold": true,
+        "whole": -6.32124137878418,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.076488494873047,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.178543567657471,
+        "prev1": -11.120189666748047,
+        "prev2": -8.621723175048828,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "2b8f3739": [
+      {
+        "is_gold": true,
+        "whole": -6.657858848571777,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.686476707458496,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.660834789276123,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "2ce6a0f2": [
+      {
+        "is_gold": true,
+        "whole": -7.193493843078613,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.227497100830078,
+        "prev1": -10.669025421142578,
+        "prev2": -7.193164348602295,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.41987133026123,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "2ebe6c92": [
+      {
+        "is_gold": true,
+        "whole": -7.186286926269531,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.78146505355835,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.178580284118652,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "3249768e": [
+      {
+        "is_gold": false,
+        "whole": -7.184769630432129,
+        "prev1": -7.8143439292907715,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -7.473942279815674,
+        "prev1": -7.183719635009766,
+        "prev2": -7.8143439292907715,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.613175392150879,
+        "prev1": -7.473763465881348,
+        "prev2": -7.183719635009766,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "35a27287": [
+      {
+        "is_gold": true,
+        "whole": -8.183126449584961,
+        "prev1": -11.038042068481445,
+        "prev2": -9.371868133544922,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.380966186523438,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.49177360534668,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "36b9f61e": [
+      {
+        "is_gold": true,
+        "whole": -7.150574684143066,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.299887657165527,
+        "prev1": -10.988066673278809,
+        "prev2": -8.924140930175781,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.33249568939209,
+        "prev1": -10.539684295654297,
+        "prev2": -7.151346206665039,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "370a8ff4": [
+      {
+        "is_gold": true,
+        "whole": -7.284215927124023,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.284240245819092,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.9124226570129395,
+        "prev1": -10.992631912231445,
+        "prev2": -8.392340660095215,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "37d43f65": [
+      {
+        "is_gold": true,
+        "whole": -5.593520164489746,
+        "prev1": -9.374024391174316,
+        "prev2": -7.32739782333374,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -6.785676956176758,
+        "prev1": -10.35232925415039,
+        "prev2": -7.6522746086120605,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.327463626861572,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "3b6f954b": [
+      {
+        "is_gold": true,
+        "whole": -7.022527694702148,
+        "prev1": -11.255386352539062,
+        "prev2": -9.559627532958984,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -9.033381462097168,
+        "prev1": -11.212424278259277,
+        "prev2": -9.696083068847656,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -9.160361289978027,
+        "prev1": -7.022402286529541,
+        "prev2": -11.255386352539062,
+        "has_prev1": true,
+        "turn_index": 9
+      }
+    ],
+    "3ba21379": [
+      {
+        "is_gold": false,
+        "whole": -7.592063903808594,
+        "prev1": -10.859930992126465,
+        "prev2": -8.278894424438477,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.675884246826172,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.765290260314941,
+        "prev1": -10.964473724365234,
+        "prev2": -7.2357940673828125,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "3c1045c8": [
+      {
+        "is_gold": true,
+        "whole": -6.525527000427246,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.564949035644531,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.136168479919434,
+        "prev1": -11.210646629333496,
+        "prev2": -9.258818626403809,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "3f1e9474": [
+      {
+        "is_gold": true,
+        "whole": -7.379533767700195,
+        "prev1": -11.28683853149414,
+        "prev2": -9.4373779296875,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.726954460144043,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.050969123840332,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "3fdac837": [
+      {
+        "is_gold": true,
+        "whole": -7.3132123947143555,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.479619026184082,
+        "prev1": -9.359481811523438,
+        "prev2": -7.771964073181152,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.767866134643555,
+        "prev1": -10.13875961303711,
+        "prev2": -8.412602424621582,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "3fe836c9": [
+      {
+        "is_gold": true,
+        "whole": -6.97184944152832,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.746548652648926,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.063862800598145,
+        "prev1": -10.966524124145508,
+        "prev2": -9.882935523986816,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "4100d0a0": [
+      {
+        "is_gold": true,
+        "whole": -7.6035966873168945,
+        "prev1": -11.145875930786133,
+        "prev2": -9.92251205444336,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -9.230550765991211,
+        "prev1": -7.603569984436035,
+        "prev2": -11.145875930786133,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -9.545706748962402,
+        "prev1": -11.250405311584473,
+        "prev2": -10.138507843017578,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "41275add": [
+      {
+        "is_gold": true,
+        "whole": -8.227082252502441,
+        "prev1": -8.884020805358887,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.647760391235352,
+        "prev1": -10.721744537353516,
+        "prev2": -9.282963752746582,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.675233840942383,
+        "prev1": -10.940093994140625,
+        "prev2": -9.113161087036133,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "41698283": [
+      {
+        "is_gold": true,
+        "whole": -6.805222988128662,
+        "prev1": -10.988260269165039,
+        "prev2": -7.472208023071289,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.03954029083252,
+        "prev1": -9.060627937316895,
+        "prev2": -6.742704391479492,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -8.522507667541504,
+        "prev1": -11.360603332519531,
+        "prev2": -8.937627792358398,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "45dc21b6": [
+      {
+        "is_gold": true,
+        "whole": -7.0238189697265625,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.403304100036621,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.418573379516602,
+        "prev1": -11.035737037658691,
+        "prev2": -9.169679641723633,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "46a3abf7": [
+      {
+        "is_gold": false,
+        "whole": -7.45930290222168,
+        "prev1": -11.075559616088867,
+        "prev2": -8.97459602355957,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.733133316040039,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.775478839874268,
+        "prev1": -11.061189651489258,
+        "prev2": -9.551961898803711,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "488d3006": [
+      {
+        "is_gold": true,
+        "whole": -5.05257511138916,
+        "prev1": -8.228168487548828,
+        "prev2": -6.965392112731934,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -6.838049411773682,
+        "prev1": -7.4377593994140625,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -6.940971374511719,
+        "prev1": -8.67100715637207,
+        "prev2": -5.053474426269531,
+        "has_prev1": true,
+        "turn_index": 7
+      }
+    ],
+    "4adc0475": [
+      {
+        "is_gold": true,
+        "whole": -7.162084579467773,
+        "prev1": -11.225976943969727,
+        "prev2": -8.882881164550781,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.886772155761719,
+        "prev1": -11.232709884643555,
+        "prev2": -9.695880889892578,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.072280883789062,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "4baee567": [
+      {
+        "is_gold": true,
+        "whole": -6.105583667755127,
+        "prev1": -8.872325897216797,
+        "prev2": -7.258451461791992,
+        "has_prev1": true,
+        "turn_index": 11
+      },
+      {
+        "is_gold": false,
+        "whole": -6.531020164489746,
+        "prev1": -8.494425773620605,
+        "prev2": -6.105486869812012,
+        "has_prev1": true,
+        "turn_index": 13
+      },
+      {
+        "is_gold": false,
+        "whole": -7.259397029876709,
+        "prev1": -7.9754838943481445,
+        "prev2": -9.641839981079102,
+        "has_prev1": true,
+        "turn_index": 9
+      }
+    ],
+    "4bc144e2": [
+      {
+        "is_gold": true,
+        "whole": -6.559901237487793,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.665588855743408,
+        "prev1": -10.523555755615234,
+        "prev2": -8.597450256347656,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.347830772399902,
+        "prev1": -10.279489517211914,
+        "prev2": -6.665748119354248,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "4d6b87c8": [
+      {
+        "is_gold": true,
+        "whole": -6.879438877105713,
+        "prev1": -11.135339736938477,
+        "prev2": -8.240188598632812,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.058035373687744,
+        "prev1": -11.051095962524414,
+        "prev2": -8.431296348571777,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.860416412353516,
+        "prev1": -11.18232536315918,
+        "prev2": -8.640349388122559,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "4dfccbf8": [
+      {
+        "is_gold": true,
+        "whole": -7.738525390625,
+        "prev1": -11.198221206665039,
+        "prev2": -9.409056663513184,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.980627059936523,
+        "prev1": -11.161336898803711,
+        "prev2": -7.738432884216309,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.327473640441895,
+        "prev1": -11.410511016845703,
+        "prev2": -9.258607864379883,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "4fd1909e": [
+      {
+        "is_gold": true,
+        "whole": -5.973812580108643,
+        "prev1": -9.100969314575195,
+        "prev2": -8.085601806640625,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.086191177368164,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.477449417114258,
+        "prev1": -5.973227500915527,
+        "prev2": -9.100969314575195,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "505af2f5": [
+      {
+        "is_gold": false,
+        "whole": -7.452150821685791,
+        "prev1": -10.80450439453125,
+        "prev2": -7.9168219566345215,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.760153293609619,
+        "prev1": -11.034158706665039,
+        "prev2": -9.255184173583984,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.916979789733887,
+        "prev1": -11.17542552947998,
+        "prev2": -9.079245567321777,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "51a45a95": [
+      {
+        "is_gold": true,
+        "whole": -6.070517539978027,
+        "prev1": -11.128107070922852,
+        "prev2": -9.032815933227539,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -9.667119979858398,
+        "prev1": -6.070052146911621,
+        "prev2": -11.128107070922852,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -9.856353759765625,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "54026fce": [
+      {
+        "is_gold": true,
+        "whole": -6.988037109375,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.464183807373047,
+        "prev1": -10.93552303314209,
+        "prev2": -7.488849639892578,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.489137649536133,
+        "prev1": -10.877510070800781,
+        "prev2": -7.870944023132324,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "577d4d32": [
+      {
+        "is_gold": true,
+        "whole": -7.025722503662109,
+        "prev1": -10.900423049926758,
+        "prev2": -9.38194751739502,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.86601448059082,
+        "prev1": -10.98388671875,
+        "prev2": -8.80515193939209,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.960227966308594,
+        "prev1": -10.414891242980957,
+        "prev2": -10.141016960144043,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "57f827a0": [
+      {
+        "is_gold": false,
+        "whole": -7.990496635437012,
+        "prev1": -11.1170654296875,
+        "prev2": -9.273122787475586,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.995167255401611,
+        "prev1": -10.511940002441406,
+        "prev2": -8.030525207519531,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -8.363152503967285,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "58bf7951": [
+      {
+        "is_gold": false,
+        "whole": -6.4716901779174805,
+        "prev1": -11.035078048706055,
+        "prev2": -8.115120887756348,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.935617446899414,
+        "prev1": -8.385128021240234,
+        "prev2": -6.472102165222168,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.384821891784668,
+        "prev1": -6.472102165222168,
+        "prev2": -11.035078048706055,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "58ef2f1c": [
+      {
+        "is_gold": false,
+        "whole": -7.3682942390441895,
+        "prev1": -10.841816902160645,
+        "prev2": -9.095267295837402,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.95292854309082,
+        "prev1": -11.023731231689453,
+        "prev2": -9.577402114868164,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.592838287353516,
+        "prev1": -10.604915618896484,
+        "prev2": -9.027495384216309,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "5a4f22c0": [
+      {
+        "is_gold": true,
+        "whole": -6.512686729431152,
+        "prev1": -11.187932968139648,
+        "prev2": -8.905108451843262,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -6.566672325134277,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.917300701141357,
+        "prev1": -10.485261917114258,
+        "prev2": -8.739449501037598,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "5c40ec5b": [
+      {
+        "is_gold": false,
+        "whole": -6.333196640014648,
+        "prev1": -10.954771041870117,
+        "prev2": -8.778711318969727,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -6.838149547576904,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.292416572570801,
+        "prev1": -11.056594848632812,
+        "prev2": -9.383319854736328,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "5d3d2817": [
+      {
+        "is_gold": false,
+        "whole": -8.970155715942383,
+        "prev1": -11.418977737426758,
+        "prev2": -10.684469223022461,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -9.467954635620117,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -9.471817016601562,
+        "prev1": -11.336236953735352,
+        "prev2": -10.407258987426758,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "60036106": [
+      {
+        "is_gold": false,
+        "whole": -6.889494895935059,
+        "prev1": -10.99740982055664,
+        "prev2": -8.108832359313965,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.260319709777832,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.555182933807373,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "6071bd76": [
+      {
+        "is_gold": true,
+        "whole": -6.702150344848633,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.920241355895996,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.584325790405273,
+        "prev1": -8.12387466430664,
+        "prev2": -8.496159553527832,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "60d45044": [
+      {
+        "is_gold": true,
+        "whole": -7.208930015563965,
+        "prev1": -10.969610214233398,
+        "prev2": -9.791620254516602,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.946024894714355,
+        "prev1": -11.022636413574219,
+        "prev2": -8.489013671875,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -9.076939582824707,
+        "prev1": -10.378996849060059,
+        "prev2": -9.22893238067627,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "61f8c8f8": [
+      {
+        "is_gold": true,
+        "whole": -7.100880146026611,
+        "prev1": -9.944966316223145,
+        "prev2": -8.254880905151367,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.254693984985352,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.652621269226074,
+        "prev1": -11.155679702758789,
+        "prev2": -10.008050918579102,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "6222b6eb": [
+      {
+        "is_gold": false,
+        "whole": -5.90685510635376,
+        "prev1": -7.877359390258789,
+        "prev2": -6.719233989715576,
+        "has_prev1": true,
+        "turn_index": 13
+      },
+      {
+        "is_gold": true,
+        "whole": -6.719613075256348,
+        "prev1": -8.51762580871582,
+        "prev2": -10.228816986083984,
+        "has_prev1": true,
+        "turn_index": 11
+      },
+      {
+        "is_gold": false,
+        "whole": -7.8781280517578125,
+        "prev1": -6.719233989715576,
+        "prev2": -8.51762580871582,
+        "has_prev1": true,
+        "turn_index": 12
+      }
+    ],
+    "6456829e": [
+      {
+        "is_gold": true,
+        "whole": -7.250051498413086,
+        "prev1": -10.549461364746094,
+        "prev2": -7.775242805480957,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.630641937255859,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.05606746673584,
+        "prev1": -11.080461502075195,
+        "prev2": -8.770777702331543,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "681a1674": [
+      {
+        "is_gold": true,
+        "whole": -6.200723648071289,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -6.328446388244629,
+        "prev1": -10.145133972167969,
+        "prev2": -6.754886627197266,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -6.532571792602539,
+        "prev1": -10.201359748840332,
+        "prev2": -6.327958583831787,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "69fee5aa": [
+      {
+        "is_gold": true,
+        "whole": -6.135168552398682,
+        "prev1": -10.846784591674805,
+        "prev2": -7.70393705368042,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -6.6449127197265625,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.703605651855469,
+        "prev1": -10.852456092834473,
+        "prev2": -8.410514831542969,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "6c49646a": [
+      {
+        "is_gold": true,
+        "whole": -6.140530109405518,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.464070796966553,
+        "prev1": -10.983314514160156,
+        "prev2": -9.152975082397461,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.728680610656738,
+        "prev1": -11.02532958984375,
+        "prev2": -9.430885314941406,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "6cb6f249": [
+      {
+        "is_gold": true,
+        "whole": -7.311481475830078,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.89067554473877,
+        "prev1": -10.01276969909668,
+        "prev2": -9.228514671325684,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -10.012653350830078,
+        "prev1": -9.228514671325684,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      }
+    ],
+    "6d550036": [
+      {
+        "is_gold": false,
+        "whole": -7.4187774658203125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.892753601074219,
+        "prev1": -10.46734619140625,
+        "prev2": -7.418719291687012,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.569517135620117,
+        "prev1": -11.255562782287598,
+        "prev2": -7.8928961753845215,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "6e984302": [
+      {
+        "is_gold": false,
+        "whole": -7.6535234451293945,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.093515396118164,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.172558784484863,
+        "prev1": -11.060976028442383,
+        "prev2": -8.42679500579834,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "6f9b354f": [
+      {
+        "is_gold": true,
+        "whole": -7.093606948852539,
+        "prev1": -11.033300399780273,
+        "prev2": -8.588264465332031,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.896283149719238,
+        "prev1": -11.172525405883789,
+        "prev2": -9.31696605682373,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -9.317093849182129,
+        "prev1": -10.984750747680664,
+        "prev2": -9.031174659729004,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "70b3e69b": [
+      {
+        "is_gold": true,
+        "whole": -6.20052433013916,
+        "prev1": -8.158435821533203,
+        "prev2": -7.920594215393066,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -6.602181434631348,
+        "prev1": -8.59060001373291,
+        "prev2": -8.476434707641602,
+        "has_prev1": true,
+        "turn_index": 11
+      },
+      {
+        "is_gold": false,
+        "whole": -6.921754837036133,
+        "prev1": -7.504897117614746,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      }
+    ],
+    "71a3fd6b": [
+      {
+        "is_gold": true,
+        "whole": -6.417503833770752,
+        "prev1": -7.909471035003662,
+        "prev2": -8.232064247131348,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.613651752471924,
+        "prev1": -6.417120456695557,
+        "prev2": -7.909471035003662,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.9092912673950195,
+        "prev1": -8.232064247131348,
+        "prev2": -8.858989715576172,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "720133ac": [
+      {
+        "is_gold": true,
+        "whole": -7.029769420623779,
+        "prev1": -10.607756614685059,
+        "prev2": -9.30270767211914,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.202021598815918,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.54912805557251,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "72e3ee87": [
+      {
+        "is_gold": true,
+        "whole": -6.4572343826293945,
+        "prev1": -11.170358657836914,
+        "prev2": -9.12635326385498,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.02974271774292,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.14789867401123,
+        "prev1": -9.768573760986328,
+        "prev2": -7.029418468475342,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "75f70248": [
+      {
+        "is_gold": false,
+        "whole": -7.95461893081665,
+        "prev1": -10.86993408203125,
+        "prev2": -8.865301132202148,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.701526641845703,
+        "prev1": -10.786870002746582,
+        "prev2": -7.953995704650879,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.857012748718262,
+        "prev1": -10.984413146972656,
+        "prev2": -9.108907699584961,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "778164c6": [
+      {
+        "is_gold": true,
+        "whole": -6.310664176940918,
+        "prev1": -7.912132263183594,
+        "prev2": -8.046823501586914,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.355698108673096,
+        "prev1": -8.957862854003906,
+        "prev2": -6.312065124511719,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -7.910305023193359,
+        "prev1": -8.301288604736328,
+        "prev2": -9.09591293334961,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "77eafa52": [
+      {
+        "is_gold": false,
+        "whole": -6.746793746948242,
+        "prev1": -10.911006927490234,
+        "prev2": -8.706088066101074,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -6.98550271987915,
+        "prev1": -9.618890762329102,
+        "prev2": -7.973933219909668,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.035715103149414,
+        "prev1": -9.741403579711914,
+        "prev2": -8.289294242858887,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "7a8d0b71": [
+      {
+        "is_gold": true,
+        "whole": -6.8499298095703125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.675995349884033,
+        "prev1": -8.611434936523438,
+        "prev2": -6.850363254547119,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.225213050842285,
+        "prev1": -10.316840171813965,
+        "prev2": -9.055133819580078,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "8077ef71": [
+      {
+        "is_gold": true,
+        "whole": -7.15109920501709,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.99611234664917,
+        "prev1": -9.84428596496582,
+        "prev2": -8.203369140625,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.03472900390625,
+        "prev1": -11.158329010009766,
+        "prev2": -8.740400314331055,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "830ce83f": [
+      {
+        "is_gold": true,
+        "whole": -7.2069091796875,
+        "prev1": -8.877205848693848,
+        "prev2": -7.220783233642578,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.221010208129883,
+        "prev1": -11.122797966003418,
+        "prev2": -9.169085502624512,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.40834903717041,
+        "prev1": -11.118663787841797,
+        "prev2": -7.206307888031006,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "852ce960": [
+      {
+        "is_gold": true,
+        "whole": -6.682392597198486,
+        "prev1": -10.970161437988281,
+        "prev2": -8.801753997802734,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.384254455566406,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.04466438293457,
+        "prev1": -10.746156692504883,
+        "prev2": -9.183454513549805,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "8550ddae": [
+      {
+        "is_gold": true,
+        "whole": -6.311901569366455,
+        "prev1": -9.75413703918457,
+        "prev2": -7.671957969665527,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.017256736755371,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.201376914978027,
+        "prev1": -10.912322044372559,
+        "prev2": -6.311595439910889,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "88432d0a": [
+      {
+        "is_gold": false,
+        "whole": -7.671770095825195,
+        "prev1": -10.773335456848145,
+        "prev2": -8.237159729003906,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.789978981018066,
+        "prev1": -11.13568115234375,
+        "prev2": -8.756278991699219,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.855944633483887,
+        "prev1": -11.064153671264648,
+        "prev2": -8.306991577148438,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "89527b6b": [
+      {
+        "is_gold": false,
+        "whole": -8.367063522338867,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.656366348266602,
+        "prev1": -8.36632251739502,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.834466934204102,
+        "prev1": -10.076637268066406,
+        "prev2": -8.639324188232422,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "8a2466db": [
+      {
+        "is_gold": true,
+        "whole": -7.416482448577881,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.81089973449707,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.618886947631836,
+        "prev1": -11.264054298400879,
+        "prev2": -9.372804641723633,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "8aef76bc": [
+      {
+        "is_gold": true,
+        "whole": -5.330422401428223,
+        "prev1": -7.968568325042725,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -7.969145774841309,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.153590202331543,
+        "prev1": -8.801748275756836,
+        "prev2": -5.331908226013184,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "8b9d4367": [
+      {
+        "is_gold": true,
+        "whole": -5.628699779510498,
+        "prev1": -7.837162971496582,
+        "prev2": -8.344120025634766,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.837849140167236,
+        "prev1": -8.344120025634766,
+        "prev2": -7.905296325683594,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.905373573303223,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "8cf51dda": [
+      {
+        "is_gold": true,
+        "whole": -7.5954084396362305,
+        "prev1": -7.926298141479492,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -7.926419258117676,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.029021263122559,
+        "prev1": -10.983590126037598,
+        "prev2": -9.287948608398438,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "8e9d538c": [
+      {
+        "is_gold": true,
+        "whole": -6.630082130432129,
+        "prev1": -10.34938907623291,
+        "prev2": -8.671106338500977,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.184843063354492,
+        "prev1": -11.242072105407715,
+        "prev2": -9.384966850280762,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.011245727539062,
+        "prev1": -10.98151969909668,
+        "prev2": -7.184931755065918,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "8fb83627": [
+      {
+        "is_gold": true,
+        "whole": -7.005441665649414,
+        "prev1": -10.758554458618164,
+        "prev2": -8.6848783493042,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.551749229431152,
+        "prev1": -11.326342582702637,
+        "prev2": -9.788978576660156,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.805328369140625,
+        "prev1": -11.349283218383789,
+        "prev2": -10.183673858642578,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "91b15a6e": [
+      {
+        "is_gold": true,
+        "whole": -7.163180828094482,
+        "prev1": -11.099536895751953,
+        "prev2": -8.356995582580566,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.419826984405518,
+        "prev1": -10.38409423828125,
+        "prev2": -7.76542854309082,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.466862201690674,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "92a0aa75": [
+      {
+        "is_gold": false,
+        "whole": -7.3656463623046875,
+        "prev1": -10.630000114440918,
+        "prev2": -7.457854747772217,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.457188606262207,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.461073875427246,
+        "prev1": -11.087966918945312,
+        "prev2": -8.476607322692871,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "945e3d21": [
+      {
+        "is_gold": true,
+        "whole": -7.35465669631958,
+        "prev1": -11.084360122680664,
+        "prev2": -10.67051887512207,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.5258283615112305,
+        "prev1": -10.82180404663086,
+        "prev2": -8.471416473388672,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.834597587585449,
+        "prev1": -10.79208755493164,
+        "prev2": -8.73954963684082,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "94f70d80": [
+      {
+        "is_gold": true,
+        "whole": -7.468500137329102,
+        "prev1": -11.185785293579102,
+        "prev2": -9.834942817687988,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.866605758666992,
+        "prev1": -11.230670928955078,
+        "prev2": -9.952802658081055,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -9.024659156799316,
+        "prev1": -11.224970817565918,
+        "prev2": -9.900540351867676,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "95bcc1c8": [
+      {
+        "is_gold": true,
+        "whole": -6.876112937927246,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.514068603515625,
+        "prev1": -10.19111442565918,
+        "prev2": -8.698748588562012,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -9.076082229614258,
+        "prev1": -10.571700096130371,
+        "prev2": -9.044149398803711,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "982b5123": [
+      {
+        "is_gold": true,
+        "whole": -6.592702865600586,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.005405426025391,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.539873123168945,
+        "prev1": -10.523016929626465,
+        "prev2": -8.713107109069824,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "9a707b81": [
+      {
+        "is_gold": true,
+        "whole": -7.661566734313965,
+        "prev1": -10.837453842163086,
+        "prev2": -8.594569206237793,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -8.126972198486328,
+        "prev1": -11.15392780303955,
+        "prev2": -9.275192260742188,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -8.479998588562012,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "9a707b82": [
+      {
+        "is_gold": false,
+        "whole": -7.481478214263916,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.792194366455078,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.065577507019043,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "9aaed6a3": [
+      {
+        "is_gold": true,
+        "whole": -7.170039176940918,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.691701889038086,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.996238708496094,
+        "prev1": -10.481545448303223,
+        "prev2": -8.154441833496094,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "9bbe84a2": [
+      {
+        "is_gold": true,
+        "whole": -7.3102335929870605,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.080521583557129,
+        "prev1": -11.212499618530273,
+        "prev2": -9.271047592163086,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.141365051269531,
+        "prev1": -10.953177452087402,
+        "prev2": -8.960330963134766,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "a06e4cfe": [
+      {
+        "is_gold": true,
+        "whole": -6.424069881439209,
+        "prev1": -10.253271102905273,
+        "prev2": -8.417439460754395,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.417579650878906,
+        "prev1": -11.117681503295898,
+        "prev2": -9.724813461303711,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.501492500305176,
+        "prev1": -6.423770904541016,
+        "prev2": -10.253271102905273,
+        "has_prev1": true,
+        "turn_index": 5
+      }
+    ],
+    "a08a253f": [
+      {
+        "is_gold": true,
+        "whole": -6.180642127990723,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.76112174987793,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.582178115844727,
+        "prev1": -9.477126121520996,
+        "prev2": -6.180442810058594,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "a11281a2": [
+      {
+        "is_gold": true,
+        "whole": -7.080022811889648,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.811127185821533,
+        "prev1": -11.241439819335938,
+        "prev2": -7.635032653808594,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.843283653259277,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "a1eacc2a": [
+      {
+        "is_gold": false,
+        "whole": -6.5659685134887695,
+        "prev1": -10.682408332824707,
+        "prev2": -7.137193202972412,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -6.578338146209717,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.700479507446289,
+        "prev1": -10.187686920166016,
+        "prev2": -7.624802112579346,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "a3045048": [
+      {
+        "is_gold": true,
+        "whole": -6.8381028175354,
+        "prev1": -10.959189414978027,
+        "prev2": -9.470587730407715,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.1392107009887695,
+        "prev1": -10.973151206970215,
+        "prev2": -9.674386024475098,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.158956527709961,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "a3332713": [
+      {
+        "is_gold": true,
+        "whole": -6.549832344055176,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.03157901763916,
+        "prev1": -10.843975067138672,
+        "prev2": -8.48066520690918,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.126317977905273,
+        "prev1": -7.754877090454102,
+        "prev2": -8.529614448547363,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "a346bb18": [
+      {
+        "is_gold": true,
+        "whole": -6.386876583099365,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -6.850345611572266,
+        "prev1": -10.817062377929688,
+        "prev2": -8.327574729919434,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.5639824867248535,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "a4996e51": [
+      {
+        "is_gold": true,
+        "whole": -7.233388900756836,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.656842231750488,
+        "prev1": -11.006250381469727,
+        "prev2": -7.166543006896973,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.861721038818359,
+        "prev1": -10.554256439208984,
+        "prev2": -7.23376989364624,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "a89d7624": [
+      {
+        "is_gold": false,
+        "whole": -7.220667362213135,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.577230930328369,
+        "prev1": -11.235060691833496,
+        "prev2": -7.893340110778809,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.6990814208984375,
+        "prev1": -11.153034210205078,
+        "prev2": -8.618034362792969,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "a9f6b44c": [
+      {
+        "is_gold": true,
+        "whole": -7.108051300048828,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.578198432922363,
+        "prev1": -11.097768783569336,
+        "prev2": -8.986237525939941,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.23642635345459,
+        "prev1": -9.746421813964844,
+        "prev2": -7.578370571136475,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "ad7109d1": [
+      {
+        "is_gold": true,
+        "whole": -7.149802207946777,
+        "prev1": -11.281210899353027,
+        "prev2": -9.497310638427734,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.426810264587402,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.496893882751465,
+        "prev1": -11.211287498474121,
+        "prev2": -9.525583267211914,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "afdc33df": [
+      {
+        "is_gold": true,
+        "whole": -7.66171932220459,
+        "prev1": -10.335687637329102,
+        "prev2": -8.219663619995117,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.934600830078125,
+        "prev1": -10.853351593017578,
+        "prev2": -8.356485366821289,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.110036849975586,
+        "prev1": -10.776301383972168,
+        "prev2": -8.086459159851074,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "affe2881": [
+      {
+        "is_gold": true,
+        "whole": -6.864398002624512,
+        "prev1": -11.168647766113281,
+        "prev2": -8.965997695922852,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -6.990935325622559,
+        "prev1": -10.824788093566895,
+        "prev2": -7.717026710510254,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.717225074768066,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "b0479f84": [
+      {
+        "is_gold": true,
+        "whole": -6.9115400314331055,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.95022439956665,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.121806144714355,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "b29f3365": [
+      {
+        "is_gold": false,
+        "whole": -7.010812759399414,
+        "prev1": -11.118078231811523,
+        "prev2": -9.401928901672363,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.1303391456604,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.663822174072266,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "b46e15ed": [
+      {
+        "is_gold": false,
+        "whole": -7.857903480529785,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.0064058303833,
+        "prev1": -11.067619323730469,
+        "prev2": -8.925908088684082,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.111416816711426,
+        "prev1": -10.831317901611328,
+        "prev2": -8.461164474487305,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "b6025781": [
+      {
+        "is_gold": false,
+        "whole": -7.281536102294922,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.495212554931641,
+        "prev1": -10.92608642578125,
+        "prev2": -8.432977676391602,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.624063491821289,
+        "prev1": -10.752199172973633,
+        "prev2": -8.410944938659668,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "b86304ba": [
+      {
+        "is_gold": false,
+        "whole": -8.382194519042969,
+        "prev1": -10.601211547851562,
+        "prev2": -9.345904350280762,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -8.478761672973633,
+        "prev1": -11.14573860168457,
+        "prev2": -9.229877471923828,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -9.229852676391602,
+        "prev1": -11.034348487854004,
+        "prev2": -9.645508766174316,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "ba61f0b9": [
+      {
+        "is_gold": false,
+        "whole": -6.852697849273682,
+        "prev1": -11.506439208984375,
+        "prev2": -10.042678833007812,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -6.915579795837402,
+        "prev1": -11.422466278076172,
+        "prev2": -9.589834213256836,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.400745391845703,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "bbf86515": [
+      {
+        "is_gold": true,
+        "whole": -6.658225059509277,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -6.80396032333374,
+        "prev1": -11.033748626708984,
+        "prev2": -9.337684631347656,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.555938720703125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "bcbe585f": [
+      {
+        "is_gold": true,
+        "whole": -6.633887767791748,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.209327697753906,
+        "prev1": -10.883797645568848,
+        "prev2": -8.825002670288086,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.250072479248047,
+        "prev1": -10.842506408691406,
+        "prev2": -8.869972229003906,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "bf659f65": [
+      {
+        "is_gold": true,
+        "whole": -7.74009895324707,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.455672264099121,
+        "prev1": -10.942634582519531,
+        "prev2": -7.740664005279541,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.576053619384766,
+        "prev1": -11.064664840698242,
+        "prev2": -9.150310516357422,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "c14c00dd": [
+      {
+        "is_gold": true,
+        "whole": -6.29771614074707,
+        "prev1": -10.484026908874512,
+        "prev2": -8.005593299865723,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -6.7912139892578125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.567780494689941,
+        "prev1": -10.120925903320312,
+        "prev2": -7.978540420532227,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "c2ac3c61": [
+      {
+        "is_gold": true,
+        "whole": -7.138560771942139,
+        "prev1": -11.135308265686035,
+        "prev2": -9.099394798278809,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.361295223236084,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.752057075500488,
+        "prev1": -11.255060195922852,
+        "prev2": -9.470245361328125,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "c4ea545c": [
+      {
+        "is_gold": true,
+        "whole": -7.1691694259643555,
+        "prev1": -11.202933311462402,
+        "prev2": -7.45253324508667,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.452667713165283,
+        "prev1": -10.739057540893555,
+        "prev2": -8.654434204101562,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.169297218322754,
+        "prev1": -10.97397518157959,
+        "prev2": -8.156739234924316,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "c4f10528": [
+      {
+        "is_gold": false,
+        "whole": -8.182233810424805,
+        "prev1": -9.793302536010742,
+        "prev2": -8.581103324890137,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.305187225341797,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.409916877746582,
+        "prev1": -7.978531837463379,
+        "prev2": -7.62451171875,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "c5e8278d": [
+      {
+        "is_gold": true,
+        "whole": -7.163181781768799,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.295470237731934,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.391845703125,
+        "prev1": -10.383739471435547,
+        "prev2": -7.162543773651123,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "c6853660": [
+      {
+        "is_gold": false,
+        "whole": -6.859353065490723,
+        "prev1": -10.571807861328125,
+        "prev2": -8.49240493774414,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.175388336181641,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.557112693786621,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "c8090214": [
+      {
+        "is_gold": true,
+        "whole": -7.054557800292969,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.305320739746094,
+        "prev1": -10.94682502746582,
+        "prev2": -9.226861953735352,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.325258255004883,
+        "prev1": -11.09106731414795,
+        "prev2": -8.486129760742188,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "c960da58": [
+      {
+        "is_gold": true,
+        "whole": -7.37603759765625,
+        "prev1": -11.124432563781738,
+        "prev2": -8.811063766479492,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.112773895263672,
+        "prev1": -11.0675687789917,
+        "prev2": -7.376589775085449,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.121440887451172,
+        "prev1": -10.57542610168457,
+        "prev2": -8.112961769104004,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "caf9ead2": [
+      {
+        "is_gold": false,
+        "whole": -5.709535121917725,
+        "prev1": -8.81889533996582,
+        "prev2": -7.658044815063477,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -6.595637798309326,
+        "prev1": -9.71687126159668,
+        "prev2": -5.710309028625488,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.595623970031738,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "cc06de0d": [
+      {
+        "is_gold": true,
+        "whole": -6.634783744812012,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -6.865273952484131,
+        "prev1": -10.033637046813965,
+        "prev2": -8.622526168823242,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.0734758377075195,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "cc539528": [
+      {
+        "is_gold": true,
+        "whole": -6.958735942840576,
+        "prev1": -7.852935791015625,
+        "prev2": -7.175422191619873,
+        "has_prev1": true,
+        "turn_index": 7
+      },
+      {
+        "is_gold": false,
+        "whole": -7.175344467163086,
+        "prev1": -8.407974243164062,
+        "prev2": -8.252973556518555,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -7.806478977203369,
+        "prev1": -7.913987159729004,
+        "prev2": -6.958615303039551,
+        "has_prev1": true,
+        "turn_index": 9
+      }
+    ],
+    "cc6d1ec1": [
+      {
+        "is_gold": true,
+        "whole": -7.288923263549805,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.412735462188721,
+        "prev1": -10.96349048614502,
+        "prev2": -8.367451667785645,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.144664764404297,
+        "prev1": -10.92622184753418,
+        "prev2": -8.183717727661133,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "d01c6aa8": [
+      {
+        "is_gold": true,
+        "whole": -7.609052658081055,
+        "prev1": -11.004485130310059,
+        "prev2": -8.001707077026367,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.857483863830566,
+        "prev1": -11.15334701538086,
+        "prev2": -8.155963897705078,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.883870601654053,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "d3ab962e": [
+      {
+        "is_gold": true,
+        "whole": -7.403775215148926,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.653519630432129,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.390381813049316,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "d596882b": [
+      {
+        "is_gold": true,
+        "whole": -6.631135940551758,
+        "prev1": -8.420581817626953,
+        "prev2": -8.726609230041504,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -7.943881034851074,
+        "prev1": -10.554126739501953,
+        "prev2": -8.682437896728516,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.973371505737305,
+        "prev1": -10.235559463500977,
+        "prev2": -8.771124839782715,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "d6233ab6": [
+      {
+        "is_gold": false,
+        "whole": -7.809416770935059,
+        "prev1": -10.79319953918457,
+        "prev2": -8.402149200439453,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.977189064025879,
+        "prev1": -10.71873664855957,
+        "prev2": -9.037206649780273,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -8.405193328857422,
+        "prev1": -11.094583511352539,
+        "prev2": -8.672563552856445,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "d682f1a2": [
+      {
+        "is_gold": true,
+        "whole": -7.363979816436768,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.43897819519043,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.181388854980469,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "d7c942c3": [
+      {
+        "is_gold": true,
+        "whole": -6.982944488525391,
+        "prev1": -10.970396041870117,
+        "prev2": -8.837867736816406,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.917052268981934,
+        "prev1": -11.362823486328125,
+        "prev2": -8.555227279663086,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.555187225341797,
+        "prev1": -11.356414794921875,
+        "prev2": -9.255523681640625,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "d851d5ba": [
+      {
+        "is_gold": true,
+        "whole": -6.890237808227539,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.004800796508789,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.205461502075195,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "d905b33f": [
+      {
+        "is_gold": true,
+        "whole": -7.027193546295166,
+        "prev1": -10.289765357971191,
+        "prev2": -8.59596061706543,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.577183723449707,
+        "prev1": -11.098634719848633,
+        "prev2": -8.586956024169922,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.8604736328125,
+        "prev1": -11.344903945922852,
+        "prev2": -9.413610458374023,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "dad224aa": [
+      {
+        "is_gold": false,
+        "whole": -5.057666301727295,
+        "prev1": -9.712133407592773,
+        "prev2": -6.399978160858154,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -6.0145392417907715,
+        "prev1": -9.607751846313477,
+        "prev2": -7.502941131591797,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -6.399179935455322,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "dccbc061": [
+      {
+        "is_gold": true,
+        "whole": -6.629623889923096,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.130187034606934,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.85760498046875,
+        "prev1": -10.915424346923828,
+        "prev2": -10.49512004852295,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "dfde3500": [
+      {
+        "is_gold": true,
+        "whole": -5.972080230712891,
+        "prev1": -8.514793395996094,
+        "prev2": -7.680742263793945,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.460274696350098,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.501297950744629,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "e01b8e2f": [
+      {
+        "is_gold": true,
+        "whole": -7.60015344619751,
+        "prev1": -11.001699447631836,
+        "prev2": -7.972482204437256,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.72911262512207,
+        "prev1": -11.161593437194824,
+        "prev2": -9.208264350891113,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.885946273803711,
+        "prev1": -9.938860893249512,
+        "prev2": -9.195807456970215,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "e25c3b8d": [
+      {
+        "is_gold": true,
+        "whole": -6.635810852050781,
+        "prev1": -9.98668384552002,
+        "prev2": -7.872257232666016,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.5444560050964355,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.6358442306518555,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "e3038f8c": [
+      {
+        "is_gold": false,
+        "whole": -7.430459022521973,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.486795425415039,
+        "prev1": -11.096420288085938,
+        "prev2": -8.362992286682129,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.576462268829346,
+        "prev1": -11.091872215270996,
+        "prev2": -8.01041030883789,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "e3fc4d6e": [
+      {
+        "is_gold": false,
+        "whole": -8.367860794067383,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.719416618347168,
+        "prev1": -8.36768913269043,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -8.800618171691895,
+        "prev1": -10.581926345825195,
+        "prev2": -9.399702072143555,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "e48988bc": [
+      {
+        "is_gold": true,
+        "whole": -6.892674446105957,
+        "prev1": -8.067031860351562,
+        "prev2": -7.951018333435059,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.134883880615234,
+        "prev1": -6.892657279968262,
+        "prev2": -8.067031860351562,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.165640830993652,
+        "prev1": -7.134596824645996,
+        "prev2": -6.892657279968262,
+        "has_prev1": true,
+        "turn_index": 5
+      }
+    ],
+    "e493bb7c": [
+      {
+        "is_gold": true,
+        "whole": -7.446213722229004,
+        "prev1": -11.422395706176758,
+        "prev2": -9.743664741516113,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -8.021782875061035,
+        "prev1": -11.122520446777344,
+        "prev2": -9.645620346069336,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.301643371582031,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "e831120c": [
+      {
+        "is_gold": true,
+        "whole": -6.675693988800049,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.063825607299805,
+        "prev1": -9.32883071899414,
+        "prev2": -7.345500946044922,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.1420440673828125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "e8a79c70": [
+      {
+        "is_gold": false,
+        "whole": -8.196728706359863,
+        "prev1": -8.71196174621582,
+        "prev2": -8.968476295471191,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.30140209197998,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.490756034851074,
+        "prev1": -11.25078010559082,
+        "prev2": -9.368212699890137,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "e9327a54": [
+      {
+        "is_gold": true,
+        "whole": -7.3461503982543945,
+        "prev1": -8.848520278930664,
+        "prev2": -9.168325424194336,
+        "has_prev1": true,
+        "turn_index": 7
+      },
+      {
+        "is_gold": false,
+        "whole": -7.947833061218262,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.984543800354004,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "e982271f": [
+      {
+        "is_gold": true,
+        "whole": -5.912465572357178,
+        "prev1": -7.731338024139404,
+        "prev2": -9.241013526916504,
+        "has_prev1": true,
+        "turn_index": 3
+      },
+      {
+        "is_gold": false,
+        "whole": -7.712705612182617,
+        "prev1": -5.913270473480225,
+        "prev2": -7.731338024139404,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.732275009155273,
+        "prev1": -9.241013526916504,
+        "prev2": -8.466676712036133,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "eac54adc": [
+      {
+        "is_gold": true,
+        "whole": -7.191654205322266,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.85073184967041,
+        "prev1": -11.042644500732422,
+        "prev2": -8.490799903869629,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -8.10066032409668,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "eac54add": [
+      {
+        "is_gold": false,
+        "whole": -7.898396968841553,
+        "prev1": -11.082426071166992,
+        "prev2": -8.975057601928711,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -8.373905181884766,
+        "prev1": -11.355631828308105,
+        "prev2": -8.886890411376953,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.44314956665039,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "eace081b": [
+      {
+        "is_gold": false,
+        "whole": -6.866206169128418,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.004294395446777,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.00577449798584,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "ec81a493": [
+      {
+        "is_gold": true,
+        "whole": -6.076676368713379,
+        "prev1": -11.28878402709961,
+        "prev2": -9.578433990478516,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.353681564331055,
+        "prev1": -11.074209213256836,
+        "prev2": -9.132169723510742,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -9.130292892456055,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "ed4ddc30": [
+      {
+        "is_gold": true,
+        "whole": -6.855734825134277,
+        "prev1": -11.007922172546387,
+        "prev2": -9.520618438720703,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.255771636962891,
+        "prev1": -10.772082328796387,
+        "prev2": -8.857625007629395,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.210404396057129,
+        "prev1": -11.031798362731934,
+        "prev2": -9.440741539001465,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "edced276": [
+      {
+        "is_gold": true,
+        "whole": -6.879065036773682,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.502298355102539,
+        "prev1": -10.90565299987793,
+        "prev2": -9.186129570007324,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.740630149841309,
+        "prev1": -10.879344940185547,
+        "prev2": -8.771899223327637,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "ef9cf60a": [
+      {
+        "is_gold": true,
+        "whole": -5.682440757751465,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.192835330963135,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.15999984741211,
+        "prev1": -10.902494430541992,
+        "prev2": -9.681682586669922,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "f35224e0": [
+      {
+        "is_gold": true,
+        "whole": -7.235904693603516,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.699939727783203,
+        "prev1": -10.868612289428711,
+        "prev2": -8.179276466369629,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.027877807617188,
+        "prev1": -10.289131164550781,
+        "prev2": -7.236528396606445,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "f523d9fe": [
+      {
+        "is_gold": true,
+        "whole": -6.9628214836120605,
+        "prev1": -8.711538314819336,
+        "prev2": -9.421823501586914,
+        "has_prev1": true,
+        "turn_index": 14
+      },
+      {
+        "is_gold": false,
+        "whole": -8.05196762084961,
+        "prev1": -8.494300842285156,
+        "prev2": -6.962764739990234,
+        "has_prev1": true,
+        "turn_index": 16
+      },
+      {
+        "is_gold": false,
+        "whole": -8.374411582946777,
+        "prev1": -8.213724136352539,
+        "prev2": -8.564002990722656,
+        "has_prev1": true,
+        "turn_index": 5
+      }
+    ],
+    "fca762bc": [
+      {
+        "is_gold": true,
+        "whole": -6.871560096740723,
+        "prev1": -8.261015892028809,
+        "prev2": -8.537398338317871,
+        "has_prev1": true,
+        "turn_index": 5
+      },
+      {
+        "is_gold": false,
+        "whole": -8.260851860046387,
+        "prev1": -8.537398338317871,
+        "prev2": -8.80525016784668,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.522690773010254,
+        "prev1": -10.582381248474121,
+        "prev2": -8.592926979064941,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "fea54f57": [
+      {
+        "is_gold": true,
+        "whole": -6.94387149810791,
+        "prev1": -7.252799987792969,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      },
+      {
+        "is_gold": false,
+        "whole": -7.253183364868164,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.553421974182129,
+        "prev1": -8.481582641601562,
+        "prev2": -6.942985534667969,
+        "has_prev1": true,
+        "turn_index": 3
+      }
+    ],
+    "gpt4_0b2f1d21": [
+      {
+        "is_gold": true,
+        "whole": -8.002355575561523,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.125676155090332,
+        "prev1": -10.801798820495605,
+        "prev2": -8.64999008178711,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -8.322741508483887,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_15e38248": [
+      {
+        "is_gold": true,
+        "whole": -7.525052070617676,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.9461870193481445,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.024920463562012,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_18c2b244": [
+      {
+        "is_gold": true,
+        "whole": -7.48914909362793,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.807084560394287,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.866605281829834,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_1d4ab0c9": [
+      {
+        "is_gold": true,
+        "whole": -6.6843719482421875,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.140567779541016,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.352090835571289,
+        "prev1": -10.33024787902832,
+        "prev2": -8.369275093078613,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_2655b836": [
+      {
+        "is_gold": true,
+        "whole": -7.586236476898193,
+        "prev1": -11.128089904785156,
+        "prev2": -8.949908256530762,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": true,
+        "whole": -7.744609832763672,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.176534652709961,
+        "prev1": -10.99334716796875,
+        "prev2": -8.988855361938477,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_2ba83207": [
+      {
+        "is_gold": true,
+        "whole": -6.588830947875977,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.375410556793213,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.482287406921387,
+        "prev1": -10.9049072265625,
+        "prev2": -8.840768814086914,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_2c50253f": [
+      {
+        "is_gold": true,
+        "whole": -6.187046051025391,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.072934150695801,
+        "prev1": -11.057218551635742,
+        "prev2": -8.367685317993164,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": true,
+        "whole": -7.557318687438965,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_2f584639": [
+      {
+        "is_gold": false,
+        "whole": -7.104796409606934,
+        "prev1": -10.735445976257324,
+        "prev2": -7.534210681915283,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.411863327026367,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.434487819671631,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_2f8be40d": [
+      {
+        "is_gold": false,
+        "whole": -8.224166870117188,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.605072021484375,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.14287281036377,
+        "prev1": -10.967428207397461,
+        "prev2": -8.722908020019531,
+        "has_prev1": true,
+        "turn_index": 8
+      }
+    ],
+    "gpt4_31ff4165": [
+      {
+        "is_gold": true,
+        "whole": -7.940881252288818,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.336864471435547,
+        "prev1": -11.057056427001953,
+        "prev2": -8.794163703918457,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -8.731555938720703,
+        "prev1": -10.917875289916992,
+        "prev2": -9.431262969970703,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "gpt4_372c3eed": [
+      {
+        "is_gold": true,
+        "whole": -7.344696998596191,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.86466121673584,
+        "prev1": -10.739381790161133,
+        "prev2": -7.960598945617676,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.908489227294922,
+        "prev1": -11.116800308227539,
+        "prev2": -8.610673904418945,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_385a5000": [
+      {
+        "is_gold": true,
+        "whole": -7.27833366394043,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.047504425048828,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.18345832824707,
+        "prev1": -9.674798011779785,
+        "prev2": -7.2781243324279785,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "gpt4_45189cb4": [
+      {
+        "is_gold": false,
+        "whole": -7.027536869049072,
+        "prev1": -11.219842910766602,
+        "prev2": -9.286048889160156,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -7.946911811828613,
+        "prev1": -11.061201095581055,
+        "prev2": -9.180974006652832,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -9.454429626464844,
+        "prev1": -11.164058685302734,
+        "prev2": -9.723454475402832,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "gpt4_468eb063": [
+      {
+        "is_gold": false,
+        "whole": -7.783047676086426,
+        "prev1": -10.989908218383789,
+        "prev2": -8.275796890258789,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.792934417724609,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.179169654846191,
+        "prev1": -11.343864440917969,
+        "prev2": -9.204076766967773,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_468eb064": [
+      {
+        "is_gold": true,
+        "whole": -7.528853416442871,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.464284896850586,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.90234375,
+        "prev1": -10.574048042297363,
+        "prev2": -8.895710945129395,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_483dd43c": [
+      {
+        "is_gold": true,
+        "whole": -6.420228958129883,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.456236362457275,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.202657699584961,
+        "prev1": -10.359973907470703,
+        "prev2": -7.5934858322143555,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_4929293a": [
+      {
+        "is_gold": true,
+        "whole": -7.623741149902344,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.767370223999023,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.924306869506836,
+        "prev1": -11.046289443969727,
+        "prev2": -8.893119812011719,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_4fc4f797": [
+      {
+        "is_gold": true,
+        "whole": -6.361907005310059,
+        "prev1": -11.014257431030273,
+        "prev2": -9.11302661895752,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -6.6436052322387695,
+        "prev1": -10.71158218383789,
+        "prev2": -8.397562026977539,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -6.933794975280762,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_5438fa52": [
+      {
+        "is_gold": true,
+        "whole": -7.519002914428711,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.23495864868164,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.257923126220703,
+        "prev1": -11.146453857421875,
+        "prev2": -9.567225456237793,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_59c863d7": [
+      {
+        "is_gold": true,
+        "whole": -6.305808067321777,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.8848958015441895,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.169020652770996,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_5dcc0aab": [
+      {
+        "is_gold": false,
+        "whole": -6.229515075683594,
+        "prev1": -10.858356475830078,
+        "prev2": -6.938188076019287,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -6.415346145629883,
+        "prev1": -11.173395156860352,
+        "prev2": -9.346726417541504,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -6.938220977783203,
+        "prev1": -10.898239135742188,
+        "prev2": -7.378888130187988,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "gpt4_68e94287": [
+      {
+        "is_gold": true,
+        "whole": -7.5906219482421875,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.823785781860352,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.859013557434082,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_6dc9b45b": [
+      {
+        "is_gold": true,
+        "whole": -6.565341949462891,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.050310134887695,
+        "prev1": -11.109024047851562,
+        "prev2": -9.303976058959961,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.210622787475586,
+        "prev1": -10.983013153076172,
+        "prev2": -8.188568115234375,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "gpt4_70e84552": [
+      {
+        "is_gold": true,
+        "whole": -7.995057582855225,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.58383846282959,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.847899436950684,
+        "prev1": -11.36100959777832,
+        "prev2": -9.592239379882812,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_731e37d7": [
+      {
+        "is_gold": false,
+        "whole": -6.846887588500977,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.083926200866699,
+        "prev1": -9.064308166503906,
+        "prev2": -7.496370315551758,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -7.463472366333008,
+        "prev1": -10.488122940063477,
+        "prev2": -8.10289192199707,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_78cf46a3": [
+      {
+        "is_gold": true,
+        "whole": -7.763541221618652,
+        "prev1": -11.003628730773926,
+        "prev2": -9.343949317932129,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.977316856384277,
+        "prev1": -11.164651870727539,
+        "prev2": -9.6370849609375,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -9.516831398010254,
+        "prev1": -9.821308135986328,
+        "prev2": -10.504158020019531,
+        "has_prev1": true,
+        "turn_index": 27
+      }
+    ],
+    "gpt4_7abb270c": [
+      {
+        "is_gold": true,
+        "whole": -7.436840534210205,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.699929237365723,
+        "prev1": -10.633306503295898,
+        "prev2": -8.142754554748535,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.9186811447143555,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_7ca326fa": [
+      {
+        "is_gold": true,
+        "whole": -6.944497585296631,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.303053379058838,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.3517069816589355,
+        "prev1": -11.109436988830566,
+        "prev2": -8.171229362487793,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_85da3956": [
+      {
+        "is_gold": true,
+        "whole": -6.550894737243652,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -6.567498207092285,
+        "prev1": -10.540234565734863,
+        "prev2": -8.894031524658203,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.16947078704834,
+        "prev1": -9.098464965820312,
+        "prev2": -6.551468372344971,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "gpt4_8c8961ae": [
+      {
+        "is_gold": true,
+        "whole": -6.751880645751953,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.0482869148254395,
+        "prev1": -10.500810623168945,
+        "prev2": -7.6019182205200195,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -7.117358207702637,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_8e165409": [
+      {
+        "is_gold": true,
+        "whole": -7.1182861328125,
+        "prev1": -10.859318733215332,
+        "prev2": -8.841901779174805,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.902504920959473,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.507451057434082,
+        "prev1": -8.830145835876465,
+        "prev2": -10.672905921936035,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "gpt4_98f46fc6": [
+      {
+        "is_gold": true,
+        "whole": -7.736778736114502,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.8250226974487305,
+        "prev1": -11.127737998962402,
+        "prev2": -9.526485443115234,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": false,
+        "whole": -8.020278930664062,
+        "prev1": -10.40169620513916,
+        "prev2": -7.8249664306640625,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_a1b77f9c": [
+      {
+        "is_gold": true,
+        "whole": -7.374634742736816,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.4260101318359375,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.709453582763672,
+        "prev1": -11.127952575683594,
+        "prev2": -9.190832138061523,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_a2d1d1f6": [
+      {
+        "is_gold": true,
+        "whole": -6.87249755859375,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.676652908325195,
+        "prev1": -10.755634307861328,
+        "prev2": -8.669523239135742,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.56964111328125,
+        "prev1": -10.891864776611328,
+        "prev2": -7.676972389221191,
+        "has_prev1": true,
+        "turn_index": 10
+      }
+    ],
+    "gpt4_a56e767c": [
+      {
+        "is_gold": true,
+        "whole": -6.991408348083496,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.057034015655518,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.414323806762695,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_ab202e7f": [
+      {
+        "is_gold": true,
+        "whole": -7.4788408279418945,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.7500410079956055,
+        "prev1": -10.995601654052734,
+        "prev2": -8.527898788452148,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.843597412109375,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_b0863698": [
+      {
+        "is_gold": true,
+        "whole": -6.761049747467041,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.1917243003845215,
+        "prev1": -10.883028030395508,
+        "prev2": -7.400152683258057,
+        "has_prev1": true,
+        "turn_index": 2
+      },
+      {
+        "is_gold": false,
+        "whole": -7.400585651397705,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_b5700ca9": [
+      {
+        "is_gold": true,
+        "whole": -6.951600074768066,
+        "prev1": -11.231369018554688,
+        "prev2": -10.060033798217773,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -7.801229476928711,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.55764389038086,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_cd90e484": [
+      {
+        "is_gold": true,
+        "whole": -7.178889274597168,
+        "prev1": -11.286212921142578,
+        "prev2": -8.816652297973633,
+        "has_prev1": true,
+        "turn_index": 4
+      },
+      {
+        "is_gold": true,
+        "whole": -7.183751583099365,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.697966575622559,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_d12ceb0e": [
+      {
+        "is_gold": true,
+        "whole": -7.040888786315918,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.850103378295898,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -8.223136901855469,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_d31cdae3": [
+      {
+        "is_gold": true,
+        "whole": -7.115510940551758,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.889137268066406,
+        "prev1": -10.96403694152832,
+        "prev2": -9.135387420654297,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -9.22253704071045,
+        "prev1": -10.49875259399414,
+        "prev2": -9.185209274291992,
+        "has_prev1": true,
+        "turn_index": 2
+      }
+    ],
+    "gpt4_d6585ce8": [
+      {
+        "is_gold": true,
+        "whole": -7.471131324768066,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.565203666687012,
+        "prev1": -10.384206771850586,
+        "prev2": -8.363588333129883,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.303532600402832,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_d6585ce9": [
+      {
+        "is_gold": false,
+        "whole": -7.694658279418945,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.994665622711182,
+        "prev1": -10.80009937286377,
+        "prev2": -8.434990882873535,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -8.166655540466309,
+        "prev1": -10.951374053955078,
+        "prev2": -7.769776344299316,
+        "has_prev1": true,
+        "turn_index": 6
+      }
+    ],
+    "gpt4_e05b82a6": [
+      {
+        "is_gold": true,
+        "whole": -6.506091117858887,
+        "prev1": -10.847467422485352,
+        "prev2": -9.394208908081055,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": true,
+        "whole": -6.7100830078125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -6.73756217956543,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_e061b84f": [
+      {
+        "is_gold": false,
+        "whole": -7.435029983520508,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -9.123218536376953,
+        "prev1": -11.261520385742188,
+        "prev2": -9.339414596557617,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -9.95155143737793,
+        "prev1": -9.540606498718262,
+        "prev2": null,
+        "has_prev1": true,
+        "turn_index": 1
+      }
+    ],
+    "gpt4_e414231f": [
+      {
+        "is_gold": false,
+        "whole": -7.248891830444336,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": false,
+        "whole": -7.716891288757324,
+        "prev1": -11.098649978637695,
+        "prev2": -8.789715766906738,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": true,
+        "whole": -7.7239532470703125,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_f2262a51": [
+      {
+        "is_gold": false,
+        "whole": -8.34874439239502,
+        "prev1": -9.909934997558594,
+        "prev2": -8.32037353515625,
+        "has_prev1": true,
+        "turn_index": 10
+      },
+      {
+        "is_gold": false,
+        "whole": -8.779565811157227,
+        "prev1": -11.261529922485352,
+        "prev2": -8.963662147521973,
+        "has_prev1": true,
+        "turn_index": 6
+      },
+      {
+        "is_gold": false,
+        "whole": -8.836505889892578,
+        "prev1": -11.080771446228027,
+        "prev2": -9.279226303100586,
+        "has_prev1": true,
+        "turn_index": 4
+      }
+    ],
+    "gpt4_f49edff3": [
+      {
+        "is_gold": true,
+        "whole": -7.866931915283203,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.022377967834473,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -8.061769485473633,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ],
+    "gpt4_fa19884c": [
+      {
+        "is_gold": true,
+        "whole": -7.041943550109863,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      },
+      {
+        "is_gold": true,
+        "whole": -7.426087379455566,
+        "prev1": -10.95425033569336,
+        "prev2": -8.37035846710205,
+        "has_prev1": true,
+        "turn_index": 8
+      },
+      {
+        "is_gold": false,
+        "whole": -7.85048770904541,
+        "prev1": null,
+        "prev2": null,
+        "has_prev1": false,
+        "turn_index": 0
+      }
+    ]
+  }
+}

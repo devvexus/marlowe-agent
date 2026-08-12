@@ -210,6 +210,21 @@ probe's independently measured ceiling of +0.1135 on fit.
 - **the objective axis** — BCE *hurts* (−0.0524 at fixed negatives). The LCE audit found M0c A's
   listwise arm DID use the deployed group, so that null stands.
 - **the joint pairwise encoder** — the last thing anyone could point at. Held-out +0.0044.
+- **proposition-level INDEXING** (change the retrieval unit, not the order) — input recall
+  **−0.0786** at depth 10, worse at every depth, same implementation run both ways as the control.
+- **context decay around the peak span** — the hypothesis was BACKWARDS: gold decays **10x MORE**
+  (0.1337 vs 0.0133), because the gold answer is a narrow span inside a multi-topic turn while the
+  distractor is uniformly on-topic. Inverted it looked real — fit **+0.0305, p=0.039**, clearing the
+  floor and firing 3/1 above the near-tie band — and read **−0.0087** on held-out.
+- **the predecessor turn** (what prompted the candidate) — refuted by its own sign control: **−69 to
+  −98 added, −52 to −68 subtracted.** A feature that hurts in both directions carries no signal.
+
+**THE UNIFYING FACT, which explains all three and most of the twenty:** *gold turns are multi-topic
+with a narrow answer; distractors are single-topic and coherent.* So every operation that rewards
+"sustained topical support" — decay, neighbour affinity, centroid subtraction, the predecessor —
+favours the DISTRACTOR, and every operation that isolates a peak — MaxP, proposition indexing —
+surfaces the distractor's question-echoing span as well as the gold's answer. **The dilution that
+looked like the disease was also the immune system.**
 
 **The ceiling on the entire post-hoc class is +5 cases, set by a blind coin flip below a 0.084
 logit gap.** That is not "we failed to find the trick" — it is measured.
@@ -225,7 +240,13 @@ logit gap.** That is not "we failed to find the trick" — it is measured.
    conversation-level control read +0.0638 on 47 queries — 3 cases, p = 0.25 — and predicted
    nothing. The corpus, the mining procedure and the model that generated the negatives were all
    shared.
-3. **AN IDENTITY ERROR, MINE.** I proposed recalibrating the reranker head because **0 of 229**
+3. **THRESHOLD SELECTION OVERFITS AT n=229, NOT JUST TRAINING.** Four mechanisms cleared their fit
+   bar and died: depth (+0.0174 → +0.0044), the retrain (+0.0698 → +0.0087), duoBERT (+0.0655 →
+   +0.0044), context decay (+0.0305 → **−0.0087**). **Decay was never trained.** Only its lambda was
+   chosen on fit — one hyperparameter from ten cells — and even that did not transfer. **A rule with
+   a tunable knob is already suspect on this corpus.** Anything proposed next should have its
+   operating point fixed BEFORE the fit read, or be parameter-free.
+4. **AN IDENTITY ERROR, MINE.** I proposed recalibrating the reranker head because **0 of 229**
    chosen candidates score above its relevance boundary (median −6.99). R@1 is a within-query
    ordering read and any monotone transform is an identity on it — ADR-011, ADR-013, and Session I's
    arm 6, now a fourth instance. Caught by a reach check *before* the training run, which is what
