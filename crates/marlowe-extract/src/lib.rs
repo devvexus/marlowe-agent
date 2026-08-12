@@ -239,6 +239,38 @@ pub enum ExtractError {
     Backend { format: &'static str, detail: String },
 }
 
+impl ExtractError {
+    /// A **closed set of harness constants** naming what went wrong.
+    ///
+    /// Audit finding A4. Every `detail` above is built from third-party text — `pdf_extract`'s
+    /// error `Display`, a downcast panic payload, a declared value read out of the document — so
+    /// interpolating one into a model-visible body ships attacker-influenced prose at whatever trust
+    /// class the executor stamps. `store.rs` created `warning_kind` for exactly this reason and the
+    /// `web` executor reintroduced the same leak one layer up, through a different field.
+    ///
+    /// `Display` still carries the detail, and that is deliberate: the journal should record what
+    /// actually happened. The rule is that the **model** sees the kind and the **log** sees the
+    /// detail, not that the detail stops existing.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            ExtractError::TooLarge { .. } => "too-large",
+            ExtractError::Unsupported { .. } => "unsupported-format",
+            ExtractError::Malformed { .. } => "malformed",
+            ExtractError::Backend { .. } => "backend-error",
+        }
+    }
+
+    /// The format involved, which is a harness constant in every variant that has one.
+    pub fn format(&self) -> Option<&'static str> {
+        match self {
+            ExtractError::Unsupported { format, .. } | ExtractError::Backend { format, .. } => {
+                Some(format)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// One document to extract, with whatever the caller knows about it.
 ///
 /// **All three hints are optional and none is trusted over the bytes.** A server that says

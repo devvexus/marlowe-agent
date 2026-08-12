@@ -181,7 +181,7 @@ fn live_benchmark(urls: &[String]) {
                 url
             ),
             marlowe_exec::corpus::Outcome::Redirect { url, location, .. } => {
-                println!("    redirect  -> {location}  ({url})")
+                println!("    redirect  {}  ({url})", location.render())
             }
             marlowe_exec::corpus::Outcome::Unreachable { url, detail } => {
                 println!("    FAILED    {url}: {detail}")

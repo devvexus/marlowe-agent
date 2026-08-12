@@ -1,7 +1,7 @@
 //! The daemon. Owns the journal, the engine, and the run table.
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -1112,6 +1112,32 @@ impl Daemon {
                 &mut writer,
                 &Event::Error { detail: crate::auth::refusal() },
             )?;
+            // **Drain before closing, or the refusal can be destroyed by the close itself.**
+            //
+            // The client sends its preamble and its request together. On the refusal path the
+            // request line is never read, so it is still sitting in the receive buffer when this
+            // function returns and the socket is dropped — and closing a socket with unread inbound
+            // data makes Windows send an **RST** rather than a FIN. An RST discards whatever is in
+            // flight, including the refusal that was just written, so the client sees an empty
+            // stream and cannot tell "refused" from "the daemon hung up".
+            //
+            // Found by `an_empty_a_truncated_and_a_one_character_wrong_token_are_all_refused`
+            // failing with `got []` — intermittently, because it is a race between the client's
+            // read and this close. The refusal is the only thing that tells a user their client is
+            // pointed at another profile, so losing it turns a diagnosable state into a mystery.
+            let mut sink = [0u8; 4096];
+            let mut drained = 0usize;
+            reader
+                .get_ref()
+                .set_read_timeout(Some(std::time::Duration::from_millis(200)))
+                .ok();
+            while drained < 64 * 1024 {
+                // LOOP-EXEMPT: draining a socket before close, not a driving loop.
+                match reader.read(&mut sink) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => drained += n,
+                }
+            }
             return Ok(());
         }
         reader.get_ref().set_read_timeout(None).ok();

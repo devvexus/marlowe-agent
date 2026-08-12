@@ -156,10 +156,26 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // schema-valid and can NEVER succeed, and that is not this.
             //
             // `ref` is a **Target**, not a payload: it selects which document is read, and §9's
-            // whole point is that untrusted content may not choose a target. A ref the model read
-            // from a `web` result is `AgentObserved` (the store's ids are harness-computed), so
-            // the ordinary flow adjudicates; a ref composed out of a fetched page's own text would
-            // carry that page's class and be blocked by the same check as any other target.
+            // whole point is that untrusted content may not choose a target.
+            //
+            // **AND THE CHECK DOES NOT FIRE ON IT. Audit finding A6.** An earlier version of this
+            // comment ended *"a ref composed out of a fetched page's own text would carry that
+            // page's class and be blocked by the same check as any other target"*. That is false in
+            // this build. The target-provenance loop in `adjudicate` is guarded by
+            // `if manifest.consequence() > ConsequenceLevel::Inert`, and `read` is `Inert` — the
+            // loop never runs, so `role_of("ref")` has no reader on any enforcing path. A test
+            // asserting the role would be green on a build where the check cannot execute, which is
+            // the sixteenth-instance family exactly.
+            //
+            // What actually holds today: `read_ref` returns `UntrustedContent`, so layer 1 fires on
+            // the content, and the store's ids are BLAKE3 and unguessable. What is NOT covered is
+            // **steering** — text surviving into a condensed summary can name which of N refs the
+            // parent dereferences next, and no provenance check sees that choice. The `Inert`
+            // branch names its own revisit condition ("egress allowlisting closes the exfiltration
+            // leg"), and layer 4 is approved-but-not-shipped, so that condition is already unmet.
+            //
+            // Left as a documented gap rather than silently widened: changing it is a §13 boundary
+            // change and needs a `DECISIONS.md` entry.
             vec![
                 target_opt("path", ParamType::Path),
                 target_opt("ref", Text),
