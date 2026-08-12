@@ -18,6 +18,30 @@ with no such test is a claim, and this project has logged seventeen of those.
 | G11 | an unclosed `<title>` makes the whole document the title | title capped at 8 KiB | `multibyte::an_unclosed_title_does_not_become_the_whole_document` |
 | G17 | fields after a non-ASCII JSON string are swallowed | byte/char index corrected | `multibyte::fields_after_a_non_ascii_json_string_are_not_swallowed` |
 | 4 | the daemon socket has no authentication | a per-profile token, offered as a connection preamble, checked **before dispatch** | `marlowe-daemon` `socket_auth::*` (5 cases) |
+| A1 | `BASH_TIMEOUT_MS` declared, nothing read it | spawn + piped readers + deadline + kill; bounds injected as `ShellLimits` so the test kills a real child | `shell_bounds::a_command_that_never_exits_is_stopped…` — **without it the suite hangs** |
+| A2 | `bash` output unbounded, copied 3× | capped per stream, child killed on breach, truncation stated **in the body** | `shell_bounds::a_command_that_floods_is_capped_and_says_so` |
+| A3 | raw `Location` header at `AgentObserved` — the layer-1 bypass | `RedirectTo` renders from parsed components; the path is echoed only when it cannot carry prose | `web_returns_a_reference::a_hostile_location_header_reaches_the_model_as_nothing_but_a_host` |
+| A4 | parser error strings and raw `Content-Type` reach the model | `ExtractError::kind()` is a closed set; `normalize_content_type` returns `&'static str` | `…::an_extraction_failure_reports_a_kind_not_the_parsers_own_words` |
+| A7 | `slice_lines` `+ 1` overflow aborts the whole batch | `saturating_add` plus an inverted-range guard | `read_bounds::no_range_argument_can_unwind_the_executor` |
+| A8 | no ceiling on any file read | capped with truncation stated; a binary file is reported, not decoded | `read_bounds::an_oversized_file_is_capped…` |
+| C1, E1 | the all-cache-hit path bypassed `render` | one closure, so the exception cannot exist | `condense_integrity::a_rendered_value_can_never_start_a_line_at_column_zero` |
+| C2 | character check was C0/C1/DEL only | `is_renderable` refuses `Cf`, `Zl`, `Zp` | `condense_integrity::the_character_class_refuses_what_defeats_the_indentation_defence` |
+| C3, E2 | the reply was broadcast into every field | parsed into the slots the child labelled; unfilled slots say so | `quarantine_batch::an_unattributed_reply_does_not_appear_under_any_sources_label` |
+| C4, C5 | sliced budget dimensions read as already-exhausted | every dimension floors at 1 while the parent has any | `budget` unit tests |
+| E3 | the cache stored a chunk-wide claim under one document's hash — **a write primitive** | only single-source chunks are cached | — *see the note below* |
+| E4 | the quarantined child streamed to the terminal | `QuarantinedSink` drops prose; structure still passes | `quarantine_batch::nothing_the_quarantined_reader_says_reaches_the_surface` |
+| E7 | child labels indexed over `fresh`, parent over `chunk` | render under the label the child was given | — *see the note below* |
+| E8 | an unsatisfiable contract burned the parent's budget | aggregate derived from the per-field caps; retry bounded at 2 | `condense_integrity::a_structured_contract_can_be_satisfied_by_filling_it` |
+| E10 | children consumed the parent's steering | the child gets `NoControl`, as its own doc always claimed | — |
+| E14 | the condense cache was never evicted | bounded at 512 | — |
+
+Rows marked *"see the note below"* are fixed but **not pinned by a test that fails on revert**, and are listed that way deliberately rather than counted as done.
+
+**Two methodological results from this round, both worth more than any single fix.**
+
+**The audit's exploit value for A7 is wrong.** It names `range = "1-18446744073709551615"`; with `a = 1` the subtraction saturates to `usize::MAX - 1` and the `+ 1` fits. It needs `a = 0`. Reverting the fix left the single-value test **green**. A regression test copied from the report would have passed against the unfixed code and A7 would have been marked closed.
+
+**The first tests for C3 did not discriminate.** They asserted on `CondensedResult::parse_fields` and `OutputContract::structured` directly; restoring the broadcast in `engine.rs` left every one of them passing — the property asserted where the helper is *defined* rather than where it is *used*. That is family #16, committed while fixing family #16. The engine-level test is what discriminates, and *its* first draft failed against a **working** filter because the harness gave the child and the parent the same words to say.
 
 **Finding 4's fix was verified by removing the check**, not by reading it: with the comparison
 disabled, an unauthenticated stranger's `{"op":"shutdown"}` was **dispatched and stopped the
