@@ -133,39 +133,171 @@ pub struct OutputContract {
     /// One line naming what the parent wants. Rendered into the child's brief.
     pub description: String,
     /// The fields the child must fill. Nothing else is accepted.
-    pub fields: Vec<String>,
+    pub fields: Vec<FieldSpec>,
+    /// The aggregate cap, across all fields. Per-field caps are on [`FieldSpec`].
     pub max_chars: usize,
+}
+
+/// What one field may contain. **A shape, not just a name.**
+///
+/// # Why the type exists at all
+///
+/// The contract is the single place where content crosses from `UntrustedContent` to
+/// `AgentInferred` — `Engine::spawn` pushes a validated child result into the parent at the
+/// trusted class, by declaration rather than by lineage. That crossing is the whole of §8.2's
+/// trifecta break, and `validate` is the only thing standing in it.
+///
+/// Before this type, `validate` checked that the right field *names* were present and that the
+/// total length was under a cap. **It constrained no value.** A child talked into emitting the
+/// attacker's text filled the declared field with it, passed validation, and the text arrived in
+/// the parent's window one trust class above where it started, with the page's origin nowhere in
+/// the record. Names and a size limit are not a boundary; they are a boundary's label.
+///
+/// The bandwidth is still not zero and this file will not pretend otherwise — a summary of a page
+/// is attacker-influenced prose no matter how it is typed. What the constraints buy is that the
+/// prose is **bounded, sanitized, and structurally unable to forge the record it arrives in**, and
+/// that §5.6 then governs the rest: it may inform analysis, and layer 3 still refuses to let it
+/// choose a target.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldSpec {
+    pub name: String,
+    pub ty: FieldType,
+    /// Per-field cap, in characters. Separate from the contract's aggregate cap because one
+    /// oversized field and twenty small ones are different failures.
+    pub max_chars: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldType {
+    /// Prose that may run to several lines. Newlines and tabs are permitted; every other
+    /// control character is not.
+    Text,
+    /// Prose on exactly one line. Reach for this whenever the field is a label, a verdict or a
+    /// name — a value that cannot contain a newline cannot contribute a line to the rendered
+    /// block at all.
+    Line,
+}
+
+/// A default generous enough for a page summary and far short of a page.
+pub const DEFAULT_FIELD_MAX_CHARS: usize = 2_000;
+
+impl FieldSpec {
+    pub fn text(name: impl Into<String>) -> Self {
+        Self { name: name.into(), ty: FieldType::Text, max_chars: DEFAULT_FIELD_MAX_CHARS }
+    }
+
+    pub fn line(name: impl Into<String>) -> Self {
+        Self { name: name.into(), ty: FieldType::Line, max_chars: 200 }
+    }
+
+    pub fn capped(mut self, max_chars: usize) -> Self {
+        self.max_chars = max_chars;
+        self
+    }
+
+    /// **The value check.** Length, then character class, in that order so an enormous hostile
+    /// value is refused before it is scanned.
+    ///
+    /// The character rule is an allowlist by exclusion: every C0 control is refused except the
+    /// two that carry meaning in prose, plus `DEL` and the C1 block. That is not tidiness —
+    /// `ESC` is `U+001B`, so refusing C0 is what stops a fetched page writing ANSI escape
+    /// sequences through a child, through a parent, and onto a terminal. Nothing else in this
+    /// path would catch it: the journal stores bytes faithfully and the renderer prints what it
+    /// is given.
+    pub fn validate_value(&self, value: &str) -> Result<(), ContractViolation> {
+        let chars = value.chars().count();
+        if chars > self.max_chars {
+            return Err(ContractViolation::FieldTooLong {
+                field: self.name.clone(),
+                chars,
+                max: self.max_chars,
+            });
+        }
+        for c in value.chars() {
+            let permitted = match c {
+                '\n' | '\t' => self.ty == FieldType::Text,
+                _ => {
+                    let cp = c as u32;
+                    !(cp < 0x20 || cp == 0x7F || (0x80..=0x9F).contains(&cp))
+                }
+            };
+            if !permitted {
+                return Err(ContractViolation::DisallowedCharacter {
+                    field: self.name.clone(),
+                    codepoint: c as u32,
+                });
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A sane default for a worker return: enough for findings, far short of a transcript.
 pub const DEFAULT_RESULT_MAX_CHARS: usize = 4_000;
 
 impl OutputContract {
+    /// Text fields at the default cap. The shape every existing caller wants.
     pub fn new(description: impl Into<String>, fields: &[&str]) -> Self {
         Self {
             description: description.into(),
-            fields: fields.iter().map(|f| (*f).to_string()).collect(),
+            fields: fields.iter().map(|f| FieldSpec::text(*f)).collect(),
+            max_chars: DEFAULT_RESULT_MAX_CHARS,
+        }
+    }
+
+    /// A contract whose fields are typed and capped individually.
+    pub fn structured(description: impl Into<String>, fields: Vec<FieldSpec>) -> Self {
+        Self {
+            description: description.into(),
+            fields,
             max_chars: DEFAULT_RESULT_MAX_CHARS,
         }
     }
 
     /// The contract a top-level interactive run finishes against.
+    ///
+    /// **`max_chars` is `usize::MAX` and that is deliberate.** A root run's "child result" is the
+    /// answer to the user, which is not crossing a trust boundary and is not being condensed into
+    /// anybody's window — it IS the window. Capping it here would truncate ordinary replies to a
+    /// person, which is a product defect wearing a security cap. The bound that matters applies to
+    /// results crossing INTO a parent, and every such contract is constructed with a real cap.
     pub fn answer() -> Self {
-        Self::new("answer the user's request", &["answer"])
+        Self {
+            description: "answer the user's request".into(),
+            fields: vec![FieldSpec {
+                name: "answer".into(),
+                ty: FieldType::Text,
+                max_chars: usize::MAX,
+            }],
+            max_chars: usize::MAX,
+        }
     }
 
+    pub fn field_names(&self) -> impl Iterator<Item = &str> {
+        self.fields.iter().map(|f| f.name.as_str())
+    }
+
+    /// Names, then **values**, then the aggregate.
+    ///
+    /// The middle step is the one that did not exist. See [`FieldSpec`] for why its absence made
+    /// the `AgentInferred` crossing in `Engine::spawn` unsound.
     pub fn validate(&self, result: &CondensedResult) -> Result<(), ContractViolation> {
         for name in result.fields.keys() {
-            if !self.fields.iter().any(|f| f == name) {
+            if !self.fields.iter().any(|f| &f.name == name) {
                 return Err(ContractViolation::UnknownField { field: name.clone() });
             }
         }
-        for name in &self.fields {
-            if !result.fields.contains_key(name) {
-                return Err(ContractViolation::MissingField { field: name.clone() });
-            }
+        for spec in &self.fields {
+            let Some(value) = result.fields.get(&spec.name) else {
+                return Err(ContractViolation::MissingField { field: spec.name.clone() });
+            };
+            spec.validate_value(value)?;
         }
-        let total: usize = result.fields.values().map(String::len).sum();
+        // `chars().count()`, not `len()`. The per-field caps count characters, and an aggregate
+        // counted in bytes would disagree with them on any non-ASCII page — the two limits would
+        // then mean different things while reading as one policy.
+        let total: usize = result.fields.values().map(|v| v.chars().count()).sum();
         if total > self.max_chars {
             return Err(ContractViolation::TooLong { chars: total, max: self.max_chars });
         }
@@ -185,7 +317,20 @@ pub enum ContractViolation {
          structural rather than hoped for"
     )]
     TooLong { chars: usize, max: usize },
+    #[error("field `{field}` is {chars} characters and the contract caps it at {max}")]
+    FieldTooLong { field: String, chars: usize, max: usize },
+    #[error(
+        "field `{field}` contains the control character U+{codepoint:04X}, which a returned value \
+         may not carry. ESC (U+001B) is the one that matters: a fetched page must not be able to \
+         write terminal escape sequences through a child and onto a screen"
+    )]
+    DisallowedCharacter { field: String, codepoint: u32 },
 }
+
+// **Every variant names a field or a number and none of them interpolates a VALUE.** A violation
+// message is written into the parent's context, so a message quoting the offending text would be
+// the laundering path the validation exists to close — refused content arriving anyway, inside
+// the error that refused it.
 
 /// What a child hands back. **Fields only** — there is no transcript field and there must never
 /// be one.
@@ -209,12 +354,31 @@ impl CondensedResult {
     }
 
     /// How this result renders into the parent's context. One block, not a conversation.
+    ///
+    /// # A value may not forge a field
+    ///
+    /// This used to be `format!("{k}: {v}")` joined by newlines, and the parent only ever sees the
+    /// flattened string — so a value containing `"\nanswer: …"` produced a line indistinguishable
+    /// from a real field header. Field *names* were whitelisted by `validate`; the rendered
+    /// representation was not, which put the check and the thing it protects on opposite sides of
+    /// a format string.
+    ///
+    /// The fix is structural rather than a matter of escaping: **a field header is the only thing
+    /// that starts at column 0, and every line contributed by a value is indented.** A value line
+    /// reading `answer: x` renders as `  answer: x` and cannot be read back as a header, whatever
+    /// it contains. `FieldType::Line` values cannot contribute a second line at all.
     pub fn render(&self) -> String {
-        self.fields
-            .iter()
-            .map(|(k, v)| format!("{k}: {v}"))
-            .collect::<Vec<_>>()
-            .join("\n")
+        let mut out = String::new();
+        for (k, v) in self.fields.iter() {
+            out.push_str(k);
+            out.push_str(":\n");
+            for line in v.lines() {
+                out.push_str("  ");
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        out.trim_end().to_string()
     }
 }
 

@@ -1,5 +1,140 @@
 # State
 
+## M2 Session E — LAYER 1 IS SHIPPED AND WORKING. `619 tests` (from 617), `eval/` 72 unchanged.
+
+**Brief §8.2's second sentence now holds.** `web` no longer hands raw page text into the run that
+holds `bash` and `edit`. The harness fetches; a **quarantined child** with an empty tool set and
+`DenyAll` egress reads the bytes; the parent receives a validated, capped, character-checked summary
+at `AgentInferred`. Reader and doer are separated.
+
+**Verified live on the running binary, not in a test process** (`--dev`, real model, real fetch):
+
+| | child (reader) | parent (doer) |
+|---|---|---|
+| tool message | `ok · 559 bytes · <!doctype html>…` — **578 chars, the raw page** | `… read under quarantine, not shown here:\nfindings:\n  Th…` — **203 chars** |
+| `tools offered:` | **(empty)** | all nine |
+| floor | `UntrustedContent` | `AgentInferred` |
+
+One fetch, two run ids in the journal: `run_spawned{quarantined_read=web, reads_untrusted=true}`,
+then the **child** latching `UntrustedContent blocks_composed_targets=true` while the **parent** ends
+`AgentInferred blocks_composed_targets=false`. The raw HTML appears exactly **once** in the entire
+outbound dump — in the child's window.
+
+### The gate that decided this came back NEGATIVE, and the build was directed anyway
+
+The gate was: build only if `OutputContract::validate` constrains values. **It did not.** Three
+checks — no unknown field names, no missing field names, an aggregate `String::len` cap — and
+**nothing about any value**.
+
+**Worse, and the reason the gate was right:** the `push` in `Engine::spawn` sits *outside* the match,
+so **all five outcome branches crossed at `AgentInferred`** and `validate` governed one.
+`Escalated { question }` interpolated a child's model-authored string — composed after it read the
+page — verbatim into the parent at the trusted class. Constraining values alone would have closed one
+door of five.
+
+### What was built, in the order the gate required
+
+1. **`FieldSpec` / `FieldType::{Text, Line}`** — per-field character caps and a control-character
+   refusal. `ESC` is `U+001B`, so refusing C0 is what stops a fetched page writing ANSI escapes
+   through a child onto a terminal. **No `ContractViolation` variant interpolates a value**: refused
+   content must not arrive inside its own refusal.
+2. **The four bypass branches closed.** Only a validated result carries content; Escalated/Failed
+   render fixed harness strings and the detail goes to the journal, which is not model-reachable.
+3. **`CondensedResult::render` made unforgeable.** Was `"{k}: {v}"` newline-joined, so a value
+   containing `"\nanswer: …"` forged a field header — names were whitelisted, the rendered form was
+   not. Headers now sit at column 0; every value line is indented.
+4. **The routing**, `Engine::condense_untrusted`. **Triggered on the trust class, not the tool name**
+   — `blocks_composed_targets` is the same function the adjudicator enforces on, so the class that
+   costs a run its targets is exactly the class that gets condensed, and no future tool needs anyone
+   to remember it. **Fails closed everywhere**: no budget, contract violation, or a dead child each
+   push a harness note and never the page.
+
+**A carve-out was written and then removed.** The draft exempted *failed* results because their
+bodies are harness-authored — true today, an assumption about every future executor, and exactly the
+shape this project keeps logging. The rule is unconditional.
+
+### Consequences, stated because they are large
+
+- **`bash` after a fetch works again.** *"After fetching web data all his tools get turned off. seems
+  dumb"* was layer 3 compensating for a missing layer 1. Fixed by separating reader from doer, **not**
+  by relaxing layer 3: the threshold is untouched, and a run that does reach `UntrustedContent` still
+  loses composed targets — asserted directly rather than inferred from an absent refusal.
+- **NO tool result can taint a parent any more.** The only remaining source of `UntrustedContent` in
+  a run's own window is **injected memory** (`daemon.rs` pushes the retrieved block at
+  `retrieved.floor`). Layer 3 stays reachable and non-vacuous, but **its subject changed**, and four
+  tests had to move to that taint source. One,
+  `the_latch_announces_exactly_when_a_composed_target_is_actually_blocked`, **went green and vacuous**
+  mid-session when its four trust classes collapsed onto one floor — caught by asking what the table
+  would read if it were measuring nothing.
+- **`a_batch_cannot_launder_a_target_through_its_own_sibling` lost half its subject.** Its second half
+  tested a scenario layer 1 makes unreachable; it now asserts the new invariant and says so. The
+  ordering property lives in `run_latching`'s four-class table.
+- **A user who wants the raw page cannot get it.** "Show me this page's HTML" returns a summary. Real
+  functional loss, accepted, unmeasured.
+
+### A bug this introduced, caught by a failing test rather than by review
+
+The quarantined child shares the parent's sink, so **every fetch printed *"read untrusted · composed
+targets blocked for this run"*** — naming a child with no tools to block while the parent it named
+was unrestricted. Both clauses false, on every fetch. **C2f's exact defect, re-opened by the component
+built to fix it.** Closed by exempting `reads_untrusted` profiles from the announcement; the journal
+still records the child's latch, and only the screen is gated.
+
+---
+
+## Four review findings, all measured
+
+1. **`web`'s `inline_threshold_bytes: 0` is read by NOTHING.** The registration says *"Never inlined.
+   §8.2: raw untrusted bytes do not reach attention"*; `body_for` decides against a global
+   `MAX_INLINE_BYTES = 8_192` and never consults the manifest. The only reader is the test
+   `web_is_inert_and_never_inlines`, which asserts `inline_threshold_bytes == 0` — **the declaration,
+   not the behaviour**. It passed on a build where every byte reached attention. Layer 1 makes it moot
+   for `web`; **the dead field and its green test remain, unclaimed.**
+2. **`EgressPolicy::grant()` has no call site in the product.** The only three are `adjudicate.rs`'s
+   unit tests, and `CapabilityProfile` exposes `egress()` returning `&EgressPolicy` with **no `&mut`
+   accessor** — unreachable by construction. The doc comment describing a session-held per-host grant
+   describes a mechanism that does not run. **Security-positive today** (every fetch is a fresh human
+   decision, stronger than ADR-032 §3.1 describes) and a live hazard the moment anyone wires it up,
+   because the widening path would silently activate untested. `egress_grant.rs`: three fetches, two
+   hosts, **three approvals**, `granted` still empty.
+3. **The `--ask` transcript prints the opposite of what happened.** `agent.rs:354` emits *"(no
+   interactive surface attached; the harness declined)"* **unconditionally**, over an
+   `Event::Approval` that is emitted as a *prompt*, before any decision exists. Live: the human
+   approved, the fetch executed, the screen said declined.
+4. **The journal does not record what egress was approved.** `approval_requested` is `{"tool":"web"}`
+   and `approval_granted` is `{}` — no host, no URL, no decision id. `egress_blocked` **does** record
+   the host, so the blocked path is auditable and the granted path is not.
+
+**Layer 5 does not exist (M6). Layer 2 was not re-measured** — its 16-checked/0-failed reading is
+inherited from M0b Session A and is a citation, not a result.
+
+## DEFERRED explicitly — the human accepted these losses to get layer 1
+
+- **The full per-tool decision table.** Partial only: `read`/`find`/`recall`/`web` are Inert and skip
+  §9's target check (`inert_no_target_check`, recorded by the adjudicator in the journal itself);
+  `remember`'s `text` is a Payload, so a claim carrying no target argument is never target-checked;
+  `edit`/`use` are checked; `bash` is checked and then escalates unconditionally.
+- **Reconfirming Session D's four live-verified claims.** **ADR-038's cited evidence is NOT in the
+  default profile's journal** — two `memory_written` events, both `agent_inferred`, no `claim-2
+  untrusted_content`. Presumably a scratch profile; it could not be reconfirmed from disk and remains
+  a citation.
+- **M2 Session E as ROADMAP defines it is NOT covered and remains unscheduled**: the TUI against the
+  real loop, first-run onboarding, K6 in a clean container.
+- **`repro`/`conformance` not re-run.** Measured reason, not assumed: the eval adapter references
+  neither `Engine` nor `marlowe_loop`, so the loop change cannot reach that path; `eval/` is 72 green.
+- **The injection question is unanswered.** Three live attempts: the model hallucinated a URL, then
+  refused the payload, then refused to fetch at all. **Model refusal is not containment** — layer 3
+  armed and was never exercised, and n=1 says nothing about the next model or payload. What is
+  answered is the harness's reach, which is what the tests measure.
+
+**`tools/read_journal.py` is committed this time.** Session D built the same instrument, left it in a
+scratchpad, and it was gone. It reads the signed journal directly rather than asking Marlowe, whose
+answer is a capability report. Its first run corrected three guessed event spellings —
+`permission_decided`, `tool_requested`/`tool_completed` — each of which would have queried an empty
+set and printed a confident "0 events".
+
+---
+
 ## M0b SHIPPED 40% OF ITS NAMED MECHANISM AND CLOSED WITHOUT SAYING SO
 
 **Found 2026-08-11, reading M0b's own scope against the code.** This is a brief for whoever builds

@@ -32,6 +32,17 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    **empty tool set** — `reads_untrusted && !exposed_tools.is_empty()` is a **load-time error**, so a
    reader that can act cannot be constructed. It returns structured analysis to something that never
    sees the raw text. Brief §8.2, CONTRACTS §5, M2 Session A.
+   **SHIPPED AND ROUTED as of M2 Session E (ADR-039), and both halves are now real.** The load-time
+   error was built in Session A; the *routing* was missing until E, so between C2f and E `web` handed
+   raw page text into the run holding `bash` — §8.2's second sentence violated in the product.
+   `Engine::condense_untrusted` now sends every untrusted tool result through a quarantined child and
+   hands the parent a validated summary. **Keyed on the trust class, not the tool name**: the trigger
+   is `blocks_composed_targets`, the same function the adjudicator enforces on, so a new tool
+   returning untrusted content is covered without anyone remembering to add it.
+   **Consequence to know before touching layer 3: no tool result can taint a parent any more.** The
+   only remaining source of `UntrustedContent` in a run's own window is **injected memory**. Layer 3
+   is still reachable and non-vacuous, but a test that establishes taint via a tool result now
+   establishes nothing — four had to move, and one went green and vacuous on the way.
 2. **Trust class propagation.** Every belief carries its origin, and trust propagates **worst-case
    over full lineage**. Four LLM rewrites later, a web page is still `UntrustedContent`. This is what
    stops laundering. Brief §5.6 and §8; `trust.rs`; M0b Session A — 16 checked, 0 failed,
@@ -108,6 +119,25 @@ requirements only when the design docs do not answer the question.
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
   **15** — the trust-floor banner, which is the widest gap yet between what fired and what was
   claimed (M2 C2f).
+
+- **A DECLARED CONTROL THAT NOTHING READS, with a green test asserting the declaration.** The
+  **sixteenth** instance, found in M2 Session E while establishing layer 1's blast radius.
+
+  `web`'s registration carries `inline_threshold_bytes: 0` and the comment *"Never inlined. §8.2: raw
+  untrusted bytes do not reach attention."* **No code reads that field.** `marlowe-exec`'s `body_for`
+  decides inline-vs-reference against a global `MAX_INLINE_BYTES = 8_192`, so every fetched page under
+  8 KB went into the model's context verbatim — measured in a live `--dev` dump, injected comment and
+  all.
+
+  The test is the part to remember. `web_is_inert_and_never_inlines` asserts
+  `web.summary.inline_threshold_bytes == 0` — **the value of the field, not the fate of a byte.** It
+  is green on a build where the control does nothing, and it would be green if the executor were
+  deleted. Same family as `persona/v1.md` *loaded* versus the persona text being *in the request
+  body*: a property asserted where it is declared rather than where it is enforced.
+
+  **Ask of any control: is there a line of code that reads it?** A grep for readers of the field
+  returned the definition, the constructor, and that test. That grep is thirty seconds and it is the
+  whole check.
 
 - **The banner said "read untrusted content" and the trigger was the string `"Marlowe."`.** The
   fifteenth instance, and the one to quote when explaining the family, because the distance between

@@ -437,7 +437,17 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
     assert!(!state.volatile.iter().any(|b| b.text.contains(CHILD_MARKER)));
 
     // What did cross is the contract's field, and only that.
-    assert!(view.rendered().contains("findings: the answer is 42"));
+    //
+    // **The spelling changed with `CondensedResult::render` and the property did not.** The old
+    // form was `findings: the answer is 42` on one line; a value containing a newline could
+    // therefore forge a second field header, since the parent only ever sees the flattened
+    // string. Headers now sit at column 0 and every line a value contributes is indented, so
+    // this reads across two lines.
+    let rendered = view.rendered();
+    assert!(
+        rendered.contains("findings:") && rendered.contains("  the answer is 42"),
+        "the contract's field crossed, in the indented form render now produces: {rendered}"
+    );
 
     // The parent's own driver only ever saw views without the marker. This is the assertion
     // that would catch a leak arriving through some path other than `SessionState`.
@@ -708,14 +718,25 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
     // The permission layer's rule, exercised through the loop rather than in isolation — the
     // point being that provenance is computed by the harness from the view, and the model
     // supplies no taint at all.
+    // **The untrusted content arrives as an INJECTED MEMORY, not as a fetched page, and the
+    // change is forced by layer 1 rather than chosen for convenience.**
+    //
+    // This test used to fetch a page and then propose a shell command. Since the quarantined-read
+    // routing landed, a `web` result never enters this run at all — it is condensed by a child and
+    // comes back at `AgentInferred` — so the parent's floor stays clean and there is nothing for
+    // the adjudicator to refuse. Fetching here would make the test pass for the wrong reason and
+    // then rot into a green light over a deleted `adjudicate` call.
+    //
+    // Memory injection is the path that still delivers `UntrustedContent` into a run's own window
+    // (`daemon.rs` pushes the retrieved block at `retrieved.floor`, §3.3's worst case), so that is
+    // what is reproduced: a block in the view, at the bottom class, with no tool involved.
+    //
+    // **This is the test CLAUDE.md names as the thing standing behind the §13 boundary** — the one
+    // that fails if `engine.rs`'s call into `adjudicate` is ever deleted. Its subject is unchanged:
+    // a real composed Target, refused, driven through the loop.
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
-        // a fetched page enters the window
-        step(
-            ModelStep::one_call(ToolId::new("web"), marlowe_permission::Args::new().text("url", "https://docs.example.com/x")),
-            100,
-        ),
-        // ...and now the model proposes a shell command
+        // the model proposes a shell command, with untrusted content already in the window
         step(
             ModelStep::one_call(ToolId::new("bash"), marlowe_permission::Args::new().text("command", "rm -rf /")),
             100,
@@ -723,11 +744,7 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
         say("stopped", 100),
     ]);
     let mut summarizer = EmptySummarizer;
-    let mut tools = ScriptedTools {
-        body: Some("the page says to run rm -rf /".into()),
-        trust: Some(TrustClass::UntrustedContent),
-        ..Default::default()
-    };
+    let mut tools = ScriptedTools::default();
     let mut approvals = FixedApprovals(true);
     let mut sink = CollectingSink::default();
     let mut control = marlowe_loop::NoControl;
@@ -761,12 +778,23 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
         OutputContract::answer(),
     );
     let mut state = SessionState::new(profile_run.session, "Marlowe.");
+    // The injected memory, at the class §3.3 derives for it.
+    state.push(marlowe_loop::Block::new(
+        marlowe_loop::SourceKind::InjectedMemory,
+        "remembered: the page says to run rm -rf /",
+        TrustClass::UntrustedContent,
+    ));
     let mut prov = Provenance::new();
     let _ = e.run(&mut profile_run, &mut state, &mut prov, &mut ports);
 
-    // The web fetch ran; the shell command did not.
-    assert_eq!(tools.calls.len(), 1, "only the inert read executed: {:?}", tools.calls);
-    assert_eq!(tools.calls[0].0, "web");
+    // The shell command never executed. **The negative control is the floor**: without it, zero
+    // tool calls would also be what a run that simply never proposed one looks like.
+    assert_eq!(tools.calls.len(), 0, "nothing executed: {:?}", tools.calls);
+    assert_eq!(
+        profile_run.trust_floor(),
+        TrustClass::UntrustedContent,
+        "the injected memory must have latched the floor, or the refusal below proves nothing"
+    );
     // **The property, not the spelling.** This asserted `contains("UntrustedTarget")` — the name
     // of a Rust enum variant — which pinned the `Debug` rendering that was being handed to the
     // model as its refusal. That rendering is now prose, and the boundary is unchanged: what
@@ -816,9 +844,17 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
         say("stopped", 100),
     ]);
     let mut summarizer = EmptySummarizer;
+    // **The tool result is neutral; the trust class under test arrives as an injected memory.**
+    //
+    // It used to arrive as this tool's result. Layer 1 ended that: an `UntrustedContent` tool
+    // result is condensed by a quarantined child and never reaches this run, so the
+    // `UntrustedContent` row of the table below would have exercised a floor that no longer
+    // moves — the table would still have four rows and one of them would have been measuring
+    // nothing. Injected memory is the path that still delivers the bottom class into a run's own
+    // window (§3.3's worst case, `daemon.rs`), and it reproduces the original four rows exactly.
     let mut tools = ScriptedTools {
         body: Some("a line from the workspace".into()),
-        trust: Some(trust),
+        trust: Some(TrustClass::AgentObserved),
         ..Default::default()
     };
     let mut approvals = FixedApprovals(true);
@@ -854,6 +890,12 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
         OutputContract::answer(),
     );
     let mut state = SessionState::new(run.session, "Marlowe.");
+    // The class under test, delivered the way memory injection delivers it.
+    state.push(marlowe_loop::Block::new(
+        marlowe_loop::SourceKind::InjectedMemory,
+        "a remembered line",
+        trust,
+    ));
     let mut prov = Provenance::new();
     let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
 
@@ -1157,8 +1199,17 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
             },
             100,
         ),
-        // The next turn's identical call, now after the untrusted result is in view.
+        // **One scripted reply per condensation.** This fixture marks EVERY tool result
+        // untrusted, so each of the batch's two calls is condensed by its own quarantined child,
+        // and each child makes one model call against this same driver. Getting this wrong does
+        // not fail loudly -- the child simply eats the next turn's step and the parent runs a
+        // shorter script than the author intended, which is how the first attempt at this update
+        // read `1` where it expected `2`.
+        say("the find result is about widgets", 50), // child for the batch's `find`
+        say("the shell result is about widgets", 50), // child for the batch's `bash`
+        // The next turn's identical call.
         step(ModelStep::one_call(ToolId::new("bash"), composed()), 100),
+        say("the shell result is about widgets", 50), // child for that `bash`
         say("stopped", 100),
     ]);
     let mut summarizer = EmptySummarizer;
@@ -1206,24 +1257,48 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
 
     // Half one: inside the batch, `bash` ran. Its command predates the sibling's result, and
     // blocking it would be blocking a call on content its author had never seen.
+    //
+    // **Asserted as ORDER, not as a count.** This used to read "exactly one bash call in the
+    // whole run", which stood in for "the in-batch one ran" only while the next turn's call was
+    // refused. Now that both run, a count says nothing about which one this half is about --
+    // the first two executions being `find` then `bash` is the property, and it stays true
+    // whatever happens later in the run.
+    let order: Vec<&str> = tools.calls.iter().map(|(t, _)| t.as_str()).collect();
     assert_eq!(
-        tools.calls.iter().filter(|(t, _)| t == "bash").count(),
-        1,
-        "the in-batch shell command must run: it was composed before the sibling's result existed"
+        &order[..2],
+        &["find", "bash"],
+        "the in-batch shell command must run, in batch order: it was composed before the \
+         sibling's result existed. Got {order:?}"
     );
 
-    // Half two: the identical call in the NEXT turn is refused, because the batch's results
-    // latched the floor first. This is the half that makes the batch not a hole.
-    let rendered = e.assembler().assemble(&state).rendered();
-    assert!(
-        rendered.contains("[bash blocked]"),
-        "the same command in the next turn must be refused — the batch's results latch the floor \
-         before the next adjudication:\n{rendered}"
-    );
+    // ── Half two, REPLACED, and the replacement is the honest statement of what changed ──────
+    //
+    // This half used to assert that the identical call in the NEXT turn is refused, because the
+    // batch's own untrusted results had latched the floor. **Layer 1 makes that scenario
+    // unreachable**: an untrusted tool result is condensed by a quarantined child and never
+    // enters this window, so no tool result — in a batch or out of it — moves the parent's floor
+    // any more. Keeping the old assertion would have meant re-introducing a raw untrusted result
+    // purely so a test could observe it, which is writing the hole back in to keep its guard.
+    //
+    // The ordering property itself is NOT abandoned. It is asserted where it still has a subject:
+    // `run_latching` drives all four trust classes through an injected memory, and
+    // `the_latch_announces_exactly_when_a_composed_target_is_actually_blocked` asserts the
+    // agreement between the announcement and the refusal across every one of them.
     assert_eq!(
         run.trust_floor(),
-        TrustClass::UntrustedContent,
-        "the batch's own results moved the run's floor"
+        TrustClass::AgentInferred,
+        "the batch's untrusted results were condensed away and never touched this run's floor"
+    );
+    let rendered = e.assembler().assemble(&state).rendered();
+    assert!(
+        !rendered.contains("[bash blocked]"),
+        "with the floor clean, the next turn's identical command is no longer refused:\n{rendered}"
+    );
+    // Two shell calls in total: the in-batch one and the next turn's.
+    assert_eq!(
+        tools.calls.iter().filter(|(t, _)| t == "bash").count(),
+        2,
+        "the next turn's command ran too, because nothing tainted the run"
     );
 }
 
