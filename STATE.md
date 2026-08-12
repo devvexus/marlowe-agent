@@ -1,5 +1,81 @@
 # State
 
+## M0b SHIPPED 40% OF ITS NAMED MECHANISM AND CLOSED WITHOUT SAYING SO
+
+**Found 2026-08-11, reading M0b's own scope against the code.** This is a brief for whoever builds
+the missing cues, and a correction to the record.
+
+M0b's scope section lists, verbatim:
+
+> - **Five cues** + query-type router + fusion + frozen gate.
+> - **ANN index + int8-quantized hot vector array. An M0b requirement, not a later optimization.**
+> - **Live-only hot index (ADR-003 — requirement, not optimization).**
+> - **Group commit on journal append. Scoped here rather than left as a note.**
+> - Consolidation **as a run**: supersession, contradiction resolution, fidelity demotion, trend
+>   extractors (HP3), silent-entry maturation.
+
+**What exists:** two cues (lexical, dense), fusion, the frozen gate. No query-type router. No ANN
+index. No int8 vector array. No hot index. `group commit` appears once, in a comment describing what
+durability *would* need. `consolidate.rs` is a function, not a run — nothing calls it outside the
+eval adapter, and it cannot spawn.
+
+**Three of those lines contain a phrase written to pre-empt exactly this** — *"requirement, not a
+later optimization"*, twice, and *"scoped here rather than left as a note"*. They were deferred
+anyway.
+
+**And the closure names two carried items — head separability and the human label set — while at
+least four more were carried silently.** That is the difference between a deferral and a gap: one is
+on the record. The ROADMAP's M0b header is corrected as of this entry.
+
+### Why this is the strongest "should already have been done" in the project
+
+**Sessions D through L — nine of them — all worked the two cues that exist.** Fusion (failed floor),
+per-query features (failed floor), consolidation (null), query side, cross-encoder rerank, the
+sequence cap, fine-tuning, GPU. The largest quality win was **+0.0699** from fine-tuning the
+reranker. M0c Session A then closed both remaining named candidates with **R@1 unmoved at 0.6725**.
+
+**No third cue has ever been attempted.** `retrieve.rs`'s header has said since Session B that *"a
+number produced here is a statement about an incomplete cue set rather than about the design"* — and
+that sentence has been read as a caveat for nine sessions instead of as a work item.
+
+**0.6725 is a real measurement of a system that is not the designed one.** The labelling has been
+scrupulous throughout; what went wrong is that it was then treated as *retrieval quality* in every
+downstream decision, including K1's amendment and the declared operating point.
+
+### The brief, for the session that builds cue 3
+
+**The gate artifact already contains the instruction.** `gate-frozen-v5.json` on
+`cue_agreement_2cue`: *"It stays pinned because making it informative requires a FIRING PREDICATE
+for the dense cue… **Unpin at cue 3**, where agreement stops being a coarsening — **and
+pre-register the predicate before doing so.**"* Someone anticipated this session; do what it says.
+
+Constraints, none of them optional:
+
+- **Pre-register before any fit.** `tools/preregister_split.py` ran once and is never re-run;
+  new bands need their own registration file *before* a number is produced. CLAUDE.md: *"Pre-registration is a file, not an intention."*
+- **A new cue changes the gate's feature vector**, so it needs a refit and a **new artifact version**
+  (v6). `FrozenGate::from_artifact` refuses a feature outside all three roles without a stated
+  reason, and refuses an inert declaration that is actually a cue or a rank feature — those errors
+  are the guard, not obstacles to route around.
+- **ADR-010 is binding: no calibrated value may enter the ranking key.** Isotonic output is a step
+  function; Session D ranked on it and 60.4% of held-out cases tied at the fused maximum. New cue
+  features must be **continuous and query-local** — raw, margin and z, kept together in a `CueSpec`
+  so indices cannot drift.
+- **Features are set-level.** `extract_all` takes the whole candidate set because rank, margin and z
+  do not exist for a candidate in isolation.
+- **Determinism**: `BTreeMap`, never `HashMap` (the determinism guard bans hash-ordered
+  collections); no clock reads on any §4.1/4.6 path.
+- **Report `R@1_current` beside R@1.** LongMemEval marks both the stale and the current turn
+  `has_answer`, so returning the outdated value scores as correct — held-out 0.6725 → 0.6288 when
+  counted honestly, and 0.7222 → 0.4444 on knowledge-update.
+- **`eval/` is never modified.**
+
+**The trap: do not tune the two existing cues again.** Nine sessions did that and the remaining
+headroom there is measured and small. The open question is whether a third cue moves R@1 more than
+nine sessions of tuning two did — and nobody knows, because nobody has built one.
+
+---
+
 ## NEXT SESSION IS A FULL SECURITY REVIEW. Read this first.
 
 **The five layers are in `CLAUDE.md` and must be known by number.** What follows is what Session D

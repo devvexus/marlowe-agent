@@ -205,6 +205,32 @@ Sessions A–K; `runs/session-*/RESULT.md`.
 **Carried forward as named work, not preconditions:** head separability, and the human label set.
 See `STATE.md` and §M1 below.
 
+> ### CORRECTED 2026-08-11 — this closure named two carried items and silently carried at least five
+>
+> Read against the Scope section below, **M0b shipped roughly 40% of its named mechanism**:
+>
+> | Scoped | Built? |
+> |---|---|
+> | **Five cues** | **Two** — lexical and dense. Entity-graph, temporal and causal never attempted |
+> | Query-type router | **No** |
+> | Fusion, frozen gate | Yes |
+> | **ANN index + int8 hot vector array** — *"an M0b requirement, not a later optimization"* | **No** |
+> | **Live-only hot index** — *"requirement, not optimization"* | **No** |
+> | **Group commit on append** — *"scoped here rather than left as a note"* | **No** — the phrase appears once, in a comment about what durability would need |
+> | Consolidation **as a run**; contradiction resolution; trend extractors (HP3) | **A function, not a run.** No caller outside the eval adapter; it cannot spawn |
+>
+> **Three of those lines carry a phrase written to pre-empt deferral, and were deferred anyway.**
+>
+> **This does not invalidate 0.6725.** The number is real, measured from the shipped binary, and
+> labelled scrupulously everywhere it appears. What it is not is a measurement of the *designed*
+> system — and it has been treated as "retrieval quality" in every downstream decision since,
+> including K1's amendment and the declared operating point.
+>
+> Sessions D–L all worked the two cues that exist; the largest quality win was +0.0699 from
+> fine-tuning the reranker, and M0c Session A closed the remaining named candidates with R@1
+> unmoved. **The third cue has never been attempted.** Brief and constraints at the top of
+> `STATE.md`.
+
 
 **Ships:** memory that scores against M0a. **Carries K1, K2, K3.**
 
