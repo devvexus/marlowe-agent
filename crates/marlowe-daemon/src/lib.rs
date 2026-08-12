@@ -28,6 +28,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod auth;
 pub mod client;
 pub mod clock;
 pub mod daemon;

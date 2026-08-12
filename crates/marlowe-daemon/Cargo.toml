@@ -18,6 +18,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+# The daemon socket token. See src/auth.rs for what it does and does not defend.
+getrandom.workspace = true
 
 [dev-dependencies]
 marlowe-provider.workspace = true
