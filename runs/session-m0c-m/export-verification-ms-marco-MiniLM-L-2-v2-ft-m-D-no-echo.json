@@ -1,0 +1,52 @@
+{
+  "_what": "M0c Session M Phase 2 \u2014 determinism and export gate for a graph this session trained.",
+  "model": "ms-marco-MiniLM-L-2-v2-ft-m-D-no-echo",
+  "digest": "81108ced703942953eeb9f12940b0fc158abca00da02f248aa9cacfde2fbd3af",
+  "checks": {
+    "smoke_discriminates": {
+      "relevant": 4.370362758636475,
+      "irrelevant": -9.389755249023438,
+      "margin": 13.760118007659912,
+      "pass": true
+    },
+    "determinism": {
+      "values": [
+        4.370362758636475,
+        4.370362758636475,
+        4.370362758636475
+      ],
+      "pass": true
+    },
+    "batch_invariance": {
+      "max_abs_diff": 0.0,
+      "identical": true,
+      "pairs": 8
+    },
+    "padding_invariance": {
+      "pairs": 60,
+      "median_abs_delta": 0.0,
+      "p95_abs_delta": 0.0,
+      "max_abs_delta": 0.0,
+      "invariant": true,
+      "nonzero_deltas": 0
+    },
+    "torch_vs_ort": {
+      "run": true,
+      "ort": [
+        4.370362758636475,
+        -9.389755249023438,
+        -0.18809986114501953
+      ],
+      "torch": [
+        4.370360851287842,
+        -9.389759063720703,
+        -0.18809953331947327
+      ],
+      "max_abs_delta": 3.814697265625e-06,
+      "agrees": true
+    }
+  },
+  "pass": true,
+  "_torch_vs_ort_is_the_one_that_speaks_to_the_export": "checks 1-4 describe the exported graph's behaviour; only check 5 compares it against the PyTorch module it came from. A silently wrong export produces plausible numbers, which is why the sweep is not run before this passes.",
+  "open_gap": "SELF-VALIDATED ONLY. There is no external authority for a model this session trained, so the unvalidated-export gap is NOT closed by these checks \u2014 it is bounded by them."
+}

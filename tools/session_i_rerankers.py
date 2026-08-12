@@ -70,6 +70,69 @@ FINETUNES = {
         "arch": "BERT",
         "max_seq": 512,
     },
+    # M0c Session M Phase 2 — the negatives x objective ablation (`tools/finetune_v2.py`). Same
+    # treatment as the two above: out of Session I's manifest, still digest-pinned, never guessed.
+    # Arm A is Session J's recipe re-run by that file and is the instrument, not a result.
+    "ms-marco-MiniLM-L-2-v2-ft-m-A": {
+        "digest": "275fa731d7ef7ebe54bc107976fc87ffab5467e77255a7de289ccafc38b984dd",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-B": {
+        "digest": "9b841f6babb63d3e7e02bf2efad4dabe230609d3c2806a4ab21b4979b973a5b9",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-deployed": {
+        "digest": "4a007a5accf65e61f70a3d5c03615d3fefc529126d86f492a82bdd1d9bbac7e0",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-cross": {
+        "digest": "8d9a31974720b2eb73490bea261701d051433b705e098512edd40567c4b2d06d",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-echo": {
+        "digest": "5fe74fbc5933bcd8b9d707c897a56a8084b703b747a967b8fa67ae53bd19a21f",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-C": {
+        "digest": "047a861fe64c40ef92c3e94a7de2398f29bd5fbdde2922cded8915fe19cbcd33",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-D": {
+        "digest": "1ba0495b98bb0605719b6bfff33a13c5ae4c0c6ccdb56893490f752ee00c71aa",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-deployed": {
+        "digest": "269bf2ac5bd8acf8bbe35f07e98ce9645ae1db5c0eff95f2714726637dd17b6c",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-cross": {
+        "digest": "a665342a43b89cca3f0ea20bf428ad01e8d8820907dcd6f364c20bf3ab7d8160",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-echo": {
+        "digest": "81108ced703942953eeb9f12940b0fc158abca00da02f248aa9cacfde2fbd3af",
+        "params_m": 15,
+        "arch": "BERT",
+        "max_seq": 512,
+    },
 }
 
 # The graph the binary loads. Read from rerank.rs rather than restated, so the two cannot drift.

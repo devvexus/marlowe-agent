@@ -135,102 +135,135 @@ set and printed a confident "0 events".
 
 ---
 
-## M0c SESSION M — CROSS-ENCODER RERANKING IS SATURATED, AND THE GPU BUDGET IS NOT THE CONSTRAINT
+## M0c SESSION M — THE RANKING SPACE IS CLOSED. R@1 UNMOVED AT 0.6725, AND THAT IS THE RESULT.
 
-**`runs/session-m0c-m/`. Pre-registration committed BEFORE any pool was reconstructed (`4373111`);
-result at `c1fb6b0`. NOTHING SHIPPED — the registered floor was not cleared. No crate was touched.**
+**`runs/session-m0c-m/`. Pre-registration committed at `4373111` BEFORE any number existed.
+NOTHING SHIPPED. Three held-out reads spent, all null. No crate was touched.**
 
-**The session opened as "build cue 3" and the premise did not survive the record.** The human asked
-*"I think we tried this one before"* and was right: **Session G arm 4 already measured temporal and
-refuted it.** Questions carrying a parseable window are 12/229 (5.24%); within temporal-reasoning,
-**1 of 59 (1.69%)**. Held-out effect **−0.0087**, one pool emptied, one case lost gold it held at
-rank 1. LongMemEval's temporal questions are *interval arithmetic over two named events*, not window
-queries. **The kill condition registered that morning was "firing rate below 0.20"; the measured
-value had been 0.0169 on disk since Session G.**
+The session opened as "build cue 3" and ends having closed the entire post-hoc ranking space with
+numbers behind every door. **The closed doors are the product; the null is not.**
 
-**And the mechanism was aimed at a solved sub-problem.** On this corpus turns within a session are
-1 s apart and sessions are days apart, so a temporal cue is a *session selector* — which Session G's
-decomposition puts at **4 cases against 77** for within-session ranking.
+### THE ONE NUMBER THAT MATTERS, AND WHY EVERY FIT NUMBER BELOW IS SUSPECT
 
-### The real constraint was a measurement scoped to the wrong hardware
-
-**Every reranker cost figure ever used to reject a model in this project is a 1-thread CPU number.**
-The human's correction: *"the 1-vCPU was a minimum, a fallback. Assume all deployers have a GPU but
-always be capable if it's just 1 vCPU. The 300 ms was for voice, which is only enabled if you have a
-good GPU. Thus, rank everything on the GPU."*
-
-The rejection numbers described the **fallback floor** and were read as though they described the
-**target** — the standing failure family applied to a hardware boundary, and it had gated the model
-choice for four sessions.
-
-### What thirty cells on the GPU say
-
-Fit split, n = 229, CUDA batched, RTX 4080 SUPER, seq 256. `frontier.json`.
-
-| | R@1 | ms p50 | vs 300 ms |
+| mechanism | fit delta | held-out delta | collapse |
 |---|---|---|---|
-| shipped — L-2-ft, depth 10 | 0.7555 | **7.0** | inside |
-| **best — L-6-ft, depth 30** | **0.7729** | **37.1** | inside |
-| most expensive cell measured | — | **203.7** | still inside |
+| depth 30 (L-6-ft) | +0.0174 | **+0.0044** | 4x |
+| retrain, arm B (new negatives) | **+0.0698** | **+0.0087** | **8x** |
+| joint pairwise encoder (duoBERT) | +0.0655 | **+0.0044** | **15x** |
 
-- **Floor +0.02, reused verbatim from M0c Session A. Best cell is +0.0174. It does not clear, so
-  NOTHING IS PROMOTED and held-out was not touched.** The precedent for holding the line is one
-  session old: M0c A's slate arm was **+0.0087 fit, −0.0044 held-out**.
-- **Capacity is refuted across a 17× parameter range.** Three 184–278M cross-encoders lose to a
-  fine-tuned 16M model by 17–27 points on fit. Session I's L-2→L-6 null recorded that it *"says
-  nothing about bge, jina or mxbai"* — **it now says it.**
-- **The fit split flatters the fine-tunes and the honest number is smaller.**
-  `session_j_finetune.py` records `"trained_on": "fit split only"`, so ft models saw these queries
-  and un-tuned ones did not. **Quote ADR-018's held-out +0.0699, never the 17-point fit gap.** The
-  depth comparisons are clean — same model in both arms.
-- **EVERY ONE OF THE THIRTY CELLS FITS THE GPU BUDGET.** Given 8× the compute the shipped path uses,
-  R@1 moves +0.0174 and stops. **There is budget here that cannot be usefully spent.**
+**Everything trained or tuned on the fit split shows a large fit gain and nothing on held-out.**
+Three mechanisms, three directions, three collapses. M0c Session A said the binding constraint is
+labelled data — 38 informative fit failures — and this session tested that from three angles and it
+held every time.
 
-**Two independent lines now say cross-encoder reranking is saturated on this corpus**: M0c Session A
-put four *architectures* on the separation and moved top-1 on 2 of 229; this session put nine
-*pretrained scorers* on it, 16M→278M across four architectures, and moved it below the floor.
+**Arm B is the case to remember.** Fit **0.8253** (+0.0698, McNemar 18/2, **p = 0.0004**), cleared
+the registered floor by 3.5x, with a contamination control the agent added unprompted. Held-out
+**0.6812** (+0.0087, 10/8, p = 0.815). The fit/held-out gap *widened* from 0.083 to 0.144 — the
+signature of overfitting, measured rather than asserted. `deployed_top_k` negatives are
+**query-specific by construction** ("the turns that beat gold on THESE queries"), so the model
+memorised turns instead of the pattern.
 
-`R@1 = input_recall × conditional_accuracy` is now fully mapped. **Input recall is solved** — 0.9825
-at depth 30, the whole pruned pool, for 37 ms. **Conditional accuracy is the wall**: best 0.8200, it
-*falls* with depth, and R@1 0.95 would need **0.967**.
+### THE PIPELINE, WITH GOLD RETENTION AT EVERY STAGE (held-out, 234 answerable)
 
-### Carried forward
+| stage | gold survives | stage retention | lost |
+|---|---|---|---|
+| answerable cases | 234 | — | — |
+| ingest + §4.3 + scope | 229 | 0.9786 | 5 |
+| session pruning | 225 | 0.9825 | 4 |
+| slate draw (top-10 by cue key) | 207 | 0.9200 | 18 |
+| **cross-encoder picks rank 1** | **154** | **0.7440** | **53** |
 
-- **An LLM reranker is UNTESTED, not refuted.** Declined by the human before the sweep. It is now
-  the only untested mechanism with a plausible path to the required conditional accuracy, and the
-  case for it is *stronger* after this sweep because the sweep closed the alternative.
-- **Supersession is the other named lever** — +0.1666 on knowledge-update R@1_current by M0c A's
-  oracle — blocked on **HP2 entity identity**, not on ranking.
-- **One held-out read would settle whether +0.0174 survives the split.** The argument both ways is
-  in `RESULT.md` and was deliberately NOT acted on; spending that read is the human's call.
+Retentions multiply exactly: 0.9786 x 0.9825 x 0.9200 x 0.7440 = 0.6581 = 154/234.
 
-### Two instrument facts worth keeping
+**The cross-encoder loses 53; everything else combined loses 27.** If it were perfect, R@1 would be
+0.8846. If any other stage were perfect, +0.012 to +0.057.
 
-1. **Batch invariance on the shipped graph is 0.000000 on CPU and 0.000324 on CUDA.** Re-measured
-   per graph rather than inherited — inherited, the move would never have been seen. Consistent with
-   ADR-029, whose gate is GPU→GPU determinism (passes) plus cross-provider *ranking* equivalence
-   (passes: re-scoring the shipped graph on GPU returns R@1 0.7555 exactly).
-2. **Session L's RESULT.md §6 — *"GPU is closed on correctness"* — is STALE, and its own ADR-029
-   reverses it.** The original spike compared each CUDA repeat against the **CPU** reference rather
-   than against the other repeats, reporting cross-provider disagreement as within-provider
-   nondeterminism. GPU→GPU determinism was never broken.
+**And the published R@1 = 0.6725 uses 229 as its denominator, not 234** — `load_pools` drops the 5
+cases where gold never survived. On the honest basis R@1 is **0.6581**. In the other direction, **9
+of 56 fit failures put a turn STATING the gold answer at rank 1** (answer-containment diagnostic),
+so the true figure is uncertain by a couple of points in both directions.
 
-### THE SHARED-CHECKOUT HAZARD FIRED TWICE IN THIS SESSION, BOTH SELF-INFLICTED
+### R@2 AND R@3, MEASURED FOR THE FIRST TIME
 
-Recorded because CLAUDE.md's table is only useful if new instances are added to it.
+| k | 1 | **2** | **3** | 5 | 10 |
+|---|---|---|---|---|---|
+| held-out R@k | 0.6725 | **0.8122** | **0.8515** | 0.8865 | 0.9039 |
 
-1. **Form 3 — a commit swept the other session's in-flight edits.** `4373111` carries M2 Session E's
-   `engine.rs`, `run.rs`, `egress_grant.rs`, CLAUDE.md and STATE.md under a pre-registration message.
-   The `git add` was targeted; **the index already held their staged changes, and `git commit` takes
-   everything staged, not everything you just added.** That is the mechanism, and it is not what the
-   table's entry describes (`git add -A`) — a targeted add is not sufficient protection.
-   **Deliberately NOT unpicked with `reset --soft`**: the other session is live in this checkout, and
-   moving shared `HEAD` under it is form 1/2, which is worse than a mislabelled commit.
-2. **Form 4 — a test count read from the other session's working tree, reported as a baseline.** The
-   handoff said 617 at `524cfc1`; a suite run at session start read **619** and that was published in
-   this file as a correction to the handoff. **The handoff was right.** Session E's two new Layer 1
-   tests were already in the working tree, so 619 was *their* number. Nothing downstream depends on
-   it — this session touched no crate — but the correction was false and is withdrawn.
+**81% of queries have gold in the top 2.** Gold first appears at rank 1 in 154 cases, **rank 2 in
+32**, then 9, 6, 2, 3, 1. **+0.1397 sits in a single binary decision**, agreeing with the head
+probe's independently measured ceiling of +0.1135 on fit.
+
+### WHAT IS CLOSED, WITH THE NUMBER THAT CLOSED IT
+
+- **temporal cue** — Session G arm 4 already refuted it: **1/59** temporal-reasoning questions carry
+  a parseable window; held-out −0.0087. Its mechanism on this corpus is *session selection*, which
+  the failure decomposition puts at 4 cases against 77.
+- **bigger cross-encoders** — nine models, 16M→278M, four architectures, on GPU. **The 278M models
+  lose to a fine-tuned 16M by 17–27 points.**
+- **the GPU budget** — not the constraint. All 30 frontier cells fit 300 ms; the best uses **37 ms**.
+  Every rejection figure in this project was a **1-thread CPU** number for a **GPU** target.
+- **depth 30** — held-out null, 20 gained / 19 lost, **p = 1.000**.
+- **twenty post-hoc tie-breaks** — question echo, IDF non-query mass, length, role, session,
+  truncation, cue scores, recency, rank fusion, numeric type, neighbour structure, sentence MaxP at
+  every band and alpha, three span readers, ensemble voting, reader-null penalty, centroid
+  subtraction.
+- **the objective axis** — BCE *hurts* (−0.0524 at fixed negatives). The LCE audit found M0c A's
+  listwise arm DID use the deployed group, so that null stands.
+- **the joint pairwise encoder** — the last thing anyone could point at. Held-out +0.0044.
+
+**The ceiling on the entire post-hoc class is +5 cases, set by a blind coin flip below a 0.084
+logit gap.** That is not "we failed to find the trick" — it is measured.
+
+### THREE THINGS FOR THE LEDGER
+
+1. **THE NEAR-TIE SIGNATURE.** Any mechanism that perturbs a pointwise score gains 4–6 with ~0
+   losses **entirely inside gaps below 0.084**, and none fires correctly outside it. The span
+   reader (+6/−0, p=0.031, cleared the floor) **evaporated to 1 gained / 4 lost** against a
+   different base ranker. Sentence MaxP fired 6 times above the band and got **0** right. **A
+   post-hoc result measured on one base ranker is not a result until a second one reproduces it.**
+2. **A HELD-APART SUBSET OF THE SAME SPLIT IS NOT A HELD-OUT SPLIT.** Arm B's within-fit,
+   conversation-level control read +0.0638 on 47 queries — 3 cases, p = 0.25 — and predicted
+   nothing. The corpus, the mining procedure and the model that generated the negatives were all
+   shared.
+3. **AN IDENTITY ERROR, MINE.** I proposed recalibrating the reranker head because **0 of 229**
+   chosen candidates score above its relevance boundary (median −6.99). R@1 is a within-query
+   ordering read and any monotone transform is an identity on it — ADR-011, ADR-013, and Session I's
+   arm 6, now a fourth instance. Caught by a reach check *before* the training run, which is what
+   they are for. The observation itself stands and governs **coverage**, not R@1.
+
+### THE CROSS-ENCODER, CHARACTERISED
+
+Pointwise: `[CLS] q [SEP] turn [SEP]` → **one scalar**, `logits: [batch, 1]`. Two layers, hidden
+384, 16M parameters, seq 256. **Attention runs within a row, so even a batched [10,256] forward
+gives no cross-candidate information — batching is compute, not joint reasoning.**
+
+It is fed **`entry.text` and nothing else** (`retrieve.rs:582`). Not role, not `occurred_at_ms`, not
+session, not turn index, not the surrounding turns, not its own cue scores — all of which we hold.
+
+Its real failures are **diffuse**: outside `single-session-preference` (53% failure, **4.07x**
+enrichment, 8 of 30) every category sits between 0.54x and 1.19x of base rate. **Temporal-reasoning
+is its BEST category at 0.54x** — deictic questions fail at the *slate*, not the ranker.
+
+### WHAT IS LEFT, AND NONE OF IT IS RANKING
+
+1. **QA accuracy — never measured.** It is M0b's actual acceptance row (>=90%). The recorded
+   `answer_accuracy 0.0` is **two absences stacked**: `adapter.rs:649` hardcodes `answered: false`,
+   and every Session K frame reads `no_candidate_above_threshold` under a gate ADR-016 measured as
+   unclearable. Pilot (n=20, `qwen3.5:9b`, lexical grading): **none 0.00 / gold 0.65 / k5 0.55 /
+   k10 0.50 / k1 0.25.** The clean 0.00 floor is the only part solid at that n.
+2. **The admission rule.** `retrieve.rs` admits `vec![order[0]]` — **one memory**. The pilot reads
+   **k1 0.25 against k5 0.55**. If that holds at n=229 it is worth more than any R@1 work, and it is
+   a one-line change against a training programme. It is not free: tokens against §5.7, precision
+   against K1, and stale-fact harm.
+3. **Supersession via HP2 entity identity** — +0.1666 on knowledge-update R@1_current by M0c A's
+   oracle, harm −71%. Blocked on a component that has a design and was never built.
+
+**And the reframe that should survive this session:** we are not behind the field. Three published
+systems report **session-level** recall@5 — MemPalace 96.6%, agentmemory 95.2%, both LLM-free, both
+with **no held-out split**. Marlowe reads **0.9738 shipped and 0.9869 on its dense cue alone**. Both
+of their docs say outright that this is not the benchmark's official metric. **Nobody in that
+comparison set, including us, reports QA accuracy — which is why measuring it is the highest-value
+thing left.**
 
 ---
 

@@ -1,0 +1,126 @@
+{
+  "_what": "M0c Session M -- reranker frontier, FIT split, GPU",
+  "judged_by": "runs/session-m0c-m/PREREGISTRATION.json",
+  "provider": "CUDAExecutionProvider",
+  "max_seq": 256,
+  "control": {
+    "n": 229,
+    "R@1": 0.7555,
+    "R@1_current": 0.6987,
+    "R@5": 0.917,
+    "per_category": {
+      "knowledge-update": {
+        "n": 36,
+        "R@1": 0.7222,
+        "R@1_current": 0.4722
+      },
+      "multi-session": {
+        "n": 61,
+        "R@1": 0.8033,
+        "R@1_current": 0.7705
+      },
+      "single-session-assistant": {
+        "n": 28,
+        "R@1": 0.7857,
+        "R@1_current": 0.7857
+      },
+      "single-session-preference": {
+        "n": 15,
+        "R@1": 0.3333,
+        "R@1_current": 0.3333
+      },
+      "single-session-user": {
+        "n": 32,
+        "R@1": 0.8125,
+        "R@1_current": 0.8125
+      },
+      "temporal-reasoning": {
+        "n": 57,
+        "R@1": 0.7895,
+        "R@1_current": 0.7544
+      }
+    }
+  },
+  "control_published": {
+    "R@1": 0.7555,
+    "R@1_current": 0.69
+  },
+  "pools": {
+    "pools": 229,
+    "candidates": 111510,
+    "unattributable_rows": 0,
+    "attributed_but_no_session_provenance": 0,
+    "sessions_seen": 10912
+  },
+  "cells": [
+    {
+      "model": "ms-marco-MiniLM-L-2-v2-ft-m-C",
+      "tier": "B",
+      "params_m": 15,
+      "arch": "BERT",
+      "depth": 10,
+      "input_recall": 0.9214,
+      "conditional_accuracy": 0.7631,
+      "rerank_ms_p50": 6.27,
+      "rerank_ms_p95": 8.45,
+      "provider": "CUDAExecutionProvider",
+      "gates": {
+        "smoke": {
+          "relevant": 5.356181621551514,
+          "irrelevant": -9.295963287353516,
+          "margin": 14.65214490890503,
+          "pass": true
+        },
+        "determinism": {
+          "values": [
+            5.356181621551514,
+            5.356181621551514,
+            5.356181621551514
+          ],
+          "pass": true
+        },
+        "batch_invariance": {
+          "max_abs_diff": 0.0008281469345092773,
+          "identical": false,
+          "pairs": 8
+        }
+      },
+      "n": 229,
+      "R@1": 0.7031,
+      "R@1_current": 0.6419,
+      "R@5": 0.9127,
+      "per_category": {
+        "knowledge-update": {
+          "n": 36,
+          "R@1": 0.8056,
+          "R@1_current": 0.5556
+        },
+        "multi-session": {
+          "n": 61,
+          "R@1": 0.7541,
+          "R@1_current": 0.7213
+        },
+        "single-session-assistant": {
+          "n": 28,
+          "R@1": 0.5,
+          "R@1_current": 0.5
+        },
+        "single-session-preference": {
+          "n": 15,
+          "R@1": 0.3333,
+          "R@1_current": 0.3333
+        },
+        "single-session-user": {
+          "n": 32,
+          "R@1": 0.75,
+          "R@1_current": 0.75
+        },
+        "temporal-reasoning": {
+          "n": 57,
+          "R@1": 0.7544,
+          "R@1_current": 0.7018
+        }
+      }
+    }
+  ]
+}

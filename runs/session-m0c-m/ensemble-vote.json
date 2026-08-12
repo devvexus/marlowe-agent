@@ -1,0 +1,2851 @@
+{
+  "_what": "independent cross-encoders voting the shipped top-2, fit split",
+  "_measurement_only": true,
+  "_decisive_test": "does any rule fire CORRECTLY above the 0.084 near-tie band? every prior mechanism scored 0 there, which is what makes them coin flips with extra steps.",
+  "control_fit_r1": 0.7555,
+  "incumbent": "ms-marco-MiniLM-L-2-v2-ft-session-j",
+  "voters": [
+    "ms-marco-MiniLM-L-6-v2-ft-session-j",
+    "ms-marco-MiniLM-L-12-v2",
+    "ms-marco-MiniLM-L-4-v2",
+    "ms-marco-MiniLM-L-6-v2",
+    "bge-reranker-base"
+  ],
+  "near_tie_threshold": 0.084,
+  "arms": [
+    {
+      "rule": "swap if >= 1 of 5 voters prefer rank-2",
+      "flips_gained": 20,
+      "flips_lost": 37,
+      "net": -17,
+      "r1": 0.6813,
+      "above_near_tie": {
+        "gained": 14,
+        "lost": 37,
+        "noop": 37
+      }
+    },
+    {
+      "rule": "swap if >= 2 of 5 voters prefer rank-2",
+      "flips_gained": 15,
+      "flips_lost": 18,
+      "net": -3,
+      "r1": 0.7424,
+      "above_near_tie": {
+        "gained": 9,
+        "lost": 18,
+        "noop": 23
+      }
+    },
+    {
+      "rule": "swap if >= 3 of 5 voters prefer rank-2",
+      "flips_gained": 10,
+      "flips_lost": 15,
+      "net": -5,
+      "r1": 0.7337,
+      "above_near_tie": {
+        "gained": 5,
+        "lost": 15,
+        "noop": 21
+      }
+    },
+    {
+      "rule": "swap if >= 4 of 5 voters prefer rank-2",
+      "flips_gained": 10,
+      "flips_lost": 8,
+      "net": 2,
+      "r1": 0.7642,
+      "above_near_tie": {
+        "gained": 5,
+        "lost": 8,
+        "noop": 19
+      }
+    },
+    {
+      "rule": "swap if >= 5 of 5 voters prefer rank-2",
+      "flips_gained": 4,
+      "flips_lost": 2,
+      "net": 2,
+      "r1": 0.7642,
+      "above_near_tie": {
+        "gained": 2,
+        "lost": 2,
+        "noop": 6
+      }
+    },
+    {
+      "rule": "swap if ALL voters prefer rank-2",
+      "flips_gained": 4,
+      "flips_lost": 2,
+      "net": 2,
+      "r1": 0.7642,
+      "above_near_tie": {
+        "gained": 2,
+        "lost": 2,
+        "noop": 6
+      }
+    },
+    {
+      "rule": "unanimous AND inside the near-tie band",
+      "flips_gained": 2,
+      "flips_lost": 0,
+      "net": 2,
+      "r1": 0.7642,
+      "above_near_tie": {
+        "gained": 0,
+        "lost": 0,
+        "noop": 0
+      }
+    }
+  ],
+  "pairs": {
+    "51a45a95": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 3.596602439880371,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "58bf7951": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 1.4639272689819336,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "1e043500": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.3068580627441406,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c5e8278d": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.1322884559631348,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "6f9b354f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.8026762008666992,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "58ef2f1c": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.5846343040466309,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "5d3d2817": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.4977989196777344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c960da58": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.7367362976074219,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3b6f954b": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.0108537673950195,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "94f70d80": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.3981056213378906,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "ad7109d1": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.277008056640625,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "dccbc061": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.500563144683838,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "21436231": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.3258142471313477,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "95bcc1c8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.637955665588379,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a06e4cfe": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.9935097694396973,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "37d43f65": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.1921567916870117,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "b86304ba": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.09656715393066406,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "25e5aa4f": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 1.0402565002441406,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "caf9ead2": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.8861026763916016,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "8550ddae": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.705355167388916,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "60d45044": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.7370948791503906,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3f1e9474": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.34742069244384766,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "577d4d32": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8402919769287109,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "ec81a493": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.2770051956176758,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "15745da0": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.4432425498962402,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e01b8e2f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.12895917892456055,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "001be529": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.5108137130737305,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "19b5f2b3": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8584098815917969,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4fd1909e": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.1123785972595215,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "8e9d538c": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.5547609329223633,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4100d0a0": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.6269540786743164,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "c14c00dd": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.4934978485107422,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "6d550036": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.47397613525390625,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_59c863d7": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5790877342224121,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "e831120c": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.38813161849975586,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_f2262a51": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.43082141876220703,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_a56e767c": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.06562566757202148,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "6cb6f249": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.5791940689086914,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "46a3abf7": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.2738304138183594,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "36b9f61e": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.14931297302246094,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "28dc39ac": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7552471160888672,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_2f8be40d": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.3809051513671875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_15e38248": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.42113494873046875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "88432d0a": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.1182088851928711,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "d682f1a2": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.07499837875366211,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_2ba83207": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7865796089172363,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "2ce6a0f2": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.0340032577514648,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_d12ceb0e": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.8092145919799805,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_31ff4165": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.3959832191467285,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "129d1232": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.14720773696899414,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a9f6b44c": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.47014713287353516,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "d851d5ba": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.11456298828125,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_ab202e7f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.27120018005371094,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_e05b82a6": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.20399188995361328,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_731e37d7": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.23703861236572266,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "edced276": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.6232333183288574,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "10d9b85a": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.2506566047668457,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e3038f8c": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.056336402893066406,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "2b8f3739": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.02861785888671875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c2ac3c61": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.2227344512939453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "bf659f65": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.7155733108520508,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_372c3eed": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5199642181396484,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "8a2466db": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.39441728591918945,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "35a27287": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.19783973693847656,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "195a1a1b": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.1344776153564453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "afdc33df": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.27288150787353516,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "54026fce": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.4761466979980469,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "1a1907b4": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.13088369369506836,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "09d032c9": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.05464363098144531,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "57f827a0": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.004670619964599609,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "505af2f5": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.3080024719238281,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "75f70248": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.7469077110290527,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "d6233ab6": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.1677722930908203,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "1da05512": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.35186052322387695,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "b6025781": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.21367645263671875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a89d7624": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.3565635681152344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "b0479f84": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.038684368133545,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "d3ab962e": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.24974441528320312,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "cc06de0d": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.23049020767211914,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a11281a2": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.7311043739318848,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "9aaed6a3": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.521662712097168,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "1f2b8d4f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.12516546249389648,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "d905b33f": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.549990177154541,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "f35224e0": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.4640350341796875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "6456829e": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.38059043884277344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a4996e51": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.42345333099365234,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3c1045c8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.039422035217285,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "60036106": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.37082481384277344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "681a1674": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.12772274017333984,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "e25c3b8d": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.9086451530456543,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4adc0475": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7246875762939453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4bc144e2": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.10568761825561523,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3fdac837": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.16640663146972656,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "91b15a6e": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.25664615631103516,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "720133ac": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.17225217819213867,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "77eafa52": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.2387089729309082,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "0100672e": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.9613986015319824,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "92a0aa75": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.09154224395751953,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3fe836c9": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7746992111206055,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "6c49646a": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.32354068756103516,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "61f8c8f8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.1538138389587402,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "ef9cf60a": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5103945732116699,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "09ba9854": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.1197509765625,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "157a136e": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.014529705047607422,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "a3332713": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.4817466735839844,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "a08a253f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.580479621887207,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "078150f1": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.032498836517333984,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "a346bb18": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.4634690284729004,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_f49edff3": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.15544605255126953,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "b46e15ed": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.14850234985351562,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_fa19884c": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.3841438293457031,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_4929293a": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.1436290740966797,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_b5700ca9": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8496294021606445,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "9a707b81": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.4654054641723633,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_1d4ab0c9": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.4561958312988281,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "0db4c65d": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.49269866943359375,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_6dc9b45b": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.4849681854248047,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_18c2b244": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.3179354667663574,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_a1b77f9c": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.051375389099121094,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_468eb063": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.009886741638183594,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_7abb270c": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.2630887031555176,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_4fc4f797": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.28169822692871094,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_45189cb4": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.919374942779541,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_e061b84f": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 1.6881885528564453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "370a8ff4": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 2.4318695068359375e-05,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_d6585ce8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.09407234191894531,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "8077ef71": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8450131416320801,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_8e165409": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7842187881469727,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "bcbe585f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.5754399299621582,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_98f46fc6": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.08824396133422852,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "eac54adc": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.6590776443481445,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_a2d1d1f6": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8041553497314453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_85da3956": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.016603469848632812,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_b0863698": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.43067455291748047,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_68e94287": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.23316383361816406,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_7ca326fa": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.35855579376220703,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "2ebe6c92": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.5951781272888184,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_d6585ce9": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.30000734329223633,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_e414231f": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.4679994583129883,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_468eb064": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.9354314804077148,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "9a707b82": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.3107161521911621,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "eac54add": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.4755082130432129,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4dfccbf8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.24210166931152344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "6e984302": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.43999195098876953,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_2655b836": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.15837335586547852,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "08f4fc43": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.1304006576538086,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_385a5000": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7691707611083984,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "bbf86515": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.1457352638244629,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_5dcc0aab": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.18583106994628906,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_0b2f1d21": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.1233205795288086,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_70e84552": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5887808799743652,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "982b5123": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.4127025604248047,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c8090214": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.250762939453125,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_483dd43c": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.03600740432739258,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_2c50253f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8858880996704102,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "cc6d1ec1": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.12381219863891602,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_8c8961ae": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.29640626907348633,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "d01c6aa8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.24843120574951172,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "a3045048": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.30110788345336914,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_d31cdae3": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7736263275146484,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_cd90e484": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.004862308502197266,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "b29f3365": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.11952638626098633,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_78cf46a3": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.213775634765625,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "gpt4_2f584639": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.3070669174194336,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "gpt4_5438fa52": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.7159557342529297,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "830ce83f": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.014101028442382812,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "852ce960": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.7018618583679199,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "945e3d21": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.1711716651916504,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "d7c942c3": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.934107780456543,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "07741c44": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.057407379150390625,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "a1eacc2a": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.012369632720947266,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "031748ae": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.598881721496582,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4d6b87c8": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.17859649658203125,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "0f05491a": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.3077092170715332,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "08e075c7": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.922297477722168,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "41698283": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.2343173027038574,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "2698e78f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.5977058410644531,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "45dc21b6": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.3794851303100586,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "5a4f22c0": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.053985595703125,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "6071bd76": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.21809101104736328,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e493bb7c": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5755691528320312,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "72e3ee87": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5725083351135254,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c4ea545c": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.28349828720092773,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "01493427": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.3472752571105957,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "ed4ddc30": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.4000368118286133,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "8fb83627": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.5463075637817383,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "22d2cb42": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.3623471260070801,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "eace081b": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.13808822631835938,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "affe2881": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.12653732299804688,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "0ddfec37": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.04220151901245117,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "dfde3500": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.488194465637207,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "69fee5aa": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.5097441673278809,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "06db6396": {
+      "gold_a": true,
+      "gold_b": true,
+      "ce_gap": 0.14059734344482422,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "3ba21379": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.08382034301757812,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "9bbe84a2": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.7702879905700684,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "dad224aa": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.9568729400634766,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "ba61f0b9": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.0628819465637207,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "5c40ec5b": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.5049529075622559,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "c6853660": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.31603527069091797,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "0977f2af": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.21076107025146484,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "07741c45": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.6107769012451172,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "c4f10528": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.12295341491699219,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "89527b6b": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.2893028259277344,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "e9327a54": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.6016826629638672,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "f523d9fe": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.0891461372375488,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "fea54f57": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.3093118667602539,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "cc539528": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.21660852432250977,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "18dcd5a5": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.3719158172607422,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "488d3006": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.7854743003845215,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "8cf51dda": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.3310108184814453,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "8aef76bc": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.638723373413086,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "71a3fd6b": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.1961479187011719,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "70b3e69b": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.4016571044921875,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "3249768e": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.2891726493835449,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "1b9b7252": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.8285069465637207,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "6222b6eb": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.8127579689025879,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e8a79c70": {
+      "gold_a": false,
+      "gold_b": false,
+      "ce_gap": 0.10467338562011719,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "b"
+      }
+    },
+    "d596882b": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.3127450942993164,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e3fc4d6e": {
+      "gold_a": false,
+      "gold_b": true,
+      "ce_gap": 0.35155582427978516,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "b",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "b"
+      }
+    },
+    "e982271f": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.8002400398254395,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "fca762bc": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.389291763305664,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "7a8d0b71": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.8260655403137207,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "8b9d4367": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 2.2091493606567383,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "41275add": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.42067813873291016,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "4baee567": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.42543649673461914,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "28bcfaac": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.361496925354004,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "16c90bf4": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.0900506973266602,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "a",
+        "ms-marco-MiniLM-L-6-v2": "a",
+        "bge-reranker-base": "a"
+      }
+    },
+    "e48988bc": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 0.24220943450927734,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "b",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    },
+    "778164c6": {
+      "gold_a": true,
+      "gold_b": false,
+      "ce_gap": 1.0450339317321777,
+      "votes": {
+        "ms-marco-MiniLM-L-6-v2-ft-session-j": "a",
+        "ms-marco-MiniLM-L-12-v2": "a",
+        "ms-marco-MiniLM-L-4-v2": "b",
+        "ms-marco-MiniLM-L-6-v2": "b",
+        "bge-reranker-base": "a"
+      }
+    }
+  }
+}

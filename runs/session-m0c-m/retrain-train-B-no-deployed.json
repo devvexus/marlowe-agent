@@ -1,0 +1,70 @@
+{
+  "name": "ms-marco-MiniLM-L-2-v2-ft-m-B-no-deployed",
+  "arm": "B-no-deployed",
+  "digests": {
+    "model.onnx": "4a007a5accf65e61f70a3d5c03615d3fefc529126d86f492a82bdd1d9bbac7e0",
+    "tokenizer.json": "0d3aef594edd5f9b53e7f814277a9171dc70ff93eb66bda6e01f7aa53997d963"
+  },
+  "base": "ms-marco-MiniLM-L-2-v2",
+  "base_checkpoint": "cross-encoder/ms-marco-MiniLM-L-2-v2",
+  "base_is_already_finetuned": false,
+  "hf_repo": "cross-encoder/ms-marco-MiniLM-L-2-v2",
+  "arch": "BERT (fine-tuned, M0c Session M Phase 2)",
+  "params_m": 15,
+  "max_seq": 512,
+  "pairs_file": "runs/session-m0c-m/training-pairs-v2.jsonl",
+  "negative_classes": [
+    "cross_session",
+    "question_echo"
+  ],
+  "training_pairs": 3088,
+  "loss": "marginmse",
+  "target_margin_delta": 2.926574,
+  "hyperparameters": {
+    "epochs": 3,
+    "lr": 2e-05,
+    "batch": 32,
+    "max_len": 256,
+    "seed": 7
+  },
+  "comparability_check": {
+    "xenova_onnx_r_at_1": 0.5983,
+    "pytorch_r_at_1": 0.5983,
+    "pearson": 1.0,
+    "max_abs_logit_difference": 5e-05,
+    "session_j_recorded": {
+      "xenova_onnx_r_at_1": 0.5983,
+      "pytorch_r_at_1": 0.5983,
+      "pearson": 1.0,
+      "max_abs_logit_difference": 5e-05
+    },
+    "agrees_with_session_j": true
+  },
+  "base_val_r_at_1": 0.6809,
+  "best_epoch": 3,
+  "fit_val_r_at_1": 0.766,
+  "fit_val_history": [
+    {
+      "epoch": 0,
+      "val_r_at_1": 0.6809,
+      "train_loss": null
+    },
+    {
+      "epoch": 1,
+      "val_r_at_1": 0.7447,
+      "train_loss": 7.1134
+    },
+    {
+      "epoch": 2,
+      "val_r_at_1": 0.7234,
+      "train_loss": 3.1586
+    },
+    {
+      "epoch": 3,
+      "val_r_at_1": 0.766,
+      "train_loss": 2.3555
+    }
+  ],
+  "trained_on": "fit split only",
+  "_export_gap": "SELF-VALIDATED ONLY. A PyTorch-to-ONNX export produced in this session cannot be checked against an external authority, because none exists for a model this session trained. Digest pinning, torch-vs-ORT agreement, and per-graph determinism / batch / padding invariance are what stand behind it."
+}

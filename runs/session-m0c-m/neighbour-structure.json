@@ -1,0 +1,4236 @@
+{
+  "_what": "candidate-candidate neighbour structure in the top-5, fit split",
+  "_measurement_only": true,
+  "_similarity": "IDF-weighted token cosine over the fit candidate population",
+  "control_fit_r1": 0.7555,
+  "affinity": {
+    "gold": {
+      "n": 329,
+      "mean": 0.1851086317086474,
+      "median": 0.17766455116423113
+    },
+    "non_gold": {
+      "n": 816,
+      "mean": 0.15328231416280455,
+      "median": 0.1347085573577832
+    },
+    "difference": 0.031826317545842836
+  },
+  "control_rank1_vs_rank2": {
+    "positive_swap_fixes": {
+      "n": 26,
+      "mean_delta": -0.0012595356258667928
+    },
+    "negative_swap_breaks": {
+      "n": 110,
+      "mean_delta": 0.004730922825133727
+    },
+    "_why": "rank 1 is already gold 110 times against 26. A statistic that describes gold must NOT equally describe rank-1-when-correct, or it is not a discriminator."
+  },
+  "swap_rule_curve": [
+    {
+      "tau": -0.2,
+      "flips": 225,
+      "gained": 26,
+      "lost": 109,
+      "net": -83,
+      "r1": 0.3931
+    },
+    {
+      "tau": -0.1,
+      "flips": 208,
+      "gained": 24,
+      "lost": 99,
+      "net": -75,
+      "r1": 0.428
+    },
+    {
+      "tau": -0.05,
+      "flips": 180,
+      "gained": 22,
+      "lost": 85,
+      "net": -63,
+      "r1": 0.4804
+    },
+    {
+      "tau": -0.02,
+      "flips": 148,
+      "gained": 17,
+      "lost": 72,
+      "net": -55,
+      "r1": 0.5153
+    },
+    {
+      "tau": 0.0,
+      "flips": 115,
+      "gained": 13,
+      "lost": 59,
+      "net": -46,
+      "r1": 0.5546
+    },
+    {
+      "tau": 0.02,
+      "flips": 81,
+      "gained": 7,
+      "lost": 43,
+      "net": -36,
+      "r1": 0.5983
+    },
+    {
+      "tau": 0.05,
+      "flips": 52,
+      "gained": 5,
+      "lost": 29,
+      "net": -24,
+      "r1": 0.6507
+    },
+    {
+      "tau": 0.1,
+      "flips": 21,
+      "gained": 1,
+      "lost": 13,
+      "net": -12,
+      "r1": 0.7031
+    },
+    {
+      "tau": 0.2,
+      "flips": 4,
+      "gained": 0,
+      "lost": 4,
+      "net": -4,
+      "r1": 0.738
+    }
+  ],
+  "best_cell": {
+    "tau": 0.2,
+    "flips": 4,
+    "gained": 0,
+    "lost": 4,
+    "net": -4,
+    "r1": 0.738
+  },
+  "rows": [
+    {
+      "query_id": "51a45a95",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.11573716364450777,
+        0.153338881463533,
+        0.0022965652986598516,
+        0.005090617577558824,
+        0.08281019981798228
+      ]
+    },
+    {
+      "query_id": "58bf7951",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19695710304615066,
+        0.15573571517646878,
+        0.23925622923125306,
+        0.1068176027278148,
+        0.0026303593913014718
+      ]
+    },
+    {
+      "query_id": "1e043500",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.021733351770404447,
+        0.023654536619707657,
+        0.025252558156649046,
+        0.028381402900254184,
+        0.023359905077712087
+      ]
+    },
+    {
+      "query_id": "c5e8278d",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2256557222560006,
+        0.03346503266439725,
+        0.14742629683503508,
+        0.1443149336211823,
+        0.20919337941200966
+      ]
+    },
+    {
+      "query_id": "6f9b354f",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0028710439049110525,
+        0.06461930794668534,
+        0.061717606118884154,
+        0.0015180109578343708,
+        0.0
+      ]
+    },
+    {
+      "query_id": "58ef2f1c",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.175899920956992,
+        0.2518903908739577,
+        0.02061865864672361,
+        0.0828006326454502,
+        0.21461258977110922
+      ]
+    },
+    {
+      "query_id": "5d3d2817",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.07476765332574974,
+        0.01457763006872743,
+        0.07609376225696929,
+        0.0025583984661148463,
+        0.001524879400057325
+      ]
+    },
+    {
+      "query_id": "c960da58",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2047684948709797,
+        0.2365645256096783,
+        0.18634024834149515,
+        0.13971599049510527,
+        0.16698332118421164
+      ]
+    },
+    {
+      "query_id": "3b6f954b",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15168007446364365,
+        0.09323419476564501,
+        0.14969856940518161,
+        0.02388267820381794,
+        0.07396084324164522
+      ]
+    },
+    {
+      "query_id": "94f70d80",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.08867427408247855,
+        0.22012059907381953,
+        0.22975590638524926,
+        0.0,
+        0.24965260565153524
+      ]
+    },
+    {
+      "query_id": "ad7109d1",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.059609692570006215,
+        0.05044188753143173,
+        0.0676871666003861,
+        0.05325812801650151,
+        0.08933344028267054
+      ]
+    },
+    {
+      "query_id": "dccbc061",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.036753757149587875,
+        0.00458665448414455,
+        0.014738158014707048,
+        0.040529035812096395,
+        0.011135918602092162
+      ]
+    },
+    {
+      "query_id": "21436231",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1764929974678079,
+        0.15910376484771424,
+        0.04595943480369642,
+        0.08273729135574849,
+        0.021910516419269038
+      ]
+    },
+    {
+      "query_id": "95bcc1c8",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.13586784820485126,
+        0.01876084699363069,
+        0.010752113577648187,
+        0.10887823389640039,
+        0.12294599742186291
+      ]
+    },
+    {
+      "query_id": "a06e4cfe",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.18482734925476915,
+        0.12835559856581233,
+        0.14194153971009701,
+        0.03863319918653732,
+        0.01803328479728692
+      ]
+    },
+    {
+      "query_id": "37d43f65",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0921253004862196,
+        0.050936927129096046,
+        0.13675578154788148,
+        0.08717681799554054,
+        0.017948289111664788
+      ]
+    },
+    {
+      "query_id": "b86304ba",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.10991635958918144,
+        0.08664709080058446,
+        0.037292257022028846,
+        0.11598609490881663,
+        0.12914354755061994
+      ]
+    },
+    {
+      "query_id": "25e5aa4f",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2277954728423357,
+        0.08440909223695195,
+        0.15186442340623532,
+        0.19041677738096824,
+        0.25363314137880233
+      ]
+    },
+    {
+      "query_id": "caf9ead2",
+      "category": "single-session-user",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15391233866299087,
+        0.11511172401002698,
+        0.2372939819003216,
+        0.10942886163794754,
+        0.15273892276355427
+      ]
+    },
+    {
+      "query_id": "8550ddae",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20014494557909654,
+        0.025532611879299196,
+        0.18182382164338123,
+        0.03913657095169426,
+        0.023880200824381026
+      ]
+    },
+    {
+      "query_id": "60d45044",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03687362040596757,
+        0.016323683709352353,
+        0.018231302840482407,
+        0.034423856330711045,
+        0.013642351890134392
+      ]
+    },
+    {
+      "query_id": "3f1e9474",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.14970783599999543,
+        0.16450599183171505,
+        0.15632436311715137,
+        0.15392197613783848,
+        0.16429392486280947
+      ]
+    },
+    {
+      "query_id": "577d4d32",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05453113303676273,
+        0.06964725862798507,
+        0.04706712903780741,
+        0.08953577143338108,
+        0.048073445111986766
+      ]
+    },
+    {
+      "query_id": "ec81a493",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.14890027701314773,
+        0.12357315906936017,
+        0.023509466161556858,
+        0.03245604302019318,
+        0.029180953152282876
+      ]
+    },
+    {
+      "query_id": "15745da0",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2547332948354132,
+        0.2778211898462543,
+        0.20597537389192117,
+        0.24303569664443772,
+        0.23224962791542889
+      ]
+    },
+    {
+      "query_id": "e01b8e2f",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0852427958482066,
+        0.07262949371219447,
+        0.13343738245934683,
+        0.10468497259459014,
+        0.0791390879166213
+      ]
+    },
+    {
+      "query_id": "001be529",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06828767928801081,
+        0.12708035529384581,
+        0.13394389975152127,
+        0.030271217874245252,
+        0.08458160125323923
+      ]
+    },
+    {
+      "query_id": "19b5f2b3",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1415635754888452,
+        0.17548990525735292,
+        0.2001863046721035,
+        0.2666059176885533,
+        0.03854782316876857
+      ]
+    },
+    {
+      "query_id": "4fd1909e",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2719777535908213,
+        0.23908295696155857,
+        0.2883723684232161,
+        0.023508354254021084,
+        0.19586356912521022
+      ]
+    },
+    {
+      "query_id": "8e9d538c",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "affinity": [
+        0.4881966575541691,
+        0.4332654896439359,
+        0.543772971411721,
+        0.39451851480145145,
+        0.5034378236823428
+      ]
+    },
+    {
+      "query_id": "4100d0a0",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.154775967721745,
+        0.16150556434442684,
+        0.05542016942299298,
+        0.12956396846401802,
+        0.057782280074241445
+      ]
+    },
+    {
+      "query_id": "c14c00dd",
+      "category": "single-session-user",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.07715367316572504,
+        0.02333375173562678,
+        0.034326380024850695,
+        0.0341959879094141,
+        0.08496784971917438
+      ]
+    },
+    {
+      "query_id": "6d550036",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20269631037653704,
+        0.2387482098036093,
+        0.14979308719385329,
+        0.24631047713059107,
+        0.03135994263047312
+      ]
+    },
+    {
+      "query_id": "gpt4_59c863d7",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.13871156424481818,
+        0.08396450986716159,
+        0.102558934539179,
+        0.009057778959120622,
+        0.08627401269180078
+      ]
+    },
+    {
+      "query_id": "e831120c",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.25582221518827825,
+        0.2708127833377684,
+        0.2958236777321187,
+        0.3069745032243533,
+        0.16176228006169202
+      ]
+    },
+    {
+      "query_id": "gpt4_f2262a51",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.043146526185146895,
+        0.10832139945551184,
+        0.008025699695914712,
+        0.10432699788149304,
+        0.005628185646784203
+      ]
+    },
+    {
+      "query_id": "gpt4_a56e767c",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2566405559395865,
+        0.2529264879537079,
+        0.29712580865502597,
+        0.17167328328674328,
+        0.031062282873169936
+      ]
+    },
+    {
+      "query_id": "6cb6f249",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.09691629831571233,
+        0.21856772483039655,
+        0.18078061854213978,
+        0.17933715450963345,
+        0.1933004490737259
+      ]
+    },
+    {
+      "query_id": "46a3abf7",
+      "category": "multi-session",
+      "gold": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.3813962808067348,
+        0.39481078537967457,
+        0.2518807579484327,
+        0.3334376472713929,
+        0.21173959902458606
+      ]
+    },
+    {
+      "query_id": "36b9f61e",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.3031815426620772,
+        0.267123465608721,
+        0.20031449431371187,
+        0.18145493960554543,
+        0.23381525420789478
+      ]
+    },
+    {
+      "query_id": "28dc39ac",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.19898346617329013,
+        0.11151051185025772,
+        0.13747738314395241,
+        0.06238876633699461,
+        0.0324681918152852
+      ]
+    },
+    {
+      "query_id": "gpt4_2f8be40d",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.014873073296006612,
+        0.047637410599410054,
+        0.010947232609709732,
+        0.17710979372820224,
+        0.17199731915996588
+      ]
+    },
+    {
+      "query_id": "gpt4_15e38248",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1915482726082266,
+        0.2431156089284132,
+        0.3090781443007505,
+        0.2610891375139707,
+        0.022265354703500932
+      ]
+    },
+    {
+      "query_id": "88432d0a",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05028432937877672,
+        0.039626331514086816,
+        0.014670196042525134,
+        0.011211989832593606,
+        0.02190187985377692
+      ]
+    },
+    {
+      "query_id": "d682f1a2",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.19930494169362192,
+        0.15059587004983657,
+        0.0759061280746659,
+        0.08949357305014588,
+        0.04573077893439324
+      ]
+    },
+    {
+      "query_id": "gpt4_2ba83207",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17447272844975878,
+        0.1740723057962963,
+        0.13944561443121786,
+        0.17578183677347095,
+        0.18791224900484677
+      ]
+    },
+    {
+      "query_id": "2ce6a0f2",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.14876277051543726,
+        0.1320894701084768,
+        0.007955817685603458,
+        0.14475574783974282,
+        0.1444475172705112
+      ]
+    },
+    {
+      "query_id": "gpt4_d12ceb0e",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.08217227501824745,
+        0.06510991142621228,
+        0.1392537204480582,
+        0.07478944537884341,
+        0.12150545056815779
+      ]
+    },
+    {
+      "query_id": "gpt4_31ff4165",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.071898288063618,
+        0.09857268450309958,
+        0.08192974737016188,
+        0.061673269393824455,
+        0.09600270671182522
+      ]
+    },
+    {
+      "query_id": "129d1232",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.13415661649993443,
+        0.14686773650164467,
+        0.12144233404722735,
+        0.20342761304597104,
+        0.2124743156601242
+      ]
+    },
+    {
+      "query_id": "a9f6b44c",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.14552296934013062,
+        0.16205691279295076,
+        0.23876034129965004,
+        0.263979249379082,
+        0.004359030453387936
+      ]
+    },
+    {
+      "query_id": "d851d5ba",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1819369809682406,
+        0.18918823931084844,
+        0.31489162960350026,
+        0.17605970621993877,
+        0.24394438998877582
+      ]
+    },
+    {
+      "query_id": "gpt4_ab202e7f",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06887946760380902,
+        0.2414675924668645,
+        0.22182295696161766,
+        0.11386065523037095,
+        0.10268263099049708
+      ]
+    },
+    {
+      "query_id": "gpt4_e05b82a6",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "affinity": [
+        0.1557914628892798,
+        0.11893629709358146,
+        0.1451144213825694,
+        0.10264585074031171,
+        0.05945652274074113
+      ]
+    },
+    {
+      "query_id": "gpt4_731e37d7",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.45368502205949235,
+        0.36706759089003005,
+        0.26993015477739835,
+        0.28997189114466715,
+        0.2831024561955521
+      ]
+    },
+    {
+      "query_id": "edced276",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        true
+      ],
+      "affinity": [
+        0.11581138052071949,
+        0.16379309140350398,
+        0.14690744323401592,
+        0.10404620759854083,
+        0.0629663887962871
+      ]
+    },
+    {
+      "query_id": "10d9b85a",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.00991798387418983,
+        0.01626034214731611,
+        0.020783330490932568,
+        0.02352754814965055,
+        0.019751121942147364
+      ]
+    },
+    {
+      "query_id": "e3038f8c",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17933328082983138,
+        0.16070869680800362,
+        0.09203758175403713,
+        0.12083168263106317,
+        0.10653348033965396
+      ]
+    },
+    {
+      "query_id": "2b8f3739",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1448361081641136,
+        0.10007270789707774,
+        0.11546944316882587,
+        0.12590491753664293,
+        0.13026657461615643
+      ]
+    },
+    {
+      "query_id": "c2ac3c61",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21799176306212542,
+        0.24930918735047888,
+        0.1807253753733288,
+        0.26278833444620764,
+        0.07530824168575456
+      ]
+    },
+    {
+      "query_id": "bf659f65",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.22812933784077782,
+        0.16331259680612087,
+        0.11881608987819126,
+        0.2393469075897819,
+        0.00612525182055601
+      ]
+    },
+    {
+      "query_id": "gpt4_372c3eed",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19545933503596696,
+        0.13301635771888076,
+        0.15133067100211683,
+        0.1243087409346657,
+        0.11900402493965773
+      ]
+    },
+    {
+      "query_id": "8a2466db",
+      "category": "single-session-preference",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04353693352595244,
+        0.10861930290800191,
+        0.11967344977433647,
+        0.1741537128519717,
+        0.2104643074607909
+      ]
+    },
+    {
+      "query_id": "35a27287",
+      "category": "single-session-preference",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.13864777366017636,
+        0.010197377728868218,
+        0.01781510799614353,
+        0.1281918238008628,
+        0.08266613655674893
+      ]
+    },
+    {
+      "query_id": "195a1a1b",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03539465971040902,
+        0.034627411215485016,
+        0.0,
+        0.029861352765949034,
+        0.0
+      ]
+    },
+    {
+      "query_id": "afdc33df",
+      "category": "single-session-preference",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04983991193897241,
+        0.1320824493873658,
+        0.021786717473488662,
+        0.07636975791706355,
+        0.1249369364571116
+      ]
+    },
+    {
+      "query_id": "54026fce",
+      "category": "single-session-preference",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.016115699727682585,
+        0.09272528661523746,
+        0.055532388976198936,
+        0.0649189927060299,
+        0.0500824985395483
+      ]
+    },
+    {
+      "query_id": "1a1907b4",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03660170608007511,
+        0.02568664193807398,
+        0.02996020390756345,
+        0.02779262644678826,
+        0.03411180582478739
+      ]
+    },
+    {
+      "query_id": "09d032c9",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05025168023672954,
+        0.04720041190880853,
+        0.008799094054174665,
+        0.04338775099540358,
+        0.04241724886703854
+      ]
+    },
+    {
+      "query_id": "57f827a0",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03579138076481966,
+        0.0354936311917289,
+        0.028265191577539102,
+        0.03348461898399834,
+        0.03640700701267849
+      ]
+    },
+    {
+      "query_id": "505af2f5",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.20001199994823865,
+        0.03755772827496468,
+        0.08195422975369665,
+        0.020810630332581365,
+        0.16384604260988742
+      ]
+    },
+    {
+      "query_id": "75f70248",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.03912573619085172,
+        0.027378077711010897,
+        0.014251429676860865,
+        0.0,
+        0.025005778381304276
+      ]
+    },
+    {
+      "query_id": "d6233ab6",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15305379632334506,
+        0.15703508931611393,
+        0.022796468006524708,
+        0.04268782172008641,
+        0.03957777292555305
+      ]
+    },
+    {
+      "query_id": "1da05512",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2877135469904161,
+        0.017580528616665814,
+        0.2875123735952512,
+        0.25003333840756087,
+        0.24084653237036857
+      ]
+    },
+    {
+      "query_id": "b6025781",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "affinity": [
+        0.029695475519266303,
+        0.05022527817044413,
+        0.15771064848110755,
+        0.04364414296780812,
+        0.09583415044986943
+      ]
+    },
+    {
+      "query_id": "a89d7624",
+      "category": "single-session-preference",
+      "gold": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.04796740936790074,
+        0.06734824300287873,
+        0.05851006570053454,
+        0.06432544363807713,
+        0.04723406922113967
+      ]
+    },
+    {
+      "query_id": "b0479f84",
+      "category": "single-session-preference",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.08492609972462302,
+        0.20038166732898108,
+        0.08410112596500599,
+        0.17057075891488543,
+        0.12439749916665445
+      ]
+    },
+    {
+      "query_id": "d3ab962e",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15534191449300966,
+        0.065297001221415,
+        0.07873781280593409,
+        0.1247740594500812,
+        0.015107990547558158
+      ]
+    },
+    {
+      "query_id": "cc06de0d",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.34716574284237856,
+        0.2721691134052543,
+        0.3449178657062502,
+        0.20772826049052975,
+        0.24294124140894394
+      ]
+    },
+    {
+      "query_id": "a11281a2",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2161571398827946,
+        0.25876765043955047,
+        0.22251484531049773,
+        0.14163922533866088,
+        0.2061218065551576
+      ]
+    },
+    {
+      "query_id": "9aaed6a3",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.08369967458113123,
+        0.2292962240034393,
+        0.17985539954427973,
+        0.14919105270058614,
+        0.14998363449871238
+      ]
+    },
+    {
+      "query_id": "1f2b8d4f",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20692463332138689,
+        0.2765329030281914,
+        0.23006200823313405,
+        0.2417333039732216,
+        0.23142140694121538
+      ]
+    },
+    {
+      "query_id": "d905b33f",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.022309552960946062,
+        0.11669188744521382,
+        0.14681305301616074,
+        0.10621554680422107,
+        0.1351522153395965
+      ]
+    },
+    {
+      "query_id": "f35224e0",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1579105036334001,
+        0.13271565401162244,
+        0.17921358510815796,
+        0.2118785498199321,
+        0.13017267234528937
+      ]
+    },
+    {
+      "query_id": "6456829e",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.10157254687277369,
+        0.18656649064166678,
+        0.12632687111940577,
+        0.1480979015458488,
+        0.055034657751366366
+      ]
+    },
+    {
+      "query_id": "a4996e51",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21380400727637755,
+        0.16639814075408066,
+        0.08984310159182277,
+        0.1762168600644478,
+        0.17880342616241218
+      ]
+    },
+    {
+      "query_id": "3c1045c8",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0035702001914618784,
+        0.2075717902443191,
+        0.1726390261591068,
+        0.14037560910055147,
+        0.0
+      ]
+    },
+    {
+      "query_id": "60036106",
+      "category": "multi-session",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.29832875646257717,
+        0.23723022237505634,
+        0.06288484064696792,
+        0.2874506325466438,
+        0.08521887395273213
+      ]
+    },
+    {
+      "query_id": "681a1674",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.36223770365436664,
+        0.5767248207530009,
+        0.5693362658874059,
+        0.6154595874599844,
+        0.542780779634397
+      ]
+    },
+    {
+      "query_id": "e25c3b8d",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.4255406825461747,
+        0.15769411045791185,
+        0.37564420246790214,
+        0.38443391395356274,
+        0.35802657108887526
+      ]
+    },
+    {
+      "query_id": "4adc0475",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3108701503116604,
+        0.3518691816098618,
+        0.241303830555796,
+        0.20129251080342994,
+        0.1436802780328571
+      ]
+    },
+    {
+      "query_id": "4bc144e2",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17304095114517432,
+        0.1708344141402421,
+        0.08636530659576609,
+        0.016299264788250025,
+        0.1783766092132048
+      ]
+    },
+    {
+      "query_id": "3fdac837",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04793441306494031,
+        0.1173129080156289,
+        0.08195217480766376,
+        0.009904919324655068,
+        0.1151067432493757
+      ]
+    },
+    {
+      "query_id": "91b15a6e",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20330841912138753,
+        0.03242814176140092,
+        0.14338455992828328,
+        0.174662721412813,
+        0.20786021934543097
+      ]
+    },
+    {
+      "query_id": "720133ac",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3296544313091526,
+        0.16888355038378516,
+        0.28203018006936303,
+        0.2532282889326758,
+        0.19347500240542148
+      ]
+    },
+    {
+      "query_id": "77eafa52",
+      "category": "multi-session",
+      "gold": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.2691236398465528,
+        0.3081572998933508,
+        0.12995950653585225,
+        0.31280294828354166,
+        0.1487880118944896
+      ]
+    },
+    {
+      "query_id": "0100672e",
+      "category": "multi-session",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.187961633254571,
+        0.19455389079559032,
+        0.20002915746188893,
+        0.11439616097746268,
+        0.19208156126314213
+      ]
+    },
+    {
+      "query_id": "92a0aa75",
+      "category": "multi-session",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.08630355862083831,
+        0.0905483554765843,
+        0.06961887357759054,
+        0.06896848725939263,
+        0.045794202801483226
+      ]
+    },
+    {
+      "query_id": "3fe836c9",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04777296534839319,
+        0.11730329426728589,
+        0.01207289349258585,
+        0.003245280231173448,
+        0.11441981372470204
+      ]
+    },
+    {
+      "query_id": "6c49646a",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2228635394458914,
+        0.1422670152072351,
+        0.12406562612358284,
+        0.17588347767377127,
+        0.10590609870928407
+      ]
+    },
+    {
+      "query_id": "61f8c8f8",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.23899726814023167,
+        0.21514920090808087,
+        0.12236491496650485,
+        0.2117806921691886,
+        0.21326202546637663
+      ]
+    },
+    {
+      "query_id": "ef9cf60a",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19354054380563626,
+        0.2918144082081281,
+        0.20579398821305878,
+        0.40816360852378253,
+        0.37944280338102704
+      ]
+    },
+    {
+      "query_id": "09ba9854",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.4939514642497928,
+        0.32391458162076003,
+        0.4158064336212205,
+        0.4549741907260934,
+        0.3181387778296474
+      ]
+    },
+    {
+      "query_id": "157a136e",
+      "category": "multi-session",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.18563111725483084,
+        0.21547034820057542,
+        0.19514128671410555,
+        0.0,
+        0.004949965769107346
+      ]
+    },
+    {
+      "query_id": "a3332713",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.24109763901366174,
+        0.251958857277343,
+        0.28510843408582853,
+        0.22973611990271264,
+        0.2841466374387987
+      ]
+    },
+    {
+      "query_id": "a08a253f",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.27127771956020486,
+        0.0899739428751875,
+        0.17240218112636385,
+        0.3814495329353031,
+        0.3228564811730955
+      ]
+    },
+    {
+      "query_id": "078150f1",
+      "category": "multi-session",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.12211331267998332,
+        0.1356588773513407,
+        0.06821434522848968,
+        0.003511257583748433,
+        0.10784550052524361
+      ]
+    },
+    {
+      "query_id": "a346bb18",
+      "category": "multi-session",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.14415782883772213,
+        0.10029844783713511,
+        0.11156335287371377,
+        0.08959821160283722,
+        0.01692958104480782
+      ]
+    },
+    {
+      "query_id": "gpt4_f49edff3",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06350189422677437,
+        0.17550153892749523,
+        0.22449179697304494,
+        0.195539712848808,
+        0.14836585557748852
+      ]
+    },
+    {
+      "query_id": "b46e15ed",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03976226558805292,
+        0.10620035387713758,
+        0.104296071224649,
+        0.027616683602745152,
+        0.03447598360790813
+      ]
+    },
+    {
+      "query_id": "gpt4_fa19884c",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.054584071767903475,
+        0.23089930850628815,
+        0.05447148471961695,
+        0.1645404160711441,
+        0.2327845629123223
+      ]
+    },
+    {
+      "query_id": "gpt4_4929293a",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21802543549328382,
+        0.34925174540896536,
+        0.3225165551246451,
+        0.2723835210839056,
+        0.019595785811478732
+      ]
+    },
+    {
+      "query_id": "gpt4_b5700ca9",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.057472391944225015,
+        0.07995379432941062,
+        0.0608581666933861,
+        0.034862971745145487,
+        0.0
+      ]
+    },
+    {
+      "query_id": "9a707b81",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0519962631327775,
+        0.06982460471107463,
+        0.08897176219775628,
+        0.04210092792864891,
+        0.033806181020176795
+      ]
+    },
+    {
+      "query_id": "gpt4_1d4ab0c9",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2588083986998959,
+        0.29958324158681626,
+        0.12900851699274463,
+        0.1982681478879712,
+        0.2025100679731956
+      ]
+    },
+    {
+      "query_id": "0db4c65d",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1273191836581508,
+        0.08808312775199906,
+        0.018780156761620717,
+        0.08808824818325259,
+        0.07257957894298718
+      ]
+    },
+    {
+      "query_id": "gpt4_6dc9b45b",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20387070297320553,
+        0.254826847935853,
+        0.2397313691456892,
+        0.24165595618677999,
+        0.005731518212815019
+      ]
+    },
+    {
+      "query_id": "gpt4_18c2b244",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21759942743666916,
+        0.23212270509758182,
+        0.24126206515405585,
+        0.19523601247183475,
+        0.20747023205203452
+      ]
+    },
+    {
+      "query_id": "gpt4_a1b77f9c",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.30785770210306185,
+        0.055610278291054666,
+        0.32060725416767005,
+        0.19433065393025115,
+        0.20057959148684137
+      ]
+    },
+    {
+      "query_id": "gpt4_468eb063",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15466333769887466,
+        0.12360020437370621,
+        0.1764381733950051,
+        0.15206179413064072,
+        0.13265642867966038
+      ]
+    },
+    {
+      "query_id": "gpt4_7abb270c",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06200617022643887,
+        0.13142217440339493,
+        0.09827473080840501,
+        0.055897177209267894,
+        0.024276775870369485
+      ]
+    },
+    {
+      "query_id": "gpt4_4fc4f797",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.40185200814039523,
+        0.41824485669041805,
+        0.3186791275099077,
+        0.2924884851253723,
+        0.3062573997698054
+      ]
+    },
+    {
+      "query_id": "gpt4_45189cb4",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.01152138254204647,
+        0.08865103378955398,
+        0.07697129163932195,
+        0.054505308295884056,
+        0.04047635145518168
+      ]
+    },
+    {
+      "query_id": "gpt4_e061b84f",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.012950346290961628,
+        0.00727125170237063,
+        0.07719162774898032,
+        0.0757833975111393,
+        0.02233173076288449
+      ]
+    },
+    {
+      "query_id": "370a8ff4",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.11121405861201197,
+        0.06984752918167023,
+        0.10995463020023678,
+        0.08502999918211687,
+        0.07665038060308783
+      ]
+    },
+    {
+      "query_id": "gpt4_d6585ce8",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17751279869768088,
+        0.38258456806171337,
+        0.027224222136105817,
+        0.3379597366252868,
+        0.210196359366411
+      ]
+    },
+    {
+      "query_id": "8077ef71",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05249405928933901,
+        0.15197325466734599,
+        0.15168468027947113,
+        0.1007664221122846,
+        0.0
+      ]
+    },
+    {
+      "query_id": "gpt4_8e165409",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19499578468455472,
+        0.14320265012066138,
+        0.0,
+        0.05989727425874902,
+        0.14283878647109882
+      ]
+    },
+    {
+      "query_id": "bcbe585f",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1839520284336711,
+        0.030473869240946326,
+        0.02769133477587111,
+        0.05944636555193933,
+        0.16071197010977314
+      ]
+    },
+    {
+      "query_id": "gpt4_98f46fc6",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.17785209479435732,
+        0.21462441120274225,
+        0.12240029655212728,
+        0.18806750622998009,
+        0.1357046712266883
+      ]
+    },
+    {
+      "query_id": "eac54adc",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04814207348573215,
+        0.0,
+        0.0377167207893354,
+        0.01604904891323682,
+        0.016344179553678683
+      ]
+    },
+    {
+      "query_id": "gpt4_a2d1d1f6",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20857147389459374,
+        0.1740738653034365,
+        0.08866141316619547,
+        0.06238329595425546,
+        0.11267036602048655
+      ]
+    },
+    {
+      "query_id": "gpt4_85da3956",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.23772153633277776,
+        0.2497087212431785,
+        0.21198048395532917,
+        0.06638338571407665,
+        0.061580644714445174
+      ]
+    },
+    {
+      "query_id": "gpt4_b0863698",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17766455116423113,
+        0.16476745315891234,
+        0.10506385434460369,
+        0.1501916318235143,
+        0.12944132416230916
+      ]
+    },
+    {
+      "query_id": "gpt4_68e94287",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05967879283028894,
+        0.049029843809839116,
+        0.04338062087575505,
+        0.048056704734136944,
+        0.05822372074602097
+      ]
+    },
+    {
+      "query_id": "gpt4_7ca326fa",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.178108859792989,
+        0.1904770816124551,
+        0.14553668133338113,
+        0.21476609571076694,
+        0.2084681836741118
+      ]
+    },
+    {
+      "query_id": "2ebe6c92",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.027076640387991985,
+        0.02489599304872865,
+        0.01432581328256869,
+        0.011754897371444556,
+        0.022836752439845013
+      ]
+    },
+    {
+      "query_id": "gpt4_d6585ce9",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03588072162840089,
+        0.06687517322398928,
+        0.02071571401195708,
+        0.21750887955032952,
+        0.20151841490844796
+      ]
+    },
+    {
+      "query_id": "gpt4_e414231f",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21908492441412367,
+        0.22458739938894762,
+        0.12319195645733204,
+        0.15599203513943416,
+        0.026871555648286447
+      ]
+    },
+    {
+      "query_id": "gpt4_468eb064",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03171384092241199,
+        0.0,
+        0.0,
+        0.011002737922816757,
+        0.02071110299959523
+      ]
+    },
+    {
+      "query_id": "9a707b82",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05901289402932667,
+        0.2410306957323431,
+        0.10348766528006689,
+        0.1905920827224825,
+        0.022334029101015066
+      ]
+    },
+    {
+      "query_id": "eac54add",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0706969610109283,
+        0.08466599154169095,
+        0.24759487433206773,
+        0.2046862706659507,
+        0.2955898561758684
+      ]
+    },
+    {
+      "query_id": "4dfccbf8",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.0837521891837569,
+        0.05688284406760455,
+        0.029468943615619796,
+        0.024625837849786822,
+        0.00860743400381125
+      ]
+    },
+    {
+      "query_id": "6e984302",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.045762400409813095,
+        0.04337564918094696,
+        0.10796599601351842,
+        0.10356007593255008,
+        0.0465310494248053
+      ]
+    },
+    {
+      "query_id": "gpt4_2655b836",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1550529938110713,
+        0.08658342883652859,
+        0.004406871951942263,
+        0.15192257415687377,
+        0.12829977954122207
+      ]
+    },
+    {
+      "query_id": "08f4fc43",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.03710289666880335,
+        0.14831789741579707,
+        0.1780211146010694,
+        0.03911359227859356,
+        0.008938513538938103
+      ]
+    },
+    {
+      "query_id": "gpt4_385a5000",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20468683759669848,
+        0.17474811368336235,
+        0.1850912308181926,
+        0.10731778874504488,
+        0.2123360859446477
+      ]
+    },
+    {
+      "query_id": "bbf86515",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.34362509280150655,
+        0.26727153541203885,
+        0.16444242470885714,
+        0.18167119081389957,
+        0.31601213602679484
+      ]
+    },
+    {
+      "query_id": "gpt4_5dcc0aab",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21825023266398563,
+        0.22206127082973595,
+        0.1044014163903354,
+        0.18853511119845406,
+        0.1914828278358519
+      ]
+    },
+    {
+      "query_id": "gpt4_0b2f1d21",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04577705821514839,
+        0.293018308520797,
+        0.22137978045675955,
+        0.2943101891585671,
+        0.36265047688839513
+      ]
+    },
+    {
+      "query_id": "gpt4_70e84552",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20037516965179808,
+        0.154439166660791,
+        0.1867152965480493,
+        0.06847274227759524,
+        0.154091760381263
+      ]
+    },
+    {
+      "query_id": "982b5123",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.307412788976407,
+        0.30911615660862946,
+        0.09924163497219243,
+        0.10293125812422838,
+        0.25361386190504753
+      ]
+    },
+    {
+      "query_id": "c8090214",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.021522337503816918,
+        0.011301127505935236,
+        0.029851069550765115,
+        0.070823136590622,
+        0.07161518798796707
+      ]
+    },
+    {
+      "query_id": "gpt4_483dd43c",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.16793224305496673,
+        0.22459891856667957,
+        0.21323856363280275,
+        0.1308877685678402,
+        0.1678639365206824
+      ]
+    },
+    {
+      "query_id": "gpt4_2c50253f",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.16605563837831533,
+        0.10665030420357312,
+        0.0906511628264263,
+        0.021774510470369938,
+        0.03800361972526079
+      ]
+    },
+    {
+      "query_id": "cc6d1ec1",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1455321651047499,
+        0.08644082762516468,
+        0.1824105253777539,
+        0.26021242619612794,
+        0.168373179353926
+      ]
+    },
+    {
+      "query_id": "gpt4_8c8961ae",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.27635192790698443,
+        0.26362244995610534,
+        0.34506840546168455,
+        0.15342662854923333,
+        0.0558619924066432
+      ]
+    },
+    {
+      "query_id": "d01c6aa8",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3151958579839128,
+        0.10537568683884291,
+        0.2104301511386515,
+        0.0030677394685078643,
+        0.325049500673877
+      ]
+    },
+    {
+      "query_id": "a3045048",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1735666235113949,
+        0.22952318733067628,
+        0.2758194194683678,
+        0.13823733396071042,
+        0.10461813760733733
+      ]
+    },
+    {
+      "query_id": "gpt4_d31cdae3",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.029233029781391386,
+        0.04029880879955481,
+        0.06732926272046152,
+        0.1769830185577576,
+        0.18273546622220266
+      ]
+    },
+    {
+      "query_id": "gpt4_cd90e484",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.12137225944607985,
+        0.16677921968764137,
+        0.2058785967807923,
+        0.023769116944447964,
+        0.09721504018551465
+      ]
+    },
+    {
+      "query_id": "b29f3365",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2615546621905856,
+        0.2326134314070001,
+        0.19582858043457285,
+        0.2303721548538245,
+        0.13299456696047096
+      ]
+    },
+    {
+      "query_id": "gpt4_78cf46a3",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04293264779789478,
+        0.17790383511701127,
+        0.020970174439573292,
+        0.03417565605422127,
+        0.1644606527485334
+      ]
+    },
+    {
+      "query_id": "gpt4_2f584639",
+      "category": "temporal-reasoning",
+      "gold": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.1773977021092488,
+        0.23910116091714143,
+        0.2209709750943844,
+        0.2009766808603919,
+        0.043581384642683824
+      ]
+    },
+    {
+      "query_id": "gpt4_5438fa52",
+      "category": "temporal-reasoning",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2058273811412391,
+        0.2250347828653919,
+        0.06056770180265472,
+        0.054214194223733844,
+        0.20134627590849521
+      ]
+    },
+    {
+      "query_id": "830ce83f",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.19506112801675493,
+        0.24402647968995989,
+        0.18099522897758882,
+        0.1729034183565283,
+        0.12197285688567591
+      ]
+    },
+    {
+      "query_id": "852ce960",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21911602338215233,
+        0.1328538204558046,
+        0.024109136374855813,
+        0.10789337210717714,
+        0.1839811656746726
+      ]
+    },
+    {
+      "query_id": "945e3d21",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.07158482079260403,
+        0.14246470537058262,
+        0.05863921210862009,
+        0.08654519900285515,
+        0.10402727193856334
+      ]
+    },
+    {
+      "query_id": "d7c942c3",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1998636276797764,
+        0.23191105968209308,
+        0.17819172282268667,
+        0.08245142661611693,
+        0.09642920424319587
+      ]
+    },
+    {
+      "query_id": "07741c44",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.28602663901950487,
+        0.1543278078802441,
+        0.18424713530230882,
+        0.3177354664543426,
+        0.14892480528372332
+      ]
+    },
+    {
+      "query_id": "a1eacc2a",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2598117008107668,
+        0.1796152052392803,
+        0.203050946410861,
+        0.20049067873611773,
+        0.12265671781949583
+      ]
+    },
+    {
+      "query_id": "031748ae",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.45348156605781553,
+        0.33772955567130797,
+        0.426889953037105,
+        0.2828534881274395,
+        0.23344014946165742
+      ]
+    },
+    {
+      "query_id": "4d6b87c8",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.22935768130910106,
+        0.22499816439536563,
+        0.13042446468489682,
+        0.02634775026313255,
+        0.09007004906332686
+      ]
+    },
+    {
+      "query_id": "0f05491a",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.48272489829026743,
+        0.4884658636280189,
+        0.41363268645476237,
+        0.37253688034481947,
+        0.41538908516724826
+      ]
+    },
+    {
+      "query_id": "08e075c7",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2037390233616781,
+        0.16941944550565774,
+        0.10874142524252288,
+        0.0643389269286217,
+        0.1591401218791379
+      ]
+    },
+    {
+      "query_id": "41698283",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.15476445952949155,
+        0.18461173217574112,
+        0.1422581181572284,
+        0.20082307803304167,
+        0.14739578337728937
+      ]
+    },
+    {
+      "query_id": "2698e78f",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.2123044685779658,
+        0.3263290151012782,
+        0.41518342739411573,
+        0.2974990493130818,
+        0.31358644396796226
+      ]
+    },
+    {
+      "query_id": "45dc21b6",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.23503752847503628,
+        0.11847196983525217,
+        0.2511610961139665,
+        0.24510711749475067,
+        0.25092459656113714
+      ]
+    },
+    {
+      "query_id": "5a4f22c0",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.16500194314851985,
+        0.13668444033259255,
+        0.2348451709038292,
+        0.23850227250298583,
+        0.16460737465500563
+      ]
+    },
+    {
+      "query_id": "6071bd76",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.40358216567140526,
+        0.3196701586163517,
+        0.3264401979191565,
+        0.239345775185028,
+        0.2510382696554717
+      ]
+    },
+    {
+      "query_id": "e493bb7c",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.4266474064535029,
+        0.27569972631820194,
+        0.336183452325209,
+        0.3564312465184596,
+        0.15131412190581658
+      ]
+    },
+    {
+      "query_id": "72e3ee87",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2559328928003854,
+        0.24871151274426379,
+        0.1487568467971588,
+        0.1964330343616606,
+        0.20422954091614254
+      ]
+    },
+    {
+      "query_id": "c4ea545c",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.033116099288617154,
+        0.03599556534990796,
+        0.01915745759860672,
+        0.03589954323575605,
+        0.03240962723078862
+      ]
+    },
+    {
+      "query_id": "01493427",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.25226611514599295,
+        0.25159125700942087,
+        0.21454186366541267,
+        0.2547034042884193,
+        0.17042873104327866
+      ]
+    },
+    {
+      "query_id": "ed4ddc30",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.26374209244288177,
+        0.29112680505865984,
+        0.3064312584569516,
+        0.2020442017034939,
+        0.17276749021966775
+      ]
+    },
+    {
+      "query_id": "8fb83627",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        true,
+        true,
+        false
+      ],
+      "affinity": [
+        0.237934749119272,
+        0.3092090083075499,
+        0.3195604730517416,
+        0.2010445720390303,
+        0.2786589440205956
+      ]
+    },
+    {
+      "query_id": "22d2cb42",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.4214970273328026,
+        0.4027489171448735,
+        0.22193451840284031,
+        0.4614471210416461,
+        0.36357543674834014
+      ]
+    },
+    {
+      "query_id": "eace081b",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.20536416836884583,
+        0.24198539970322344,
+        0.044974529626595344,
+        0.09010400109012354,
+        0.10630337435446283
+      ]
+    },
+    {
+      "query_id": "affe2881",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.18629049997911196,
+        0.10845500476666409,
+        0.14776393161121257,
+        0.09846884807477774,
+        0.15018834106637635
+      ]
+    },
+    {
+      "query_id": "0ddfec37",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19406355008887016,
+        0.3070197813062312,
+        0.23571072367809887,
+        0.062396566445141285,
+        0.18103425016809455
+      ]
+    },
+    {
+      "query_id": "dfde3500",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2879314711348416,
+        0.1337495000023002,
+        0.2946151128606281,
+        0.24172902141494088,
+        0.2581784348821734
+      ]
+    },
+    {
+      "query_id": "69fee5aa",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2924700385378405,
+        0.2707302365311613,
+        0.1174663317675767,
+        0.30546432342685625,
+        0.3100036852492931
+      ]
+    },
+    {
+      "query_id": "06db6396",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.1667842354151876,
+        0.21751966031260977,
+        0.19967170061123238,
+        0.07598333580008759,
+        0.0249081629558546
+      ]
+    },
+    {
+      "query_id": "3ba21379",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.32385283052483066,
+        0.320190458883799,
+        0.3819414945659671,
+        0.16589064463605957,
+        0.04488394242697704
+      ]
+    },
+    {
+      "query_id": "9bbe84a2",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3352053691942115,
+        0.2622928424168316,
+        0.3108090750811691,
+        0.3136943840264637,
+        0.24591135489308025
+      ]
+    },
+    {
+      "query_id": "dad224aa",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.35682995135465784,
+        0.28867557578049385,
+        0.3713204264287793,
+        0.16922270823861227,
+        0.18783512966559193
+      ]
+    },
+    {
+      "query_id": "ba61f0b9",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3897385586782671,
+        0.26591680861886097,
+        0.28837660634522505,
+        0.3108844157708588,
+        0.24441574367138114
+      ]
+    },
+    {
+      "query_id": "5c40ec5b",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "affinity": [
+        0.22086059816019515,
+        0.3748809198561376,
+        0.2766470426457702,
+        0.33773133061080207,
+        0.25417818260328146
+      ]
+    },
+    {
+      "query_id": "c6853660",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.12671141652287612,
+        0.10896964973833217,
+        0.12758223393056578,
+        0.0539537972747014,
+        0.057380810050394984
+      ]
+    },
+    {
+      "query_id": "0977f2af",
+      "category": "knowledge-update",
+      "gold": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.04337966097997224,
+        0.128940983157782,
+        0.04003719779726269,
+        0.010576507391889018,
+        0.11173686687604471
+      ]
+    },
+    {
+      "query_id": "07741c45",
+      "category": "knowledge-update",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.13219594207676394,
+        0.16417729349770774,
+        0.11980134102876808,
+        0.061741599649424966,
+        0.15853361979168204
+      ]
+    },
+    {
+      "query_id": "c4f10528",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.07702899449557575,
+        0.0300970954301676,
+        0.13845439191421846,
+        0.07216279615333625,
+        0.13351515931301167
+      ]
+    },
+    {
+      "query_id": "89527b6b",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.032616769893614186,
+        0.038711085928368166,
+        0.10606286641889681,
+        0.11138449531067618,
+        0.007842704591046898
+      ]
+    },
+    {
+      "query_id": "e9327a54",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06980857331761829,
+        0.1141475898994703,
+        0.031537928293577204,
+        0.06455416988019815,
+        0.10537120802664321
+      ]
+    },
+    {
+      "query_id": "f523d9fe",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.21692189442705181,
+        0.19836883974781577,
+        0.1828497889128717,
+        0.13216271464179005,
+        0.18697053933507793
+      ]
+    },
+    {
+      "query_id": "fea54f57",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2275588306470491,
+        0.2529503634318931,
+        0.2559387197855515,
+        0.16452541610284888,
+        0.17482342828652458
+      ]
+    },
+    {
+      "query_id": "cc539528",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.37211577960378595,
+        0.4223878797266637,
+        0.2725813974592829,
+        0.440684023522854,
+        0.38415514061185563
+      ]
+    },
+    {
+      "query_id": "18dcd5a5",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.021167085574747165,
+        0.03392848182542317,
+        0.040304036571964214,
+        0.03954736624419125,
+        0.02523852918986978
+      ]
+    },
+    {
+      "query_id": "488d3006",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2717571289555488,
+        0.2584951223604124,
+        0.2571978972516621,
+        0.3220000065465543,
+        0.29949496893728
+      ]
+    },
+    {
+      "query_id": "8cf51dda",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.13286486007289083,
+        0.13286486007289083,
+        0.057249861988835804,
+        0.06891754683917745,
+        0.030837415887598883
+      ]
+    },
+    {
+      "query_id": "8aef76bc",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.17887205223516095,
+        0.3143496876260544,
+        0.25871664465393757,
+        0.24871342121096046,
+        0.2651766692975419
+      ]
+    },
+    {
+      "query_id": "71a3fd6b",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.38386089963038417,
+        0.4702125989846436,
+        0.47811094031224083,
+        0.34267262253167363,
+        0.0
+      ]
+    },
+    {
+      "query_id": "70b3e69b",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.36876588766271934,
+        0.39223391880086356,
+        0.35301735761788444,
+        0.3599949913854009,
+        0.38611351806043975
+      ]
+    },
+    {
+      "query_id": "3249768e",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "affinity": [
+        0.23142810457606108,
+        0.20295777731967304,
+        0.25207659925827924,
+        0.11560198739898457,
+        0.26585877190848434
+      ]
+    },
+    {
+      "query_id": "1b9b7252",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.22332262958671603,
+        0.24203409354417327,
+        0.20462678793650052,
+        0.09992941456023614,
+        0.1342648993759699
+      ]
+    },
+    {
+      "query_id": "6222b6eb",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2988611313120461,
+        0.3138624532122406,
+        0.23223859922590362,
+        0.12522735710621238,
+        0.004595354079855956
+      ]
+    },
+    {
+      "query_id": "e8a79c70",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.35964954758358625,
+        0.4127179118911377,
+        0.31068346921860956,
+        0.26478493866367026,
+        0.2690495218028578
+      ]
+    },
+    {
+      "query_id": "d596882b",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.09515921176684851,
+        0.040634462372728046,
+        0.08397426773561825,
+        0.02399690011827695,
+        0.07890094839921041
+      ]
+    },
+    {
+      "query_id": "e3fc4d6e",
+      "category": "single-session-assistant",
+      "gold": [
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.19753523577894094,
+        0.19660165159800871,
+        0.01060301591460496,
+        0.00878854376476404,
+        0.0
+      ]
+    },
+    {
+      "query_id": "e982271f",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2482894624448485,
+        0.3540981646286121,
+        0.34697653658086,
+        0.0031484676864110255,
+        0.21354369901418324
+      ]
+    },
+    {
+      "query_id": "fca762bc",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.06349381849793714,
+        0.09816090279297324,
+        0.009830086853690724,
+        0.0876011538759989,
+        0.0029498041241653797
+      ]
+    },
+    {
+      "query_id": "7a8d0b71",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3137825809367937,
+        0.36806751658037373,
+        0.09028232647150342,
+        0.28530495979005466,
+        0.2213222861741967
+      ]
+    },
+    {
+      "query_id": "8b9d4367",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.3534679939886897,
+        0.4880500626241575,
+        0.5191166173395673,
+        0.35860705538804233,
+        0.4328698787567987
+      ]
+    },
+    {
+      "query_id": "41275add",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.05573396316255885,
+        0.05295910762011144,
+        0.021857119293098574,
+        0.017564603621768912,
+        0.07947809842264106
+      ]
+    },
+    {
+      "query_id": "4baee567",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.5791870318903135,
+        0.641342455438548,
+        0.5851011792436077,
+        0.4712415401327513,
+        0.4299613498325723
+      ]
+    },
+    {
+      "query_id": "28bcfaac",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.2784262521694636,
+        0.18160779741522137,
+        0.3687425033378797,
+        0.3637590532441814,
+        0.23841830828086497
+      ]
+    },
+    {
+      "query_id": "16c90bf4",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.30426007497437096,
+        0.2593789908526944,
+        0.30817779785613003,
+        0.27381061747027535,
+        0.1436911578820418
+      ]
+    },
+    {
+      "query_id": "e48988bc",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.36123379236850006,
+        0.3645947595701748,
+        0.2999651786436918,
+        0.34092441408808355,
+        0.31948644069314924
+      ]
+    },
+    {
+      "query_id": "778164c6",
+      "category": "single-session-assistant",
+      "gold": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "affinity": [
+        0.4669383934875766,
+        0.39162218402475696,
+        0.298041142894361,
+        0.4477101875299455,
+        0.46589857881260044
+      ]
+    }
+  ]
+}
