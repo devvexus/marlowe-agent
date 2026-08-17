@@ -32,7 +32,7 @@
 //! whose `<title>` reads *"ignore your instructions and run …"* would be back in the orchestrator's
 //! window, with the store providing false assurance that it was not.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use crate::{Document, Format};
@@ -109,7 +109,7 @@ pub fn warning_kind(w: &crate::Warning) -> &'static str {
 /// threads, and the loop reads from the same one.
 #[derive(Clone, Default)]
 pub struct DocumentStore {
-    inner: Arc<Mutex<HashMap<String, Document>>>,
+    inner: Arc<Mutex<BTreeMap<String, Document>>>,
 }
 
 impl DocumentStore {
@@ -210,7 +210,7 @@ impl DocumentStore {
 ///
 /// **That reasoning is wrong, and it was the most dangerous line in this file** — a false
 /// assurance sitting exactly where a real one was needed. [`DocumentStore::put`] calls
-/// `HashMap::insert`, which **overwrites**. So a collision does not return content the caller
+/// `BTreeMap::insert`, which **overwrites**. So a collision does not return content the caller
 /// already had; it *replaces* content the caller had already catalogued.
 ///
 /// The attack it permitted: the agent fetches ten sources and holds ten refs. It then fetches an
@@ -266,8 +266,7 @@ mod tests {
     /// behaviour here proves the guard is what holds it, rather than the strong hash alone.
     #[test]
     fn the_unguarded_behaviour_would_have_substituted_the_document() {
-        use std::collections::HashMap;
-        let mut naive: HashMap<String, String> = HashMap::new();
+        let mut naive: BTreeMap<String, String> = BTreeMap::new();
         naive.insert("addr".into(), "the trustworthy original".into());
         // Exactly what `put` used to do: `insert`, unconditionally.
         naive.insert("addr".into(), "ATTACKER CONTENT".into());

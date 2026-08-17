@@ -42,6 +42,46 @@ fn judgeable_lines(src: &str) -> Vec<(usize, &str)> {
     out
 }
 
+/// Does `path` end with this exemption's path suffix?
+///
+/// # Exemptions match a PATH, never a bare file name, and that changed on 2026-08-17
+///
+/// Every list in this file used to match `path.file_name()`. That is fine while every fenced name
+/// is unique in the workspace — `clock.rs`, `elapsed.rs` and `frame_clock.rs` each appear once, so
+/// it happened to be exact. It stops being fine the moment an exemption is needed for a file whose
+/// name is common: **there are fourteen `lib.rs` files in `crates/`**, so a single `"lib.rs"` entry
+/// would have silently exempted the entire workspace's library roots, and the guard would still
+/// have been green.
+///
+/// This is a **narrowing**, not a widening. The existing entries mean exactly what they meant; they
+/// are now written as paths so that what they mean is what they say.
+fn matches(path: &Path, entries: &[&str]) -> bool {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    entries.iter().any(|e| normalized.ends_with(e))
+}
+
+/// **An exemption naming a file that no longer exists is a comment.**
+///
+/// Every list in this file is checked with this, including the `HashMap` guard's — which had no
+/// self-check at all until 2026-08-17, so an entry there could have outlived its file silently and
+/// then excused the next file to take that path. That is the fourteenth-instance shape: a guard is
+/// a claim about a path, and a claim about a path needs something checking the path is still there.
+fn assert_every_entry_still_exists(entries: &[&str], list: &str) {
+    let all: Vec<String> = crate_sources()
+        .iter()
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .collect();
+    for e in entries {
+        assert!(
+            all.iter().any(|p| p.ends_with(e)),
+            "`{list}` exempts `{e}`, and no such file exists under crates/. Either it was renamed \
+             — in which case point the entry at the new path — or it was deleted, in which case \
+             delete the entry. An exemption that outlives what it exempts silently excuses the \
+             next file to take that path."
+        );
+    }
+}
+
 fn crate_sources() -> Vec<PathBuf> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -80,17 +120,27 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 /// The rule is blunt on purpose: use `BTreeMap`/`BTreeSet`. If a hash map is ever genuinely
 /// needed for a hot path whose order provably cannot reach output, add it to the allowlist
 /// **with the reason**, and expect to defend it.
+///
+/// **Nothing is allowlisted here except this file, and that is a result rather than a policy.**
+/// On 2026-08-17 four crates were carrying hash-ordered collections — `marlowe-net`'s connection
+/// pool and DNS cache, `marlowe-loop`'s condensation cache, `marlowe-extract`'s document store, and
+/// a test's dedup set. Every one of them was `get`/`insert`/`len`, never iterated, so every one of
+/// them qualified for an allowlist entry under the rule above. **They were converted to `BTreeMap`
+/// and `BTreeSet` instead**, because the conversion costs nothing measurable on maps this size and
+/// an exemption costs a line of judgement that has to be re-made by every future reader — and
+/// because an entry naming `marlowe-net/src/lib.rs` blinds this guard to every future map in the
+/// file that actually issues requests.
 #[test]
 fn no_hash_map_in_crate_sources() {
     const ALLOWED: &[&str] = &[
         // This file names the types in order to ban them.
-        "determinism_guard.rs",
+        "marlowe/tests/determinism_guard.rs",
     ];
+    assert_every_entry_still_exists(ALLOWED, "ALLOWED");
 
     let mut offenders = Vec::new();
     for path in crate_sources() {
-        let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if ALLOWED.contains(&name.as_str()) {
+        if matches(&path, ALLOWED) {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_default();
@@ -133,10 +183,10 @@ fn no_hash_map_in_crate_sources() {
 fn the_only_real_clock_read_is_the_latency_fence() {
     const FENCES: &[&str] = &[
         // Section 4.2's self-reported `cost.latency_ms`. The original fence.
-        "elapsed.rs",
+        "marlowe/src/elapsed.rs",
         // M1: the stub owns the time base because ARCHITECTURE.md §2.14 says a surface holds no
         // state the daemon lacks, and time is state. Not on any contract path.
-        "frame_clock.rs",
+        "marlowe-stub/src/frame_clock.rs",
         // M2 C2c: the PRODUCTION harness clock. §4.5 forbids a system clock on the contract
         // paths and names the legitimate case in the same paragraph — "in production the harness
         // supplies the real clock". The daemon is that harness, so real time enters the system
@@ -144,7 +194,16 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         // exempting `daemon.rs` would blind the guard to every future clock read in it, which is
         // the failure this test's own header warns about for directories. The eval adapter never
         // constructs a `Daemon` and still supplies M0a's synthetic clock.
-        "clock.rs",
+        "marlowe-daemon/src/clock.rs",
+        // M2 Session E: `marlowe-net`'s connection hygiene — DNS cache age and pooled-connection
+        // idle time. Monotonic durations only; `Mark` deliberately exposes `elapsed()` and no way
+        // to obtain a time value, so a stamp made here cannot reach a payload even by accident.
+        //
+        // It is a twenty-line module for the same reason `clock.rs` is: fencing
+        // `marlowe-net/src/lib.rs` would exempt every future clock read in the four-hundred-line
+        // file that actually issues requests, including one that DID reach a result, and it would
+        // do it silently because the fence would already be green.
+        "marlowe-net/src/age.rs",
     ];
 
     /// The engine spike — a **temporary** measurement crate, exempt with an expiry.
@@ -169,19 +228,7 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     // `protect-boundaries.py` grew `--self-check` for exactly this after M2 Session B; this guard
     // never did. M2 C2d moved `turn.rs` and `model.rs` between crates, which is what made the gap
     // worth closing rather than noting.
-    let all: Vec<String> = crate_sources()
-        .iter()
-        .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-        .collect();
-    for fence in FENCES {
-        assert!(
-            all.iter().any(|n| n == fence),
-            "the clock fence names `{fence}`, and no such file exists in crates/. Either it was \
-             renamed — in which case point the fence at the new name — or it was deleted, in \
-             which case delete the entry. An exemption that outlives what it exempts silently \
-             excuses the next file to take that name."
-        );
-    }
+    assert_every_entry_still_exists(FENCES, "FENCES");
 
     /// Files that **name** the forbidden spellings in order to ban them, and read no clock.
     ///
@@ -199,36 +246,58 @@ fn the_only_real_clock_read_is_the_latency_fence() {
     const COMPARES_MTIMES: &[&str] = &[
         // M2 C2e: the daemon staleness guard. Compares the executable's mtime against the newest
         // source file. Nothing here reaches a journal timestamp, a memory id or a repro hash.
-        "staleness.rs",
+        "marlowe-daemon/src/staleness.rs",
     ];
-    for named in COMPARES_MTIMES {
-        assert!(
-            all.iter().any(|n| n == named),
-            "the clock guard exempts `{named}`, and no such file exists in crates/."
-        );
-    }
+    assert_every_entry_still_exists(COMPARES_MTIMES, "COMPARES_MTIMES");
 
     const NAMES_BUT_DOES_NOT_READ: &[&str] = &[
-        "determinism_guard.rs",
+        "marlowe/tests/determinism_guard.rs",
         // M2 C2d. Asserts locally that `marlowe-surface` reads no clock, which means spelling out
         // what it is looking for. See `marlowe-surface/tests/c2d_boundary.rs`.
-        "c2d_boundary.rs",
+        "marlowe-surface/tests/c2d_boundary.rs",
     ];
-    for named in NAMES_BUT_DOES_NOT_READ {
-        assert!(
-            all.iter().any(|n| n == named),
-            "the clock guard exempts `{named}`, and no such file exists in crates/. Delete the \
-             entry with the file — an exemption that outlives what it exempts is how a guard \
-             quietly stops guarding."
-        );
-    }
+    assert_every_entry_still_exists(NAMES_BUT_DOES_NOT_READ, "NAMES_BUT_DOES_NOT_READ");
+
+    /// Benchmarks and timing tests. **A fifth list, and every entry is a FILE — never `examples/`.**
+    ///
+    /// A benchmark that cannot read a clock cannot benchmark, so these reads are the point of the
+    /// files rather than a mistake in them. None is reachable from §4.1/4.6/4.7: an example is not
+    /// linked into the product, and a test measuring its own elapsed time reports nothing to a
+    /// journal, a memory id or a repro hash.
+    ///
+    /// **The directory exemption was considered and refused.** `examples/*.rs` would have been one
+    /// line instead of six, and it would have meant that an example added later — or a contract
+    /// path demonstrated inside one — reads a clock with nothing noticing. This guard's own header
+    /// makes that argument about `entry.rs` and the `HashMap` list; the same argument applies here,
+    /// and the cost of refusing is that adding an example means adding a line. That cost is the
+    /// feature: it makes the author say why.
+    ///
+    /// `marlowe-embed-spike` remains the single directory exemption in this file, and it carries
+    /// an expiry.
+    const BENCHMARKS_AND_TIMING_TESTS: &[&str] = &[
+        // ADR-040's parallelism measurements. `batch_parallelism` times the same batch at several
+        // widths; `corpus_bench` and `deep_research*` time a live corpus fetch. All four exist to
+        // produce a number in milliseconds.
+        "marlowe-exec/examples/batch_parallelism.rs",
+        "marlowe-exec/examples/corpus_bench.rs",
+        "marlowe-exec/examples/deep_research.rs",
+        "marlowe-exec/examples/deep_research_attack.rs",
+        // Extraction throughput, asserted as MB/s against a floor.
+        "marlowe-extract/tests/injector.rs",
+        // M2 Session E's socket-auth test: asserts the daemon ANSWERED before a deliberately held
+        // connection let go, which is a statement about elapsed time and cannot be made without
+        // reading one. Restructuring it to use an injected clock would mean injecting a clock into
+        // the test's own peer, which measures the harness rather than the daemon.
+        "marlowe-daemon/tests/socket_auth.rs",
+    ];
+    assert_every_entry_still_exists(BENCHMARKS_AND_TIMING_TESTS, "BENCHMARKS_AND_TIMING_TESTS");
 
     let mut offenders = Vec::new();
     for path in crate_sources() {
-        let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if FENCES.contains(&name.as_str())
-            || NAMES_BUT_DOES_NOT_READ.contains(&name.as_str())
-            || COMPARES_MTIMES.contains(&name.as_str())
+        if matches(&path, FENCES)
+            || matches(&path, NAMES_BUT_DOES_NOT_READ)
+            || matches(&path, COMPARES_MTIMES)
+            || matches(&path, BENCHMARKS_AND_TIMING_TESTS)
         {
             continue;
         }
@@ -263,8 +332,8 @@ fn the_only_real_clock_read_is_the_latency_fence() {
 fn memory_ids_are_not_built_from_timestamps() {
     let mut offenders = Vec::new();
     for path in crate_sources() {
-        let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if name == "determinism_guard.rs" {
+        // Path, not bare name — see `matches`. One list style in one file.
+        if matches(&path, &["marlowe/tests/determinism_guard.rs"]) {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_default();

@@ -45,12 +45,18 @@
 
 #![forbid(unsafe_code)]
 
-use std::collections::HashMap;
+/// The crate's only monotonic clock read, isolated so `determinism_guard`'s fence names one
+/// twenty-line file rather than this four-hundred-line fetch path. See its header.
+pub mod age;
+
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::age::Mark;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FetchError {
@@ -195,7 +201,7 @@ type TlsStream = rustls::StreamOwned<rustls::ClientConnection, TcpStream>;
 
 struct Pooled {
     reader: BufReader<TlsStream>,
-    idle_since: Instant,
+    idle_since: Mark,
 }
 
 /// A reusable HTTPS client.
@@ -205,8 +211,8 @@ struct Pooled {
 /// client is rebuilt per request — which is exactly what the previous implementation did.
 pub struct Client {
     config: Arc<rustls::ClientConfig>,
-    pool: Mutex<HashMap<(String, u16), Vec<Pooled>>>,
-    dns: Mutex<HashMap<String, (Vec<SocketAddr>, Instant)>>,
+    pool: Mutex<BTreeMap<(String, u16), Vec<Pooled>>>,
+    dns: Mutex<BTreeMap<String, (Vec<SocketAddr>, Mark)>>,
     stats: Stats,
 }
 
@@ -233,8 +239,8 @@ impl Client {
         config.resumption = rustls::client::Resumption::in_memory_sessions(256);
         Self {
             config: Arc::new(config),
-            pool: Mutex::new(HashMap::new()),
-            dns: Mutex::new(HashMap::new()),
+            pool: Mutex::new(BTreeMap::new()),
+            dns: Mutex::new(BTreeMap::new()),
             stats: Stats::default(),
         }
     }
@@ -422,7 +428,7 @@ impl Client {
         self.dns
             .lock()
             .expect("dns cache poisoned")
-            .insert(key, (addrs.clone(), Instant::now()));
+            .insert(key, (addrs.clone(), Mark::now()));
         Ok(addrs)
     }
 
@@ -442,7 +448,7 @@ impl Client {
         let mut pool = self.pool.lock().expect("connection pool poisoned");
         let bucket = pool.entry((target.host.clone(), target.port)).or_default();
         if bucket.len() < MAX_POOLED_PER_HOST {
-            bucket.push(Pooled { reader, idle_since: Instant::now() });
+            bucket.push(Pooled { reader, idle_since: Mark::now() });
         }
     }
 }

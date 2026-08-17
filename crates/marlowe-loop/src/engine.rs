@@ -289,7 +289,7 @@ pub struct Engine<S: PathScope> {
     /// Caching the *condensed* form and not the page is deliberate: the value stored here is
     /// harness-validated output that has already passed `OutputContract::validate`, so a hit
     /// cannot reintroduce anything the contract would have refused.
-    condensed: std::collections::HashMap<String, String>,
+    condensed: std::collections::BTreeMap<String, String>,
 }
 
 
@@ -378,7 +378,7 @@ impl<S: PathScope> Engine<S> {
             workspace,
             tier,
             next_call_id: 1,
-            condensed: std::collections::HashMap::new(),
+            condensed: std::collections::BTreeMap::new(),
         }
     }
 

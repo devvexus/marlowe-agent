@@ -50,12 +50,6 @@ pub enum Outcome {
         /// Bytes off the socket before decompression.
         wire_bytes: usize,
         reused_connection: bool,
-        /// Time on the network for this document.
-        fetch_ms: u64,
-        /// Time turning its bytes into text. **Reported separately from `fetch_ms` on purpose:**
-        /// the two answer different questions, and a single total would hide which half a corpus
-        /// is actually bound by.
-        extract_ms: u64,
     },
     /// Fetched, but the server sent a redirect. **Not followed** — see the module header.
     Redirect { url: String, status: u16, location: RedirectTo },
@@ -310,18 +304,26 @@ fn one(client: &marlowe_net::Client, url: &str) -> Outcome {
         Ok(t) => t,
         Err(e) => return Outcome::Unreachable { url: url.to_string(), detail: e.to_string() },
     };
-    let t = std::time::Instant::now();
-    let fetched = client.fetch(&target);
-    let fetch_ms = t.elapsed().as_millis() as u64;
-    match fetched {
+    // **No clock read here, and that is §4.5 rather than tidiness.**
+    //
+    // This function is library code on a tool path. `fetch_ms` and `extract_ms` used to be
+    // measured with `Instant::now()` right here and in `read` below — a component the loop's
+    // injected `ClockSource` does not reach, which is precisely what CLAUDE.md warns about: the
+    // loop measures tool calls through an injected clock so a test can hold time still, and an
+    // executor reading the wall clock behind its back makes a decay-dependent result
+    // irreproducible from a component nobody would think to look in.
+    //
+    // **The measurement went rather than being fenced, because nothing in the product read it.**
+    // The only consumers of both fields were two `examples/` benchmarks, so the fields were dead
+    // weight in a shared path — a declared value with no reader, forcing a forbidden clock read.
+    // Removing them deletes the read and the dead fields together.
+    //
+    // If a per-document network/extract split is wanted again, the caller supplies the clock:
+    // `marlowe-exec` already depends on `marlowe-loop`, so `ClockSource` is in reach. What must
+    // not come back is a wall-clock read inside this module.
+    match client.fetch(&target) {
         Err(e) => Outcome::Unreachable { url: url.to_string(), detail: e.to_string() },
-        Ok(res) => {
-            let mut o = read(url, res);
-            if let Outcome::Read { fetch_ms: slot, .. } = &mut o {
-                *slot = fetch_ms;
-            }
-            o
-        }
+        Ok(res) => read(url, res),
     }
 }
 
@@ -340,19 +342,15 @@ pub fn read(url: &str, res: Fetched) -> Outcome {
     let input = Input::new(&res.bytes)
         .content_type(res.content_type.as_deref())
         .url(Some(url));
-    let t = std::time::Instant::now();
-    let extracted = marlowe_extract::extract(&input);
-    let extract_ms = t.elapsed().as_millis() as u64;
-    match extracted {
+    // No clock read — see `one` above. This is the shared path `web`'s single-URL executor uses,
+    // so a stray `Instant::now()` here would sit on every fetch the product makes.
+    match marlowe_extract::extract(&input) {
         Ok(document) => Outcome::Read {
             url: url.to_string(),
             status: res.status,
             document,
             wire_bytes: res.wire_bytes,
             reused_connection: res.reused_connection,
-            // Filled in by `one`, which is the only caller that did the fetching.
-            fetch_ms: 0,
-            extract_ms,
         },
         Err(e) => Outcome::Unreadable {
             url: url.to_string(),

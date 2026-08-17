@@ -30,7 +30,7 @@ fn doc(text: &str) -> Document {
 
 // ═══ ATTACK 1 — replace a document the attacker does not control ═════════════════════════
 //
-// The store is a `HashMap` keyed by content hash, and `put` used `insert`, which OVERWRITES.
+// The store is a map keyed by content hash, and `put` used `insert`, which OVERWRITES.
 // With a non-cryptographic hash that is a document-substitution primitive: catalogue ten
 // sources, then serve an eleventh crafted to collide with #3, and `read(ref=#3)` returns the
 // attacker's page while the orchestrator's window still describes the original.
@@ -70,7 +70,7 @@ fn a_second_document_can_never_replace_the_first_at_one_address() {
 #[test]
 fn distinct_documents_never_share_an_address() {
     let store = DocumentStore::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = std::collections::BTreeSet::new();
     for i in 0..2_000 {
         let r = store.put("https://a.example/", 1, doc(&format!("document number {i}")));
         assert!(seen.insert(r.hash.clone()), "collision at {i}");

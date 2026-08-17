@@ -125,18 +125,15 @@ fn main() {
     // ── what was actually read ───────────────────────────────────────────────────────────
     let mut by_format: BTreeMap<&str, (usize, usize, usize)> = BTreeMap::new();
     let (mut ok, mut redirect, mut failed, mut unreadable) = (0, 0, 0, 0);
-    let (mut total_fetch_ms, mut total_extract_ms) = (0u64, 0u64);
-    let mut slowest: Vec<(u64, u64, String, usize)> = Vec::new();
+    let mut biggest: Vec<(usize, String, usize)> = Vec::new();
     let (mut wire, mut chars, mut links) = (0usize, 0usize, 0usize);
     let mut warned: Vec<(String, String)> = Vec::new();
 
     for o in &results {
         match o {
-            Outcome::Read { document, wire_bytes, url, fetch_ms, extract_ms, .. } => {
+            Outcome::Read { document, wire_bytes, url, .. } => {
                 ok += 1;
-                total_fetch_ms += fetch_ms;
-                total_extract_ms += extract_ms;
-                slowest.push((*fetch_ms, *extract_ms, url.clone(), document.text.len()));
+                biggest.push((*wire_bytes, url.clone(), document.text.len()));
                 wire += wire_bytes;
                 chars += document.text.len();
                 links += document.links.len();
@@ -172,19 +169,38 @@ fn main() {
     // These are SUMS across documents, so they exceed the wall clock precisely because the work
     // overlapped -- that gap IS the parallelism. Reporting only the wall time would hide which
     // half the corpus is bound by.
-    println!("\n-- where the time went (summed across documents) --");
-    println!("  network   {total_fetch_ms:>7} ms");
-    println!("  extract   {total_extract_ms:>7} ms   ({:.1}% of the work)",
-             total_extract_ms as f64 * 100.0 / (total_fetch_ms + total_extract_ms).max(1) as f64);
-    println!("  sum       {:>7} ms  vs {:.0} ms wall  ->  {:.1}x overlap",
-             total_fetch_ms + total_extract_ms, cauto,
-             (total_fetch_ms + total_extract_ms) as f64 / cauto.max(1.0));
+    // **The per-document network/extract split is GONE, and that is deliberate.**
+    //
+    // `Outcome::Read` carried `fetch_ms` and `extract_ms`, measured with `Instant::now()` inside
+    // `corpus.rs`. That is library code on a tool path, and §4.5 forbids it: the loop measures
+    // tool calls through an INJECTED `ClockSource` so a test can hold time still, and an executor
+    // reading the wall clock behind its back makes a decay-dependent result irreproducible from a
+    // component nobody would think to look in. `determinism_guard` caught it two sessions late.
+    //
+    // The fields were read by nothing but this example, so they went rather than being fenced — a
+    // forbidden clock read serving two fields the product never looked at.
+    //
+    // **What was lost, said plainly rather than quietly dropped:** the summed network-vs-extract
+    // split that measured 946 ms against 396 ms and 4.5x overlap for ADR-040. Getting it back
+    // means the caller supplying a clock — `marlowe-exec` already depends on `marlowe-loop`, so
+    // `ClockSource` is in reach — and that is a deliberate change, not an `Instant::now()` put
+    // back where this one was.
+    //
+    // The wall clock this example reads is its own, which is allowed: a benchmark that cannot read
+    // a clock cannot benchmark. It is fenced BY NAME in `determinism_guard`, never by directory.
+    println!("\n-- throughput --");
+    println!(
+        "  {:.0} ms wall for {} documents  ({:.0} ms/doc)",
+        cauto,
+        ok,
+        cauto / (ok.max(1)) as f64
+    );
 
-    slowest.sort_by(|a, b| (b.0 + b.1).cmp(&(a.0 + a.1)));
-    println!("\n  slowest documents:");
-    for (f, e, url, chars) in slowest.iter().take(6) {
+    biggest.sort_by(|a, b| b.0.cmp(&a.0));
+    println!("\n  largest documents:");
+    for (w, url, chars) in biggest.iter().take(6) {
         let short = url.rsplit('/').next().filter(|s| !s.is_empty()).unwrap_or(url);
-        println!("    {:>6} ms net + {:>5} ms parse -> {:>7} chars   {}", f, e, chars, short);
+        println!("    {:>8} B wire -> {:>7} chars   {}", w, chars, short);
     }
 
     println!("\n  warnings raised ({}):", warned.len());
