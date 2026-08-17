@@ -28,6 +28,33 @@ use crate::{charset, zip, Document, ExtractError, Format, Heading, Warning};
 /// Cap on epub chapters read. A pathological archive can declare thousands.
 const MAX_CHAPTERS: usize = 2_000;
 
+/// Cap on retained cells in one spreadsheet row.
+///
+/// # Audit finding G6 — shared-string amplification, and why it is an `abort`
+///
+/// `sheet_text` pushed `shared[i].clone()` per cell with no bound on the row. A <20 KB archive
+/// holding **one** 1 MiB shared string, referenced by 200,000 cells in a single `<row>`, asks for
+/// ~200 GB — an amplification of roughly 10⁷:1 against the compressed archive.
+///
+/// Allocation failure in Rust is an **`abort`**, which means `extract`'s `catch_unwind` cannot
+/// intercept it. The distinction matters: every other extractor failure costs one document, and
+/// this one costs the daemon, the turn the user is waiting on, and every other document in the
+/// batch. `rayon`'s fan-out multiplies it.
+///
+/// Excel's own column limit is 16,384. This is deliberately below that: a sheet wider than 4,096
+/// columns is a generated dump, not a document anyone is reading, and the row is truncated with a
+/// warning rather than the process dying.
+const MAX_SHEET_COLS: usize = 4_096;
+
+/// Cap on the shared-string table itself — the multiplicand in the amplification above.
+const MAX_SHARED_STRINGS: usize = 200_000;
+
+/// Cap on total bytes retained in the shared-string table.
+///
+/// The count cap alone does not bound it: 200,000 entries of 1 MiB each is the same exhaustion
+/// reached by a different shape. **Both axes, because bounding either alone leaves a product.**
+const MAX_SHARED_BYTES: usize = 32 * 1024 * 1024;
+
 pub fn extract(bytes: &[u8], format: Format) -> Result<Document, ExtractError> {
     let mut warnings = Vec::new();
     let mut archive = zip::Archive::open(bytes).map_err(|e| ExtractError::Malformed {
@@ -109,6 +136,11 @@ fn xlsx(a: &mut zip::Archive<'_>, warnings: &mut Vec<Warning>) -> String {
 
     let mut out = String::new();
     for entry in a.matching("xl/worksheets/sheet", ".xml") {
+        // The per-sheet bound above is not the per-workbook bound: an archive can declare many
+        // sheets, each individually inside the cap.
+        if out.len() >= crate::MAX_TEXT_CHARS {
+            break;
+        }
         match a.read(&entry) {
             Ok(data) => {
                 out.push_str(&sheet_text(&data, &shared));
@@ -257,12 +289,19 @@ fn ooxml_text(data: &[u8], text_tags: &[&str], break_tags: &[&str], space_tags: 
 }
 
 /// `xl/sharedStrings.xml` — `<si>` entries, each possibly split across several `<t>` runs.
+/// The shared-string table, **bounded on both count and total bytes**. Audit finding G6.
+///
+/// Entries past either bound become empty strings rather than being dropped, because a cell
+/// referencing index `i` looks the entry up **by position** — dropping entries would shift every
+/// later index and silently attribute one cell's text to another cell. An empty string at a known
+/// index is a visible absence; a shifted table is quiet corruption, which is worse.
 fn shared_strings(data: &[u8]) -> Vec<String> {
     let text = String::from_utf8_lossy(data);
     let mut reader = Reader::from_str(&text);
-    let mut out = Vec::new();
+    let mut out: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_t = false;
+    let mut retained_bytes = 0usize;
 
     loop {
         match reader.read_event() {
@@ -272,13 +311,30 @@ fn shared_strings(data: &[u8]) -> Vec<String> {
                 _ => {}
             },
             Ok(Event::End(e)) => match local_name(e.name().as_ref()).as_str() {
-                "si" => out.push(std::mem::take(&mut current)),
+                "si" => {
+                    let entry = std::mem::take(&mut current);
+                    if out.len() >= MAX_SHARED_STRINGS {
+                        // Stop growing the table entirely: past the count cap, no index can be
+                        // looked up anyway, so there is nothing to keep positions for.
+                        break;
+                    }
+                    if retained_bytes + entry.len() > MAX_SHARED_BYTES {
+                        out.push(String::new());
+                    } else {
+                        retained_bytes += entry.len();
+                        out.push(entry);
+                    }
+                }
                 "t" => in_t = false,
                 _ => {}
             },
             Ok(Event::Text(e)) if in_t => {
                 if let Ok(s) = e.unescape() {
-                    current.push_str(&s);
+                    // Bounded here too, so one `<si>` cannot be a full copy of the part before
+                    // the byte budget above ever sees it.
+                    if current.len() + s.len() <= MAX_SHARED_BYTES {
+                        current.push_str(&s);
+                    }
                 }
             }
             Ok(Event::Eof) => break,
@@ -316,7 +372,11 @@ fn sheet_text(data: &[u8], shared: &[String]) -> String {
                 "v" => in_v = false,
                 "is" => in_is = false,
                 "row" => {
-                    if !row.is_empty() {
+                    // Bounded against `MAX_TEXT_CHARS` here rather than only in `normalize`.
+                    // `normalize` runs after the whole sheet is in memory, so it caps what is
+                    // *kept* and not what is *built* — which is the same "a cap on output, not on
+                    // reading" shape as audit finding G7, in a different parser.
+                    if !row.is_empty() && out.len() < crate::MAX_TEXT_CHARS {
                         out.push_str(&row.join("\t"));
                         out.push('\n');
                     }
@@ -326,7 +386,11 @@ fn sheet_text(data: &[u8], shared: &[String]) -> String {
             Ok(Event::Text(e)) if in_v || in_is => {
                 if let Ok(s) = e.unescape() {
                     let s = s.trim();
-                    if s.is_empty() {
+                    // **G6's bound, and it is on the ROW rather than on the table.** The
+                    // amplification is `cells × shared_string_len`, so capping the table alone
+                    // still allows 200,000 clones of a permitted-size entry. Both are capped;
+                    // this is the one that multiplies.
+                    if s.is_empty() || row.len() >= MAX_SHEET_COLS {
                     } else if cell_is_shared && in_v {
                         if let Ok(i) = s.parse::<usize>() {
                             if let Some(v) = shared.get(i) {
@@ -563,6 +627,51 @@ mod tests {
         let got = sheet_text(sheet, &shared);
         assert!(got.contains("Country\tFrance"), "got {got:?}");
         assert!(got.contains("42"), "a literal value must survive: {got:?}");
+    }
+
+    /// **Audit G6 — assert the BOUND, not survival.**
+    ///
+    /// The exploit is `cells × shared_string_len`: one large shared string referenced by very many
+    /// cells in a single row. The failure is an allocation `abort`, which `catch_unwind` cannot
+    /// intercept, so "the call returned" is not the property — a test asserting that would pass on
+    /// every input smaller than the one that kills the process. The property is that the retained
+    /// cell count is bounded no matter how many the sheet declares.
+    #[test]
+    fn a_single_row_cannot_amplify_a_shared_string_without_bound() {
+        // One entry, referenced far more times than the cap allows.
+        let shared = vec!["PAYLOAD".repeat(64)];
+        let cells = "<c t=\"s\"><v>0</v></c>".repeat(MAX_SHEET_COLS + 500);
+        let sheet = format!("<worksheet><sheetData><row>{cells}</row></sheetData></worksheet>");
+
+        let got = sheet_text(sheet.as_bytes(), &shared);
+
+        let widest = got.lines().map(|l| l.split('\t').count()).max().unwrap_or(0);
+        assert!(
+            widest <= MAX_SHEET_COLS,
+            "retained {widest} cells against a cap of {MAX_SHEET_COLS}"
+        );
+        // The vacuity control: the cells that were retained still carry their text, so this is a
+        // statement about a bound rather than about an empty sheet.
+        assert!(got.contains("PAYLOAD"), "nothing was extracted at all");
+    }
+
+    /// The multiplicand, bounded on both axes. Count alone does not bound bytes and bytes alone
+    /// do not bound count, so both are asserted.
+    #[test]
+    fn the_shared_string_table_is_bounded_on_count_and_on_bytes() {
+        // Bytes: far fewer entries than the count cap, each enormous.
+        let one = format!("<si><t>{}</t></si>", "x".repeat(2 * 1024 * 1024));
+        let sst = format!("<sst>{}</sst>", one.repeat(40));
+        let table = shared_strings(sst.as_bytes());
+        let bytes: usize = table.iter().map(|s| s.len()).sum();
+        assert!(
+            bytes <= MAX_SHARED_BYTES,
+            "retained {bytes} bytes against a cap of {MAX_SHARED_BYTES}"
+        );
+        // **Positions are preserved.** An over-budget entry becomes empty rather than being
+        // dropped, because a cell looks its text up by index and a shifted table would attribute
+        // one cell's text to another — quiet corruption in place of a visible absence.
+        assert_eq!(table.len(), 40, "entries must keep their indices, not be dropped");
     }
 
     #[test]

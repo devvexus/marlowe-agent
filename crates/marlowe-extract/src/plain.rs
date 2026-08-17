@@ -19,6 +19,14 @@ use crate::{charset, Document, ExtractError, Format, Heading, Warning};
 /// expensive and useless.
 const MAX_CSV_ROWS: usize = 5_000;
 
+/// Cap on retained columns per CSV row. See [`parse_csv`] — a single very wide row is the same
+/// exhaustion as very many rows, and it never trips the row cap.
+const MAX_CSV_COLS: usize = 4_096;
+
+/// Cap on one CSV field. A file containing no delimiter and no newline is otherwise a full second
+/// copy of the input held alongside it.
+const MAX_CSV_FIELD_BYTES: usize = 1024 * 1024;
+
 /// Depth limit for JSON flattening. Beyond this a value is summarised by its shape.
 const MAX_JSON_DEPTH: usize = 24;
 
@@ -238,7 +246,10 @@ fn read_json_string(src: &str, open: usize) -> (String, usize) {
 /// research agent cares about.
 fn csv(src: &str, warnings: &mut Vec<Warning>) -> String {
     let delim = pick_delimiter(src);
-    let rows = parse_csv(src, delim);
+    // `total_rows` is the TRUE count even though only `MAX_CSV_ROWS` were retained — the
+    // truncation notice below reports it, and reporting the retained count instead would make a
+    // 5-million-row export read as a 5,000-row one.
+    let (rows, total_rows) = parse_csv(src, delim, MAX_CSV_ROWS);
     if rows.is_empty() {
         return String::new();
     }
@@ -264,13 +275,12 @@ fn csv(src: &str, warnings: &mut Vec<Warning>) -> String {
         }
         out.push('\n');
     }
-    if body.len() > MAX_CSV_ROWS {
+    // The body's true length: `total_rows` counts every row in the file, and the header is one of
+    // them when there is one.
+    let total_body = if looks_headed { total_rows.saturating_sub(1) } else { total_rows };
+    if total_body > MAX_CSV_ROWS {
         // The true count, stated. A silently-capped export reads as a small dataset.
-        out.push_str(&format!(
-            "[{} of {} rows shown]\n",
-            MAX_CSV_ROWS,
-            body.len()
-        ));
+        out.push_str(&format!("[{MAX_CSV_ROWS} of {total_body} rows shown]\n"));
         warnings.push(Warning::Truncated { kept: MAX_CSV_ROWS, limit: MAX_CSV_ROWS });
     }
     out
@@ -284,43 +294,102 @@ fn pick_delimiter(src: &str) -> char {
         .unwrap_or(',')
 }
 
-fn parse_csv(src: &str, delim: char) -> Vec<Vec<String>> {
-    let mut rows = Vec::new();
-    let mut row = Vec::new();
+/// Parse CSV, **retaining at most `keep` rows while counting all of them**.
+///
+/// # Audit finding G7 — the cap applied to the output and not to the reading
+///
+/// `MAX_CSV_ROWS` was applied by `.take(MAX_CSV_ROWS)` *after* this function had already built a
+/// `Vec<Vec<String>>` for the entire file. The comment said so in as many words — *"a cap on
+/// output, not on reading"* — which is a true description of a memory exhaustion. 32 MiB of `a,\n`
+/// is ~5.5M rows; each is a `Vec` (24 bytes) holding a `String` (24 bytes plus its allocation), so
+/// the cap took effect somewhere north of 2 GB, times the `rayon` fan-out across a corpus.
+///
+/// **Allocation failure in Rust is an `abort`, not a panic**, so the `catch_unwind` in `extract`
+/// cannot intercept it: one hostile CSV takes the daemon down rather than the document.
+///
+/// The returned count is still the **true** row count, because that is what the truncation warning
+/// reports and a silently-capped export reads as a small dataset. Counting is free; retaining is
+/// what costs.
+fn parse_csv(src: &str, delim: char, keep: usize) -> (Vec<Vec<String>>, usize) {
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut total = 0usize;
+    let mut row: Vec<String> = Vec::new();
     let mut field = String::new();
     let mut quoted = false;
     let mut chars = src.chars().peekable();
+
+    // Retaining one more row than the caller will render is deliberate: `csv` decides whether the
+    // first row is a header, so the body is `rows[1..]` and a `keep` of exactly N would render
+    // N-1 rows.
+    let keep = keep.saturating_add(1);
+
+    // A row is finished: count it always, retain it only while there is room.
+    macro_rules! finish_row {
+        () => {{
+            total += 1;
+            if rows.len() < keep {
+                rows.push(std::mem::take(&mut row));
+            } else {
+                row.clear();
+            }
+        }};
+    }
 
     while let Some(c) = chars.next() {
         if quoted {
             if c == '"' {
                 if chars.peek() == Some(&'"') {
-                    field.push('"');
+                    push_field_char(&mut field, '"');
                     chars.next();
                 } else {
                     quoted = false;
                 }
             } else {
-                field.push(c);
+                push_field_char(&mut field, c);
             }
             continue;
         }
         match c {
             '"' if field.is_empty() => quoted = true,
-            c if c == delim => row.push(std::mem::take(&mut field)),
+            // **The column cap is the other half of G6/G7.** A single row of 16M `a,` fields is
+            // the same exhaustion with the axes swapped, and it never reaches the row cap at all.
+            c if c == delim => {
+                if row.len() < MAX_CSV_COLS {
+                    row.push(std::mem::take(&mut field));
+                } else {
+                    field.clear();
+                }
+            }
             '\n' => {
-                row.push(std::mem::take(&mut field));
-                rows.push(std::mem::take(&mut row));
+                if row.len() < MAX_CSV_COLS {
+                    row.push(std::mem::take(&mut field));
+                } else {
+                    field.clear();
+                }
+                finish_row!();
             }
             '\r' => {}
-            _ => field.push(c),
+            _ => push_field_char(&mut field, c),
         }
     }
     if !field.is_empty() || !row.is_empty() {
-        row.push(field);
-        rows.push(row);
+        if row.len() < MAX_CSV_COLS {
+            row.push(std::mem::take(&mut field));
+        }
+        finish_row!();
     }
-    rows
+    (rows, total)
+}
+
+/// Append to a CSV field, bounded.
+///
+/// The third axis: a file with no delimiter and no newline is one field, and without this it is a
+/// full second copy of the input. Bounded rather than refused — a long cell is legitimate data and
+/// truncating it loses less than failing the document.
+fn push_field_char(field: &mut String, c: char) {
+    if field.len() < MAX_CSV_FIELD_BYTES {
+        field.push(c);
+    }
 }
 
 #[cfg(test)]
@@ -379,5 +448,61 @@ mod tests {
     fn a_tab_separated_file_is_detected_by_delimiter_frequency() {
         let d = go(b"a\tb\n1\t2\n3\t4\n", Format::Csv);
         assert!(d.text.contains("a: 1"), "got {:?}", d.text);
+    }
+
+    /// **Audit G7 — assert the BOUND, not survival.**
+    ///
+    /// An allocation failure is an `abort`, so a test that merely calls this and checks it
+    /// returned would pass right up until the row count that kills the process. The property is
+    /// that the retained row count is bounded regardless of the input's, so that is what is
+    /// asserted — together with the true count still being reported, since a cap that lies about
+    /// the size of the export is a different defect.
+    #[test]
+    fn parse_csv_retains_a_bounded_number_of_rows_and_still_counts_them_all() {
+        let src = "a,b\n".repeat(MAX_CSV_ROWS * 3);
+        let (rows, total) = parse_csv(&src, ',', MAX_CSV_ROWS);
+        assert!(
+            rows.len() <= MAX_CSV_ROWS + 1,
+            "retained {} rows against a cap of {}",
+            rows.len(),
+            MAX_CSV_ROWS
+        );
+        assert_eq!(total, MAX_CSV_ROWS * 3, "the true row count must survive the cap");
+    }
+
+    /// The other axis: one row, very many columns, never reaches the row cap at all.
+    #[test]
+    fn parse_csv_bounds_the_width_of_a_single_row() {
+        let src = "a,".repeat(MAX_CSV_COLS * 2);
+        let (rows, _) = parse_csv(&src, ',', MAX_CSV_ROWS);
+        assert_eq!(rows.len(), 1, "one row expected");
+        assert!(
+            rows[0].len() <= MAX_CSV_COLS,
+            "retained {} columns against a cap of {MAX_CSV_COLS}",
+            rows[0].len()
+        );
+    }
+
+    /// The third axis: no delimiter and no newline is otherwise a whole second copy of the input.
+    #[test]
+    fn parse_csv_bounds_a_single_enormous_field() {
+        let src = "x".repeat(MAX_CSV_FIELD_BYTES + 50_000);
+        let (rows, _) = parse_csv(&src, ',', MAX_CSV_ROWS);
+        assert_eq!(rows.len(), 1);
+        assert!(
+            rows[0][0].len() <= MAX_CSV_FIELD_BYTES,
+            "field was {} bytes",
+            rows[0][0].len()
+        );
+    }
+
+    /// The truncation notice reports the TRUE total, not the retained one — a 15,000-row export
+    /// capped to 5,000 must not read as a 5,000-row export.
+    #[test]
+    fn the_truncation_notice_states_the_real_row_count() {
+        let mut warnings = Vec::new();
+        let src = format!("h1,h2\n{}", "a,b\n".repeat(MAX_CSV_ROWS * 3));
+        let out = csv(&src, &mut warnings);
+        assert!(out.contains(&format!("of {} rows shown", MAX_CSV_ROWS * 3)), "got: {out:?}");
     }
 }

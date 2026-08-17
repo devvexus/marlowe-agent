@@ -180,6 +180,9 @@ struct Parser<'a> {
     base: Option<&'a str>,
 
     blocks: Vec<TextBlock>,
+    /// Characters retained across all of [`Parser::blocks`]. See [`Parser::flush_block`] — this
+    /// bounds the two full-document copies that `normalize` was going to discard anyway.
+    block_chars: usize,
     /// The block being accumulated.
     current: String,
     current_links: usize,
@@ -218,6 +221,7 @@ impl<'a> Parser<'a> {
             pos: 0,
             base,
             blocks: Vec::new(),
+            block_chars: 0,
             current: String::with_capacity(1024),
             current_links: 0,
             stack: Vec::new(),
@@ -510,6 +514,32 @@ impl<'a> Parser<'a> {
         if text.is_empty() {
             return;
         }
+        // **The block buffer is bounded, and this is where the HTML memory peak came from.**
+        //
+        // A 64 MB windows-1252 input holds four full-size copies at once, because every high byte
+        // becomes 2–3 UTF-8 bytes and each stage rebuilds the whole document:
+        //
+        // | stage | holds | up to |
+        // |---|---|---|
+        // | caller's `bytes` | the raw input | 64 MB |
+        // | `charset::decode` | decoded UTF-8 | ~192 MB |
+        // | `self.blocks` | every text run, copied | ~192 MB |
+        // | `select_content` | the chosen runs, joined | ~192 MB |
+        // | `normalize` | the final text | 8 MiB — `MAX_TEXT_CHARS` |
+        //
+        // ~770 MB peak for a document that is capped at 8 MiB the moment it is finished. The last
+        // stage discards 95% of what the two before it built, so bounding them costs nothing that
+        // survives the function.
+        //
+        // **What it does change**, stated rather than hidden: for a document whose text exceeds
+        // the bound, *which* 8 MiB survives can differ, because `select_content` now chooses from
+        // a prefix of the blocks rather than all of them. The document was going to be truncated
+        // either way; this decides where. `decoded.text` is the one copy that cannot be bounded
+        // without a streaming decoder, so the peak floor is the input size and its expansion.
+        if self.block_chars >= crate::MAX_TEXT_CHARS {
+            return;
+        }
+        self.block_chars += text.len();
         self.blocks.push(TextBlock {
             text,
             boilerplate: self.boiler_depth > 0,
@@ -788,6 +818,44 @@ mod tests {
     fn doc(html: &str) -> Document {
         extract(html.as_bytes(), Some("text/html; charset=utf-8"), Some("https://ex.com/a/b.html"))
             .expect("html always extracts")
+    }
+
+    /// **The HTML memory peak, as an assertable bound rather than as arithmetic.**
+    ///
+    /// The fix bounds `Parser::blocks` — the third of four full-size copies of a large document.
+    /// The tempting test is `d.text.len() <= MAX_TEXT_CHARS` on the finished `Document`, and it is
+    /// worthless: `normalize` caps the text either way, so it passes identically on a build with
+    /// no bound at all. It measures something adjacent to the property and moves with it. The
+    /// intermediate buffer is the thing that changed, so the intermediate buffer is what is
+    /// asserted.
+    ///
+    /// **Not peak RSS.** That is allocator- and platform-dependent and would be a flaky test
+    /// asserting a number nobody can reproduce. This is a count, and it is exact.
+    #[test]
+    fn the_block_buffer_is_bounded_before_normalize_ever_sees_it() {
+        const PARA_CHARS: usize = 1_000;
+        // Comfortably past MAX_TEXT_CHARS (8 MiB) so the bound must engage.
+        let paras = (crate::MAX_TEXT_CHARS / PARA_CHARS) * 3;
+        let one = format!("<p>{}</p>", "x".repeat(PARA_CHARS));
+        let src = one.repeat(paras);
+
+        let mut p = Parser::new(&src, None);
+        p.run();
+        let retained: usize = p.blocks.iter().map(|b| b.text.len()).sum();
+
+        // The bound overshoots by at most the block that crossed it.
+        assert!(
+            retained <= crate::MAX_TEXT_CHARS + PARA_CHARS,
+            "blocks retained {retained} chars; the cap is {} and the input was {}",
+            crate::MAX_TEXT_CHARS,
+            paras * PARA_CHARS
+        );
+        // Vacuity control: it parsed, and it kept a real document's worth rather than stopping at
+        // the first block. A bound that retained nothing would pass the assertion above.
+        assert!(
+            retained > crate::MAX_TEXT_CHARS / 2,
+            "the parser retained almost nothing ({retained} chars) — bounded to uselessness"
+        );
     }
 
     #[test]

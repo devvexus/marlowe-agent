@@ -62,6 +62,36 @@ pub const MAX_TEXT_CHARS: usize = 8 * 1024 * 1024;
 /// Hard ceiling on input bytes any extractor will walk.
 pub const MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
 
+/// Hard ceiling on a document's `title`, **applied in [`extract`] rather than in a parser**.
+///
+/// # Audit finding G11, fixed at the site and re-opened by the next format
+///
+/// G11 was *"an unclosed `<title>` makes the whole document the title"*, and it was closed in
+/// `html.rs` with `MAX_TITLE_BYTES`. That fix is correct and it is still there — but it is a fix
+/// **at one site**, and `title` is set by four parsers: `html.rs`, `office.rs`'s epub OPF, the
+/// XML/RSS `<title>` path, and `plain.rs`'s first Markdown `# heading`. Three of them still had no
+/// cap, so the same unbounded string reached the same permanent storage by a different route.
+/// **The RSS/XML path is the one the audit named**, and it is what
+/// `tests/title_cap.rs` asserts against — a test on the HTML path would have passed before this
+/// change and proved nothing.
+///
+/// So the cap lives at the chokepoint every format already flows through. `sniff::detect`
+/// dispatches to one of five parsers and `extract_many` fans out to `extract`; a format added
+/// later inherits this without anyone remembering it exists, which is the property the site-fix
+/// could not have.
+///
+/// **The two caps are complementary, not redundant.** `html.rs`'s bounds the *work* — it stops a
+/// 200 KB copy being made at all. This one bounds the *type* — whatever a parser returns, this is
+/// what leaves the crate. Neither replaces the other.
+pub const MAX_TITLE_CHARS: usize = 512;
+
+/// Hard ceiling on a document's `description`. Same argument as [`MAX_TITLE_CHARS`], same site.
+///
+/// `<meta name="description">` has no length limit in any spec and is captured regardless of
+/// `skip_depth` (audit G18), so it is the same unbounded-metadata shape as the title with a
+/// different tag name.
+pub const MAX_DESCRIPTION_CHARS: usize = 4 * 1024;
+
 /// What a document turned out to be. Decided by [`sniff::detect`], never by the caller alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
@@ -319,7 +349,10 @@ pub fn extract(input: &Input<'_>) -> Result<Document, ExtractError> {
         (format, extract_by_format(input, format))
     }));
     return match outcome {
-        Ok((_, result)) => result,
+        // **Every parser's output passes through here, which is the point.** See
+        // [`MAX_TITLE_CHARS`] — the caps are applied at the one place all five formats already
+        // converge, so a sixth inherits them without anyone remembering.
+        Ok((_, result)) => result.map(enforce_metadata_caps),
         Err(_panic) => Err(ExtractError::Backend {
             format: "unknown",
             detail: "the extractor panicked on this document (recovered; the rest of the batch \
@@ -369,6 +402,30 @@ pub fn extract(input: &Input<'_>) -> Result<Document, ExtractError> {
         }
     }
     }
+}
+
+/// Bound the metadata fields no parser bounds for itself.
+///
+/// **Chars, not bytes.** `truncate` on a byte index panics mid-codepoint, and the panic message
+/// quotes ~256 characters of the document — which is audit finding G1, the one that put document
+/// bytes into an error the model could read. `char_indices` cannot land off a boundary.
+///
+/// Kept deliberately small and total: it takes a `Document` and returns one, so there is no path
+/// through `extract` that skips it and no ordering it can be applied in wrongly.
+fn enforce_metadata_caps(mut doc: Document) -> Document {
+    fn cap(s: &mut String, max_chars: usize) {
+        if s.chars().nth(max_chars).is_some() {
+            let end = s.char_indices().nth(max_chars).map(|(i, _)| i).unwrap_or(s.len());
+            s.truncate(end);
+        }
+    }
+    if let Some(t) = doc.title.as_mut() {
+        cap(t, MAX_TITLE_CHARS);
+    }
+    if let Some(d) = doc.description.as_mut() {
+        cap(d, MAX_DESCRIPTION_CHARS);
+    }
+    doc
 }
 
 fn extract_by_format(input: &Input<'_>, format: Format) -> Result<Document, ExtractError> {
