@@ -22,7 +22,55 @@ Per brief §0.7 — what measurement, if it came back bad, says this design is w
 | **K3** | Non-zero ASR on unsigned memory writes | Invariant 2 is not structurally enforced. Stop and fix the write path; nothing else matters. |
 | **K4** | **RESTATED 2026-08-08 — see below.** First frame >150 ms, or any repaint flicker across 120×30 → 240×60 | The terminal thesis (§B0: density with discipline, craft is the product) is not achievable in the chosen stack. Revisit ADR-001. |
 | **K5** | Runs do not resume from checkpoint across host reboot | Invariant 6 fails; the durable-run control plane — the stated competitive opening — is not real. |
-| **K6** | Time from install to first useful output >5 min, or any config required | §4's zero-config constraint failed; the product is for developers only, which is not the product. |
+| **K6** | **RESTATED 2026-08-12 — see below.** Binary on disk and model pulled: cold launch to first useful output >5 min, or any config required | §4's zero-config constraint failed; the product is for developers only, which is not the product. |
+
+### K6 — restated 2026-08-12
+
+> **Original:** *"Time from install to first useful output >5 min, or any config required."*
+>
+> **Restated:** *"With the binary on disk and the model already pulled — cold launch to first useful
+> output >5 min, or any config required."*
+
+**What changed and why.** The original silently included the model download. `qwen3.5:9b` is
+**6.59 GB**; at 100 Mbps that is roughly nine minutes on its own, so K6 as written could not be met
+on any connection a normal user has, at any level of engineering effort. A kill criterion that
+cannot be passed is not a kill criterion — it is a row everyone learns to step over, which is worse
+than not having it, because the stepping-over generalises to the rows that *are* achievable.
+
+**This is a restatement, not a relaxation, and the distinction matters.** The clause measures what
+the product controls: process launch, profile creation, journal open and verification, belief-store
+derivation, and the first model call. A bandwidth-bound one-time download is not a property of the
+harness and never was — including it made K6 a measurement of the user's ISP wearing a product
+label.
+
+**What the removed term becomes instead: a disclosure requirement, not a silent omission.** M2's
+acceptance already requires first-run onboarding to state plainly what Marlowe reaches. The pull
+time joins that list. A user meeting Marlowe on a new machine still waits ~9 minutes for the model,
+and the product must **say so before they start waiting** rather than appear hung. Dropping the term
+from K6 without adding it to the disclosure would be the failure this project logs as an adjacent
+measurement — a number that is correct about a different system.
+
+**Measured 2026-08-12, against the restated clause:**
+
+| | |
+|---|---|
+| Marlowe's own cold start (launch → accepting connections, fresh profile) | **70 ms** |
+| Marlowe's share of an end-to-end ask | **68–198 ms** |
+| End to end, cold, model pulled and resident | **1.2–1.5 s** |
+| Budget | 300,000 ms |
+
+**Passes by more than two orders of magnitude on the harness's own contribution.** Everything above
+Marlowe's share is model inference: `qwen3.5:9b` is a reasoning model whose thinking block swings an
+order of magnitude run to run, and an earlier 11.3 s reading was 11,071 ms of self-reported model
+time around 198 ms of harness. **If K6 ever fails it will not be the harness**, which is worth
+stating because it redirects the next investigation.
+
+**Still unmeasured, and named so it is not read as covered:** every run behind those numbers used a
+**fresh or nearly-empty journal**. `Journal::open` runs `verify_chain`, which walks from sequence 1
+and re-derives every signature, and `BeliefStore::derive` folds the whole log — both **O(journal
+size)**. 70 ms against zero events says nothing about the slope, and a bad slope stays invisible for
+months before arriving as *"why does it take eight seconds to start now."* K6 as restated is exactly
+the measurement that would catch it, on a generated journal of realistic size.
 
 ### K1 — amended 2026-08-08
 
