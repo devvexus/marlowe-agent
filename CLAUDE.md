@@ -424,6 +424,13 @@ run two of.
 with `--jobs 4`. A cheap-looking `cmd; cmd` that re-runs the expensive thing is the shape to watch
 for — it does not read as a second run.
 
+**And run it with `--no-fail-fast`, or the file records a third of the workspace as though it were
+all of it.** `cargo test` stops at the first failing binary; every binary it reached still printed
+`test result: ok`, so the file looks complete. Two sessions reported green off per-crate runs that
+could not reach a workspace-level guard at all. See "Build and test" below — this is the same rule
+and it is stated in both places on purpose, because this section is the one people read when a
+number looks wrong.
+
 **6 is the one that does not announce itself.** Forms 1–5 produce a wrong branch, a swept file or
 a false error report — all visible. A build stealing CPU from a timed query produces a **complete,
 plausible table that is simply wrong**, and the only reason it was caught is that the measuring
@@ -511,10 +518,43 @@ Two artifacts, deliberately separate (ADR-001): the harness is Python, the imple
 # The scoreboard. Never modified to accommodate an implementation.
 cd eval && python -m pytest                  # 72 passing
 
-# The implementation.
-cargo test --workspace                       # 494 passing (457 before M2 C2d)
+# The implementation. --no-fail-fast IS NOT OPTIONAL -- see below.
+cargo test --workspace --jobs 4 --no-fail-fast > runs/<session>/suite.txt 2>&1
+# 881 passing, 2 failing (M2 Session E, 2026-08-17). The two are marlowe-memory's
+# ONNX allocation failures under GPU contention, not code defects.
 cargo build --release                        # -> target/release/marlowe.exe
 ```
+
+### `--no-fail-fast`, and the two sessions that reported green without it
+
+**Amended 2026-08-17, because two things in the line above were false.**
+
+**1. `cargo test` FAIL-FASTS AT THE FIRST FAILING BINARY.** It does not run the rest. A workspace
+run that hits a failure in `marlowe` stops there and **never compiles or runs `marlowe-extract`,
+`marlowe-surface` or anything after it** — and the output looks like a completed run, because every
+binary it did reach printed `test result: ok`. Session E's first run covered roughly a third of the
+workspace and read as complete. **Any run whose purpose is a COUNT needs `--no-fail-fast`.** A run
+whose purpose is "did my change break this" does not.
+
+**2. THE PER-CRATE HABIT HID A GUARD FOR TWO SESSIONS.** Working per-crate (`cargo test -p <crate>`)
+is right for iteration and it is **structurally incapable** of seeing a workspace-level guard.
+`crates/marlowe/tests/determinism_guard.rs` greps every `.rs` file under `crates/` and lives in
+`marlowe`'s test target, so **no `-p` command that does not name `marlowe` can ever run it** — and
+the crates it was failing on were `marlowe-net`, `marlowe-extract`, `marlowe-exec` and
+`marlowe-loop`, none of which is `marlowe`.
+
+**Named, so the correction is auditable rather than a tidy-up: the tools/parallelism session
+(`1d3a428`) and the layer-1/security session (`e35dd9a` and its neighbours) both reported green, and
+both were wrong.** Each listed per-crate counts — *"`marlowe-loop` 89, `marlowe-extract` 57,
+`marlowe-daemon` 53"* — which were accurate and which could not have revealed the failure. Session E
+inherited the same habit and reported *"every crate green"* on the same basis before checking.
+
+**So: per-crate while working; `--workspace --no-fail-fast` ONCE, to a file, before any claim that
+the tree is green.** The count in that claim comes from the file, not from memory.
+
+**This is the same family as everything else in this document.** A per-crate suite answers *"is this
+crate's own test target passing"*, which is adjacent to *"is the tree green"* and reads identically
+when the answer is no. Ask what the number would read if the thing you care about were broken.
 
 **Scoring M0b against M0a** — this is the only number that counts. `{profile_root}` is a literal
 token the harness replaces with a fresh empty directory on every spawn; it is required, because
