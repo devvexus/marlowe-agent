@@ -11,6 +11,10 @@ description = "The TUI and the classic CLI. Rendering and input only — no poli
 # in `src/` can name a producer, so a surface cannot author session state even by accident.
 # ARCHITECTURE §2.14 stops being a claim in a module header and becomes a property of this file.
 marlowe-view.workspace = true
+# **The display sanitiser, and nothing else from this crate.** `marlowe-contract` is the deepest
+# crate in the workspace and holds no producer, so this does not weaken the note above: a surface
+# still cannot author session state. What it can now do is refuse to print an escape sequence.
+marlowe-contract.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 

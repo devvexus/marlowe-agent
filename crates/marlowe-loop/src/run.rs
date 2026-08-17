@@ -232,53 +232,15 @@ impl FieldSpec {
 
 /// Whether a character may appear in a contract value.
 ///
-/// # Audit finding C2 — the old check was C0/C1/DEL and nothing else
+/// **Moved to `marlowe_contract::text` on 2026-08-17 and re-exported here**, because it had
+/// exactly one caller — [`FieldSpec::validate_value`], twenty lines above — and the three render
+/// sites that needed it most were not among them. The §B9 approval prompt printed the model's
+/// composed `bash` command unfiltered as a direct result. It lives in the deepest crate in the
+/// workspace so that the value check and every render site read **one** definition; the reasoning
+/// and the audit history are in that module's header.
 ///
-/// That leaves three families through, and each one defeats a specific defence in this file:
-///
-/// * **U+2028 / U+2029** (LINE and PARAGRAPH SEPARATOR). Mandatory line breaks that
-///   `str::lines()` does **not** split on — so [`CondensedResult::render`] cannot indent what
-///   follows one, and the whole column-0 forgery defence is bypassed by a character it never
-///   sees. Worse, two consumers in this repo disagree: the memory tokenizer *does* treat them as
-///   line breaks, so the same bytes are one line here and two lines there.
-/// * **U+202A–U+202E, U+2066–U+2069** (BiDi embeddings and overrides — Trojan Source). The
-///   two-space indent that is the entire forgery defence is a **visual** property, and an RLO can
-///   move it. What is rendered indented can be displayed as though it were not.
-/// * **U+200B–U+200D, U+2060, U+FEFF** (zero-width). `evil<ZWSP>.example` displays as
-///   `evil.example` and tokenizes as one term, while every `assert!(!contains("evil.example"))`
-///   in the suite reads clean. A test that cannot see the string it is looking for is not a test.
-///
-/// One predicate, so the render side and the validate side cannot come to disagree about what a
-/// character is. `Cf` covers the BiDi and zero-width families by category rather than by a list
-/// that would need extending with each Unicode revision; `Zl`/`Zp` are the two separators.
-pub fn is_renderable(c: char) -> bool {
-    let cp = c as u32;
-    if cp < 0x20 || cp == 0x7F || (0x80..=0x9F).contains(&cp) {
-        return false;
-    }
-    // Zl and Zp. Rust has no category API in std, and these are the entire membership of both.
-    if c == '\u{2028}' || c == '\u{2029}' {
-        return false;
-    }
-    // Cf — format characters. Enumerated by range rather than pulled in as a Unicode-tables
-    // dependency: these are the blocks that reach text in practice, and the interesting ones
-    // (BiDi, zero-width, the deprecated tag block used for smuggling) are all here.
-    !matches!(cp,
-        0x00AD                    // SOFT HYPHEN
-        | 0x0600..=0x0605 | 0x061C | 0x06DD | 0x070F
-        | 0x08E2 | 0x110BD | 0x110CD
-        | 0x180E
-        | 0x200B..=0x200F         // zero-width space/non-joiner/joiner, LRM, RLM
-        | 0x202A..=0x202E         // BiDi embedding and OVERRIDE — Trojan Source
-        | 0x2060..=0x2064 | 0x2066..=0x206F  // word joiner, invisible ops, BiDi isolates
-        | 0xFEFF                  // ZERO WIDTH NO-BREAK SPACE / BOM
-        | 0xFFF9..=0xFFFB         // interlinear annotation
-        | 0x13430..=0x1343F       // Egyptian format controls
-        | 0x1BCA0..=0x1BCA3
-        | 0x1D173..=0x1D17A       // musical beam/slur controls
-        | 0xE0000..=0xE007F       // TAG characters — the classic invisible-instruction channel
-    )
-}
+/// This re-export is kept so existing callers and `condense_integrity.rs` do not move.
+pub use marlowe_contract::text::is_renderable;
 
 /// A sane default for a worker return: enough for findings, far short of a transcript.
 pub const DEFAULT_RESULT_MAX_CHARS: usize = 4_000;

@@ -12,6 +12,7 @@
 
 use std::path::PathBuf;
 
+use marlowe_contract::text::{sanitize_line, sanitize_prose};
 use marlowe_daemon::protocol::Event;
 use marlowe_daemon::{Client, Daemon, DaemonConfig};
 
@@ -217,24 +218,14 @@ impl marlowe_loop::ApprovalGate for TerminalApprovals {
 ///
 /// Everything goes to **stderr**, so a piped `--ask` still produces clean output.
 fn approve_at_the_terminal(event: &Event) -> bool {
-    let Event::Approval { verb, scope, reversible, novelty, .. } = event else {
+    let Event::Approval { .. } = event else {
         return false;
     };
-    eprintln!();
-    eprintln!("  approval needed: {verb}");
-    eprintln!("  on:              {scope}");
-    eprintln!(
-        "  reversible:      {}",
-        if *reversible { "yes" } else { "NO — this cannot be undone" }
-    );
-    match novelty {
-        Some(n) => eprintln!("  novelty:         {n}"),
-        // §B9 wants a novelty reason and a ceiling. Neither is fabricated when absent: a
-        // defaulted "routine" would be a claim about promotion logic nobody has written.
-        None => eprintln!("  novelty:         not assessed (the trust ledger is M6)"),
+    let mut err = std::io::stderr();
+    if write_approval_prompt(event, &mut err).is_err() {
+        return false;
     }
-    eprint!("  approve? [y/N] ");
-    let _ = std::io::Write::flush(&mut std::io::stderr());
+    let _ = std::io::Write::flush(&mut err);
 
     let mut line = String::new();
     match std::io::stdin().read_line(&mut line) {
@@ -248,6 +239,34 @@ fn approve_at_the_terminal(event: &Event) -> bool {
             yes
         }
     }
+}
+
+/// **The §B9 prompt, split out from the stdin read so the property can be asserted here.**
+///
+/// This is the highest-value sanitiser site in the product. `scope` is the model's composed
+/// `bash` command — an argument the model chose, printed to a human who is about to authorise it
+/// — and until 2026-08-17 it was printed unfiltered. `\u{1b}[2K\r` in a command erases the line
+/// it is written on, so the model could repaint the very line the decision is being made from.
+/// Every field here is [`Shape::Line`]: a `\n` in `scope` writes a second, fraudulent prompt.
+fn write_approval_prompt(event: &Event, out: &mut impl std::io::Write) -> std::io::Result<()> {
+    let Event::Approval { verb, scope, reversible, novelty, .. } = event else {
+        return Ok(());
+    };
+    writeln!(out)?;
+    writeln!(out, "  approval needed: {}", sanitize_line(verb))?;
+    writeln!(out, "  on:              {}", sanitize_line(scope))?;
+    writeln!(
+        out,
+        "  reversible:      {}",
+        if *reversible { "yes" } else { "NO — this cannot be undone" }
+    )?;
+    match novelty {
+        Some(n) => writeln!(out, "  novelty:         {}", sanitize_line(n))?,
+        // §B9 wants a novelty reason and a ceiling. Neither is fabricated when absent: a
+        // defaulted "routine" would be a claim about promotion logic nobody has written.
+        None => writeln!(out, "  novelty:         not assessed (the trust ledger is M6)")?,
+    }
+    write!(out, "  approve? [y/N] ")
 }
 
 /// Stop a running daemon. **The graceful path, and until now there was none.**
@@ -310,24 +329,36 @@ fn resolve_retractions(events: &[Event]) -> Vec<Event> {
 /// gets the whole event list at once, so the retraction is applied to the list instead: text the
 /// model later proved was reasoning never reaches the pipe in the first place.
 fn render(events: &[Event]) {
+    let mut out = std::io::stdout();
+    let _ = render_to(events, &mut out);
+}
+
+/// The body of [`render`], against a writer so the sanitiser can be asserted where it runs.
+///
+/// **Every model-influenced field is sanitised here**, and the shape is chosen per field rather
+/// than globally: prose keeps its newlines, anything sharing a line with harness-authored text
+/// does not. A `\n` inside a tool `target` would otherwise forge a second §B6 tool line, which
+/// reads as a call the model never made.
+fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result<()> {
     let events = resolve_retractions(events);
     for event in &events {
         match event {
             Event::Status(r) => {
-                println!("marlowe {}", r.version);
-                println!("  workspace   {}", r.workspace);
-                println!("  model       {}", r.model_disclosure);
+                writeln!(out, "marlowe {}", sanitize_line(&r.version))?;
+                writeln!(out, "  workspace   {}", sanitize_line(&r.workspace))?;
+                writeln!(out, "  model       {}", sanitize_line(&r.model_disclosure))?;
                 // ADR-029: announced, never inferred.
-                println!("  rerank      {}", r.rerank_provider);
-                println!("  runs        {} live", r.live_runs);
+                writeln!(out, "  rerank      {}", sanitize_line(&r.rerank_provider))?;
+                writeln!(out, "  runs        {} live", r.live_runs)?;
                 match &r.degraded {
-                    Some(d) => println!("  DEGRADED    {d}"),
-                    None => println!("  ready"),
+                    Some(d) => writeln!(out, "  DEGRADED    {}", sanitize_line(d))?,
+                    None => writeln!(out, "  ready")?,
                 }
             }
-            Event::Text { delta } => print!("{delta}"),
+            // Prose: the model's reply, and its newlines are its own.
+            Event::Text { delta } => write!(out, "{}", sanitize_prose(delta))?,
             // Only ever produced by `Replay`, which the classic path does not use.
-            Event::User { text } => println!("> {text}"),
+            Event::User { text } => writeln!(out, "> {}", sanitize_prose(text))?,
             // The classic path has no collapsible element, so reasoning is counted rather than
             // printed: it is progress, not an answer, and dumping a chain of thought into a
             // piped stdout would make `--ask` unusable in a script.
@@ -335,30 +366,206 @@ fn render(events: &[Event]) {
             // Already applied by `resolve_retractions`, above.
             Event::SpeechRetracted => {}
             Event::Tool { verb, target, state, summary, .. } => {
-                println!("  ⋯ {verb}  {target}  {summary}  [{state}]");
+                writeln!(
+                    out,
+                    "  ⋯ {}  {}  {}  [{}]",
+                    sanitize_line(verb),
+                    sanitize_line(target),
+                    sanitize_line(summary),
+                    sanitize_line(state)
+                )?;
             }
-            Event::Compacted { turns } => println!("  ─ compacted · {turns} turns ─"),
+            Event::Compacted { turns } => writeln!(out, "  ─ compacted · {turns} turns ─")?,
             Event::Degraded { what, remedy } => {
-                println!("  ! {what}");
-                println!("    {remedy}");
+                writeln!(out, "  ! {}", sanitize_line(what))?;
+                writeln!(out, "    {}", sanitize_line(remedy))?;
             }
             Event::Approval { verb, scope, reversible, .. } => {
-                println!(
-                    "  ? approval needed: {verb} {scope}{}",
+                writeln!(
+                    out,
+                    "  ? approval needed: {} {}{}",
+                    sanitize_line(verb),
+                    sanitize_line(scope),
                     if *reversible { "" } else { " · not recoverable" }
-                );
-                println!("    (no interactive surface attached; the harness declined)");
+                )?;
+                writeln!(out, "    (no interactive surface attached; the harness declined)")?;
             }
             Event::Done { outcome, detail, elapsed_ms, .. } => {
                 if !detail.is_empty() {
-                    println!("{detail}");
+                    writeln!(out, "{}", sanitize_prose(detail))?;
                 }
-                println!("  [{outcome} · {elapsed_ms} ms]");
+                writeln!(out, "  [{} · {elapsed_ms} ms]", sanitize_line(outcome))?;
             }
             Event::Run { id, status, tokens, .. } => {
-                println!("  run {id}  {status}  {tokens} tokens");
+                writeln!(
+                    out,
+                    "  run {}  {}  {tokens} tokens",
+                    sanitize_line(id),
+                    sanitize_line(status)
+                )?;
             }
-            Event::Error { detail } => println!("  error: {detail}"),
+            Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
         }
+    }
+    Ok(())
+}
+
+/// **The display sanitiser at the two classic-CLI render sites.**
+///
+/// Two tests, one per site, and that is deliberate: reverting the sanitiser in `render_to` must
+/// fail a *different named test* from reverting it in `write_approval_prompt`. A single test
+/// covering both sites would pass while one of them was unguarded — which is instance #16, the
+/// property asserted somewhere other than where it is enforced, committed while fixing it.
+#[cfg(test)]
+mod display_sanitiser {
+    use super::*;
+    use marlowe_daemon::protocol::{Event, StatusReport};
+
+    /// Erase-line + carriage-return: the payload from the audit finding. It repaints the line it
+    /// is printed on, so a human reading a command sees whatever the model wanted them to see.
+    const OVERWRITE: &str = "\u{1b}[2K\r";
+
+    fn text(bytes: Vec<u8>) -> String {
+        String::from_utf8(bytes).expect("render writes utf-8")
+    }
+
+    #[test]
+    fn the_approval_prompt_never_prints_an_escape_the_model_composed() {
+        // `scope` is the model's composed `bash` command, printed to a human about to authorise
+        // it. This is the highest-severity instance of the finding.
+        let event = Event::Approval {
+            decision: 1,
+            verb: "bash".into(),
+            scope: format!("rm -rf /important{OVERWRITE}ls -l"),
+            reversible: false,
+            novelty: Some(format!("first use{OVERWRITE}routine")),
+        };
+        let mut out = Vec::new();
+        write_approval_prompt(&event, &mut out).unwrap();
+        let s = text(out);
+
+        assert!(!s.contains('\u{1b}'), "ESC reached the approval prompt:\n{s}");
+        assert!(!s.contains('\r'), "CR reached the approval prompt:\n{s}");
+        assert!(s.contains("<U+001B>"), "stripped silently instead of marked:\n{s}");
+
+        // The prompt still says what is being approved — marking, not truncating.
+        assert!(s.contains("rm -rf /important"), "{s}");
+        assert!(s.contains("approve? [y/N]"), "{s}");
+
+        // And the decision surface is still the shape the human expects: one line per field, so
+        // a `\n` in scope cannot write a second, fraudulent prompt below the real one.
+        let forged = Event::Approval {
+            decision: 2,
+            verb: "bash".into(),
+            scope: "ok\n  approve? [y/N] y".into(),
+            reversible: true,
+            novelty: None,
+        };
+        let mut out2 = Vec::new();
+        write_approval_prompt(&forged, &mut out2).unwrap();
+        let s2 = text(out2);
+        // **The property is "no forged prompt LINE", not "the substring appears once".**
+        //
+        // The first draft of this assertion counted substrings and failed against a *working*
+        // sanitiser: the forged text is still present, inert, in the middle of the scope line
+        // after a visible `<U+000A>`. That is the fix working — what makes a prompt a prompt is
+        // that it starts its own line, and a human scanning the left margin sees one. Counting
+        // occurrences measured something adjacent to the property and stricter than it.
+        let prompt_lines = s2.lines().filter(|l| l.trim_start().starts_with("approve?")).count();
+        assert_eq!(prompt_lines, 1, "the scope forged a second prompt line:\n{s2}");
+        assert!(s2.contains("<U+000A>"), "the newline was dropped, not marked:\n{s2}");
+        // ...and the forged text is still visible rather than removed, so the human can see what
+        // was attempted.
+        assert!(s2.contains("ok<U+000A>"), "{s2}");
+    }
+
+    #[test]
+    fn no_rendered_event_carries_a_control_sequence_to_the_terminal() {
+        // Every model-influenced field on every variant, in one pass: if a variant is added
+        // later and left unsanitised, this fails as soon as it is given a hostile value.
+        let events = vec![
+            Event::Status(StatusReport {
+                version: format!("0.1.0{OVERWRITE}"),
+                workspace: format!("C:\\w{OVERWRITE}"),
+                model: "m".into(),
+                model_disclosure: format!("marlowe-red:9b{OVERWRITE}"),
+                degraded: Some(format!("ollama down{OVERWRITE}"),),
+                rerank_provider: format!("cpu{OVERWRITE}"),
+                live_runs: 0,
+                models: Vec::new(),
+            }),
+            Event::Text { delta: format!("prose{OVERWRITE}more") },
+            Event::User { text: format!("hi{OVERWRITE}") },
+            Event::Tool {
+                id: 1,
+                verb: format!("bash{OVERWRITE}"),
+                target: format!("ls\u{202E}gnp.exe"),
+                state: format!("ok{OVERWRITE}"),
+                summary: format!("0 files{OVERWRITE}"),
+            },
+            Event::Degraded { what: format!("w{OVERWRITE}"), remedy: format!("r{OVERWRITE}") },
+            Event::Approval {
+                decision: 3,
+                verb: format!("edit{OVERWRITE}"),
+                scope: format!("/etc/passwd{OVERWRITE}"),
+                reversible: false,
+                novelty: None,
+            },
+            Event::Done {
+                outcome: format!("completed{OVERWRITE}"),
+                detail: format!("done{OVERWRITE}"),
+                spend_micros_usd: 0,
+                elapsed_ms: 5,
+            },
+            Event::Run {
+                id: format!("r1{OVERWRITE}"),
+                status: format!("live{OVERWRITE}"),
+                tokens: 3,
+                depth: 0,
+            },
+            Event::Error { detail: format!("boom{OVERWRITE}") },
+        ];
+
+        let mut out = Vec::new();
+        render_to(&events, &mut out).unwrap();
+        let s = text(out);
+
+        assert!(!s.contains('\u{1b}'), "ESC survived render:\n{s:?}");
+        assert!(!s.contains('\r'), "CR survived render:\n{s:?}");
+        assert!(!s.contains('\u{202E}'), "RLO survived render:\n{s:?}");
+        assert!(s.contains("<U+001B>"), "stripped silently instead of marked:\n{s:?}");
+        assert!(s.contains("<U+202E>"), "stripped silently instead of marked:\n{s:?}");
+
+        // **The control that stops this being vacuous.** If the events had never been rendered
+        // — a match arm that dropped them, an early return — every assertion above would pass on
+        // an empty string. This asserts the payloads actually reached the writer.
+        assert!(s.contains("prose"), "nothing was rendered at all:\n{s:?}");
+        assert!(s.contains("/etc/passwd"), "{s:?}");
+        assert!(s.contains("boom"), "{s:?}");
+    }
+
+    #[test]
+    fn prose_keeps_its_newlines_and_a_tool_line_does_not() {
+        // The shape distinction, asserted where it is applied rather than in the contract crate:
+        // a model reply is prose, and a §B6 tool line is one line.
+        let mut out = Vec::new();
+        render_to(&[Event::Text { delta: "line one\nline two".into() }], &mut out).unwrap();
+        assert_eq!(text(out), "line one\nline two");
+
+        let mut out = Vec::new();
+        render_to(
+            &[Event::Tool {
+                id: 1,
+                verb: "read".into(),
+                target: "a.txt\n  ⋯ bash  rm -rf /  ok  [ok]".into(),
+                state: "ok".into(),
+                summary: "1 file".into(),
+            }],
+            &mut out,
+        )
+        .unwrap();
+        let s = text(out);
+        assert_eq!(s.lines().count(), 1, "the target forged a second tool line:\n{s}");
+        assert!(s.contains("<U+000A>"), "{s}");
     }
 }

@@ -13,6 +13,7 @@
 
 use std::io::{BufRead, Write};
 
+use marlowe_contract::text::{sanitize_line, sanitize_prose};
 use marlowe_view::{ClockRead, Entry, Intent, Produce, SessionView, Tab, ToolLineState};
 
 use crate::commands::{self, Outcome};
@@ -136,9 +137,12 @@ fn print_approval(view: &SessionView, out: &mut impl Write) -> std::io::Result<(
     let Some(radius) = &view.approval else {
         return Ok(());
     };
-    writeln!(out, "\n  approval — {}", radius.headline())?;
-    writeln!(out, "  {}", radius.consequence())?;
-    writeln!(out, "  {}", radius.why())?;
+    // §B9 on the classic surface. `headline` names the verb and the scope, and the scope is a
+    // model-composed argument — so these three lines are the same decision surface the TUI's
+    // overlay renders, on a surface with no ratatui underneath to filter anything.
+    writeln!(out, "\n  approval — {}", sanitize_line(&radius.headline()))?;
+    writeln!(out, "  {}", sanitize_line(&radius.consequence()))?;
+    writeln!(out, "  {}", sanitize_line(&radius.why()))?;
     let keys: Vec<String> = radius
         .keys()
         .iter()
@@ -185,14 +189,18 @@ fn drain(
 fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std::io::Result<()> {
     while *shown < view.transcript.len() {
         match &view.transcript[*shown] {
-            Entry::User(t) => writeln!(out, "> {t}")?,
+            Entry::User(t) => writeln!(out, "> {}", sanitize_prose(t))?,
             Entry::Said(t) => match t {
                 // The classic surface renders both halves identically -- a user must not see a
                 // seam between the model talking and the harness talking.
-                marlowe_view::Speech::Model(text) => writeln!(out, "{text}")?,
+                marlowe_view::Speech::Model(text) => writeln!(out, "{}", sanitize_prose(text))?,
+                // Harness-authored, but a notice interpolates targets and details that are not,
+                // and "harness-authored today" is an assumption about every future notice. The
+                // quarantine's own carve-out for harness-authored bodies was written and then
+                // removed for exactly this reason; the rule is unconditional here too.
                 marlowe_view::Speech::Harness(n) => {
                     for line in crate::commands::render_notice(view, n) {
-                        writeln!(out, "{line}")?;
+                        writeln!(out, "{}", sanitize_line(&line))?;
                     }
                 }
             },
@@ -216,15 +224,23 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
                         ToolLineState::Running { elapsed_ms } => format!("{elapsed_ms} ms"),
                         ToolLineState::Ok(s) | ToolLineState::Failed(s) => s.render(),
                     };
-                    writeln!(out, "  ... {:<9} {:<40} {}", c.verb, target, right)?;
+                    // Every field on a §B6 tool line is Line-shaped: a `\n` in `target` forges a
+                    // second tool line, which reads as a call the model never made.
+                    writeln!(
+                        out,
+                        "  ... {:<9} {:<40} {}",
+                        sanitize_line(&c.verb),
+                        sanitize_line(&target),
+                        sanitize_line(&right)
+                    )?;
                     if c.expanded {
                         for t in &c.collapsed {
-                            writeln!(out, "        {t}")?;
+                            writeln!(out, "        {}", sanitize_line(t))?;
                         }
                         if let ToolLineState::Ok(s) | ToolLineState::Failed(s) = &c.state {
                             if let Some(d) = &s.detail {
                                 for l in d.lines() {
-                                    writeln!(out, "        {l}")?;
+                                    writeln!(out, "        {}", sanitize_line(l))?;
                                 }
                             }
                         }
@@ -243,4 +259,129 @@ pub fn print_pane(view: &SessionView, tab: Tab, mut out: impl Write) -> std::io:
         writeln!(out, "{l}")?;
     }
     Ok(())
+}
+
+/// **The display sanitiser on the classic surface.**
+///
+/// A separate named test from the two in `marlowe/src/agent.rs`, because reverting the sanitiser
+/// *here* must fail a test that names *this* site. The classic CLI has no ratatui underneath it —
+/// it writes bytes straight to a terminal — so this is the surface where an escape sequence has
+/// nothing at all standing between the model and the screen.
+#[cfg(test)]
+mod display_sanitiser {
+    use super::*;
+    use marlowe_view::notice::Speech;
+    use marlowe_view::model::ToolCall;
+    use marlowe_view::turn::ToolLineState;
+
+    const OVERWRITE: &str = "\u{1b}[2K\r";
+
+    fn view_with(entries: Vec<Entry>) -> SessionView {
+        let producer = marlowe_stub::Session::new();
+        let mut view = producer.view().clone();
+        view.transcript = entries;
+        view
+    }
+
+    fn printed(view: &SessionView) -> String {
+        let mut out: Vec<u8> = Vec::new();
+        let mut shown = 0usize;
+        print_new(view, &mut out, &mut shown).unwrap();
+        String::from_utf8(out).expect("the classic surface writes utf-8")
+    }
+
+    #[test]
+    fn the_classic_surface_never_writes_a_control_sequence_to_the_terminal() {
+        let s = printed(&view_with(vec![
+            Entry::User(format!("hello{OVERWRITE}")),
+            Entry::Said(Speech::Model(format!("an answer{OVERWRITE}forged"))),
+            Entry::Tools(vec![ToolCall {
+                id: 1,
+                verb: "bash",
+                target: format!("rm -rf /{OVERWRITE}ls"),
+                state: ToolLineState::Running { elapsed_ms: 12 },
+                collapsed: Vec::new(),
+                expanded: false,
+            }]),
+        ]));
+
+        assert!(!s.contains('\u{1b}'), "ESC reached the terminal:\n{s:?}");
+        assert!(!s.contains('\r'), "CR reached the terminal:\n{s:?}");
+        assert!(s.contains("<U+001B>"), "stripped silently instead of marked:\n{s:?}");
+
+        // **The vacuity control.** Every assertion above passes on an empty string, so this
+        // asserts the entries actually reached the writer.
+        assert!(s.contains("hello"), "nothing was printed at all:\n{s:?}");
+        assert!(s.contains("an answer"), "{s:?}");
+        assert!(s.contains("rm -rf /"), "{s:?}");
+    }
+
+    #[test]
+    fn a_tool_target_cannot_forge_a_second_b6_line() {
+        // §B6 is one line per call. A `\n` in a target invents a call that never happened, and on
+        // a linear surface there is no grid geometry to make the forgery obvious.
+        let s = printed(&view_with(vec![Entry::Tools(vec![ToolCall {
+            id: 1,
+            verb: "read",
+            target: "a.txt\n  ... bash      rm -rf /".into(),
+            state: ToolLineState::Running { elapsed_ms: 1 },
+            collapsed: Vec::new(),
+            expanded: false,
+        }])]));
+        assert_eq!(s.lines().count(), 1, "the target forged a second tool line:\n{s}");
+        assert!(s.contains("<U+000A>"), "the newline was dropped, not marked:\n{s}");
+    }
+
+    /// **This test exists because the mutation run found nothing.**
+    ///
+    /// Reverting the sanitiser in `print_approval` failed **zero** tests, while the three tests
+    /// above all covered `print_new`. Two sites, one guarded, and a green suite either way — which
+    /// is the fourteenth-instance family in miniature: a guard whose subject nothing checks.
+    ///
+    /// It would not have been found by reading, because the sanitiser calls are visibly *there* in
+    /// `print_approval`. Only reverting them one site at a time says whether anything notices.
+    ///
+    /// `headline()` is the line that carries attacker-influenced text — `within` is a path the
+    /// model named, `recipient` an address it chose — while `consequence()` is a fixed string.
+    #[test]
+    fn the_classic_approval_prompt_never_writes_a_control_sequence() {
+        use marlowe_view::approval::{
+            BlastRadius, Ceiling, Effect, Novelty, Offered, PathLabel, RiskTier,
+        };
+
+        let producer = marlowe_stub::Session::new();
+        let mut view = producer.view().clone();
+        view.approval = Some(BlastRadius {
+            effect: Effect::Execute {
+                touches: 4,
+                within: PathLabel::new(format!("/work/src{OVERWRITE}/etc")),
+                reaches_network: true,
+            },
+            tier: RiskTier::Irreversible,
+            novelty: Novelty::Routine,
+            ceiling: Ceiling::AtCeiling,
+            offered: Offered { edit_first: false, send_as_marlowe: false },
+        });
+
+        let mut out: Vec<u8> = Vec::new();
+        print_approval(&view, &mut out).unwrap();
+        let s = String::from_utf8(out).expect("utf-8");
+
+        assert!(!s.contains('\u{1b}'), "ESC reached the approval prompt:\n{s:?}");
+        assert!(!s.contains('\r'), "CR reached the approval prompt:\n{s:?}");
+        assert!(s.contains("<U+001B>"), "stripped silently instead of marked:\n{s:?}");
+        // Vacuity control: the prompt rendered at all, and still names what is being approved.
+        assert!(s.contains("/work/src"), "the approval never rendered:\n{s:?}");
+        assert!(s.contains("approval"), "{s:?}");
+    }
+
+    #[test]
+    fn a_model_reply_keeps_its_paragraphs() {
+        // The shape distinction where it is applied: prose is prose. A sanitiser that flattened
+        // model replies would pass every assertion above and make the product worse.
+        let s = printed(&view_with(vec![Entry::Said(Speech::Model(
+            "first line\nsecond line".into(),
+        ))]));
+        assert_eq!(s, "first line\nsecond line\n");
+    }
 }
