@@ -264,6 +264,17 @@ untrusted content determines an outcome, the question is who asserted it — eve
 tool, no argument, and no permission check in sight.* Ranking inputs, cache keys, memory derivation
 lineage and consolidation merge decisions are all the same shape and none of them has been examined.
 
+**The first domain this actually reached was NAVIGATION, and it was not on that list — 2026-08-12,
+ADR-043.** *"Which URL do I fetch next"* is the same question: a link extracted from a document's
+markup is a **constant the attacker committed to before the run had seen anything**, while a URL the
+model composed after reading is a **variable that can encode any secret the run holds**. Both are
+`UntrustedContent`, so the floor cannot separate them; provenance can. The resolution — the model
+passes an index and the harness passes the URL bytes — is this section's rule applied verbatim, and
+it is what lets a research run navigate freely while holding `UntrustedContent` for its entire life.
+
+That is worth recording as evidence the generalization is real rather than a flourish: the domain
+that needed it was one nobody had listed, and the rule arrived there already correct.
+
 ## 6. How this gets measured, because otherwise it drifts
 
 Per CLAUDE.md, a target that is not a command printing a number does not exist.

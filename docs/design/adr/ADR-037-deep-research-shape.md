@@ -109,6 +109,20 @@ because §2.8 binds trust to origin and the origin is outside. Therefore:
 > findings must be a separate run that never touched a page. The reader and the actor cannot be the
 > same run.**
 
+> **CORRECTED 2026-08-12 by ADR-043 §5. The mechanism is right; "never touched a page" is not
+> achievable and was only ever true because of a defect.** The condensed return crosses into the
+> parent at `AgentInferred`, so a fetch never lowers the floor and this paragraph reads as satisfied.
+> That crossing is a laundering path — one LLM rewrite promoting `UntrustedContent` a full class, in
+> direct contradiction of layer 2 — and it must cross at `UntrustedContent`. **The moment it does,
+> the orchestrator is tainted as soon as findings arrive.** There is no run that both acts on
+> findings and stays clean.
+>
+> ADR-043 replaces the two-role model with **three phases and three trust states** — plan (clean),
+> read/navigate (tainted, selection-only), synthesise/write (tainted, writing to a target the *plan*
+> asserted). Read §3 of this ADR as a **security precondition** rather than a feature: the plan is
+> composed in a clean run, and it is what supplies a legitimate destination for a tainted synthesis
+> phase to write to.
+
 That is not a recommendation to be traded off against latency or simplicity. It is a property of
 the permission layer, and any research design that puts reading and acting in one run **will not
 run** — the harness refuses it, at the `adjudicate` call, without consulting the model.

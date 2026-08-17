@@ -1,5 +1,117 @@
 # State
 
+## SECURITY SESSION — 20+ AUDIT FINDINGS FIXED, AND LAYER 3 TURNS OUT TO BE UNREACHABLE
+
+**Seven commits, every crate green. Each fix verified by DELETING it and watching a named test
+fail** — A1's mutation hangs the suite outright, which is the point.
+
+### The two findings that outrank everything else fixed
+
+**1. LAYER 3'S LATCH CANNOT FIRE IN THE SHIPPED DAEMON.** Four links, each checked by grep rather
+than by argument: injected memory is untrusted only if some belief is `UntrustedContent`; a belief is
+that only from `ingest`, or from `remember_claim` with an already-bottomed floor, which is circular;
+and **`ingest` has exactly one caller in the workspace — `adapter.rs:304`, the `--eval-adapter`.**
+`Channel::` appears nowhere in `crates/marlowe-daemon/src`.
+
+Not broken — **unreachable**. ADR-041 removed the only reachable trigger (tool results) and the
+replacement trigger has no production ingest path behind it. Every test that establishes taint by
+hand-pushing an `InjectedMemory` block measures a state the product cannot enter. CLAUDE.md's
+*"layer 3 is still reachable and non-vacuous"* was true of the test surface and **false of the
+product**; corrected in place. **Fix the compaction stamp (E5) and the trim marker (F1) BEFORE
+wiring `ingest`**, or three defects go live in one path at one moment.
+
+**2. `is_renderable` HAS ONE CALLER IN THE ENTIRE PRODUCT**, and no render site is it. So the §B9
+approval prompt renders the model's composed `bash` command unfiltered: `[2K\r` overwrites the
+line the human is deciding on. The TUI is safe only *incidentally*, because ratatui filters control
+characters — nothing here tests that or names the dependency. **Highest-severity open item.**
+
+### Fixed (see `docs/design/SECURITY-AUDIT.md` for the ledger and the test that pins each row)
+
+| | |
+|---|---|
+| **Daemon socket** | a per-profile token, checked **before dispatch**. Loopback is per-machine, not per-user. Verified by disabling the comparison: a stranger's `{"op":"shutdown"}` was dispatched and stopped the daemon |
+| **`bash`** | A1 timeout + A2 output cap. `BASH_TIMEOUT_MS` was declared and **nothing read it** — `Command::output()` blocks forever, so any approved `ping -t` hung the batch, the turn and the daemon |
+| **`web`** | A3 the raw `Location` header at `AgentObserved` — the one genuine layer-1 bypass; A4 parser error strings and raw `Content-Type` |
+| **`read`** | A7 `slice_lines` overflow (aborts the whole batch through `thread::scope`), A8 no read ceiling |
+| **Quarantine** | C1/E1 render bypass, C2 character class, C3/E2 field broadcast, C4/C5 budget zeros, E3 the cache **write** primitive, E4 the child streaming to the terminal, E7 label desync, E8 unbounded retry, E10 stolen steering, E14 cache growth |
+| **The hook** | `--self-check` with a missing argument returned **0**; `/persona/` was exempt on a basis that had expired |
+
+### Three methodological results, each worth more than a single fix
+
+1. **The audit's own A7 exploit value does not reproduce.** It names
+   `range = "1-18446744073709551615"`; with `a = 1` the subtraction saturates and the `+ 1` fits. It
+   needs `a = 0`. **Reverting the fix left the single-value test GREEN.** A regression test copied
+   from the report would have passed against unfixed code and A7 would have been marked closed.
+2. **My first C3 tests did not discriminate.** They asserted on `parse_fields` and `structured`
+   directly; restoring the broadcast in `engine.rs` left every one of them passing — the property
+   asserted where the helper is *defined* rather than where it is *used*. **Family #16, committed
+   while fixing family #16.** And the engine-level replacement's first draft failed against a
+   *working* filter, because the harness gave the child and the parent the same words to say.
+3. **A3 was not fixed by its own fix.** Round 2 found the payload had moved from the path to the
+   **host**, which nothing validated — `Target::parse` checks only for whitespace and `@`. And `+`,
+   the URL encoding of a space, was in my permitted set; 88 characters of readable instruction
+   passed. **My test used literal spaces**, so the whole class of separator-encoded prose went
+   untested.
+
+### Round 2 of the audit — 6 read-only agents, findings NOT yet fixed
+
+**Process-killers, and these abort rather than panic, so `catch_unwind` cannot hold them:** xlsx
+shared-string amplification (~1.6×10⁹:1 from a 250 KB file), csv row materialisation before the cap,
+HTML peak ~770 MB/document on a 64 MB windows-1252 input, and `<title>` **uncapped in four parsers**
+— G11 was fixed at the site rather than at the type, so every non-HTML path still has it.
+
+**Also open:** `--profile-root` inside `--workspace` is unchecked, so the model can `read`
+`profile.key` (plaintext HMAC, `Inert`, no approval) and forge the journal; the journal chain
+detects interior deletion but **not suffix truncation**; `Daemon::open` reimplements the
+`open_or_init` pattern that `profile.rs` has an executable test forbidding.
+
+## THE PATH FORWARD IS ADR-043, AND READING ADR-036/037 CHANGED IT
+
+The question was: *can Marlowe be injection-proof AND go URL to URL freely?* Today it goes URL to
+URL only because **layer 3 is silently inert** — the condensed return crosses at `AgentInferred`, so
+a fetch never lowers the floor. That is a laundering path, and its second leg is worse: `remember`
+stamps page-derived content as a **permanent `AgentInferred` belief** in the signed journal.
+
+**ADR-043: the model passes an index, the harness passes the URL bytes.** A link extracted from
+markup is a constant the attacker fixed *before* the run had seen anything; a composed URL is a
+variable that can encode anything it holds. Exfiltration lives entirely in the second. So a research
+run can hold `UntrustedContent` for its whole life and still navigate, while `bash` and `edit` stay
+hard-blocked.
+
+**Two things reading the docs corrected:**
+
+- **This is ADR-036 §5's rule, not a new idea.** *"Wherever a value chosen by untrusted content
+  determines an outcome, the question is who asserted it."* §5 lists four unexamined domains;
+  navigation was not among them, and the rule arrived there already correct. §5 amended.
+- **ADR-037 §6 is wrong about who stays clean.** *"The orchestrator … must be a separate run that
+  never touched a page"* is unachievable once the return crosses at `UntrustedContent`. Replaced
+  with **three phases**: plan (clean), read/navigate (tainted, selection-only), synthesise/write
+  (tainted, writing to a target the *plan* asserted). **This makes ADR-037 §3's collaborative plan a
+  security precondition rather than a UX feature** — it is what supplies a clean destination for a
+  tainted synthesis phase.
+
+**And the link table must bypass the quarantined reader.** Routing it through the compromised
+component would make quarantine decorative for the one decision that matters. The harness builds the
+table from extracted markup and hands it to the parent directly.
+
+### NEXT, in order
+
+1. **The display sanitiser.** Lift `is_renderable` into `marlowe-contract`; apply at
+   `agent.rs::render`, `approve_at_the_terminal`, `surface/src/cli.rs`. Independent of everything
+   else, highest severity.
+2. **The extractor's process-killers** + the `<title>` cap applied at the **type**, so every format
+   inherits it including ones added later.
+3. **The link table and `web(ref, link)`** — buildable inside M2's tool scope.
+4. **The condensed return at `UntrustedContent`**, once 3 exists so nothing regresses. Layer 3 goes
+   live for the first time. Folds in A5, A6 and H6 — all four are one question — and needs a single
+   `DECISIONS.md` entry.
+5. **M3 inherits ADR-043 §5's phase table**, not ADR-037 §6's two-role model.
+
+**Not done and it should be:** no real end-to-end run this session. CLAUDE.md budgets one per
+milestone as verification, and it is the practice that caught the `done` defect, scroll and
+double-dimming. The daemon accept loop, the client, `bash`, `read`, `web` and the quarantine path all
+changed and none was exercised through an actual conversation.
+
 ## TOOLS/PARALLELISM SESSION — EXTRACTION EXISTS, FETCHES RUN CONCURRENTLY, READS ARE BATCHED
 
 **Three ADRs: ADR-040 (`marlowe-extract` + fetch path), ADR-041 (batched quarantined reads).**
