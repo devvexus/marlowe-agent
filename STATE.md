@@ -49,6 +49,37 @@ gets, since `models/` and `data/` are gitignored.
 Output: `6 × 7 = 42.  [completed · 9092 ms]`. **No flags, no config file, no environment
 variables** — the binary auto-spawned its own daemon and answered. Binary 113 MB.
 
+### THAT 9.2 s IS NOT MARLOWE'S COST, AND READING IT AS ONE IS THE WHOLE ERROR
+
+**Decomposed afterwards on the Windows release exe, because the row above invites the wrong
+reading.** K6 as the human defines it is *binary on disk, model pulled, launch cold → first useful
+output*, so what matters is which part of that the harness owns.
+
+| | measured |
+|---|---|
+| **Marlowe's own cold start** — process launch → accepting connections, fresh profile (journal, HMAC key, token, `profile.json` all created inside it) | **70 ms** |
+| **Marlowe's share of an end-to-end ask** — wall clock minus the model's own reported time, across 7 runs | **68–198 ms** |
+| **End-to-end, cold, model pulled and resident** | **1.2 – 1.5 s typical** |
+
+**Everything else is the model.** `qwen3.5:9b` is a reasoning model and its thinking block swings by
+an order of magnitude between identical prompts: seven runs of *"what is 6 times 7?"* reported
+958 ms, 1,065, 1,305, 1,356, 1,473, 1,701 and **11,071 ms** — the last being the one inside the 9.2 s
+container figure. **The harness overhead was 68–198 ms in every one of them, including that one.**
+
+**So against a 5-minute budget the harness costs a tenth of a second.** If K6 is ever at risk, it
+will not be because of Marlowe's startup.
+
+### A FALSE FINDING I ALMOST RECORDED HERE, FROM n = 1
+
+One fresh-profile run took **11,269 ms** while a repeat on the *same* profile took 1,817 ms, so I had
+written *"first run is ~7× slower than subsequent runs, cause unidentified"* and was about to file
+it. **Two more fresh-profile runs read 1,206 ms and 1,505 ms and killed it outright.** It was a slow
+*inference* that happened to be sitting next to a fresh profile.
+
+Nothing about the reasoning was wrong except the sample size, which is this project's own standing
+rule — *a post-hoc result measured on one base is not a result until a second one reproduces it* —
+landing on a wall-clock measurement rather than a ranking one.
+
 ### The model pull is NOT in that number, and it is what decides the honest verdict
 
 `qwen3.5:9b` is **6.59 GB**. It was already on the host, so the 217 s assumes a user who already
@@ -339,6 +370,32 @@ clean bill of health).
 5. **Item 5** is one row (HP10 budgets in CI) and is blocked on the CI scope call.
 6. **`embedding_is_bit_identical_across_calls_and_worker_counts`** — the only failing test at HEAD.
    Two hypotheses raised and both retracted; see above. Needs its own investigation.
+
+### Session E closed here. What it did NOT do, listed so nothing reads as covered
+
+- **M1's accent legibility row.** Untouched. Still carries 3.26:1, which clears AA for large text and
+  UI components and not AA body text. It was in Session E's original scope and is the only scope item
+  that got no work at all.
+- **Item 5 / HP10 budgets in CI.** Blocked on the CI scope call, which is deliberately not made.
+- **The four benchmark rows** (SWE-bench, Terminal-Bench 2.0, τ-bench, BFCL). Unmet and unscheduled;
+  flagged in `ROADMAP.md`, scope call open.
+- **`repro` and `conformance` were not re-run.** The reasoning from the layer-1 session still holds —
+  the eval adapter references neither `Engine` nor `marlowe_loop` — but this session changed
+  `marlowe-extract`, `marlowe-net` and `marlowe-contract`, and **`marlowe-contract` is on the
+  adapter's path**. The sanitiser only added a module and re-exported a predicate, so nothing the
+  adapter calls changed behaviour; that is an argument, not a measurement. **If anything downstream
+  depends on `repro`, run it before trusting this.**
+- **K3 has not been re-measured since M0b.** Unrelated to this session's changes, noted because the
+  audit's open `profile.key` finding is the live path by which it could go non-zero.
+
+### Instruments left behind, because the last session's were lost
+
+- `runs/session-e/suite-final.txt` — the workspace run behind the 888/1 count. Grep it rather than
+  re-running.
+- `scratchpad/mutate.py` (by function name) and `scratchpad/mutate2.py` (by exact string, **refusing
+  to run when the pattern does not match exactly once**). The second guard exists because a mutation
+  that silently fails to apply reports a clean bill of health — it happened to me once in this
+  session before the check was added.
 
 ### Two things noticed in passing and deliberately not fixed
 
