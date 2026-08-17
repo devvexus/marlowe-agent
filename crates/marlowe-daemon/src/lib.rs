@@ -34,6 +34,7 @@ pub mod clock;
 pub mod daemon;
 pub mod live;
 pub mod memory;
+pub mod onboarding;
 pub mod recall;
 pub mod project;
 mod staleness;

@@ -116,7 +116,17 @@ pub fn serve(
         marlowe_provider::MODEL_CONTEXT_CEILING
     );
     let port = config.port;
+    // **Read BEFORE `Daemon::open`, because opening is what creates the journal.** Asking
+    // afterwards would answer "no" on every run including the first — the guard would be
+    // permanently green and permanently wrong, which is the shape this project keeps logging.
+    let first_run = marlowe_daemon::onboarding::is_first_run(&config.profile_root);
+    let workspace = config.workspace.clone();
     let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
+    if first_run {
+        // ADR-002 (revised): a zero-config first run must not become a zero-disclosure one.
+        let state = daemon.memory_state().headline();
+        eprint!("{}", marlowe_daemon::onboarding::disclosure(&workspace, &state));
+    }
     // **Announced, never inferred.** ADR-029's rule applied to memory: a daemon whose retrieval
     // half is not running behaves exactly like one whose store is empty, and those are very
     // different facts to a person wondering why Marlowe does not remember.
@@ -151,6 +161,17 @@ pub fn ask(
         // Announced, never silent.
         eprintln!("marlowe: no daemon running — starting one in this process for this question.");
         eprintln!("marlowe: run `marlowe --serve` for a daemon that outlives the command.");
+        // **The disclosure belongs HERE as much as in `serve`, and this is the path that matters.**
+        //
+        // `marlowe --ask "..."` on a machine with no daemon is the FIRST thing a new user runs —
+        // K6 measures exactly this command — and it auto-spawns a daemon on its own path rather
+        // than going through `serve`. Wiring the first-run disclosure into `serve` alone left the
+        // most common first run silent.
+        //
+        // Found by running it: a clean-container K6 measurement printed the two lines above and
+        // nothing else. Not by review — the call is one function away and reads as covered.
+        let first_run = marlowe_daemon::onboarding::is_first_run(&profile_root);
+        let disclosed_workspace = workspace.clone();
         let mut config = DaemonConfig::new(profile_root, workspace);
         config.dev = dev;
         config.thinking = thinking;
@@ -158,6 +179,13 @@ pub fn ask(
             config.context_tokens = n;
         }
         let mut daemon = Daemon::open(config).map_err(|e| e.to_string())?;
+        if first_run {
+            let state = daemon.memory_state().headline();
+            eprint!(
+                "{}",
+                marlowe_daemon::onboarding::disclosure(&disclosed_workspace, &state)
+            );
+        }
         // **The in-process path prompts too.**
         //
         // `Daemon::ask` uses the deny-by-default gate, which is correct for a daemon nobody is
