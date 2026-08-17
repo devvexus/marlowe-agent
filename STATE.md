@@ -34,6 +34,79 @@ every run). **Scope call for the human.**
 **And the evidence that this is already biting: `cargo test --workspace` is RED at `HEAD` and has
 been for at least two sessions.** See below.
 
+## K6 IS MET: 3 min 37 s, ZERO CONFIG, IN A CLEAN CONTAINER — WITH THE MODEL ALREADY PULLED
+
+**Measured 2026-08-17.** `git archive HEAD` into `rust:1-bookworm` — exactly what a fresh clone
+gets, since `models/` and `data/` are gitignored.
+
+| Leg | Time |
+|---|---|
+| `docker pull rust:1-bookworm` | **27 s** |
+| `cargo build --release --jobs 4` (from cold registry) | **181 s** |
+| `marlowe --ask "…"` → first useful output | **9.2 s** |
+| **Total, model present** | **217 s = 3 min 37 s** ✅ under the 5-minute budget |
+
+Output: `6 × 7 = 42.  [completed · 9092 ms]`. **No flags, no config file, no environment
+variables** — the binary auto-spawned its own daemon and answered. Binary 113 MB.
+
+### The model pull is NOT in that number, and it is what decides the honest verdict
+
+`qwen3.5:9b` is **6.59 GB**. It was already on the host, so the 217 s assumes a user who already
+has the default model. **A genuinely cold first run must add that download**, and at 100 Mbps 6.59 GB
+is ~9 minutes — on its own, nearly twice the whole K6 budget. **This is arithmetic, not a
+measurement: the pull was not timed**, because re-pulling would have meant deleting the human's
+model.
+
+**So the honest verdict is two-sided and the scope call is the human's:**
+- **"Marlowe's own install, model assumed present" → K6 PASSES at 3:37.**
+- **"What a user actually experiences on a new machine" → K6 FAILS, and it is not close.**
+
+**Do not fix this by tuning.** The remedies are product decisions — a smaller first-run default,
+useful output streaming while the pull runs, or K6 restated. Not the agent's call.
+
+### Three K6 findings that are about the product, not the container
+
+1. **The Ollama endpoint is hardcoded `127.0.0.1:11434` with no override** — no flag, no env var
+   (`http.rs:55`). Any topology where the model server is not on the same host needs a code change.
+   The container measurement needed a `socat` forward to stand in for "Ollama is on localhost",
+   and **that forward is harness plumbing, not product config** — K6's zero-config claim is not
+   weakened by it, but the hardcoding is a real limitation.
+2. **`DEFAULT_MODEL` is `qwen3.5:9b`, and a zero-config run demands exactly it.** If it is absent or
+   cannot load, the first run fails. It fails *honestly* — the first attempt here returned Ollama's
+   own `cudaMalloc failed: out of memory` verbatim, which named the cause precisely.
+3. **Nothing tells the user the VRAM floor.** The first attempt failed because a 9B model was
+   already resident on the GPU from an earlier probe. A user with any other model loaded meets the
+   same wall with no forewarning. This is a disclosure gap that first-run onboarding does not yet
+   close.
+
+### A methodological note, because it cost a wrong claim
+
+I reported *"`qwen3.5:9b` is not on this host"* from a model list I had truncated with `head -10`.
+It was present, below the cut. **A confident negative from a truncated instrument** — the same
+family as everything else in this file, in the cheapest possible form.
+
+## THE EMBEDDER FAILURE: TWO HYPOTHESES RAISED AND BOTH RETRACTED
+
+**One test fails at HEAD: `embedding_is_bit_identical_across_calls_and_worker_counts`.** Not code
+this session touched. `marlowe-memory`, ONNX Runtime, `"bad allocation"`.
+
+| Hypothesis | Verdict |
+|---|---|
+| GPU contention with Ollama | **WRONG.** The embedder registers no CUDA provider — CUDA appears only in `rerank.rs`. `Embedder::session()` is CPU |
+| Host commit-charge exhaustion | **WRONG.** 114 GB committed of a 127 GB limit reads alarming, but that is 31 GB RAM + a 96 GB page file, of which **5.3 GB is actually used**. 12.8 GB of headroom. A 512 MiB allocation does not fail against that |
+
+**The second retraction is the instructive one.** "90% of commit used" was *adjacent* to the
+question — *is memory the cause?* — and read as authoritative because it was a large percentage of
+something. Decomposing it also showed my own measurement was unsound: `Get-Process` without
+elevation cannot read private bytes for SYSTEM-owned processes, so its 40.8 GB total is an
+undercount and the ~70 GB "unaccounted" was inflated by however much it missed.
+
+**What is supported:** it is the **multi-session sweep**. The test calls `Embedder::load(&dir,
+workers, None)` for `workers` in `[2, 8]`, and each worker constructs its own ONNX session with its
+own arena. Under heavier load *both* embedder tests failed; with the machine quieter the
+single-session test passes and only the 8-worker one fails. **Resource-dependent, unresolved, and
+it needs its own investigation rather than a third guess.**
+
 ## M2 SESSION E — ITEMS 0, 1 AND 2 SHIPPED AND VERIFIED BY MUTATION. 3, 4, 5 NOT STARTED.
 
 **Three commits: `3a6231c` (docs only), `376717c` (the sanitiser), `bba245d` (the extractor bounds).**
@@ -44,9 +117,32 @@ Item 0 was committed before the suite ran, because it is docs-only and was alrea
 | **0 · ROADMAP correction** | **DONE** — `3a6231c`. Table and acceptance list, both dated in place |
 | **1 · display sanitiser** | **DONE** — `376717c`. 4 sites, 4 mutation runs, **the fourth found an unguarded site** |
 | **2 · extractor process-killers** | **DONE** — `bba245d`. 7 bounds, 7 mutation runs, each failing its own named test |
-| **3 · K6 in a clean container** | **NOT STARTED — blocked.** Docker Desktop's Linux engine is not running |
-| **4 · first-run onboarding** | **NOT STARTED.** Depends on 3: the disclosure must state the model-pull time, and that number comes from 3 |
+| **3 · K6 in a clean container** | **DONE.** 3 min 37 s zero-config, model present. See the K6 section above |
+| **4 · first-run onboarding** | **DONE** — `ef0afec`. Derived from the manifests; two defects found by running it |
 | **5 · four M2 acceptance items** | **REDUCED TO ONE, AND IT IS BLOCKED** — see the correction below |
+| **M1's accent row** | **NOT DONE.** The one item of Session E's original scope left untouched |
+
+### Item 4's two defects are the strongest argument in this file for end-to-end runs
+
+Both were invisible to the suite and to review, and both were found by running the binary:
+
+1. **The disclosure was wired into `serve()` only.** `marlowe --ask` with no daemon auto-spawns on
+   its own path — the first thing a new user runs, and exactly what K6 measures — so **the most
+   common first run was silent.** Found by reading the stderr of the K6 container run.
+2. **`is_first_run` guessed the journal's filename** (`"journal"`, `"journal.jsonl"`; it is
+   `JOURNAL_DB` = `"journal.db"`), so it returned `true` forever and **the banner printed on every
+   run.** Worse than never printing: a first-run screen that always appears is noise the user learns
+   to scroll past — not disclosing, while looking like disclosure.
+
+   **The unit test passed against it**, because the test created a `journal` directory of its own
+   invention. Both sides were wrong in the same way, so the assertion was a tautology. Caught by
+   running the binary three times and counting the banner.
+
+**And the threshold was wrong in the first draft.** It split at `Consequential` and printed "DOES
+SILENTLY"; the adjudicator asks unconditionally only for `Irreversible`, separately for ungranted
+egress, and otherwise compares tiers. So the screen made a flat claim about `edit` on a rule that
+exists nowhere in the code — **in the module whose whole argument is that hand-written disclosure
+drifts from enforcement.** Caught by mutation, not by reading.
 
 ### THE SESSION BRIEF WAS WRONG ABOUT THE CODEBASE, AND THE HUMAN CORRECTED IT
 
@@ -227,16 +323,22 @@ clean bill of health).
 
 ### Next session, in order
 
-1. **Item 3 — K6.** Start Docker Desktop's Linux engine first. Expect it to fail on the model pull:
-   ADR-028 pins a 9B, ~5 GB, which is ~7 minutes at 100 Mbps against a 5-minute criterion.
-   **Record it as a product finding, not a container problem, and do not attempt to fix it** — the
-   remedy is a product decision (smaller first-run default, useful output while the pull streams, or
-   K6 restated as "Marlowe's own install, model assumed present"). Measure both numbers; the
-   headline is the one a user experiences, which includes the pull. **If the Linux engine will not
-   start or the Linux build path does not exist, THAT IS THE FINDING** — record it and move to 4.
-2. **Item 4 — first-run onboarding.** Whichever way the K6 decision goes, *"this will take N minutes
-   and here is why"* belongs in the disclosure.
-3. **Item 5** is one row and is blocked on the CI finding.
+1. **THE K6 SCOPE CALL, and it is the human's.** Does K6 mean *"Marlowe's own install, model assumed
+   present"* (**passes, 3:37**) or *"what a user meets on a new machine"* (**fails; the 6.59 GB pull
+   is ~9 minutes at 100 Mbps on its own**)? Everything else about K6 is measured; only the
+   definition is open. **Do not resolve it by tuning.**
+2. **Disclose the pull and the VRAM floor.** Whichever way 1 goes, *"this will take N minutes and
+   here is why"* belongs in the first-run screen, which now exists and has nowhere for it yet. The
+   VRAM floor belongs there too — the first K6 attempt failed because another 9B was resident, with
+   no forewarning anywhere in the product.
+3. **The `--reranking` flag is the difference between a working first run and a good one.** A
+   zero-config run gets `memory retrieval WRITE-ONLY`, announced honestly at startup and repeated in
+   the disclosure. Nothing tells the user what they are missing or how to turn it on.
+4. **M1's accent row** — the last item of Session E's original scope, untouched. Carries a 3.26:1
+   contrast number that clears AA for large text and UI components but not AA body text.
+5. **Item 5** is one row (HP10 budgets in CI) and is blocked on the CI scope call.
+6. **`embedding_is_bit_identical_across_calls_and_worker_counts`** — the only failing test at HEAD.
+   Two hypotheses raised and both retracted; see above. Needs its own investigation.
 
 ### Two things noticed in passing and deliberately not fixed
 
