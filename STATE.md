@@ -390,12 +390,49 @@ clean bill of health).
 
 ### Instruments left behind, because the last session's were lost
 
-- `runs/session-e/suite-final.txt` — the workspace run behind the 888/1 count. Grep it rather than
-  re-running.
+- `runs/session-e/suite-final.txt` — one workspace run. **See the correction below before quoting
+  its count.** Grep it rather than re-running.
 - `scratchpad/mutate.py` (by function name) and `scratchpad/mutate2.py` (by exact string, **refusing
   to run when the pattern does not match exactly once**). The second guard exists because a mutation
   that silently fails to apply reports a clean bill of health — it happened to me once in this
   session before the check was added.
+
+### THE SUITE COUNT IS BIMODAL, AND THE DELTA IS THE FINDING — added after the session closed
+
+**"888 passed, 1 failed" is one sample of a two-valued result.** The committed log genuinely reads
+888/1 with only `embedding_is_bit_identical_across_calls_and_worker_counts` failing. A run on the
+same commit an hour later read **887/2** — that test **plus**
+`the_embedder_reproduces_the_reference_within_a_measured_tolerance`, both failing `bad allocation`
+at `/encoder/Expand`.
+
+So the reference check is **intermittent**, and the two halves of the explanation belong to
+different people's wrong answers:
+
+- **The bug is the allocation request: `4294967296` bytes — 2^32 exactly**, from an `Expand` node,
+  in a ~130 MB model (`jina-embeddings-v2-small-en`). Nothing in that graph legitimately expands to
+  4 GiB. That is a **wrapped or overflowed dimension**, and the round number is the evidence: a
+  machine under memory pressure fails at whatever size it happens to fail at, not on a power of two.
+- **The intermittency is whether the allocator can satisfy it.** With 4 GiB of contiguous memory
+  free the absurd request *succeeds* and the test passes.
+
+Both hypotheses argued during the session were half right and neither was whole. "Not a resource
+problem" was right about the cause and could not explain the variance; "GPU contention" and "commit
+exhaustion" were right that machine state matters and wrong about why. Recorded because the shape —
+a correct-looking retraction that removes the true half along with the false one — is worth more
+than the fix.
+
+**Why this outranks a flaky test.** A 4 GiB allocation that *sometimes succeeds* means that on a
+machine with headroom the embedder runs to completion while doing something absurd, and nothing
+reports it. `the_embedder_reproduces_the_reference_within_a_measured_tolerance` is precisely the
+check that would catch whether the numbers off that path are still correct — and it is the one that
+goes green when the machine happens to be idle. **A scored-path reference check that passes only
+under low memory pressure is not a verified component**, and while it stands, retrieval quality
+claims cannot be reproduced on this machine.
+
+**The lead for whoever picks it up:** `/encoder/Expand` computes its output shape from its inputs,
+so the wrapped value arrives on the **input** side — sequence length, batch, or attention mask.
+That is ADR-015's territory, where shape invariance is re-measured **per graph** and never
+inherited. Do not start from the allocator.
 
 ### Two things noticed in passing and deliberately not fixed
 
