@@ -1,5 +1,251 @@
 # State
 
+## THE PROJECT HAS NO CI, AND THAT IS A SECURITY FINDING RATHER THAN A GAP IN ONE ROW
+
+**Found while auditing M2's acceptance list, 2026-08-17. `.github/` does not exist and there is no
+CI configuration of any kind in the repository.** It surfaced as one unmet acceptance row —
+*"budget tests from HP10 pass in CI"* — and it is much larger than that row.
+
+**1. Session B's traversal suite is called a STANDING REQUIREMENT in both `ROADMAP.md` and this
+file, and nothing re-runs it.** The wording is *"verified on both platforms, and that is a standing
+requirement rather than a one-time closure"*, with the reason spelled out: the symlink class cannot
+run on Windows and the Windows pinning never executes on Linux, so the halves do not overlap and a
+single-platform green is a half-measured wall. **In fact it is a one-time manual act from
+2026-08-08.** That is a security boundary — ADR-002's whole argument is that with no kernel backstop
+a path check defeated by string manipulation is the entire protection — whose re-verification does
+not exist.
+
+**2. M1's two-platform row has the same shape**, and so does every *"tested explicitly"* row in every
+milestone. With nothing re-running them, each means **"tested once, on the machine of whoever wrote
+it"**.
+
+**This is the fourteenth-instance family at project scale.** That instance was a `§13` hook entry
+naming a file that a refactor had moved: a guard is a claim about a path, and a claim about a path
+needs something checking the path is still there. The same question one level up — *what would
+re-run this if it broke?* — answers "nothing" for every standing check in the project. The fix for
+instance #14 was `protect-boundaries.py --self-check`, wired into a test **so the build fails**. There
+is no build to fail.
+
+**DO NOT BUILD CI AS A SIDE-EFFECT.** It is not in Session E's definition and it carries its own
+decisions — which platforms, which triggers, what the ONNX and model-dependent tests do in a runner
+that has no GPU and no `models/` directory (see the embedder failure below, which would red-light
+every run). **Scope call for the human.**
+
+**And the evidence that this is already biting: `cargo test --workspace` is RED at `HEAD` and has
+been for at least two sessions.** See below.
+
+## M2 SESSION E — ITEMS 0, 1 AND 2 SHIPPED AND VERIFIED BY MUTATION. 3, 4, 5 NOT STARTED.
+
+**Three commits: `3a6231c` (docs only), `376717c` (the sanitiser), `bba245d` (the extractor bounds).**
+Item 0 was committed before the suite ran, because it is docs-only and was already true.
+
+| Item | State |
+|---|---|
+| **0 · ROADMAP correction** | **DONE** — `3a6231c`. Table and acceptance list, both dated in place |
+| **1 · display sanitiser** | **DONE** — `376717c`. 4 sites, 4 mutation runs, **the fourth found an unguarded site** |
+| **2 · extractor process-killers** | **DONE** — `bba245d`. 7 bounds, 7 mutation runs, each failing its own named test |
+| **3 · K6 in a clean container** | **NOT STARTED — blocked.** Docker Desktop's Linux engine is not running |
+| **4 · first-run onboarding** | **NOT STARTED.** Depends on 3: the disclosure must state the model-pull time, and that number comes from 3 |
+| **5 · four M2 acceptance items** | **REDUCED TO ONE, AND IT IS BLOCKED** — see the correction below |
+
+### THE SESSION BRIEF WAS WRONG ABOUT THE CODEBASE, AND THE HUMAN CORRECTED IT
+
+**The brief said of item 5: *"Each is 'tested explicitly' in the acceptance list and none has a
+test."* That was inferred from the acceptance list's wording rather than read from the code, and it
+is wrong for three of the four.** Recorded here rather than silently shrinking the item, because the
+next session inherits the sentence otherwise.
+
+| Row | Truth |
+|---|---|
+| Compaction preserves governance across the boundary | **Tested.** `compaction.rs:70` and `:173`, through `Engine::run`, with a vacuity guard |
+| Compaction invalidates cache | **Tested.** `compaction.rs:222` — epoch moves *and* the stale entry is gone |
+| Startup fails on an unannotated manifest | **Met structurally, stronger than the row asks.** `ToolRegistration.manifest` is not an `Option` |
+| HP10 budgets pass in CI | **Unmet — and blocked on there being no CI at all** |
+
+**So item 5 is one row, and that row is blocked on the finding above.** The human's ruling: *"take
+your reading over mine; my line was an inference from a document, yours is a reading of the code."*
+
+### TWO PRE-EXISTING FAILURES, NEITHER MINE, BOTH WORTH KNOWING
+
+**`cargo test --workspace --no-fail-fast` reads 876 passed / 4 failed.** None of the four is in code
+this session touched.
+
+**1. `determinism_guard` has TWO red tests at `HEAD`, and they are red without any of my changes.**
+Verified by `git show HEAD:<file>` rather than by argument: every flagged line exists in the
+committed tree, in files this session never opened.
+`no_hash_map_in_crate_sources` flags `marlowe-extract/src/store.rs`, `marlowe-net/src/lib.rs` and
+`marlowe-loop/src/engine.rs:292`; `the_only_real_clock_read_is_the_latency_fence` flags
+`marlowe-exec` and `marlowe-net`. **They were introduced by the tools/parallelism session and the
+layer-1 session, both of which reported green** — because both reported **per-crate** counts, and
+these two guards live in `marlowe`'s tests and only run under `--workspace`. A per-crate suite cannot
+see a workspace-level guard. **This is the CI finding with a date on it.**
+
+**Also: `cargo test` fail-fasts at the first failing binary.** The first run stopped at
+`determinism_guard` and never reached `marlowe-extract` or `marlowe-surface` — a suite that looks
+complete and covers a third of the workspace. **`--no-fail-fast` is required for any run whose
+purpose is a count.**
+
+**2. The embedder cannot allocate, and Ollama is the likely reason.**
+`the_embedder_reproduces_the_reference_within_a_measured_tolerance` and
+`embedding_is_bit_identical_across_calls_and_worker_counts` fail with
+`Failed to allocate memory for requested buffer of size 536870912` — 512 MiB exactly.
+
+Not host memory: **7.58 GB of 31 GB free**, and they fail identically when run alone, so it is not
+contention between test binaries. It is the **GPU**: `nvidia-smi` reads **11,535 MiB of 16,376 used,
+4,511 free**, with Ollama's `llama-server` resident. ADR-029 put the rerank on CUDA; the model
+provider and the memory subsystem are now two consumers of one 16 GB card.
+
+**SUPPORTED, NOT CONFIRMED.** The decisive test is stopping Ollama and re-running, which would
+unload the human's model, so it was not run unilaterally. **This bears directly on item 3:** a K6
+run needs the model *and* the embedder resident at once, and if they do not co-fit then "install to
+first useful output" has a hardware precondition nobody has stated.
+
+### Item 0 found three things that change what the remaining work is
+
+**The session table marked C2a "next" when C2a→D had shipped, and C2d/C2e/C2f were not in it at all.**
+Corrected in place with the commit for every row, plus three rows for sessions that ran and were
+never scheduled (layer 1/ADR-039, tools+parallelism/ADR-040-042, the security audit). C3 verified by
+grep as **not started**: `Transport::{Skill, Mcp}` exist from Session A, but nothing loads a
+`SKILL.md`, there is no `find_skill`, and no MCP transport speaks to a server.
+
+**And the acceptance list was audited, because correcting a session table alone is how M0b shipped
+40% of its named mechanism and closed without saying so.** Results:
+
+1. **The four benchmark rows — SWE-bench Verified, Terminal-Bench 2.0, τ-bench, BFCL — are UNMET AND
+   UNSCHEDULED.** Neither name appears in any `.rs`, `.py`, `.toml`, `.json` or `.yaml` in the
+   repository. No harness, no adapter, no run, no result. **Whether they block M2's closure or are
+   deferred is a scope call and is deliberately not made** — flagged and left open.
+2. **THERE IS NO CI.** No `.github/`, no CI configuration of any kind. So *"budget tests from HP10
+   pass in CI"* is unmet for a reason that is not "no test" — `hp10_budgets.rs` exists and passes
+   locally. **This generalises:** M1's *"§B13 suite run on native Windows Terminal AND a Linux
+   emulator"* and Session B's *"both platforms is a standing requirement rather than a one-time
+   closure"* both have nothing standing behind them. Every standing check in this project stands
+   only as long as a human remembers to run it by hand.
+3. **Two of the four "untested" acceptance items were already tested, properly.**
+   `compaction.rs:70`/`:173` drive governance across the boundary through `Engine::run` with a
+   summarizer that preserves nothing, asserting on the assembled view *and* on the view the driver
+   was handed, with a vacuity guard. `compaction.rs:222` asserts the cache epoch moves *and* that the
+   stale entry is gone. **The session brief said none of the four had a test; that was wrong for
+   two of them, and building what already works is exactly what a stale table causes.**
+   The third — *"startup fails on an unannotated tool manifest"* — is **met structurally and more
+   strongly than the row asks**: `ToolRegistration.manifest` is not an `Option`.
+
+**Side finding: `LoadError::MissingManifest` has no constructor anywhere in the workspace.** Its doc
+comment says *"The system does not start"*, describing a runtime refusal that cannot execute because
+the type enforces the property instead. Vestigial rather than broken — instance #16's shape in
+miniature, a declared control with no reader. Left in place, named in the ROADMAP.
+
+### Item 1 — the sanitiser is lifted, and one definition now serves both sides
+
+`is_renderable` had one caller in the product (`FieldSpec::validate_value`, twenty lines above it)
+and **no render site was it**. Moved to `marlowe_contract::text`, re-exported from `marlowe-loop` so
+existing callers do not move. **`marlowe-contract`'s header claimed *"CONTRACTS.md section 4 as Rust
+types — and nothing else"*; it was amended rather than quietly falsified**, and it says what would
+justify cutting a leaf crate instead if a third thing wants to live there.
+
+Applied at all three sites. `render` and `approve_at_the_terminal` were split into `render_to` and
+`write_approval_prompt` against an `impl Write`, **so the property is assertable where it is
+enforced** rather than through captured stdout.
+
+**Marking, not dropping.** A refused character becomes `<U+001B>`, following
+`ContractViolation::DisallowedCharacter`'s precedent of naming the codepoint. A stripped payload and
+a clean string must not be indistinguishable to the human approving a `bash` command. The marker is
+**forgeable and the module says so** — a page can print `<U+001B>` itself. That asymmetry is the safe
+direction and must not be built on: the forgeable claim is *"something was stripped"*, not *"nothing
+was"*.
+
+**One test of mine was a proxy and failed against a working fix.** It counted occurrences of
+`approve? [y/N]`, when the property is *no forged prompt **line***: the fix leaves the forged text
+inert mid-line after a visible `<U+000A>`, so the substring count is legitimately 2. Rewritten to
+count lines whose trimmed start is the prompt. The measurement was adjacent to the property and
+stricter than it.
+
+**The TUI test is labelled a characterisation test of a dependency, not a guard**, in its own header
+and its own failure message, because **ratatui** is what filters control characters out of a
+`Buffer` — the TUI does not sanitise. The file states what would change that (this test failing, or a
+TUI render path that writes bytes without a `Buffer`) so the trade is recorded rather than assumed.
+
+### Item 2 — the caps are at the chokepoint, not at the site
+
+**`extract()` is the chokepoint and the caps live there** (the human overruled privatising
+`Document`'s fields, correctly: a validating constructor for the whole type is its own change with
+its own ADR, and `title` alone would have been arbitrary while `links`, `description` and `headings`
+stayed unbounded). **Grep confirmed the precondition: every product construction of a `Document` is a
+parser inside `marlowe-extract`, all returned through `extract`** — the only other struct literal,
+`corpus.rs:529`, is inside `#[cfg(test)]`.
+
+| Finding | Fix | Bound asserted |
+|---|---|---|
+| **G11** `<title>` uncapped in four parsers | `MAX_TITLE_CHARS` in `extract` | `tests/title_cap.rs`, on **RSS and Markdown** — never HTML, because an HTML test would have passed before the change |
+| **G6** xlsx shared-string amplification | row cap + table count **and** byte caps | retained cell count, retained bytes |
+| **G7** csv materialises every row before the cap | `parse_csv` retains `keep`, counts all | retained rows, columns, field bytes |
+| **HTML ~770 MB peak** | the block buffer is bounded | — arithmetic in the comment; **not measured** |
+
+**The HTML peak's arithmetic, since the fix rests on it:** a 64 MB windows-1252 input is held four
+times — raw bytes (64 MB), decoded UTF-8 (~192 MB, since every high byte becomes 2–3), `blocks`
+(~192 MB), `select_content`'s join (~192 MB) — and then `normalize` throws all but 8 MiB away. The
+last two stages build what the last stage discards, so bounding them costs nothing that survives.
+**What it does change is *which* 8 MiB survives** for an over-long document, and that is stated in
+the code rather than hidden. `decoded.text` cannot be bounded without a streaming decoder, so the
+peak floor stays at the input size and its expansion. **This is reasoning, not a measurement** — no
+before/after peak-RSS number was taken.
+
+**G6's positional subtlety, recorded because it is easy to get backwards:** an over-budget shared
+string becomes an **empty entry**, never a dropped one. Cells reference the table **by index**, so
+dropping would shift every later index and attribute one cell's text to another — quiet corruption
+in place of a visible absence.
+
+### THE MUTATION RUNS, AND THE ONE THAT FOUND A HOLE
+
+**Eleven bounds, eleven reversions, each run alone and restored afterwards.** Every row below is a
+command that was run, not an argument.
+
+| Reverted | Failed |
+|---|---|
+| `agent.rs::render_to` | 2 render tests — **the approval test stayed green** |
+| `agent.rs::write_approval_prompt` | **only** the approval test |
+| `cli.rs::print_new` | 2 `print_new` tests — the approval test stayed green |
+| `cli.rs::print_approval` | **NOTHING** |
+| `extract()`'s title cap | all four `title_cap.rs` tests |
+| `parse_csv` row retention | `parse_csv_retains_a_bounded_number_of_rows_and_still_counts_them_all` |
+| `parse_csv` column cap | `parse_csv_bounds_the_width_of_a_single_row` |
+| `parse_csv` field cap | `parse_csv_bounds_a_single_enormous_field` |
+| `sheet_text` row cap | `a_single_row_cannot_amplify_a_shared_string_without_bound` |
+| `shared_strings` byte cap | `the_shared_string_table_is_bounded_on_count_and_on_bytes` |
+| `flush_block` bound | `the_block_buffer_is_bounded_before_normalize_ever_sees_it` |
+
+**Row four is the whole reason the runs happen.** All three `cli.rs` tests covered `print_new`;
+`print_approval` was sanitised and **completely unguarded**, and the suite was green either way. It
+could not have been found by reading — the `sanitize_line` calls are visibly present in the function.
+Only reverting one site at a time says whether anything notices.
+`the_classic_approval_prompt_never_writes_a_control_sequence` closes it, and the re-run fails exactly
+that one test and no other.
+
+`scratchpad/mutate.py` (by function name) and `scratchpad/mutate2.py` (by exact string, refusing to
+run if the pattern does not match exactly once — a mutation that silently fails to apply reports a
+clean bill of health).
+
+### Next session, in order
+
+1. **Item 3 — K6.** Start Docker Desktop's Linux engine first. Expect it to fail on the model pull:
+   ADR-028 pins a 9B, ~5 GB, which is ~7 minutes at 100 Mbps against a 5-minute criterion.
+   **Record it as a product finding, not a container problem, and do not attempt to fix it** — the
+   remedy is a product decision (smaller first-run default, useful output while the pull streams, or
+   K6 restated as "Marlowe's own install, model assumed present"). Measure both numbers; the
+   headline is the one a user experiences, which includes the pull. **If the Linux engine will not
+   start or the Linux build path does not exist, THAT IS THE FINDING** — record it and move to 4.
+2. **Item 4 — first-run onboarding.** Whichever way the K6 decision goes, *"this will take N minutes
+   and here is why"* belongs in the disclosure.
+3. **Item 5** is one row and is blocked on the CI finding.
+
+### Two things noticed in passing and deliberately not fixed
+
+- **`extract()` contains an unreachable duplicate of its own guard** — an `#[allow(unreachable_code)]`
+  block after the `return`, left from the G10 fix. Harmless, confusing, and not this session's scope.
+- **`print_approval` reads `view.approval` while the live TUI path uses `view.pending_approval`.**
+  If the classic CLI never renders a *live* approval, that is a §B14 capability gap. **Not verified,
+  not chased** — recorded so it is not rediscovered.
+
 ## SECURITY SESSION — 20+ AUDIT FINDINGS FIXED, AND LAYER 3 TURNS OUT TO BE UNREACHABLE
 
 **Seven commits, every crate green. Each fix verified by DELETING it and watching a named test
