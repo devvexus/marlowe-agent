@@ -464,17 +464,30 @@ happen.
 
 ### Session order — a dependency order, not a preference
 
+> **CORRECTED IN PLACE 2026-08-17.** This table marked **C2a as "next"** when C2a through D had
+> shipped, and **C2d, C2e and C2f were not in it at all** — they existed only in `STATE.md`. A stale
+> table is how a session rebuilds something that already works, so every row below now carries the
+> commit that shipped it. Three sessions ran that this table never scheduled; they are listed rather
+> than folded into a lettered row, because a session that happened is not evidence that a planned
+> session did.
+
 | Session | Ships | Status |
 |---|---|---|
 | **A** | The spine: the one loop, eleven tool manifests, registration ≠ exposure, the permission layer, `(action, target)`, egress, runs + budgets + ephemeral spawn, the context assembler | ✅ 2026-08-08 |
 | **B** | **Path scoping — the traversal suite and handle discipline, together** (ADR-024, ADR-027) | ✅ 2026-08-08, Windows **and** Linux |
-| **C1** | The platform gate; `ParamType::WritePath` and the walk's write/create path | ✅ 2026-08-08 |
-| **C2a** | The four executors — `read`, `edit`, `find`, `bash` — on adjudicated handles | next |
-| **C2b** | The **Ollama provider adapter** (ADR-028). Adapter only; **no credential broker** | |
-| **C2c** | **ARCHITECTURE §6 wiring — the daemon/client split made real.** `Engine` constructed, `marlowe --tui` driving it instead of M1's scripted stub | |
-| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | defers if C2 runs long |
-| **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | |
-| **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | |
+| **C1** | The platform gate; `ParamType::WritePath` and the walk's write/create path | ✅ 2026-08-08 `42ae9d3`, `e8e6dd0` |
+| **C2a** | The four executors — `read`, `edit`, `find`, `bash` — on adjudicated handles | ✅ 2026-08-08 `d1b6d76` |
+| **C2b** | The **Ollama provider adapter** (ADR-028). Adapter only; **no credential broker** | ✅ 2026-08-08 `c048dec`, `84ed6e3` |
+| **C2c** | **ARCHITECTURE §6 wiring — the daemon/client split made real.** `Engine` constructed, `marlowe --tui` driving it instead of M1's scripted stub | ✅ 2026-08-09 `69ead72` |
+| **C2d** | The view models promoted out of `marlowe-stub`; `marlowe --tui` on the real `Engine` (ADR-030) | ✅ 2026-08-09 `5fbd513`, `9f51476` |
+| **C2e** | The loop honest about what it sends and what it shows: streaming, roles, think-block handling, persona *emission* | ✅ 2026-08-09 `2be2179`, `1813740` |
+| **C2f** | `web` exposed; the latch met real untrusted content; TUI approvals, `--shutdown`, `--daemon-port` | ✅ 2026-08-10 `6f8a3aa` |
+| **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | ✅ 2026-08-11 `850b512`, `a5a028b`, `ddf168b` |
+| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **NOT STARTED.** Deferred past D, which this table's own rule permits. The *vocabulary* exists from Session A — `Transport::{Skill, Mcp}`, third-party descriptions carried as `UntrustedContent` — but nothing loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server |
+| — | **Layer 1 routing (ADR-039)** — `Engine::condense_batch`, the quarantined reader wired to the trust class | ✅ 2026-08-12, **unscheduled** |
+| — | **Tools and parallelism (ADR-040, ADR-041, ADR-042)** — `marlowe-extract`, `marlowe-net` rebuilt, concurrent fetch, batched quarantined reads, the document store | ✅ 2026-08-12 `1d3a428`, **unscheduled** |
+| — | **The security audit** — 108 findings from 8 read-only agents, 20+ fixed, each pinned by a test that fails on revert | ✅ 2026-08-12 `813ae2f`…`5142420`, **unscheduled** |
+| **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | **current** |
 
 **Session B is verified on both platforms, and that is a standing requirement rather than a
 one-time closure.** The symlink class cannot run on Windows without elevation and the POSIX walk
@@ -542,6 +555,47 @@ runs in the current terminal.
 - Compaction invalidates cache — tested explicitly.
 - Startup fails on an unannotated tool manifest.
 - Budget tests from HP10 pass in CI.
+
+#### Acceptance status, measured 2026-08-17 — **four rows are UNMET and two of those are UNSCHEDULED**
+
+**Why this block exists.** The session table above was corrected in the same pass, and correcting a
+session table without auditing the acceptance list is exactly how **M0b shipped 40% of its named
+mechanism and closed without saying so** — the failure `STATE.md` documents at length. Committing it
+a second time, in the same repository, having read the entry, would be worse than the first. Each row
+below carries the command or the path that decided it, not a recollection.
+
+| Acceptance row | Status | Evidence |
+|---|---|---|
+| Install → first useful output <5 min, zero config, clean container | **UNMET — unmeasured** | Session E item 3, running now |
+| First-run onboarding states what Marlowe can reach | **UNMET** | Session E item 4 |
+| Path-traversal suite passes **and** access is handle-based | **MET** | Session B, both platforms, `MARLOWE_TRAVERSAL_STRICT=1`, 11/11 classes `RAN`; ADR-027 |
+| **SWE-bench Verified and Terminal-Bench 2.0: competitive** | **UNMET AND UNSCHEDULED** | No occurrence of either name anywhere in the repository — no harness, no adapter, no run, no result |
+| **τ-bench / BFCL: competitive** | **UNMET AND UNSCHEDULED** | As above. Neither name appears in any `.rs`, `.py`, `.toml`, `.json` or `.yaml` outside `target/` |
+| Compaction preserves governance across the boundary — *tested explicitly* | **MET** | `marlowe-loop/tests/compaction.rs:70` and `:173`. Driven through `Engine::run` with a summarizer that preserves nothing, asserted on the assembled view **and** on the view the driver was handed, with an explicit vacuity guard (`state.compactions >= 1`) |
+| Compaction invalidates cache — *tested explicitly* | **MET** | `compaction.rs:222`. Asserts the epoch moves **and** that the stale entry is gone rather than merely unreachable |
+| Startup fails on an unannotated tool manifest | **MET, structurally — and stronger than the row asks** | `ToolRegistration.manifest` is `CapabilityManifest`, not `Option`, so an unannotated registration is unrepresentable (`registry.rs:108-121`). A missing **role** is a load error (`manifest.rs:434`); a missing **consequence** loads as the *maximum* (`manifest.rs:413`) — fail-closed by default rather than by refusal, which is deliberate and is not what this row's wording describes |
+| **Budget tests from HP10 pass in CI** | **UNMET — there is no CI** | `marlowe-loop/tests/hp10_budgets.rs` exists and passes locally. `.github/` does not exist, and no CI configuration of any kind is in the repository. The row is blocked on CI existing, not on the tests |
+
+**Three things this audit turned up that are not scope calls and are recorded here so they are not
+rediscovered.**
+
+**1. Whether the four benchmark rows block M2's closure or are deferred is a scope decision, and it
+is deliberately not made here.** They are flagged, dated and left open. What is *not* open is whether
+they have been done: they have not, and nothing in the repository suggests any of them was ever
+started.
+
+**2. "Pass in CI" is unachievable for every row in this project, not just this one, because there is
+no CI.** M1's acceptance carries *"§B13 suite run on native Windows Terminal **and** a Linux
+emulator — pass on both"*, and Session B's note says both-platform verification is *"a standing
+requirement rather than a one-time closure"*. With no CI, every standing check in this project stands
+only as long as a human remembers to run it by hand — which is the same failure mode as a guarded
+path that moved, one level up. Both were last run by hand.
+
+**3. `LoadError::MissingManifest` has no constructor anywhere in the workspace.** Its doc comment
+says *"The system does not start"*, describing a runtime refusal that cannot execute, because the
+property is enforced by the type instead. The variant is vestigial rather than broken — the guarantee
+is real and is stronger than the variant claims — but it is instance #16's shape in miniature: a
+declared control with no reader. Left in place, named here.
 
 ### Non-goals
 
