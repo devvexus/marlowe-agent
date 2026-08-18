@@ -69,11 +69,26 @@
 
 name: CI
 
+# **Not on every push, and the trade is stated rather than silent.**
+#
+# This fired on every push to main/master and on every pull request. The human's objection is
+# reasonable — a suite this size running constantly is noise, and a check people learn to ignore has
+# already stopped being a check.
+#
+# But the reason this file exists is that ADR-027 calls the path-traversal suite a STANDING
+# two-platform requirement and it was run by hand exactly once, on 2026-08-08. Reducing this to
+# `workflow_dispatch` alone would put it straight back to "runs when somebody remembers", which is
+# the condition it was written to fix.
+#
+# So: manual whenever you want it, AND a weekly run so drift cannot accumulate unobserved. A week is
+# short enough that a break is attributable to a handful of commits and long enough to be silent.
+# **If the weekly run is ever disabled, the two-platform requirement is a recollection again — say so
+# in ROADMAP.md rather than leaving the row reading as enforced.**
 on:
-  push:
-    branches: [main, master]
-  pull_request:
   workflow_dispatch:
+  schedule:
+    # Mondays 04:00 UTC. Cron only fires on the default branch.
+    - cron: '0 4 * * 1'
 
 # One run per ref. A superseded push should not keep a runner busy.
 concurrency:
