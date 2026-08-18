@@ -44,6 +44,34 @@ vacuity guard). **The numbers are real and the guard is unbuilt.** Next session:
 --release` and `cargo test --workspace --no-fail-fast` before treating this as green. Last full
 suite was **944 passed, 0 failed, 2 ignored**.
 
+### THE BENCHMARK MEASURES A SYSTEM THE PRODUCT IS NOT — `docs/design/EVAL-PRODUCT-DIVERGENCE.md`
+
+Three components where the eval path and the shipped daemon have come apart, each found separately
+while chasing something else. **All three re-verified by grep before writing them down**, not
+carried from memory:
+
+1. **`ingest` has exactly one caller** — `adapter.rs:304`, the eval adapter. `Channel::` appears
+   **zero** times in `crates/marlowe-daemon/src/`.
+2. **Layer 3's latch cannot fire in the shipped daemon** — a consequence of (1), not a separate
+   defect. Unreachable, not broken.
+3. **The daemon loads no embedder** — **zero** references to `Embedder` in `crates/marlowe-daemon/src/`;
+   the one production call site is `main.rs:657`, inside `--eval-adapter`.
+
+**What it does not say:** the measurements are not wrong. They are correct about the eval adapter.
+What must change is that a quality or security claim **names which path it describes** — and every
+embedder number this project has published, including this session's, describes the benchmark path.
+
+**Why the shape recurs:** the adapter and the daemon are two independent front ends over the same
+crates, and only one is measured. `marlowe_eval` drives the adapter; nothing drives the daemon but a
+human. So a capability can be built, tested, benchmarked and documented while the product never
+reaches it, with every instrument reporting success.
+
+**The check, thirty seconds:** `grep -rn "<ComponentType>" crates/marlowe-daemon/src/`. Nothing
+back means the number is about the eval path.
+
+**Fixing it is not proposed here** — and the ordering constraint stands: E5 and F1 before `ingest`
+is wired, or layer 3 goes live alongside two known defects in the same path.
+
 ### Also this session
 
 - **`.gitignore` was restored from HEAD.** Its working-tree version had deleted `/target/`, `data/`,
