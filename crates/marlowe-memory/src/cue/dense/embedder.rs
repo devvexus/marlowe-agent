@@ -218,21 +218,31 @@ pub struct Embedder {
 }
 
 impl Embedder {
-    /// Load and verify. **The only constructor.**
+    /// Load and verify **on CPU, always**. The fixed-provider constructor.
     ///
     /// `workers` is a throughput knob and provably not a quality knob — see the module docs.
     /// `cache_dir` is `Option` because the cache is a *tool-side* accelerator; the shipping
     /// retrieval path does not need one and must not depend on one existing.
+    ///
+    /// # This did NOT move to `Auto` when the product default did, and that is deliberate
+    ///
+    /// **ADR-044 flipped the PRODUCT's default to `auto`.** It did not flip this one, because this
+    /// is what the reference measurements load through, and a reference reading whose provider is
+    /// decided by how much VRAM happened to be free is not a reference reading.
+    /// `tests/embedding_reference.rs` labels its result `cpu`, asserts `MAX_ABS_DIFF = 1e-4`
+    /// against HuggingFace's own output, and separately measures CUDA at a *provisional tripwire*
+    /// because CUDA misses that tolerance by ~500x across the distribution. Were this `Auto`, the
+    /// row labelled `cpu` would silently become whichever scorer the card allowed — the
+    /// mislabelling family, applied to the one instrument that can detect it.
+    ///
+    /// So the label is enforced, not assumed: that test asserts `provider() == EmbedProvider::Cpu`
+    /// and fails if this line changes. The product goes through [`Embedder::load_with_provider`],
+    /// which is what `--embedder-provider` drives.
     pub fn load(
         model_dir: &Path,
         workers: usize,
         cache_dir: Option<&Path>,
     ) -> Result<Self, EmbedError> {
-        // **CPU, matching `CrossEncoder::load`, and it is a decision now rather than an omission.**
-        // Until 2026-08-17 this was CPU because nothing asked ORT for anything; it is CPU now
-        // because ADR-013 has not adopted GPU for the retrieval path and ADR-015 has no CUDA
-        // baseline for this graph. `load_with_provider` is how a caller asks for something else,
-        // and `--embedder-provider` is how the product exposes that.
         Self::load_with_provider(model_dir, workers, cache_dir, ProviderChoice::Cpu, Probe::Device)
     }
 

@@ -520,10 +520,41 @@ cd eval && python -m pytest                  # 72 passing
 
 # The implementation. --no-fail-fast IS NOT OPTIONAL -- see below.
 cargo test --workspace --jobs 4 --no-fail-fast > runs/<session>/suite.txt 2>&1
-# 881 passing, 2 failing (M2 Session E, 2026-08-17). The two are marlowe-memory's
-# ONNX allocation failures under GPU contention, not code defects.
+# 922 passing, 0 failing, 2 ignored (ADR-044, 2026-08-17), with MARLOWE_CUDA_LIB_DIR set.
+# Tally the FILE, do not trust a tail: 83 `test result` lines, and one FAILED among them
+# is invisible in the last twenty.
 cargo build --release                        # -> target/release/marlowe.exe
 ```
+
+### `MARLOWE_CUDA_LIB_DIR` — set it, or this machine silently runs the embedder on CPU
+
+**The embedder defaults to `auto` (ADR-044): GPU where a CUDA session constructs, CPU otherwise.**
+The variable is the *only* thing standing between those two outcomes here, and an unset variable is
+not an error — it is a slower run with a correct-looking log line.
+
+```bash
+# torch 2.5.1+cu121 ships CUDA 12.1 and cuDNN 9 in its own lib dir (4.2 GB of them). NO CUDA
+# TOOLKIT IS INSTALLED AND NONE IS NEEDED -- ADR-015 said so, and a session was lost concluding
+# "the DLL cannot be found" meant "the DLL does not exist". `cuda_libs.rs` reads this and adds the
+# directories to ORT's DLL search path; that is the one reader.
+export MARLOWE_CUDA_LIB_DIR="$USERPROFILE/AppData/Local/Programs/Python/Python311/Lib/site-packages/torch/lib"
+```
+
+**The one command that says which provider actually resolved — read it from the SHIPPED binary,
+never from `cargo run --example`, which builds a different artifact:**
+
+```bash
+target/release/marlowe.exe --eval-adapter --profile-root "$(mktemp -d)" \
+    --embedder-model models/jina-embeddings-v2-small-en --reranking off < /dev/null
+# marlowe: embedder asked for auto, running on CUDAExecutionProvider with 8 of 8 worker session(s)
+#          ^ CPUExecutionProvider here means the variable is unset, or the card is full.
+```
+
+**It does NOT survive the eval harness.** §4.0.9 spawns the target with a declared minimal
+environment and `minimal_env()` is a fixed allowlist that does not include it. `PATH` is on that
+allowlist and `PATH` is what the Windows loader actually reads, so `tools/score_longmemeval.py`
+translates the variable onto `PATH` in its own process before anything spawns and records what it
+did in `ENVIRONMENT.json`. `eval/` is the scoreboard and was not modified for this.
 
 ### `--no-fail-fast`, and the two sessions that reported green without it
 
@@ -572,9 +603,17 @@ cd eval
 #
 # THE PINNED GRAPH IS THE SESSION J FINE-TUNE, f32 (Session K, ADR-018/ADR-020). The old int8
 # directory is refused BY NAME — a stale path gets an error naming the swap, not "file not found".
+#
+# --embedder-provider is SPELLED OUT here even though it has a default, because ADR-044 made that
+# default `auto`, and `auto` resolves against free VRAM AT LOAD. Two spawns of `repro` on one
+# machine can then open different widths, or different providers, because something else started
+# on the card in between - and worker-count invariance is measured on CPU, not on CUDA. Pin `cpu`
+# or `cuda` for anything reproducible or published; `auto` is the product default, not a
+# measurement setting.
 TARGET="exec://../target/release/marlowe.exe --eval-adapter --profile-root {profile_root} \
         --embedder-model ../models/jina-embeddings-v2-small-en \
-        --reranking ../models/ms-marco-MiniLM-L-2-v2-ft-session-j"
+        --reranking ../models/ms-marco-MiniLM-L-2-v2-ft-session-j \
+        --embedder-provider cpu"
 
 PYTHONPATH=src python -m marlowe_eval.cli conformance --target "$TARGET"   # section 4 + clock probe
 PYTHONPATH=src python -m marlowe_eval.cli run --target "$TARGET" --out runs/a
@@ -597,9 +636,15 @@ python tools/preregister_session_f.py   # this session's bands, BEFORE any fit
 python tools/fit_gate.py                # refuses without the split OR the pre-registration
 cargo build --release                   # embeds the artifact via include_str!
 python tools/score_longmemeval.py --out runs/session-f \
-       --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j   # REQUIRED since Session K
+       --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j \
+       --embedder-provider cpu     # BOTH required: Session K, then ADR-044
 python tools/analyze_cue_overlap.py --run runs/session-f/heldout --record-verdict
 ```
+
+**`--embedder-provider` is required in `score_longmemeval.py` as of ADR-044, for the identical
+reason.** It used to pass through to the binary's default, that default was `cpu`, and ADR-044
+changed it to `auto`. The same command that measured CPU last week now measures whatever the card
+had free at that instant — a published number silently relabelled by a default nobody typed.
 
 **`--reranking` is required in `score_longmemeval.py` too, and that is a Session K change with a
 reason.** It defaulted to the int8 directory. The moment the shipped graph moved, that default
@@ -610,7 +655,8 @@ observing the mismatch — the exact pattern this file warns about four paragrap
 requires it to ship with the product:
 
 ```bash
-python tools/score_longmemeval.py --out runs/session-k --fit-only --reranking <DIR>   # tau calibration
+python tools/score_longmemeval.py --out runs/session-k --fit-only --reranking <DIR> \
+       --embedder-provider <cpu|cuda>          # tau calibration
 python tools/publish_precision_coverage.py --run runs/session-k --reranking-label <NAME>
 # -> crates/marlowe-memory/artifacts/precision-coverage-heldout-v1.json
 # -> docs/design/PRECISION-COVERAGE.md
@@ -662,7 +708,7 @@ subset instead, and `--max-cases` refuses to combine with a quality number.
 
 ```bash
 python tools/score_longmemeval.py --out <scratch> --heldout-only --max-cases 40 \
-       --embedding-cache <fresh empty dir>
+       --embedding-cache <fresh empty dir> --embedder-provider <cpu|cuda>
 ```
 
 **`tools/` imports `marlowe_eval` as a library and changes nothing in it.** The harness

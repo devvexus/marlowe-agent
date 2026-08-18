@@ -1,5 +1,129 @@
 # State
 
+## THE EMBEDDER DEFAULTS TO GPU. ADR-044 IS WRITTEN, THE DEFAULT IS FLIPPED, AND THE RUNNING BINARY SAYS SO.
+
+**2026-08-17, continuing `a619645`.** This closes item 1 of the previous list — *"the default is
+still `cpu`; the measurement that blocked it exists now, the ADR does not"* — and item 6, the
+undocumented `MARLOWE_CUDA_LIB_DIR`. **It supersedes the section below headed *"2. The default is
+`cpu`, not `auto`, and this one needs the human"*: the human decided, and the answer was yes.**
+It also corrects the "Where CUDA is" table further down, whose embedder row still reads
+`default cpu`.
+
+### What shipped
+
+**`docs/design/adr/ADR-044-embedder-defaults-to-auto.md`**, indexed from `DECISIONS.md` — which
+gained a **Part 3** listing every ADR from 030 on, because until now `DECISIONS.md` linked to none
+of the fourteen files in `docs/design/adr/` and "settled decisions live in DECISIONS.md" was
+therefore false of two thirds of them.
+
+| change | where |
+|---|---|
+| `--embedder-provider` default `cpu` → **`auto`** | `crates/marlowe/src/main.rs`, via a new `embedder_provider_choice` |
+| the startup line carries the **request as well as the resolution** | `embedder_announcement`, same file |
+| `--embedder-provider` documented in `USAGE` | it had no entry at all |
+| `Embedder::load` stays **fixed-CPU**, and the label is now enforced | `embedder.rs` doc + an `assert_eq!(provider(), Cpu)` in `embedding_reference.rs` |
+| the stale *"THIS IS A BLOCKER FOR PUTTING THE EMBEDDER ON CUDA BY DEFAULT"* comment | rewritten to say it was cleared by measurement, with nothing widened |
+| `--embedder-provider` **required** in `tools/score_longmemeval.py` | it passed through to a default that has just changed underneath it |
+| `MARLOWE_CUDA_LIB_DIR` + the one command that shows the resolved provider | `CLAUDE.md` build section |
+
+**Nothing was widened and nothing was regenerated.** `MAX_ABS_DIFF` is 1e-4, `CUDA_MAX_ABS_DIFF` is
+1e-3 and still a tripwire rather than a tolerance, `embedding-reference.json` is untouched,
+`MAX_SEQ_LEN` is 1024. CUDA still **fails** the HuggingFace reference and the test still records it
+as a failure. What licensed the flip is 242/242 identical top-1 picks with 99.84% of candidate rows
+moving — the proxy is left reading FAIL because the decision is the property, not the proxy.
+
+### THE RUNNING BINARY, WITH ITS CONTROL — this is the answer to "what does it resolve to"
+
+`target/release/marlowe.exe`, built 22:00:23, sources last touched 21:57:27, mtime checked before
+the probe because `cargo run --example` builds a different artifact and mislabelled a run earlier
+tonight. **No `--embedder-provider` flag on the command line at all:**
+
+```
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 8 of 8 worker session(s)
+         -- CUDA, all 8 requested sessions opened
+```
+
+| run | resolved | reason printed |
+|---|---|---|
+| default, `MARLOWE_CUDA_LIB_DIR` set | **CUDAExecutionProvider, 8 of 8** | *CUDA, all 8 requested sessions opened* |
+| **control:** default, variable **unset** | CPUExecutionProvider, 8 of 8 | *a CUDA session did not construct: … cublasLt64_12.dll … Error 126* |
+| **control:** `--embedder-provider cpu`, CUDA available | CPUExecutionProvider, 8 of 8 | *CPU was asked for explicitly* |
+
+**Rows 2 and 3 both end on CPU and before this commit printed the same words.** That is the entire
+reason the request is now on the line: a fallback and a configuration are different facts, and
+ADR-029's rule is that an unannounced fallback is indistinguishable from the failure mode it
+resembles. `runs/session-e-cuda-adr044/live-*.txt`.
+
+### Mutations, RUN rather than reasoned about
+
+| mutation | result |
+|---|---|
+| default `Auto` → `Cpu` | **2 FAILED** — *"the embedder default is `auto` (ADR-044)"* |
+| the request half dropped from the announcement | **2 FAILED** — *"the REQUEST must be on the line"* |
+| `Embedder::load` → `Auto` | **1 FAILED** — *"the row labelled `cpu` is measuring something else"* |
+| omit `--embedder-provider` from `score_longmemeval.py` | exits 2 at parse time |
+
+The third is honest about its own limit: on a CPU-only machine `Auto` resolves to CPU and that
+assertion passes. It catches the relabelling **here**, where a card exists, which is where the
+relabelling would happen.
+
+### NEW FINDING: `repro` must pin a provider, and the reason is not the one already recorded
+
+The known hazard was *two spawns can pick two providers*. There is a second, narrower one underneath
+it: **worker-count invariance has only ever been measured on CPU.**
+`embedding_is_bit_identical_across_calls_and_worker_counts` loads through `Embedder::load`, which is
+CPU by construction, and under `auto` **the width itself is derived from free VRAM at load** — 8 on
+an idle card, 6 at 6,267 MB, 1 at 1,366 MB. So two `repro` spawns can differ in *width* while
+agreeing on *provider*, and nothing in the suite has ever asserted that a CUDA embedder is
+width-invariant.
+
+`CLAUDE.md`'s documented `TARGET` now spells out `--embedder-provider cpu` for exactly this reason,
+with the reasoning inline. **Closing it properly means measuring width invariance on CUDA** — the
+same measurement the module header claims, re-taken per provider rather than inherited, which is
+ADR-013's standing rule applied one boundary further out.
+
+### One thing to know before looking for the announcement in the wrong place
+
+**The daemon does not load an embedder at all.** `Embedder::load_with_provider` has exactly one
+production call site in the workspace — `crates/marlowe/src/main.rs:638`, inside `--eval-adapter` —
+and `marlowe --status`'s `rerank_provider` field still reads `not-wired`. So the startup line exists
+on the eval-adapter path and nowhere else, and a future session wiring retrieval into the daemon
+inherits ADR-044's announcement obligation along with the loader.
+
+### Counts, and the profile they were taken in
+
+| | |
+|---|---|
+| `cargo test --workspace --jobs 4 --no-fail-fast` (**debug**, `MARLOWE_CUDA_LIB_DIR` set) | **922 passed, 0 failed, 2 ignored** (from 915 / 0 / 2) |
+| `cd eval && python -m pytest` | **72 passed**, unchanged — `eval/` was not touched |
+
+**+7 is exactly the seven new `embedder_provider_flag` tests**, so the arithmetic accounts for the
+whole delta rather than netting an unnoticed regression against a new pass. Tallied by summing all
+**83** `test result` lines in `runs/session-e-cuda-adr044/suite.txt`, not by reading its tail: one
+`FAILED` among 83 binaries is invisible in the last twenty lines, and `cmd | tail` returns
+`tail`'s exit status. The suite was run **ONCE**, to a file.
+
+### Still not closed, carried forward
+
+1. **`auto_sessions` swallows its first session's warm-up failure**, collapsing the per-session cost
+   estimate to the computed floor (~4x too small). Bounded by the one-spare-session rule re-reading
+   the device on every decision, which is why the 1,645 MB and 1,366 MB cases stopped at one session
+   rather than thrashing. Measured, not fixed — and `auto` is now the path that reaches it.
+2. **A live first-session CPU fallback is still unmeasured**; the card cannot be squeezed below the
+   threshold with Ollama resident, because Ollama evicts its own models first. Covered by
+   `Probe::Fixed(0)`, which is a driven test and not a live observation.
+3. **`tools/session_l_gpu_recovery.py` has never been run on the EMBEDDER graph**, and the 13.6%
+   CPU-node census it produced was taken on the rerank graph, in Python, at ORT 1.24.2, while this
+   build links 1.22. ADR-029's standing obligation, now inherited by a defaulted-on GPU path.
+4. **Width invariance on CUDA is unmeasured** — the finding above.
+5. **`RerankPlan::select` still has no call site.**
+6. **`--rerank-provider` still defaults to `cpu`.** ADR-029 says the rerank runs on CUDA where a GPU
+   exists; the shipped default disagrees with its own ADR, and it was left alone here because this
+   session's mandate was the embedder. **It is the obvious next flip and it needs the same
+   treatment: a ranking measurement with a control, not an argument from ADR-029's old numbers.**
+
+---
+
 ## THE CUDA/HUGGINGFACE GAP DOES NOT MOVE A DECISION. 242/242, MEASURED, WITH A CONTROL.
 
 **2026-08-17, continuing `7431baa`.** This closes item 1 of the list below — *"the CUDA/HuggingFace
@@ -409,7 +533,7 @@ deliberately at line 38 and says so.
 
 | Where | Language | Runtime | Reachable today |
 |---|---|---|---|
-| `cue/dense/embedder.rs` `session()` — both provider arms, `error_on_failure` | Rust | `ort` 2.0.0-rc.10 | **yes** — `--embedder-provider cuda\|auto`, default `cpu` |
+| `cue/dense/embedder.rs` `session()` — both provider arms, `error_on_failure` | Rust | `ort` 2.0.0-rc.10 | **yes, AND IT IS THE DEFAULT** — `--embedder-provider` defaults to `auto` since ADR-044; the `default `cpu`` this row used to read is superseded |
 | `rerank.rs` `load_pinned()` — ADR-029's path | Rust | `ort` | **yes** — `--rerank-provider cuda`, default `cpu` |
 | `cue/dense/vram.rs` | Rust | shells `nvidia-smi` | yes; **per-process VRAM is `[N/A]` on this driver** |
 | `retrieve.rs` `RerankPlan::select` | Rust | `ort` (indirect) | **no — has no call site in the product** |

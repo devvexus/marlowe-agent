@@ -1005,16 +1005,20 @@ def main() -> int:
              "stamped on every profile row, because a provider is the single most consequential "
              "thing a cell can be wrong about.")
     parser.add_argument(
-        "--embedder-provider", choices=["cpu", "cuda", "auto"], default=None,
-        help="the EMBEDDER's execution provider. Omit for the binary's default (cpu). `cuda` is a "
-             "refusal arm -- it errors rather than falling back -- which is the only value safe to "
-             "measure under, since a cell that silently ran on CPU under a CUDA label is the "
-             "failure this flag exists to prevent. `auto` resolves against free VRAM at load and "
-             "is therefore NOT reproducible across machine states. The chosen value appears in "
-             "the target string report.json records, so a run cannot be labelled with a provider "
-             "it did not ask for. ADR-015: a different execution provider is a different scorer, "
-             "and the embedding cache namespaces on it, so switching re-embeds rather than "
-             "serving one provider's vectors to the other.")
+        "--embedder-provider", choices=["cpu", "cuda", "auto"], required=True,
+        help="the EMBEDDER's execution provider. REQUIRED since ADR-044, and the reason is the "
+             "same one that made --reranking required in Session K: this used to pass through to "
+             "the binary's default, that default was `cpu`, and ADR-044 changed it to `auto`. A "
+             "run that omitted the flag before 2026-08-17 measured CPU; the identical command "
+             "after it measures whatever the card had free at load. A default whose staleness is "
+             "unobservable is the pattern CLAUDE.md names, and here it would silently relabel a "
+             "published retrieval number. `cuda` is the refusal arm -- it errors rather than "
+             "falling back -- and is the only value safe to publish under, since `auto` resolves "
+             "against free VRAM at load and is NOT reproducible across machine states. The chosen "
+             "value appears in the target string report.json records, so a run cannot be labelled "
+             "with a provider it did not ask for. ADR-015: a different execution provider is a "
+             "different scorer, and the embedding cache namespaces on it, so switching re-embeds "
+             "rather than serving one provider's vectors to the other.")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()

@@ -3119,3 +3119,35 @@ On CUDA batched the stage shares are **rerank 34.1%, lexical 27.2%, candidates 1
 a latency claim on the GPU path specifically** — the third time that classification has changed on
 measurement. It is recorded here as an observation and is **not** a decision; the partition is still
 not built and building it still needs its own registration.
+
+---
+
+# Part 3 — ADRs that live in their own files
+
+**From ADR-030 the record is one file per decision**, under `docs/design/adr/`. They are as settled
+as everything above; the split is length, not status. This index exists so that "settled decisions
+are in `DECISIONS.md`" stays true — an ADR nothing links to is a decision the next session will
+re-litigate from scratch.
+
+| ADR | Decision |
+|---|---|
+| [ADR-030](adr/ADR-030-notice-vocabulary.md) | Harness speech is a closed vocabulary, not a `String` |
+| [ADR-031](adr/ADR-031-rustls-and-marlowe-net.md) | TLS enters the workspace as `rustls`, in its own crate, and the first request is allowlisted |
+| [ADR-032](adr/ADR-032-approved-egress-and-the-blast-radius.md) | Egress is approved per host by a human, and that is only legitimate if the prompt shows the host |
+| [ADR-033](adr/ADR-033-persona-v2.md) | The persona artifact moves to v2, adopted from a working prompt and translated against the real harness |
+| [ADR-034](adr/ADR-034-paramspec-requiredness.md) | Requiredness is a separate field from `ArgumentRole`, because they answer different questions |
+| [ADR-035](adr/ADR-035-searxng.md) | General web search is a self-hosted SearXNG instance, and there is no API key anywhere |
+| [ADR-036](adr/ADR-036-source-channels-and-deduplication.md) | Source channels are an extensible keyless registry, and corroboration is counted over independent roots |
+| [ADR-037](adr/ADR-037-deep-research-shape.md) | Four additions to §10, and orchestrator-worker as a consequence of ADR-023 rather than a preference |
+| [ADR-038](adr/ADR-038-claim-write-trust-class.md) | A model-authored claim is written at `min(AgentInferred, run_floor)` |
+| [ADR-039](adr/ADR-039-quarantined-read-routing.md) | Untrusted tool results are condensed by a quarantined child before they reach the run that holds tools |
+| [ADR-040](adr/ADR-040-document-extraction.md) | `marlowe-extract`: the extraction module ADR-031 promised, and a fetch path built for corpus scale |
+| [ADR-041](adr/ADR-041-batched-quarantined-reads.md) | One quarantined reader per group, not per page — and three budget limits that were bugs in effect |
+| [ADR-042](adr/ADR-042-document-store.md) | The document store, and why a reference carrying only counts needs no quarantine |
+| [ADR-043](adr/ADR-043-navigation-is-selection.md) | A research run navigates by SELECTING a link, never by composing a URL |
+| [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** — GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
+
+**ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
+published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA
+and that the flip is licensed by ranking equivalence measured with a control — not by a widened
+constant. `MAX_ABS_DIFF` is unchanged and `embedding-reference.json` is not regenerated.

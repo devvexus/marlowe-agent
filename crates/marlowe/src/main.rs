@@ -125,6 +125,18 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 within one worker, asserted bit-for-bit at 1/3/8 workers.
                                 Default: available parallelism, capped at 8.
 
+  --embedder-provider <P>       `cpu`, `cuda` or `auto`. DEFAULT `auto` -- ADR-044. `auto` opens
+                                CUDA sessions where one constructs and device memory holds it
+                                with a spare, narrows the width where it does not, and falls to
+                                CPU at the full requested width where CUDA is unavailable. It
+                                NEVER fails a run over a busy card. `cuda` is the REFUSAL arm: it
+                                errors rather than falling back, which is what makes a CUDA label
+                                on a published number mean something, and it is the only value
+                                safe to measure under -- `auto` resolves against free VRAM at that
+                                instant, so two spawns on one machine can pick two scorers. The
+                                RESOLVED provider is printed at startup beside the request, and
+                                it is in the embedding cache identity, so vectors cannot cross.
+
   --dump-gate-features <FILE>   Write one NDJSON row per SCORED CANDIDATE to FILE. A diagnostic
                                 side channel: it never changes what goes on the wire. With a
                                 gate loaded each row also carries this build's own `score`,
@@ -587,44 +599,40 @@ fn main() {
         None => std::thread::available_parallelism().map_or(1, |n| n.get().min(8)),
     };
 
-    // **The default is `cpu`, and that is a deliberate refusal to flip a settled decision as a side
-    // effect. 2026-08-17.**
+    // **The default is `auto` as of ADR-044, 2026-08-17. It was `cpu`, and what changed is a
+    // measurement, not an opinion.**
     //
-    // The GPU path is built, registered and reachable -- `auto` and `cuda` both work and both are
-    // read right here, so this is not a declared control with no call site. What is NOT done is
-    // making `auto` the default, and there are two settled reasons plus one measurement:
+    // ADR-013 deferred GPU for the retrieval path pending its own ADR and ADR-015 required a
+    // per-provider baseline before one graph's number could be read as another's. Both are now
+    // answered: on the fit split the CPU and CUDA arms pick the SAME session on 242 of 242
+    // queries -- net 0, McNemar p = 1.0 -- while 99.84% of the 117,890 candidate rows moved their
+    // `dense_cosine`, which is the control that stops "identical" from meaning "the run never
+    // happened". `runs/session-e-cuda/`, prediction registered at `9db08b9` before the run.
     //
-    // 1. **ADR-013 records that GPU is not adopted for the retrieval path**, pending its own ADR.
-    //    The embedder IS the retrieval path. Changing the default would be designing around a
-    //    settled decision rather than arguing to revisit it.
-    // 2. **ADR-015: a different execution provider is a different scorer**, and a CUDA baseline for
-    //    this graph does not exist. `auto` resolves against free VRAM at that instant, so with it
-    //    as the default two spawns of `marlowe-eval repro` on one machine could run on two
-    //    different scorers because something else on the card started or stopped in between. The
-    //    cache namespace keeps the vectors from mixing; it cannot make the two runs agree.
-    // 3. **It could not have been measured here anyway.** On this machine ORT's CUDA provider does
-    //    not load at all -- `cublasLt64_12.dll`, then `cufft64_11.dll` -- for the embedder AND for
-    //    the reranker, which has requested CUDA since ADR-029. So `auto` and `cpu` are currently
-    //    indistinguishable in behaviour, and that indistinguishability is exactly why the default
-    //    must not be the one nobody can test.
+    // **CUDA still FAILS the HuggingFace reference tolerance** -- median 3.072e-5, max 1.063e-4
+    // against a `MAX_ABS_DIFF` of 1e-4, where CPU reads 1.043e-7. Nothing was widened and the
+    // fixture was not regenerated. The tolerance is a proxy for "did the scorer move"; the
+    // decision is the property, and the decision did not move. Same amendment ADR-029 made on the
+    // cross-encoder, on a second scorer, with the same shape of evidence.
     //
-    // What flips this is an ADR carrying a CUDA baseline: the reference fixture re-verified on
-    // CUDA, and determinism / batch / padding invariance re-measured there rather than inherited.
+    // **`auto`, not `cuda`, and the difference is the whole design.** `cuda` is the REFUSAL arm:
+    // it errors rather than falling back, which is right for a measurement cell and unacceptable
+    // in a product, because a user whose card is full would get a binary that will not start.
+    // `auto` never fails a run over a busy card -- it narrows the GPU width, then falls to CPU at
+    // the full requested width, and says which it did.
     //
-    // Whatever is chosen, the resolved provider is PRINTED below -- with the worker count, which
-    // device memory may have lowered -- so a run cannot be labelled with a provider it did not use.
-    let embedder_provider = match flag_value(&args, "--embedder-provider") {
-        None => marlowe_memory::cue::dense::embedder::ProviderChoice::Cpu,
-        Some(v) => match marlowe_memory::cue::dense::embedder::EmbedProvider::parse(v) {
-            Some(c) => c,
-            None => {
-                eprintln!("{USAGE}");
-                eprintln!(
-                    "error: --embedder-provider takes `cpu`, `cuda` or `auto`, got {v:?}. `cuda`                      is a REFUSAL arm: it errors rather than falling back, because a cell that                      silently ran on CPU under a CUDA label is the failure this flag exists to                      prevent."
-                );
-                std::process::exit(2);
-            }
-        },
+    // The cost, accepted and recorded in ADR-044 §5: `auto` resolves against free VRAM at that
+    // instant, so two spawns on one machine can select two different scorers. That is why the
+    // RESOLVED provider is announced below rather than the requested one, why it is in
+    // `CacheIdentity` so the vectors cannot mix, and why `cuda` still exists for anything that
+    // publishes a number.
+    let embedder_provider = match embedder_provider_choice(&args) {
+        Ok(c) => c,
+        Err(message) => {
+            eprintln!("{USAGE}");
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
     };
 
     let embedder = match marlowe_memory::cue::dense::embedder::Embedder::load_with_provider(
@@ -640,16 +648,11 @@ fn main() {
             std::process::exit(1);
         }
     };
-    {
-        let plan = embedder.plan();
-        eprintln!(
-            "marlowe: embedder on {} with {} of {} worker session(s) -- {}",
-            plan.provider.name(),
-            plan.workers,
-            plan.requested,
-            plan.reason
-        );
-    }
+    // **ADR-029's rule, ADR-044's obligation: the RESOLVED provider is announced, never inferred.**
+    // Printed unconditionally, before a single query runs, and it carries the REQUEST beside the
+    // resolution -- see `embedder_announcement` for why both halves are load-bearing now that the
+    // default is `auto`.
+    eprintln!("marlowe: {}", embedder_announcement(embedder_provider, embedder.plan()));
 
     // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
     // must stop the process, not become a per-query error the harness scores as a wrong number.
@@ -726,4 +729,193 @@ fn flag_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
         .map(String::as_str)
         // A following token that is itself a flag means the value was omitted.
         .filter(|v| !v.starts_with("--"))
+}
+
+/// Resolve `--embedder-provider`. **The default is `auto` — ADR-044.**
+///
+/// Extracted from `main` for one reason: a default nothing can call is a default nothing can
+/// test, and this project's ledger is mostly controls that were declared rather than exercised.
+/// `main` is unreachable from a test, so the flip lived in a line no assertion could see.
+///
+/// The error is returned rather than printed so the caller owns `USAGE` and the exit code.
+fn embedder_provider_choice(
+    args: &[String],
+) -> Result<marlowe_memory::cue::dense::embedder::ProviderChoice, String> {
+    use marlowe_memory::cue::dense::embedder::{EmbedProvider, ProviderChoice};
+    match flag_value(args, "--embedder-provider") {
+        // **ADR-044.** GPU where a CUDA session constructs and device memory holds one with a
+        // spare, CPU otherwise, and never a failed run over a busy card.
+        None => Ok(ProviderChoice::Auto),
+        Some(v) => EmbedProvider::parse(v).ok_or_else(|| {
+            format!(
+                "error: --embedder-provider takes `cpu`, `cuda` or `auto`, got {v:?}. The default \
+                 is `auto` (ADR-044): GPU where one constructs and fits, CPU otherwise, never a \
+                 failed run. `cuda` is the REFUSAL arm -- it errors rather than falling back, \
+                 because a cell that silently ran on CPU under a CUDA label is the failure that \
+                 flag exists to prevent, and it is the only value safe to publish a number under."
+            )
+        }),
+    }
+}
+
+/// The startup line: **what was asked for, and what was obtained.**
+///
+/// Both halves, and neither is decoration. Before ADR-044 the default was `cpu`, so a line reading
+/// `embedder on CPUExecutionProvider` described a configuration. With `auto` as the default the
+/// same line has two utterly different causes — a machine with no card, or a user who typed
+/// `--embedder-provider cpu` — and ADR-029's rule is that an unannounced fallback is
+/// indistinguishable from the failure mode it resembles. Printing the request beside the
+/// resolution is what makes the fallback *visible as one*.
+///
+/// The width is here for the same reason: under `auto` it is derived from free device memory at
+/// load, so `6 of 8` is a fact about the card at that instant and not about the configuration.
+///
+/// **This function formats what the source will emit. That is the weaker claim** — the stronger one
+/// is the running binary's own stderr, and ADR-044 §7 says to read it there.
+fn embedder_announcement(
+    requested: marlowe_memory::cue::dense::embedder::ProviderChoice,
+    plan: &marlowe_memory::cue::dense::embedder::ProviderPlan,
+) -> String {
+    use marlowe_memory::cue::dense::embedder::ProviderChoice;
+    let asked = match requested {
+        ProviderChoice::Auto => "auto",
+        ProviderChoice::Cpu => "cpu",
+        ProviderChoice::Cuda => "cuda",
+    };
+    format!(
+        "embedder asked for {asked}, running on {} with {} of {} worker session(s) -- {}",
+        plan.provider.name(),
+        plan.workers,
+        plan.requested,
+        plan.reason
+    )
+}
+
+#[cfg(test)]
+mod embedder_provider_flag {
+    use super::*;
+    use marlowe_memory::cue::dense::embedder::{EmbedProvider, ProviderChoice, ProviderPlan};
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn the_default_is_auto() {
+        // **ADR-044.** This is the assertion that fails if the flip is reverted, and it is the
+        // whole reason `embedder_provider_choice` exists as a function.
+        let a = args(&["--eval-adapter", "--profile-root", "p"]);
+        assert_eq!(
+            embedder_provider_choice(&a).expect("an absent flag is not an error"),
+            ProviderChoice::Auto,
+            "the embedder default is `auto` (ADR-044). `cpu` here would silently un-ship the GPU \
+             path on every machine that has one, with nothing in the output to say so"
+        );
+    }
+
+    #[test]
+    fn the_explicit_arms_still_reach_the_loader() {
+        // The default must not swallow the flag: `cpu` is what every number published before
+        // 2026-08-17 was taken on, and `cuda` is the refusal arm every future measurement needs.
+        for (value, expected) in [
+            ("cpu", ProviderChoice::Cpu),
+            ("cuda", ProviderChoice::Cuda),
+            ("auto", ProviderChoice::Auto),
+        ] {
+            let a = args(&["--eval-adapter", "--embedder-provider", value]);
+            assert_eq!(
+                embedder_provider_choice(&a).expect("a valid value parses"),
+                expected,
+                "--embedder-provider {value} must reach the loader"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_value_is_refused_rather_than_defaulted() {
+        // A permissive default here is the family CLAUDE.md names: a typo would run `auto` and
+        // report nothing, which is a mismatch made unobservable.
+        let a = args(&["--eval-adapter", "--embedder-provider", "gpu"]);
+        let message = embedder_provider_choice(&a).expect_err("`gpu` is not a provider");
+        assert!(message.contains("auto"), "{message}");
+        assert!(message.contains("REFUSAL"), "{message}");
+    }
+
+    #[test]
+    fn a_flag_with_no_value_takes_the_default_and_that_is_recorded_not_discovered() {
+        // `--embedder-provider --reranking off` is a value that was omitted. `flag_value` filters
+        // the following `--` token, so it reaches the None arm and resolves to `auto`. Asserted
+        // so the behaviour is KNOWN rather than found later in a run nobody can explain.
+        let a = args(&["--embedder-provider", "--reranking", "off"]);
+        assert_eq!(embedder_provider_choice(&a).expect("no value"), ProviderChoice::Auto);
+    }
+
+    fn plan(provider: EmbedProvider, workers: usize, reason: &str) -> ProviderPlan {
+        ProviderPlan {
+            provider,
+            workers,
+            requested: 8,
+            free_at_load: Some(6_000 * 1024 * 1024),
+            session_cost: None,
+            reason: reason.to_string(),
+        }
+    }
+
+    #[test]
+    fn the_announcement_names_what_was_asked_and_what_was_obtained() {
+        // The case ADR-044 §5 is about: the request and the resolution DISAGREE, and a line that
+        // printed only one of them would be read as the other.
+        let line = embedder_announcement(
+            ProviderChoice::Auto,
+            &plan(EmbedProvider::Cpu, 8, "a CUDA session did not construct: cublasLt64_12.dll"),
+        );
+        assert!(line.contains("asked for auto"), "the REQUEST must be on the line: {line}");
+        assert!(
+            line.contains("CPUExecutionProvider"),
+            "the RESOLVED provider must be on the line: {line}"
+        );
+        assert!(
+            line.contains("did not construct"),
+            "the reason is what makes a fallback legible as one: {line}"
+        );
+    }
+
+    #[test]
+    fn an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu() {
+        // The control for the test above. Without it that assertion passes on a formatter that
+        // hardcoded either provider name, which is the "green on a build where the control does
+        // nothing" shape.
+        let got_cuda = embedder_announcement(
+            ProviderChoice::Auto,
+            &plan(EmbedProvider::Cuda, 6, "CUDA, 6 of 8 sessions; device memory"),
+        );
+        let got_cpu = embedder_announcement(
+            ProviderChoice::Auto,
+            &plan(EmbedProvider::Cpu, 8, "no readable NVIDIA device"),
+        );
+        assert_ne!(got_cuda, got_cpu);
+        assert!(got_cuda.contains("CUDAExecutionProvider"), "{got_cuda}");
+        assert!(got_cuda.contains("6 of 8"), "the width is a fact about the card: {got_cuda}");
+        assert!(got_cpu.contains("CPUExecutionProvider"), "{got_cpu}");
+    }
+
+    #[test]
+    fn an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu() {
+        // The property that motivated putting the request on the line at all. Both of these
+        // resolve to CPU; before ADR-044 they printed the same words.
+        let asked_cpu = embedder_announcement(
+            ProviderChoice::Cpu,
+            &plan(EmbedProvider::Cpu, 8, "CPU was asked for explicitly"),
+        );
+        let fell_back = embedder_announcement(
+            ProviderChoice::Auto,
+            &plan(EmbedProvider::Cpu, 8, "no readable NVIDIA device"),
+        );
+        assert_ne!(
+            asked_cpu, fell_back,
+            "a configured CPU run and a silent fallback must not print the same line"
+        );
+        assert!(asked_cpu.contains("asked for cpu"), "{asked_cpu}");
+        assert!(fell_back.contains("asked for auto"), "{fell_back}");
+    }
 }

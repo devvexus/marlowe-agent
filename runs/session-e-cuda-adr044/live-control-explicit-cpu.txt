@@ -1,0 +1,1 @@
+marlowe: embedder asked for cpu, running on CPUExecutionProvider with 8 of 8 worker session(s) -- CPU was asked for explicitly

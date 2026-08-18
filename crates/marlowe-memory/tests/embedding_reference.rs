@@ -299,6 +299,18 @@ fn the_embedder_reproduces_the_reference_within_a_measured_tolerance() {
         Ok(e) => e,
         Err(e) => panic!("the pinned model must load: {e}"),
     };
+    // **The label is a claim, so it is enforced here rather than trusted.** ADR-044 made the
+    // PRODUCT's default `auto`; `Embedder::load` stayed CPU precisely so this row means what it
+    // says. If someone flips `load` to `Auto`, this reading would quietly become CUDA's on any
+    // machine with a card -- and CUDA misses `MAX_ABS_DIFF` by design (see the test below), so
+    // the failure would arrive as a mysterious tolerance break rather than as the relabelling it
+    // is. The assertion turns that into one line naming the cause.
+    assert_eq!(
+        embedder.provider(),
+        EmbedProvider::Cpu,
+        "`Embedder::load` is the fixed-CPU constructor (ADR-044). A non-CPU provider here \
+         means the row labelled `cpu` is measuring something else"
+    );
     let diffs = check_against_the_reference(&mut embedder, "cpu");
     let worst = diffs.iter().fold(0.0f32, |a, b| a.max(*b));
     assert!(
@@ -370,12 +382,19 @@ fn the_embedder_reproduces_the_reference_on_cuda_too() {
     // by rounding up the first number ever measured would be fitting the threshold to the
     // observation.
     //
-    // **THIS IS A BLOCKER FOR PUTTING THE EMBEDDER ON CUDA BY DEFAULT, AND IT IS AN ADR.** ADR-029
-    // met the same wall on the cross-encoder and amended the requirement to *ranking equivalence*
-    // after measuring it -- 0/229 slates reordered. The equivalent measurement here is a retrieval
-    // run scored on CUDA against the CPU baseline, and it has NOT been taken. Until it is, this
-    // file records agreement in direction and disagreement in components, and claims nothing about
-    // R@1.
+    // **THIS WAS THE BLOCKER FOR DEFAULTING THE EMBEDDER TO GPU. IT WAS CLEARED BY MEASUREMENT,
+    // NOT BY WIDENING ANYTHING -- ADR-044, 2026-08-17.** ADR-029 met the same wall on the
+    // cross-encoder and amended the requirement to *ranking equivalence* after measuring it (0/229
+    // slates reordered). The equivalent measurement here has now been taken: on the fit split the
+    // CPU and CUDA arms pick the same session on **242 of 242** queries, net 0, McNemar p = 1.0,
+    // while **99.84%** of the 117,890 candidate rows moved their `dense_cosine` -- the control that
+    // stops "identical" from meaning "the run never happened". `runs/session-e-cuda/`.
+    //
+    // **Nothing in this file changed as a result, and that is the point.** The tolerance is a proxy
+    // for "did the scorer move"; the decision is the property. The proxy still reads FAIL for CUDA
+    // and is left reading FAIL. This test continues to record agreement in direction and
+    // disagreement in components, and continues to claim nothing about R@1 -- the R@1 claim lives
+    // in ADR-044 with the run that produced it.
     const CUDA_MAX_ABS_DIFF: f32 = 1e-3;
     assert!(
         worst <= CUDA_MAX_ABS_DIFF,
