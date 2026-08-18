@@ -69,7 +69,7 @@ manifest exists to make that coverage gap legible rather than silent.
 3.26:1 on light, both clear the 3.0 floor that applies to a structure accent. §B13 asks for
 confirmation **by eye on each background** and a number is not an eye. Human action, not agent work.
 
-**11. `--serve` never announces the resolved rerank provider.** It exists only on `--status`.
+**2. `--serve` never announces the resolved rerank provider.** It exists only on `--status`.
 ADR-029's rule is *announced, never inferred*, and the daemon's startup lines announce the model,
 the context window and the memory state but not which provider the reranker resolved to — so a
 daemon silently on CPU and one on CUDA print the same startup. Found while measuring; one line.
