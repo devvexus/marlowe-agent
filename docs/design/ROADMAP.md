@@ -550,7 +550,8 @@ happen.
 | — | **Layer 1 routing (ADR-039)** — `Engine::condense_batch`, the quarantined reader wired to the trust class | ✅ 2026-08-12, **unscheduled** |
 | — | **Tools and parallelism (ADR-040, ADR-041, ADR-042)** — `marlowe-extract`, `marlowe-net` rebuilt, concurrent fetch, batched quarantined reads, the document store | ✅ 2026-08-12 `1d3a428`, **unscheduled** |
 | — | **The security audit** — 108 findings from 8 read-only agents, 20+ fixed, each pinned by a test that fails on revert | ✅ 2026-08-12 `813ae2f`…`5142420`, **unscheduled** |
-| **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | **current** |
+| **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | ✅ **2026-08-18**, except the accent row's **by-eye** half, which is a human action and not agent work. Onboarding `ef0afec`; K6 measured; the accent arithmetic asserted `e21cae7` |
+| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **CURRENT.** The one M2 session never started — see below |
 
 **Session B is verified on both platforms, and that is a standing requirement rather than a
 one-time closure.** The symlink class cannot run on Windows without elevation and the POSIX walk
@@ -629,15 +630,15 @@ below carries the command or the path that decided it, not a recollection.
 
 | Acceptance row | Status | Evidence |
 |---|---|---|
-| Install → first useful output <5 min, zero config, clean container | **UNMET — unmeasured** | Session E item 3, running now |
-| First-run onboarding states what Marlowe can reach | **UNMET** | Session E item 4 |
+| Install → first useful output <5 min, zero config, clean container | **MET 2026-08-12** | K6 restated (see above). Harness cold start **70 ms**; end to end **1.2–1.5 s** with the model resident, against a 300,000 ms budget |
+| First-run onboarding states what Marlowe can reach | **MET 2026-08-17** `ef0afec` | Derived from `builtin_registry()`, so a tool whose consequence changes cannot have its disclosure drift from its behaviour |
 | Path-traversal suite passes **and** access is handle-based | **MET** | Session B, both platforms, `MARLOWE_TRAVERSAL_STRICT=1`, 11/11 classes `RAN`; ADR-027 |
 | **SWE-bench Verified and Terminal-Bench 2.0: competitive** | **UNMET AND UNSCHEDULED** | No occurrence of either name anywhere in the repository — no harness, no adapter, no run, no result |
 | **τ-bench / BFCL: competitive** | **UNMET AND UNSCHEDULED** | As above. Neither name appears in any `.rs`, `.py`, `.toml`, `.json` or `.yaml` outside `target/` |
 | Compaction preserves governance across the boundary — *tested explicitly* | **MET** | `marlowe-loop/tests/compaction.rs:70` and `:173`. Driven through `Engine::run` with a summarizer that preserves nothing, asserted on the assembled view **and** on the view the driver was handed, with an explicit vacuity guard (`state.compactions >= 1`) |
 | Compaction invalidates cache — *tested explicitly* | **MET** | `compaction.rs:222`. Asserts the epoch moves **and** that the stale entry is gone rather than merely unreachable |
 | Startup fails on an unannotated tool manifest | **MET, structurally — and stronger than the row asks** | `ToolRegistration.manifest` is `CapabilityManifest`, not `Option`, so an unannotated registration is unrepresentable (`registry.rs:108-121`). A missing **role** is a load error (`manifest.rs:434`); a missing **consequence** loads as the *maximum* (`manifest.rs:413`) — fail-closed by default rather than by refusal, which is deliberate and is not what this row's wording describes |
-| **Budget tests from HP10 pass in CI** | **UNMET — there is no CI** | `marlowe-loop/tests/hp10_budgets.rs` exists and passes locally. `.github/` does not exist, and no CI configuration of any kind is in the repository. The row is blocked on CI existing, not on the tests |
+| **Budget tests from HP10 pass in CI** | **PARTIALLY MET 2026-08-18** `9591ef4` | CI now exists and runs the workspace suite, which includes `hp10_budgets.rs`. **It has never executed** — see `docs/design/CI.md`. Manual dispatch plus Mondays 04:00 UTC; deliberately not on push |
 
 **Three things this audit turned up that are not scope calls and are recorded here so they are not
 rediscovered.**

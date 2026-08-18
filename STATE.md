@@ -1,5 +1,37 @@
 # State
 
+## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
+
+**Session E is closed** (`ROADMAP.md` updated): the TUI runs on the real loop, first-run onboarding
+ships (`ef0afec`), K6 is measured and passes by two orders of magnitude, and the accent row's
+arithmetic is asserted (`e21cae7`). Only its **by-eye** half remains and that is a human action.
+
+**C3 is the one M2 session that was never started**, and M2's scope names it directly: *"`SKILL.md`
+loading with progressive disclosure and `find_skill` semantic discovery. MCP transport."* The table
+recorded it as deferred behind C2 by its own rule — *"a Marlowe that can be talked to with no skills
+library beats a skills library that cannot be talked to"* — and C2 finished six sessions ago.
+
+**What exists and what does not.** The *vocabulary* has been there since Session A:
+`Transport::{Skill, Mcp}`, and third-party tool descriptions carried as `UntrustedContent`. **Nothing
+loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server.**
+
+**Two things from this session that land directly on C3, so read them before starting:**
+
+* **`Description::trust()` is a declared control with no reader.** `marlowe-tools/src/registry.rs`
+  computes `UntrustedContent` for `Mcp`/`Skill`/`Connector` descriptions and **nothing calls it** —
+  `SourceKind::ToolSchemas` is never constructed in production. Harmless today because no MCP
+  transport is wired. **The moment C3 wires one, a third-party tool description is in the model's
+  context at an effective class of nothing**, and §7.2's *"injection vector by construction"* is
+  unenforced. C3 is the session that makes that live; close it in the same change.
+* **`registry.rs:86-90` substitutes control characters rather than refusing them, and it is
+  `Cc`-only** — so U+2028, RLO and zero-width characters pass into a model-visible tool list.
+  `marlowe_loop::is_renderable` is the predicate that already handles this; C3 should route through
+  it rather than growing a second idea of what a safe character is.
+
+**M2 cannot close without C3.** Two acceptance rows also remain — the four benchmark rows, which need
+four external harnesses that do not exist here and are a decision rather than a run, and CI, which
+now exists and has never executed.
+
 ## OUTSTANDING — read this first. Everything below this section is history.
 
 Consolidated 2026-08-17 because the items were spread across twelve sections written by different
