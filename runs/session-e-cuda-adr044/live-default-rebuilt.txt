@@ -1,0 +1,1 @@
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 6 of 8 worker session(s) -- CUDA, 6 of 8 sessions; device memory: 1511 MB usable would not hold another session plus a spare (779 MB each)

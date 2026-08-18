@@ -49,6 +49,26 @@ marlowe: embedder asked for auto, running on CUDAExecutionProvider with 8 of 8 w
 | **control:** default, variable **unset** | CPUExecutionProvider, 8 of 8 | *a CUDA session did not construct: … cublasLt64_12.dll … Error 126* |
 | **control:** `--embedder-provider cpu`, CUDA available | CPUExecutionProvider, 8 of 8 | *CPU was asked for explicitly* |
 
+**AND THE OPEN RISK DEMONSTRATED ITSELF SEVEN MINUTES LATER, WHICH IS BETTER EVIDENCE THAN THE
+HEADLINE.** The binary was rebuilt (restoring the mutation backups had pushed source mtimes above
+the artifact, and a stale-looking binary is not worth arguing about) and the identical flagless
+command re-run:
+
+```
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 6 of 8 worker session(s)
+         -- CUDA, 6 of 8 sessions; device memory: 1511 MB usable would not hold another session
+            plus a spare (779 MB each)
+```
+
+**8 of 8 at 22:00, 6 of 8 at 22:07, same binary, same command, nothing configured differently** —
+`nvidia-smi` read 6,185 MiB free of 16,376 instead of an idle card. That is what `auto` means,
+observed rather than argued, and it is the standing reason `cuda` still exists: a comparison
+needing a fixed scorer cannot use a default that moves with the card. It also **independently
+re-derives the coexistence table**, which recorded 6 of 8 at 6,267 MB from
+`examples/embed_memory.rs` — the shipped binary's own default path lands on the same width at
+6,185 MB, per-session cost 779 MB against that table's 793 MB. Two programs, two readings, one
+answer.
+
 **Rows 2 and 3 both end on CPU and before this commit printed the same words.** That is the entire
 reason the request is now on the line: a fallback and a configuration are different facts, and
 ADR-029's rule is that an unannounced fallback is indistinguishable from the failure mode it

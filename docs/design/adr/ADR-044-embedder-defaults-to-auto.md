@@ -259,5 +259,27 @@ CUDA available, reads *"asked for cpu, running on CPUExecutionProvider — CPU w
 explicitly"*. Two of these three runs end on CPU, and before this commit they printed the same
 words. One is a configuration and one is a fallback; a reader can now tell which.
 
+**§5's open risk then demonstrated itself, unprompted, seven minutes later.** The binary was rebuilt
+(source mtimes had moved above it after the mutation reverts, and a stale-looking artifact is not
+something to argue about) and the identical command re-run:
+
+```
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 6 of 8 worker session(s)
+         -- CUDA, 6 of 8 sessions; device memory: 1511 MB usable would not hold another session
+            plus a spare (779 MB each)
+```
+
+**Same binary, same command, same machine, no flag — 8 of 8 at 22:00 and 6 of 8 at 22:07**, because
+`nvidia-smi` read 6,185 MiB free of 16,376 rather than an idle card. Nothing was configured
+differently. This is exactly what §5 says `auto` means, observed rather than reasoned about, and it
+is the argument for `cuda` continuing to exist: a comparison that needs a fixed scorer cannot use a
+default that moves with the card.
+
+It is also an **independent re-derivation of the coexistence table in §1**, which recorded 6 of 8 at
+6,267 MB from `examples/embed_memory.rs`. The shipped binary's own default path, on a different
+night's card state, lands on the same width at 6,185 MB with a per-session cost of 779 MB against
+that table's 793 MB. Two different programs, two different readings of the card, one answer.
+
 Artifacts: `runs/session-e-cuda-adr044/live-default.txt`, `live-control-unset.txt`,
-`live-control-explicit-cpu.txt`.
+`live-control-explicit-cpu.txt`, `live-default-rebuilt.txt`, `live-control-unset-rebuilt.txt`,
+`vram-at-reprobe.txt`.
