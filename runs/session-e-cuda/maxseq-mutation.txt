@@ -1,0 +1,23 @@
+===== BASELINE at MAX_SEQ_LEN = 1024 =====
+host peak: 9.2 MB before, 290.2 MB after ONE CPU session at MAX_SEQ_LEN = 1024; the [8, N, N] int64 matrix predicts 64.0 MB of that
+device: 14143.0 MB free before, 13361.0 MB after -> 782.0 MB held by ONE session at MAX_SEQ_LEN = 1024 (graph 123.8 MB + ALiBi 64.0 MB + context/arena/activations)
+test one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 152 filtered out; finished in 0.16s
+
+===== MUTATION: MAX_SEQ_LEN 1024 -> 4096 =====
+applied
+--- arithmetic guard (needs no model, cannot be flaky) ---
+test cue::dense::hostmem::tests::the_quadratic_term_is_the_one_that_moved ... ok
+test cue::dense::hostmem::tests::the_shipped_cap_predicts_a_footprint_in_megabytes_not_gigabytes ... FAILED
+test cue::dense::hostmem::tests::a_reading_is_either_absent_or_plausible ... ok
+MAX_SEQ_LEN = 4096 predicts an ALiBi matrix of 1024 MB per session (8 x N x N int64), over the 256 MB ceiling. That tensor is transient per inference and per session, so the real cost is this times the worker count. Raising the cap is a decision with a memory bill attached -- if it is the right one, move this ceiling in the same commit and say what was measured.
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 152 filtered out; finished in 0.16s
+--- measured guard ---
+host peak: 9.3 MB before, 2234.3 MB after ONE CPU session at MAX_SEQ_LEN = 4096; the [8, N, N] int64 matrix predicts 1024.0 MB of that
+ONE session embedding at MAX_SEQ_LEN = 4096 peaked at 2234.3 MB, over the 768.0 MB ceiling. The [8, N, N] int64 ALiBi matrix predicts 1024.0 MB at this cap, so a reading far above it means the graph is allocating at a length nobody asked for -- the 8192 defect with the constant left alone. This is PER SESSION: at the derived worker count it is multiplied.
+test one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.69s
+reverted
+===== RESTORED =====
+104:pub const MAX_SEQ_LEN: usize = 1024;

@@ -1,0 +1,70 @@
+############ model.onnx size
+-rw-r--r-- 1 matth 197610 129809014 Aug  4 11:32 models/jina-embeddings-v2-small-en/model.onnx
+############ workers=1 provider=cuda
+11763 MiB
+MAX_SEQ_LEN = 1024, workers = 1, provider requested = cuda
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x1 = 64.0 MB
+device free at baseline: 11763.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 1 of 1 session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+after load: host peak 479.1 MB, device held 383.0 MB
+short text (512 dims): host peak 1042.8 MB, device held 418.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1056.8 MB, device held 802.0 MB
+batch of 1 at MAX_SEQ_LEN: host peak 1057.0 MB, device held 802.0 MB
+
+FINAL host peak: 1057.0 MB over 1 session(s)
+  -> 1057.0 MB per session (host, aggregate / width)
+FINAL device held: 802.0 MB -> 802.0 MB per session
+11770 MiB
+############ workers=2 provider=cuda
+11770 MiB
+MAX_SEQ_LEN = 1024, workers = 2, provider requested = cuda
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x2 = 128.0 MB
+device free at baseline: 11770.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 2 of 2 session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+after load: host peak 542.0 MB, device held 545.0 MB
+short text (512 dims): host peak 1108.1 MB, device held 581.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1122.0 MB, device held 953.0 MB
+batch of 2 at MAX_SEQ_LEN: host peak 1135.4 MB, device held 1357.0 MB
+
+FINAL host peak: 1135.4 MB over 2 session(s)
+  -> 567.7 MB per session (host, aggregate / width)
+FINAL device held: 1357.0 MB -> 678.5 MB per session
+11790 MiB
+############ workers=4 provider=cuda
+11790 MiB
+MAX_SEQ_LEN = 1024, workers = 4, provider requested = cuda
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x4 = 256.0 MB
+device free at baseline: 11790.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 4 of 4 session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+after load: host peak 723.9 MB, device held 875.0 MB
+short text (512 dims): host peak 1282.3 MB, device held 911.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1296.1 MB, device held 1295.0 MB
+batch of 4 at MAX_SEQ_LEN: host peak 1337.5 MB, device held 2503.0 MB
+
+FINAL host peak: 1337.5 MB over 4 session(s)
+  -> 334.4 MB per session (host, aggregate / width)
+FINAL device held: 2503.0 MB -> 625.8 MB per session
+11790 MiB
+############ workers=8 provider=cuda
+11790 MiB
+MAX_SEQ_LEN = 1024, workers = 8, provider requested = cuda
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x8 = 512.0 MB
+device free at baseline: 11790.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 8 of 8 session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+after load: host peak 1058.7 MB, device held 2045.0 MB
+short text (512 dims): host peak 1623.2 MB, device held 2081.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1633.1 MB, device held 2337.0 MB
+batch of 8 at MAX_SEQ_LEN: host peak 1711.1 MB, device held 4647.0 MB
+
+FINAL host peak: 1711.1 MB over 8 session(s)
+  -> 213.9 MB per session (host, aggregate / width)
+FINAL device held: 4647.0 MB -> 580.9 MB per session
+11790 MiB

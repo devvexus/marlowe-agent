@@ -1,0 +1,18 @@
+=== round 1: release ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== round 1: debug ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== round 2: release ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== round 2: debug ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== round 3: release ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== round 3: debug ===
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+

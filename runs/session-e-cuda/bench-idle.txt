@@ -1,0 +1,37 @@
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 12065 MB
+VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against          that baseline. Per-process `--query-compute-apps` reports [N/A] -- WDDM does not attribute device memory per process here.
+co-resident processes on the card at start: no llama/ollama process
+CUDA session constructs on the shipped graph: true
+derived worker count (available_parallelism().min(8)): 8
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1     924.90 ms total    28.90 ms/embedding  host peak   481.3 MB  device held  219.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8     158.12 ms total     4.94 ms/embedding  host peak  1362.4 MB  device held  213.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 1      71.55 ms total     2.24 ms/embedding  host peak  1362.4 MB  device held  791.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8      93.64 ms total     2.93 ms/embedding  host peak  1769.7 MB  device held 4588.0 MB  per-process     [N/A]
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    5037.29 ms total   157.42 ms/embedding  host peak  1769.7 MB  device held  244.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8     935.17 ms total    29.22 ms/embedding  host peak  2332.2 MB  device held  244.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 1      93.69 ms total     2.93 ms/embedding  host peak  2332.2 MB  device held  792.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8      97.70 ms total     3.05 ms/embedding  host peak  2332.2 MB  device held 4488.0 MB  per-process     [N/A]
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1   12363.40 ms total   386.36 ms/embedding  host peak  2332.2 MB  device held  246.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8    2781.75 ms total    86.93 ms/embedding  host peak  3242.6 MB  device held  246.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 1     149.26 ms total     4.66 ms/embedding  host peak  3242.6 MB  device held  774.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8     146.84 ms total     4.59 ms/embedding  host peak  3242.6 MB  device held 4490.0 MB  per-process     [N/A]
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1             28.90         2.24   12.93x
+102      8              4.94         2.93   1.69x
+502      1            157.42         2.93   53.77x
+502      8             29.22         3.05   9.57x
+1024     1            386.36         4.66   82.83x
+1024     8             86.93         4.59   18.94x
+
+embedding cache was OFF for every row above.

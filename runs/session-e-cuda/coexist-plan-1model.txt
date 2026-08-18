@@ -1,0 +1,20 @@
+### free VRAM now:
+6264 MiB
+### ollama ps:
+NAME              ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+marlowe-red:9b    c0aeab81cbf2    6.6 GB    100% GPU     32768      28 minutes from now    
+### embed_memory 8 auto, with marlowe-red:9b resident
+MAX_SEQ_LEN = 1024, workers = 8, provider requested = auto
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x8 = 512.0 MB
+device free at baseline: 6267.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 6 of 8 session(s) -- CUDA, 6 of 8 sessions; device memory: 1509 MB usable would not hold another session plus a spare (793 MB each)
+after load: host peak 1576.5 MB, device held 3529.0 MB
+short text (512 dims): host peak 1576.5 MB, device held 3528.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1576.5 MB, device held 3528.0 MB
+batch of 6 at MAX_SEQ_LEN: host peak 1576.5 MB, device held 3528.0 MB
+
+FINAL host peak: 1576.5 MB over 6 session(s)
+  -> 262.8 MB per session (host, aggregate / width)
+FINAL device held: 3528.0 MB -> 588.0 MB per session

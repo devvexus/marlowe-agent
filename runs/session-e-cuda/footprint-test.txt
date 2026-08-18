@@ -1,0 +1,48 @@
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+    Finished `release` profile [optimized + debuginfo] target(s) in 1.77s
+     Running tests\session_footprint.rs (target\release\deps\session_footprint-1de52022a872e766.exe)
+
+running 1 test
+host peak: 10.1 MB before, 291.1 MB after ONE CPU session at MAX_SEQ_LEN = 1024; the [8, N, N] int64 matrix predicts 64.0 MB of that
+device: 11779.0 MB free before, 11000.0 MB after -> 779.0 MB held by ONE session at MAX_SEQ_LEN = 1024 (graph 123.8 MB + ALiBi 64.0 MB + context/arena/activations)
+test one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s
+
+warning: function `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key` should have a snake case name
+   --> crates\marlowe-memory\src\gate\features.rs:448:8
+    |
+448 |     fn z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_rank_key`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `declaring_a_RANK_feature_inert_is_refused` should have a snake case name
+   --> crates\marlowe-memory\src\gate\mod.rs:954:8
+    |
+954 |     fn declaring_a_RANK_feature_inert_is_refused() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `declaring_a_rank_feature_inert_is_refused`
+
+warning: function `the_calibration_reads_MARGIN_and_nothing_else` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1056:8
+     |
+1056 |     fn the_calibration_reads_MARGIN_and_nothing_else() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `the_calibration_reads_margin_and_nothing_else`
+
+warning: function `the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1066:8
+     |
+1066 |     fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `the_ranking_score_is_the_winning_cues_z_not_its_calibrated_value`
+
+warning: `marlowe-memory` (lib test) generated 4 warnings
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.20s
+     Running unittests src\lib.rs (target\release\deps\marlowe_memory-fbc0f106f041b59b.exe)
+
+running 3 tests
+test cue::dense::hostmem::tests::the_quadratic_term_is_the_one_that_moved ... ok
+test cue::dense::hostmem::tests::the_shipped_cap_predicts_a_footprint_in_megabytes_not_gigabytes ... ok
+test cue::dense::hostmem::tests::a_reading_is_either_absent_or_plausible ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 152 filtered out; finished in 0.17s
+

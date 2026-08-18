@@ -1,0 +1,18 @@
+=== BASELINE: release (the mode it used to fail in) ===
+test elapsed::tests::elapsed_cannot_masquerade_as_a_timestamp ... ok
+test elapsed::tests::elapsed_is_reportable_as_cost ... ok
+test elapsed::tests::finish_is_what_closes_the_last_stage ... ok
+test elapsed::tests::finish_on_a_timer_with_nothing_open_banks_nothing ... ok
+test elapsed::tests::stage_totals_never_exceed_the_span_they_were_taken_inside ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+=== BASELINE: debug ===
+
+
+failures:
+    elapsed::tests::a_stage_entered_twice_accumulates_rather_than_restarts
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe --bin marlowe`

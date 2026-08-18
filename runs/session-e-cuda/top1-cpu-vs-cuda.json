@@ -1,0 +1,47 @@
+{
+  "baseline": {
+    "label": "CPU (embedder)",
+    "dir": "runs\\session-e-maxseq\\fit-1024\\fit",
+    "session_top1": 218,
+    "of": 242,
+    "rate": 0.9008264462809917,
+    "queries_decided_by_id_tiebreak": 0
+  },
+  "treatment": {
+    "label": "CUDA (embedder)",
+    "dir": "runs\\session-e-cuda\\fit-cuda\\fit",
+    "session_top1": 218,
+    "of": 242,
+    "rate": 0.9008264462809917,
+    "queries_decided_by_id_tiebreak": 0
+  },
+  "identical_top1_pick": 242,
+  "queries_compared": 242,
+  "unattributable_top1": 0,
+  "gained": 0,
+  "lost": 0,
+  "net": 0,
+  "mcnemar_exact_two_sided_p": 1.0,
+  "moved": [],
+  "slate_top10": {
+    "depth": 10,
+    "queries": 242,
+    "identical_order": 239,
+    "reordered": 3,
+    "identical_membership": 239,
+    "different_membership": 3
+  },
+  "CONTROL": {
+    "rows_baseline": 117890,
+    "rows_treatment": 117890,
+    "rows_shared": 117888,
+    "rows_only_in_baseline": 2,
+    "rows_only_in_treatment": 2,
+    "rows_with_changed_dense_cosine": 117702,
+    "rows_with_changed_score": 18583,
+    "fraction_dense_cosine_moved": 0.9984222312703583,
+    "max_abs_dense_cosine_delta": 8.809566497802734e-05,
+    "max_abs_score_delta": 3.078439235687256
+  },
+  "control_reading": "117702 of 117888 shared rows changed dense_cosine and 18583 changed score, so the comparison had something to discriminate"
+}

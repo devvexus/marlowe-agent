@@ -1,0 +1,23 @@
+### free VRAM before:
+2118 MiB
+### ONE cuda session on a squeezed card (refusal arm, no budget):
+MAX_SEQ_LEN = 1024, workers = 1, provider requested = cuda
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x1 = 64.0 MB
+device free at baseline: 2118.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 1 of 1 session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+after load: host peak 483.2 MB, device held 382.0 MB
+short text (512 dims): host peak 1042.9 MB, device held 420.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 0.0 MB, device held [unreadable]
+batch of 1 at MAX_SEQ_LEN: host peak 0.0 MB, device held 686.0 MB
+
+FINAL host peak: 1056.9 MB over 1 session(s)
+  -> 1056.9 MB per session (host, aggregate / width)
+FINAL device held: 686.0 MB -> 686.0 MB per session
+### free VRAM after:
+2241 MiB
+### ollama still resident?
+NAME              ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+marlowe-red:9b    c0aeab81cbf2    6.6 GB    100% GPU     32768      27 minutes from now    
+qwen3.5:4b        2a654d98e6fb    4.3 GB    100% GPU     32768      18 minutes from now    

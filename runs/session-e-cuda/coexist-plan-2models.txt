@@ -1,0 +1,21 @@
+### ollama ps:
+NAME              ID              SIZE      PROCESSOR    CONTEXT    UNTIL               
+marlowe-red:9b    c0aeab81cbf2    6.6 GB    100% GPU     32768      28 minutes from now    
+qwen3.5:4b        2a654d98e6fb    4.3 GB    100% GPU     32768      19 minutes from now    
+### free VRAM:
+14414 MiB, 1632 MiB
+### embed_memory 8 auto, TWO models resident
+MAX_SEQ_LEN = 1024, workers = 8, provider requested = auto
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x8 = 512.0 MB
+device free at baseline: 1645.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 1 of 8 session(s) -- CUDA, 1 of 8 sessions; session 2 did not construct: loading the ONNX session from models/jina-embeddings-v2-small-en\model.onnx: Load model from models/jina-embeddings-v2-small-en\model.onnx failed:bad allocation
+after load: host peak 0.0 MB, device held 255.0 MB
+short text (512 dims): host peak 1053.0 MB, device held 255.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1053.1 MB, device held 255.0 MB
+batch of 1 at MAX_SEQ_LEN: host peak 1053.3 MB, device held 255.0 MB
+
+FINAL host peak: 1053.3 MB over 1 session(s)
+  -> 1053.3 MB per session (host, aggregate / width)
+FINAL device held: 255.0 MB -> 255.0 MB per session

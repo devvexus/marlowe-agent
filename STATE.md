@@ -1,5 +1,353 @@
 # State
 
+## THE CUDA/HUGGINGFACE GAP DOES NOT MOVE A DECISION. 242/242, MEASURED, WITH A CONTROL.
+
+**2026-08-17, continuing `7431baa`.** This closes item 1 of the list below — *"the CUDA/HuggingFace
+gap is the blocker; take the ranking measurement ADR-029 took"* — and item 3, coexistence. Every
+number here is a command that was run, and the prediction was committed (`9db08b9`) **before the
+scoring run was launched**, not before it finished.
+
+### The result
+
+| | CPU (embedder) | CUDA (embedder) |
+|---|---|---|
+| session-level top-1, fit split | **0.9008** (218/242) | **0.9008** (218/242) |
+| identical top-1 pick | — | **242 / 242** |
+| gained / lost / net | — | **0 / 0 / 0** |
+| McNemar exact two-sided | — | **p = 1.0** |
+| top-10 slate, identical ORDER | — | **239 / 242** (3 reordered) |
+
+**THE CONTROL, and it is the half that makes the headline mean anything.** A comparison of two runs
+that were secretly the same run reports perfect agreement, which is also what a real null looks like.
+
+| | value |
+|---|---|
+| candidate rows, each dump | **117,890** (identical count) |
+| rows changed `dense_cosine` | **117,702 of 117,888 shared — 99.84%** |
+| rows changed fused `score` | **18,583** |
+| max abs Δ `dense_cosine` | **8.810e-5** |
+| rows present in only one dump | 2 and 2 |
+
+The prediction registered a hard floor: *"if fewer than 90% of rows move, the run did not use CUDA
+and every number in it is vacuous."* 99.84% moved. **The inputs moved on essentially every row and
+no decision moved.**
+
+**The comparator is itself controlled, in both directions.** `tools/compare_top1.py` run
+baseline-against-*itself* prints `VACUOUS -- the inputs did not move`; run on the
+8192-vs-1024 pair it reproduces the numbers already on this page **exactly** — 242/242 identical,
+**206** rows changed `dense_cosine`, **10,665** changed `score`, **4** rows only in the 8192 dump.
+That is an independent re-derivation of an ad-hoc calculation from earlier today, agreeing to the
+row.
+
+### VERDICT, under the rule fixed in advance
+
+> *If top-1 picks are identical, the tolerance failure is numerical noise below the decision
+> threshold and CUDA is safe to default.*
+
+**Picks are identical. The blocker is cleared by measurement.** `MAX_ABS_DIFF` was not widened,
+`embedding-reference.json` was not regenerated, and neither was read by this run.
+
+**What was NOT done, deliberately: the default was not flipped.** That is ADR-013 and ADR-015
+territory and CLAUDE.md says a settled decision is argued explicitly, not designed around. The
+measurement that was missing now exists; the ADR is a separate act, and two things belong in it —
+`--embedder-provider auto` resolves against free VRAM *at that instant*, so two `marlowe-eval repro`
+spawns on one machine can select two different scorers depending on what else is on the card, and
+the coexistence readings below say the width really does move.
+
+### The three slates that DID reorder, because "0 of 242" would have been the wrong claim
+
+ADR-029 reported **0 of 229** slates reordered for the cross-encoder. The embedder is slightly
+noisier: **3 of 242**, all at ranks 4–10, none at rank 1.
+
+| query | what moved |
+|---|---|
+| `37d43f65` | ranks 9–10 swap; a rank-11 candidate enters at 9 |
+| `45dc21b6` | ranks 4–8 permute; a rank-11 candidate enters at 4 |
+| `71a3fd6b` | ranks 9–10 swap |
+
+**Reported rather than rounded away.** The perturbation reaches the slate at depth 10 in 1.2% of
+queries and reaches no winner. A claim of "nothing moved" would have been false and would have
+made the next person's job harder.
+
+### THE MECHANISM SHIPPED IN 7431baa CANNOT REACH A SCORED RUN, AND THE FIRST LAUNCH PROVED IT
+
+The run failed in seconds with `cublasLt64_12.dll` Error 126 and the new hint —
+*"MARLOWE_CUDA_LIB_DIR is not set"* — **while it was set in the launching shell.**
+
+§4.0.9 is the reason: *"the harness spawns the target's argv unmodified, with a declared minimal
+environment."* `minimal_env()` in `eval/src/marlowe_eval/adapter/subprocess_ndjson.py` is that
+declaration, it is a fixed allowlist, and `MARLOWE_CUDA_LIB_DIR` is not on it. So the variable —
+built this evening precisely so a CUDA configuration would stop living in somebody's shell — **was
+stripped before the reader it was built for could run.**
+
+**A control with a reader, on the path that deletes the value first.** Family #16 one layer out: the
+question *"is there a line of code that reads it?"* was asked and answered yes, and the question
+*"does the value survive the journey to that line?"* was not asked at all.
+
+`eval/` is the scoreboard and is not modified for an implementation's convenience. **`PATH` is on
+the allowlist**, and `PATH` is what the Windows loader actually reads — it is how every CUDA run in
+`runs/session-l/` worked before any of this had a name. So `tools/score_longmemeval.py` now
+translates the variable onto `PATH` in its own process before anything spawns, refuses a set-and-wrong
+value naming the directory, and writes `ENVIRONMENT.json` beside every run recording what it did.
+**Live-verified, not pipe-verified**: the run's own log carries the child's
+`marlowe: embedder on CUDAExecutionProvider with 8 of 8 worker session(s)`.
+
+### `--embedder-provider` reaches the scorer, and the run says so in three places
+
+`score_longmemeval.py --embedder-provider cpu|cuda|auto`. The value is formatted into the target
+string, which `report.json` records verbatim, so the provider is readable **from the artifact**
+rather than from whoever typed the command:
+
+```
+... --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j --embedder-provider cuda --dump-gate-features ...
+```
+
+Plus `BINARY.json` (sha256 `62a035e8…`, mtime 21:00, rebuilt after the source change and checked
+before the run) and `ENVIRONMENT.json`. The CPU baseline's own `report.json` carries **no**
+`--embedder-provider`, which is what makes it the CPU arm.
+
+### One residual on the comparison, stated rather than buried
+
+The CPU baseline was produced at 19:33 by a binary two commits older (`8653c32`, `7431baa` came
+after). A same-binary CPU re-run would cost a **cold** re-embed, because `CacheIdentity` gained
+`provider` in `8653c32` and every pre-existing namespace was invalidated. It was not run, and the
+reason is that it could only matter if picks had moved: a binary confound can manufacture a
+difference, and there is none to explain. `git diff` over those two commits touches the loader, the
+CLI and the cache key and **does not touch `forward`, the pooling, the normalisation or the graph
+options**, and `embedding_reference.rs` still measures CPU at 1.043e-7 against HuggingFace on the
+current binary. **If a future comparison finds movement, take the re-baseline first.**
+
+---
+
+## OLLAMA COEXISTENCE: MEASURED. THE WIDTH IS DERIVED FROM LIVE FREE MEMORY AND IT REALLY MOVES.
+
+### The overhead table, idle beside coexistent — cache OFF on every cell, 32 texts
+
+`llama-server` holding `marlowe-red:9b` (6.6 GB, 100% GPU, 32k context). Free VRAM **12,065 MB idle
+→ 5,532 MB coexistent**.
+
+| tokens | workers | CPU idle | CPU coexist | CUDA idle | CUDA coexist |
+|---|---|---|---|---|---|
+| 102 | 1 | 28.90 | 29.61 | **2.24** | **2.15** |
+| 102 | 8 | 4.94 | 5.15 | **2.93** | **2.93** |
+| 502 | 1 | 157.42 | 159.01 | **2.93** | **2.57** |
+| 502 | 8 | 29.22 | 32.67 | **3.05** | **3.06** |
+| 1024 | 1 | 386.36 | 384.20 | **4.66** | **4.48** |
+| 1024 | 8 | 86.93 | 92.18 | **4.59** | **6.77** |
+
+**No OOM, and the model was still resident afterwards** (`ollama ps` re-checked). The CPU column is
+the control that says the harness did not change under the treatment: it reproduces to within 6%
+except at 1024×8, where both providers show the contention. The one real coexistence cost is
+**CUDA 1024×8: 4.59 → 6.77 ms**, +47%.
+
+Device held at 8 workers falls under coexistence — **4,588 / 4,488 / 4,490 MB idle** against
+**4,121 / 4,004 / 3,839 MB** — which is ORT's arena taking what is there rather than a fixed cost.
+
+**The instrument, named because the obvious one does not work here.** Per-process
+`nvidia-smi --query-compute-apps=pid,used_memory` returns `[N/A]` for every process under WDDM, and
+the bench printed `-1.0` for a whole session's tables. It now prints the literal `[N/A]` and the
+numeric column is **device-level `memory.free`, differenced against a baseline captured before the
+first session opens**. That reading includes anything else that allocated in the window — which is
+why the baseline is printed, and why a CPU row can read `device held -113.0 MB` (something else
+freed).
+
+### The width IS derived from live free memory, and here it is being cut
+
+| free VRAM | plan | the reason string, verbatim |
+|---|---|---|
+| 12,065 MB (idle) | **8 of 8** | all requested sessions opened |
+| 6,267 MB (9b resident) | **6 of 8** | *"device memory: 1509 MB usable would not hold another session plus a spare (793 MB each)"* |
+| 1,645 MB (two models) | **1 of 8** | *"session 2 did not construct: … bad allocation"* |
+| 1,366 MB (squeezed harder) | **1 of 8** | *"session 2 did not construct: … BFCArena … failed to allocate 62,521,344"* |
+
+**Every one of those runs exited 0 and embedded at `MAX_SEQ_LEN` successfully.** Exhaustion degrades
+the width; it does not fail the run. That is the `Auto` contract holding under a real card rather
+than under `Probe::Fixed`.
+
+**`--embedder-provider cuda` is the arm that can still fail, and that is correct** — its own reason
+string says *"no VRAM budget was applied"*. It is the refusal arm for measurement cells.
+
+### A DEFECT FOUND ON THE WAY, NOT FIXED, AND THE REASON IT WAS NOT
+
+Look at rows 3 and 4 above. **The budget did not stop those runs — ORT's allocator did.** With 1,645
+MB free and a real per-session cost of ~690–800 MB, the loop should have refused a second session on
+its own arithmetic. It did not, and the trace says why:
+
+`auto_sessions` warms the first session with `let _ = Self::forward(&mut first, …)` and **throws the
+result away**. If that warm-up fails, `free - after` is ~0, so `cost` falls back to
+`session_cost_floor` = `model_bytes + ALiBi` = **188 MB — roughly a quarter of a real warmed
+session**. The budget then authorises an attempt that cannot succeed, and what actually stops it is
+the `bad allocation` two lines later.
+
+**This is the project's own "a zero read as a floor rather than a ceiling" family**: the one signal
+saying *the measurement is invalid* is the one that is discarded. Two candidate fixes, both
+conservative — do not open further sessions when the first one's warm-up failed, and raise the floor
+to something a warmed CUDA session actually costs.
+
+**Not done, on purpose.** It is a change to a memory-budget policy whose failure branch cannot be
+driven deterministically from a test — `Probe::Fixed` controls the *reading*, not whether ORT's
+arena refuses — and this session's rule is that every fix gets a test that fails when reverted. A
+budget change with no such test is exactly the shape that goes green and does nothing. **It is the
+first item for the next session on this subsystem**, and the measurement above is the evidence.
+
+Related and smaller: a full **CPU** fallback (`free < floor * 2`, first session refused before it is
+attempted) was **not** observed live, because even at 1,366 MB free the first session constructs and
+Ollama evicts its own models rather than let the card fill. That branch is covered by
+`a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run` with a deterministic probe, and it
+is honest to say the live version is unmeasured.
+
+---
+
+## THE EMBEDDER IS NOT USING 4 GB ANYWHERE. PER SESSION IT IS 312 MB HOST / 802 MB DEVICE.
+
+Asked as a hard assertion rather than a reported number, because the 8192 defect was **4 GB per
+session succeeding silently** and an aggregate hides it: 4.9 GB across eight sessions is 612 MB each
+and unremarkable; the same 4.9 GB in one session is the bug.
+
+### One session at `MAX_SEQ_LEN`, and the arithmetic beside it
+
+`8 · N² · 8` bytes for `[8, N, N]` int64 — at N = 1024 that is **67,108,864 = 64.0 MB**.
+
+| | host | device |
+|---|---|---|
+| after load | 213.0 MB | 383 MB |
+| after a short text | 213.0 MB | 418 MB |
+| **after one forward at the cap** | **290.3 MB** | **802 MB** |
+| the forward's own cost | **+77.3 MB** | **+384 MB** |
+| ALiBi's prediction for that | 64.0 MB | 64.0 MB |
+
+**On host the prediction is close: 77.3 measured against 64.0 predicted**, the remainder being
+ordinary activations. **On device it is 6x out — 384 measured against 64 predicted — and the gap is
+the finding.** The residual ~320 MB is *consistent with* per-layer attention score tensors, which are
+`[batch, heads, N, N]` f32 and therefore quadratic in exactly the same way (`1 × 8 × 1024² × 4` =
+32 MB apiece). **It is consistent, not confirmed, and the distinction is deliberate**: this project
+has twice matched a byte count to the wrong tensor, and `1 × 8 × 8192² × 8` (int64) and
+`2 × 8 × 8192² × 4` (f32) give the identical 4,294,967,296. A decomposition that is not unique is
+not proof. What *is* established is that the whole term is quadratic in N, which the 4096 mutation
+below measures directly.
+
+### It scales linearly in the worker count
+
+| workers | host peak (CPU) | marginal | device held (CUDA) | marginal |
+|---|---|---|---|---|
+| 1 | 312.4 MB | — | 802 MB | — |
+| 2 | 572.6 MB | 260.2 | 1,357 MB | 555 |
+| 4 | 1,072.8 MB | 250.1 each | 2,503 MB | 573 each |
+| 8 | 2,070.5 MB | 249.4 each | 4,647 MB | 536 each |
+
+`802 + 550·(w−1)` predicts **4,652 MB** at eight workers against **4,647** measured. Linear, so
+nothing is allocating per *call* or at a length nobody asked for, and the 8-worker figure reproduces
+the ~4.9 GB already on this page.
+
+**One number here is not what it looks like: CUDA's host peak at one worker is 1,057 MB**, and 560 MB
+of it appears on the *first embed* — the CUDA runtime's host-side initialisation, a per-process
+constant. Marginal host cost per CUDA session is ~93 MB (1,711 MB at eight). Not the embedder's, and
+not per session.
+
+### Asserted, in two tests that fail for different reasons
+
+- **`hostmem::tests::the_shipped_cap_predicts_a_footprint_in_megabytes_not_gigabytes`** — pure
+  arithmetic over the declared cap against a **fixed 256 MB literal**. No model, no card, cannot be
+  flaky, fires the instant `MAX_SEQ_LEN` is raised.
+- **`tests/session_footprint.rs`** — one real session, host **and** device, against fixed 768 MB /
+  1536 MB literals. Arithmetic cannot answer this one: a graph allocating at a length nobody
+  declared satisfies every constant in the build.
+
+**Both ceilings are absolute literals and that is the whole design.** A bound derived from
+`MAX_SEQ_LEN` rises with it, so raising the cap would raise its own ceiling and the guard would go
+quiet at exactly the moment its subject changed.
+
+**Mutation run — `MAX_SEQ_LEN` 1024 → 4096 in a scratch build, then restored:**
+
+| guard | reading |
+|---|---|
+| arithmetic | **FAILED** — *"4096 predicts an ALiBi matrix of 1024 MB per session, over the 256 MB ceiling"* |
+| measured (host) | **FAILED** — *"peaked at 2234.3 MB, over the 768.0 MB ceiling"* |
+
+2,234.3 MB at 4096 against 290.2 MB at 1024: the matrix grew 960 MB and the peak grew 1,944 MB —
+**about twice the ALiBi term**, which is the same quadratic companion the device reading showed, now
+measured on host where the total can be attributed. `MAX_SEQ_LEN` is committed at **1024**.
+
+The device test also carries a **floor** (`held >= model_bytes`), because a ceiling alone passes on
+the failure that matters most: a session that quietly became CPU holds no device memory, and 0 is
+under every ceiling.
+
+---
+
+## `elapsed.rs` — THE TWO RELEASE-MODE FAILURES ARE FIXED, AND ONE OF THEM WAS VACUOUS
+
+`finish_is_what_closes_the_last_stage` asserted `as_profile_us() > 0` after timing
+`black_box((0..20_000).sum::<u64>())`. In `--release` the optimizer folds that to a constant, the
+span rounds to zero, and **the test failed deterministically on code that was working perfectly**.
+Its sibling `a_stage_entered_twice_accumulates_rather_than_restarts` read `0 >= 0` in the same
+build: green, and saying nothing.
+
+**The fix is to stop timing a workload and start timing the clock.** `spin_past_micros` returns as
+soon as `Instant` reports the microseconds it was asked for — it cannot be optimized away, because
+the value comes from outside the program — so the assertion is about `finish` banking an elapsed
+span rather than about how fast the build is.
+
+Three further corrections, each of which was a real hole:
+
+1. **`finish_is_what_closes_the_last_stage` now asserts the stage CLOSED**, structurally
+   (`open.is_none()`), *and* that closing banked something. The name has two halves and only one of
+   them is a duration.
+2. **`a_stage_entered_twice` compares Rerank against ITSELF one visit later**, not against an empty
+   `Assemble`. The old comparison measured the *scheduler*: `Assemble` spans two adjacent statements,
+   so a deschedule between them makes it arbitrarily large and the test fails on a busy machine. It
+   failed that way here, once, before being rewritten.
+3. **Three visits, not two, because the total is banked in TWO places.** A visit ended by `enter` is
+   banked by `enter`; the last is banked by `finish`. An intermediate version of this test closed its
+   second visit with `finish`, and **the `enter`-side mutation stayed green.** Caught by running the
+   mutation, not by reading the test.
+
+| mutation | result |
+|---|---|
+| `finish` closes the stage but banks nothing | **FAILED** — *"a zero total means the stage was dropped rather than closed"* (both tests) |
+| `enter` restarts rather than accumulates | **FAILED** — *"read 501 us after one visit and 1 us after two"* |
+| `finish` overwrites rather than accumulates | **FAILED** — *"502 us after two visits and 1 us after three"* |
+
+`cargo test -p marlowe --bin marlowe -- elapsed::tests`: **6 passed in release and 6 in debug, three
+interleaved rounds each.**
+
+---
+
+## Counts, and the profile they were taken in
+
+| | |
+|---|---|
+| `cargo test --workspace --jobs 4 --no-fail-fast` (**debug**, `MARLOWE_CUDA_LIB_DIR` set) | **915 passed, 0 failed, 2 ignored** (from 909 / 1) |
+| `cd eval && python -m pytest` | **72 passed**, unchanged — `eval/` was not touched |
+
+The six new passes: three `hostmem` unit tests, `session_footprint`, a new `elapsed` idempotence
+test, and the previously-failing `finish_is_what_closes_the_last_stage`.
+
+## Instruments left behind — grep these rather than re-running
+
+`runs/session-e-cuda/` — `PREDICTION.md` (committed before the run), `top1-cpu-vs-cuda.json`,
+`fit-cuda/` (the scored run, with `BINARY.json` and `ENVIRONMENT.json`), `bench-idle.txt`,
+`bench-coexist.txt`, `coexist-plan-{1model,2models,3models}.txt`,
+`coexist-one-session-squeezed.txt`, `footprint-{cpu,cuda}.txt`, `footprint-test.txt`,
+`elapsed-{baseline,rounds,mutations}.txt`, `maxseq-mutation.txt`, `suite.txt`, `eval-suite.txt`.
+
+`tools/compare_top1.py` is the reusable half: it is the ADR-029 measurement, and it refuses to let a
+null result be read without its control.
+
+## What this session did NOT close
+
+1. **The default is still `cpu`.** The measurement that blocked it exists now; the ADR does not.
+2. **`auto_sessions` swallows its warm-up failure**, so the per-session cost estimate collapses to a
+   4x-too-small floor on a full card. Measured above, not fixed, and the reason is stated.
+3. **A live first-session CPU fallback is unmeasured** — the card could not be squeezed below the
+   threshold with Ollama, which evicts its own models first.
+4. **`tools/session_l_gpu_recovery.py` has still not been re-run** (ADR-029's standing obligation:
+   node placement was verified once, in Python, at ORT 1.24.2, and this build links 1.22).
+5. **`RerankPlan::select` still has no call site.**
+6. **`MARLOWE_CUDA_LIB_DIR` is still not in `CLAUDE.md`'s build section**, and it should be now that
+   item 1 of the previous list is settled — together with the §4.0.9 note, because the next person to
+   set it and run the scorer will otherwise hit the same wall.
+
+
 ## CUDA WORKS ON THIS MACHINE AND ALWAYS DID. THE CONFIGURATION THAT MADE IT WORK LIVED IN A SHELL.
 
 **2026-08-17, later the same day. This CORRECTS the section below titled *"AND CUDA DOES NOT LOAD ON
@@ -259,13 +607,21 @@ count are not the same measurement on this workspace.
 
 ### To close it, in order
 
-1. **The CUDA/HuggingFace gap is the blocker.** Take the ranking measurement ADR-029 took — a
-   retrieval run scored on CUDA against the CPU baseline — and write the ADR. Until then
-   `--embedder-provider cuda` is a measurement tool, not a default.
+**AMENDED 2026-08-17, later: items 1 and 3 are DONE — see the top of this file. 242/242 identical
+top-1 picks with 99.84% of candidate rows changed, and the coexistence table measured beside the
+idle one. Items 2, 4 and 5 stand.**
+
+1. ~~**The CUDA/HuggingFace gap is the blocker.**~~ **MEASURED AND CLEARED.** The ranking
+   measurement ADR-029 took now exists for the embedder: 242/242 identical top-1, McNemar p = 1.0,
+   3 of 242 top-10 slates reordered at ranks 4-10. The ADR itself is still unwritten, so
+   `--embedder-provider cuda` remains a measurement tool by decision rather than by ignorance.
 2. **Re-run `tools/session_l_gpu_recovery.py`.** ADR-029's standing obligation: node placement was
    verified *once, in Python, at ORT 1.24.2*, and this build links 1.22. **13.6% of nodes on CPU** is
    a number about a runtime this binary does not use. `ort` still exposes no node enumeration.
-3. **Measure Ollama + CUDA embedder coexistence**, per the VRAM section above.
+3. ~~**Measure Ollama + CUDA embedder coexistence**~~ **MEASURED.** No OOM at the derived width;
+   the width is cut from 8 to 6 to 1 as the card fills, with the reason string naming the number;
+   every case exited 0. One defect found in the budget's cost estimate and NOT fixed — see the top
+   of this file.
 4. **`RerankPlan::select` has no call site.** Dead since it was written; either wire it or delete it.
 5. **`MARLOWE_CUDA_LIB_DIR` is not in `CLAUDE.md`'s build section.** It should be, once 1 is settled.
 6. **`elapsed.rs`'s two release-mode failures**, above. A timing assertion, not this session's scope.
