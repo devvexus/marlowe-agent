@@ -76,12 +76,27 @@ daemon silently on CPU and one on CUDA print the same startup. Found while measu
 
 ### Debris
 
-**7. `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson` is 0 bytes** — an abandoned
-scoring run. **Do not read it as a result.** A zero-byte file in a results directory looks like one.
+**7. CLOSED 2026-08-18.** The 0-byte `scored-candidates.ndjson` from the abandoned gate-1 scoring
+run is deleted. It was the shape worth naming — a zero-byte file in a results directory reads like a
+result — and it went with the sweep below rather than needing its own action.
 
-**8. ~80 uncommitted files under `runs/`** from three stopped agents. The suite passes with all of
-them present, so nothing is broken; it is debris from cancelled work and wants a decision about what
-is worth keeping.
+**8. CLOSED 2026-08-18. 1,521 MB reclaimed.** Every `run.jsonl` and `scored-candidates.ndjson` under
+this session's four `runs/session-e*` directories is deleted: 1,522 MB → 1 MB. All were gitignored
+and all are regenerable. **94 small evidence files were KEPT** — kilobytes each, several cited by
+name in commit messages (`gates23.txt` carries the gate 2/3 readings, `WHAT-THIS-IS.md` documents the
+stale-binary near-miss, the provider benches hold the overhead tables). Deleting those would have
+cost the reasoning and saved nothing.
+
+**Deliberately NOT touched, and not this session's to delete:** `runs/session-l` (**6.2 GB**),
+`runs/session-m0c` (99 MB), `runs/session-m0c-m` (25 MB). All three were untracked before this
+session began. `session-l` is where the remaining space is — and note before clearing it that
+`session-l/RESULT.md` is the artifact that proved CUDA has always worked from Rust, which corrected
+an agent's wrong conclusion this session.
+
+**One consequence:** `examples/rerank_gate1.rs` reads its pairs from
+`runs/session-e-maxseq/fit-1024/fit/scored-candidates.ndjson`, now deleted. **Gate 1's result stands**
+— measured, committed, in ADR-045 — but re-running that example needs the dump regenerated. It exits
+with a clean `SKIP:` rather than a confusing error.
 
 ### Known-unmeasured, stated so it is not read as covered
 
