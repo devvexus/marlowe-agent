@@ -1,57 +1,48 @@
 # State
 
-## RERANKER ON CUDA: GATES 2 AND 3 PASS, GATE 1 IS NOT DONE, AND IT IS NOT FLIPPED
+## RERANKER ON CUDA: ALL THREE GATES PASS. `--rerank-provider` DEFAULTS TO `auto` (ADR-045).
 
-**`--rerank-provider` still defaults to `cpu`.** The provider machinery is built and tested; the
-one measurement that would license the flip was not taken. Recorded this way rather than as a
-half-claim, because a default flipped on two of three gates is exactly the shape this project keeps
-finding.
-
-### What IS measured
+**Gate 1 was the last one and it passed on a real measurement**, not on an argument. The default is
+flipped and ADR-045 records it. This closes a disagreement that stood for months: ADR-029 put the
+rerank on CUDA and the default was `cpu`.
 
 | gate | reading |
 |---|---|
-| **2 — reference fixture on CUDA** | PASSES. `cross_encoder_reference` 10/10, worst observed delta **~0.00104** logits. Fixture NOT regenerated. |
-| **3 — batch invariance on CUDA** | PASSES. Sizes 1..10 on the shipped graph, `max abs(batched - single)` = **0.000349** at batch 9, **zero order changes** — and `the_batch_invariance_check_can_actually_see_a_reordering` passes, so the check discriminates rather than being blind. |
-| device cost | **341 MB** at `MAX_BATCH`, warmed. Trivial beside a 9B. |
+| **1 — does CUDA change which memory ranks first** | **PASSES. Zero top-1 changes** over 120 queries / **1,200 pairs**. max abs delta **0.001260757**; 2 queries reorder deeper in the list, none at rank 1. |
+| **2 — reference fixture on CUDA** | PASSES, worst delta ~**0.00104**. Fixture NOT regenerated. |
+| **3 — batch invariance on CUDA** | PASSES, sizes 1..10, `max abs(batched - single)` = **0.000349** at batch 9, **zero order changes**, with a control proving the check can see a reordering. |
+| device cost | **341 MB** at `MAX_BATCH`. Noise beside a 9B. |
 
-`rerank_provider.rs` 10/10, including full-card fallback, explicit-CPU-never-touches-the-card, and
-the reserve arms.
+**Gate 1 took minutes, not two scoring passes.** The reranker is a pure function of
+`(query, document) -> logit`, so `examples/rerank_gate1.rs` scores real pairs from a completed dump
+on both providers and counts top-1 changes. The earlier attempt to do it the expensive way was
+killed and left a **0-byte** `scored-candidates.ndjson` — do not read that file as a result.
 
-### What is NOT measured — gate 1
+**The two deep reorders are the expected shape.** A 0.0013-logit deviation can only flip pairs
+closer than that, and the near-tie signature on this corpus sits below 0.084 — two orders of
+magnitude wider. Head unmoved, tail jitters.
 
-**Does running the reranker on CUDA change which memory is ranked first?** Unanswered. A baseline
-scoring run was started and killed; `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson`
-is a **0-byte file** and is worthless. Do not read it as a result.
+### THE FIRST RUN OF GATE 1 PRINTED A CLEAN PASS AND WAS VACUOUS
 
-**Do not finish it with two full scoring passes.** The reranker is a pure function of
-`(query, document) -> logit`, and both providers already load side by side in `rerank_provider.rs`.
-Score a few thousand real pairs from a COMPLETED dump (`runs/session-e-maxseq/fit-1024/fit/` and
-`fit-8192-BASELINE/fit/` both carry `core.sha256`, so both finished) on each provider and count
-**queries whose top-1 changes**. Minutes, not an hour.
+It reported `0 flips, max |delta| 0.000000000`. Every scoring call had been **refused**: it asked for
+batches of 12 and `score_batch` correctly declines anything past the sizes invariance was measured at
+(1..10). The delta was computed over **zero comparisons**, and the empty `worst:` field was the only
+tell.
 
-**Expect zero, and measure it anyway.** STATE.md's near-tie signature says post-hoc mechanisms on
-this corpus gain cases almost entirely inside logit gaps below **0.084**; CUDA's deviation is ~0.001,
-two orders of magnitude under. That is a reason to predict zero flips, not a substitute for counting
-them. **Verdict rule, fixed in advance: zero top-1 changes -> flip. Any change -> do not flip.**
+**Both controls in place at the time passed** — the arms were genuinely different providers, and the
+flip detector did notice a forced reordering. Neither could see that nothing had been scored. A third
+control now asserts pairs were compared and exits VACUOUS otherwise.
 
-### The suite was RED at 940/4, and all four traced to one abandoned change set
+**The general form, and it is new to this ledger:** *a control proves the instrument can detect a
+difference; it does not prove the instrument was ever pointed at anything.*
 
-Fixed here, and three of the four are the same family:
+### NOT VERIFIED BY A BUILD
 
-- **`component_footprint.rs` deleted.** It was the component-table work the human cancelled, and it
-  read `Instant::now()` twice — caught by the determinism guard, which is the guard working.
-- **`split.rs` asserted `"not-wired"`** while the daemon now reports `"not-loaded"` with the resolved
-  provider and its batching. **The code is right and the test was stale**: reporting the resolved
-  provider is ADR-029's "announced, never inferred". Expectation updated, code untouched.
-- **Two CUDA tests asserted one refusal wording out of two valid ones.** With
-  `MARLOWE_CUDA_LIB_DIR` set, CUDA fails at the ONNX session; unset, it fails earlier and names the
-  library search path. Both refusals are correct. Accepting only the first made each test **a
-  property of the environment rather than of the refusal** — green on the machine that set the
-  variable, red on the one that did not. Both causes now accepted; what is asserted is that a CUDA
-  request never returns a quiet CPU run.
-
-**Workspace: 944 passed, 0 failed, 2 ignored.**
+`cargo` was held at the human's request after ADR-045 was written. The gate-1 measurement above ran
+against a **release build made before** the final edit to `examples/rerank_gate1.rs` (the control-3
+vacuity guard). **The numbers are real and the guard is unbuilt.** Next session: `cargo build
+--release` and `cargo test --workspace --no-fail-fast` before treating this as green. Last full
+suite was **944 passed, 0 failed, 2 ignored**.
 
 ### Also this session
 
