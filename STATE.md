@@ -1,5 +1,120 @@
 # State
 
+## OUTSTANDING — read this first. Everything below this section is history.
+
+Consolidated 2026-08-17 because the items were spread across twelve sections written by different
+agents, and reconstructing them from the history is how one gets missed.
+
+### Blocking, in the sense that something is wrong right now
+
+**1. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
+estimate to a 188 MB floor against a real 690-800 MB, so ORT's allocator rather than the budget is
+what stops the loop. Measured, deliberately not fixed: its failure branch cannot be driven from a
+test, and an untestable budget change is the shape that goes green and does nothing.
+
+### IDEAS, NOT ACTIONS — do not schedule these
+
+**A VRAM reserve that leaves headroom for other processes on the machine. CONSIDERED AND REJECTED
+2026-08-17, by the human, and the reasoning is worth keeping because it overturns two amendments
+committed earlier the same day** (`db695f5`, `9604717`) and a "tier 0" that had been proposed after a
+game and Marlowe killed each other.
+
+> *"Our job is to run the agent, not make it super convenient for the user to play or overload their
+> memory. Our memory for our application is our memory."*
+
+**Why this is the stronger position, stated so a later session does not re-derive the rejected one.**
+A reserve against external consumers is **unbounded by construction**: a game, a browser decoding
+video, a compositor — none announce themselves, none yield, and none are ours to schedule. Any number
+chosen to leave room for them is a guess that is simultaneously too large on an idle machine and too
+small on a busy one, and it would be a constant with no derivation behind it. That is the shape this
+project refuses everywhere else.
+
+**What replaces it is an ORDERING, not a reserve, and it applies WITHIN Marlowe's own footprint:**
+
+> **LLM first. Voice second. Everything else wherever it fits.**
+
+The first two are VRAM-only and have no CPU fallback, so they have first claim on what Marlowe
+allocates. Everything else — embedder, reranker, anything later — takes what remains and degrades to
+CPU when it cannot. **Respect this when changing models**, which is the case that actually matters:
+a larger LLM or the arrival of voice (M7) shrinks what tier 3 may take, and that is a real constraint
+with a knowable number on both sides.
+
+**What this does not change:** `auto` still degrades to CPU rather than failing a run, the resolved
+provider is still announced rather than the requested one, and per-session cost is still measured
+(312 MB host / 802 MB device for the embedder; 341 MB device for the reranker). Those are properties
+of Marlowe's own budget and they stand.
+
+### Ordering constraint — get this wrong and three defects go live together
+
+**3. Fix the compaction stamp (E5) and the trim marker (F1) BEFORE `ingest` is wired into the
+product.** Layer 3's latch is currently unreachable in the shipped daemon; the moment `ingest` has a
+production path it goes live **alongside** those two known defects in the same path.
+
+### Deferred by the human, by name
+
+**4. The four M2 acceptance benchmarks** — SWE-bench Verified, Terminal-Bench 2.0, τ-bench, BFCL.
+**No harness for any of them exists in this repo** (`eval/src/marlowe_eval/suites/` is memory-only),
+so this is integrating four external harnesses: milestone work, not a session. Recorded as UNMET AND
+UNSCHEDULED in ROADMAP.md's acceptance list.
+
+### Unverified rather than unfinished
+
+**5. CI has never executed.** `.github/workflows/ci.yml` is committed (`9591ef4`), the YAML parses,
+the matrix is `ubuntu-latest` + `windows-latest`, and the commands match what runs locally. **A
+workflow that has never run is a claim, not a guard — the first push is the test.** `models/` and
+`data/` are gitignored and never vendored, so a fresh runner has neither; the workflow's skip
+manifest exists to make that coverage gap legible rather than silent.
+
+**6. M1's accent row — the by-eye half.** The arithmetic is asserted (`e21cae7`): 6.43:1 on dark,
+3.26:1 on light, both clear the 3.0 floor that applies to a structure accent. §B13 asks for
+confirmation **by eye on each background** and a number is not an eye. Human action, not agent work.
+
+### Debris
+
+**7. `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson` is 0 bytes** — an abandoned
+scoring run. **Do not read it as a result.** A zero-byte file in a results directory looks like one.
+
+**8. ~80 uncommitted files under `runs/`** from three stopped agents. The suite passes with all of
+them present, so nothing is broken; it is debris from cancelled work and wants a decision about what
+is worth keeping.
+
+### Known-unmeasured, stated so it is not read as covered
+
+**9. The belief-store startup slope — HALF CLOSED 2026-08-18, and the dangerous half is the half
+still open.** `Journal::open` runs `verify_chain`, which walks from sequence 1 and re-derives every
+signature, and `BeliefStore::derive` folds the whole log — both **O(journal size)**.
+
+* **The MEMORY slope is now measured**: **3.10 KB resident per memory written**, over journals of
+  0 / 100 / 500 / 2,000, residuals ±0.19 MB. `--serve` at 2,000 memories is 17.0 MB. See the
+  component-table section below.
+* **The TIME slope is still unmeasured**, and it is the one this item was written about.
+  `seconds_to_settle` read 4.8 s at 0 memories and 5.0 s at 2,000 — the instrument's own floor is
+  ~4 s, so it cannot resolve an O(journal) cost at that size. **2,000 rows is two orders of
+  magnitude too few, and a different instrument is needed.** `verify_chain` runs before the daemon
+  answers anything, so this is still exactly the *"why does it take eight seconds to start now"*
+  risk it was filed as.
+
+**10. Worker-count invariance on CUDA.** Measured on CPU only, and under `auto` the *width* derives
+from free VRAM at load — so two `repro` spawns can differ in width while agreeing on provider.
+CLAUDE.md's documented `TARGET` pins `--embedder-provider cpu` for this reason.
+**Re-confirmed live 2026-08-18**: the same command opened **8 of 8** sessions on an idle card and
+**7 of 8** with `marlowe-red:9b` resident.
+
+**11. The document store's real footprint.** `DocumentStore` has **no `remove`, no capacity and no
+eviction path** (`marlowe-extract/src/store.rs:106-199`) and holds each `Document`'s full text for
+the process lifetime. STATE.md's 74.3 MB deep-research and 49.4 MB 300-document figures **predate
+this session and were NOT re-verified** — a cargo hold stopped the re-run. Do not carry them
+forward. `cargo run -p marlowe-exec --release --example deep_research` is the command.
+
+**12. Both process totals with a 9B resident, and the adapter under `auto`.** The component table
+below has its coexistence column filled on every cell; the *process* totals (§2a, §2b) are idle-card
+only. `python tools/process_footprint.py --out <dir> --sizes 0,2000` with the model loaded finishes
+it, and `--embedder-provider auto --rerank-provider auto` finishes the other gap. Neither needs
+cargo — only the hold being lifted on starting a daemon.
+
+
+---
+
 ## THE COMPONENT TABLE AND THE TWO TOTALS. MEASURED, WITH THE GAPS NAMED IN THE TABLES.
 
 **2026-08-18, continuing `9591ef4`.** Every cell below is a command that was run against
@@ -370,97 +485,6 @@ cargo run -p marlowe-exec --release --example corpus_bench
 **9B MODELS ONLY on this card. Never load anything larger.**
 
 ---
-
-## OUTSTANDING — read this first. Everything below this section is history.
-
-Consolidated 2026-08-17 because the items were spread across twelve sections written by different
-agents, and reconstructing them from the history is how one gets missed.
-
-### Blocking, in the sense that something is wrong right now
-
-**1. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
-estimate to a 188 MB floor against a real 690-800 MB, so ORT's allocator rather than the budget is
-what stops the loop. Measured, deliberately not fixed: its failure branch cannot be driven from a
-test, and an untestable budget change is the shape that goes green and does nothing.
-
-### IDEAS, NOT ACTIONS — do not schedule these
-
-**A VRAM reserve that leaves headroom for other processes on the machine. CONSIDERED AND REJECTED
-2026-08-17, by the human, and the reasoning is worth keeping because it overturns two amendments
-committed earlier the same day** (`db695f5`, `9604717`) and a "tier 0" that had been proposed after a
-game and Marlowe killed each other.
-
-> *"Our job is to run the agent, not make it super convenient for the user to play or overload their
-> memory. Our memory for our application is our memory."*
-
-**Why this is the stronger position, stated so a later session does not re-derive the rejected one.**
-A reserve against external consumers is **unbounded by construction**: a game, a browser decoding
-video, a compositor — none announce themselves, none yield, and none are ours to schedule. Any number
-chosen to leave room for them is a guess that is simultaneously too large on an idle machine and too
-small on a busy one, and it would be a constant with no derivation behind it. That is the shape this
-project refuses everywhere else.
-
-**What replaces it is an ORDERING, not a reserve, and it applies WITHIN Marlowe's own footprint:**
-
-> **LLM first. Voice second. Everything else wherever it fits.**
-
-The first two are VRAM-only and have no CPU fallback, so they have first claim on what Marlowe
-allocates. Everything else — embedder, reranker, anything later — takes what remains and degrades to
-CPU when it cannot. **Respect this when changing models**, which is the case that actually matters:
-a larger LLM or the arrival of voice (M7) shrinks what tier 3 may take, and that is a real constraint
-with a knowable number on both sides.
-
-**What this does not change:** `auto` still degrades to CPU rather than failing a run, the resolved
-provider is still announced rather than the requested one, and per-session cost is still measured
-(312 MB host / 802 MB device for the embedder; 341 MB device for the reranker). Those are properties
-of Marlowe's own budget and they stand.
-
-### Ordering constraint — get this wrong and three defects go live together
-
-**3. Fix the compaction stamp (E5) and the trim marker (F1) BEFORE `ingest` is wired into the
-product.** Layer 3's latch is currently unreachable in the shipped daemon; the moment `ingest` has a
-production path it goes live **alongside** those two known defects in the same path.
-
-### Deferred by the human, by name
-
-**4. The four M2 acceptance benchmarks** — SWE-bench Verified, Terminal-Bench 2.0, τ-bench, BFCL.
-**No harness for any of them exists in this repo** (`eval/src/marlowe_eval/suites/` is memory-only),
-so this is integrating four external harnesses: milestone work, not a session. Recorded as UNMET AND
-UNSCHEDULED in ROADMAP.md's acceptance list.
-
-### Unverified rather than unfinished
-
-**5. CI has never executed.** `.github/workflows/ci.yml` is committed (`9591ef4`), the YAML parses,
-the matrix is `ubuntu-latest` + `windows-latest`, and the commands match what runs locally. **A
-workflow that has never run is a claim, not a guard — the first push is the test.** `models/` and
-`data/` are gitignored and never vendored, so a fresh runner has neither; the workflow's skip
-manifest exists to make that coverage gap legible rather than silent.
-
-**6. M1's accent row — the by-eye half.** The arithmetic is asserted (`e21cae7`): 6.43:1 on dark,
-3.26:1 on light, both clear the 3.0 floor that applies to a structure accent. §B13 asks for
-confirmation **by eye on each background** and a number is not an eye. Human action, not agent work.
-
-### Debris
-
-**7. `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson` is 0 bytes** — an abandoned
-scoring run. **Do not read it as a result.** A zero-byte file in a results directory looks like one.
-
-**8. ~80 uncommitted files under `runs/`** from three stopped agents. The suite passes with all of
-them present, so nothing is broken; it is debris from cancelled work and wants a decision about what
-is worth keeping.
-
-### Known-unmeasured, stated so it is not read as covered
-
-**9. The belief-store startup slope.** `Journal::open` runs `verify_chain`, which walks from sequence
-1 and re-derives every signature, and `BeliefStore::derive` folds the whole log — both **O(journal
-size)**. Every cold-start number in this file was taken on a **fresh or nearly-empty journal**, so
-70 ms says nothing about the slope. A bad one stays invisible for months and then arrives as *"why
-does it take eight seconds to start now."*
-
-**10. Worker-count invariance on CUDA.** Measured on CPU only, and under `auto` the *width* derives
-from free VRAM at load — so two `repro` spawns can differ in width while agreeing on provider.
-CLAUDE.md's documented `TARGET` pins `--embedder-provider cpu` for this reason.
-
 
 ## RERANKER ON CUDA: ALL THREE GATES PASS. `--rerank-provider` DEFAULTS TO `auto` (ADR-045).
 
