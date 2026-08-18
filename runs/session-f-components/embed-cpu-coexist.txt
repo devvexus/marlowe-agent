@@ -1,0 +1,33 @@
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 6613 MB
+VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against          that baseline. Per-process `--query-compute-apps` reports [N/A] -- WDDM does not attribute device memory per process here.
+co-resident processes on the card at start: C:\Users\matth\AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe
+CUDA session constructs on the shipped graph: true
+derived worker count (available_parallelism().min(8)): 8
+
+provider arms in THIS process: [Cpu]
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    1018.10 ms total    31.82 ms/embedding  host peak   481.2 MB  device held  237.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8     204.59 ms total     6.39 ms/embedding  host peak  1362.0 MB  device held  141.0 MB  per-process     [N/A]
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    5598.88 ms total   174.96 ms/embedding  host peak  1362.0 MB  device held  101.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8    1348.26 ms total    42.13 ms/embedding  host peak  1633.5 MB  device held  -34.0 MB  per-process     [N/A]
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1   13401.82 ms total   418.81 ms/embedding  host peak  1633.5 MB  device held   33.0 MB  per-process     [N/A]
+   CPUExecutionProvider   workers 8    3377.49 ms total   105.55 ms/embedding  host peak  2555.9 MB  device held  -49.0 MB  per-process     [N/A]
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1             31.82            -
+102      8              6.39            -
+502      1            174.96            -
+502      8             42.13            -
+1024     1            418.81            -
+1024     8            105.55            -
+
+embedding cache was OFF for every row above.

@@ -1,0 +1,19 @@
+== reranker provider benchmark ==
+cache: NONE EXISTS on CrossEncoder (no cache_dir parameter on any constructor)
+MAX_SEQ_LEN = 256, MAX_BATCH = 10, threads = 1
+provider REQUESTED = auto
+free device memory at start: 13168 MB
+VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against that baseline. Per-process `--query-compute-apps` reports [N/A] -- WDDM does not attribute device memory per process here.
+host peak before load: 8.8 MB
+
+provider RESOLVED = CUDAExecutionProvider  (batched)  -- CUDA, one session opened and warmed at MAX_BATCH; 13168 MB usable of 13168 MB free -- no reserve was requested (measurement arm)
+host peak after load: 1026.7 MB
+device held after load: 535.0 MB
+
+-- 30 slates per cell, warmed at MAX_BATCH first
+   batch 1      50.77 ms total    1.692 ms/slate    1.692 ms/pair  host peak  1028.0 MB  device held  529.0 MB  per-process     [N/A]
+   batch 10    104.73 ms total    3.491 ms/slate    0.349 ms/pair  host peak  1028.0 MB  device held  517.0 MB  per-process     [N/A]
+
+   batch 11 refused, correctly: a batch of 11 pairs was requested; invariance on this graph is measured only over 1..10 (runs/session-l/batch-invariance-batch10.json, max |delta| 0.000000000). A larger batch is REFUSED rather than run: extrapolating an invariance result past the sizes it was taken at is the inherited-measurement error this project has now paid for four times. Re-run the sweep to the new size first
+
+co-resident processes on the card: no llama/ollama process

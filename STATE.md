@@ -1,5 +1,376 @@
 # State
 
+## THE COMPONENT TABLE AND THE TWO TOTALS. MEASURED, WITH THE GAPS NAMED IN THE TABLES.
+
+**2026-08-18, continuing `9591ef4`.** Every cell below is a command that was run against
+`target/release/marlowe.exe` (mtime 2026-08-17 23:43) and the two examples built from it at 23:56.
+Files: `runs/session-f-components/`. **A cell that was not run says `NOT MEASURED` in the table
+rather than being interpolated or quietly dropped** — a session was cancelled mid-flight for
+exactly this deliverable twice before, and a narrowed table that hides its own gaps is worse than
+a wide one that shows them.
+
+**A cargo hold landed part-way through**, so the coexistent process totals and the document-store
+re-verification are unrun. They are marked, and the command that finishes each is written down.
+
+**The four generated profiles were deleted after the sweep and their audit trail kept.** Each held
+a `profile.key` and a `daemon.token`, and key material does not belong in a results directory where
+a future `git add -A` can reach it. `runs/session-f-components/journal-census.txt` carries the row
+counts by kind that every journal-slope figure below is derived from; the profiles regenerate with
+`python tools/process_footprint.py --out <dir> --sizes 0,100,500,2000`.
+
+### The instruments, named — because the obvious one does not work on this machine
+
+| quantity | instrument | what it does NOT tell you |
+|---|---|---|
+| host peak | `PeakWorkingSet64` from `Get-Process` | a high-water mark, so two components' peaks **do not add** — see the residual below |
+| host resident | `WorkingSet64` from `Get-Process`, sampled until 3 consecutive reads agree within 1 MB | *resident* pages only; a large process is trimmed harder than a small one |
+| device | card-wide `nvidia-smi --query-gpu=memory.free`, differenced against a baseline taken before the first session opens | includes anything **else** that allocated in the window |
+| device, per process | `nvidia-smi --query-compute-apps=pid,used_memory` → **`[N/A]` on every row** | WDDM does not attribute device memory per process on this driver. Printed as the literal `[N/A]`; it is never rendered as a number |
+
+**The card-wide instrument's noise floor is visible in the table and is not hidden.** A pure-CPU
+embedder run reads `device held 220 MB`, and a pure-CPU reranker run reads `509 MB` at one cell.
+Neither component allocates a byte of device memory. That is the desktop and the driver moving
+underneath a differenced reading, and it is the honest cost of the only instrument that works
+here — which is why every run prints its own baseline.
+
+---
+
+# DELIVERABLE 1 — THE COMPONENT TABLE
+
+Two model-bearing components. **The LLM is Ollama's `llama-server`, a separate process, and is out
+of scope** — it appears here only as the co-resident load in the coexistence columns.
+
+`--embedder-provider` and `--rerank-provider` both default to **`auto`** (ADR-044, ADR-045), and
+`auto` resolves against free VRAM at that instant. **Every row therefore reports the RESOLVED
+provider, never the requested one.** Rows 2 and 3 of ADR-044's own table both ended on CPU and
+printed identical words before that distinction existed.
+
+## 1a. Embedder — `models/jina-embeddings-v2-small-en`, `MAX_SEQ_LEN` 1024
+
+**Cache OFF on every cell** (`cache_dir = None` in `Embedder::load_with_provider`). With a cache,
+whichever provider ran second would be reading back the first one's vectors and reporting a disk
+read as a speedup. 32 texts per cell, one untimed warm pass first.
+
+**Latency, ms per embedding.** `runs/session-f-components/embed-{cpu,auto}-{idle,coexist}.txt`.
+
+| tokens | workers | requested | **RESOLVED** | idle | with `marlowe-red:9b` resident | Δ |
+|---|---|---|---|---|---|---|
+| 102 | 1 | `cpu` | **CPUExecutionProvider** | 29.44 | 31.82 | +8.1% |
+| 102 | 8 | `cpu` | **CPUExecutionProvider** | 5.03 | 6.39 | +27.0% |
+| 502 | 1 | `cpu` | **CPUExecutionProvider** | 155.92 | 174.96 | +12.2% |
+| 502 | 8 | `cpu` | **CPUExecutionProvider** | 33.15 | 42.13 | +27.1% |
+| 1024 | 1 | `cpu` | **CPUExecutionProvider** | 385.04 | 418.81 | +8.8% |
+| 1024 | 8 | `cpu` | **CPUExecutionProvider** | 93.33 | 105.55 | +13.1% |
+| 102 | 1 | `auto` | **CUDAExecutionProvider** | **2.13** | **2.96** | +39.0% |
+| 102 | 8 | `auto` | **CUDAExecutionProvider** | **2.92** | **4.77** | +63.4% |
+| 502 | 1 | `auto` | **CUDAExecutionProvider** | **3.08** | **3.37** | +9.4% |
+| 502 | 8 | `auto` | **CUDAExecutionProvider** | **3.17** | **2.85** | −10.1% |
+| 1024 | 1 | `auto` | **CUDAExecutionProvider** | **4.55** | **5.23** | +14.9% |
+| 1024 | 8 | `auto` | **CUDAExecutionProvider** | **5.14** | **6.53** | +27.0% |
+
+**The CPU column is the control that says the harness did not change under the treatment**, and it
+reproduces the previous session's idle table to within **13.4%** — four of six cells inside 2%, and
+the two that move are the 8-worker cells (502×8 +13.4%, 1024×8 +7.4%), which is where a shared
+machine shows up first. The one negative Δ (502×8 on
+CUDA, −10.1%) is larger than any plausible coexistence *benefit* and is the cell-to-cell noise of a
+100 ms measurement; it is left in rather than smoothed.
+
+**Footprint, one configuration per process** — `examples/embed_memory.rs`, which takes provider and
+width as arguments precisely so a peak belongs to the configuration it is printed under.
+`runs/session-f-components/embed-memory-{idle,coexist}.txt`.
+
+| config | RESOLVED | host peak idle | device held idle | host peak coexist | device held coexist |
+|---|---|---|---|---|---|
+| CPU × 1 | CPUExecutionProvider | **312.3 MB** | −68 MB *(noise; CPU holds none)* | **312.3 MB** | −4 MB |
+| CPU × 8 | CPUExecutionProvider | **2,048.0 MB** | +65 MB *(noise)* | **2,092.1 MB** | −9 MB |
+| CUDA × 1 | CUDAExecutionProvider | **1,057.0 MB** | **730 MB** | **1,054.1 MB** | **765 MB** |
+| CUDA × 8 | CUDAExecutionProvider | **1,749.9 MB** | **4,648 MB** | **1,658.1 MB** — *7 of 8* | **3,952 MB** — *7 of 8* |
+
+**The last row is `auto` narrowing itself under load, observed rather than argued.** At 6,674 MB
+free the plan reads *"7 of 8 sessions; device memory: 1312 MB usable would not hold another session
+plus a spare (766 MB each)"*. Idle it opens 8. Same binary, same command, two widths — which is the
+standing reason `cuda` still exists as a fixed arm for anything that publishes a number.
+
+**CUDA's host peak is mostly not the embedder's.** 1,057.0 MB at one session against 312.3 MB on
+CPU; the ~745 MB gap is the CUDA runtime's host-side initialisation, a **per-process constant**,
+not a per-session cost — the marginal host cost of sessions 2–8 is (1,749.9 − 1,057.0) / 7 =
+**99.0 MB each**.
+
+## 1b. Reranker — `models/ms-marco-MiniLM-L-2-v2-ft-session-j`, `MAX_SEQ_LEN` 256, `SHIPPED_THREADS` 1
+
+**There is no cache to switch off**: `CrossEncoder` has no `cache_dir` parameter on any
+constructor. That is stated rather than left implicit, so "cache OFF" is not read as an unverified
+claim about a component that has none. 30 slates per cell, warmed at `MAX_BATCH` first.
+`runs/session-f-components/rerank-{cpu,auto}-{idle,coexist}.txt`.
+
+| batch | requested | **RESOLVED** | shape | ms/slate idle | ms/slate coexist | ms/pair idle | ms/pair coexist | host peak | device held idle | device held coexist |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | `cpu` | **CPUExecutionProvider** | sequential | 19.185 | 19.784 | 19.185 | 19.784 | 156.9 MB | *0 (readings are drift)* | *0* |
+| **10** = `MAX_BATCH` | `cpu` | **CPUExecutionProvider** | sequential | 193.667 | 206.285 | 19.367 | 20.628 | **169.0 MB** | *0* | *0* |
+| 1 | `auto` | **CUDAExecutionProvider** | batched | **1.692** | **1.571** | 1.692 | 1.571 | 1,028.0 MB | **529 MB** | **336 MB** |
+| **10** = `MAX_BATCH` | `auto` | **CUDAExecutionProvider** | batched | **3.491** | **3.741** | **0.349** | **0.374** | **1,028.0 MB** | **517 MB** | **317 MB** |
+| **11** | either | — | — | **REFUSED, on all four cells** | | | | | | |
+
+**Batching is the whole difference between the two providers and the table shows why the shape is
+on the status line.** CPU gains nothing from a batch — 19.185 → 19.367 ms per pair, +0.9% — which
+is why `default_batching()` is false there. CUDA goes 1.692 → 0.349 ms per pair, a **4.8× gain**,
+because a batch of 10 costs 3.491 ms against a batch of 1 costing 1.692. A status line naming a
+provider without its shape describes two configurations 55× apart at `MAX_BATCH`.
+
+**`host peak after load` is 134.8 MB on CPU and 1,026.7 MB on CUDA.** The CUDA figure is again the
+runtime's host-side init, not the graph: the graph is 62.5 MB on disk.
+
+**The batch-11 refusal is printed with every table, not asserted in prose.** A reader who sees no
+row for 11 cannot otherwise tell whether the cell was refused or simply never attempted — which is
+the failure mode that made gate 1's first run print a clean PASS over zero comparisons. It refuses
+with the reason: invariance on this graph was measured over 1..10 only.
+
+**The device column moves with the card, not with the batch.** 529 MB idle against 336 MB
+coexistent for the *same* work is ORT's arena taking what is there, which also explains why the
+previous session recorded 341 MB for this component and this one records 517 MB. Both are correct
+about the card they were taken on. **This is not a fixed per-component cost and must not be quoted
+as one.**
+
+## 1c. The budget, and whether these fit inside it
+
+**§5.7: P95 retrieval ≤ 300 ms** (`docs/requirements/01-brief.md:240`) — non-negotiable, because
+§9's 800 ms voice-to-voice budget does not survive a 300 ms memory stage. `RERANK_BUDGET = 10`
+(`retrieve.rs:271`), which is exactly `MAX_BATCH`, so **one retrieval is one query embedding plus
+one rerank slate of ten**.
+
+| configuration | embed (1 query, ~100 tok, 1 worker) | rerank (slate of 10) | **sum** | of 300 ms | inside? |
+|---|---|---|---|---|---|
+| all CUDA, idle | 2.13 | 3.491 | **5.62 ms** | 1.9% | **yes, by 53×** |
+| all CUDA, 9b resident | 2.96 | 3.741 | **6.70 ms** | 2.2% | **yes, by 45×** |
+| all CPU, idle | 29.44 | 193.667 | **223.11 ms** | 74.4% | **yes, with 26% headroom** |
+| all CPU, 9b resident | 31.82 | 206.285 | **238.11 ms** | 79.4% | **yes, with 21% headroom** |
+
+**This column is ARITHMETIC OVER COMPONENT MEASUREMENTS, NOT A MEASURED RETRIEVAL.** It omits the
+lexical cue, the belief-store scan, the gate and assembly. The end-to-end retrieval P95 is a
+different quantity taken on a different instrument (M0c Session L), and this project's standing
+rule is that a measurement is scoped to the system it was taken on. **Read this as: the two model
+stages alone consume 74–79% of the budget on CPU and 2% on CUDA.** The all-CPU row has no room for
+the rest of the pipeline and should not be read as a pass.
+
+**The shipped daemon's answer is neither row.** It loads **no embedder at all** (below), so its
+retrieval today is the rerank stage alone: **3.491 ms** idle, 1.2% of budget.
+
+---
+
+# DELIVERABLE 2 — TWO TOTALS, SEPARATED
+
+**`marlowe --serve` and `marlowe --eval-adapter` are two independent front ends over the same
+crates and they do not load the same components** (`docs/design/EVAL-PRODUCT-DIVERGENCE.md`). A
+single "Marlowe uses N MB" would describe neither. **The two differ by 100×.**
+
+**Re-verified by grep this session, not carried from the previous one:**
+
+| claim | check | result |
+|---|---|---|
+| the daemon loads **no embedder** | `grep -rn "Embedder" crates/marlowe-daemon/src/` | **0 matches** |
+| the one production embedder call site | `grep -rn "load_with_provider" crates/` | `crates/marlowe/src/main.rs:657`, inside `--eval-adapter` |
+| the daemon **does** load a reranker | `crates/marlowe-daemon/src/memory.rs:159` | `CrossEncoder::load_auto`, when `--reranking` is given |
+| the document store is daemon-side only | `grep -rn "DocumentStore" crates/` | constructed in `marlowe-exec/src/lib.rs:122`; **0 in `adapter.rs`** |
+
+## 2a. `marlowe --serve` — the shipped daemon
+
+Journals built through the shipped `--eval-adapter` wire at 0 / 100 / 500 / 2,000 memories, idle
+card. `tools/process_footprint.py`, `runs/session-f-components/footprint-idle/footprint.json`.
+
+| source | fixed / scaling | scales with | host | device |
+|---|---|---|---|---|
+| process baseline + daemon machinery | **FIXED** | — | **10.96 MB** *(fitted intercept)* | 0 |
+| belief store rebuilt from the journal | **SCALING** | **memories written** | **+3.10 KB each** | 0 |
+| embedder | **NOT LOADED** | — | **0** | **0** |
+| cross-encoder, `--reranking` absent | **NOT LOADED** — memory is write-only and says so | — | 0 | 0 |
+| cross-encoder, `--reranking` present, `auto` → **CUDA** on an idle card | **FIXED** | — | **+1,016.3 MB** | **348–667 MB**, moves with the card |
+| document store (`marlowe_extract::store`) | **SCALING, UNBOUNDED** | **documents fetched — never evicted** | **NOT RE-VERIFIED** (see below) | 0 |
+| context / session state | **SCALING** | live runs | **NOT MEASURED** | 0 |
+
+**Measured totals, host working set:**
+
+| memories | `--serve` | `--serve --reranking` |
+|---|---|---|
+| 0 | **10.78 MB** | **1,028.05 MB** |
+| 100 | 11.31 MB | 1,028.27 MB |
+| 500 | 12.66 MB | 1,026.27 MB |
+| 2,000 | **16.97 MB** | **1,032.12 MB** |
+| **fit** | intercept **10.96 MB**, slope **3.10 KB/memory**, residuals ±0.19 MB | intercept **1,027.2 MB**, slope 2.25 KB/memory but residuals ±2.08 MB — **the slope is inside the noise here and only the intercept is a result** |
+
+**The headline: a shipped daemon holding two thousand memories is 17 MB.** Adding `--reranking`
+multiplies it by 61, and almost none of that is the 62.5 MB graph — it is the CUDA runtime's
+host-side initialisation.
+
+**The resolved provider was verified against a RUNNING daemon**, on the default port:
+
+```
+marlowe --status
+  rerank      CUDAExecutionProvider · batched · asked auto
+```
+
+**And the first attempt to capture that automatically was wrong in a way worth recording.**
+`tools/process_footprint.py` passed `--daemon-port` to `--status`; `main.rs` routes `--status` to
+`agent::status(workspace, profile_root)`, which **takes no port** — the flag is accepted and
+ignored. So four daemons that had each resolved CUDA and were holding ~1 GB of host and 348–667 MB
+of device memory were recorded as `rerank not-loaded`, because the reply came from whatever sat on
+the default port. Nothing was broken: the daemon was right, the label was right, and the reading
+was about a different process. It is the *"a measurement is scoped to the system it was taken on"*
+family, produced by a flag that was silently ignored rather than refused. The tool now records the
+limitation in place of a wrong value.
+
+### Does it scale with journal size? YES, LINEARLY, AND THE SLOPE IS MEASURED FOR THE FIRST TIME
+
+`Journal::verify_chain` walks every row and `BeliefStore::derive` folds the whole log; both are
+O(journal) and both run at startup before a port is bound. The slope was **UNMEASURED**. It is now:
+
+| quantity | slope | fit quality |
+|---|---|---|
+| journal on disk | **1.046 KB per memory written** | residual ~0 (2,154,496 B at 2,000) |
+| journal **rows** | **1.99 per memory written** | 3,979 rows at 2,000: 2,000 `memory_written`, 1,689 `superseded`, 250 `beliefs_merged`, 40 `consolidation_ran` |
+| daemon resident | **3.10 KB per memory written** | residuals ±0.19 MB over 0…2,000 |
+
+Resident is **2.96× the on-disk size** — consistent with `BeliefStore` holding decoded text plus
+metadata in a `BTreeMap` while the journal holds JSON payload plus signature. Consistent with, not
+confirmed: the decomposition is not unique at this precision.
+
+**Extrapolating the measured line: 100,000 memories ≈ 303 MB resident, 102 MB on disk.** That is an
+extrapolation **50× past the measured range** and is stated as arithmetic, not as a reading — the
+fit is over 0…2,000 and nothing here establishes that it stays linear at 100k.
+
+**The STARTUP-TIME slope is still unmeasured and this session did not close it.**
+`seconds_to_settle` read 4.8 s at 0 memories and 5.0 s at 2,000 — the settle detector's own floor
+is ~4 s, so it cannot resolve an O(journal) *time* cost at these sizes. **A different instrument is
+needed, and 2,000 rows is too few.** This is the more dangerous of the two slopes, because
+`verify_chain` runs before the daemon answers anything.
+
+## 2b. `marlowe --eval-adapter` — the benchmark path
+
+`--embedder-provider cpu` (8 workers), `--rerank-provider cpu`. Both explicit: the shipped defaults
+are `auto`, which resolves against the card at that instant, so a footprint row taken under `auto`
+describes whatever the card happened to hold.
+
+| source | fixed / scaling | host |
+|---|---|---|
+| process baseline | **FIXED** | 8.8 MB *(measured before load in both examples)* |
+| embedder, CPU × 8 | **FIXED** | +1,085.1 MB *(1,094.0 − 8.9, peak at load)* |
+| cross-encoder, CPU | **FIXED** | +125.9 MB *(134.8 − 8.9, peak at load)* |
+| belief store | **SCALING** | +3.10 KB/memory *(from the daemon fit — same code, same structure)* |
+| `VectorStore` | **SCALING** | +2.048 KB/memory nominal — `BTreeMap<String, Vec<f32>>`, 512 dims f32 |
+| document store | **NOT CONSTRUCTED on this path** | 0 |
+
+**Measured totals:**
+
+| memories | working set | peak |
+|---|---|---|
+| 0 | **1,100.84 MB** | 1,143.60 MB |
+| 100 | 1,104.01 MB | 1,144.30 MB |
+| 500 | 1,103.52 MB | 1,144.39 MB |
+| 2,000 | **1,111.02 MB** | 1,143.21 MB |
+| **fit** | intercept **1,101.9 MB**, slope **4.62 KB/memory**, residuals ±1.64 MB | intercept 1,144.1 MB, slope **−0.41 KB/memory** — flat, i.e. the peak is set at LOAD and ingest never exceeds it |
+
+### DO THE PARTS ADD UP? TWO RESIDUALS, BOTH NAMED RATHER THAN ROUNDED AWAY
+
+**Residual 1 — the fixed part, −76.2 MB (−6.2%).**
+
+```
+  8.8  process baseline
++1085.1  embedder CPU × 8   (measured alone, peak at load)
++ 125.9  cross-encoder CPU  (measured alone, peak at load)
+  ------
+ 1219.8  predicted peak
+ 1143.6  MEASURED peak
+ ------
+  -76.2  residual
+```
+
+**This over-prediction is expected by construction and the direction is the evidence.** Each
+component measured alone pays its own *transient* load allocation — a 60–120 MB graph file read
+into a buffer before ORT takes ownership — and a peak is a high-water mark. In one process those
+transients overlap in time and reuse the same freed pages; summing two independently-measured peaks
+counts each transient separately. **Summing peaks is an upper bound, and −6.2% is the size of that
+bound's slack on this configuration.** Consistent with, not confirmed — the residual was not
+attributed to a byte and no attempt is made here to claim it was.
+
+**Residual 2 — the scaling part, −0.53 KB/memory (−10%).**
+
+```
+  3.10  KB/memory  belief store   (measured on --serve)
++ 2.048 KB/memory  vector         (512 dims f32; the Vec header, String key and BTreeMap
+                                   node make the true figure LARGER, so this is a floor)
+  -----
+> 5.15  KB/memory  predicted
+  4.62  KB/memory  MEASURED on --eval-adapter
+  -----
+ -0.53  KB/memory  residual, and the true residual is worse because 5.15 is a floor
+```
+
+**The obvious explanation is ruled out.** `BeliefStore::recall_candidates()` returns
+`self.entries.values().collect()` — **every** entry, superseded included (`store.rs:246-248`), and
+`EventKind::Superseded` sets `superseded_by` without removing anything (`store.rs:144-154`). So all
+2,000 memories carry a live vector and the shortfall is **not** a smaller live set.
+
+**Two candidate explanations, neither confirmed, and this is left open:**
+
+1. **Working set is *resident* pages.** A 1.1 GB process is trimmed by Windows far more
+   aggressively than an 11 MB one, so the same allocation shows up smaller on the adapter than the
+   daemon-derived slope predicts. This would make the daemon's 3.10 KB the more trustworthy figure
+   and the adapter's 4.62 KB an under-read.
+2. **The `after_ingest` sample is a single point read**, not a settled one. `settle()` is used for
+   `after_load` and for both `--serve` arms; it is *not* used for `after_ingest`. The ±1.64 MB
+   residuals say the slope is decent, but the instrument is weaker at exactly the point this
+   residual is computed from.
+
+**Fixing it is one line** (`settle()` at `after_ingest`) **and a re-run, and both need cargo
+unblocked to be worth trusting.**
+
+## 2c. The document store — NOT RE-VERIFIED, and the structural claim that stands without a run
+
+**STATE.md's 74.3 MB deep-research peak and 49.4 MB 300-document corpus predate this session and
+were NOT re-verified.** They need `cargo run --example deep_research` / `corpus_bench`, which the
+cargo hold forbids. **Do not carry them forward as current** — they are measurements about a build
+that has since changed twice.
+
+**What IS established, by reading `crates/marlowe-extract/src/store.rs:106-199` rather than by
+measurement:** `DocumentStore` is `Arc<Mutex<BTreeMap<String, Document>>>` exposing `put`,
+`put_addressed`, `text`, `get`, `len`, `is_empty` and `contains` — **no `remove`, no capacity, no
+eviction path, and no TTL.** Every `Document` it holds carries the full extracted text, title,
+headings and links, and is retained for the process lifetime.
+
+**So after a research pass the daemon holds every byte of every page it fetched, forever, and the
+only bound is the process exiting.** `MAX_SOURCES_PER_READER = 6` bounds what one quarantined
+reader sees; it does not bound the store. A thirty-page pass at 200 KB of extracted text each is
+~6 MB retained with nothing to release it; a session that runs ten such passes retains all ten.
+**That is a structural reading, not a measurement, and the measurement is the first thing to take
+when cargo is unblocked.**
+
+---
+
+## WHAT IS MEASURED, WHAT IS INFERRED, AND WHAT IS MISSING
+
+| | |
+|---|---|
+| **MEASURED** | every embedder and reranker latency cell (24 + 8), idle and coexistent; every per-configuration host peak and device delta; `--serve` and `--serve --reranking` totals at four journal sizes; `--eval-adapter` totals at four journal sizes; the journal's on-disk, row-count and resident slopes; the resolved provider of a running daemon |
+| **INFERRED, with the arithmetic given** | the §5.7 "inside it?" column (a sum of component measurements, not an end-to-end retrieval); the adapter's fixed-part decomposition (peaks do not add — −6.2%); the vector term (−10% residual, unresolved); the 100k-memory extrapolation |
+| **STRUCTURAL, from source, not measured** | the document store is unbounded and never evicted; the daemon loads no embedder; the document store is not constructed on the adapter path |
+| **NOT MEASURED — named, not interpolated** | `--serve` and `--eval-adapter` totals with `marlowe-red:9b` resident; the adapter under `auto` providers; the daemon's startup-TIME slope against journal size; context/session state; the document store's actual footprint after a research pass; `--serve --reranking` resolving to CPU (the fallback arm) |
+
+### The commands that finish it, for the next session with cargo unblocked
+
+```bash
+# the coexistent process totals — load the 9b first, then:
+python tools/process_footprint.py --out runs/<s>/footprint-coexist --sizes 0,2000
+python tools/process_footprint.py --out runs/<s>/footprint-auto --sizes 0,2000 \
+       --embedder-provider auto --rerank-provider auto
+# the document store after a real research pass
+cargo run -p marlowe-exec --release --example deep_research
+cargo run -p marlowe-exec --release --example corpus_bench
+# the startup-TIME slope: needs journals two orders larger than 2,000 and a real clock
+```
+
+**9B MODELS ONLY on this card. Never load anything larger.**
+
+---
+
 ## OUTSTANDING — read this first. Everything below this section is history.
 
 Consolidated 2026-08-17 because the items were spread across twelve sections written by different

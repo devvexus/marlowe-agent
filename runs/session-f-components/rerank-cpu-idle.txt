@@ -1,0 +1,19 @@
+== reranker provider benchmark ==
+cache: NONE EXISTS on CrossEncoder (no cache_dir parameter on any constructor)
+MAX_SEQ_LEN = 256, MAX_BATCH = 10, threads = 1
+provider REQUESTED = cpu
+free device memory at start: 13219 MB
+VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against that baseline. Per-process `--query-compute-apps` reports [N/A] -- WDDM does not attribute device memory per process here.
+host peak before load: 8.9 MB
+
+provider RESOLVED = CPUExecutionProvider  (sequential)  -- CPU was asked for explicitly
+host peak after load: 134.8 MB
+device held after load: -8.0 MB
+
+-- 30 slates per cell, warmed at MAX_BATCH first
+   batch 1     575.55 ms total   19.185 ms/slate   19.185 ms/pair  host peak   156.9 MB  device held   88.0 MB  per-process     [N/A]
+   batch 10   5810.00 ms total  193.667 ms/slate   19.367 ms/pair  host peak   169.0 MB  device held   15.0 MB  per-process     [N/A]
+
+   batch 11 refused, correctly: a batch of 11 pairs was requested; invariance on this graph is measured only over 1..10 (runs/session-l/batch-invariance-batch10.json, max |delta| 0.000000000). A larger batch is REFUSED rather than run: extrapolating an invariance result past the sizes it was taken at is the inherited-measurement error this project has now paid for four times. Re-run the sweep to the new size first
+
+co-resident processes on the card: no llama/ollama process

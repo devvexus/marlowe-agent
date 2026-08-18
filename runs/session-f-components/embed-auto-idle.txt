@@ -1,0 +1,33 @@
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 13260 MB
+VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against          that baseline. Per-process `--query-compute-apps` reports [N/A] -- WDDM does not attribute device memory per process here.
+co-resident processes on the card at start: no llama/ollama process
+CUDA session constructs on the shipped graph: true
+derived worker count (available_parallelism().min(8)): 8
+
+provider arms in THIS process: [Auto]
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CUDAExecutionProvider  workers 1      68.17 ms total     2.13 ms/embedding  host peak  1061.7 MB  device held  769.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8      93.37 ms total     2.92 ms/embedding  host peak  1760.8 MB  device held 4579.0 MB  per-process     [N/A]
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CUDAExecutionProvider  workers 1      98.45 ms total     3.08 ms/embedding  host peak  1760.8 MB  device held  823.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8     101.41 ms total     3.17 ms/embedding  host peak  1760.8 MB  device held 4547.0 MB  per-process     [N/A]
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CUDAExecutionProvider  workers 1     145.52 ms total     4.55 ms/embedding  host peak  1760.8 MB  device held  827.0 MB  per-process     [N/A]
+   CUDAExecutionProvider  workers 8     164.58 ms total     5.14 ms/embedding  host peak  1760.8 MB  device held 4571.0 MB  per-process     [N/A]
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1                 -         2.13
+102      8                 -         2.92
+502      1                 -         3.08
+502      8                 -         3.17
+1024     1                 -         4.55
+1024     8                 -         5.14
+
+embedding cache was OFF for every row above.

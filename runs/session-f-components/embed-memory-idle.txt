@@ -1,0 +1,64 @@
+########## workers=1 provider=cpu
+MAX_SEQ_LEN = 1024, workers = 1, provider requested = cpu
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x1 = 64.0 MB
+device free at baseline: 13224.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CPUExecutionProvider with 1 of 1 session(s) -- CPU was asked for explicitly
+after load: host peak 212.8 MB, device held -6.0 MB
+short text (512 dims): host peak 212.8 MB, device held -21.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 290.2 MB, device held -24.0 MB
+batch of 1 at MAX_SEQ_LEN: host peak 312.3 MB, device held -60.0 MB
+
+FINAL host peak: 312.3 MB over 1 session(s)
+  -> 312.3 MB per session (host, aggregate / width)
+FINAL device held: -68.0 MB -> -68.0 MB per session
+
+########## workers=8 provider=cpu
+MAX_SEQ_LEN = 1024, workers = 8, provider requested = cpu
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x8 = 512.0 MB
+device free at baseline: 13292.0 MB
+host peak before load: 8.9 MB
+
+PLAN: CPUExecutionProvider with 8 of 8 session(s) -- CPU was asked for explicitly
+after load: host peak 1094.0 MB, device held -3.0 MB
+short text (512 dims): host peak 1094.0 MB, device held -3.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1171.2 MB, device held 68.0 MB
+batch of 8 at MAX_SEQ_LEN: host peak 2048.0 MB, device held 34.0 MB
+
+FINAL host peak: 2048.0 MB over 8 session(s)
+  -> 256.0 MB per session (host, aggregate / width)
+FINAL device held: 65.0 MB -> 8.1 MB per session
+
+########## workers=1 provider=auto
+MAX_SEQ_LEN = 1024, workers = 1, provider requested = auto
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x1 = 64.0 MB
+device free at baseline: 13227.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 1 of 1 session(s) -- CUDA, all 1 requested sessions opened; no reserve was requested (measurement arm)
+after load: host peak 1043.0 MB, device held 746.0 MB
+short text (512 dims): host peak 1056.7 MB, device held 727.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1056.9 MB, device held 765.0 MB
+batch of 1 at MAX_SEQ_LEN: host peak 1057.0 MB, device held 731.0 MB
+
+FINAL host peak: 1057.0 MB over 1 session(s)
+  -> 1057.0 MB per session (host, aggregate / width)
+FINAL device held: 730.0 MB -> 730.0 MB per session
+
+########## workers=8 provider=auto
+MAX_SEQ_LEN = 1024, workers = 8, provider requested = auto
+predicted ALiBi matrix (8 x N x N int64, PER SESSION): 64.0 MB; x8 = 512.0 MB
+device free at baseline: 13274.0 MB
+host peak before load: 8.8 MB
+
+PLAN: CUDAExecutionProvider with 8 of 8 session(s) -- CUDA, all 8 requested sessions opened; no reserve was requested (measurement arm)
+after load: host peak 1749.9 MB, device held 4648.0 MB
+short text (512 dims): host peak 1749.9 MB, device held 4648.0 MB
+at MAX_SEQ_LEN (512 dims): host peak 1749.9 MB, device held 4648.0 MB
+batch of 8 at MAX_SEQ_LEN: host peak 1749.9 MB, device held 4648.0 MB
+
+FINAL host peak: 1749.9 MB over 8 session(s)
+  -> 218.7 MB per session (host, aggregate / width)
+FINAL device held: 4652.0 MB -> 581.5 MB per session
+

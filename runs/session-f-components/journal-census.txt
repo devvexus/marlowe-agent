@@ -1,0 +1,26 @@
+# Journal census for the footprint sweep (runs/session-f-components/footprint-idle).
+#
+# Taken before the generated profiles were deleted: each held a `profile.key` and a
+# `daemon.token`, and key material does not belong in a results directory where a future
+# `git add -A` can reach it. The numbers are the audit trail; the profiles are regenerable
+# with `python tools/process_footprint.py --out <dir> --sizes 0,100,500,2000`.
+
+== profile-0  journal.db 16384 bytes  rows 0  payload 0 bytes
+
+== profile-100  journal.db 114688 bytes  rows 196  payload 46634 bytes
+     memory_written                  100  payload     39612
+     superseded                       80  payload      3564
+     beliefs_merged                   14  payload      3274
+     consolidation_ran                 2  payload       184
+
+== profile-500  journal.db 548864 bytes  rows 992  payload 233970 bytes
+     memory_written                  500  payload    198060
+     superseded                      412  payload     18348
+     beliefs_merged                   70  payload     16642
+     consolidation_ran                10  payload       920
+
+== profile-2000  journal.db 2154496 bytes  rows 3979  payload 950209 bytes
+     memory_written                 2000  payload    799740
+     superseded                     1689  payload     80357
+     beliefs_merged                  250  payload     66402
+     consolidation_ran                40  payload      3710

@@ -1,0 +1,213 @@
+{
+  "binary_mtime": 1787028230.5364044,
+  "rows": [
+    {
+      "memories": 0,
+      "profile_bytes": 16506,
+      "adapter": {
+        "pid": 26916,
+        "device_baseline": 14073987072,
+        "after_load": [
+          1154310144,
+          1199149056
+        ],
+        "device_after_load": 13940817920,
+        "after_ingest": [
+          1154310144,
+          1199149056
+        ],
+        "device_after_ingest": 13934526464,
+        "stderr": "marlowe: embedder asked for cpu, running on CPUExecutionProvider with 8 of 8 worker session(s) -- CPU was asked for explicitly\nmarlowe: rerank asked for cpu, running on CPUExecutionProvider, sequential -- CPU was asked for explicitly\n",
+        "memories": 0
+      },
+      "serve_no_reranking": {
+        "pid": 128052,
+        "reranking": false,
+        "settled": [
+          11300864,
+          11300864
+        ],
+        "device_baseline": 13933477888,
+        "device_after": 13739491328,
+        "seconds_to_settle": 4.767117200011853,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval WRITE-ONLY \u00c2\u00b7 no --reranking directory; the rank-1/rank-2 margin the declared operating point reads does not exist without a cross-encoder\nmarlowe: daemon listening on 127.0.0.1:45801\nmarlowe: runs are owned here and survive the client that started them\n"
+      },
+      "serve_with_reranking": {
+        "pid": 25864,
+        "reranking": true,
+        "settled": [
+          1077985280,
+          1077985280
+        ],
+        "device_baseline": 13742637056,
+        "device_after": 13043236864,
+        "seconds_to_settle": 4.781928799988236,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval live \u00c2\u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j\nmarlowe: daemon listening on 127.0.0.1:45802\nmarlowe: runs are owned here and survive the client that started them\n"
+      }
+    },
+    {
+      "memories": 100,
+      "profile_bytes": 114810,
+      "adapter": {
+        "pid": 120856,
+        "device_baseline": 13607370752,
+        "after_load": [
+          1153892352,
+          1199890432
+        ],
+        "device_after_load": 13759414272,
+        "after_ingest": [
+          1157636096,
+          1199890432
+        ],
+        "device_after_ingest": 13758365696,
+        "stderr": "marlowe: embedder asked for cpu, running on CPUExecutionProvider with 8 of 8 worker session(s) -- CPU was asked for explicitly\nmarlowe: rerank asked for cpu, running on CPUExecutionProvider, sequential -- CPU was asked for explicitly\n",
+        "memories": 100
+      },
+      "serve_no_reranking": {
+        "pid": 117804,
+        "reranking": false,
+        "settled": [
+          11857920,
+          11857920
+        ],
+        "device_baseline": 13759414272,
+        "device_after": 13776191488,
+        "seconds_to_settle": 4.755591499968432,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval WRITE-ONLY \u00c2\u00b7 no --reranking directory; the rank-1/rank-2 margin the declared operating point reads does not exist without a cross-encoder\nmarlowe: daemon listening on 127.0.0.1:45803\nmarlowe: runs are owned here and survive the client that started them\n"
+      },
+      "serve_with_reranking": {
+        "pid": 129892,
+        "reranking": true,
+        "settled": [
+          1078214656,
+          1078214656
+        ],
+        "device_baseline": 13781434368,
+        "device_after": 13170114560,
+        "seconds_to_settle": 4.760491700028069,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval live \u00c2\u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j\nmarlowe: daemon listening on 127.0.0.1:45804\nmarlowe: runs are owned here and survive the client that started them\n"
+      }
+    },
+    {
+      "memories": 500,
+      "profile_bytes": 548986,
+      "adapter": {
+        "pid": 126472,
+        "device_baseline": 13736345600,
+        "after_load": [
+          1154543616,
+          1199976448
+        ],
+        "device_after_load": 13689159680,
+        "after_ingest": [
+          1157124096,
+          1199976448
+        ],
+        "device_after_ingest": 13674479616,
+        "stderr": "marlowe: embedder asked for cpu, running on CPUExecutionProvider with 8 of 8 worker session(s) -- CPU was asked for explicitly\nmarlowe: rerank asked for cpu, running on CPUExecutionProvider, sequential -- CPU was asked for explicitly\n",
+        "memories": 500
+      },
+      "serve_no_reranking": {
+        "pid": 113172,
+        "reranking": false,
+        "settled": [
+          13275136,
+          13414400
+        ],
+        "device_baseline": 13677625344,
+        "device_after": 13697548288,
+        "seconds_to_settle": 4.8272294999915175,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval WRITE-ONLY \u00c2\u00b7 no --reranking directory; the rank-1/rank-2 margin the declared operating point reads does not exist without a cross-encoder\nmarlowe: daemon listening on 127.0.0.1:45805\nmarlowe: runs are owned here and survive the client that started them\n"
+      },
+      "serve_with_reranking": {
+        "pid": 29008,
+        "reranking": true,
+        "settled": [
+          1076121600,
+          1076121600
+        ],
+        "device_baseline": 13692305408,
+        "device_after": 13327400960,
+        "seconds_to_settle": 4.805731900036335,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval live \u00c2\u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j\nmarlowe: daemon listening on 127.0.0.1:45806\nmarlowe: runs are owned here and survive the client that started them\n"
+      }
+    },
+    {
+      "memories": 2000,
+      "profile_bytes": 2154618,
+      "adapter": {
+        "pid": 130764,
+        "device_baseline": 13876854784,
+        "after_load": [
+          1153564672,
+          1198747648
+        ],
+        "device_after_load": 13933477888,
+        "after_ingest": [
+          1164984320,
+          1198747648
+        ],
+        "device_after_ingest": 13942915072,
+        "stderr": "marlowe: embedder asked for cpu, running on CPUExecutionProvider with 8 of 8 worker session(s) -- CPU was asked for explicitly\nmarlowe: rerank asked for cpu, running on CPUExecutionProvider, sequential -- CPU was asked for explicitly\n",
+        "memories": 2000
+      },
+      "serve_no_reranking": {
+        "pid": 105412,
+        "reranking": false,
+        "settled": [
+          17793024,
+          20746240
+        ],
+        "device_baseline": 13949206528,
+        "device_after": 13816037376,
+        "seconds_to_settle": 4.823097799962852,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval WRITE-ONLY \u00c2\u00b7 no --reranking directory; the rank-1/rank-2 margin the declared operating point reads does not exist without a cross-encoder\nmarlowe: daemon listening on 127.0.0.1:45807\nmarlowe: runs are owned here and survive the client that started them\n"
+      },
+      "serve_with_reranking": {
+        "pid": 132196,
+        "reranking": true,
+        "settled": [
+          1082257408,
+          1082257408
+        ],
+        "device_baseline": 13818134528,
+        "device_after": 13335789568,
+        "seconds_to_settle": 4.951899500039872,
+        "alive": true,
+        "status_lines": [
+          "rerank      not-loaded"
+        ],
+        "stderr": "marlowe: context window 32768 tokens (model ceiling 262144)\nmarlowe: memory retrieval live \u00c2\u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j\nmarlowe: daemon listening on 127.0.0.1:45808\nmarlowe: runs are owned here and survive the client that started them\n"
+      }
+    }
+  ]
+}
