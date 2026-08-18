@@ -36,13 +36,15 @@ control now asserts pairs were compared and exits VACUOUS otherwise.
 **The general form, and it is new to this ledger:** *a control proves the instrument can detect a
 difference; it does not prove the instrument was ever pointed at anything.*
 
-### NOT VERIFIED BY A BUILD
+### VERIFIED
 
-`cargo` was held at the human's request after ADR-045 was written. The gate-1 measurement above ran
-against a **release build made before** the final edit to `examples/rerank_gate1.rs` (the control-3
-vacuity guard). **The numbers are real and the guard is unbuilt.** Next session: `cargo build
---release` and `cargo test --workspace --no-fail-fast` before treating this as green. Last full
-suite was **944 passed, 0 failed, 2 ignored**.
+`cargo build --release` clean. **`cargo test --workspace --no-fail-fast`: 944 passed, 0 failed,
+2 ignored** (`runs/session-e-rerank-cuda/final-suite.txt`).
+
+Gate 1 was **re-run against the freshly built control-3 guard** rather than trusted from the earlier
+binary, and it now prints the line that was missing: **`pairs scored on BOTH providers 1200`**. Same
+readings — max |delta| `0.001260757`, 2 deep reorders, **0 top-1 changes** — with the vacuity check
+live this time. That is the difference between a PASS and a PASS you can believe.
 
 ### THE BENCHMARK MEASURES A SYSTEM THE PRODUCT IS NOT — `docs/design/EVAL-PRODUCT-DIVERGENCE.md`
 
