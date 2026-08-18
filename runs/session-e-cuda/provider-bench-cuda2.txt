@@ -1,0 +1,35 @@
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 11196 MB
+CUDA session constructs on the shipped graph: true
+derived worker count (available_parallelism().min(8)): 8
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1     993.53 ms total    31.05 ms/embedding  host peak   481.3 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8     209.45 ms total     6.55 ms/embedding  host peak  1362.5 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1      99.96 ms total     3.12 ms/embedding  host peak  1362.5 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     117.05 ms total     3.66 ms/embedding  host peak  1772.2 MB  vram    -1.0 MB
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    5750.87 ms total   179.71 ms/embedding  host peak  1772.2 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8    1145.23 ms total    35.79 ms/embedding  host peak  2329.8 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1     202.79 ms total     6.34 ms/embedding  host peak  2329.8 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     121.04 ms total     3.78 ms/embedding  host peak  2329.8 MB  vram    -1.0 MB
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1   14152.65 ms total   442.27 ms/embedding  host peak  2329.8 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8    3163.16 ms total    98.85 ms/embedding  host peak  3242.0 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1     212.22 ms total     6.63 ms/embedding  host peak  3242.0 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     189.96 ms total     5.94 ms/embedding  host peak  3242.0 MB  vram    -1.0 MB
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1             31.05         3.12   9.94x
+102      8              6.55         3.66   1.79x
+502      1            179.71         6.34   28.36x
+502      8             35.79         3.78   9.46x
+1024     1            442.27         6.63   66.69x
+1024     8             98.85         5.94   16.65x
+
+embedding cache was OFF for every row above.

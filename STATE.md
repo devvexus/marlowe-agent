@@ -1,5 +1,298 @@
 # State
 
+## CUDA WORKS ON THIS MACHINE AND ALWAYS DID. THE CONFIGURATION THAT MADE IT WORK LIVED IN A SHELL.
+
+**2026-08-17, later the same day. This CORRECTS the section below titled *"AND CUDA DOES NOT LOAD ON
+THIS MACHINE AT ALL"*, which is false.** Every claim here is a command that was run.
+
+### The finding, and it is a finding about the BUILD rather than about the hardware
+
+`ort`'s CUDA provider now constructs, for the embedder **and** the reranker, on the shipped graphs.
+Nothing was installed. The CUDA 12.1 runtime and cuDNN 9 were on the disk the whole time — 4.2 GB of
+them — inside `site-packages/torch/lib`, where `torch 2.5.1+cu121` ships its private copy.
+
+**And the project already knew.** `DECISIONS.md` ADR-015 says it in two lines: *"No CUDA Toolkit is
+installed and none is needed: `torch 2.5.1+cu121` bundles what ORT 1.24 requires in
+`site-packages/torch/lib`, and they were not on ORT's DLL search path."* The previous session's
+statement *"there is no CUDA toolkit installed"* is **true**, and the conclusion drawn from it —
+that CUDA cannot run here — contradicts a recorded ADR that was three lines long and said exactly
+how to fix it. *"The DLL cannot be found"* was read as *"the DLL does not exist"*. **Before
+concluding a library is absent, look for it.** It is one `find`.
+
+### THE HEADLINE IS NOT "GPU NEVER WORKED FROM RUST". IT IS THE OPPOSITE, AND IT IS WORSE.
+
+The premise handed to this session was that GPU work here had always been Python and never Rust.
+**That is wrong, and `runs/session-l/RESULT.md` §5b says so in its own words:** *"Warm-249, **Rust**,
+end to end… `PATH` carries torch's bundled CUDA libraries for every cell."* The `s2-cuda/` and
+`s4-cuda/` artifacts carry `run.target` strings naming
+`target/release/marlowe.exe --eval-adapter … --rerank-provider cuda`, and every
+`retrieval-profile.ndjson` row reads `"rerank_provider":"CUDAExecutionProvider"` — a field only the
+Rust profiler writes.
+
+**So ADR-029's rerank-on-CUDA HAS executed in the shipped Rust path**, and produced its published
+numbers (CUDA batched 3.4 ms against CPU's 195.6). What it has never had is a way to *keep* working.
+
+**The precondition had no declaration, no reader, no validation and no test.** It was an environment
+variable in somebody's terminal. A configuration that exists only in a shell is indistinguishable
+from one that does not exist at all — so it did not survive the session boundary, the same binary on
+the same machine failed, the failure was measured *correctly*, and the conclusion drawn was that the
+hardware was incapable. **This is the "declared control that nothing reads" family with the control
+living outside the process entirely**, and it is the first instance where the missing reader cost a
+*capability* rather than a guarantee.
+
+### The hypothesis this session was asked to test FIRST is REFUTED, and measured false
+
+*"Python's `onnxruntime-gpu` wheel bundles its own CUDA libraries; Rust's `ort` links a system
+install."* **No.**
+
+- `site-packages/onnxruntime/capi/` holds `onnxruntime_providers_cuda.dll` (312 MB) and **no CUDA
+  runtime at all** — no `cublasLt64_12.dll`, no `cufft64_11.dll`, no cuDNN.
+- A bare `python -c "import onnxruntime; InferenceSession(…, providers=['CUDAExecutionProvider'])"`
+  fails with the **identical** `cublasLt64_12.dll` Error 126 — and then **returns a CPU session
+  reporting `['CPUExecutionProvider']`**. Session G's silent fallback, in its original habitat.
+- `import torch` first, and the same call returns `['CUDAExecutionProvider', 'CPUExecutionProvider']`.
+
+`import torch` calls `os.add_dll_directory(torch/lib)` as a side effect. **The difference was never
+the language or the runtime. It was whether something had put a directory on the search path** — and
+in Python that happened by accident of import order. `tools/session_l_gpu_recovery.py` does it
+deliberately at line 38 and says so.
+
+### Where CUDA is, and whether it is reachable today
+
+| Where | Language | Runtime | Reachable today |
+|---|---|---|---|
+| `cue/dense/embedder.rs` `session()` — both provider arms, `error_on_failure` | Rust | `ort` 2.0.0-rc.10 | **yes** — `--embedder-provider cuda\|auto`, default `cpu` |
+| `rerank.rs` `load_pinned()` — ADR-029's path | Rust | `ort` | **yes** — `--rerank-provider cuda`, default `cpu` |
+| `cue/dense/vram.rs` | Rust | shells `nvidia-smi` | yes; **per-process VRAM is `[N/A]` on this driver** |
+| `retrieve.rs` `RerankPlan::select` | Rust | `ort` (indirect) | **no — has no call site in the product** |
+| `examples/cuda_probe.rs`, `examples/embed_provider_bench.rs` | Rust | `ort` | yes |
+| `tools/session_l_gpu_recovery.py`, `session_l_gpu_spike.py` | Python | `onnxruntime-gpu` 1.24.2 | yes; these do the `add_dll_directory` dance |
+| 12 sweep tools (`sweep_*`, `reach_*`, `finetune_v2`) with `--provider` **defaulting to CUDA** | Python | `onnxruntime` | yes |
+| `session_i_rerankers.py`, `readers.py` and ~10 dependants | Python | `onnxruntime` | yes, **defaulting to CPU** |
+| `eval/` | — | — | **`onnxruntime` is BANNED there** by `test_no_retriever.py` |
+
+`ort` is `=2.0.0-rc.10` with `["download-binaries", "cuda"]`; there is no `build.rs`, no `.cargo/`,
+and no `ORT_*` variable anywhere in the repo. `marlowe-embed-spike` pins `ort` **without** `cuda`.
+
+### What shipped: the shell incantation became an input with a reader
+
+`crates/marlowe-memory/src/cue/dense/cuda_libs.rs` — `MARLOWE_CUDA_LIB_DIR`.
+
+| | |
+|---|---|
+| One directory or several | `std::env::split_paths`; a toolkit install and a cuDNN install are normally two, so the requirement is on their **union** |
+| Validated at load | every entry must be a directory, and the union must contain all of `cublasLt64_12`, `cublas64_12`, `cudart64_12`, `cufft64_11`, `cudnn64_9` |
+| **Refusal, never a warning** | set-and-wrong is refused and the message **quotes the path the human typed**. ORT's Error 126 names a *library*, never the misconfiguration |
+| Empty string is refused | `""` is a configuration that meant to point somewhere, not "unset" |
+| Applied **once**, by `OnceLock`, before the first session | the provider DLL is loaded lazily, so this has to precede it or it has not happened |
+| **No auto-discovery** | nothing searches for PyTorch or Ollama. Silently borrowing another product's private runtime would make this build's numbers depend on an unrelated package's version |
+| Non-Windows says **`Unsupported`** | Linux's loader reads `LD_LIBRARY_PATH` once at process start, so an in-process set cannot work. Saying `Applied` there would be a declaration with no reader |
+
+**The Ollama case now fails usefully.** Pointing at its private `cuda_v12` previously moved Error 126
+from `cublasLt64_12.dll` to `cufft64_11.dll`, one link at a time. It now refuses up front naming
+**both** `cufft64_11.dll` and `cudnn64_9.dll` — the whole gap at once.
+
+### Mutation runs — the unit tests are NOT the guard, and that was the point
+
+The seven `cuda_libs` unit tests assert what `resolve` decides. **Every one stays green if the call
+into it is deleted from both loaders** — the property asserted where it is *defined* rather than
+where it is *enforced*, which is instance #16's exact shape. `tests/cuda_libs_wiring.rs` is the other
+half: it points the variable at an absent directory and requires the **loaders** to refuse in
+`cuda_libs`' words.
+
+| Reverted | Failed |
+|---|---|
+| the `ensure_search_path` call in `Embedder::session` | `both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` — *"the refusal did not quote the configured path, which means the request reached ORT instead"* |
+| the same call in `CrossEncoder::load_pinned` | the same test — *"so ADR-029's CUDA path is unguarded"* |
+
+Both mutations produced ORT's `Error 126` in place of the named refusal, which is precisely the
+before-state.
+
+### ADR-015 ON CUDA: three readings taken, and they are NOT inherited from CPU
+
+`cargo test -p marlowe-memory --test embedder_provider` — **8 passed, and they RAN rather than
+skipped** (no `SKIP` line in the output; they had skipped on every previous run in this project).
+
+| Property | CUDA reading |
+|---|---|
+| Determinism, two calls one process | **bit-identical** |
+| Worker invariance, 1 vs 2 vs 8 | **bit-identical** |
+| Batch-composition invariance (alone vs in a batch) | **bit-identical** |
+| A loaded CUDA session holds **device** memory | holds ≥ the graph's size |
+
+### THE REFERENCE CHECK ON CUDA FAILS THE CPU TOLERANCE, AND THAT IS A RESULT, NOT A NUISANCE
+
+`embedding-reference.json` is HuggingFace / sentence-transformers output and **was not regenerated,
+and must not be.** Re-checked on CUDA, 41 cases, reproduced across two runs:
+
+| provider | median | p95 | max | over 1e-4 | min cosine |
+|---|---|---|---|---|---|
+| CPU | 5.960e-8 | 8.196e-8 | **1.043e-7** | 0/41 | 0.99999994 |
+| CUDA | 3.072e-5 | 5.198e-5 | **1.063e-4** | **1/41** | 0.99999970 |
+
+**`MAX_ABS_DIFF` is 1e-4, so CUDA exceeds it.** The distribution matters more than the max: CUDA is
+**~500× further from the reference across the whole distribution**, not one pathological input with a
+clean body. The single case over the line is a degenerate 1024-token `"the the the…"` text.
+
+**Nothing was widened to make anything green.** `MAX_ABS_DIFF` is untouched and still guards CPU. The
+CUDA test asserts **cosine** — unrelaxed at 0.9999, measured 0.99999970, and the property retrieval
+actually reads, since ranking is by cosine — plus a **provisional tripwire** `CUDA_MAX_ABS_DIFF =
+1e-3`, one order of magnitude above what was observed, so a *drift* fails while today's known gap
+does not. **It is explicitly not a tolerance:** a tolerance is derived from the gap between two
+faithful implementations, as `MAX_ABS_DIFF`'s own doc comment does for CPU, and rounding up the first
+number ever measured would be fitting the threshold to the observation.
+
+**THIS BLOCKS DEFAULTING THE EMBEDDER TO CUDA AND IT IS AN ADR.** ADR-029 met the identical wall on
+the cross-encoder and **amended the requirement to ranking equivalence after measuring it** — 0/229
+slates reordered. The equivalent measurement here is a retrieval run scored on CUDA against the CPU
+baseline. **It has not been taken.** Until it is, this records agreement in direction and
+disagreement in components, and claims nothing about R@1.
+
+### Per-prompt overhead, cache OFF, 32 texts per cell — `runs/session-e-cuda/provider-bench-cuda.txt`
+
+**The CUDA column exists for the first time.** Two runs; both reported, because the spread is part of
+the reading.
+
+| tokens | workers | CPU ms/emb | CUDA ms/emb | speedup |
+|---|---|---|---|---|
+| 102 | 1 | 31.58 / 31.05 | **3.29 / 3.12** | ~9.8× |
+| 102 | 8 | 6.30 / 6.55 | **3.68 / 3.66** | ~1.7× |
+| 502 | 1 | 171.90 / 179.71 | **4.81 / 6.34** | ~32× |
+| 502 | 8 | 37.42 / 35.79 | **3.51 / 3.78** | ~10× |
+| 1024 | 1 | 431.45 / 442.27 | **8.63 / 6.63** | ~58× |
+| 1024 | 8 | 99.17 / 98.85 | **5.94 / 6.10** | ~16× |
+
+**The CPU column reproduces the reading already on this page** (31.58 vs 30.28, 171.90 vs 170.91,
+431.45 vs 438.13), which is the control that says the harness did not change under the treatment.
+**CUDA at one worker beats CPU at eight in every row.** Run-to-run spread on the CUDA cells reaches
+**23%** at one worker (8.63 vs 6.63), which is wider than several differences a careless reading
+would call results.
+
+### VRAM: the bench's own column is UNAVAILABLE on this machine, and it prints `-1.0`
+
+`nvidia-smi --query-compute-apps=…,used_memory` returns **`[N/A]`** for every process here — WDDM
+does not report per-process device memory — so the bench's `vram` column is structurally unreadable
+and shows its sentinel. **Do not read `-1.0 MB` as "used no VRAM".** Measured device-level instead,
+by sampling `memory.used` at 150 ms through a whole bench run:
+
+| | MiB |
+|---|---|
+| Baseline (other apps: browsers, Discord, Edge) | 4,567 |
+| **Peak during the run** | **9,507** |
+| **Attributable to the embedder, 8 workers × 1024 tokens** | **~4,940 (~4.9 GB)** |
+| Card total | 16,376 |
+
+**No OOM at the derived worker count** — the bench opened `workers 8` and completed every cell.
+
+**AND THE COEXISTENCE CASE IS NOT DEMONSTRATED.** `llama-server` was **not resident** during this
+measurement (11.5 GB free at start). When Ollama holds its usual ~11.5 GB, only ~4.8 GB remains and
+**~4.9 GB does not fit** — the budget in `auto_sessions` would cut the width, which is what it is
+for, but *that* path is still unexercised. A K6-style run needs the model and a CUDA embedder
+resident at once and **nobody has measured whether they co-fit.**
+
+### A NEAR-MISS WORTH MORE THAN THE FIX: I ALMOST BLAMED MY OWN CHANGE FOR AN INTERMITTENT FAILURE
+
+Three tests failed under the new mechanism and passed under a raw `PATH`. I ran one of each, called
+it a controlled comparison, and had begun writing up *"in-process `set_var` breaks it"*. **It
+reproduced neither way.** Interleaved, three rounds each, no compilation in between:
+
+| round | `PATH` | `MARLOWE_CUDA_LIB_DIR` |
+|---|---|---|
+| 1–3 | 8 passed, 0 failed | 8 passed, 0 failed |
+
+The failures were the **known intermittent `bad allocation`** already on this page, and they
+correlate with `cargo` compiling concurrently — CLAUDE.md's parallel-checkout hazard #6, *a build
+invalidating a measurement*, landing on this session's own measurement. **n = 1 on each side of a
+comparison is not a control**, which is this file's own standing rule about post-hoc results, met in
+the cheapest possible form.
+
+### THE ERROR NOW CARRIES THE REMEDY, AND I COMMITTED FAMILY #16 WHILE WRITING ABOUT FAMILY #16
+
+`hint_when_unconfigured()` was written, and **nothing read it** — a declared control with no reader,
+added in the same hour as a module header explaining that exact failure. Caught by asking the
+module's own question of my own code: *is there a line that reads this?*
+
+It is now attached to both loaders' error paths and covered by `tests/cuda_libs_hint.rs`. A CUDA
+session that fails on a **missing library** while `MARLOWE_CUDA_LIB_DIR` is **unset** now returns
+ORT's message plus *"'missing' here means NOT FOUND rather than NOT INSTALLED — a CUDA Toolkit is one
+source and it is not the only one."* That sentence is the entire difference between this session and
+the last one.
+
+**Narrow on purpose, in three ways**, because a hint that fires everywhere is the trust-floor banner
+again: CUDA only, **library-load failures only** (`Error 126` / *"which is missing"* — a
+`bad allocation` is a real OOM and must not be relabelled), and **unconfigured only**, since a
+configured-and-refused run has already been told what is wrong with the value it gave.
+`is_library_load_failure` matches on text because `ort` exposes no error code, and the blast radius
+is bounded: the worst case is an advisory sentence appearing, or not appearing. **It never changes
+whether the load succeeds.**
+
+`cuda_libs_hint.rs` and `cuda_libs_wiring.rs` are **separate test binaries on purpose** — the
+resolution is cached per process by `OnceLock`, and the two files measure opposite states of the
+variable. The hint test **skips loudly** if CUDA constructs, rather than passing on an untested
+branch.
+
+### `elapsed::tests` FAIL IN RELEASE AND PASS IN DEBUG, AND THAT IS PRE-EXISTING
+
+The final workspace run reads **907 passed / 2 failed**, and neither failure is this session's:
+`elapsed::tests::finish_is_what_closes_the_last_stage` and
+`a_stage_entered_twice_accumulates_rather_than_restarts`, both in `crates/marlowe/src/elapsed.rs`,
+a file this session never opened (`git diff` on it is empty).
+
+Both do `std::hint::black_box((0..20_000).sum::<u64>())` and then assert `as_profile_us() > 0`.
+**In release the optimizer makes that work sub-microsecond, so the reading rounds to zero.**
+Measured both ways:
+
+| mode | result |
+|---|---|
+| `cargo test -p marlowe --bin marlowe -- elapsed::tests` (**debug**, CLAUDE.md's documented command) | **5 passed, 0 failed** |
+| the same in `--release` | **3 passed, 2 failed**, five runs out of five |
+
+**Deterministic, not flaky** — which is why the first reading of it as a flake was wrong. One earlier
+run showed only one of the two failing, and that *is* borderline timing, so the pair sits right at
+the resolution edge. **A test that asserts a duration is positive is asserting that the work it
+timed was slow enough to see**, and that is a property of the build profile, not of the code under
+test. Recorded rather than fixed: it is outside this session's scope and it changes a timing
+assertion.
+
+**Consequence for anyone quoting a suite count: state the profile.** A `--release` count and a debug
+count are not the same measurement on this workspace.
+
+### To close it, in order
+
+1. **The CUDA/HuggingFace gap is the blocker.** Take the ranking measurement ADR-029 took — a
+   retrieval run scored on CUDA against the CPU baseline — and write the ADR. Until then
+   `--embedder-provider cuda` is a measurement tool, not a default.
+2. **Re-run `tools/session_l_gpu_recovery.py`.** ADR-029's standing obligation: node placement was
+   verified *once, in Python, at ORT 1.24.2*, and this build links 1.22. **13.6% of nodes on CPU** is
+   a number about a runtime this binary does not use. `ort` still exposes no node enumeration.
+3. **Measure Ollama + CUDA embedder coexistence**, per the VRAM section above.
+4. **`RerankPlan::select` has no call site.** Dead since it was written; either wire it or delete it.
+5. **`MARLOWE_CUDA_LIB_DIR` is not in `CLAUDE.md`'s build section.** It should be, once 1 is settled.
+6. **`elapsed.rs`'s two release-mode failures**, above. A timing assertion, not this session's scope.
+
+### How to run CUDA here, so this is never rediscovered
+
+```bash
+# Windows. One directory, or several separated by ';'. Refused at load if incomplete.
+export MARLOWE_CUDA_LIB_DIR="C:\Users\<you>\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\lib"
+
+cargo run -p marlowe-memory --release --example cuda_probe          # constructs? both graphs
+cargo test -p marlowe-memory --release --test embedder_provider     # the ADR-015 readings
+cargo run -p marlowe-memory --release --example embed_provider_bench -- models/jina-embeddings-v2-small-en
+```
+
+**That directory is PyTorch's private CUDA runtime and nothing in the build discovers it** — the
+variable is the only way in, deliberately, so that a number can never depend on whether an unrelated
+package happens to be installed. A real CUDA Toolkit + cuDNN 9 install works identically; point the
+variable at both directories.
+
+### Instruments left behind
+
+`runs/session-e-cuda/` — `provider-bench-cuda.txt` and `-cuda2.txt` (the two bench runs),
+`embedder-provider-cuda.txt`, `memory-tests-cuda.txt`, `serial-tests.txt`, `vram-samples.txt` (166
+device samples at 150 ms), `suite-cuda.txt`, `suite-final.txt`, `suite-with-hint.txt`. Grep these
+rather than re-running; a workspace suite plus a CUDA bench is not a load to run twice.
+
 ## MAX_SEQ_LEN 8192 → 1024. THE EMBEDDER WAS USING 8.6 GB AND NOBODY KNEW, BECAUSE IT SUCCEEDED.
 
 ### What was wrong
@@ -154,7 +447,16 @@ nothing that was passing has stopped.
   served 8192-era vectors under the 1024 label — the stale-artifact failure one layer down.
 - **The fitted gate**, re-fit above.
 
-## THE EMBEDDER ASKS FOR ITS PROVIDER NOW. AND CUDA DOES NOT LOAD ON THIS MACHINE AT ALL.
+## THE EMBEDDER ASKS FOR ITS PROVIDER NOW. ~~AND CUDA DOES NOT LOAD ON THIS MACHINE AT ALL.~~
+
+> **SUPERSEDED 2026-08-17 — the second half of that heading is FALSE. See the top of this file.**
+> CUDA loads here, for the embedder and the reranker, and always could: the CUDA 12 runtime ships
+> inside `site-packages/torch/lib` and simply was not on ORT's DLL search path. The plumbing
+> described below is correct and still shipped; every sentence asserting that the *machine* cannot
+> do CUDA is wrong, including *"the cause is a missing CUDA toolkit"* and the whole of **WHAT COULD
+> NOT BE CLOSED**, whose four "unmeasured" items are now measured. The section is kept unedited
+> because the reasoning that produced it is instructive and because its CPU numbers are a valid
+> control — but **do not quote its conclusions.**
 
 **2026-08-17.** The TODO this replaces is closed *as code* and **open as a measurement**, and the
 gap between those two is the whole entry. `Embedder::session` used to call no

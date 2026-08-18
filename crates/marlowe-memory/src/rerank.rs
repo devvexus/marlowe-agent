@@ -272,6 +272,12 @@ pub enum RerankError {
     Missing { path: PathBuf, dir: String },
 
     #[error(
+        "the CUDA runtime libraries could not be located: {reason}. \
+         See crates/marlowe-memory/src/cue/dense/cuda_libs.rs"
+    )]
+    CudaLibs { reason: String },
+
+    #[error(
         "{dir} holds `{superseded}` but no `{expected}`. This is the pre-Session-K int8 graph, and \
          the shipped reranker moved to the Session J fine-tune (f32) -- held-out R@1 0.6026 -> \
          0.6725, ADR-018. Point --reranking at models/ms-marco-MiniLM-L-2-v2-ft-session-j. The \
@@ -465,6 +471,18 @@ impl CrossEncoder {
         pinned(&model_path, model_sha, dir)?;
         pinned(&tokenizer_path, TOKENIZER_SHA256, dir)?;
 
+        // **ADR-029's path is the one this actually restores.** `runs/session-l/RESULT.md` §5b took
+        // the shipped GPU numbers through this function -- CUDA batched 3.4 ms against CPU's
+        // 195.6 -- and recorded its precondition as prose: *"PATH carries torch's bundled CUDA
+        // libraries for every cell."* Nothing read that, so it did not survive the session, and a
+        // later one measured the failure and concluded the machine had no GPU. Now it is an input
+        // with a reader. See `cue::dense::cuda_libs`.
+        if provider == RerankProvider::Cuda {
+            if let Some(reason) = crate::cue::dense::cuda_libs::ensure_search_path().rejection() {
+                return Err(RerankError::CudaLibs { reason: reason.to_string() });
+            }
+        }
+
         let text = std::fs::read_to_string(&tokenizer_path).map_err(|source| RerankError::Io {
             path: tokenizer_path.clone(),
             source,
@@ -519,7 +537,18 @@ impl CrossEncoder {
             // Sweeping it would produce a column of noise and invite reading one of its cells.
             .and_then(|b| b.with_inter_threads(1))
             .and_then(|b| b.commit_from_file(&model_path))
-            .map_err(|e| RerankError::Session { path: model_path, source: Box::new(e) })?;
+            // Same advisory as the embedder's, for the same reason, and narrow in the same way:
+            // CUDA only, library-load failures only, unconfigured only. See `cue::dense::cuda_libs`.
+            .map_err(|e| {
+                if provider == RerankProvider::Cuda
+                    && crate::cue::dense::embedder::is_library_load_failure(&e)
+                {
+                    if let Some(hint) = crate::cue::dense::cuda_libs::hint_when_unconfigured() {
+                        return RerankError::CudaLibs { reason: format!("{e} -- {hint}") };
+                    }
+                }
+                RerankError::Session { path: model_path, source: Box::new(e) }
+            })?;
 
         Ok(Self { session, vocab })
     }

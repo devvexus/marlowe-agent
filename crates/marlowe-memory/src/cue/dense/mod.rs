@@ -43,6 +43,7 @@
 //! turn out of the top ranks — the precision risk, predicted in advance and then observed.
 
 pub mod cache;
+pub mod cuda_libs;
 pub mod embedder;
 pub mod vectors;
 pub mod tokenizer;

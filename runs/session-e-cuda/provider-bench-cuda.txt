@@ -1,0 +1,37 @@
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.24s
+     Running `target\release\examples\embed_provider_bench.exe models/jina-embeddings-v2-small-en`
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 11243 MB
+CUDA session constructs on the shipped graph: true
+derived worker count (available_parallelism().min(8)): 8
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    1010.63 ms total    31.58 ms/embedding  host peak   481.2 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8     201.45 ms total     6.30 ms/embedding  host peak  1362.2 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1     105.14 ms total     3.29 ms/embedding  host peak  1362.2 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     117.81 ms total     3.68 ms/embedding  host peak  1746.5 MB  vram    -1.0 MB
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    5500.76 ms total   171.90 ms/embedding  host peak  1746.5 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8    1197.59 ms total    37.42 ms/embedding  host peak  2327.9 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1     153.87 ms total     4.81 ms/embedding  host peak  2327.9 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     112.31 ms total     3.51 ms/embedding  host peak  2327.9 MB  vram    -1.0 MB
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1   13806.29 ms total   431.45 ms/embedding  host peak  2327.9 MB  vram    -1.0 MB
+   CPUExecutionProvider   workers 8    3173.34 ms total    99.17 ms/embedding  host peak  3240.2 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 1     276.07 ms total     8.63 ms/embedding  host peak  3240.2 MB  vram    -1.0 MB
+   CUDAExecutionProvider  workers 8     195.14 ms total     6.10 ms/embedding  host peak  3240.2 MB  vram    -1.0 MB
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1             31.58         3.29   9.61x
+102      8              6.30         3.68   1.71x
+502      1            171.90         4.81   35.75x
+502      8             37.42         3.51   10.66x
+1024     1            431.45         8.63   50.01x
+1024     8             99.17         6.10   16.26x
+
+embedding cache was OFF for every row above.

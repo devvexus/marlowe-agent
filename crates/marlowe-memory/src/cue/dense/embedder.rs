@@ -141,6 +141,12 @@ pub enum EmbedError {
     #[error("loading the ONNX session from {path}: {source}")]
     Session { path: PathBuf, source: Box<ort::Error> },
 
+    #[error(
+        "the CUDA runtime libraries could not be located: {reason}. \
+         See crates/marlowe-memory/src/cue/dense/cuda_libs.rs"
+    )]
+    CudaLibs { reason: String },
+
     #[error("running the ONNX graph: {source}")]
     Run { source: Box<ort::Error> },
 
@@ -152,6 +158,18 @@ pub enum EmbedError {
 
     #[error(transparent)]
     Cache(#[from] crate::cue::dense::cache::CacheError),
+}
+
+/// Did this ORT error come from failing to **load a library**, as opposed to anything else a
+/// session can fail at?
+///
+/// Matched on text because `ort` 2.0.0-rc.10 surfaces the runtime's message as a string and exposes
+/// no code for it. That is brittle and it is bounded: the only consequence of a miss is that an
+/// advisory sentence is not appended, and the only consequence of a false positive is that it is
+/// appended where it does not apply. **It never changes whether the load succeeds.**
+pub(crate) fn is_library_load_failure(err: &ort::Error) -> bool {
+    let text = err.to_string();
+    text.contains("Error 126") || text.contains("which is missing")
 }
 
 fn sha256_file(path: &Path) -> Result<String, EmbedError> {
@@ -494,6 +512,16 @@ impl Embedder {
     /// post-construction assertion here because there is nothing to assert against; do not add a
     /// comment claiming otherwise.
     fn session(model_path: &Path, provider: EmbedProvider) -> Result<Session, EmbedError> {
+        // **Before ORT loads its provider DLL, not after.** The CUDA provider is loaded lazily by
+        // the runtime and resolves `cublasLt64_12.dll` and friends through the process search path
+        // at that moment, so this has to happen first or it has not happened at all. See
+        // `cue::dense::cuda_libs` -- and note that a REFUSAL here is reported as such rather than
+        // left to surface as Error 126, which names a library and not the misconfiguration.
+        if provider == EmbedProvider::Cuda {
+            if let Some(reason) = crate::cue::dense::cuda_libs::ensure_search_path().rejection() {
+                return Err(EmbedError::CudaLibs { reason: reason.to_string() });
+            }
+        }
         Session::builder()
             .and_then(|b| match provider {
                 EmbedProvider::Cpu => b.with_execution_providers([CPUExecutionProvider::default()
@@ -510,9 +538,22 @@ impl Embedder {
             // a published number with nothing in this repo changing.
             .and_then(|b| b.with_optimization_level(GraphOptimizationLevel::Level1))
             .and_then(|b| b.commit_from_file(model_path))
-            .map_err(|source| EmbedError::Session {
-                path: model_path.to_path_buf(),
-                source: Box::new(source),
+            .map_err(|source| {
+                // **The sentence whose absence cost a session.** A provider-load failure with
+                // nothing configured is the exact state that got read as "this machine has no
+                // CUDA"; attaching the remedy to the error is what stops the next reader repeating
+                // it. Narrow on purpose: only for CUDA, only when the runtime failed to LOAD a
+                // library, and only when nothing was configured. A `bad allocation` is a real
+                // out-of-memory and must not be relabelled as a missing-library problem.
+                if provider == EmbedProvider::Cuda && is_library_load_failure(&source) {
+                    if let Some(hint) = crate::cue::dense::cuda_libs::hint_when_unconfigured() {
+                        return EmbedError::CudaLibs { reason: format!("{source} -- {hint}") };
+                    }
+                }
+                EmbedError::Session {
+                    path: model_path.to_path_buf(),
+                    source: Box::new(source),
+                }
             })
     }
 
