@@ -1,5 +1,139 @@
 # State
 
+## MAX_SEQ_LEN 8192 → 1024. THE EMBEDDER WAS USING 8.6 GB AND NOBODY KNEW, BECAUSE IT SUCCEEDED.
+
+### What was wrong
+
+This export builds ALiBi's relative-distance matrix explicitly — `Abs(Range(0,N) − Range(0,N)ᵀ)`
+expanded to `[8, N, N]` at **int64**, so `8·N²·8` bytes, quadratic, **per session**. At N = 8192
+that is **4,294,967,296** — the exact figure in the `bad allocation` the two embedder reference
+tests were failing with.
+
+**It is not a defect in the graph.** Inputs are `['batch_size', 'sequence_length']` and the Expand's
+shape is computed at runtime. The shape is correct; 4 GB is simply what ALiBi costs at 8192 in this
+export. An earlier reading of this as a frozen `max_position_embeddings` was **wrong**, and the way
+it was wrong is the lesson: `2 batch × 8 heads × 8192² × 4 bytes (f32)` and
+`1 × 8 heads × 8192² × 8 bytes (int64)` produce the **identical byte count**. The arithmetic matched
+perfectly and named the wrong shape. Matching is not confirming.
+
+So the real finding was never a leak: **`MAX_SEQ_LEN = 8192` was declared and not reachable.** The
+only two tests that embedded at the declared maximum were the only two failing.
+
+### Memory, measured with a control
+
+| `MAX_SEQ_LEN` | after load | at max length |
+|---|---|---|
+| 8192 | 232.4 MB | **8,813.4 MB** |
+| **1024** | 237.3 MB | **377.4 MB** |
+
+**23×.** And the control **succeeded** at 8192 — the machine happened to have 8.6 GB free. That is
+the whole intermittency: it was not failing, it was silently using 8.6 GB whenever a long text
+arrived. `cargo run -p marlowe-memory --release --example embed_memory`.
+
+### Why 1024, chosen from the distribution and NOT by sweeping a score
+
+`--example token_lengths` over all 246,750 turns: **p50 96, p90 594, p95 667, p99 796, max 16,666**.
+The distribution has a hard shoulder just under 800.
+
+| cap | turns truncated | tokens lost | ALiBi matrix |
+|---|---|---|---|
+| 512 | 16.55% | 10.0% | 16 MB |
+| 768 | 1.46% | ~2% | 36 MB |
+| **1024** | **0.18%** | **0.891%** | **64 MB** |
+| 2048 | 0.07% | 0.383% | 256 MB |
+| 8192 | 0.002% | — | **4.29 GB** |
+
+**512 was the first recommendation and the data refuted it** — one turn in six truncated, a tenth of
+the corpus lost. It was reasoned from mean-pooling dilution without measuring first.
+
+The value was picked by the length distribution deliberately, not by sweeping R@1. Four mechanisms
+in this project have cleared a fit bar and died on held-out; *a rule with a tunable knob is already
+suspect on this corpus*. R@1 is a **check that nothing broke**, never the thing that chose the number.
+
+### Capability, answered exhaustively rather than statistically
+
+**The longest GOLD turn in the entire corpus is 1,039 tokens** (`--example gold_lengths`).
+
+| cap | gold truncated | gold tokens lost |
+|---|---|---|
+| 512 | 10 | 2.40% |
+| **1024** | **1** | **0.020%** (15 tokens) |
+| 2048 | 0 | 0.000% |
+
+The one is query `5809eb10` — *"what year was the Bajimaya case"*, answer **2014**, which sits at
+**character 917 of 5425, 16.9% into the turn**. What it loses is
+`"…protected in the event of a dispute.\n\nPlease write in English language."`
+
+**2048 remains a legitimate alternative**: zero gold loss for 4× the memory. 1024 was chosen because
+the matrix is transient per inference and workers run concurrently — 8 workers is 512 MB at 1024
+against 2 GB at 2048.
+
+### R@1: zero change, with a control proving the comparison discriminates
+
+Prediction registered and committed **before the run finished** (`runs/session-e-maxseq/PREDICTION.md`).
+
+| | baseline (8192) | treatment (1024) |
+|---|---|---|
+| session-level top-1 | **0.9008** (218/242) | **0.9008** (218/242) |
+| identical top-1 pick | — | **242 / 242** |
+| gained / lost | — | **0 / 0** |
+
+**The control:** 206 candidate rows changed `dense_cosine`, 10,665 changed their fused `score`. The
+inputs moved; no decision did.
+
+**Caveat, stated because it invalidates part of the prediction:** `5809eb10` is in the **held-out**
+split, so the one truncated gold turn is not in this comparison and the prediction about it is
+**untested**. Confirming it would spend a held-out read. On the fit split, zero gold turns truncate.
+
+**Four candidates vanished** at 1024. Explained: turn 0 of that session is 8,930 chars and turn 1 is
+3,453 opening with nearly the same sentence — the assistant echoing the user. Truncating the longer
+one made the pair **more similar**, crossing consolidation's 0.98 dedup threshold, so they merged.
+Consolidation working as designed on a genuine near-duplicate. Well-supported, **not** directly
+measured — the pair's cosine before and after was not read.
+
+### THE STALE-BINARY NEAR-MISS, and it is the methodological result of the session
+
+The first scoring run wrote to `fit-1024/` and **measured 8192**. `score_longmemeval.py` drives
+`target/release/marlowe.exe`, and **`cargo run --example` does not rebuild it**: binary 17:29:28,
+source change 18:44:29, run 18:47. The source said 1024, the artifact said 8192, and the directory
+name agreed with the source.
+
+Same family as a persona test passing while the deployed daemon served a pre-persona binary. **A
+source edit is not a deployed change.**
+
+Kept as `runs/session-e-maxseq/fit-8192-BASELINE/` with a note, because it is a correctly-measured
+control on this machine minutes from the treatment — worth more than citing 0.7555 from another day.
+**`score_longmemeval.py` now writes `BINARY.json`** (sha256, size, mtime) beside every run so a
+reader checks the artifact instead of the directory name.
+
+Two smaller instances of the same shape, recorded because they nearly landed:
+`cmd | tail -30` returns **tail's** exit status, so a failed gate fit reported as "exit code 0"; and
+a monitor gated on `pgrep -f`, which does **not** see Windows processes, fired on a 6.7 MB partial
+dump that later reached 72.8 MB.
+
+### `fit_gate.py` HAS BEEN BROKEN SINCE SESSION H
+
+Its target string never got `--reranking`, mandatory since Session H with no default. The binary
+prints usage and exits; the transport reports `implementation_crashed` — the exact symptom CLAUDE.md
+warns "reads like a protocol bug and is not one". **The gate could not have been re-fit at any point
+since**, and nobody found out because nobody re-fit it until `MAX_SEQ_LEN` forced it.
+
+Fixed by passing the **shipped** reranker rather than `off`. The gate calibrates
+`lexical_margin`/`dense_margin` and ranks on `lexical_z`/`dense_z` — no rerank feature exists — so on
+that argument the two are equivalent. The asymmetry: that only holds if reranking never touches the
+*population* features are dumped over, and this is a build-time artifact the binary refuses to start
+without. The shipped graph matches what `score_longmemeval.py` scores under.
+
+### What changing this invalidated, and what was done about each
+
+- **Both reference fixtures** regenerated at 1024 from **HuggingFace / sentence-transformers**, not
+  from our Rust — the authority direction is intact. Pooling cross-check 5.96e-08, min cosine
+  0.99999994.
+- **The embedding cache key** contains `MAX_SEQ_LEN`, so every cached vector invalidated and the
+  corpus re-embedded cold (~80 min). **The guard did its job**: without it this run would have
+  served 8192-era vectors under the 1024 label — the stale-artifact failure one layer down.
+- **The fitted gate**, re-fit above.
+
 ## TODO — THE EMBEDDER IS ON CPU BY OMISSION. Give it the reranker's treatment.
 
 **Confirmed by reading, not inferred:** `Embedder::session` (`cue/dense/embedder.rs`) builds

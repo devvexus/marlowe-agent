@@ -51,7 +51,7 @@ FIXTURES = REPO / "crates" / "marlowe-memory" / "tests" / "fixtures"
 # runs/session-c/PREREGISTRATION.json's single pre-committed adjustment selects 256 --
 # the model's own configured maximum, reached because neither 192 nor 256 gets under 10%.
 # Measured before the fit and before any quality number existed.
-MAX_SEQ_LEN = 8192
+MAX_SEQ_LEN = 1024
 
 HF_MODEL = "jinaai/jina-embeddings-v2-small-en"
 
@@ -84,8 +84,8 @@ TEXTS: list[str] = [
     "[CLS] [SEP] [PAD] [MASK] [UNK]",                        # the special tokens AS TEXT
     "100% sure, 3.14159, -42, 1e9",                          # numeric forms
     "a" * 300,                                               # single long word -> continuations
-    "the " * 400,                                            # long, but inside 8192 now
-    "the migration ran overnight. " * 2200,                  # exceeds MAX_SEQ_LEN 8192 -> truncation
+    "the " * 400,                                            # long, but inside 1024 now
+    "the migration ran overnight. " * 2200,                  # exceeds MAX_SEQ_LEN 1024 -> truncation
     "I'll send the pricing sheet Thursday",                  # apostrophe, HP15's example
     "don't can't won't it's",                                # contractions
     "  leading and trailing spaces  ",                       # boundary whitespace

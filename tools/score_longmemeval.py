@@ -828,6 +828,53 @@ def label_set_projection(records: list[dict], prereg: dict) -> dict:
     }
 
 
+
+def _record_binary_identity(out: Path) -> None:
+    """Stamp **which binary produced this run**, beside the run.
+
+    This exists because a run was very nearly attributed to a source change it did not measure.
+    `score_longmemeval.py` drives `target/release/marlowe.exe`, and `cargo run --example` does not
+    rebuild it — so a scoring pass launched right after editing a constant happily measures the
+    *previous* value and writes it into a directory named for the new one. The source said 1024,
+    the artifact said 8192, and the directory name agreed with the source.
+
+    It is the pipe-verified/live-verified family that CLAUDE.md already logs four times: the source
+    emits it versus the *running process* emits it. The instrument there was `--dev`'s outbound
+    dump — the bytes the running process actually sent. The instrument here is the binary's own
+    mtime and digest, written where the numbers are, so a later reader can check the artifact rather
+    than trusting the directory name.
+
+    Cheap on purpose: a digest of a 30 MB file takes milliseconds and it is the only thing standing
+    between a stale build and a published number.
+    """
+    import hashlib
+
+    if not BINARY.exists():
+        (out / "BINARY.json").write_text(
+            json.dumps({"error": f"{BINARY} does not exist"}, indent=2) + "\n", encoding="utf-8"
+        )
+        return
+    stat = BINARY.stat()
+    digest = hashlib.sha256(BINARY.read_bytes()).hexdigest()
+    (out / "BINARY.json").write_text(
+        json.dumps(
+            {
+                "_what": (
+                    "the binary that produced this run. Compare its mtime against the source you "
+                    "believe you measured -- `cargo run --example` does not rebuild marlowe.exe."
+                ),
+                "path": str(BINARY),
+                "sha256": digest,
+                "size": stat.st_size,
+                "mtime_epoch": int(stat.st_mtime),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(REPO / "runs" / "session-f"))
@@ -936,6 +983,7 @@ def main() -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    _record_binary_identity(out)
     corpus = longmemeval.load(REPO / split["corpus_path"])
 
     heldout_ids = set(split["heldout"])

@@ -80,6 +80,9 @@ SPLIT_PATH = REPO / "tools" / "split.json"
 ARTIFACT_PATH = REPO / "crates" / "marlowe-memory" / "artifacts" / "gate-frozen-v5.json"
 BINARY = REPO / "target" / "release" / "marlowe.exe"
 MODEL_DIR = REPO / "models" / "jina-embeddings-v2-small-en"
+# The graph the product ships and `score_longmemeval.py` scores under. See the target string
+# below for why the gate fit passes the real reranker rather than `off`.
+SHIPPED_RERANKER = REPO / "models" / "ms-marco-MiniLM-L-2-v2-ft-session-j"
 # Outside the profile root by construction: --profile-root must be empty per spawn,
 # and the harness spawns one process per corpus plus four for the clock probe.
 CACHE_DIR = REPO / ".embedding-cache"
@@ -267,9 +270,26 @@ def collect_rows(corpus: Corpus, dump_path: Path) -> tuple[np.ndarray, np.ndarra
     Runs the ordinary benchmark path, so ingest, retrieval and the section 4.6 mapping are all
     exactly what a scored run does. The only difference is the dump flag.
     """
+    # **`--reranking` is required and was missing, so this tool could not run at all.**
+    #
+    # Session H made the flag mandatory with no default. This target string was never updated, so
+    # every invocation since has had the binary print usage and exit — which the transport reports
+    # as `implementation_crashed`, the exact symptom CLAUDE.md warns "reads like a protocol bug and
+    # is not one". **The gate has therefore been un-refittable since Session H**, and nobody found
+    # out because nobody re-fit it until `MAX_SEQ_LEN` moved and forced the issue.
+    #
+    # The value is the SHIPPED reranker rather than `off`, and the reasoning is asymmetric. The gate
+    # calibrates `lexical_margin`/`dense_margin` and ranks on `lexical_z`/`dense_z` — no rerank
+    # feature exists, so on that argument `off` and the real graph are equivalent. But that argument
+    # only holds if reranking never touches the *population* the features are dumped over, and this
+    # tool is a build-time artifact the binary refuses to start without. Passing the shipped graph
+    # matches what `score_longmemeval.py` scores under and what the product runs, so it cannot be
+    # wrong in the way `off` could be: if rerank is irrelevant here it is a no-op, and if it is not,
+    # this is the correct side.
     target = (
         f"exec://{BINARY} --eval-adapter --profile-root {{profile_root}} "
         f"--embedder-model {MODEL_DIR} --embedding-cache {CACHE_DIR} "
+        f"--reranking {SHIPPED_RERANKER} "
         f"--fit-mode --dump-gate-features {dump_path}"
     )
     client = Client(build_target(target, corpus))

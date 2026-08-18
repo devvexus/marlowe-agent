@@ -49,14 +49,56 @@ pub mod tokenizer;
 
 /// Maximum sequence length, including `[CLS]` and `[SEP]`.
 ///
-/// **Frozen under HP1.** 8192 is the model's own ALiBi capacity — there are no learned position
-/// embeddings to run past. At this length **4 turns of 246,750 truncate** (0.002%), against
-/// 34.33% at the 256 this replaced.
+/// **1024 as of 2026-08-12, down from 8192, and the reason is memory rather than speed.**
 ///
-/// It is also the length the throughput measurement was taken at, so lowering it to buy speed
-/// would invalidate the number the model decision rests on. Changing it invalidates the fitted
-/// gate outright: the embeddings move, so the features move.
-pub const MAX_SEQ_LEN: usize = 8192;
+/// # What 8192 actually cost
+///
+/// This export builds ALiBi's relative-distance matrix explicitly:
+/// `Abs(Range(0,N)[:,None] - Range(0,N)[None,:])` unsqueezed and expanded to `[8, N, N]` at
+/// **int64**. That is `8 x N x N x 8` bytes, quadratic in N and paid **per session** — and sessions
+/// are one per worker. At N = 8192 it is **4,294,967,296 bytes**, which is the exact figure in the
+/// `bad allocation` that `embedding_reference.rs`'s two tests fail with. Those tests are the only
+/// ones that embed at the declared maximum, which is why they were the only ones failing: **8192
+/// was declared and not reachable.**
+///
+/// It is not a defect in the graph. The graph's inputs are `['batch_size', 'sequence_length']` and
+/// the Expand's shape is computed at runtime — the shape is correct and the price is simply what
+/// ALiBi costs at 8192 in this export. An earlier reading of this as a frozen shape was wrong.
+///
+/// # Why 1024, and it was chosen from the distribution rather than from a score
+///
+/// `cargo run -p marlowe-memory --release --example token_lengths` over all 246,750 turns:
+/// **p50 96, p90 594, p95 667, p99 796, p99.9 1615, max 16666.** The distribution has a hard
+/// shoulder just under 800, so the candidates are not close:
+///
+/// | cap | turns truncated | tokens lost | ALiBi matrix |
+/// |---|---|---|---|
+/// | 256 | 34.33% | 38.6% | 4 MB |
+/// | 512 | 16.55% | 10.0% | 16 MB |
+/// | 768 | 1.46% | ~2% | 36 MB |
+/// | **1024** | **0.18%** (453 turns) | **0.891%** | **64 MB** |
+/// | 2048 | 0.07% | 0.383% | 256 MB |
+/// | 8192 | 0.002% (4 turns) | — | **4.29 GB** |
+///
+/// 1024 is the first value past the shoulder: **67x less memory than 8192 for 0.891% of the text.**
+/// 512 was the initial recommendation and the data refuted it — one turn in six truncated and a
+/// tenth of the corpus lost is a real capability loss, not a rounding error.
+///
+/// **The value was selected by the length distribution, deliberately not by sweeping R@1.** This
+/// project has logged four mechanisms that cleared a fit bar and died on held-out, and its own
+/// standing note is that *a rule with a tunable knob is already suspect on this corpus*. R@1 is
+/// measured here as a **check that nothing broke**, never as the thing that picked the number.
+///
+/// The query side is unconstrained either way: questions run **p50 17, max 68**.
+///
+/// # What changing it invalidates, and none of it is optional
+///
+/// The embeddings move for the truncated 0.18%, so the features move, so **the fitted gate is
+/// invalid until re-fit** — and `fit_gate.py` refuses without a pre-registration written first.
+/// Both reference fixtures were generated at the old length and must be regenerated **deliberately**
+/// rather than to make a test pass. `MAX_SEQ_LEN` is in the embedding cache key, so every cached
+/// vector invalidates and the next run re-embeds cold. See STATE.md.
+pub const MAX_SEQ_LEN: usize = 1024;
 
 /// The embedding dimension, from the model's own `config.json`.
 ///
