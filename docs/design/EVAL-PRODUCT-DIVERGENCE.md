@@ -58,6 +58,32 @@ embed.
 
 It also explains the daemon's 70 ms cold start: there is no model to load.
 
+## The counter-example, which bounds the claim — added 2026-08-18
+
+**The reranker is NOT divergent, and saying so matters as much as the three above.** The daemon
+constructs a `CrossEncoder` (`crates/marlowe-daemon/src/memory.rs:93`, loaded at `:120`), and on a
+running daemon it resolves to **CUDA** under ADR-045's `auto`. So this is not "the memory stack is
+eval-only". It is three specific components, and a reader who generalises past them will be wrong.
+
+**What the product's retrieval actually is, in the code's own words** (`memory.rs:94-98`):
+
+> *"**Empty, and that is a stated limitation rather than an oversight.** The dense cue scores 0.0 for
+> every candidate without vectors, so retrieval here is **lexical + rerank**. Embedding at write time
+> is the next increment; `dense_for` already treats a missing vector as 0.0 — the honest value —
+> rather than skipping the candidate, so the degradation is uniform and visible rather than a
+> silently shrinking candidate set."*
+
+That is the divergence stated precisely and **already declared at the site**, by whoever wrote it,
+before anyone went looking. The daemon runs **lexical + rerank**; the benchmark runs **lexical +
+dense + rerank**. Every retrieval number this project has published — R@1 0.6725 included — was
+measured with a dense cue the product does not have.
+
+**So the correction to §3 is not that the daemon lacks an embedder — it is what that costs.** The
+missing embedder is not an absent optimisation; it is an absent *cue*, and the published quality
+figures describe a two-cue system where the product has one plus a reranker. The degradation is
+uniform rather than a shrinking candidate set, which is the right design, and it is still a
+different system.
+
 ## Why this shape keeps happening
 
 The eval adapter and the daemon are **two independent front ends over the same crates**, and only one
