@@ -1,0 +1,35 @@
+== embedder provider benchmark ==
+embedding cache: OFF (cache_dir = None on every case)
+MAX_SEQ_LEN = 1024
+free device memory at start: 11952 MB
+CUDA session constructs on the shipped graph: false
+derived worker count (available_parallelism().min(8)): 8
+
+-- target 100 word-pieces, measured 102 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1     968.87 ms total    30.28 ms/embedding  host peak   215.3 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8     173.72 ms total     5.43 ms/embedding  host peak  1096.6 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 1    1033.28 ms total    32.29 ms/embedding  host peak  1096.6 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8     192.12 ms total     6.00 ms/embedding  host peak  1098.2 MB  vram     0.0 MB
+
+-- target 500 word-pieces, measured 502 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1    5468.98 ms total   170.91 ms/embedding  host peak  1098.2 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8    1208.33 ms total    37.76 ms/embedding  host peak  1367.4 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 1    5649.06 ms total   176.53 ms/embedding  host peak  1367.4 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8    1171.52 ms total    36.61 ms/embedding  host peak  1368.0 MB  vram     0.0 MB
+
+-- target 1024 word-pieces, measured 1024 tokens/text, 32 texts
+   CPUExecutionProvider   workers 1   14020.30 ms total   438.13 ms/embedding  host peak  1368.0 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8    3283.44 ms total   102.61 ms/embedding  host peak  2291.8 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 1   12840.59 ms total   401.27 ms/embedding  host peak  2291.8 MB  vram     0.0 MB
+   CPUExecutionProvider   workers 8    3131.90 ms total    97.87 ms/embedding  host peak  2291.8 MB  vram     0.0 MB
+
+== summary: ms per embedding ==
+tokens   workers         cpu         cuda
+102      1             30.28            -
+102      8              5.43            -
+502      1            170.91            -
+502      8             37.76            -
+1024     1            438.13            -
+1024     8            102.61            -
+
+embedding cache was OFF for every row above.

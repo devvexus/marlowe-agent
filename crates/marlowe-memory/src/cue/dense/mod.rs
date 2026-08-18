@@ -46,6 +46,7 @@ pub mod cache;
 pub mod embedder;
 pub mod vectors;
 pub mod tokenizer;
+pub mod vram;
 
 /// Maximum sequence length, including `[CLS]` and `[SEP]`.
 ///

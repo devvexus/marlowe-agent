@@ -63,16 +63,36 @@ pub struct CacheIdentity {
     pub embedder_version: &'static str,
     pub max_seq_len: usize,
     pub dimensions: usize,
+    /// The ONNX execution provider that computed the vectors.
+    ///
+    /// **Added 2026-08-17, when the embedder stopped being CPU by omission, and it is exactly the
+    /// field this module's header is about.** ADR-015's rule is that a different execution provider
+    /// is a different scorer; a CUDA vector and a CPU vector for the same text are not required to
+    /// be bit-identical and are not. Without this field they share a key, so a warm cache written
+    /// on one provider is served to a run on the other — a vector that is unit-length, scores,
+    /// ranks, and is wrong for the configuration claiming it.
+    ///
+    /// **It invalidates every cache entry written before this date**, which is the same cost
+    /// `MAX_SEQ_LEN` imposed and is paid for the same reason. The alternative — exempting CPU so
+    /// existing files survive — would make the namespace mean "provider, unless it is the one we
+    /// used to assume", and a rule with an exemption for the historical default is how a stale
+    /// artifact gets served under a new label.
+    pub provider: &'static str,
 }
 
 impl CacheIdentity {
-    pub fn new(model_sha256: impl Into<String>, vocab_sha256: impl Into<String>) -> Self {
+    pub fn new(
+        model_sha256: impl Into<String>,
+        vocab_sha256: impl Into<String>,
+        provider: &'static str,
+    ) -> Self {
         Self {
             model_sha256: model_sha256.into(),
             vocab_sha256: vocab_sha256.into(),
             embedder_version: EMBEDDER_VERSION,
             max_seq_len: MAX_SEQ_LEN,
             dimensions: DIMENSIONS,
+            provider,
         }
     }
 
@@ -88,6 +108,8 @@ impl CacheIdentity {
         hasher.update(b"\0");
         hasher.update(&(self.max_seq_len as u64).to_le_bytes());
         hasher.update(&(self.dimensions as u64).to_le_bytes());
+        hasher.update(b"\0");
+        hasher.update(self.provider.as_bytes());
         hasher.finalize().to_hex()[..32].to_string()
     }
 
@@ -224,7 +246,7 @@ mod tests {
     use super::*;
 
     fn identity() -> CacheIdentity {
-        CacheIdentity::new("model-digest", "vocab-digest")
+        CacheIdentity::new("model-digest", "vocab-digest", "CPUExecutionProvider")
     }
 
     fn vector(seed: f32) -> Vec<f32> {
@@ -273,10 +295,10 @@ mod tests {
         let dir = temp_dir("model-swap");
         let text = "we had pasta for dinner";
 
-        let mut old = EmbeddingCache::open(&dir, CacheIdentity::new("minilm-digest", "v")).unwrap();
+        let mut old = EmbeddingCache::open(&dir, CacheIdentity::new("minilm-digest", "v", "CPUExecutionProvider")).unwrap();
         old.put(text, &vector(0.11)).unwrap();
 
-        let mut new = EmbeddingCache::open(&dir, CacheIdentity::new("jina-digest", "v")).unwrap();
+        let mut new = EmbeddingCache::open(&dir, CacheIdentity::new("jina-digest", "v", "CPUExecutionProvider")).unwrap();
         assert!(new.get(text).is_none(), "a different model must miss, not inherit");
     }
 
@@ -296,6 +318,10 @@ mod tests {
         dims_changed.dimensions = DIMENSIONS + 1;
         let mut model_changed = base.clone();
         model_changed.model_sha256 = "other".into();
+        // ADR-015: a different execution provider is a different scorer, so it is a different
+        // namespace. Without this row a CUDA-computed vector is served to a CPU run.
+        let mut provider_changed = base.clone();
+        provider_changed.provider = "CUDAExecutionProvider";
 
         let namespaces = [
             base.namespace(),
@@ -304,6 +330,7 @@ mod tests {
             len_changed.namespace(),
             dims_changed.namespace(),
             model_changed.namespace(),
+            provider_changed.namespace(),
         ];
         for (i, a) in namespaces.iter().enumerate() {
             for (j, b) in namespaces.iter().enumerate() {

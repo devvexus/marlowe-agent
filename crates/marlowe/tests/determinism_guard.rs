@@ -284,6 +284,11 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         "marlowe-exec/examples/deep_research_attack.rs",
         // Extraction throughput, asserted as MB/s against a floor.
         "marlowe-extract/tests/injector.rs",
+        // ADR-015's two baselines for the embedder: CPU and CUDA are different scorers, so this
+        // times the same fixed text set on each at three sequence lengths. It exists to produce a
+        // number in milliseconds, with the embedding cache off so the second provider cannot be
+        // measuring the first one's disk.
+        "marlowe-memory/examples/embed_provider_bench.rs",
         // M2 Session E's socket-auth test: asserts the daemon ANSWERED before a deliberately held
         // connection let go, which is a statement about elapsed time and cannot be made without
         // reading one. Restructuring it to use an injected clock would mean injecting a clock into

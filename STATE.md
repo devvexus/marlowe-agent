@@ -154,48 +154,174 @@ nothing that was passing has stopped.
   served 8192-era vectors under the 1024 label — the stale-artifact failure one layer down.
 - **The fitted gate**, re-fit above.
 
-## TODO — THE EMBEDDER IS ON CPU BY OMISSION. Give it the reranker's treatment.
+## THE EMBEDDER ASKS FOR ITS PROVIDER NOW. AND CUDA DOES NOT LOAD ON THIS MACHINE AT ALL.
 
-**Confirmed by reading, not inferred:** `Embedder::session` (`cue/dense/embedder.rs`) builds
-`with_intra_threads(1)` → `with_inter_threads(1)` → `with_optimization_level(Level1)` →
-`commit_from_file`. **There is no `with_execution_providers` call anywhere in it.** ORT serves CPU
-because nothing asked for anything else.
+**2026-08-17.** The TODO this replaces is closed *as code* and **open as a measurement**, and the
+gap between those two is the whole entry. `Embedder::session` used to call no
+`with_execution_providers` at all; it now takes an `EmbedProvider` and registers it with
+`error_on_failure()` on **both** arms. What did not happen is a single CUDA number, because —
 
-It is not a missing dependency: `Cargo.toml` builds `ort` with `features = ["download-binaries",
-"cuda"]`. And `rerank.rs` already does the whole thing — `RerankProvider::{Cpu, Cuda}`,
-`cuda_available()` probing by construction, `with_execution_providers([...].error_on_failure())`.
-ADR-029 put the reranker on CUDA and the embedder was simply never included.
+### THE FINDING: ORT's CUDA PROVIDER CANNOT LOAD HERE, FOR EITHER GRAPH, AND THE CONTROL SAYS SO
 
-**What it costs today:** a cold `score_longmemeval.py` pass embeds 246,750 turns on eight
-single-threaded CPU sessions, rebuilding the `[8, N, N]` int64 ALiBi matrix on every forward pass.
-Measured this session at ~7.4 MB of cache per minute against a ~482 MB target — **roughly 80
-minutes**. Headroom is not the blocker: `llama-server` holds ~11.5 GB of 16.4 GB and the embedder
-peaks at ~377 MB.
+`cargo run -p marlowe-memory --release --example cuda_probe`
+(`runs/session-e-embedder-gpu/cuda-probe.txt`):
 
-**What the work must copy from `rerank.rs`, including the parts that are refusals:**
+```
+-- embedder, ProviderChoice::Cuda (no fallback)
+   ERR: Error loading "...onnxruntime_providers_cuda.dll" which depends on
+        "cublasLt64_12.dll" which is missing. (Error 126)
+-- reranker, RerankProvider::Cuda (the CONTROL: unchanged since ADR-029)
+   ERR: ...the same error, on the same DLL...
+```
 
-1. `error_on_failure()`. The Python spike found CUDA listed as *available* while failing to CREATE
-   (missing `cublasLt64_12.dll`), after which ORT registers CPU and scores happily. Without it the
-   fallback is silent and every number is mislabelled.
-2. Probe by **construction**, not by an availability list, and on the **shipped graph**.
-3. The claim it licenses is narrow: Session L measured **13.6% of nodes still on CPU** under a
-   successfully registered CUDA session. It answers *"did a CUDA session construct"*, never *"did
-   every node run on the GPU"*.
-4. **ADR-015 applies in full.** A different execution provider is a different scorer — determinism,
-   batch and padding invariance re-measured on that provider and never inherited, and the embedding
-   reference fixture re-verified against its tolerance. **A CUDA run needs its own baseline**; it
-   cannot be compared against a CPU number.
+**The reranker is the control and it fails identically.** So this is a fact about the box, not
+about the embedder change: nothing in `rerank.rs` moved, and `--rerank-provider cuda` would
+hard-error today exactly as `--embedder-provider cuda` does. **Any claim that the reranker is
+running on CUDA on this machine is false right now.**
 
-**Do not add a `provider` field until something reads it.** `RerankPlan` is already recorded below
-as scaffolding with no call site, flagged as the declared-control family. The note lives in the
-code as a comment on `session()` for the same reason.
+**The cause is a missing CUDA toolkit, established by walking the chain rather than by guessing.**
+Putting Ollama's private `cuda_v12` directory on `PATH` moved the error from `cublasLt64_12.dll`
+to `cufft64_11.dll` — the next link. There is no CUDA toolkit under `Program Files`; the only
+`cublasLt64_12.dll` on the disk belongs to Ollama, which ships a subset and no cuDNN. **Borrowing
+another product's private CUDA runtime was tried once as a diagnostic and is not a fix** — it was
+not left in place and nothing in the build reads it.
 
-**Two corrections this settles**, both of which were argued in the wrong direction earlier:
-the "GPU contention" explanation for the embedder's `bad allocation` was structurally impossible —
-the embedder never touches the GPU, and the 4 GB was always host RAM. And no flag can move the
-current scoring run to CUDA: `--rerank-provider cuda` exists, but that is the reranker; there is no
-`--embedder-provider`, because there is nothing for it to set.
+**Driver 610.74, RTX 4080 SUPER.** The card is fine. The userspace libraries ORT links are absent.
 
+### This is `error_on_failure()` doing its job on its first real encounter, and the mutation proves it
+
+The Session G failure is that CUDA reports *available*, fails to **create**, and ORT then registers
+CPU and scores happily. **Removing `.error_on_failure()` from the CUDA arm reproduced that exactly,
+here, today**: `Embedder::load_with_provider(..., ProviderChoice::Cuda)` **returned `Ok`** on a
+machine with no CUDA libraries at all, and `provider()` reported `Cuda`.
+
+**`Embedder::provider()` could not tell the difference, and that is the point.** It reports the
+*request*. The test that caught it reads a **byte** instead:
+`a_cuda_session_that_loaded_actually_holds_DEVICE_memory` measures free VRAM before and after a
+warmed CUDA session and requires it to drop by at least the graph's own size. Under the mutation it
+printed **`free memory moved by 0`**. A declaration-shaped assertion — `assert_eq!(provider(),
+Cuda)` — is green on that build. Family #16 caught in advance rather than in hindsight.
+
+**Its honest status on this machine: it SKIPS**, loudly, naming the driver error. It is
+non-vacuous only under mutation. That is a real gap and it is recorded as one.
+
+### What shipped
+
+| | |
+|---|---|
+| `EmbedProvider::{Cpu, Cuda}` | on the loaded object, reported by `Embedder::plan()` |
+| `ProviderChoice::{Auto, Cpu, Cuda}` | request vs. outcome are **different types**; `Cuda` refuses rather than falling back |
+| `error_on_failure()` | **both arms.** CPU cannot fail; registering it explicitly is what makes CPU a decision instead of an omission |
+| `Embedder::cuda_available(dir)` | probe by **construction**, on the **shipped graph** |
+| `cue::dense::vram` | free device memory via `nvidia-smi`; `Probe::{Device, Fixed}` so the exhaustion path is drivable |
+| `CacheIdentity.provider` | **new field in the cache namespace** |
+| `--embedder-provider <cpu/cuda/auto>` | read in `main.rs`, and the resolved provider + width printed to stderr on every run |
+
+### THREE PLACES THE OBVIOUS IMPLEMENTATION WAS WRONG, AND TWO ARE DEVIATIONS FROM THE BRIEF
+
+**1. The provider is UNIFORM across an embedder's sessions. "Put the remainder on CPU" is refused.**
+The brief asked for a mixed set — k CUDA sessions and `workers - k` CPU ones. `embed_batch` splits a
+batch **contiguously across sessions**, so with a mixed set the vector a text receives depends on
+which worker it landed on, which depends on the batch length *and on how much VRAM happened to be
+free at load*. The module header claims worker count is "a throughput knob and provably not a
+quality knob" and `embedding_is_bit_identical_across_calls_and_worker_counts` enforces it; a mixed
+set breaks both **as a function of machine state**, so two `repro` spawns could split differently.
+One `Embedder` also has exactly one `CacheIdentity`, so two providers behind one identity is the
+stale-vector failure with the provider as the stale field. **Device memory therefore sets the WIDTH
+of a GPU embedder and never the composition of a mixed one** — and the fallback is still per-session
+where it matters: too full for eight yields fewer, too full for one yields CPU, and **nothing fails
+the run**.
+
+**2. The default is `cpu`, not `auto`, and this one needs the human.** The capability is built,
+registered and reachable in the same commit — `auto` and `cuda` are parsed and passed in `main.rs`,
+so this is not a declared control with no reader. What was **not** done is flipping the default,
+for three reasons: **ADR-013 records that GPU is not adopted for the retrieval path**, pending its
+own ADR, and the embedder *is* the retrieval path; **ADR-015 requires a per-provider baseline** and
+there is none for this graph; and `auto` resolves against free VRAM *at that instant*, so as a
+default two `repro` spawns on one machine could run on two different scorers because something else
+on the card started or stopped in between. **On this machine `auto` and `cpu` are currently
+indistinguishable, and that indistinguishability is exactly why the default must not be the one
+nobody can test.** Flipping it is an ADR carrying a CUDA baseline. **Scope call for the human.**
+
+**3. `CacheIdentity` gained `provider`, and it invalidates every cached vector.** ADR-015 says the
+two providers are different scorers; without this field they share a key and a warm cache written on
+one is served to a run on the other. Same cost `MAX_SEQ_LEN` imposed three sections up, for the same
+reason. **The exemption was considered and refused** — hashing nothing for CPU would have preserved
+the existing ~482 MB cache and made the namespace mean "provider, unless it is the one we used to
+assume", which is how a stale artifact gets served under a new label.
+
+### The VRAM budget: no hardcoded worker count and no hardcoded VRAM number
+
+1. `Probe::free_bytes()` reads the card. `None` (no device) and `Some(0)` (full device) are
+   **different answers** and the loader reports which.
+2. A session's cost has a **floor computed from what this build already knows**: `model.onnx`'s size
+   on disk plus the ALiBi matrix, `8 · N · N · 8` int64 at `MAX_SEQ_LEN` — the same quadratic term
+   measured at 23× two sections above. Floor, not estimate: the *measured* delta replaces it when
+   larger.
+3. **The headroom rule is one whole spare session**, not a constant. The card is shared and a
+   reading is an instant, not a reservation.
+4. The first session is **warmed at `MAX_SEQ_LEN`** before its cost is read. ORT's CUDA arena
+   allocates on first run, so an unwarmed delta reads a fraction of the real number.
+5. Every later decision **re-reads the device** rather than spending down a startup budget. A ledger
+   runs beside it and the decision takes the **minimum**, which is what makes `Probe::Fixed` drive
+   the same code path a real card takes.
+
+### CPU baseline, cache OFF, on identical texts — `runs/session-e-embedder-gpu/provider-bench.txt`
+
+**The CUDA column is empty and it prints as `-`, never as `1.00x`.** 32 texts per cell, 8 logical
+workers derived from `available_parallelism().min(8)`.
+
+| tokens/text | 1 worker | 8 workers | scaling |
+|---|---|---|---|
+| 102 | 30.28 ms/embedding | **5.43** | 5.58× |
+| 502 | 170.91 | **37.76** | 4.53× |
+| 1024 (`MAX_SEQ_LEN`) | 438.13 | **102.61** | 4.27× |
+
+**Each cell was run twice — once as `ProviderChoice::Cpu` and once as `Auto` — and the pair agrees**
+(102 tokens / 8 workers: 5.43 and 6.00). That agreement is the fallback control: `Auto` on this
+machine *is* CPU, and it says so rather than reporting a GPU it did not get. Between-run variance at
+one worker is ~3–9%, which is wider than several of the differences a careless reading would call
+results.
+
+Host peak reached 2,292 MB at 8 workers × 1024 tokens — **8 sessions × the 64 MB ALiBi matrix plus
+eight copies of the graph**, which is exactly the per-session cost the GPU budget is built to
+respect. Own VRAM **0.0 MB on every row**, which is the control: nothing touched the card.
+
+**The CPU reference is unchanged by registering `CPUExecutionProvider` explicitly** — worst abs diff
+**1.043e-7** against a 1e-4 tolerance, min cosine **0.99999994**, matching the numbers recorded above
+for the 1024 regeneration. So the shipped scorer did not move.
+
+### Mutation runs — three fixes, three named failures
+
+| Reverted | Failed |
+|---|---|
+| the `free < floor × 2` gate in `auto_sessions` | `a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run` |
+| `.error_on_failure()` on the CUDA arm | `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` — *"free memory moved by 0"* |
+| `provider` from `CacheIdentity::namespace` | `every_identity_field_participates_in_the_key` — *"fields 0 and 6 collide"* |
+
+### WHAT COULD NOT BE CLOSED, listed so nothing reads as covered
+
+- **Every ADR-015 reading on CUDA is UNMEASURED.** Determinism, worker invariance and
+  batch-composition invariance all have tests (`tests/embedder_provider.rs`) and all **skip** here.
+  **The CPU readings do not transfer and must not be cited for CUDA.**
+- **`embedding-reference.json` has NOT been verified on CUDA.** It was not regenerated and must not
+  be; it is HuggingFace/sentence-transformers output and that authority direction is intact.
+- **No CUDA timing exists**, so the ~80-minute cold corpus pass is still the CPU number. Nothing in
+  this change makes a cold pass faster on this machine.
+- **The GPU success path has never executed.** The fallback path has, and is measured; the branch
+  where sessions actually open on a device has only been reasoned about.
+- **The reranker's CUDA path is equally dead here** and nothing in the suite says so, because
+  `--rerank-provider` defaults to `cpu`. Found as a side effect; not fixed.
+
+### To close it, in order
+
+1. **Install the CUDA toolkit and cuDNN that this `ort` build links** (CUDA 12 runtime:
+   `cublasLt64_12`, `cufft64_11`; cuDNN 9). A machine-level change, deliberately not made here.
+2. Re-run `cuda_probe`, then `cargo test -p marlowe-memory --test embedder_provider`. The three
+   skipping tests become the ADR-015 baseline.
+3. Re-run `embed_provider_bench` for the CUDA column, and check the `workers N of 8` line — that is
+   the budget speaking.
+4. **Only then** argue the default. It is an ADR against ADR-013 and it needs the baseline from 2.
 
 ## THE PROJECT HAS NO CI, AND THAT IS A SECURITY FINDING RATHER THAN A GAP IN ONE ROW
 

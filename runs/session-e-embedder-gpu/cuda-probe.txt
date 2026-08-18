@@ -1,0 +1,8 @@
+-- embedder, ProviderChoice::Cuda (no fallback)
+   ERR: loading the ONNX session from models/jina-embeddings-v2-small-en\model.onnx: D:\a\ort-artifacts\ort-artifacts\onnxruntime\onnxruntime\core\session\provider_bridge_ort.cc:1778 onnxruntime::ProviderLibrary::Get [ONNXRuntimeError] : 1 : FAIL : Error loading "C:\Users\matth\Projects\Marlowe_Harness\target\release\examples\onnxruntime_providers_cuda.dll" which depends on "cublasLt64_12.dll" which is missing. (Error 126: "The specified module could not be found.")
+
+-- reranker, RerankProvider::Cuda (the CONTROL: unchanged since ADR-029)
+   ERR: loading the ONNX session from models/ms-marco-MiniLM-L-2-v2-ft-session-j\model.onnx: D:\a\ort-artifacts\ort-artifacts\onnxruntime\onnxruntime\core\session\provider_bridge_ort.cc:1778 onnxruntime::ProviderLibrary::Get [ONNXRuntimeError] : 1 : FAIL : Error loading "C:\Users\matth\Projects\Marlowe_Harness\target\release\examples\onnxruntime_providers_cuda.dll" which depends on "cublasLt64_12.dll" which is missing. (Error 126: "The specified module could not be found.")
+
+-- embedder, ProviderChoice::Cpu
+   OK: ProviderPlan { provider: Cpu, workers: 1, requested: 1, free_at_load: None, session_cost: None, reason: "CPU was asked for explicitly" }

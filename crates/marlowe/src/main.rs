@@ -28,6 +28,7 @@ marlowe --classic
 marlowe --doctor
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
         [--embedding-cache <DIR>] [--embedder-workers <N>]
+        [--embedder-provider <cpu|cuda|auto>]
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
         [--profile-retrieval <FILE>]
@@ -586,10 +587,52 @@ fn main() {
         None => std::thread::available_parallelism().map_or(1, |n| n.get().min(8)),
     };
 
-    let embedder = match marlowe_memory::cue::dense::embedder::Embedder::load(
+    // **The default is `cpu`, and that is a deliberate refusal to flip a settled decision as a side
+    // effect. 2026-08-17.**
+    //
+    // The GPU path is built, registered and reachable -- `auto` and `cuda` both work and both are
+    // read right here, so this is not a declared control with no call site. What is NOT done is
+    // making `auto` the default, and there are two settled reasons plus one measurement:
+    //
+    // 1. **ADR-013 records that GPU is not adopted for the retrieval path**, pending its own ADR.
+    //    The embedder IS the retrieval path. Changing the default would be designing around a
+    //    settled decision rather than arguing to revisit it.
+    // 2. **ADR-015: a different execution provider is a different scorer**, and a CUDA baseline for
+    //    this graph does not exist. `auto` resolves against free VRAM at that instant, so with it
+    //    as the default two spawns of `marlowe-eval repro` on one machine could run on two
+    //    different scorers because something else on the card started or stopped in between. The
+    //    cache namespace keeps the vectors from mixing; it cannot make the two runs agree.
+    // 3. **It could not have been measured here anyway.** On this machine ORT's CUDA provider does
+    //    not load at all -- `cublasLt64_12.dll`, then `cufft64_11.dll` -- for the embedder AND for
+    //    the reranker, which has requested CUDA since ADR-029. So `auto` and `cpu` are currently
+    //    indistinguishable in behaviour, and that indistinguishability is exactly why the default
+    //    must not be the one nobody can test.
+    //
+    // What flips this is an ADR carrying a CUDA baseline: the reference fixture re-verified on
+    // CUDA, and determinism / batch / padding invariance re-measured there rather than inherited.
+    //
+    // Whatever is chosen, the resolved provider is PRINTED below -- with the worker count, which
+    // device memory may have lowered -- so a run cannot be labelled with a provider it did not use.
+    let embedder_provider = match flag_value(&args, "--embedder-provider") {
+        None => marlowe_memory::cue::dense::embedder::ProviderChoice::Cpu,
+        Some(v) => match marlowe_memory::cue::dense::embedder::EmbedProvider::parse(v) {
+            Some(c) => c,
+            None => {
+                eprintln!("{USAGE}");
+                eprintln!(
+                    "error: --embedder-provider takes `cpu`, `cuda` or `auto`, got {v:?}. `cuda`                      is a REFUSAL arm: it errors rather than falling back, because a cell that                      silently ran on CPU under a CUDA label is the failure this flag exists to                      prevent."
+                );
+                std::process::exit(2);
+            }
+        },
+    };
+
+    let embedder = match marlowe_memory::cue::dense::embedder::Embedder::load_with_provider(
         &embedder_model,
         workers,
         cache_dir.as_deref(),
+        embedder_provider,
+        marlowe_memory::cue::dense::vram::Probe::Device,
     ) {
         Ok(e) => e,
         Err(e) => {
@@ -597,6 +640,16 @@ fn main() {
             std::process::exit(1);
         }
     };
+    {
+        let plan = embedder.plan();
+        eprintln!(
+            "marlowe: embedder on {} with {} of {} worker session(s) -- {}",
+            plan.provider.name(),
+            plan.workers,
+            plan.requested,
+            plan.reason
+        );
+    }
 
     // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
     // must stop the process, not become a per-query error the harness scores as a wrong number.
