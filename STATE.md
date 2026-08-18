@@ -7,23 +7,42 @@ agents, and reconstructing them from the history is how one gets missed.
 
 ### Blocking, in the sense that something is wrong right now
 
-**1. The tier-0 VRAM reserve is not built, and it has already cost a crash.**
-`auto` reads free device memory **at load** and takes what is there. It reserves nothing. So a
-tier-3 component (embedder, reranker — both have a CPU fallback) can consume memory belonging to
-tier 1 (the language model, which has none). **Observed in the wild this session:** a game was
-launched, the game crashed, and the Marlowe process disappeared. Ollama **evicts its own models
-rather than erroring**, so the symptom is a model mysteriously reloading and nothing in our logs
-connects it to us. The priority order is: **tier 0** other processes on this machine, unschedulable
-and unannounced · **tier 1** the LLM (VRAM only) · **tier 2** the voice model (VRAM only, M7, not
-built) · **tier 3** anything with a CPU fallback. Tier 3 must **leave headroom, not take what is
-free**, and the reserve must be derived rather than hardcoded — `marlowe_net::io_concurrency()` is
-the pattern. Do **not** reserve for the voice model: it does not exist, and a reserve for an unbuilt
-component is a declared control with no reader. See amendments `db695f5` and `9604717`.
-
-**2. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
-estimate to a 188 MB floor against a real 690–800 MB, so ORT's allocator rather than the budget is
+**1. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
+estimate to a 188 MB floor against a real 690-800 MB, so ORT's allocator rather than the budget is
 what stops the loop. Measured, deliberately not fixed: its failure branch cannot be driven from a
 test, and an untestable budget change is the shape that goes green and does nothing.
+
+### IDEAS, NOT ACTIONS — do not schedule these
+
+**A VRAM reserve that leaves headroom for other processes on the machine. CONSIDERED AND REJECTED
+2026-08-17, by the human, and the reasoning is worth keeping because it overturns two amendments
+committed earlier the same day** (`db695f5`, `9604717`) and a "tier 0" that had been proposed after a
+game and Marlowe killed each other.
+
+> *"Our job is to run the agent, not make it super convenient for the user to play or overload their
+> memory. Our memory for our application is our memory."*
+
+**Why this is the stronger position, stated so a later session does not re-derive the rejected one.**
+A reserve against external consumers is **unbounded by construction**: a game, a browser decoding
+video, a compositor — none announce themselves, none yield, and none are ours to schedule. Any number
+chosen to leave room for them is a guess that is simultaneously too large on an idle machine and too
+small on a busy one, and it would be a constant with no derivation behind it. That is the shape this
+project refuses everywhere else.
+
+**What replaces it is an ORDERING, not a reserve, and it applies WITHIN Marlowe's own footprint:**
+
+> **LLM first. Voice second. Everything else wherever it fits.**
+
+The first two are VRAM-only and have no CPU fallback, so they have first claim on what Marlowe
+allocates. Everything else — embedder, reranker, anything later — takes what remains and degrades to
+CPU when it cannot. **Respect this when changing models**, which is the case that actually matters:
+a larger LLM or the arrival of voice (M7) shrinks what tier 3 may take, and that is a real constraint
+with a knowable number on both sides.
+
+**What this does not change:** `auto` still degrades to CPU rather than failing a run, the resolved
+provider is still announced rather than the requested one, and per-session cost is still measured
+(312 MB host / 802 MB device for the embedder; 341 MB device for the reranker). Those are properties
+of Marlowe's own budget and they stand.
 
 ### Ordering constraint — get this wrong and three defects go live together
 
