@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -80,6 +81,12 @@ _profile_retrieval = False
 _rerank_threads = None
 _rerank_batch = None
 _rerank_provider = None
+# The EMBEDDER's execution provider. `None` means "do not pass the flag", so the binary's
+# own default (cpu) applies and there is exactly one place the shipped value is written down.
+# Unlike `--rerank-provider` this one moves EVERY vector in the store rather than a per-query
+# score, so the value is formatted into the target string that report.json records -- a run's
+# provider is then readable from the artifact instead of from whoever typed the command.
+_embedder_provider = None
 
 CONTAMINATION = (
     "the frozen gate's weights and isotonic calibration were fit on the {fit_cases} cases of "
@@ -671,6 +678,11 @@ def score_one(
         + (f"--rerank-threads {_rerank_threads} " if _rerank_threads is not None else "")
         + (f"--rerank-batch {_rerank_batch} " if _rerank_batch is not None else "")
         + (f"--rerank-provider {_rerank_provider} " if _rerank_provider is not None else "")
+        + (
+            f"--embedder-provider {_embedder_provider} "
+            if _embedder_provider is not None
+            else ""
+        )
         + f"--dump-gate-features {dump}"
     )
     result = run(
@@ -829,6 +841,51 @@ def label_set_projection(records: list[dict], prereg: dict) -> dict:
 
 
 
+def _forward_cuda_lib_dir_onto_path() -> str:
+    """Make `MARLOWE_CUDA_LIB_DIR` survive the harness's declared minimal environment.
+
+    **The variable does not reach the binary through this tool, and finding that out cost a run.**
+    Section 4.0.9 is explicit: *"the harness spawns the target's argv unmodified, with a declared
+    minimal environment, so a run does not inherit ambient state a third party cannot reproduce."*
+    `minimal_env()` in `eval/src/marlowe_eval/adapter/subprocess_ndjson.py` is that declaration, it
+    is a fixed allowlist, and `MARLOWE_CUDA_LIB_DIR` is not on it. So a scoring run launched with
+    the variable set gets a child that reports *"MARLOWE_CUDA_LIB_DIR is not set"* and, on the
+    `cuda` refusal arm, exits — correctly, and for a reason that has nothing to do with the card.
+
+    That is the mechanism shipped in `cuda_libs.rs` being **unreachable from the one caller that
+    matters most**: a control with a reader, on a path that removes the value before the reader
+    runs. `eval/` is the scoreboard and is not modified to accommodate an implementation, so the
+    fix belongs here.
+
+    **`PATH` is on the allowlist**, and `PATH` is what the loader actually reads — it is how every
+    CUDA run in `runs/session-l/` worked, before any of this had a name. So this prepends the
+    configured directories to `PATH` **in this process**, which the harness then hands to the child
+    verbatim. The variable stays the single place a human writes the configuration down; only the
+    channel changes.
+
+    Returns a one-line description for the record. Silent when the variable is unset, because a
+    CPU run must be unaffected: an unconditional `PATH` edit would make every run's environment
+    depend on whether a GPU had ever been configured on the machine.
+    """
+    configured = os.environ.get("MARLOWE_CUDA_LIB_DIR", "").strip()
+    if not configured:
+        return "MARLOWE_CUDA_LIB_DIR unset; PATH untouched"
+    # Split exactly as the Rust side does (`std::env::split_paths`), so a two-directory
+    # configuration -- a toolkit install plus a cuDNN install -- is handled the same way on both
+    # sides rather than by two rules that can drift apart.
+    dirs = [d for d in configured.split(os.pathsep) if d]
+    missing = [d for d in dirs if not Path(d).is_dir()]
+    if missing:
+        raise SystemExit(
+            f"MARLOWE_CUDA_LIB_DIR names {missing} which is not a directory. Refusing rather than "
+            "warning: a set-and-wrong value would otherwise be indistinguishable from unset by the "
+            "time the child reports a missing DLL, and the child's error names a LIBRARY, never "
+            "the misconfiguration."
+        )
+    os.environ["PATH"] = os.pathsep.join(dirs + [os.environ.get("PATH", "")])
+    return f"MARLOWE_CUDA_LIB_DIR -> PATH ({len(dirs)} dir(s)): {os.pathsep.join(dirs)}"
+
+
 def _record_binary_identity(out: Path) -> None:
     """Stamp **which binary produced this run**, beside the run.
 
@@ -947,6 +1004,17 @@ def main() -> int:
         help="cross-encoder execution provider. Omit for the binary's default (cpu). The value is "
              "stamped on every profile row, because a provider is the single most consequential "
              "thing a cell can be wrong about.")
+    parser.add_argument(
+        "--embedder-provider", choices=["cpu", "cuda", "auto"], default=None,
+        help="the EMBEDDER's execution provider. Omit for the binary's default (cpu). `cuda` is a "
+             "refusal arm -- it errors rather than falling back -- which is the only value safe to "
+             "measure under, since a cell that silently ran on CPU under a CUDA label is the "
+             "failure this flag exists to prevent. `auto` resolves against free VRAM at load and "
+             "is therefore NOT reproducible across machine states. The chosen value appears in "
+             "the target string report.json records, so a run cannot be labelled with a provider "
+             "it did not ask for. ADR-015: a different execution provider is a different scorer, "
+             "and the embedding cache namespaces on it, so switching re-embeds rather than "
+             "serving one provider's vectors to the other.")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--clock", type=int, default=1_780_000_000_000)
     args = parser.parse_args()
@@ -973,17 +1041,40 @@ def main() -> int:
         )
 
     global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch
-    global _rerank_provider
+    global _rerank_provider, _embedder_provider
     _cache_dir = Path(args.embedding_cache)
     _reranking = args.reranking
     _profile_retrieval = args.profile_retrieval
     _rerank_threads = args.rerank_threads
     _rerank_batch = args.rerank_batch
     _rerank_provider = args.rerank_provider
+    _embedder_provider = args.embedder_provider
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     _record_binary_identity(out)
+    # Before anything spawns. The child is what needs the search path, and it is spawned with a
+    # snapshot of this process's environment.
+    forwarded = _forward_cuda_lib_dir_onto_path()
+    print(f"cuda libs: {forwarded}")
+    (out / "ENVIRONMENT.json").write_text(
+        json.dumps(
+            {
+                "_what": (
+                    "what this process did to the environment the harness hands the target. "
+                    "Section 4.0.9's minimal environment is an allowlist and "
+                    "MARLOWE_CUDA_LIB_DIR is not on it, so a CUDA run reaches the binary through "
+                    "PATH or it does not reach it at all."
+                ),
+                "cuda_lib_dirs": forwarded,
+                "embedder_provider": args.embedder_provider,
+                "rerank_provider": args.rerank_provider,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     corpus = longmemeval.load(REPO / split["corpus_path"])
 
     heldout_ids = set(split["heldout"])

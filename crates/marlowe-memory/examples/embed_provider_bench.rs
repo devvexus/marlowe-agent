@@ -18,10 +18,16 @@
 //!   must not be read as one.
 //! - **Peak host RAM** is the process's peak working set, read from the OS. On the CUDA arm it
 //!   includes the driver's host-side allocations, which are large and are not the embedder's.
-//! - **Peak VRAM** is this process's own device memory, sampled from `nvidia-smi
-//!   --query-compute-apps`. It is a **sample**, not a high-water mark the driver reports, so it can
-//!   miss a transient peak between reads. It is taken immediately after the timed run for that
-//!   reason.
+//! - **VRAM is read DEVICE-LEVEL, and which instrument produced it is printed with the table.**
+//!   The per-process query -- `nvidia-smi --query-compute-apps=pid,used_memory` -- returns `[N/A]`
+//!   for every process under WDDM on this machine, and the column printed `-1.0` for a whole
+//!   session's worth of tables. `-1.0 MB` is not `0 MB`, but a sentinel in a numeric column is one
+//!   careless reading away from being taken for one. So the shipped column is
+//!   `memory.free` for the whole card, differenced against a baseline captured before the first
+//!   session opens, and the per-process figure is printed beside it as `[N/A]` when the driver
+//!   declines. The device-level reading includes anything ELSE that allocated during the window --
+//!   which is the honest cost of the only instrument that works here, and is why the baseline is
+//!   printed too.
 //! - A CUDA session having constructed says nothing about node placement: M0c Session L measured
 //!   13.6% of nodes still on CPU under a registered CUDA session.
 //!
@@ -69,10 +75,16 @@ fn peak_host_bytes() -> u64 {
     }
 }
 
-/// This process's device memory, in bytes, or `None`.
+/// This process's own device memory, in bytes, or `None` where the driver will not say.
 ///
-/// Per-process rather than card-wide on purpose: the card is shared with `llama-server`, and a
-/// card-wide reading would attribute ~11.5 GB of someone else's model to the embedder.
+/// **`None` is the normal answer on this machine and it must never be rendered as a number.**
+/// WDDM does not report per-process device memory, so `used_memory` comes back as the literal
+/// `[N/A]` for every row -- including this process's. The parse therefore fails, which is correct:
+/// a reading that does not exist is `None`, and the caller prints `[N/A]`.
+///
+/// Kept rather than deleted because it is the *right* instrument where it works: the card is
+/// shared, and on a driver that answers, this attributes bytes to a process where a card-wide
+/// delta cannot.
 fn own_vram_bytes() -> Option<u64> {
     let out = std::process::Command::new("nvidia-smi")
         .args(["--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"])
@@ -83,10 +95,21 @@ fn own_vram_bytes() -> Option<u64> {
     for line in text.lines() {
         let mut parts = line.split(',').map(str::trim);
         if parts.next() == Some(me.as_str()) {
+            // `[N/A]` fails to parse and yields None -- deliberately, see above.
             return parts.next().and_then(|m| m.parse::<u64>().ok()).map(|m| m * 1024 * 1024);
         }
     }
-    Some(0)
+    None
+}
+
+/// Device memory held since `baseline`, card-wide, or `None` where the card is unreadable.
+///
+/// Signed: another process freeing memory mid-run makes this negative, and a saturating
+/// subtraction would render that as a confident `0.0 MB` -- a wrong number that looks like a
+/// measurement.
+fn device_held_since(baseline: Option<u64>) -> Option<i64> {
+    let (b, now) = (baseline?, vram::free_bytes()?);
+    Some(b as i64 - now as i64)
 }
 
 fn mb(b: u64) -> f64 {
@@ -114,7 +137,10 @@ struct Row {
     texts: usize,
     ms_total: f64,
     peak_host: u64,
-    peak_vram: Option<u64>,
+    /// Card-wide, differenced against the baseline taken before any session opened.
+    device_held: Option<i64>,
+    /// Per-process, `None` where the driver returns `[N/A]`.
+    own_vram: Option<u64>,
 }
 
 fn run_case(
@@ -123,6 +149,7 @@ fn run_case(
     workers: usize,
     texts: &[String],
     tokens: usize,
+    device_baseline: Option<u64>,
 ) -> Option<Row> {
     // cache_dir = None. See the module header: with a cache this whole table is a disk benchmark.
     let mut embedder =
@@ -153,8 +180,10 @@ fn run_case(
         texts: texts.len(),
         ms_total: elapsed.as_secs_f64() * 1000.0,
         peak_host: peak_host_bytes(),
-        // Sampled while the sessions are still alive -- after the drop the driver has released it.
-        peak_vram: own_vram_bytes(),
+        // Both sampled while the sessions are still alive -- after the drop the driver has
+        // released the memory and every reading would be zero.
+        device_held: device_held_since(device_baseline),
+        own_vram: own_vram_bytes(),
     };
     Some(row)
 }
@@ -168,9 +197,39 @@ fn main() {
     println!("== embedder provider benchmark ==");
     println!("embedding cache: OFF (cache_dir = None on every case)");
     println!("MAX_SEQ_LEN = {MAX_SEQ_LEN}");
+    // Captured ONCE, before any session opens, and every `device held` column below is a
+    // difference against it. A per-case baseline would silently absorb whatever the previous case
+    // failed to release.
+    let device_baseline = vram::free_bytes();
     println!(
         "free device memory at start: {}",
-        vram::free_bytes().map_or("no readable device".to_string(), |b| format!("{:.0} MB", mb(b)))
+        device_baseline.map_or("no readable device".to_string(), |b| format!("{:.0} MB", mb(b)))
+    );
+    println!(
+        "VRAM instrument: device-level `nvidia-smi --query-gpu=memory.free`, differenced against          that baseline. Per-process `--query-compute-apps` reports {} here.",
+        match own_vram_bytes() {
+            Some(b) => format!("{:.1} MB", mb(b)),
+            None => "[N/A] -- WDDM does not attribute device memory per process".to_string(),
+        }
+    );
+    println!(
+        "co-resident processes on the card at start: {}",
+        std::process::Command::new("nvidia-smi")
+            .args(["--query-compute-apps=process_name", "--format=csv,noheader"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|t| {
+                let names: Vec<String> = t
+                    .lines()
+                    .map(str::trim)
+                    .filter(|l| !l.is_empty())
+                    .filter(|l| l.contains("llama") || l.contains("ollama"))
+                    .map(str::to_string)
+                    .collect();
+                if names.is_empty() { "no llama/ollama process".to_string() } else { names.join(", ") }
+            })
+            .unwrap_or_else(|| "unreadable".to_string())
     );
     println!("CUDA session constructs on the shipped graph: {}", Embedder::cuda_available(dir));
 
@@ -206,15 +265,17 @@ fn main() {
         // that reads `workers 3` where 8 were asked for is the budget speaking.
         for choice in [ProviderChoice::Cpu, ProviderChoice::Auto] {
             for workers in [1usize, derived] {
-                if let Some(row) = run_case(dir, choice, workers, &texts, measured) {
+                if let Some(row) = run_case(dir, choice, workers, &texts, measured, device_baseline) {
                     println!(
-                        "   {:<22} workers {:<2}  {:>8.2} ms total  {:>7.2} ms/embedding  host peak {:>7.1} MB  vram {:>7.1} MB",
+                        "   {:<22} workers {:<2}  {:>8.2} ms total  {:>7.2} ms/embedding  host peak {:>7.1} MB  device held {:>9}  per-process {:>9}",
                         row.provider,
                         row.workers,
                         row.ms_total,
                         row.ms_total / row.texts as f64,
                         mb(row.peak_host),
-                        row.peak_vram.map_or(-1.0, mb),
+                        row.device_held
+                            .map_or("[unreadable]".to_string(), |d| format!("{:.1} MB", d as f64 / 1048576.0)),
+                        row.own_vram.map_or("[N/A]".to_string(), |v| format!("{:.1} MB", mb(v))),
                     );
                     rows.push(row);
                 }
