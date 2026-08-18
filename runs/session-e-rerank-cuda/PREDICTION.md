@@ -158,3 +158,57 @@ principle says leave it on CPU and the prediction is wrong.**
 5. A concurrent `cargo build` stealing cores from a timed cell — CLAUDE.md's parallel-checkout
    hazard #6. Nothing is built while anything is measured, and the build log timestamps are
    recorded so the two windows can be checked not to overlap.
+
+---
+
+# AMENDMENT — the governing principle was RESTATED BY THE HUMAN, before any run was launched
+
+**Appended 2026-08-17, after the section above was committed at `bd33367` and before the first
+scoring run started.** Nothing above is edited: a pre-registration that gets quietly rewritten is
+not a pre-registration. What follows supersedes §"The governing principle" and §7.
+
+## The principle, verbatim, in the human's own words
+
+> **"If reranking has a low memory footprint and is meaningfully faster on GPU then it should be on
+> GPU. The idea is -> everything GPU if it has space for it, CPU otherwise."**
+
+The paraphrase this file was registered against — *"we leave it on CPU for cases where it's already
+fast"*, read as *being inside budget is a reason to stay on CPU* — **was wrong.** The rule is
+**SPACE**, not budget:
+
+1. Is it **meaningfully faster** on GPU?
+2. Does it **fit** in device memory alongside everything else on the card?
+
+Both yes → **GPU by default, CPU as the fallback when the card is full.** *"Fast enough on CPU"*
+does not beat *"faster on GPU and it fits."* **CPU is the fallback, not the preference.**
+
+This is the same shape that made `auto` right for the embedder in ADR-044: take the GPU when there
+is room, degrade when there is not, and never fail a run over a busy card.
+
+## What this changes in the predictions above
+
+| § | before | after |
+|---|---|---|
+| 7 | the CPU rerank being inside §5.7's 300 ms was an argument *against* flipping, to be rebutted | **not a gate at all.** The budget column is reporting, not the decision |
+| 6 | device cost was one input among several | **THE constraint.** A component that is faster on GPU but starves the model server or forces the embedder down to one session **has not earned the move** |
+
+**The coexistence question is now the load-bearing one and is predicted explicitly.** The card is
+16,376 MiB and `llama-server` holds ~11.5 GB of it. The embedder needs ~802 MB per session. So the
+reranker must fit in what is left *after both*.
+
+> **Prediction: the reranker's device footprint is under 400 MB at `MAX_BATCH` and it fits
+> alongside the embedder AND Ollama simultaneously.** If it does not — if it is large enough to cut
+> the embedder's width or to push `llama-server` off the card — **do not flip**, and say so.
+
+## What does NOT change, and none of it is relaxed
+
+The three gates still decide whether the flip is permitted at all, and any one of them failing
+means **do not flip**:
+
+1. the ranking A/B, with the ≥90% `rerank_score` movement control;
+2. the cross-encoder reference fixture, re-verified on CUDA and **never regenerated**;
+3. batch invariance **measured on CUDA**, never inherited from CPU.
+
+**Predicted verdict is unchanged — FLIP — but the reason is now different**, and the difference
+matters for the next session: not *"90% of a budget is too much"* but *"it is meaningfully faster,
+it is small, and it fits."*
