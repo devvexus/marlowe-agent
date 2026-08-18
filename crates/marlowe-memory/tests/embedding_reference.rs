@@ -345,8 +345,7 @@ fn the_embedder_reproduces_the_reference_on_cuda_too() {
         1,
         None,
         ProviderChoice::Cuda,
-        Probe::Device,
-    ) {
+        Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None,) {
         Ok(e) => e,
         Err(e) => {
             eprintln!(

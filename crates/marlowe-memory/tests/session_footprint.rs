@@ -123,7 +123,7 @@ fn one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device() 
         None => eprintln!("SKIP (host half): the OS did not report a peak working set here"),
         Some(before) => {
             let mut embedder =
-                Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cpu, Probe::Device)
+                Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cpu, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None)
                     .expect("the CPU embedder loads");
             embedder.embed(&long).expect("embeds at the cap");
             let after = peak_working_set_bytes().expect("the OS reported a peak once already");
@@ -161,7 +161,7 @@ fn one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device() 
         return;
     };
     let mut embedder =
-        match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device) {
+        match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
             Ok(e) => e,
             Err(err) => {
                 eprintln!("SKIP (device half): CUDA does not construct here, so this property is \

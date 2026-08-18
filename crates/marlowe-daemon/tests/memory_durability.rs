@@ -37,7 +37,8 @@ fn open(root: &PathBuf) -> DaemonMemory {
     // 60 MB graph to exercise it would make them slow and make a missing model look like a write
     // failure. `retrieval_is_announced_as_write_only_when_no_graph_is_loaded` asserts that this
     // state is reported rather than silent.
-    DaemonMemory::open(Arc::new(Mutex::new(journal)), DERIVATION_VERSION, None).unwrap()
+    DaemonMemory::open(Arc::new(Mutex::new(journal)), DERIVATION_VERSION, None, "test-model")
+        .unwrap()
 }
 
 fn claim(text: &str) -> ClaimRequest {

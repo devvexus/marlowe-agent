@@ -32,7 +32,8 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
         [--dump-gate-features <FILE>] [--fit-mode]
         [--dump-consolidation <FILE>] [--consolidation-dry-run]
         [--profile-retrieval <FILE>]
-        [--rerank-threads <N>] [--rerank-batch <on|off>] [--rerank-provider <cpu|cuda>]
+        [--rerank-threads <N>] [--rerank-batch <on|off>]
+        [--rerank-provider <cpu|cuda|auto>] [--tier1-model <NAME>]
 
   --ask <question>              Ask one question and print the answer. The thin client of
                                 ARCHITECTURE §6: it holds no run state, so the run belongs to the
@@ -162,14 +163,34 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 value is recorded on every --profile-retrieval row, so a sweep
                                 cell cannot claim one thread count and run another.
 
+  --rerank-provider <P>         `cpu`, `cuda` or `auto`. DEFAULT `auto` -- ADR-045. `auto` opens a
+                                CUDA session where one constructs and the card has room for it
+                                plus a spare, and falls to CPU otherwise. It NEVER fails a run
+                                over a busy card. `cuda` is the REFUSAL arm: it errors rather than
+                                falling back, which is the only value safe to publish a number
+                                under -- `auto` resolves against free VRAM at that instant. The
+                                RESOLVED provider is printed at startup beside the request and is
+                                stamped on every --profile-retrieval row.
+
+  --tier1-model <NAME>          The language model that has FIRST CLAIM on device memory
+                                (ADR-045 §4). Tier 1 has no CPU fallback and the embedder and
+                                reranker do, so they yield: `auto` subtracts this model's size
+                                from free VRAM before deciding whether to open a CUDA session.
+                                Defaults to this build's routed model. Read from `ollama list`,
+                                so a model that is not installed reserves nothing and says so, and
+                                one that is already RESIDENT reserves nothing because free memory
+                                is already net of it. `marlowe --serve` ignores this and uses its
+                                own --model, which is switchable at runtime.
+
   --rerank-batch <on|off>       Score the whole depth-10 slate in ONE forward pass. Explicit value,
-                                no bare boolean, default `off`. Batch invariance is measured at
-                                0.000000000 across sizes 1..10 on the shipped graph, so this is
-                                bit-identical by construction -- it is a COST switch, not a quality
-                                one. Off by default because M0c Session L measured it as a 12%
-                                REGRESSION at one thread (rerank p50 187.6 -> 210.2 ms): batching
-                                pays through parallelism across the batch dimension and there is
-                                none at one thread. Recorded per profile row.
+                                no bare boolean. DEFAULT IS DERIVED FROM THE RESOLVED PROVIDER, not
+                                from a constant: `off` on CPU, `on` on CUDA. The two measured
+                                OPPOSITE (ADR-029) -- CPU sequential 185.8 ms against batched
+                                195.6, CUDA batched 3.4 against sequential 15.2 -- so a single
+                                global default would be wrong for one of them whichever value it
+                                took. Batch invariance is 0.000000000 across sizes 1..10 on CPU
+                                and is measured separately on CUDA (ADR-045); it is a COST switch,
+                                not a quality one. Recorded per profile row.
 
   --dump-consolidation <FILE>   Write one NDJSON row per INGESTED SESSION describing what §5.3
                                 consolidation merged. A diagnostic side channel: the §4.6
@@ -465,25 +486,22 @@ fn main() {
         std::process::exit(2);
     }
 
-    // Explicit value, never a bare boolean -- the `--reranking` rule. A default-on/off switch
-    // forgotten in a sweep string measures one configuration under another's label.
-    let rerank_provider = match flag_value(&args, "--rerank-provider") {
-        Some("cpu") | None => marlowe_memory::rerank::RerankProvider::Cpu,
-        Some("cuda") => marlowe_memory::rerank::RerankProvider::Cuda,
-        Some(other) => {
+    // **The default is `auto` as of ADR-045, 2026-08-17. It was `cpu`.** See
+    // `rerank_provider_choice` for the measurement that licensed it, and note that the value here
+    // is a REQUEST -- the resolution is not known until the graph has loaded, which is why
+    // `rerank_batched` below can no longer be derived from it.
+    let rerank_choice = match rerank_provider_choice(&args) {
+        Ok(c) => c,
+        Err(message) => {
             eprintln!("{USAGE}");
-            eprintln!("error: --rerank-provider takes `cpu` or `cuda`, got {other:?}.");
+            eprintln!("{message}");
             std::process::exit(2);
         }
     };
-    let rerank_batched = match flag_value(&args, "--rerank-batch") {
-        Some("on") => true,
-        Some("off") => false,
-        // **Derived from the provider, not a constant.** CPU is faster sequential, CUDA is faster
-        // batched, both measured; see `RerankProvider::default_batching`. A single default would be
-        // wrong for one of them whichever value it took. The resolved value is stamped on every
-        // profile row, so this default cannot hide a mismatch.
-        None => rerank_provider.default_batching(),
+    let rerank_batch_flag = match flag_value(&args, "--rerank-batch") {
+        Some("on") => Some(true),
+        Some("off") => Some(false),
+        None => None,
         Some(other) => {
             eprintln!("{USAGE}");
             eprintln!("error: --rerank-batch takes `on` or `off`, got {other:?}.");
@@ -501,15 +519,6 @@ fn main() {
         },
         None => marlowe_memory::rerank::SHIPPED_THREADS,
     };
-    // Explicit value, no bare boolean, default `cpu` -- the shipped provider. A run that means to
-    // measure CUDA and forgets the flag measures CPU and says CUDA in its filename; the value is
-    // stamped on every profile row so the artifact settles it rather than the label.
-    let rerank_settings = adapter::RerankSettings {
-        batched: rerank_batched,
-        threads: rerank_threads,
-        provider: rerank_provider,
-    };
-
     let dump_path = flag_value(&args, "--dump-gate-features").map(std::path::Path::new);
     let profile_path = flag_value(&args, "--profile-retrieval").map(std::path::Path::new);
     let fit_mode = args.iter().any(|a| a == "--fit-mode");
@@ -626,6 +635,16 @@ fn main() {
     // RESOLVED provider is announced below rather than the requested one, why it is in
     // `CacheIdentity` so the vectors cannot mix, and why `cuda` still exists for anything that
     // publishes a number.
+    // **Which model is TIER 1 on this machine — ADR-045 §4.** The eval adapter never runs a
+    // language model, so it cannot observe one; but the card it is about to take is the same card
+    // the language model will want, and tier 1 has no CPU fallback. The default is this build's
+    // routing constant rather than a literal spelled here, which keeps one source for the routed
+    // model's identity. `marlowe --serve` does not use this: the daemon passes `config.model`,
+    // which is switchable at runtime, and a compile-time default would protect the wrong model
+    // the moment a user switched.
+    let tier1_model =
+        flag_value(&args, "--tier1-model").unwrap_or(marlowe_provider::DEFAULT_MODEL).to_string();
+
     let embedder_provider = match embedder_provider_choice(&args) {
         Ok(c) => c,
         Err(message) => {
@@ -641,6 +660,10 @@ fn main() {
         cache_dir.as_deref(),
         embedder_provider,
         marlowe_memory::cue::dense::vram::Probe::Device,
+        // **Tier 3 yields to tier 1 -- ADR-045.** The model name comes from the provider crate
+        // rather than being spelled here: a second copy of the routed model's identity is how the
+        // reserve would end up protecting a model nobody runs.
+        marlowe_memory::cue::dense::vram::Reserve::ForTier1(&tier1_model),
     ) {
         Ok(e) => e,
         Err(e) => {
@@ -657,7 +680,13 @@ fn main() {
     // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
     // must stop the process, not become a per-query error the harness scores as a wrong number.
     let cross_encoder = match reranking {
-        Some(dir) => match marlowe_memory::rerank::CrossEncoder::load_with(&dir, rerank_threads, rerank_provider) {
+        Some(dir) => match marlowe_memory::rerank::CrossEncoder::load_auto(
+            &dir,
+            rerank_threads,
+            rerank_choice,
+            marlowe_memory::cue::dense::vram::Probe::Device,
+            marlowe_memory::cue::dense::vram::Reserve::ForTier1(&tier1_model),
+        ) {
             Ok(e) => Some(e),
             Err(e) => {
                 eprintln!("marlowe: {e}");
@@ -666,6 +695,36 @@ fn main() {
         },
         None => None,
     };
+    // **THE RESOLVED PROVIDER, NOT THE REQUEST, AND BOTH FIELDS BELOW DEPEND ON IT.** ADR-045.
+    //
+    // Before the default became `auto` these two lines could be written beside the flag parsing,
+    // because the request WAS the resolution. Under `auto` they cannot: `RerankProvider` is what
+    // actually scored, and `default_batching()` measured OPPOSITE on the two providers -- CPU is
+    // faster sequential (185.8 vs 195.6 ms), CUDA is faster batched (3.4 vs 15.2). Deriving the
+    // batching from the *request* would run a CPU fallback in CUDA's batched shape, which is the
+    // slower of the two on that provider and would be invisible in every log.
+    //
+    // `provider` is stamped on every retrieval-profile row, and a row carrying the request rather
+    // than the resolution is the "declared control that nothing reads" family with the reader
+    // present and pointed at the wrong value.
+    let resolved_provider = cross_encoder
+        .as_ref()
+        .map(|e| e.provider())
+        // With `--reranking off` nothing loaded, so nothing scored. `Cpu` is the inert value here
+        // and it is never read: `RerankSettings` only reaches a profile row a rerank produced.
+        .unwrap_or(marlowe_memory::rerank::RerankProvider::Cpu);
+    let rerank_settings = adapter::RerankSettings {
+        batched: rerank_batch_flag.unwrap_or_else(|| resolved_provider.default_batching()),
+        threads: rerank_threads,
+        provider: resolved_provider,
+    };
+    // ADR-029's rule, ADR-045's obligation: the RESOLVED provider is announced, never inferred,
+    // and the REQUEST is on the line beside it so a fallback to CPU is legible as a fallback
+    // rather than as a configuration. Printed only when a cross-encoder actually loaded -- a line
+    // about a stage that did not run is the widest possible gap between an event and a claim.
+    if let Some(e) = cross_encoder.as_ref() {
+        eprintln!("marlowe: {}", rerank_announcement(rerank_choice, e.plan(), rerank_settings.batched));
+    }
 
     let consolidation = adapter::Consolidation {
         policy: consolidation,
@@ -756,6 +815,61 @@ fn embedder_provider_choice(
             )
         }),
     }
+}
+
+/// Resolve `--rerank-provider`. **The default is `auto` — ADR-045.**
+///
+/// Extracted from `main` for the same reason `embedder_provider_choice` is: a default nothing can
+/// call is a default nothing can test, and `main` is unreachable from a test.
+///
+/// **It was `cpu`, and what changed is a measurement, not an opinion.** ADR-029's own headline says
+/// *"where a CUDA device is available the rerank runs on it"*, and the shipped default has
+/// disagreed with its own ADR since that ADR was adopted. What was missing was a ranking
+/// measurement on **this** graph — ADR-029's 0-of-229 was taken on the int8 graph at ORT 1.24.2,
+/// which is a different system and is a reason to expect agreement rather than evidence for it.
+/// See `runs/session-e-rerank-cuda/`.
+///
+/// The error is returned rather than printed so the caller owns `USAGE` and the exit code.
+fn rerank_provider_choice(args: &[String]) -> Result<marlowe_memory::rerank::RerankChoice, String> {
+    use marlowe_memory::rerank::RerankChoice;
+    match flag_value(args, "--rerank-provider") {
+        // **ADR-045.** GPU where a CUDA session constructs and the card has room, CPU otherwise,
+        // and never a failed run over a busy card.
+        None => Ok(RerankChoice::Auto),
+        Some(v) => RerankChoice::parse(v).ok_or_else(|| {
+            format!(
+                "error: --rerank-provider takes `cpu`, `cuda` or `auto`, got {v:?}. The default \
+                 is `auto` (ADR-045): GPU where one constructs and fits, CPU otherwise, never a \
+                 failed run. `cuda` is the REFUSAL arm -- it errors rather than falling back, \
+                 because a cell that silently ran on CPU under a CUDA label is the failure that \
+                 flag exists to prevent, and it is the only value safe to publish a number under."
+            )
+        }),
+    }
+}
+
+/// The rerank startup line: **what was asked for, what was obtained, and how it will batch.**
+///
+/// The batching is on the line because it is *derived from the resolution* and the two providers
+/// measured opposite — CPU sequential 185.8 ms against batched 195.6, CUDA batched 3.4 against
+/// sequential 15.2 (ADR-029). Under a `cpu` default the batching followed the request and the two
+/// were the same fact; under `auto` they are not, and a run that fell back to CPU while batching
+/// like a GPU would be slower than either published configuration with nothing saying so.
+///
+/// **This function formats what the source will emit. That is the weaker claim** — the stronger one
+/// is the running binary's own stderr, and ADR-045 §7 reads it there.
+fn rerank_announcement(
+    requested: marlowe_memory::rerank::RerankChoice,
+    plan: &marlowe_memory::rerank::RerankProviderPlan,
+    batched: bool,
+) -> String {
+    format!(
+        "rerank asked for {}, running on {}, {} -- {}",
+        requested.asked(),
+        plan.provider.name(),
+        if batched { "batched" } else { "sequential" },
+        plan.reason
+    )
 }
 
 /// The startup line: **what was asked for, and what was obtained.**
@@ -917,5 +1031,159 @@ mod embedder_provider_flag {
         );
         assert!(asked_cpu.contains("asked for cpu"), "{asked_cpu}");
         assert!(fell_back.contains("asked for auto"), "{fell_back}");
+    }
+}
+
+#[cfg(test)]
+mod rerank_provider_flag {
+    use super::*;
+    use marlowe_memory::rerank::{RerankChoice, RerankProvider, RerankProviderPlan};
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    fn plan(provider: RerankProvider, requested: RerankChoice, reason: &str) -> RerankProviderPlan {
+        RerankProviderPlan {
+            provider,
+            requested,
+            free_at_load: Some(6_000 * 1024 * 1024),
+            session_cost: None,
+            reason: reason.to_string(),
+        }
+    }
+
+    #[test]
+    fn the_default_is_auto() {
+        // **ADR-045.** This is the assertion that fails if the flip is reverted, and it is the
+        // whole reason `rerank_provider_choice` exists as a function rather than a match in `main`.
+        let a = args(&["--eval-adapter", "--profile-root", "p"]);
+        assert_eq!(
+            rerank_provider_choice(&a).expect("an absent flag is not an error"),
+            RerankChoice::Auto,
+            "the rerank default is `auto` (ADR-045). `cpu` here silently un-ships the GPU path on \
+             every machine that has one, and it is what made the shipped binary disagree with \
+             ADR-029's own headline sentence for nine days"
+        );
+    }
+
+    #[test]
+    fn the_explicit_arms_still_reach_the_loader() {
+        // The default must not swallow the flag: `cpu` is what every rerank number published
+        // before 2026-08-17 was taken on, and `cuda` is the refusal arm every measurement needs.
+        for (value, expected) in [
+            ("cpu", RerankChoice::Cpu),
+            ("cuda", RerankChoice::Cuda),
+            ("auto", RerankChoice::Auto),
+        ] {
+            let a = args(&["--eval-adapter", "--rerank-provider", value]);
+            assert_eq!(
+                rerank_provider_choice(&a).expect("a valid value parses"),
+                expected,
+                "--rerank-provider {value} must reach the loader"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_value_is_refused_rather_than_defaulted() {
+        // A permissive default here is the family CLAUDE.md names: a typo would run `auto` and
+        // report nothing, which is a mismatch made unobservable.
+        let a = args(&["--eval-adapter", "--rerank-provider", "gpu"]);
+        let message = rerank_provider_choice(&a).expect_err("`gpu` is not a provider");
+        assert!(message.contains("auto"), "{message}");
+        assert!(message.contains("REFUSAL"), "{message}");
+    }
+
+    #[test]
+    fn the_announcement_names_what_was_asked_and_what_was_obtained() {
+        // The case ADR-045 §5 is about: the request and the resolution DISAGREE, and a line
+        // printing only one of them would be read as the other.
+        let line = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(
+                RerankProvider::Cpu,
+                RerankChoice::Auto,
+                "a CUDA session did not construct: cublasLt64_12.dll",
+            ),
+            false,
+        );
+        assert!(line.contains("asked for auto"), "the REQUEST must be on the line: {line}");
+        assert!(
+            line.contains("CPUExecutionProvider"),
+            "the RESOLVED provider must be on the line: {line}"
+        );
+        assert!(
+            line.contains("did not construct"),
+            "the reason is what makes a fallback legible as one: {line}"
+        );
+    }
+
+    #[test]
+    fn an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu() {
+        // The control for the test above. Without it that assertion passes on a formatter that
+        // hardcoded either provider name -- green on a build where the control does nothing.
+        let got_cuda = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(RerankProvider::Cuda, RerankChoice::Auto, "CUDA, one session opened"),
+            true,
+        );
+        let got_cpu = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(RerankProvider::Cpu, RerankChoice::Auto, "no readable NVIDIA device"),
+            false,
+        );
+        assert_ne!(got_cuda, got_cpu);
+        assert!(got_cuda.contains("CUDAExecutionProvider"), "{got_cuda}");
+        assert!(got_cpu.contains("CPUExecutionProvider"), "{got_cpu}");
+    }
+
+    #[test]
+    fn an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu() {
+        // The property that motivated putting the request on the line at all. Both resolve to CPU;
+        // before ADR-045 there was no rerank line at all, so they were not merely identical --
+        // they were both silent.
+        let asked_cpu = rerank_announcement(
+            RerankChoice::Cpu,
+            &plan(RerankProvider::Cpu, RerankChoice::Cpu, "CPU was asked for explicitly"),
+            false,
+        );
+        let fell_back = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(RerankProvider::Cpu, RerankChoice::Auto, "no readable NVIDIA device"),
+            false,
+        );
+        assert_ne!(
+            asked_cpu, fell_back,
+            "a configured CPU run and a silent fallback must not print the same line"
+        );
+        assert!(asked_cpu.contains("asked for cpu"), "{asked_cpu}");
+        assert!(fell_back.contains("asked for auto"), "{fell_back}");
+    }
+
+    #[test]
+    fn the_batching_follows_the_resolution_and_the_announcement_shows_it() {
+        // **The defect `auto` introduces, asserted rather than commented.** `default_batching`
+        // measured OPPOSITE on the two providers (ADR-029: CPU sequential 185.8 vs batched 195.6;
+        // CUDA batched 3.4 vs sequential 15.2). Under the old `cpu` default the request was the
+        // resolution and this could not go wrong. Under `auto` it can: a fallback to CPU that
+        // kept CUDA's batching would run the slower of the two CPU shapes, in silence.
+        assert!(!RerankProvider::Cpu.default_batching(), "CPU ships sequential");
+        assert!(RerankProvider::Cuda.default_batching(), "CUDA ships batched");
+
+        // And the two must be distinguishable on the emitted line, or the mismatch is unobservable
+        // even once it exists.
+        let cpu_line = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(RerankProvider::Cpu, RerankChoice::Auto, "fell back"),
+            RerankProvider::Cpu.default_batching(),
+        );
+        let cuda_line = rerank_announcement(
+            RerankChoice::Auto,
+            &plan(RerankProvider::Cuda, RerankChoice::Auto, "opened"),
+            RerankProvider::Cuda.default_batching(),
+        );
+        assert!(cpu_line.contains("sequential"), "{cpu_line}");
+        assert!(cuda_line.contains("batched"), "{cuda_line}");
     }
 }

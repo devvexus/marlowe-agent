@@ -78,8 +78,7 @@ fn main() {
         workers,
         None,
         choice,
-        Probe::Device,
-    ) {
+        Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None,) {
         Ok(e) => e,
         Err(e) => {
             println!("embedder did not open: {e}");

@@ -112,7 +112,7 @@ fn a_status_request_answers_without_touching_a_model() {
     assert!(report.model_disclosure.contains("12/12"), "{}", report.model_disclosure);
     // ADR-029: the provider is announced, and the honest value when nothing has stamped one is
     // that nothing has — not a guess.
-    assert_eq!(report.rerank_provider, "not-wired");
+    assert_eq!(report.rerank_provider, "not-loaded");
 
     shutdown.store(true, Ordering::Relaxed);
     let _ = std::net::TcpStream::connect(("127.0.0.1", port));

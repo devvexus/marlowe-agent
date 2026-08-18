@@ -62,8 +62,7 @@ fn both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words() {
             1,
             None,
             ProviderChoice::Cuda,
-            Probe::Device,
-        )
+            Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None,)
         .err()
         .expect("a broken CUDA lib directory must refuse, never load");
         let text = err.to_string();

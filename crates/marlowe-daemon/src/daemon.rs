@@ -405,11 +405,21 @@ impl Daemon {
             std::sync::Arc::clone(&journal),
             profile.manifest().derivation_version,
             config.reranking.as_deref(),
+            // **The tier-1 model this daemon routes to, so the rerank yields to it.** ADR-045: the
+            // language model has no CPU fallback and the reranker does, so the reranker is the one
+            // that gives way. `config.model` rather than the compile-time default because
+            // `switch_model` can change it.
+            &config.model,
         )
         .map_err(|e| DaemonError::Profile {
             root: config.profile_root.display().to_string(),
             detail: format!("the belief store could not be derived from the journal: {e}"),
         })?;
+        // **Read from the resolution, never derived here.** ADR-029 forbids a second producer of
+        // this fact and `DaemonMemory::rerank_provider_label` is the first. Assigned once, at
+        // startup, immediately after the load that decided it.
+        let mut config = config;
+        config.rerank_provider = memory.rerank_provider_label();
 
         // **Refuse to start rather than offer a tool that cannot run.** A daemon that starts and
         // then fails every `recall` call presents as a broken model; this names the tool instead.

@@ -1000,10 +1000,15 @@ def main() -> int:
         "--rerank-batch", choices=["on", "off"], default=None,
         help="score the depth-10 slate in one forward pass. Omit to use the binary's default.")
     parser.add_argument(
-        "--rerank-provider", choices=["cpu", "cuda"], default=None,
-        help="cross-encoder execution provider. Omit for the binary's default (cpu). The value is "
-             "stamped on every profile row, because a provider is the single most consequential "
-             "thing a cell can be wrong about.")
+        "--rerank-provider", choices=["cpu", "cuda", "auto"], required=True,
+        help="the CROSS-ENCODER's execution provider. REQUIRED since ADR-045, for exactly the "
+             "reason --embedder-provider became required in ADR-044: this passed through to the "
+             "binary's default, that default was `cpu`, and ADR-045 changed it to `auto`. A run "
+             "that omitted the flag before 2026-08-17 measured CPU; the identical command after "
+             "it measures whatever the card had free at load. `cuda` is the refusal arm and is "
+             "the only value safe to publish a number under. The value is stamped on every "
+             "profile row, because a provider is the single most consequential thing a cell can "
+             "be wrong about.")
     parser.add_argument(
         "--embedder-provider", choices=["cpu", "cuda", "auto"], required=True,
         help="the EMBEDDER's execution provider. REQUIRED since ADR-044, and the reason is the "

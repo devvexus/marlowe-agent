@@ -6,7 +6,7 @@
 //!
 //! # The cache is disabled and that is the whole validity of the second column
 //!
-//! `Embedder::load_with_provider(..., cache_dir = None)`. With a cache, whichever provider runs
+//! `Embedder::load_with_provider(..., cache_dir = None, marlowe_memory::cue::dense::vram::Reserve::None)`. With a cache, whichever provider runs
 //! second reads back the first one's vectors and reports a "speedup" that is a disk read — a
 //! fabricated number of exactly the kind this project keeps a ledger of. The line
 //! `embedding cache: OFF` is printed with every table so a pasted result carries its own control.
@@ -153,7 +153,7 @@ fn run_case(
 ) -> Option<Row> {
     // cache_dir = None. See the module header: with a cache this whole table is a disk benchmark.
     let mut embedder =
-        match Embedder::load_with_provider(dir, workers, None, choice, Probe::Device) {
+        match Embedder::load_with_provider(dir, workers, None, choice, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
             Ok(e) => e,
             Err(e) => {
                 println!("  {choice:?} x{workers}: did not load: {e}");

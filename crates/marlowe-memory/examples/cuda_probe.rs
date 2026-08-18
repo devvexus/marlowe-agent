@@ -13,7 +13,7 @@ fn main() {
     let rerank_dir = Path::new("models/ms-marco-MiniLM-L-2-v2-ft-session-j");
 
     println!("-- embedder, ProviderChoice::Cuda (no fallback)");
-    match Embedder::load_with_provider(embed_dir, 1, None, ProviderChoice::Cuda, Probe::Device) {
+    match Embedder::load_with_provider(embed_dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
         Ok(_) => println!("   OK: a CUDA session constructed"),
         Err(e) => println!("   ERR: {e}"),
     }
@@ -25,7 +25,7 @@ fn main() {
     }
 
     println!("-- embedder, ProviderChoice::Cpu");
-    match Embedder::load_with_provider(embed_dir, 1, None, ProviderChoice::Cpu, Probe::Device) {
+    match Embedder::load_with_provider(embed_dir, 1, None, ProviderChoice::Cpu, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
         Ok(e) => println!("   OK: {:?}", e.plan()),
         Err(e) => println!("   ERR: {e}"),
     }

@@ -243,7 +243,16 @@ impl Embedder {
         workers: usize,
         cache_dir: Option<&Path>,
     ) -> Result<Self, EmbedError> {
-        Self::load_with_provider(model_dir, workers, cache_dir, ProviderChoice::Cpu, Probe::Device)
+        // Fixed CPU, so the reserve is irrelevant and `None` states that rather than pretending
+        // to yield to something this path can never contend with.
+        Self::load_with_provider(
+            model_dir,
+            workers,
+            cache_dir,
+            ProviderChoice::Cpu,
+            Probe::Device,
+            crate::cue::dense::vram::Reserve::None,
+        )
     }
 
     /// Load at an explicit provider choice and an explicit device-memory probe.
@@ -292,6 +301,7 @@ impl Embedder {
         cache_dir: Option<&Path>,
         choice: ProviderChoice,
         probe: Probe,
+        reserve: crate::cue::dense::vram::Reserve<'_>,
     ) -> Result<Self, EmbedError> {
         let model_path = model_dir.join(MODEL_FILE);
         let vocab_path = model_dir.join(VOCAB_FILE);
@@ -338,7 +348,9 @@ impl Embedder {
                 };
                 (sessions, plan)
             }
-            ProviderChoice::Auto => Self::auto_sessions(&model_path, requested, model_bytes, probe)?,
+            ProviderChoice::Auto => {
+                Self::auto_sessions(&model_path, requested, model_bytes, probe, reserve)?
+            }
         };
 
         let cache = match cache_dir {
@@ -385,6 +397,7 @@ impl Embedder {
         requested: usize,
         model_bytes: u64,
         probe: Probe,
+        reserve: crate::cue::dense::vram::Reserve<'_>,
     ) -> Result<(Vec<Session>, ProviderPlan), EmbedError> {
         let floor = Self::session_cost_floor(model_bytes);
         let cpu = |reason: String, free: Option<u64>| -> Result<_, EmbedError> {
@@ -404,13 +417,24 @@ impl Embedder {
         let Some(free) = probe.free_bytes() else {
             return cpu("no readable NVIDIA device (nvidia-smi absent or silent)".to_string(), None);
         };
+        // **TIER 3 YIELDS TO TIER 1 -- ADR-045 SS4, applied to the component that made the defect
+        // visible.** ADR-044 shipped this loader reading `free` and taking what was there; on an
+        // idle card that was 8 sessions and 4,647 MB, and the language model has no CPU fallback
+        // to take when it arrives to find the card full. `usable` is what is spare AFTER tier 1's
+        // claim. Every decision below re-reads the device and subtracts the same reserve, so the
+        // width narrows as the card fills rather than being computed once and trusted.
+        let reserved = reserve.read();
+        let usable = free.saturating_sub(reserved.bytes);
         // The same one-spare-session rule that governs every later decision, applied to the first:
         // opening a session that leaves no room for a second is how a shared card gets filled.
-        if free < floor.saturating_mul(2) {
+        if usable < floor.saturating_mul(2) {
             return cpu(
                 format!(
-                    "{} MB free is under the {} MB one-spare-session floor for this graph",
+                    "{} MB usable ({} MB free, {}) is under the {} MB one-spare-session floor for \
+                     this graph",
+                    usable / (1024 * 1024),
                     free / (1024 * 1024),
+                    reserved.reason,
                     floor.saturating_mul(2) / (1024 * 1024)
                 ),
                 Some(free),
@@ -438,11 +462,14 @@ impl Embedder {
         // A ledger beside the device reading, and the decision takes the MINIMUM of the two. The
         // device reading is the truth on a real card; the ledger is what makes the same code path
         // testable with a `Fixed` probe, whose reading by construction does not move.
-        let mut ledger = free.saturating_sub(cost);
+        let mut ledger = usable.saturating_sub(cost);
         let mut stopped = String::new();
 
         while sessions.len() < requested {
-            let device = probe.free_bytes().unwrap_or(0);
+            // The reserve is subtracted on EVERY re-read, not only the first. A reserve applied
+            // once and then forgotten is a stale budget, which is the family this loop's re-read
+            // was written to avoid in the first place.
+            let device = probe.free_bytes().unwrap_or(0).saturating_sub(reserved.bytes);
             let available = device.min(ledger);
             if available < cost.saturating_mul(2) {
                 stopped = format!(
@@ -468,9 +495,9 @@ impl Embedder {
 
         let opened = sessions.len();
         let reason = if opened == requested {
-            format!("CUDA, all {requested} requested sessions opened")
+            format!("CUDA, all {requested} requested sessions opened; {}", reserved.reason)
         } else {
-            format!("CUDA, {opened} of {requested} sessions; {stopped}")
+            format!("CUDA, {opened} of {requested} sessions; {stopped}; {}", reserved.reason)
         };
         Ok((
             sessions,

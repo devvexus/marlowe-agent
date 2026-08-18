@@ -1,5 +1,72 @@
 # State
 
+## RERANKER ON CUDA: GATES 2 AND 3 PASS, GATE 1 IS NOT DONE, AND IT IS NOT FLIPPED
+
+**`--rerank-provider` still defaults to `cpu`.** The provider machinery is built and tested; the
+one measurement that would license the flip was not taken. Recorded this way rather than as a
+half-claim, because a default flipped on two of three gates is exactly the shape this project keeps
+finding.
+
+### What IS measured
+
+| gate | reading |
+|---|---|
+| **2 — reference fixture on CUDA** | PASSES. `cross_encoder_reference` 10/10, worst observed delta **~0.00104** logits. Fixture NOT regenerated. |
+| **3 — batch invariance on CUDA** | PASSES. Sizes 1..10 on the shipped graph, `max abs(batched - single)` = **0.000349** at batch 9, **zero order changes** — and `the_batch_invariance_check_can_actually_see_a_reordering` passes, so the check discriminates rather than being blind. |
+| device cost | **341 MB** at `MAX_BATCH`, warmed. Trivial beside a 9B. |
+
+`rerank_provider.rs` 10/10, including full-card fallback, explicit-CPU-never-touches-the-card, and
+the reserve arms.
+
+### What is NOT measured — gate 1
+
+**Does running the reranker on CUDA change which memory is ranked first?** Unanswered. A baseline
+scoring run was started and killed; `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson`
+is a **0-byte file** and is worthless. Do not read it as a result.
+
+**Do not finish it with two full scoring passes.** The reranker is a pure function of
+`(query, document) -> logit`, and both providers already load side by side in `rerank_provider.rs`.
+Score a few thousand real pairs from a COMPLETED dump (`runs/session-e-maxseq/fit-1024/fit/` and
+`fit-8192-BASELINE/fit/` both carry `core.sha256`, so both finished) on each provider and count
+**queries whose top-1 changes**. Minutes, not an hour.
+
+**Expect zero, and measure it anyway.** STATE.md's near-tie signature says post-hoc mechanisms on
+this corpus gain cases almost entirely inside logit gaps below **0.084**; CUDA's deviation is ~0.001,
+two orders of magnitude under. That is a reason to predict zero flips, not a substitute for counting
+them. **Verdict rule, fixed in advance: zero top-1 changes -> flip. Any change -> do not flip.**
+
+### The suite was RED at 940/4, and all four traced to one abandoned change set
+
+Fixed here, and three of the four are the same family:
+
+- **`component_footprint.rs` deleted.** It was the component-table work the human cancelled, and it
+  read `Instant::now()` twice — caught by the determinism guard, which is the guard working.
+- **`split.rs` asserted `"not-wired"`** while the daemon now reports `"not-loaded"` with the resolved
+  provider and its batching. **The code is right and the test was stale**: reporting the resolved
+  provider is ADR-029's "announced, never inferred". Expectation updated, code untouched.
+- **Two CUDA tests asserted one refusal wording out of two valid ones.** With
+  `MARLOWE_CUDA_LIB_DIR` set, CUDA fails at the ONNX session; unset, it fails earlier and names the
+  library search path. Both refusals are correct. Accepting only the first made each test **a
+  property of the environment rather than of the refusal** — green on the machine that set the
+  variable, red on the one that did not. Both causes now accepted; what is asserted is that a CUDA
+  request never returns a quiet CPU run.
+
+**Workspace: 944 passed, 0 failed, 2 ignored.**
+
+### Also this session
+
+- **`.gitignore` was restored from HEAD.** Its working-tree version had deleted `/target/`, `data/`,
+  `models/`, `.embedding-cache/` and the `runs/**/run.jsonl` rule — a `git add -A` would have tried
+  to commit gigabytes. The rejected version is in the scratchpad, not the repo.
+- **M1's accent row** — arithmetic half asserted, by-eye half still open. See `e21cae7`.
+
+### Deferred by the human, explicitly
+
+CI (there is still none), the eval/product divergence write-up, and the four M2 benchmark rows.
+The component table, the two-total memory breakdown and the tier-0 reserve design were cancelled
+mid-flight; amendments `db695f5` and `9604717` are the record of what was decided before they were.
+
+
 ## THE EMBEDDER DEFAULTS TO GPU. ADR-044 IS WRITTEN, THE DEFAULT IS FLIPPED, AND THE RUNNING BINARY SAYS SO.
 
 **2026-08-17, continuing `a619645`.** This closes item 1 of the previous list — *"the default is

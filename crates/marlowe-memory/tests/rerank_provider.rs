@@ -1,0 +1,375 @@
+//! **The rerank stage's execution provider, the tier-1 reserve, and the CUDA readings ADR-015
+//! forbids inheriting — asserted where they are enforced.**
+//!
+//! Every test here drives `CrossEncoder::load_auto`, which is the function the product calls
+//! through `--rerank-provider` *and* the function the daemon calls with `RerankChoice::Auto`.
+//! None of them asserts that a constant has a value.
+//!
+//! # What CANNOT be asserted here, stated so a green run is not over-read
+//!
+//! `ort` 2.0.0-rc.10 exposes no way to enumerate a constructed session's active providers and no
+//! node placement. M0c Session L measured **13.6% of nodes still running on CPU** under a
+//! successfully registered CUDA session. So the strongest available claim is *a CUDA session
+//! constructed and was not permitted to fall back silently*, and these tests make exactly that one.
+
+use std::path::{Path, PathBuf};
+
+use marlowe_memory::cue::dense::vram::{Probe, Reserve};
+use marlowe_memory::rerank::{
+    CrossEncoder, RerankChoice, RerankProvider, MAX_BATCH, MODEL_FILE, SHIPPED_THREADS,
+};
+
+fn model_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("crates/marlowe-memory -> repo root")
+        .join("models")
+        .join("ms-marco-MiniLM-L-2-v2-ft-session-j")
+}
+
+/// Skip only for absence. `models/` is gitignored and a fresh clone legitimately lacks it.
+fn dir_or_skip() -> Option<PathBuf> {
+    let dir = model_dir();
+    if dir.join(MODEL_FILE).exists() {
+        Some(dir)
+    } else {
+        eprintln!("SKIP: run `python tools/fetch_rerankers.py`");
+        None
+    }
+}
+
+/// Whether a CUDA session constructs here, **printed rather than assumed**.
+///
+/// A CUDA test that silently no-ops on a CPU-only machine is green and vacuous; one that says
+/// which branch it took is evidence either way.
+fn cuda_or_report(dir: &Path) -> bool {
+    match CrossEncoder::load_auto(dir, SHIPPED_THREADS, RerankChoice::Cuda, Probe::Device, Reserve::None)
+    {
+        Ok(_) => true,
+        Err(e) => {
+            eprintln!("NO CUDA RERANK ON THIS MACHINE: {e}");
+            false
+        }
+    }
+}
+
+/// A slate that is heterogeneous in length **on purpose**.
+///
+/// Session K's Python batch check used synthetic documents differing only by a trailing integer —
+/// near-identical lengths, so a length-heterogeneity effect inside the batch could not have
+/// appeared. That is the exact gap Session L's slate-based measurement closed, and repeating the
+/// weaker fixture here would repeat the weaker measurement.
+fn slate() -> (&'static str, Vec<&'static str>) {
+    (
+        "which database did the analytics warehouse move to",
+        vec![
+            "I moved the analytics warehouse off Postgres in April after the ingest job timed out.",
+            "short",
+            "The quarterly review covered headcount, the hiring freeze, the revised travel policy, \
+             the new expense tool, and a long tail of small operational items that nobody had time \
+             to discuss properly, including the database migration which was mentioned once in \
+             passing and then dropped entirely from the agenda for the rest of the meeting.",
+            "Postgres was fine for the transactional side.",
+            "We picked ClickHouse for the warehouse.",
+            "unrelated: the coffee machine is broken again",
+            "Migration notes: dual-write for two weeks, then cut over reads, then drop the old \
+             tables once the backfill verifier is clean.",
+            "a",
+            "The analytics team asked about retention windows.",
+            "Nothing to do with databases at all, this is about the office move.",
+        ],
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The tier-1 reserve — ADR-045 §4
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn a_reserve_for_an_uninstalled_model_is_zero_and_says_why() {
+    // The safe branch, and it must be legible rather than merely zero. A machine with no tier 1
+    // has nothing to yield to, and a reserve that silently read zero would be indistinguishable
+    // from one that failed to read at all — which is the whole family this project logs.
+    let r = Reserve::ForTier1("definitely-not-a-model:0b").read();
+    assert_eq!(r.bytes, 0, "an uninstalled model cannot claim device memory");
+    assert!(
+        r.reason.contains("not installed") || r.reason.contains("no `ollama`"),
+        "the branch must be named, got {:?}",
+        r.reason
+    );
+}
+
+#[test]
+fn the_measurement_arm_reserves_nothing_and_admits_it() {
+    // `Reserve::None` is the pre-ADR-045 behaviour, kept so the defect can be reproduced
+    // deliberately. It must never be mistaken for "there was nothing to reserve".
+    let r = Reserve::None.read();
+    assert_eq!(r.bytes, 0);
+    assert!(r.reason.contains("measurement"), "{:?}", r.reason);
+}
+
+#[test]
+fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
+    // **The test that fails when the reserve is reverted to zero.** It needs a real tier-1 model,
+    // so it reports rather than skips silently when there is none — and it is deliberately not
+    // asserted against a fixed byte count, because the reserve is DERIVED from whatever Ollama
+    // has and a literal here would be the hardcoded constant ADR-045 forbids.
+    let installed = std::process::Command::new("ollama").arg("list").output();
+    let Ok(out) = installed else {
+        eprintln!("SKIP: no `ollama` on this machine, so there is no tier 1 to reserve for");
+        return;
+    };
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
+    let Some(first) = text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with("NAME"))
+        .filter_map(|l| l.split_whitespace().next())
+        .next()
+    else {
+        eprintln!("SKIP: `ollama list` is empty; no tier-1 model is installed");
+        return;
+    };
+
+    let r = Reserve::ForTier1(first).read();
+    // Resident models are already out of `memory.free`, so a zero there is CORRECT and is not a
+    // failure of the reserve. Named rather than silently tolerated.
+    if r.reason.contains("already resident") {
+        eprintln!("{first} is resident; free memory is already net of it -- reserve 0 is correct");
+        return;
+    }
+    assert!(
+        r.bytes > 1024 * 1024 * 1024,
+        "a language model claims gigabytes; {first} reserved {} bytes ({})",
+        r.bytes,
+        r.reason
+    );
+    assert!(r.reason.contains("tier 1"), "{:?}", r.reason);
+}
+
+#[test]
+fn the_reserve_can_push_the_rerank_off_a_card_that_looks_free() {
+    // **This is the defect ADR-045 §4 exists to fix, driven rather than described.** The card
+    // reports plenty free; tier 1's claim is what makes it not free. Under the pre-ADR-045 code
+    // the same reading opened a CUDA session, because it read `memory.free` and stopped there.
+    let Some(dir) = dir_or_skip() else { return };
+
+    // 8 GB free by the driver's reckoning — comfortably above any rerank floor.
+    let plenty = Probe::Fixed(8 * 1024 * 1024 * 1024);
+    // ...and a tier-1 model that wants essentially all of it. `Fixed` is not available for the
+    // reserve by design (it is derived, not configured), so this uses the real reader against a
+    // model that is either installed or not; the assertion is on the RELATIONSHIP between the two
+    // loads rather than on an absolute outcome.
+    let with_reserve =
+        CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Auto, plenty, Reserve::ForTier1("marlowe-dusk:27b"))
+            .expect("auto never fails a run over memory");
+    let without =
+        CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Auto, plenty, Reserve::None)
+            .expect("auto never fails a run over memory");
+
+    // The reserve must appear in the reason whichever way it went. A reserve that is applied and
+    // not reported is a reserve nobody can check.
+    assert!(
+        with_reserve.plan().reason.contains("tier 1")
+            || with_reserve.plan().reason.contains("not installed")
+            || with_reserve.plan().reason.contains("no `ollama`"),
+        "the reserve branch must be on the plan: {:?}",
+        with_reserve.plan().reason
+    );
+    // The no-reserve arm says "measurement" only when a CUDA session actually constructed. With
+    // MARLOWE_CUDA_LIB_DIR unset it never gets that far and reports why instead -- a different
+    // sentence for a different reason, both honest. Accepting only the first made the assertion a
+    // statement about the machine's environment rather than about the reserve.
+    assert!(
+        without.plan().reason.contains("measurement")
+            || without.plan().reason.contains("CUDA session did not construct"),
+        "the no-reserve arm must say so, or say why it could not: {:?}",
+        without.plan().reason
+    );
+
+    // And where the model IS installed and NOT resident, an 18 GB reserve against 8 GB free must
+    // land the reranker on CPU. That is the property; it is asserted only when the precondition
+    // holds, and the precondition is printed either way.
+    let r = Reserve::ForTier1("marlowe-dusk:27b").read();
+    if r.bytes > 8 * 1024 * 1024 * 1024 {
+        assert_eq!(
+            with_reserve.provider(),
+            RerankProvider::Cpu,
+            "8 GB free minus an {} MB tier-1 reserve is not room for a GPU session: {:?}",
+            r.bytes / (1024 * 1024),
+            with_reserve.plan().reason
+        );
+    } else {
+        eprintln!(
+            "precondition absent: reserve read {} MB, which does not exceed the 8 GB probe ({})",
+            r.bytes / (1024 * 1024),
+            r.reason
+        );
+    }
+}
+
+#[test]
+fn a_full_card_falls_back_to_cpu_instead_of_failing_the_run() {
+    // `auto` NEVER fails a run over a busy card. Failing would be a correctness outcome imposed
+    // for a throughput reason — the trade ADR-044 refused and ADR-045 refuses again.
+    let Some(dir) = dir_or_skip() else { return };
+    let e = CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Auto, Probe::Fixed(0), Reserve::None)
+        .expect("a full card is a fallback, not an error");
+    assert_eq!(e.provider(), RerankProvider::Cpu);
+    assert!(
+        e.plan().reason.contains("floor"),
+        "the MEMORY branch must be the one reported, not the construction branch: {:?}",
+        e.plan().reason
+    );
+}
+
+#[test]
+fn an_explicit_cpu_request_never_touches_the_card() {
+    // The arm every number published before 2026-08-17 was taken on. It must not consult the
+    // device at all: a `cpu` run whose behaviour depended on free VRAM would not be reproducible.
+    let Some(dir) = dir_or_skip() else { return };
+    let e = CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Cpu, Probe::Fixed(0), Reserve::None)
+        .expect("cpu loads on a full card");
+    assert_eq!(e.provider(), RerankProvider::Cpu);
+    assert_eq!(e.plan().requested, RerankChoice::Cpu);
+    assert!(e.plan().reason.contains("explicitly"), "{:?}", e.plan().reason);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The CUDA readings. ADR-015: per graph AND per configuration, never inherited.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn scoring_is_deterministic_on_cuda_within_one_process() {
+    let Some(dir) = dir_or_skip() else { return };
+    if !cuda_or_report(&dir) {
+        return;
+    }
+    let mut e =
+        CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Cuda, Probe::Device, Reserve::None)
+            .expect("cuda loads");
+    let (q, docs) = slate();
+    let a = e.score_batch(q, &docs).expect("scores");
+    let b = e.score_batch(q, &docs).expect("scores");
+    for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
+        assert_eq!(x.to_bits(), y.to_bits(), "pair {i}: bit-identical, not merely close");
+    }
+}
+
+/// **THE MEASUREMENT ADR-045 CANNOT INHERIT.**
+///
+/// `runs/session-l/batch-invariance-batch10.json` swept batch sizes 1..10 at max |delta|
+/// `0.000000000` — **on CPU**. A different execution provider is a different scorer (ADR-015), and
+/// a GPU had never been measured here at all. cuBLAS selects a GEMM kernel by problem shape, so a
+/// batch of 1 and a batch of 10 can take different tilings and therefore different reduction
+/// orders; there was no reason to expect bit-identity and it was predicted not to hold.
+///
+/// **The property that decides the flip is ORDER, not bytes.** A numerical delta that never
+/// reorders a slate is the same amendment ADR-029 made on this exact graph. An order change is
+/// disqualifying, and the assertion is written that way round: it fails on a REORDER, and it
+/// PRINTS the delta rather than asserting a threshold nobody derived.
+#[test]
+fn batch_invariance_on_cuda_is_measured_here_and_never_inherited_from_cpu() {
+    let Some(dir) = dir_or_skip() else { return };
+    if !cuda_or_report(&dir) {
+        return;
+    }
+    let mut e =
+        CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Cuda, Probe::Device, Reserve::None)
+            .expect("cuda loads");
+    let (q, docs) = slate();
+    assert_eq!(docs.len(), MAX_BATCH, "the sweep must reach MAX_BATCH to cover the shipped shape");
+
+    // Reference: every pair scored ALONE, which is batch 1.
+    let alone: Vec<f32> = docs
+        .iter()
+        .map(|d| e.score(q, d).expect("scores"))
+        .collect();
+    let order_of = |v: &[f32]| {
+        let mut idx: Vec<usize> = (0..v.len()).collect();
+        idx.sort_by(|&a, &b| v[b].partial_cmp(&v[a]).expect("no NaN logits").then(a.cmp(&b)));
+        idx
+    };
+    let reference_order = order_of(&alone);
+
+    let mut worst = 0f32;
+    let mut worst_at = 0usize;
+    for n in 1..=MAX_BATCH {
+        let batched = e.score_batch(q, &docs[..n]).expect("scores");
+        for (i, (b, a)) in batched.iter().zip(alone.iter()).enumerate() {
+            let d = (b - a).abs();
+            if d > worst {
+                worst = d;
+                worst_at = n;
+            }
+            let _ = i;
+        }
+        // Within this prefix, the order the ranker would see must match the order the same
+        // prefix produces one-at-a-time. This is the property; the delta above is diagnostics.
+        assert_eq!(
+            order_of(&batched),
+            order_of(&alone[..n]),
+            "batch {n} reordered the slate against one-at-a-time scoring on CUDA -- ADR-045's \
+             registered decision rule says DO NOT DEFAULT TO CUDA if this fires"
+        );
+    }
+    eprintln!(
+        "CUDA batch invariance, sizes 1..{MAX_BATCH}, shipped graph: max |batched - single| = \
+         {worst:.9} (worst at batch {worst_at}), zero order changes"
+    );
+}
+
+/// **The control for the test above.** A sweep that could not detect a reorder proves nothing.
+#[test]
+fn the_batch_invariance_check_can_actually_see_a_reordering() {
+    let Some(dir) = dir_or_skip() else { return };
+    if !dir.join(MODEL_FILE).exists() {
+        return;
+    }
+    let mut e = CrossEncoder::load(&dir).expect("cpu loads");
+    let (q, docs) = slate();
+    let scores = e.score_batch(q, &docs).expect("scores");
+    let order = |v: &[f32]| {
+        let mut idx: Vec<usize> = (0..v.len()).collect();
+        idx.sort_by(|&a, &b| v[b].partial_cmp(&v[a]).expect("no NaN").then(a.cmp(&b)));
+        idx
+    };
+    let a = order(&scores);
+    // Perturb one logit by more than the observed cross-provider spread and require the comparator
+    // to notice. Without this, `assert_eq!(order, order)` in the test above would be green on a
+    // comparator that returned a constant.
+    let mut moved = scores.clone();
+    let top = a[0];
+    moved[top] = f32::MIN;
+    assert_ne!(order(&moved), a, "the order comparator cannot see a reordering; it is not a check");
+    assert!(
+        scores.iter().any(|s| (s - scores[0]).abs() > 1e-3),
+        "the slate must have a real score spread or a reorder check has nothing to detect"
+    );
+}
+
+/// A CUDA session holds **device** memory. The cheapest possible check that it is on the card.
+#[test]
+fn a_loaded_cuda_rerank_session_holds_device_memory() {
+    let Some(dir) = dir_or_skip() else { return };
+    if !cuda_or_report(&dir) {
+        return;
+    }
+    let Some(before) = Probe::Device.free_bytes() else {
+        eprintln!("SKIP: no readable device");
+        return;
+    };
+    let mut e =
+        CrossEncoder::load_auto(&dir, SHIPPED_THREADS, RerankChoice::Cuda, Probe::Device, Reserve::None)
+            .expect("cuda loads");
+    let (q, docs) = slate();
+    let _ = e.score_batch(q, &docs);
+    let after = Probe::Device.free_bytes().expect("still readable");
+    let held = before.saturating_sub(after);
+    eprintln!("rerank CUDA session held {} MB device (warmed at MAX_BATCH)", held / (1024 * 1024));
+    assert!(
+        held > 0,
+        "a warmed CUDA session that holds no device memory did not run on the device"
+    );
+}

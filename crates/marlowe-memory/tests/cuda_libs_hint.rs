@@ -59,7 +59,7 @@ fn a_cuda_load_failure_with_nothing_configured_names_the_variable_that_would_fix
         return;
     }
 
-    match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device) {
+    match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
         Ok(_) => {
             // Not a failure of the product -- CUDA working is the good outcome. It is a failure of
             // THIS measurement, and it says so instead of reporting a pass on an untested branch.

@@ -49,7 +49,7 @@ fn cuda_or_report(dir: &Path) -> bool {
         // The error, not just the boolean -- on this project's own machine it reads
         // `cublasLt64_12.dll` missing, which is the Session G failure verbatim and is a fact about
         // the box rather than about the code.
-        match Embedder::load_with_provider(dir, 1, None, ProviderChoice::Cuda, Probe::Device) {
+        match Embedder::load_with_provider(dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
             Ok(_) => eprintln!("cuda_available said false but a CUDA load succeeded -- probe bug"),
             Err(e) => eprintln!("NO CUDA ON THIS MACHINE: {e}"),
         }
@@ -66,7 +66,7 @@ fn a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run() {
     // started something else.
     let Some(dir) = dir_or_skip() else { return };
 
-    let e = Embedder::load_with_provider(&dir, 4, None, ProviderChoice::Auto, Probe::Fixed(0))
+    let e = Embedder::load_with_provider(&dir, 4, None, ProviderChoice::Auto, Probe::Fixed(0), marlowe_memory::cue::dense::vram::Reserve::None)
         .expect("an exhausted device must fall back, never fail the load");
 
     assert_eq!(e.provider(), EmbedProvider::Cpu);
@@ -98,7 +98,7 @@ fn the_budget_is_checked_before_a_session_is_attempted_not_after() {
     let Some(dir) = dir_or_skip() else { return };
 
     let plenty = Probe::Fixed(64 * 1024 * 1024 * 1024);
-    let e = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Auto, plenty)
+    let e = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Auto, plenty, marlowe_memory::cue::dense::vram::Reserve::None)
         .expect("a large budget must still load, on one provider or the other");
 
     let reason = e.plan().reason.clone();
@@ -125,7 +125,7 @@ fn an_absent_device_is_cpu_and_says_so_rather_than_guessing() {
     // Fixed(0) is the "full card" case; this test's subject is the reason text for the OTHER case,
     // which only `Probe::Device` can produce and only on a machine with no driver. Assert the pair
     // is distinguishable in the plan rather than faking a probe the enum cannot express.
-    let full = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Auto, Probe::Fixed(0))
+    let full = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Auto, Probe::Fixed(0), marlowe_memory::cue::dense::vram::Reserve::None)
         .expect("loads");
     assert_eq!(full.plan().free_at_load, Some(0), "a full card reports a reading of zero");
     assert!(
@@ -142,7 +142,7 @@ fn asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run() {
     // request either produces a CUDA embedder or an error -- never a CPU embedder.
     let Some(dir) = dir_or_skip() else { return };
 
-    match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device) {
+    match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
         Ok(e) => assert_eq!(
             e.provider(),
             EmbedProvider::Cuda,
@@ -150,7 +150,17 @@ fn asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run() {
         ),
         Err(e) => {
             let text = e.to_string();
-            assert!(text.contains("ONNX session"), "the refusal must name the load: {text}");
+            // **Two refusals, both correct, and the wording differs by cause.** With
+            // MARLOWE_CUDA_LIB_DIR set, CUDA fails at the ONNX session. Unset, it fails earlier and
+            // names the library search path instead. Asserting only the first made this test a
+            // property of the environment rather than of the refusal, which is the failure family
+            // this project logs: it passed on the machine that set the variable and failed on the
+            // one that did not. What matters is that a request for CUDA never returns a quiet CPU
+            // run -- so assert the refusal is NAMED, whichever cause produced it.
+            assert!(
+                text.contains("ONNX session") || text.contains("CUDA runtime libraries"),
+                "the refusal must name its cause: {text}"
+            );
             eprintln!("CUDA refused on this machine (this is the property under test): {text}");
         }
     }
@@ -177,7 +187,7 @@ fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
         eprintln!("SKIP: no readable device, so there is no byte to observe");
         return;
     };
-    let mut e = match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device)
+    let mut e = match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None)
     {
         Ok(e) => e,
         Err(err) => {
@@ -209,7 +219,7 @@ fn every_session_in_one_embedder_uses_the_same_provider() {
     let Some(dir) = dir_or_skip() else { return };
 
     for probe in [Probe::Fixed(0), Probe::Fixed(64 * 1024 * 1024 * 1024)] {
-        let e = Embedder::load_with_provider(&dir, 3, None, ProviderChoice::Auto, probe)
+        let e = Embedder::load_with_provider(&dir, 3, None, ProviderChoice::Auto, probe, marlowe_memory::cue::dense::vram::Reserve::None)
             .expect("loads");
         assert!(e.workers() >= 1);
         assert_eq!(
@@ -247,7 +257,7 @@ fn cuda_determinism_and_worker_invariance_are_measured_not_inherited() {
     }
 
     let texts = texts();
-    let mut one = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device)
+    let mut one = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None)
         .expect("CUDA constructs, checked above");
     let first = one.embed_batch(&texts).expect("embeds");
     let second = one.embed_batch(&texts).expect("embeds");
@@ -255,7 +265,7 @@ fn cuda_determinism_and_worker_invariance_are_measured_not_inherited() {
 
     for workers in [2usize, 8] {
         let mut many =
-            match Embedder::load_with_provider(&dir, workers, None, ProviderChoice::Cuda, Probe::Device) {
+            match Embedder::load_with_provider(&dir, workers, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None) {
                 Ok(e) => e,
                 Err(e) => {
                     // Not a silent skip: fewer sessions than asked for is a device-memory fact and
@@ -289,7 +299,7 @@ fn cuda_padding_invariance_is_measured_on_the_shipped_graph() {
     }
 
     let texts = texts();
-    let mut e = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device)
+    let mut e = Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None)
         .expect("CUDA constructs, checked above");
     let alone = e.embed(&texts[0]).expect("embeds");
     let in_batch = e.embed_batch(&texts).expect("embeds");

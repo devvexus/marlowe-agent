@@ -182,6 +182,13 @@ def feature_movement(base: Path, treat: Path) -> dict:
     moved_cos = moved_score = 0
     max_cos_delta = 0.0
     max_score_delta = 0.0
+    # `rerank_score` is `null` on every candidate that did not survive pruning -- ~115k of ~118k
+    # rows on the fit split. A movement fraction over ALL rows would read ~2% for a perfectly
+    # valid reranker comparison, so the denominator here is the rows the cross-encoder actually
+    # scored. Counted separately rather than folded in.
+    rerank_pairs = 0
+    moved_rerank = 0
+    max_rerank_delta = 0.0
     for key in shared:
         b, t = base_rows[key], treat_rows[key]
         dc = abs(b["dense_cosine"] - t["dense_cosine"])
@@ -192,6 +199,13 @@ def feature_movement(base: Path, treat: Path) -> dict:
             moved_score += 1
         max_cos_delta = max(max_cos_delta, dc)
         max_score_delta = max(max_score_delta, ds)
+        br, tr = b.get("rerank_score"), t.get("rerank_score")
+        if br is not None and tr is not None:
+            rerank_pairs += 1
+            dr = abs(br - tr)
+            if dr != 0.0:
+                moved_rerank += 1
+            max_rerank_delta = max(max_rerank_delta, dr)
 
     return {
         "rows_baseline": len(base_rows),
@@ -204,7 +218,58 @@ def feature_movement(base: Path, treat: Path) -> dict:
         "fraction_dense_cosine_moved": (moved_cos / len(shared)) if shared else 0.0,
         "max_abs_dense_cosine_delta": max_cos_delta,
         "max_abs_score_delta": max_score_delta,
+        "rows_with_a_rerank_score_in_both": rerank_pairs,
+        "rows_with_changed_rerank_score": moved_rerank,
+        "fraction_rerank_score_moved": (moved_rerank / rerank_pairs) if rerank_pairs else 0.0,
+        "max_abs_rerank_score_delta": max_rerank_delta,
     }
+
+
+# Which movement column decides whether the comparison had anything to discriminate.
+#
+# **Required, never defaulted, and that is the whole point.** `dense_cosine` is the embedder's
+# output and `rerank_score` is the cross-encoder's. A reranker A/B judged by the embedder's control
+# reads VACUOUS while being perfectly valid; an embedder A/B judged by the reranker's control could
+# read "moved" on a run that never touched the embedder. Same rule as `--reranking` and
+# `--embedder-provider`: an instrument pointed at the wrong component is not a control, and a
+# default is how it gets pointed there.
+CONTROL_FIELDS = {
+    "dense_cosine": (
+        "rows_with_changed_dense_cosine",
+        "rows_shared",
+        "fraction_dense_cosine_moved",
+    ),
+    "rerank_score": (
+        "rows_with_changed_rerank_score",
+        "rows_with_a_rerank_score_in_both",
+        "fraction_rerank_score_moved",
+    ),
+}
+
+
+def control_reading(control: dict, field: str) -> str:
+    """**The control, read against the field the treatment was supposed to move.**
+
+    A comparison of two runs that were secretly the same run reports perfect agreement, which is
+    also what a genuine null looks like -- indistinguishable from the headline alone. So the
+    verdict means nothing until this line says the inputs moved.
+    """
+    moved_key, total_key, frac_key = CONTROL_FIELDS[field]
+    moved, total, frac = control[moved_key], control[total_key], control[frac_key]
+    if total == 0:
+        return (
+            f"VACUOUS -- no row carried a {field} in BOTH dumps, so the control could not be "
+            "computed at all. That is a missing measurement, not a null result."
+        )
+    if moved == 0:
+        return (
+            f"VACUOUS -- 0 of {total} rows changed {field}, so the inputs did not move and "
+            "'no decision moved' is not a result"
+        )
+    return (
+        f"{moved} of {total} rows changed {field} ({frac:.2%}), so the comparison had something "
+        "to discriminate"
+    )
 
 
 def main() -> int:
@@ -214,6 +279,13 @@ def main() -> int:
     ap.add_argument("--label-baseline", default="baseline")
     ap.add_argument("--label-treatment", default="treatment")
     ap.add_argument("--out", default=None, help="write the full result as JSON here")
+    ap.add_argument(
+        "--control-field", required=True, choices=sorted(CONTROL_FIELDS),
+        help="WHICH FIELD THE TREATMENT IS EXPECTED TO MOVE. Required, no default: this is the "
+             "instrument that says the comparison was not vacuous, and an instrument pointed at a "
+             "component the treatment did not touch is not a control. `dense_cosine` for an "
+             "embedder change (ADR-044); `rerank_score` for a cross-encoder change (ADR-045).",
+    )
     args = ap.parse_args()
 
     base_dir, treat_dir = Path(args.baseline), Path(args.treatment)
@@ -287,13 +359,8 @@ def main() -> int:
         "moved": moved,
         "slate_top10": slates,
         "CONTROL": control,
-        "control_reading": (
-            "VACUOUS -- the inputs did not move, so 'no decision moved' is not a result"
-            if control["rows_with_changed_dense_cosine"] == 0
-            else f"{control['rows_with_changed_dense_cosine']} of {control['rows_shared']} shared "
-                 f"rows changed dense_cosine and {control['rows_with_changed_score']} changed "
-                 "score, so the comparison had something to discriminate"
-        ),
+        "control_field": args.control_field,
+        "control_reading": control_reading(control, args.control_field),
     }
 
     print(json.dumps({k: v for k, v in result.items() if k != "moved"}, indent=2))

@@ -25,7 +25,8 @@ use marlowe_journal::Journal;
 use marlowe_loop::driver::{ClaimRequest, MemoryHost};
 use marlowe_loop::run::{RunId, SessionId};
 use marlowe_memory::cue::dense::vectors::VectorStore;
-use marlowe_memory::rerank::CrossEncoder;
+use marlowe_memory::cue::dense::vram::{Probe, Reserve};
+use marlowe_memory::rerank::{CrossEncoder, RerankChoice, SHIPPED_THREADS};
 use marlowe_memory::retrieve::{
     debug_assert_injection_valid, select_for_injection, Rerank, Scoring, RERANK_BUDGET,
 };
@@ -117,6 +118,7 @@ impl DaemonMemory {
         journal: Arc<Mutex<Journal>>,
         derivation_version: u32,
         reranking: Option<&std::path::Path>,
+        tier1_model: &str,
     ) -> Result<Self, marlowe_memory::MemoryError> {
         let beliefs = {
             let j = journal.lock().expect("the journal lock was poisoned");
@@ -146,7 +148,21 @@ impl DaemonMemory {
                         .to_string(),
                 },
             ),
-            Some(dir) => match CrossEncoder::load(dir) {
+            // **`load_auto`, not `load` -- ADR-045, and this call site is the reason the ADR is
+            // not merely a CLI change.** Until now the daemon -- the SHIPPED interactive product --
+            // called `CrossEncoder::load`, which is CPU by construction, so `--rerank-provider`
+            // reached the eval adapter and nothing else. Flipping only the CLI default would have
+            // been a control declared where nothing reads it: every `auto` line this project
+            // published would have described a path the user never takes. The daemon now resolves
+            // the same way the adapter does, yields the same reserve to tier 1, and reports what
+            // it got.
+            Some(dir) => match CrossEncoder::load_auto(
+                dir,
+                SHIPPED_THREADS,
+                RerankChoice::Auto,
+                Probe::Device,
+                Reserve::ForTier1(tier1_model),
+            ) {
                 Ok(e) => (
                     Some(e),
                     RetrievalState::Live { model_dir: dir.display().to_string() },
@@ -176,6 +192,33 @@ impl DaemonMemory {
         &self.state
     }
 
+    /// The rerank provider this daemon RESOLVED to, formatted for `--status`.
+    ///
+    /// **ADR-029 §"the provider is ANNOUNCED", discharged for the first time in the daemon.**
+    /// `DaemonConfig::rerank_provider` has read the literal `"not-wired"` since it was written,
+    /// with a comment saying that inventing a value would be the second source ADR-029 forbids.
+    /// That comment was right and the field is now readable, because there is finally a resolution
+    /// to read: this is the ONE place it is derived, and `daemon.rs` copies it rather than
+    /// computing its own.
+    ///
+    /// The batching is on the string because it is derived from the provider and the two measured
+    /// opposite — a status line naming a provider without its shape describes two configurations
+    /// whose latencies differ by 50x.
+    pub fn rerank_provider_label(&self) -> String {
+        match self.cross_encoder.as_ref() {
+            None => "not-loaded".to_string(),
+            Some(e) => {
+                let p = e.provider();
+                format!(
+                    "{} · {} · asked {}",
+                    p.name(),
+                    if p.default_batching() { "batched" } else { "sequential" },
+                    e.plan().requested.asked()
+                )
+            }
+        }
+    }
+
     /// A handle on the same store, for the `recall` tool host.
     pub fn beliefs(&self) -> Arc<Mutex<BeliefStore>> {
         Arc::clone(&self.beliefs)
@@ -194,12 +237,16 @@ impl DaemonMemory {
         max_tokens: u32,
     ) -> Retrieved {
         let mut rerank = match self.cross_encoder.as_mut() {
-            Some(encoder) => Rerank::CrossEncoder {
-                encoder,
-                budget: RERANK_BUDGET,
-                // The shipped value, measured. See `retrieve::Rerank`.
-                batched: false,
-            },
+            Some(encoder) => {
+                // **Derived from the RESOLVED provider, never a constant -- ADR-029, ADR-045.**
+                // This read `batched: false` unconditionally, which was correct while the daemon
+                // was CPU-only by construction and is wrong the moment it can resolve to CUDA: the
+                // two providers measured OPPOSITE (CPU sequential 185.8 ms vs batched 195.6; CUDA
+                // batched 3.4 vs sequential 15.2), so a hardcoded `false` would run the GPU in its
+                // slower shape and nothing would say so.
+                let batched = encoder.provider().default_batching();
+                Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET, batched }
+            }
             None => Rerank::Off,
         };
         // The lock is held across the selection because `Selection` borrows entries out of the

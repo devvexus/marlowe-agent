@@ -255,6 +255,70 @@ impl RerankProvider {
     }
 }
 
+/// What the caller **asked for**, as distinct from what was **obtained**.
+///
+/// Two types on purpose, exactly as `cue::dense::embedder::ProviderChoice` is separate from
+/// [`RerankProvider`]. `Auto` may resolve either way depending on what the card has free at that
+/// instant, and the hazard this whole file guards is a run that asked for one thing, got another,
+/// and reported the request. See ADR-045.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RerankChoice {
+    /// GPU if a CUDA session constructs and there is device memory for it plus a spare; CPU
+    /// otherwise. **Never fails a run over a busy card** — a shared card that filled up is a
+    /// throughput problem, not a correctness one.
+    Auto,
+    /// CPU, whatever the machine has. Every rerank number this project published before
+    /// 2026-08-17 was taken here.
+    Cpu,
+    /// CUDA, and **a hard error if it cannot be had**. For measurement only: a CUDA cell that
+    /// silently ran on CPU is Session G verbatim, and ADR-029's CUDA column would be a lie.
+    Cuda,
+}
+
+impl RerankChoice {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "cpu" => Some(RerankChoice::Cpu),
+            "cuda" => Some(RerankChoice::Cuda),
+            "auto" => Some(RerankChoice::Auto),
+            _ => None,
+        }
+    }
+
+    /// The word the caller typed, for the announcement. Never parsed.
+    pub fn asked(self) -> &'static str {
+        match self {
+            RerankChoice::Auto => "auto",
+            RerankChoice::Cpu => "cpu",
+            RerankChoice::Cuda => "cuda",
+        }
+    }
+}
+
+/// Which provider this cross-encoder ended up on, and why.
+///
+/// Returned rather than logged so a caller can assert on it — the embedder's `ProviderPlan` is
+/// read by its bench and its tests for the same reason, and a plan nobody reads is the "declared
+/// control with no reader" family.
+///
+/// **There is no worker-count field and that is a real difference from the embedder.** The
+/// embedder opens one session per worker and its width is derived from free VRAM; the rerank stage
+/// holds exactly ONE `CrossEncoder`, scores one slate at a time, and has no width to narrow. So
+/// `auto` here is a two-valued decision, not a budget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RerankProviderPlan {
+    pub provider: RerankProvider,
+    /// What was asked for. On the line beside the resolution, because before ADR-045 an explicit
+    /// `cpu` run and a silent fallback to CPU printed the same words.
+    pub requested: RerankChoice,
+    /// Free device bytes at the read, or `None` when there is no readable device.
+    pub free_at_load: Option<u64>,
+    /// Measured bytes one warmed CUDA session cost, when that could be measured.
+    pub session_cost: Option<u64>,
+    /// One line, in English, saying which branch was taken. Reported, never parsed.
+    pub reason: String,
+}
+
 /// The execution provider this stage is measured and adopted on.
 ///
 /// CPU, deliberately. ADR-013 records that GPU is not adopted for the retrieval path: determinism
@@ -362,6 +426,7 @@ fn pinned(path: &Path, expected: &'static str, dir: &Path) -> Result<(), RerankE
 pub struct CrossEncoder {
     session: Session,
     vocab: Vocab,
+    plan: RerankProviderPlan,
 }
 
 impl CrossEncoder {
@@ -369,10 +434,17 @@ impl CrossEncoder {
     ///
     /// Both digests are checked before the graph is constructed, and the execution provider is
     /// required to register rather than being allowed to fall back. See the builder below.
-    /// Load with the shipped, measured thread count of 1.
+    /// Load with the shipped, measured thread count of 1, **on CPU, fixed.**
     ///
     /// Every published number in this project was taken at one intra-op thread, per ADR-003's
-    /// 1-vCPU target. This is the only constructor a shipping path should call.
+    /// 1-vCPU target.
+    ///
+    /// **This constructor stays CPU after ADR-045 flipped the CLI default to `auto`, and the
+    /// fixing is deliberate.** It is what `cross_encoder_reference.rs` loads, and that file's job
+    /// is to check this build against HuggingFace's output — a reference row labelled `cpu` that
+    /// resolved to CUDA on whichever machine ran it would be measuring a different scorer under
+    /// the reference's label. `cross_encoder_reference.rs` asserts `provider() == Cpu` so the
+    /// label cannot drift silently. The product path is [`CrossEncoder::load_auto`].
     pub fn load(dir: &Path) -> Result<Self, RerankError> {
         Self::load_with(dir, SHIPPED_THREADS, RerankProvider::Cpu)
     }
@@ -416,7 +488,18 @@ impl CrossEncoder {
                     FUSION_GRAPHS.iter().map(|(n, _)| *n).collect::<Vec<_>>()
                 ),
             })?;
-        Self::load_pinned(&models_root.join(name), expected, SHIPPED_THREADS, provider)
+        let requested = match provider {
+            RerankProvider::Cpu => RerankChoice::Cpu,
+            RerankProvider::Cuda => RerankChoice::Cuda,
+        };
+        Self::load_pinned(
+            &models_root.join(name),
+            expected,
+            SHIPPED_THREADS,
+            provider,
+            requested,
+            None,
+        )
     }
 
     /// Can a CUDA session actually be **constructed** on this machine?
@@ -444,7 +527,165 @@ impl CrossEncoder {
         threads: usize,
         provider: RerankProvider,
     ) -> Result<Self, RerankError> {
-        Self::load_pinned(dir, MODEL_SHA256, threads, provider)
+        let requested = match provider {
+            RerankProvider::Cpu => RerankChoice::Cpu,
+            RerankProvider::Cuda => RerankChoice::Cuda,
+        };
+        Self::load_pinned(dir, MODEL_SHA256, threads, provider, requested, None)
+    }
+
+    /// Load under a **choice**, resolving [`RerankChoice::Auto`] against the card. **ADR-045.**
+    ///
+    /// This is the constructor the product calls. The two explicit arms delegate to
+    /// [`CrossEncoder::load_with`] unchanged; `Auto` is the new behaviour and it is deliberately
+    /// simple, because the rerank stage has no width to narrow:
+    ///
+    /// 1. **No readable device** → CPU, saying so.
+    /// 2. **Free device memory under the one-spare-session floor** → CPU, quoting both numbers.
+    ///    The floor is [`Self::session_cost_floor`], read from this build rather than chosen.
+    /// 3. **A CUDA session fails to construct** → CPU, **with the driver's own message attached**.
+    ///    This is the Session G branch: CUDA reported available, failed to create on a missing
+    ///    `cublasLt64_12.dll`, and ORT would have registered CPU and scored happily. Here it is a
+    ///    *visible* fallback.
+    /// 4. Otherwise CUDA, with the warmed session's measured device cost recorded on the plan.
+    ///
+    /// **It never returns an error for want of a GPU.** A full card is a throughput outcome; a
+    /// failed run would be a correctness outcome imposed for a throughput reason, which is the
+    /// trade ADR-044 refused and this ADR refuses again. `RerankChoice::Cuda` is the arm that
+    /// errors, and it exists for measurement.
+    pub fn load_auto(
+        dir: &Path,
+        threads: usize,
+        choice: RerankChoice,
+        probe: crate::cue::dense::vram::Probe,
+        reserve: crate::cue::dense::vram::Reserve<'_>,
+    ) -> Result<Self, RerankError> {
+        match choice {
+            RerankChoice::Cpu => {
+                Self::load_pinned(dir, MODEL_SHA256, threads, RerankProvider::Cpu, choice, None)
+            }
+            RerankChoice::Cuda => {
+                // No probe gate and no fallback: the caller said CUDA, so a failure to construct
+                // must surface as an error rather than as a quietly slower run.
+                Self::load_pinned(
+                    dir,
+                    MODEL_SHA256,
+                    threads,
+                    RerankProvider::Cuda,
+                    choice,
+                    probe.free_bytes(),
+                )
+            }
+            RerankChoice::Auto => Self::auto(dir, threads, probe, reserve),
+        }
+    }
+
+    /// The floor on what one warmed CUDA cross-encoder session costs, in bytes.
+    ///
+    /// Both terms are read from this build rather than chosen, exactly as the embedder's is:
+    ///
+    /// - the **graph's own size on disk** — 62.5 MB for the shipped f32 fine-tune;
+    /// - the **attention score matrix**, `[batch, heads, seq, seq]` at f32, which is the only term
+    ///   that is quadratic in [`MAX_SEQ_LEN`]: `MAX_BATCH * HEADS * MAX_SEQ_LEN² * 4` bytes.
+    ///   At 10 × 12 × 256² × 4 that is **31.5 MB** — three orders of magnitude below the 4.29 GB
+    ///   the embedder's ALiBi term reached at `MAX_SEQ_LEN` 8192, because this stage's cap is 256
+    ///   and quadratic growth cuts both ways.
+    ///
+    /// It is a **floor**, not an estimate: the measured delta replaces it when the measurement is
+    /// larger. It exists so a device reading that does not move — a `Fixed` probe, or a concurrent
+    /// free by another process — cannot be read as "a session costs nothing".
+    ///
+    /// **`HEADS` is 12 and is not read from the graph**, which is a stated limitation rather than
+    /// an oversight: `ort` exposes no way to enumerate a graph's attention configuration, and a
+    /// floor that under-counts is still a floor. If the graph is re-pinned to a wider model this
+    /// term is wrong in the safe direction and the *measured* cost governs.
+    pub fn session_cost_floor(model_bytes: u64) -> u64 {
+        const HEADS: u64 = 12;
+        let attention = MAX_BATCH as u64 * HEADS * MAX_SEQ_LEN as u64 * MAX_SEQ_LEN as u64 * 4;
+        model_bytes + attention
+    }
+
+    fn auto(
+        dir: &Path,
+        threads: usize,
+        probe: crate::cue::dense::vram::Probe,
+        reserve: crate::cue::dense::vram::Reserve<'_>,
+    ) -> Result<Self, RerankError> {
+        let model_bytes = std::fs::metadata(dir.join(MODEL_FILE)).map(|m| m.len()).unwrap_or(0);
+        let floor = Self::session_cost_floor(model_bytes);
+        let cpu = |reason: String, free: Option<u64>| {
+            Self::load_pinned(dir, MODEL_SHA256, threads, RerankProvider::Cpu, RerankChoice::Auto, free)
+                .map(|mut e| {
+                    e.plan.reason = reason;
+                    e
+                })
+        };
+
+        let Some(free) = probe.free_bytes() else {
+            return cpu("no readable NVIDIA device (nvidia-smi absent or silent)".to_string(), None);
+        };
+        // **TIER 3 YIELDS TO TIER 1 -- ADR-045 SS4.** `free` is what the driver reports; `usable` is
+        // what is genuinely spare once the language model's claim is honoured. Reading `free`
+        // directly is the defect this replaces: on an idle card it is the WHOLE card, and taking
+        // it means squatting on memory the LLM claims the moment it loads -- which Ollama answers
+        // by evicting its own model, in a log that cannot see us.
+        let reserved = reserve.read();
+        let usable = free.saturating_sub(reserved.bytes);
+        // The same one-spare-session rule the embedder applies to its first session. The card is
+        // shared -- `llama-server` holds ~11.5 GB of 16.4 here -- so opening a session that leaves
+        // no room for a second is how a shared card gets filled by the component that was supposed
+        // to be the cheap one.
+        if usable < floor.saturating_mul(2) {
+            return cpu(
+                format!(
+                    "{} MB usable ({} MB free, {}) is under the {} MB one-spare-session floor for \
+                     this graph",
+                    usable / (1024 * 1024),
+                    free / (1024 * 1024),
+                    reserved.reason,
+                    floor.saturating_mul(2) / (1024 * 1024)
+                ),
+                Some(free),
+            );
+        }
+
+        let mut encoder = match Self::load_pinned(
+            dir,
+            MODEL_SHA256,
+            threads,
+            RerankProvider::Cuda,
+            RerankChoice::Auto,
+            Some(free),
+        ) {
+            Ok(e) => e,
+            Err(e) => return cpu(format!("a CUDA session did not construct: {e}"), Some(free)),
+        };
+        // Warm at MAX_BATCH before measuring. ORT's CUDA arena allocates on first run, so a cost
+        // read at construction reads a fraction of the real one -- the embedder learned this the
+        // expensive way and the lesson is per-provider, not per-graph.
+        let warm: Vec<&str> = vec!["warm"; MAX_BATCH];
+        let _ = encoder.score_batch("warm", &warm);
+        let after = probe.free_bytes().unwrap_or(free);
+        encoder.plan.session_cost = Some(free.saturating_sub(after).max(floor));
+        // The reserve is on the line whichever way the decision went. A GPU run that took the card
+        // is exactly as much a decision about tier 1 as a CPU fallback is, and a reader who cannot
+        // see the reserve cannot tell whether it was applied or forgotten.
+        encoder.plan.reason = format!(
+            "CUDA, one session opened and warmed at MAX_BATCH; {} MB usable of {} MB free -- {}",
+            usable / (1024 * 1024),
+            free / (1024 * 1024),
+            reserved.reason
+        );
+        Ok(encoder)
+    }
+
+    /// Which provider actually served this cross-encoder, and how it was decided.
+    pub fn plan(&self) -> &RerankProviderPlan {
+        &self.plan
+    }
+
+    pub fn provider(&self) -> RerankProvider {
+        self.plan.provider
     }
 
     fn load_pinned(
@@ -452,6 +693,8 @@ impl CrossEncoder {
         model_sha: &'static str,
         threads: usize,
         provider: RerankProvider,
+        requested: RerankChoice,
+        free_at_load: Option<u64>,
     ) -> Result<Self, RerankError> {
         let model_path = dir.join(MODEL_FILE);
         let tokenizer_path = dir.join(TOKENIZER_FILE);
@@ -550,7 +793,25 @@ impl CrossEncoder {
                 RerankError::Session { path: model_path, source: Box::new(e) }
             })?;
 
-        Ok(Self { session, vocab })
+        let reason = match (requested, provider) {
+            (RerankChoice::Cpu, _) => "CPU was asked for explicitly".to_string(),
+            (RerankChoice::Cuda, _) => {
+                "CUDA was asked for explicitly; no VRAM budget was applied".to_string()
+            }
+            // `auto` overwrites this in `auto()`, which is the only caller that can say WHY.
+            (RerankChoice::Auto, p) => format!("auto resolved to {}", p.name()),
+        };
+        Ok(Self {
+            session,
+            vocab,
+            plan: RerankProviderPlan {
+                provider,
+                requested,
+                free_at_load,
+                session_cost: None,
+                reason,
+            },
+        })
     }
 
     /// Score one `(query, document)` pair. Higher is more relevant.
