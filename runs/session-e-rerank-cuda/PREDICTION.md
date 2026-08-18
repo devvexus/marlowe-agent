@@ -212,3 +212,71 @@ means **do not flip**:
 **Predicted verdict is unchanged — FLIP — but the reason is now different**, and the difference
 matters for the next session: not *"90% of a budget is too much"* but *"it is meaningfully faster,
 it is small, and it fits."*
+
+---
+
+# AMENDMENT 2 — a VRAM PRIORITY ORDER, and it makes `auto` as currently built a DEFECT
+
+**Appended 2026-08-17, after `db695f5` and still before the first scoring run.** Appended, not
+edited, for the same reason as before.
+
+## The tier list, verbatim
+
+> **TIER 1 — the language model (Ollama). VRAM only. No usable CPU fallback.**
+> **TIER 2 — the voice model. VRAM only. NOT BUILT YET (M7).**
+> **TIER 3 — everything that is faster on GPU but CAN run on CPU: the embedder, the reranker,
+> anything later.**
+
+Tiers 1 and 2 have **no fallback**, so they have **first claim** on device memory. Tier 3 yields.
+*"Everything GPU if it has space for it"* means space that is **genuinely spare after the tiers
+above are satisfied** — not merely free at the instant a tier-3 component happened to load.
+
+## The suspected defect, registered as a hypothesis with its own control
+
+`auto` — the embedder's, shipped in ADR-044, and the reranker's, being written now — reads free
+VRAM **at load** and takes what is there. On an idle card the embedder took **4,647 MB across 8
+sessions**. If a tier-3 component grabs that while the card is idle and the LLM then needs to load
+or grow, tier 3 has **squatted on memory belonging to a higher priority**.
+
+**And the symptom would not be an error from us.** It was observed earlier tonight that Ollama
+**evicts its own models** rather than failing. So the visible failure would be the language model
+being evicted and reloading, with nothing in our logs connecting the two — the exact shape this
+project keeps recording: *a component that looks fine locally while causing a failure somewhere
+that cannot see it.*
+
+**Prediction, to be measured rather than asserted:** with the embedder holding 8 CUDA sessions on
+an otherwise idle card, asking Ollama to load `marlowe-red:9b` will **succeed by running partially
+or wholly on CPU, or evict**, rather than failing outright — and our process will observe nothing.
+
+**The control:** the same load request with no Marlowe session on the card at all. If Ollama puts
+100% on GPU in the control and less than 100% under treatment, the squatting is real and measured.
+If both read the same, the hypothesis is refuted and that is the finding.
+
+**If this measurement shows eviction, it outranks the reranker flip in importance** and is reported
+as the headline.
+
+## What tier 3 must do, and the constraint on how the number is derived
+
+> Tier 3 must **RESERVE, NOT JUST TAKE.**
+
+The reserve is **derived, never hardcoded** — `marlowe_net::io_concurrency()` is this project's
+pattern for a single derived definition with every caller routed through it. **If it cannot be
+derived honestly, the honest outcome is to say so and state what would be needed, not to invent a
+constant.** A number chosen to make a table look right is the thing this file exists to prevent.
+
+**Voice is M7 and does not exist. NOTHING is reserved for it.** Reserving device memory for a
+component nobody has built is a declared control with no reader, which `STATE.md` already records
+twice. It is named in the ADR as a **known future claim on the same budget**, so whoever builds M7
+finds the tier list rather than discovering the contention.
+
+## What this changes in the verdict space
+
+| outcome | verdict |
+|---|---|
+| the reranker passes the three gates, is small, and fits above the reserve | **flip, and the reserve ships with it** |
+| the reranker passes the gates but the card cannot hold tier 1 plus both of ours | **do not flip**, and publish the measurement that says so |
+| the eviction hypothesis is confirmed | report it as the headline finding regardless of the reranker outcome; ADR-044's `auto` is then defective in the same way and the ADR must say so |
+
+**Unchanged:** the three gates still decide whether the reranker may flip at all. Memory remains
+the constraint. The component table still goes into `STATE.md`, and it now reports each component's
+device footprint **against the tier list**, so a reader can see what is left for the model.
