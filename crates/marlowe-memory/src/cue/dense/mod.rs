@@ -45,6 +45,7 @@
 pub mod cache;
 pub mod cuda_libs;
 pub mod embedder;
+pub mod hostmem;
 pub mod vectors;
 pub mod tokenizer;
 pub mod vram;
