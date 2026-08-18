@@ -156,6 +156,42 @@ impl Embedder {
         Ok(Self { sessions, vocab, cache, truncated: 0 })
     }
 
+    /// **TODO — this session registers NO execution provider, so it is CPU by omission rather than
+    /// by decision. Follow the reranker's pattern: use the GPU when one is available.**
+    ///
+    /// `ort` is built with `features = ["download-binaries", "cuda"]`, so CUDA is compiled in and
+    /// available. `rerank.rs` uses it — `RerankProvider::{Cpu, Cuda}`, `cuda_available()`, and
+    /// `with_execution_providers([...].error_on_failure())`. Nothing equivalent exists here, and
+    /// the omission is invisible: the builder simply never asks, and ORT quietly serves CPU.
+    ///
+    /// The cost is real. `score_longmemeval.py` embeds 246,750 turns on eight single-threaded CPU
+    /// sessions, and the ALiBi relative-distance matrix — `[8, N, N]` int64, quadratic — is
+    /// rebuilt on every forward pass. A cold corpus pass is roughly **80 minutes**.
+    ///
+    /// # What copying the pattern must copy, including the parts that are refusals
+    ///
+    /// 1. **`error_on_failure()`.** The Python spike found CUDA listed as *available* while failing
+    ///    to CREATE (missing `cublasLt64_12.dll`), after which ORT registers CPU and scores
+    ///    happily. Without this the fallback is silent and the run is mislabelled.
+    /// 2. **Probe by CONSTRUCTION, not by an availability list**, exactly as `cuda_available` does,
+    ///    and on the shipped graph — probing with a graph the product does not use measures the
+    ///    availability of something else.
+    /// 3. **The claim it licenses is narrow.** Session L measured **13.6% of nodes still running on
+    ///    CPU** under a successfully registered CUDA session — all shape/index ops, no matmuls. So
+    ///    it answers *"did a CUDA session construct"*, never *"did every node run on the GPU"*.
+    /// 4. **ADR-015: a different execution provider is a DIFFERENT SCORER.** Determinism, batch and
+    ///    padding invariance are re-measured per configuration and never inherited, and the
+    ///    embedding reference fixture must be re-verified against its tolerance on that provider.
+    ///    A CPU number and a CUDA number are not comparable, so a CUDA run needs its own baseline.
+    ///
+    /// # Do not add a `provider` field here until it is read
+    ///
+    /// A `RerankPlan`-shaped constant with no call site is already recorded in `STATE.md` as an
+    /// instance of the declared-control family. This comment is deliberately a note and not a
+    /// field: nothing here should *declare* GPU support until something *registers* it.
+    ///
+    /// Headroom is not the blocker — `llama-server` holds ~11.5 GB of 16.4 GB and this embedder
+    /// peaks at ~377 MB.
     fn session(model_path: &Path) -> Result<Session, EmbedError> {
         Session::builder()
             .and_then(|b| b.with_intra_threads(1))

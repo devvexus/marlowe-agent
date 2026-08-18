@@ -1,5 +1,48 @@
 # State
 
+## TODO — THE EMBEDDER IS ON CPU BY OMISSION. Give it the reranker's treatment.
+
+**Confirmed by reading, not inferred:** `Embedder::session` (`cue/dense/embedder.rs`) builds
+`with_intra_threads(1)` → `with_inter_threads(1)` → `with_optimization_level(Level1)` →
+`commit_from_file`. **There is no `with_execution_providers` call anywhere in it.** ORT serves CPU
+because nothing asked for anything else.
+
+It is not a missing dependency: `Cargo.toml` builds `ort` with `features = ["download-binaries",
+"cuda"]`. And `rerank.rs` already does the whole thing — `RerankProvider::{Cpu, Cuda}`,
+`cuda_available()` probing by construction, `with_execution_providers([...].error_on_failure())`.
+ADR-029 put the reranker on CUDA and the embedder was simply never included.
+
+**What it costs today:** a cold `score_longmemeval.py` pass embeds 246,750 turns on eight
+single-threaded CPU sessions, rebuilding the `[8, N, N]` int64 ALiBi matrix on every forward pass.
+Measured this session at ~7.4 MB of cache per minute against a ~482 MB target — **roughly 80
+minutes**. Headroom is not the blocker: `llama-server` holds ~11.5 GB of 16.4 GB and the embedder
+peaks at ~377 MB.
+
+**What the work must copy from `rerank.rs`, including the parts that are refusals:**
+
+1. `error_on_failure()`. The Python spike found CUDA listed as *available* while failing to CREATE
+   (missing `cublasLt64_12.dll`), after which ORT registers CPU and scores happily. Without it the
+   fallback is silent and every number is mislabelled.
+2. Probe by **construction**, not by an availability list, and on the **shipped graph**.
+3. The claim it licenses is narrow: Session L measured **13.6% of nodes still on CPU** under a
+   successfully registered CUDA session. It answers *"did a CUDA session construct"*, never *"did
+   every node run on the GPU"*.
+4. **ADR-015 applies in full.** A different execution provider is a different scorer — determinism,
+   batch and padding invariance re-measured on that provider and never inherited, and the embedding
+   reference fixture re-verified against its tolerance. **A CUDA run needs its own baseline**; it
+   cannot be compared against a CPU number.
+
+**Do not add a `provider` field until something reads it.** `RerankPlan` is already recorded below
+as scaffolding with no call site, flagged as the declared-control family. The note lives in the
+code as a comment on `session()` for the same reason.
+
+**Two corrections this settles**, both of which were argued in the wrong direction earlier:
+the "GPU contention" explanation for the embedder's `bad allocation` was structurally impossible —
+the embedder never touches the GPU, and the 4 GB was always host RAM. And no flag can move the
+current scoring run to CUDA: `--rerank-provider cuda` exists, but that is the reranker; there is no
+`--embedder-provider`, because there is nothing for it to set.
+
+
 ## THE PROJECT HAS NO CI, AND THAT IS A SECURITY FINDING RATHER THAN A GAP IN ONE ROW
 
 **Found while auditing M2's acceptance list, 2026-08-17. `.github/` does not exist and there is no
