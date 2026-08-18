@@ -1,5 +1,77 @@
 # State
 
+## OUTSTANDING — read this first. Everything below this section is history.
+
+Consolidated 2026-08-17 because the items were spread across twelve sections written by different
+agents, and reconstructing them from the history is how one gets missed.
+
+### Blocking, in the sense that something is wrong right now
+
+**1. The tier-0 VRAM reserve is not built, and it has already cost a crash.**
+`auto` reads free device memory **at load** and takes what is there. It reserves nothing. So a
+tier-3 component (embedder, reranker — both have a CPU fallback) can consume memory belonging to
+tier 1 (the language model, which has none). **Observed in the wild this session:** a game was
+launched, the game crashed, and the Marlowe process disappeared. Ollama **evicts its own models
+rather than erroring**, so the symptom is a model mysteriously reloading and nothing in our logs
+connects it to us. The priority order is: **tier 0** other processes on this machine, unschedulable
+and unannounced · **tier 1** the LLM (VRAM only) · **tier 2** the voice model (VRAM only, M7, not
+built) · **tier 3** anything with a CPU fallback. Tier 3 must **leave headroom, not take what is
+free**, and the reserve must be derived rather than hardcoded — `marlowe_net::io_concurrency()` is
+the pattern. Do **not** reserve for the voice model: it does not exist, and a reserve for an unbuilt
+component is a declared control with no reader. See amendments `db695f5` and `9604717`.
+
+**2. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
+estimate to a 188 MB floor against a real 690–800 MB, so ORT's allocator rather than the budget is
+what stops the loop. Measured, deliberately not fixed: its failure branch cannot be driven from a
+test, and an untestable budget change is the shape that goes green and does nothing.
+
+### Ordering constraint — get this wrong and three defects go live together
+
+**3. Fix the compaction stamp (E5) and the trim marker (F1) BEFORE `ingest` is wired into the
+product.** Layer 3's latch is currently unreachable in the shipped daemon; the moment `ingest` has a
+production path it goes live **alongside** those two known defects in the same path.
+
+### Deferred by the human, by name
+
+**4. The four M2 acceptance benchmarks** — SWE-bench Verified, Terminal-Bench 2.0, τ-bench, BFCL.
+**No harness for any of them exists in this repo** (`eval/src/marlowe_eval/suites/` is memory-only),
+so this is integrating four external harnesses: milestone work, not a session. Recorded as UNMET AND
+UNSCHEDULED in ROADMAP.md's acceptance list.
+
+### Unverified rather than unfinished
+
+**5. CI has never executed.** `.github/workflows/ci.yml` is committed (`9591ef4`), the YAML parses,
+the matrix is `ubuntu-latest` + `windows-latest`, and the commands match what runs locally. **A
+workflow that has never run is a claim, not a guard — the first push is the test.** `models/` and
+`data/` are gitignored and never vendored, so a fresh runner has neither; the workflow's skip
+manifest exists to make that coverage gap legible rather than silent.
+
+**6. M1's accent row — the by-eye half.** The arithmetic is asserted (`e21cae7`): 6.43:1 on dark,
+3.26:1 on light, both clear the 3.0 floor that applies to a structure accent. §B13 asks for
+confirmation **by eye on each background** and a number is not an eye. Human action, not agent work.
+
+### Debris
+
+**7. `runs/session-e-rerank-cuda/fit-cpu/fit/scored-candidates.ndjson` is 0 bytes** — an abandoned
+scoring run. **Do not read it as a result.** A zero-byte file in a results directory looks like one.
+
+**8. ~80 uncommitted files under `runs/`** from three stopped agents. The suite passes with all of
+them present, so nothing is broken; it is debris from cancelled work and wants a decision about what
+is worth keeping.
+
+### Known-unmeasured, stated so it is not read as covered
+
+**9. The belief-store startup slope.** `Journal::open` runs `verify_chain`, which walks from sequence
+1 and re-derives every signature, and `BeliefStore::derive` folds the whole log — both **O(journal
+size)**. Every cold-start number in this file was taken on a **fresh or nearly-empty journal**, so
+70 ms says nothing about the slope. A bad one stays invisible for months and then arrives as *"why
+does it take eight seconds to start now."*
+
+**10. Worker-count invariance on CUDA.** Measured on CPU only, and under `auto` the *width* derives
+from free VRAM at load — so two `repro` spawns can differ in width while agreeing on provider.
+CLAUDE.md's documented `TARGET` pins `--embedder-provider cpu` for this reason.
+
+
 ## RERANKER ON CUDA: ALL THREE GATES PASS. `--rerank-provider` DEFAULTS TO `auto` (ADR-045).
 
 **Gate 1 was the last one and it passed on a real measurement**, not on an argument. The default is
