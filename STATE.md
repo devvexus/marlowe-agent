@@ -124,6 +124,26 @@ that argument the two are equivalent. The asymmetry: that only holds if rerankin
 *population* features are dumped over, and this is a build-time artifact the binary refuses to start
 without. The shipped graph matches what `score_longmemeval.py` scores under.
 
+### The gate was re-fit, and its ceiling is IDENTICAL — so the abstention is not this change
+
+`gate-frozen-v5.json` re-fit at 1024 (117,890 rows, 450 positive, 344 s). Compared against the
+committed 8192 artifact:
+
+| cue | old ceiling | new ceiling |
+|---|---|---|
+| `lexical_margin` | 0.3739 | **0.3739** |
+| `dense_margin` | 0.3413 | **0.3413** |
+
+**To four decimals, both curves, before and after.** So the fit's own warning — *"no cue's curve
+reaches the frozen threshold of 0.95, the gate will abstain on every query"* — is **pre-existing and
+not caused by `MAX_SEQ_LEN`**. It is the two-of-five-cues finding already on this page, and reading
+it as a regression from this change would be wrong.
+
+The only real diffs: `fit_rows` 117,894 → 117,890 (the four near-duplicate merges, consistent to the
+row), and `floor_measured` 0.5371 → `None` / `floor_verdict` `fail` → `unmeasured`, because
+`runs/session-f/cue-overlap.json` was not regenerated. **The floor was reading `fail` before**, so
+nothing that was passing has stopped.
+
 ### What changing this invalidated, and what was done about each
 
 - **Both reference fixtures** regenerated at 1024 from **HuggingFace / sentence-transformers**, not
