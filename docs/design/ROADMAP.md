@@ -446,10 +446,25 @@ Every row is a command that prints a number, per the standing rule.
 | Chrome inside a scroll area | Zero |
 | Distinct colours | ≤ 1 accent + 3 state + 3 foreground weights |
 | Memory-related regions in the default surface | Zero |
-| **Accent legible on both dark and light terminal backgrounds** | **Verified by eye on each** |
+| **Accent legible on both dark and light terminal backgrounds** | **Verified by eye on each** — arithmetic half ASSERTED 2026-08-17, by-eye half still open. See below |
 | Below-minimum width behaviour | Honest refusal, never a degraded grid |
 | Classic CLI command parity | 100% of commands, sessions, data |
 | **§B13 suite run on native Windows Terminal AND a Linux emulator** | **Pass on both** |
+
+**The accent row, measured 2026-08-17.** The recorded 3.26:1 was always the number against a
+**light** background; on dark the same accent reads **6.43:1**, and nothing said which was which. The
+floor that applies is **3.0**, not 4.5: WCAG's 4.5 is for body text, and `render.rs:467` states the
+accent's role directly — *"structure is the accent's role (§B2)"*. It draws markers, hotkeys, the
+scrollbar thumb and region labels, never prose. `doctor::verdict` already named that line; nothing
+asserted it, so `marlowe-surface/tests/accent_legibility.rs` now does.
+
+**The by-eye half is unchanged and still open** — a number is not an eye, `--doctor` prints both
+readings for exactly that reason, and this row keeps saying "verified by eye on each".
+
+**Before raising this row to 4.5 on both, know the cost:** one accent clearing 4.5:1 against both
+pure black and pure white must have luminance in `0.175 ..= 0.1833` — a window **under 1% of the
+range**, and any colour in it is dark enough to stop reading as violet. Asserted rather than asserted
+about, so the trade is visible.
 
 **Three rows are most likely to be skipped and all three are load-bearing.** The label-and-hotkey
 row is asserted by test, not by inspection — the region contract is a type that cannot be
