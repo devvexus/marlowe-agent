@@ -32,6 +32,81 @@ loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a ser
 four external harnesses that do not exist here and are a decision rather than a run, and CI, which
 now exists and has never executed.
 
+## OPENROUTER SHIPPED, AND ONE THING ABOUT IT IS UNVERIFIED. ADR-046, 2026-08-22.
+
+**Branch `m2-openrouter`. Not merged.** `crates/marlowe-openrouter` is a working hosted provider:
+streams SSE, reassembles fragmented tool calls, routes loop-control tools through the **one**
+`parse_step` that already exists, degrades with a named remedy, and records what answered.
+
+**The default path is untouched, and that is asserted rather than claimed.**
+`DaemonConfig::model_provider()` is one function — the run path selects a driver with it, `status()`
+announces from it, and `crates/marlowe-daemon/tests/zero_config_is_unchanged.rs` asserts on it
+**with `OPENROUTER_API_KEY` exported**, which is the state any machine is in once anyone has used
+another OpenRouter tool. `--provider openrouter` is the only thing that moves it.
+
+### The three findings, in the order they matter
+
+**1. ADR-031 §2.3 was a comment with no reader, and this feature is what would have broken it.**
+`marlowe-net/Cargo.toml` has said since ADR-031 that `cargo tree -p marlowe-provider` must show no
+TLS. **Nothing checked it.** The obvious implementation here — `openrouter.rs` beside `ollama.rs` —
+would have added `rustls` to that graph with no error, no warning and no failing test. Sixteenth-
+instance shape exactly. Closed by putting the driver in a crate that *depends on* `marlowe-provider`
+rather than living in it, and by `crates/marlowe-provider/tests/no_tls_in_the_default_path.rs`,
+which walks the manifests and carries a negative control asserting the walk finds TLS where TLS is.
+
+**2. ADR-008's routing shape survived by HALF, and the half that did not is `Routing` itself.**
+`ModelRoute` — the role — is provider-independent and needed nothing. `Routing`, described as *"the
+only place a model name appears"*, fuses that neutral structure with `is_cloud_tag`, a validation
+about **Ollama's** tag namespace. A hosted table routed through `Routing::new` would have to satisfy
+a rule that does not apply to it. `is_cloud_tag` is therefore untouched and unrouted-around, and the
+hosted adapter keeps its own slug. The right fix, if a second hosted model per role is ever wanted,
+is to split the role table from the per-provider validator — argued then, with a use case.
+
+**3. `ModelCall` cannot carry attribution, and `driver.rs` was not modified to make it.**
+`ModelDriver` expressed everything else — streaming split, retract, limits. What it cannot express
+is *which upstream served this call*, so the adapter surfaces it through a sink and an accessor and
+the daemon drops it into `RunSummary::attribution` / `Event::Run`. If a third provider wants the
+same, that is the argument for a field on `ModelCall`; it should be made then, not assumed now.
+
+### What this unblocks, and what it does not
+
+**K2 is now blocked on ONE thing instead of two.** A credential path exists. The other half —
+`answered: false`, hardcoded at `crates/marlowe/src/adapter.rs:649` — is untouched and still blocks
+it. Same for the four M2 acceptance rows: the model is reachable; the harnesses still do not exist.
+
+### UNVERIFIED, and it is the whole of §9 of the ADR
+
+**No live call to openrouter.ai was made. No API key was available in this environment.** Six wire
+behaviours are therefore taken from documentation rather than from a socket: whether the top-level
+`provider` field arrives and on which chunk, whether `usage.cost` is present and in what unit, how
+the keepalive is spelled, whether `provider.order` + `allow_fallbacks: false` pins, whether the
+endpoint accepts `tools` alongside `stream: true` and `usage.include`, and every latency and cost
+number (there are none in the ADR, deliberately).
+
+Every one of them is decoded defensively — an absent field records `NOT REPORTED` rather than a
+guess — but **defensive decoding is not a measurement.** One command closes items 1–5:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-v1-...
+cargo run -p marlowe-openrouter --example live_probe -- anthropic/claude-sonnet-4.5
+```
+
+It prints a field-by-field presence table and exits 0 with `SKIP:` when there is no key. **Run it
+before any number from this path is published**, and record the reading beside ADR-046 §9.
+
+### Also not built, named so it is not read as covered
+
+* **Resumption.** A benchmark that dies at case 400 of 500 loses the run. `generation_id` is
+  recorded per call, so a partial run can be reconciled against OpenRouter's own history without
+  re-spending — but nothing checkpoints which cases completed. Building it touches
+  `tools/score_longmemeval.py`, so it is a decision rather than a follow-up commit.
+* **The credential broker.** M5. The interim is one environment variable read once into a type with
+  no `Display`, no `Serialize` and a hand-written `Debug`. See ADR-046 §5 for exactly what M5
+  replaces and what it should **not**.
+* **No OpenRouter model's tool-call reliability is measured**, and every one of them reports
+  `NOT MEASURED`. `qwen3.5:9b`'s 12/12 stays where it belongs.
+
+
 ## OUTSTANDING — read this first. Everything below this section is history.
 
 Consolidated 2026-08-17 because the items were spread across twelve sections written by different

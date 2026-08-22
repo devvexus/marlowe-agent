@@ -1,0 +1,24 @@
+﻿no_redaction             NOTICED            test a_key_an_upstream_echoes_back_is_redacted_before_it_becomes_an_error ... FAILED; test the_rate_limited_error_path_redacts_too ... FAILED; test re
+key_in_body              NOTICED            test the_dev_request_dump_never_sees_the_key ... FAILED; test the_key_is_in_exactly_one_header_and_in_no_part_of_the_model_s_context ... FAILED; test 
+unbounded_retry          *** UNNOTICED ***  
+retry_401                NOTICED            test a_credential_failure_is_not_retried ... FAILED; test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.50s
+assign_fragments         NOTICED            test a_tool_call_split_across_chunks_reassembles_into_one_call ... FAILED; test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered 
+default_upstream         NOTICED            test attribution::tests::an_unreported_upstream_says_so_rather_than_defaulting_to_the_requested_model ... FAILED; test result: FAILED. 19 passed; 1 fa
+done_is_json             NOTICED            test sse::tests::a_keepalive_comment_is_not_a_frame_and_not_an_error ... FAILED; test sse::tests::nothing_after_done_is_read ... FAILED; test sse::tes
+env_flips_default        NOTICED            (did not compile — the mutation was caught by the type system)
+allow_header_injection   NOTICED            test post_streaming_tests::a_header_value_carrying_crlf_is_refused_rather_than_stripped ... FAILED; test result: FAILED. 16 passed; 1 failed; 0 ignore
+tls_in_provider          NOTICED            test marlowe_provider_reaches_no_tls_crate ... FAILED; test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.0
+
+=== SUMMARY ===
+no_redaction             NOTICED
+key_in_body              NOTICED
+unbounded_retry          *** UNNOTICED ***
+retry_401                NOTICED
+assign_fragments         NOTICED
+default_upstream         NOTICED
+done_is_json             NOTICED
+env_flips_default        NOTICED
+allow_header_injection   NOTICED
+tls_in_provider          NOTICED
+
+unnoticed mutations: ['unbounded_retry']
