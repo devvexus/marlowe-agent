@@ -201,3 +201,19 @@ measurements behind every form.
 
 Pattern in one line: we rank PRECONDITIONS against CONCLUSIONS -- and a quarter of the misses
 are already answered, uncredited.
+
+---
+
+## CORRECTION (same day) -- the 4 label-artifact cases were hand-adjudicated; 2 survive
+
+Full-text adjudication, not string overlap: dc439ea3 CONFIRMED (the labeled-gold turn contains no
+'hooop'/'Hoop' at all -- it cannot answer; 'Hoop Dance' lives in the unflagged turn we ranked
+#3) and 65240037 CONFIRMED ('in a 1:10 ratio' verbatim at rank 1, unflagged). The other two
+(7e00a6cb, gpt4_4929293b) were FALSE POSITIVES of the >=60-percent token-overlap proxy --
+generic-noun matches ('budget hostels', 'cousin') that a reader would reject immediately.
+
+Corrected figures: verified label artifacts 2/16, not 4/16; containment-adjusted held-out R@3
+~205/229 ~= 0.895, not 0.904. The earlier 0.904 figure is withdrawn.
+
+Standing rule adopted for this session's artifacts: no containment claim ships without
+full-text adjudication of every case it counts. String overlap nominates; reading verifies.
