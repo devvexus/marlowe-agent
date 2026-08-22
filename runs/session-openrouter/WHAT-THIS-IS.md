@@ -105,10 +105,55 @@ Final: **10 of 10 noticed.**
 | `allow_header_injection` | accepts CR/LF in a header value | `a_header_value_carrying_crlf_is_refused_rather_than_stripped` |
 | `tls_in_provider` | adds `marlowe-net` to `marlowe-provider` | `marlowe_provider_reaches_no_tls_crate` |
 
-## What is NOT here
+## The real end-to-end run, and the two defects it found
 
-**No live call to openrouter.ai.** No API key was available. ADR-046 §9 lists the six wire
-behaviours that leaves unverified and names the one command that closes five of them:
+**A live TLS round trip to openrouter.ai did happen**, with a deliberately bogus key — which turns
+out to verify most of the transport, because a 401 is a real answer from a real server:
+
+```
+marlowe --ask "..." --provider openrouter --openrouter-model anthropic/claude-sonnet-4.5
+  → openrouter.ai refused the credential (HTTP 401). The key in `OPENROUTER_API_KEY` is not
+    valid — check it at https://openrouter.ai/keys. Upstream said:
+    {"error":{"message":"User not found.","code":401}}
+    [failed · 0 ms]
+```
+
+Verified by that: the rustls handshake through `marlowe-net::post_streaming`; the `Authorization`
+header arriving intact (*"User not found"* is an answer to a credential it **read**); a
+non-retriable status not being retried; the remedy naming the variable; the upstream's message
+quoted and **attributed**; the key absent from the error on the live path; and **no fallback to
+Ollama**.
+
+**Two defects came out of running it, and nothing in the suite could have seen either.**
+
+1. **`--status` never rendered `model_provider`.** The field was added to `StatusReport`, the
+   daemon filled it from the right function, and no renderer printed it — a daemon on
+   openrouter.ai and one on loopback produced byte-identical output. A declared control with no
+   reader, shipped by the session whose ADR §2 is *about* a declared control with no reader.
+2. **`--status --provider openrouter` printed `provider ollama`** and `qwen3.5:9b`'s **measured**
+   12/12 reliability — an announcement that was confidently, specifically wrong. `agent::status`
+   built its own `DaemonConfig` and was never handed the choice. `Daemon::status()` was correct
+   throughout; the caller one function away was not. `zero_config_is_unchanged.rs` asserts at the
+   daemon, where the field is **set**; nothing asserted at the CLI, where it comes **from**. Same
+   shape as the first-run disclosure wired into `serve` and not into `ask`, which is recorded in
+   `agent.rs` and was also found by running it.
+
+Both fixed. `status_shows_which_provider_answers_and_the_two_providers_do_not_render_alike` asserts
+at `render_to` with a control that the two providers do not read alike.
+
+**The zero-config control, run in the same session with `OPENROUTER_API_KEY` exported:**
+`marlowe --ask` with no `--provider` started a local daemon, printed the first-run disclosure, and
+answered from `qwen3.5:9b` in 12.2 s wall. `marlowe --status` printed `provider ollama`. The
+load-time refusals fire: no model named → exit 2 naming the flag; no key → exit 2 naming the
+variable and stating that it does **not** fall back.
+
+## What is still NOT here
+
+**No SUCCESSFUL call to openrouter.ai.** A 401 short-circuits before the request body is evaluated,
+so every success-path wire claim — the top-level `provider` field, `usage.cost`, the keepalive
+spelling, the upstream pin, and whether the endpoint accepts `tools` alongside `stream` and
+`usage.include` — is still taken from documentation. ADR-046 §9.1 lists them and names the one
+command that closes them:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-v1-...

@@ -339,12 +339,33 @@ pub fn shutdown(port: Option<u16>, profile_root: PathBuf) -> Result<(), String> 
     Ok(())
 }
 
-pub fn status(workspace: PathBuf, profile_root: PathBuf) -> Result<(), String> {
+/// `--status`, from a live daemon when there is one and from a throwaway one when there is not.
+///
+/// **`provider` is threaded in for the second case, and it was missing until the binary was run.**
+///
+/// `Daemon::status()` reads `config.model_provider()` correctly — the code was right. This function
+/// built a `DaemonConfig::new(..)` and never told it, so
+/// `marlowe --status --provider openrouter` printed `provider ollama` and `qwen3.5:9b`'s measured
+/// reliability: an announcement that was confidently, specifically wrong.
+///
+/// The test that should have caught it asserted at the daemon, where the field is *set*. Nothing
+/// asserted at the CLI, where the field comes *from* — one function away, and it reads as covered.
+/// Same shape as the first-run disclosure being wired into `serve` and not into `ask`, which is
+/// recorded a few functions above this one and was also found by running it.
+///
+/// A live daemon answers for itself and is unaffected: it knows what it was started with, and a
+/// `--provider` on a *client* invocation cannot change what a running daemon routes to.
+pub fn status(
+    workspace: PathBuf,
+    profile_root: PathBuf,
+    provider: ModelProviderChoice,
+) -> Result<(), String> {
     let client = Client::new("cli").with_profile_root(profile_root.clone());
     let events = if client.daemon_is_up() {
         client.status().map_err(|e| e.to_string())?
     } else {
-        let config = DaemonConfig::new(profile_root, workspace);
+        let mut config = DaemonConfig::new(profile_root, workspace);
+        config.model_provider = provider;
         let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
         vec![Event::Status(daemon.status())]
     };
@@ -393,6 +414,19 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 writeln!(out, "marlowe {}", sanitize_line(&r.version))?;
                 writeln!(out, "  workspace   {}", sanitize_line(&r.workspace))?;
                 writeln!(out, "  model       {}", sanitize_line(&r.model_disclosure))?;
+                // **ADR-046, and it was missing until the binary was run.**
+                //
+                // The field was added to `StatusReport` and nothing rendered it, so `--status` on
+                // a daemon routing to openrouter.ai and one routing to loopback printed the same
+                // five lines — and the difference between them is money and a network. That is a
+                // declared control with no reader, found the way this project keeps finding them:
+                // by running the thing rather than by reading the test.
+                //
+                // Empty only for a frame from a client built before this field existed; a blank
+                // line would then claim something, so it is skipped rather than shown as unknown.
+                if !r.model_provider.is_empty() {
+                    writeln!(out, "  provider    {}", sanitize_line(&r.model_provider))?;
+                }
                 // ADR-029: announced, never inferred.
                 writeln!(out, "  rerank      {}", sanitize_line(&r.rerank_provider))?;
                 writeln!(out, "  runs        {} live", r.live_runs)?;
@@ -621,5 +655,57 @@ mod display_sanitiser {
         let s = text(out);
         assert_eq!(s.lines().count(), 1, "the target forged a second tool line:\n{s}");
         assert!(s.contains("<U+000A>"), "{s}");
+    }
+
+    /// **ADR-046. Found by running the binary, not by a test — which is why this test exists.**
+    ///
+    /// `model_provider` was added to `StatusReport`, the daemon filled it from the same function
+    /// the run path selects a driver with, and **nothing rendered it**. `marlowe --status` printed
+    /// five identical lines whether the daemon routed to `openrouter.ai` or to loopback, and the
+    /// difference between those is money and a network.
+    ///
+    /// A declared control with no reader, shipped by the session whose own ADR §2 is about a
+    /// declared control with no reader. The instrument that caught it was `--status` on the
+    /// release binary; nothing in the suite could have.
+    ///
+    /// Asserted here, at `render_to`, because that is where the byte is either written or not.
+    #[test]
+    fn status_shows_which_provider_answers_and_the_two_providers_do_not_render_alike() {
+        let report = |provider: &str| {
+            Event::Status(StatusReport {
+                version: "0.1.0".into(),
+                workspace: "/ws".into(),
+                model: "m".into(),
+                model_disclosure: "m · NOT MEASURED".into(),
+                degraded: None,
+                rerank_provider: "cpu".into(),
+                model_provider: provider.into(),
+                live_runs: 0,
+                models: Vec::new(),
+            })
+        };
+
+        let mut local = Vec::new();
+        render_to(&[report("ollama")], &mut local).unwrap();
+        let local = text(local);
+        let mut hosted = Vec::new();
+        render_to(&[report("openrouter")], &mut hosted).unwrap();
+        let hosted = text(hosted);
+
+        assert!(local.contains("provider    ollama"), "{local}");
+        assert!(hosted.contains("provider    openrouter"), "{hosted}");
+        // **The assertion with teeth.** Both of the above would pass against a renderer that
+        // printed a constant; what has to be true is that the two READ DIFFERENTLY.
+        assert_ne!(
+            local, hosted,
+            "a hosted daemon and a local one rendered identically, which is the defect this test \
+             was written for"
+        );
+
+        // A frame from a client built before the field existed says nothing rather than claiming
+        // a provider it was never told about.
+        let mut old = Vec::new();
+        render_to(&[report("")], &mut old).unwrap();
+        assert!(!text(old).contains("provider"), "an empty field must not render a blank claim");
     }
 }

@@ -349,7 +349,7 @@ fn main() {
                 flag_value(&args, "--model").map(str::to_string),
                 model_provider.clone(),
             ),
-            "--status" => agent::status(workspace, profile_root),
+            "--status" => agent::status(workspace, profile_root, model_provider.clone()),
             "--shutdown" => agent::shutdown(
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
                 // The profile root decides which token is offered, so `--shutdown` needs it for

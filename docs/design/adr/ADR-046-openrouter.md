@@ -1,6 +1,8 @@
 # ADR-046 — OpenRouter: a hosted provider, built as a measurement instrument
 
-**Status:** Accepted, implemented, **not verified against the live endpoint** (see §9).
+**Status:** Accepted, implemented, **partially verified against the live endpoint** — the transport,
+the credential header, the refusal path and the no-fallback rule were exercised against
+openrouter.ai for real; every success-path wire field was not. See §9.
 **Date:** 2026-08-22.
 **Supersedes nothing. Amends nothing.** ADR-028 (local-first default), ADR-031 (rustls in
 `marlowe-net`), ADR-008 (tiered routing) and ADR-023 (the action/target latch) all stand as
@@ -331,11 +333,61 @@ is claimed.** The measured `12/12 on 2026-08-08` belongs to `qwen3.5:9b` and sta
 
 ---
 
-## 9. What is NOT verified
+## 9. What IS verified live, and what is not
 
-**No live call to openrouter.ai has been made.** No API key was available in this environment. That
-leaves the following unverified, and each one is a claim about a wire format taken from
-documentation rather than from a socket:
+### 9.0 The real end-to-end run — three commands, and one of them reached openrouter.ai
+
+**No valid API key was available.** A *bogus* one still produces a real round trip, and that turned
+out to verify most of the transport:
+
+```
+marlowe --ask "..." --provider openrouter --openrouter-model anthropic/claude-sonnet-4.5
+  → openrouter.ai refused the credential (HTTP 401). The key in `OPENROUTER_API_KEY` is not
+    valid — check it at https://openrouter.ai/keys. Upstream said:
+    {"error":{"message":"User not found.","code":401}}
+    [failed · 0 ms]
+```
+
+**What that reading actually settles**, because a 401 is a real response from a real server:
+
+* the rustls handshake to `openrouter.ai` through `marlowe-net::post_streaming` **works** — this is
+  the first HTTPS request this project has made outside the `web` tool;
+* the `Authorization` header reached the far end **intact and parseable** — "User not found" is the
+  answer to a credential it read, not to one it could not find;
+* a non-retriable status is **not retried**, is explained with the remedy, and quotes the upstream's
+  own message **attributed** (`Upstream said:`) so harness prose and provider prose stay distinct
+  (ADR-030);
+* **the key is not in the error string** — the live path, not a scripted one;
+* **Marlowe did not fall back to Ollama.** The turn failed, loudly, by name.
+
+**And two defects were found by running it, neither of which any test in the suite could see** —
+which is CLAUDE.md's *"budget one real end-to-end run per milestone as verification, not as a
+demo"* earning its place for the third time in this project:
+
+1. **`--status` never rendered `model_provider`.** The field was added to `StatusReport`, the daemon
+   filled it from the right function, and **no renderer printed it** — so a daemon on openrouter.ai
+   and one on loopback produced identical output. A declared control with no reader, shipped by the
+   session whose §2 is about a declared control with no reader.
+2. **`--status --provider openrouter` reported `provider ollama` and `qwen3.5:9b`'s measured
+   reliability.** `agent::status` built its own `DaemonConfig` and was never handed the choice.
+   `Daemon::status()` was correct throughout; the *caller* one function away was not — the same
+   shape as the first-run disclosure being wired into `serve` and not into `ask`. The existing test
+   asserted at the daemon, where the field is **set**, and nothing asserted at the CLI, where it
+   comes **from**.
+
+Both are fixed, and `status_shows_which_provider_answers_and_the_two_providers_do_not_render_alike`
+asserts the render at `render_to` with a control that the two providers do not read alike.
+
+The zero-config control was run in the same session, **with `OPENROUTER_API_KEY` exported**:
+`marlowe --ask` with no `--provider` started a local daemon, printed the first-run disclosure, and
+answered from `qwen3.5:9b` in 12.2 s. `marlowe --status` printed `provider ollama`. And the
+load-time refusals fire: no model named → exit 2 naming the flag; no key → exit 2 naming the
+variable and stating that it does not fall back.
+
+### 9.1 What remains unverified
+
+A 401 short-circuits before the request body is evaluated, so **every success-path wire claim below
+is still taken from documentation rather than from a socket**:
 
 1. Whether the top-level `provider` field appears on streamed chunks, and on which chunk.
 2. Whether `usage.cost` is present in the final streaming chunk with `usage: {include: true}`, and
@@ -356,7 +408,7 @@ requires a key and it prints what actually arrived, including whether each field
 
 ---
 
-## 9.1 No pinned contract was changed, and here is the check
+## 9.2 No pinned contract was changed, and here is the check
 
 `CONTRACTS.md`'s §4 pins the **M0a↔M0b eval boundary** — the JSON the eval harness and the
 implementation speak over stdio. That is a different wire from the daemon↔client protocol in
