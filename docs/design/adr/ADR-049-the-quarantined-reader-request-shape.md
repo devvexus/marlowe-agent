@@ -199,6 +199,13 @@ Every case is paired with a control that fails when the mechanism is absent: the
 reached the reader, the parent really was offered its tools, a genuine tool reply really kept its
 role, and a successful read still produces a real condensed note.
 
+**Verified live on a real socket, 2026-08-22 18:11.** A quarantined read spawned against
+`stealth/ox-alpha` through the shipped binary and completed, with **zero `run_failed` after the
+rebuild** — where the same operation on the pre-fix binary failed four times in thirty-one seconds
+at 18:00. The restart and the new binary changed at the same moment, so the timeline is not a
+controlled comparison; the attribution rests on the 400 being deterministic in the request shape
+and on the outbound dump showing that shape change.
+
 **And one found while verifying: `scratchpad/mutate2.py` ate its own backup.** A second mutation of
 an already-mutated file copied the *mutated* text over the pristine backup, so `--restore` printed
 success and left the first mutation in place — caught by grepping the source afterwards, not by

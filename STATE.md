@@ -4,7 +4,8 @@
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1093 passed, 0 failed, 2 ignored**, tallied
 from `runs/session-condense/suite.txt` (97 `test result` lines), with `MARLOWE_CUDA_LIB_DIR` set.
-Branch `m2-condense-fix`, in a worktree; master untouched. **C3 was not started.**
+Merged to master at `632de66` (fast-forward) and rebuilt there, so the Windows Terminal profile
+launches it. **C3 was not started.**
 
 ### The report, and what it actually was
 
@@ -131,13 +132,40 @@ linked result *and* an orphan, so the `tool` assertion means something and the d
 named property. `no_builtin_description_is_silently_truncated` caught the new `bash` description at
 exactly 400 of 400 chars on its first outing; it is trimmed to 331.
 
-**NOT VERIFIED — the live hosted run.** The fix is verified on the request *shape*, from the
-running binary's strings and from real engine runs, but **no request was put on a socket to
-openrouter.ai**: no key in this environment. `--ask` cannot grant `web`'s per-host approval (piped
-stdin reads as "no answer available · declined"), so the live path is the TUI. Two things learned
-attempting it, worth knowing before the next attempt: **declined attempts poison the session** —
-after two refusals the local 9B stopped calling `web` at all and started explaining the limitation
-instead — so a live run needs a fresh profile.
+### VERIFIED LIVE ON A REAL SOCKET, and the journal separates it from the restart
+
+**Closed the same evening, by the user, on `stealth/ox-alpha` through the Windows Terminal
+profile.** The earlier caveat — that no request from this work had been put on a socket to
+openrouter.ai — is discharged. The journal timeline is the evidence and it is unambiguous:
+
+```
+18:00:10 - 18:00:41   4 quarantined reads   ->  4 x HTTP 400     OLD binary (built 17:09)
+18:10                 rebuild on master
+18:11:30              quarantined read spawned  (reads_untrusted, sources: 1, seq 3322)
+18:12:07 / :20 / :40  run_completed x3      ->  ZERO run_failed  NEW binary
+```
+
+`run_failed` count after seq 3306: **0**. Before the rebuild the same operation failed four times
+in thirty-one seconds.
+
+**The confound, named rather than glossed.** The user closed and reopened the TUI, and the reopen
+happened *after* the rebuild — so the restart and the new binary changed at the same moment, and
+this timeline alone does not separate them. The attribution still holds: a 400 on request *shape*
+is deterministic, not transient, the old binary reproduced it four times in half a minute, and the
+outbound dump independently shows the shape changed. But nobody should cite the timeline as
+though it were a controlled comparison.
+
+**What the user saw was a freeze, and no mechanism is claimed for it.** The run was failing and
+respawning every ~8 seconds under the old binary, which is plenty to get wedged on. **A first pass
+here nearly reported "the TUI has no approval surface" on the strength of a grep for
+`ApprovalPrompt` that missed it** — `app.rs` has `pending_approval`, `on_approval_key` and the §B9
+overlay, and the surface exists. That is the pipe-tested-guard family caught one step before it
+became a claim: the grep answered a question adjacent to the one being asked.
+
+**Still true and still worth knowing:** `--ask` cannot grant `web`'s per-host approval — piped
+stdin reads as *"no answer available · declined"* — so the live path is the TUI. And **declined
+attempts poison the session**: after two refusals the local 9B stopped calling `web` at all and
+started explaining the limitation instead, so a live run after a decline needs a fresh profile.
 
 **Also not built, named so it is not read as covered:**
 
