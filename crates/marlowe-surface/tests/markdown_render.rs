@@ -667,17 +667,54 @@ fn an_unclosed_equation_renders_while_it_is_still_arriving() {
     assert!(prefix(full.chars().count()).contains("y = σ(Wx + b)"));
 }
 
-/// **The control, and the reason this is safe rather than clever.** A partial expression is often
-/// mid-token — `\s` is not a command yet — and `latex::render` refuses it, so it falls back to
-/// source exactly as it does for anything else it cannot represent. Nothing is guessed.
+/// **No frame of a streaming equation ever shows raw LaTeX.**
+///
+/// This is the property that was actually wanted and the previous version did not deliver. Rendering
+/// only COMPLETE expressions meant a partial alternated between valid and invalid as each token
+/// closed, so the pane flipped between a typeset formula and raw source several times per equation.
+/// Both states were correct; the flipping between them was the defect.
+///
+/// Falling back to the longest valid PREFIX makes it monotonic — a prefix that rendered a frame ago
+/// still renders now with more after it — so the equation only ever grows.
 #[test]
-fn a_half_typed_command_falls_back_to_source_rather_than_guessing() {
+fn no_frame_of_a_streaming_equation_shows_raw_latex() {
+    for full in [
+        r"$$y = \sigma(Wx + b)$$",
+        r"$$L = rac{1}{2}(y - \hat{y})^2$$",
+    ] {
+        let n = full.chars().count();
+        for k in 3..=n {
+            let src: String = full.chars().take(k).collect();
+            let producer = marlowe_stub::Session::new();
+            let mut view = producer.view().clone();
+            view.transcript.clear();
+            view.transcript.push(Entry::Said(Speech::Model(src.clone())));
+            let out =
+                common::buffer_text(&common::frame(&App::new(view).unwrap(), 120, 40));
+            assert!(
+                !out.contains(r"\sigma") && !out.contains(r"rac") && !out.contains(r"\hat"),
+                "frame {k} of {full:?} fell back to raw source:
+{out}"
+            );
+        }
+    }
+}
+
+/// **The control: a CLOSED expression that cannot render still shows its source, whole.**
+///
+/// The prefix fallback is keyed on the span being unterminated, and this is why. A finished
+/// expression that will not render is a real refusal — a matrix, an over-line — and truncating it
+/// to the part that happened to work would be the "wrong and plausible" output this module exists
+/// to prevent.
+#[test]
+fn a_closed_expression_that_cannot_render_is_not_silently_truncated() {
     let producer = marlowe_stub::Session::new();
     let mut view = producer.view().clone();
     view.transcript.clear();
-    view.transcript.push(Entry::Said(Speech::Model(r"$$y = \s".to_string())));
+    view.transcript.push(Entry::Said(Speech::Model(r"$x = \hat{x} + 1$".to_string())));
     let out = common::buffer_text(&common::frame(&App::new(view).unwrap(), 120, 40));
-    assert!(out.contains(r"\s"), "a half-typed command must stay source: {out}");
+    assert!(out.contains(r"\hat{x}"), "a real refusal was truncated to its valid prefix:
+{out}");
 }
 
 /// **Currency is still protected mid-stream**, which is the risk this change introduces: an

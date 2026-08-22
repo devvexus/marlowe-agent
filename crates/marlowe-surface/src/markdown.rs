@@ -1166,14 +1166,47 @@ fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>,
         }
         j += 1;
     };
-    let content: String = chars[start..end].iter().collect();
+    let mut content: String = chars[start..end].iter().collect();
+    // A `$$` span still arriving has seen the FIRST character of its own closing delimiter one
+    // frame before the second, so the equation would show a trailing `$` for exactly that frame.
+    // It is the close, not content.
+    if unterminated {
+        while content.ends_with('$') {
+            content.pop();
+        }
+    }
     if open[0] == '$' && !crate::latex::looks_like_inline_maths(&content) {
         return None;
     }
     // The delimiters are only consumed if they were actually there.
     let consumed = if unterminated { chars.len() } else { end + close.len() };
     let source: String = chars[i..consumed].iter().collect();
-    let runs = match crate::latex::render(&content) {
+    // **While it is still arriving, render the longest valid PREFIX rather than nothing.**
+    //
+    // Rendering only complete expressions was already the rule, and it flickered: a partial
+    // alternates between valid and invalid as each token completes, so the pane flipped between a
+    // typeset formula and raw source several times per equation. Both states were correct and the
+    // transition between them was the problem.
+    //
+    // Backing off to the longest prefix that renders makes the display MONOTONIC -- it only ever
+    // grows -- because a prefix that rendered a frame ago still renders now with more after it.
+    // `$$y = \s` shows `y = ` rather than reverting to source, and the half-typed command simply
+    // has not appeared yet.
+    //
+    // **Only for unterminated spans.** A CLOSED expression that will not render is a real refusal
+    // -- a matrix, an over-line -- and must stay visibly its source, not be silently truncated to
+    // the part that happened to work. That would be the "wrong and plausible" outcome this module
+    // exists to prevent, and it is why this is keyed on `unterminated` rather than on failure.
+    let rendered = crate::latex::render(&content).or_else(|| {
+        if !unterminated {
+            return None;
+        }
+        let cs: Vec<char> = content.chars().collect();
+        (1..cs.len())
+            .rev()
+            .find_map(|n| crate::latex::render(&cs[..n].iter().collect::<String>()))
+    });
+    let runs = match rendered {
         Some(rendered) => vec![Run {
             text: rendered,
             // Lighter than the prose around it — see `Ctx::maths`. The REFUSED arm below keeps the
