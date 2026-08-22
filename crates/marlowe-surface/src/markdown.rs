@@ -1136,9 +1136,27 @@ fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>,
     };
     let start = i + open.len();
     let mut j = start;
+    // **An expression still being streamed renders as though it were closed.**
+    //
+    // A reply arrives token by token, so `$$y = \sigma(Wx` is what the pane holds for as long as
+    // the model takes to finish the line. Requiring the closing delimiter meant the raw source sat
+    // there and then SNAPPED into a formula when the last two characters landed. Rendering the
+    // partial makes the equation appear to build, which is what the rest of the surface already
+    // does -- section B5s rule is that motion means Marlowe is working.
+    //
+    // **Unterminated at end-of-input only, never across a newline.** A `$` in ordinary prose with
+    // no partner would otherwise swallow the remainder of the reply, and the newline bail below is
+    // what stops it. A partial expression is also frequently mid-token (`ra`, `rac{1`), which
+    // `latex::render` refuses -- so it falls back to source, exactly as for anything else it
+    // cannot represent. That fallback is what makes this safe rather than clever.
+    let mut unterminated = false;
     let end = loop {
-        if j + close.len() > chars.len() || !ctx.spend(1) {
+        if !ctx.spend(1) {
             return None;
+        }
+        if j + close.len() > chars.len() {
+            unterminated = true;
+            break chars.len();
         }
         if chars[j..j + close.len()] == *close {
             break j;
@@ -1152,7 +1170,9 @@ fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>,
     if open[0] == '$' && !crate::latex::looks_like_inline_maths(&content) {
         return None;
     }
-    let source: String = chars[i..end + close.len()].iter().collect();
+    // The delimiters are only consumed if they were actually there.
+    let consumed = if unterminated { chars.len() } else { end + close.len() };
+    let source: String = chars[i..consumed].iter().collect();
     let runs = match crate::latex::render(&content) {
         Some(rendered) => vec![Run {
             text: rendered,
@@ -1166,7 +1186,7 @@ fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>,
             style: ctx.code(),
         }],
     };
-    Some((runs, end + close.len()))
+    Some((runs, consumed))
 }
 
 // ── wrapping ────────────────────────────────────────────────────────────────────────────────────

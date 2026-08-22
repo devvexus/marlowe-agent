@@ -641,3 +641,56 @@ fn display_maths_stands_out_the_same_way_inline_maths_does() {
     let prose = fg(&inline, "v").expect("prose on screen");
     assert_ne!(a, prose, "maths does not stand out at all");
 }
+
+/// **A streaming equation renders as it builds, rather than snapping in at the close.**
+///
+/// A reply arrives token by token, so `$$y = \sigma(Wx` is what the pane holds for as long as the
+/// model takes to finish the line. Requiring the closing delimiter left raw source on screen and
+/// then replaced it wholesale when the last two characters landed.
+#[test]
+fn an_unclosed_equation_renders_while_it_is_still_arriving() {
+    let full = r"$$y = \sigma(Wx + b)$$";
+    let prefix = |n: usize| -> String {
+        let src: String = full.chars().take(n).collect();
+        let producer = marlowe_stub::Session::new();
+        let mut view = producer.view().clone();
+        view.transcript.clear();
+        view.transcript.push(Entry::Said(Speech::Model(src)));
+        common::buffer_text(&common::frame(&App::new(view).unwrap(), 120, 40))
+    };
+
+    // Partway through, with every token so far complete: typeset, not source.
+    assert!(prefix(16).contains("y = σ(Wx"), "{}", prefix(16));
+    assert!(!prefix(16).contains(r"\sigma"), "the source survived: {}", prefix(16));
+
+    // And the finished expression is unchanged by any of this.
+    assert!(prefix(full.chars().count()).contains("y = σ(Wx + b)"));
+}
+
+/// **The control, and the reason this is safe rather than clever.** A partial expression is often
+/// mid-token — `\s` is not a command yet — and `latex::render` refuses it, so it falls back to
+/// source exactly as it does for anything else it cannot represent. Nothing is guessed.
+#[test]
+fn a_half_typed_command_falls_back_to_source_rather_than_guessing() {
+    let producer = marlowe_stub::Session::new();
+    let mut view = producer.view().clone();
+    view.transcript.clear();
+    view.transcript.push(Entry::Said(Speech::Model(r"$$y = \s".to_string())));
+    let out = common::buffer_text(&common::frame(&App::new(view).unwrap(), 120, 40));
+    assert!(out.contains(r"\s"), "a half-typed command must stay source: {out}");
+}
+
+/// **Currency is still protected mid-stream**, which is the risk this change introduces: an
+/// unclosed `$` now scans to end-of-input, so "it costs $5 and…" is exactly the case that would
+/// break if the heuristic were dropped.
+#[test]
+fn an_unclosed_dollar_in_prose_is_still_not_maths() {
+    for s in ["it costs $5 and", "the price is $12 for", "spend $"] {
+        let producer = marlowe_stub::Session::new();
+        let mut view = producer.view().clone();
+        view.transcript.clear();
+        view.transcript.push(Entry::Said(Speech::Model(s.to_string())));
+        let out = common::buffer_text(&common::frame(&App::new(view).unwrap(), 120, 40));
+        assert!(out.contains(s), "prose was eaten as maths: {s:?} -> {out}");
+    }
+}
