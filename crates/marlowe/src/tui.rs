@@ -77,6 +77,14 @@ pub struct Options {
     /// and the reflex when one is in the way — stopping it — takes the other session's daemon with
     /// it. A scratch port is how a clean daemon is obtained without touching anyone else's.
     pub daemon_port: Option<u16>,
+    /// **ADR-046's provider, forwarded to a daemon this process may have to spawn.**
+    ///
+    /// The TUI does not choose a provider — the daemon owns the run, and a `--provider` on a client
+    /// invocation cannot change what an ALREADY-RUNNING daemon routes to. What this does is make
+    /// the auto-spawn honest: `ensure_daemon` builds a fixed argv, so without this a
+    /// `marlowe --tui --provider openrouter` on a machine with no daemon spawned a LOCAL one and
+    /// answered from it, having parsed the flag and thrown it away.
+    pub model_provider: marlowe_daemon::ModelProviderChoice,
     /// Enter raw mode and the alternate screen, draw one frame, then **panic on purpose**.
     ///
     /// The panic hook is the one piece of teardown that cannot be exercised by quitting normally,
@@ -147,7 +155,35 @@ pub enum DaemonStart {
     Slow,
 }
 
-fn ensure_daemon(port: u16) -> DaemonStart {
+/// The argv `ensure_daemon` spawns a daemon with, **as a value rather than as side effects on a
+/// `Command`**, so the one property that matters can be asserted without spawning a process.
+///
+/// That property: **a daemon this process spawns is the daemon the flags described.** `--serve`,
+/// `--ask` and `--status` all threaded `--provider`; `--tui` did not, and this function is where
+/// the omission lived — a fixed argv that said `--serve --workspace <cwd>` and nothing else. So
+/// `marlowe --tui --provider openrouter --openrouter-model X` parsed both flags, discarded them,
+/// spawned a LOCAL daemon and answered from it. A flag accepted and ignored is worse than one
+/// refused: nothing on screen says which model replied.
+///
+/// **The API key is deliberately NOT here.** It reaches the child through the inherited
+/// environment. An argv is visible in every process listing on the machine, so a key passed this
+/// way would be readable by any other user — see `marlowe_openrouter::secret`.
+fn spawn_args(port: u16, provider: &marlowe_daemon::ModelProviderChoice) -> Vec<String> {
+    let mut out = vec!["--serve".to_string()];
+    if port != marlowe_daemon::DEFAULT_DAEMON_PORT {
+        out.push("--daemon-port".to_string());
+        out.push(port.to_string());
+    }
+    if let marlowe_daemon::ModelProviderChoice::OpenRouter { model } = provider {
+        out.push("--provider".to_string());
+        out.push("openrouter".to_string());
+        out.push("--openrouter-model".to_string());
+        out.push(model.clone());
+    }
+    out
+}
+
+fn ensure_daemon(port: u16, provider: &marlowe_daemon::ModelProviderChoice) -> DaemonStart {
     let client = marlowe_daemon::Client::new("tui").with_port(port);
     if client.daemon_is_up() {
         return DaemonStart::AlreadyUp;
@@ -155,9 +191,9 @@ fn ensure_daemon(port: u16) -> DaemonStart {
     let Ok(exe) = std::env::current_exe() else { return DaemonStart::CouldNotSpawn };
     let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let mut cmd = std::process::Command::new(exe);
-    cmd.arg("--serve").arg("--workspace").arg(&cwd);
-    if port != marlowe_daemon::DEFAULT_DAEMON_PORT {
-        cmd.arg("--daemon-port").arg(port.to_string());
+    cmd.arg("--workspace").arg(&cwd);
+    for a in spawn_args(port, provider) {
+        cmd.arg(a);
     }
     cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -506,7 +542,7 @@ fn event_loop(
     // **The frame is up; now talk to the daemon.** Spawning it and doing the `Status` round-trip
     // costs whatever a cold Ollama costs, and none of it is in front of the first paint.
     if let Some(port) = connect_port {
-        let start = ensure_daemon(port);
+        let start = ensure_daemon(port, &opts.model_provider);
         session.connect_now();
         app.update(session.view().clone());
         // Said through the band, never through stdout: the surface owns this terminal now.
@@ -801,4 +837,57 @@ fn translate(code: KeyCode, mods: KeyModifiers) -> Option<Key> {
         KeyCode::Esc => Key::Esc,
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod spawn_argv {
+    use super::*;
+    use marlowe_daemon::ModelProviderChoice;
+
+    /// **The regression this closes**, asserted on the argv rather than on a spawned process.
+    #[test]
+    fn the_tui_forwards_the_provider_to_a_daemon_it_spawns() {
+        let a = spawn_args(
+            marlowe_daemon::DEFAULT_DAEMON_PORT,
+            &ModelProviderChoice::OpenRouter { model: "stealth/ox-alpha".into() },
+        );
+        let joined = a.join(" ");
+        assert!(joined.contains("--provider openrouter"), "{joined}");
+        assert!(joined.contains("--openrouter-model stealth/ox-alpha"), "{joined}");
+        assert!(a.contains(&"--serve".to_string()), "{joined}");
+    }
+
+    /// The control. Without it, the assertion above would pass on a build that always appended the
+    /// flags, and "the provider is forwarded" would be a statement about a constant.
+    #[test]
+    fn an_ollama_spawn_carries_no_provider_flags_at_all() {
+        let a = spawn_args(marlowe_daemon::DEFAULT_DAEMON_PORT, &ModelProviderChoice::Ollama);
+        assert_eq!(a, vec!["--serve".to_string()], "the default spawn must be unchanged: {a:?}");
+    }
+
+    /// A non-default port still reaches the child, and does so alongside the provider rather than
+    /// instead of it — the two are independent and a reader should not have to assume that.
+    #[test]
+    fn a_scratch_port_and_a_provider_both_survive() {
+        let a = spawn_args(
+            11500,
+            &ModelProviderChoice::OpenRouter { model: "stealth/ox-alpha".into() },
+        );
+        let joined = a.join(" ");
+        assert!(joined.contains("--daemon-port 11500"), "{joined}");
+        assert!(joined.contains("--openrouter-model stealth/ox-alpha"), "{joined}");
+    }
+
+    /// **The key must never be in an argv.** A process listing is world-readable on this machine.
+    #[test]
+    fn no_spawn_argv_can_contain_a_key() {
+        for p in [
+            ModelProviderChoice::Ollama,
+            ModelProviderChoice::OpenRouter { model: "stealth/ox-alpha".into() },
+        ] {
+            let joined = spawn_args(11500, &p).join(" ");
+            assert!(!joined.contains("sk-or"), "a key reached the argv: {joined}");
+            assert!(!joined.to_lowercase().contains("api_key"), "{joined}");
+        }
+    }
 }

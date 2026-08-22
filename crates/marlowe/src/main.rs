@@ -23,7 +23,7 @@ marlowe --status
 marlowe --shutdown [--daemon-port <N>]
 marlowe --launch
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
-        [--ground]
+        [--ground] [--provider <ollama|openrouter>] [--openrouter-model <SLUG>]
 marlowe --classic
 marlowe --doctor
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
@@ -416,6 +416,8 @@ fn main() {
                         panic_probe: false,
                         scripted: args.iter().any(|a| a == "--scripted"),
                         daemon_port: None,
+                        // `--launch` degraded to running here: same flags, same provider.
+                        model_provider: model_provider.clone(),
                     }) {
                         eprintln!("error: {e}");
                         std::process::exit(1);
@@ -439,6 +441,16 @@ fn main() {
             panic_probe: args.iter().any(|a| a == "--panic-probe"),
             scripted: args.iter().any(|a| a == "--scripted"),
             daemon_port: flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            // **ADR-046 reaches the TUI, and it did not until now.**
+            //
+            // `--serve`, `--ask` and `--status` all took `--provider`; `--tui` did not, and its
+            // `ensure_daemon` spawns with a FIXED argv. So `marlowe --tui --provider openrouter`
+            // parsed the flag, discarded it, auto-spawned a local daemon, and answered from
+            // qwen3.5:9b — the flag accepted and silently ignored, which is worse than refusing it.
+            //
+            // Same family as the two defects ADR-046 itself records: a control wired into one entry
+            // point and not its sibling. Found by a user asking how to select it in the TUI.
+            model_provider: model_provider.clone(),
         };
         if args.iter().any(|a| a == "--color-depth") && opts.color_depth.is_none() {
             eprintln!("error: --color-depth requires a value: truecolor, 256 or 16.");
@@ -1007,6 +1019,7 @@ mod embedder_provider_flag {
     fn args(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| (*s).to_string()).collect()
     }
+
 
     #[test]
     fn the_default_is_auto() {
