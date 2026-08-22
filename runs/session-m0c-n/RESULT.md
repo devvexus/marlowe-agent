@@ -86,3 +86,22 @@ for. A wider or smarter narrow is a registered-probe target, not a knob to turn.
 2. **The combiner gap**: union-oracle cond@3 0.9778 vs best combiner 0.9467 on fit.
 3. Focused-second-pass head discrimination (delta between differently-conditioned scores).
 4. Session-prune scorer (~4 cases) and the ingest+scope losses (~5) as ceiling repair.
+
+---
+
+## Addendum — Probe 1 (narrowing): closed null, no held-out read earned
+
+PREREGISTRATION-NARROWING.json, instrument gate 229/229, evaluation 
+arrow-probe.json.
+Union narrow recovered its predicted fit case (post-narrow 225/229) for **zero** R@3 movement
+(0 gained / 0 lost) at +50% fuse rows; RRF-narrow dropped BELOW its own registered post-narrow
+floor (223 < 224) and is dead by its own rule. Neither arm reached the earn-a-read bar (fit
+R@3 >= 214), so the held-out split was not touched.
+
+**The redirect:** the cut was never the constraint. Held-out loses 16 cases at the fuse pick
+(cond@3 92.7%) against 5 at the cut. Probe 2 (the combiner gap: union-oracle cond@3 0.9778 vs
+best combiner 0.9467 on fit) is where the measurable headroom lives.
+
+Also landed here: the rerank_score write-back defect and its fix -- see the section above the
+suite table in git history; the mutation-sensitive test is
+etrieve.rs::under_the_cascade_rerank_score_stays_the_SHIPPED_graphs_logit.
