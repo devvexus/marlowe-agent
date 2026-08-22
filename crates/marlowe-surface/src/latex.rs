@@ -272,11 +272,18 @@ fn command(lex: &mut Lex) -> Option<String> {
             lex.skip_spaces();
             let next_is_atom =
                 matches!(lex.peek(), Some(c) if c.is_alphanumeric() || c == '\\');
+            // **`?`, not `unwrap_or("")`.** A name in `FUNCTIONS` with no matching `SYMBOLS` row
+            // used to render as NOTHING: the operator vanished and the expression around it came
+            // out looking well-formed. `rgmin_	heta \mathcal{L}(	heta)` became `_θℒ(θ)` --
+            // silently wrong, which is the one outcome this module exists to prevent, and it was
+            // introduced by adding five names to one list and not the other.
+            //
+            // Refusing means the expression stays visibly its source instead, and the two lists
+            // are now checked against each other by a test.
             let upright = SYMBOLS
                 .iter()
                 .find(|(n, _)| *n == name)
-                .map(|(_, v)| *v)
-                .unwrap_or("");
+                .map(|(_, v)| *v)?;
             Some(if next_is_atom {
                 format!("{upright} ")
             } else {
@@ -307,6 +314,20 @@ fn command(lex: &mut Lex) -> Option<String> {
         // command inside them is still checked.
         "text" | "textrm" | "mathrm" | "operatorname" | "mathit" | "mathsf" | "mathtt" => {
             argument(lex)
+        }
+        // **Script and bold letters.** mathcal{L} is the loss and mathcal{N} the Gaussian in
+        // every paper; mathbf{x} is the vector. Unicode has all of them as single codepoints,
+        // so this is the same act as mathbb rather than a new kind of claim.
+        "mathcal" | "mathscr" => {
+            let body = argument(lex)?;
+            body.chars().map(script_letter).collect::<Option<String>>()
+        }
+        "mathbf" | "boldsymbol" => {
+            let body = argument(lex)?;
+            // boldsymbol{	heta} renders its argument first: the argument is a command, not
+            // a letter, and there is no bold form of an arbitrary glyph to fall back on.
+            let inner = if body.starts_with('\\') { render(&body)? } else { body };
+            inner.chars().map(bold_letter).collect::<Option<String>>()
         }
         "mathbb" => {
             let body = argument(lex)?;
@@ -365,9 +386,12 @@ fn command(lex: &mut Lex) -> Option<String> {
 /// The commands LaTeX sets upright as operators, which therefore keep a space before the atom that
 /// follows them. Shared with [`looks_like_inline_maths`], where the same names are the words that
 /// may legitimately appear inside a `$…$` span.
-const FUNCTIONS: [&str; 19] = [
+const FUNCTIONS: [&str; 24] = [
     "sin", "cos", "tan", "sec", "csc", "cot", "log", "ln", "exp", "max", "min", "lim", "det",
     "dim", "ker", "deg", "arg", "gcd", "bmod",
+    // Statistics and optimisation. argmax/argmin are how every objective in machine learning
+    // is stated; Pr, sup and inf are the vocabulary around them.
+    "argmax", "argmin", "sup", "inf", "Pr",
 ];
 
 /// `a/b`, with parentheses wherever they are needed for the result to mean what the source meant.
@@ -469,6 +493,33 @@ fn precomposed(accent: &str, base: char) -> Option<char> {
         _ => return None,
     };
     table.iter().find(|(k, _)| *k == base).map(|(_, v)| *v)
+}
+
+/// mathbf / boldsymbol. The Mathematical Alphanumeric Symbols block is contiguous, so this is
+/// offset arithmetic rather than a table -- and it refuses anything outside A-Z a-z 0-9, which is
+/// the honest boundary: there is no bold form of an arbitrary glyph.
+fn bold_letter(c: char) -> Option<char> {
+    let base = match c {
+        'A'..='Z' => 0x1D400 + (c as u32 - 'A' as u32),
+        'a'..='z' => 0x1D41A + (c as u32 - 'a' as u32),
+        '0'..='9' => 0x1D7CE + (c as u32 - '0' as u32),
+        _ => return None,
+    };
+    char::from_u32(base)
+}
+
+/// mathcal / mathscr. **Not contiguous**: eight capitals live in the Letterlike Symbols block for
+/// historical reasons and the rest in Mathematical Alphanumeric Symbols. A table, so those eight
+/// exceptions are visible rather than buried in arithmetic.
+fn script_letter(c: char) -> Option<char> {
+    Some(match c {
+        'B' => '\u{212C}', 'E' => '\u{2130}', 'F' => '\u{2131}', 'H' => '\u{210B}',
+        'I' => '\u{2110}', 'L' => '\u{2112}', 'M' => '\u{2133}', 'R' => '\u{211B}',
+        'A'..='Z' => char::from_u32(0x1D49C + (c as u32 - 'A' as u32))?,
+        'e' => '\u{212F}', 'g' => '\u{210A}', 'o' => '\u{2134}',
+        'a'..='z' => char::from_u32(0x1D4B6 + (c as u32 - 'a' as u32))?,
+        _ => return None,
+    })
 }
 
 fn blackboard(c: char) -> Option<char> {
@@ -596,6 +647,10 @@ const SYMBOLS: &[(&str, &str)] = &[
     // Binary operators.
     ("times", "×"), ("div", "÷"), ("cdot", "·"), ("pm", "±"), ("mp", "∓"), ("ast", "∗"),
     ("star", "⋆"), ("circ", "∘"), ("bullet", "∙"), ("oplus", "⊕"), ("otimes", "⊗"),
+    // odot is the Hadamard product and it is in every backpropagation rule ever written.
+    // It was the single unrenderable token in one, which is how it was found.
+    ("odot", "⊙"), ("ominus", "⊖"), ("oslash", "⊘"), ("boxtimes", "⊠"),
+    ("bigodot", "⨀"), ("varnothing", "∅"), ("coloneqq", "≔"),
     ("wedge", "∧"), ("vee", "∨"), ("setminus", "\\"),
     // Relations.
     ("leq", "≤"), ("le", "≤"), ("geq", "≥"), ("ge", "≥"), ("neq", "≠"), ("ne", "≠"),
@@ -643,6 +698,8 @@ const SYMBOLS: &[(&str, &str)] = &[
     ("sin", "sin"), ("cos", "cos"), ("tan", "tan"), ("sec", "sec"), ("csc", "csc"),
     ("cot", "cot"), ("log", "log"), ("ln", "ln"), ("exp", "exp"), ("lim", "lim"),
     ("max", "max"), ("min", "min"), ("det", "det"), ("dim", "dim"), ("ker", "ker"),
+    ("argmax", "argmax"), ("argmin", "argmin"), ("sup", "sup"), ("inf", "inf"),
+    ("Pr", "Pr"),
     ("deg", "deg"), ("arg", "arg"), ("gcd", "gcd"), ("bmod", "mod"), ("pmod", "mod"),
 ];
 
@@ -808,5 +865,32 @@ mod tests {
         assert_eq!(render("x^2+y^2=z^2").as_deref(), Some("x²+y² = z²"));
         // A unary minus spaced as `- x` reads as a subtraction with a missing operand.
         assert_eq!(render("-x").as_deref(), Some("-x"));
+    }
+}
+
+#[cfg(test)]
+mod function_table_agreement {
+    use super::*;
+
+    /// **Every name in `FUNCTIONS` must have a row in `SYMBOLS`, and this is why.**
+    ///
+    /// The two lists do different jobs — one decides *"this is an upright operator name"*, the
+    /// other says *what it renders as* — and nothing connected them. A name in the first with no
+    /// row in the second rendered as the empty string, so the operator silently disappeared and
+    /// the expression around it still looked well-formed: `\argmin_\theta \mathcal{L}(\theta)`
+    /// came out `_θℒ(θ)`.
+    ///
+    /// That is the module's one forbidden outcome — wrong and plausible — and it was introduced by
+    /// adding five names to one list and forgetting the other. The lookup now refuses instead, and
+    /// this makes the omission a build failure rather than a rendering one.
+    #[test]
+    fn every_function_name_has_a_symbol_row() {
+        for name in FUNCTIONS {
+            assert!(
+                SYMBOLS.iter().any(|(n, _)| *n == name),
+                "{name} is in FUNCTIONS with no SYMBOLS row: it would render as nothing"
+            );
+        }
+        assert!(FUNCTIONS.len() >= 20, "the list looks empty: {}", FUNCTIONS.len());
     }
 }
