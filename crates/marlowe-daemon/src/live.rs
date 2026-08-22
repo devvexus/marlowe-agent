@@ -87,6 +87,8 @@ impl LiveSession {
             model_disclosure: "connecting".into(),
             degraded: None,
             rerank_provider: "…".into(),
+            // Nothing has been asked yet. The daemon answers this; the surface never guesses.
+            model_provider: "…".into(),
             live_runs: 0,
             // Nothing has been asked yet; an invented list would be the surface holding state
             // the daemon has not supplied.
@@ -160,6 +162,9 @@ impl LiveSession {
             model_disclosure: "NOT MEASURED — no daemon".into(),
             degraded: Some(format!("{detail} · start one with `marlowe --serve`")),
             rerank_provider: "unavailable".into(),
+            // No daemon, so nothing has announced a provider. Not defaulted to `ollama`: that
+            // would be the surface asserting a fact the daemon never supplied.
+            model_provider: "unavailable".into(),
             live_runs: 0,
             models: Vec::new(),
         });

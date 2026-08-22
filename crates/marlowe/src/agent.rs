@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use marlowe_contract::text::{sanitize_line, sanitize_prose};
 use marlowe_daemon::protocol::Event;
-use marlowe_daemon::{Client, Daemon, DaemonConfig};
+use marlowe_daemon::{Client, Daemon, DaemonConfig, ModelProviderChoice};
 
 /// Where the profile lives when nobody says otherwise.
 ///
@@ -91,9 +91,14 @@ pub fn serve(
     thinking: bool,
     reranking: Option<PathBuf>,
     model: Option<String>,
+    provider: ModelProviderChoice,
 ) -> Result<(), String> {
     let mut config = DaemonConfig::new(profile_root, workspace);
     config.reranking = reranking;
+    // **ADR-046. Opt-in, and refused at load rather than defaulted.** `main` has already checked
+    // that a key and a model are present when this is `OpenRouter`; passing an unusable choice
+    // through would move the refusal to the first turn, where it reads as a provider fault.
+    config.model_provider = provider;
     // **A chosen model does not inherit the default's measured reliability.** `capability_for`
     // returns `unmeasured` for anything but `DEFAULT_MODEL`, so `--status` reads "tool-call
     // reliability NOT MEASURED" rather than reporting qwen3.5:9b's 12/12 under another name.
@@ -115,6 +120,17 @@ pub fn serve(
         config.context_tokens,
         marlowe_provider::MODEL_CONTEXT_CEILING
     );
+    // **Announced, never inferred** — ADR-029's rule applied to the model provider. A daemon on
+    // openrouter.ai and one on loopback otherwise print an identical startup, and the difference
+    // is money and a network.
+    if let ModelProviderChoice::OpenRouter { model } = config.model_provider() {
+        eprintln!("marlowe: model provider OPENROUTER · {model} · https://openrouter.ai");
+        eprintln!(
+            "marlowe: this path is NOT bit-identically reproducible — the serving upstream is \
+             recorded per call instead. See ADR-046 §6."
+        );
+        eprintln!("marlowe: {}", marlowe_provider::ModelCapability::unmeasured(&model).disclosure());
+    }
     let port = config.port;
     // **Read BEFORE `Daemon::open`, because opening is what creates the journal.** Asking
     // afterwards would answer "no" on every run including the first — the guard would be
@@ -145,6 +161,7 @@ pub fn ask(
     context: Option<u32>,
     thinking: bool,
     port: Option<u16>,
+    provider: ModelProviderChoice,
 ) -> Result<(), String> {
     // **`--daemon-port` reaches `--ask` as of M2 C2f.** Without it every `--ask` went to
     // whatever sat on the default port, which made two things impossible: talking to a scratch
@@ -175,6 +192,7 @@ pub fn ask(
         let mut config = DaemonConfig::new(profile_root, workspace);
         config.dev = dev;
         config.thinking = thinking;
+        config.model_provider = provider;
         if let Some(n) = context {
             config.context_tokens = n;
         }
@@ -424,13 +442,17 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 }
                 writeln!(out, "  [{} · {elapsed_ms} ms]", sanitize_line(outcome))?;
             }
-            Event::Run { id, status, tokens, .. } => {
+            Event::Run { id, status, tokens, attribution, .. } => {
                 writeln!(
                     out,
                     "  run {}  {}  {tokens} tokens",
                     sanitize_line(id),
                     sanitize_line(status)
                 )?;
+                // ADR-046 §3. Absent on the local path, where the question does not arise.
+                if let Some(a) = attribution {
+                    writeln!(out, "      {}", sanitize_line(a))?;
+                }
             }
             Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
         }
@@ -519,6 +541,7 @@ mod display_sanitiser {
                 model_disclosure: format!("marlowe-red:9b{OVERWRITE}"),
                 degraded: Some(format!("ollama down{OVERWRITE}"),),
                 rerank_provider: format!("cpu{OVERWRITE}"),
+                model_provider: format!("openrouter{OVERWRITE}"),
                 live_runs: 0,
                 models: Vec::new(),
             }),
@@ -550,6 +573,9 @@ mod display_sanitiser {
                 status: format!("live{OVERWRITE}"),
                 tokens: 3,
                 depth: 0,
+                // ADR-046 §3: the upstream's own name for itself, which is a string a SERVER
+                // chose. It is sanitised where it arrives too; this asserts the render site.
+                attribution: Some(format!("upstream Anthropic{OVERWRITE}")),
             },
             Event::Error { detail: format!("boom{OVERWRITE}") },
         ];

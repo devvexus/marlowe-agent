@@ -16,6 +16,10 @@ marlowe-daemon.workspace = true
 marlowe-loop.workspace = true
 marlowe-permission.workspace = true
 marlowe-provider.workspace = true
+# ADR-046. Used by `resolve_provider` for the LOAD-TIME key check only -- the driver itself is
+# constructed in the daemon. The refusal has to happen before a daemon starts, or it arrives on
+# the first turn as something that looks like a provider fault.
+marlowe-openrouter.workspace = true
 marlowe-stub.workspace = true
 marlowe-view.workspace = true
 marlowe-surface.workspace = true

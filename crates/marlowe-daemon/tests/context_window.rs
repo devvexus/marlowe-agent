@@ -103,6 +103,7 @@ fn a_completed_turn_does_not_repeat_its_reply_in_the_done_frame() {
         model_disclosure: "d".into(),
         degraded: None,
         rerank_provider: "cpu".into(),
+        model_provider: "ollama".into(),
         live_runs: 0,
         models: Vec::new(),
     });

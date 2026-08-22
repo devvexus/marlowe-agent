@@ -12,6 +12,9 @@ marlowe-loop.workspace = true
 marlowe-memory.workspace = true
 marlowe-permission.workspace = true
 marlowe-provider.workspace = true
+# ADR-046. The HOSTED provider, opt-in at runtime. Present in the dependency graph and absent
+# from every default path: nothing here runs unless `--provider openrouter` is given.
+marlowe-openrouter.workspace = true
 marlowe-tools.workspace = true
 marlowe-view.workspace = true
 serde.workspace = true

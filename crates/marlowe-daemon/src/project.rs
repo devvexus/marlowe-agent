@@ -238,7 +238,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 view.status.state = StatusState::Idle;
                 view.status.detail = outcome.clone();
             }
-            Event::Run { id, status, tokens, depth } => {
+            Event::Run { id, status, tokens, depth, .. } => {
                 view.runs.push(Item::new(
                     id,
                     // **From the safe pool, never a digit.** The first version numbered runs by
@@ -332,6 +332,7 @@ mod tests {
             model_disclosure: "qwen3.5:9b · tool calls 12/12".into(),
             degraded: None,
             rerank_provider: "cpu-sequential".into(),
+            model_provider: "ollama".into(),
             live_runs: 0,
         models: Vec::new(),
         }
@@ -454,12 +455,14 @@ mod key_tests {
             model_disclosure: "d".into(),
             degraded: None,
             rerank_provider: "cpu".into(),
+            model_provider: "ollama".into(),
             live_runs: 0,
         models: Vec::new(),
         });
         // Enough runs to exhaust the pool and then some.
         let events: Vec<Event> = (0..25)
             .map(|i| Event::Run {
+                attribution: None,
                 id: format!("r{i}"),
                 status: "running".into(),
                 tokens: 1,

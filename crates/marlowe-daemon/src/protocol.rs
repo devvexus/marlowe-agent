@@ -105,7 +105,18 @@ pub enum Event {
     /// The turn ended. `outcome` distinguishes completed / paused / escalated / failed.
     Done { outcome: String, detail: String, spend_micros_usd: u64, elapsed_ms: u64 },
     /// A run the daemon owns.
-    Run { id: String, status: String, tokens: u64, depth: u8 },
+    ///
+    /// `attribution` is **ADR-046 §3**: which model actually answered and which upstream served
+    /// it. `None` on the local path, where the question does not arise. `#[serde(default)]` so a
+    /// client built before this field still parses the frame.
+    Run {
+        id: String,
+        status: String,
+        tokens: u64,
+        depth: u8,
+        #[serde(default)]
+        attribution: Option<String>,
+    },
     Error { detail: String },
 }
 
@@ -123,6 +134,11 @@ pub struct StatusReport {
     /// ADR-029: **the active provider is announced, never silently chosen.** This is read from
     /// the field the profile row already stamps; it is not a second source of the same fact.
     pub rerank_provider: String,
+    /// ADR-046, and ADR-029's rule applied to the model provider: **announced, never inferred.**
+    /// `ollama` or `openrouter`. Read from `DaemonConfig::model_provider()`, which is the same
+    /// function the run path selects a driver with — not a second source of the same fact.
+    #[serde(default)]
+    pub model_provider: String,
     /// Runs the daemon currently owns. Non-zero across a client restart is what makes
     /// invariant 6 observable rather than asserted.
     pub live_runs: usize,
@@ -190,6 +206,7 @@ mod tests {
 
         // And the Run frame is a summary, not the object.
         let run = serde_json::to_string(&Event::Run {
+            attribution: None,
             id: "r".into(),
             status: "running".into(),
             tokens: 10,
@@ -238,6 +255,7 @@ mod tests {
             model_disclosure: "qwen3.5:9b · tool calls 12/12".into(),
             degraded: None,
             rerank_provider: "cpu-sequential".into(),
+            model_provider: "ollama".into(),
             live_runs: 0,
             models: vec!["qwen3.5:9b".into()],
         };

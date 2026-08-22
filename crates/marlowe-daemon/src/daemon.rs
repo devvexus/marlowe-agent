@@ -45,6 +45,46 @@ pub enum DaemonError {
     UnrunnableTools(#[from] marlowe_loop::UnrunnableTools),
 }
 
+/// Which provider serves this daemon's model calls. **ADR-046.**
+///
+/// # This enum is the zero-config guard, and it is the guard because ONE function reads it
+///
+/// K6 — install to first useful output, no configuration — is a kill criterion and it is
+/// currently MET on the local path. The way that regresses is not a redesign; it is an
+/// environment variable, or a "sensible" fallback, quietly deciding that a hosted provider is in
+/// use when nobody asked. `blocks_composed_targets` is this project's precedent for the fix: one
+/// function, called at the enforcement site *and* by the test, so the two cannot disagree.
+///
+/// [`DaemonConfig::model_provider`] is that function. The run path selects a driver from it and
+/// `--status` announces it from it, so a test that asserts on it is asserting on the thing that
+/// decides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelProviderChoice {
+    /// ADR-028's default. Loopback, no account, no key, no network.
+    Ollama,
+    /// ADR-046. **Opt-in only**, and never reachable except by an explicit `--provider openrouter`.
+    OpenRouter { model: String },
+}
+
+impl ModelProviderChoice {
+    /// The one word `--status` prints. ADR-029's rule — announced, never inferred.
+    pub fn name(&self) -> &'static str {
+        match self {
+            ModelProviderChoice::Ollama => "ollama",
+            ModelProviderChoice::OpenRouter { .. } => "openrouter",
+        }
+    }
+}
+
+/// One turn's resolved provider, with everything that turn needs to build a driver.
+///
+/// Local to the run path: [`ModelProviderChoice`] is the *declaration* and this is the
+/// *resolution*, and keeping them apart is what stops a probe result being mistaken for a setting.
+enum Selected {
+    Ollama(LocalEndpoint, Routing),
+    OpenRouter(String),
+}
+
 pub struct DaemonConfig {
     pub profile_root: PathBuf,
     pub workspace: PathBuf,
@@ -63,6 +103,10 @@ pub struct DaemonConfig {
     /// and the assembler's window, so §6's 70% compaction trigger is computed against the window
     /// the provider actually has.
     pub context_tokens: u32,
+    /// Which provider answers. **`Ollama` unless something explicitly says otherwise** —
+    /// see [`ModelProviderChoice`], and `tests/zero_config_is_unchanged.rs`, which asserts that
+    /// no environment variable can move it.
+    pub model_provider: ModelProviderChoice,
     /// The cross-encoder directory. `None` makes memory **write-only**, announced by
     /// [`crate::memory::RetrievalState`] and printed by `--status`.
     ///
@@ -76,6 +120,16 @@ pub struct DaemonConfig {
 }
 
 impl DaemonConfig {
+    /// **The single definition of which provider is in use.**
+    ///
+    /// Called by the run path to choose a driver, by `status()` to announce one, and by
+    /// `tests/zero_config_is_unchanged.rs` to assert on one. A second reading of the same fact —
+    /// an env var checked at the driver site, say — is how "OpenRouter is opt-in" becomes true of
+    /// the comment and false of the code.
+    pub fn model_provider(&self) -> ModelProviderChoice {
+        self.model_provider.clone()
+    }
+
     pub fn new(profile_root: PathBuf, workspace: PathBuf) -> Self {
         Self {
             profile_root,
@@ -86,6 +140,8 @@ impl DaemonConfig {
             // value here would be the second source ADR-029 forbids. The honest value is that
             // nothing has announced one yet.
             rerank_provider: "not-wired".to_string(),
+            // **The default is the local path and nothing can move it but an explicit choice.**
+            model_provider: ModelProviderChoice::Ollama,
             dev: false,
             thinking: true,
             context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,
@@ -101,6 +157,13 @@ pub struct RunSummary {
     pub status: String,
     pub tokens: u64,
     pub depth: u8,
+    /// **Which model actually answered, and which upstream served it.** ADR-046 §3.
+    ///
+    /// `None` on the local path, where the question does not arise: Ollama serves the model whose
+    /// name was asked for, on this machine. On the hosted path it is the difference between a
+    /// benchmark row somebody can re-run and one nobody can, because OpenRouter may route one
+    /// model name to a different upstream between two requests without the name changing.
+    pub attribution: Option<String>,
 }
 
 /// Turns a loop event into a wire event. Render-only.
@@ -473,6 +536,36 @@ impl Daemon {
 
     /// What §B5's band and first-run onboarding need, without touching a model.
     pub fn status(&self) -> StatusReport {
+        // **The hosted path answers without touching the network.** A probe here would put a
+        // round trip in front of every `--status`, and the failures worth catching early — no
+        // key, no model named — need no network to see. See `marlowe_openrouter::Availability`.
+        if let ModelProviderChoice::OpenRouter { model } = self.config.model_provider() {
+            let availability = marlowe_openrouter::Availability::check(
+                &model,
+                &marlowe_openrouter::ApiKey::from_environment(),
+            );
+            return StatusReport {
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                workspace: self.config.workspace.display().to_string(),
+                model: model.clone(),
+                // **NOT MEASURED, always.** `capability_for` would hand back `qwen3.5:9b`'s
+                // 12/12 from 2026-08-08 for any name it does not recognise -- no: it returns
+                // `unmeasured`, and that is the correct answer here for the same reason. Nothing
+                // about any OpenRouter model has been measured on this machine.
+                model_disclosure: marlowe_provider::ModelCapability::unmeasured(&model)
+                    .disclosure(),
+                degraded: crate::staleness::stale_against_source()
+                    .or_else(|| (!availability.is_ready()).then(|| availability.remedy())),
+                rerank_provider: self.config.rerank_provider.clone(),
+                model_provider: self.config.model_provider().name().to_string(),
+                live_runs: self.live_runs(),
+                // **Empty, and that is the truthful reading.** This list is what a model PICKER
+                // is built from, and it is the machine's Ollama inventory. OpenRouter's catalogue
+                // is hundreds of models behind a network call; presenting the one configured slug
+                // as though it were a list would be a control that offers one choice.
+                models: vec![model],
+            };
+        }
         let endpoint = LocalEndpoint::default_ollama();
         let routing = Routing::uniform(&self.config.model);
         // **One probe, two answers.** The availability check already enumerates what the endpoint
@@ -517,6 +610,7 @@ impl Daemon {
             model_disclosure: capability_for(&self.config.model).disclosure(),
             degraded,
             rerank_provider: self.config.rerank_provider.clone(),
+            model_provider: self.config.model_provider().name().to_string(),
             live_runs: self.live_runs(),
             models,
         }
@@ -527,6 +621,16 @@ impl Daemon {
     /// A silent accept would leave the picker showing a model that every subsequent turn fails
     /// against, and the failure would present as a broken model rather than as a bad choice.
     pub fn set_model(&mut self, model: &str) -> Result<(), String> {
+        if let ModelProviderChoice::OpenRouter { .. } = self.config.model_provider() {
+            // **Refused by name rather than silently ignored.** The picker is built from the
+            // machine's Ollama inventory, so accepting a name here would switch a hosted daemon
+            // onto a local slug that OpenRouter has never heard of — and the failure would arrive
+            // as a 404 on the next turn, reading like a provider fault.
+            return Err(format!(
+                "this daemon routes to openrouter.ai, so `{model}` cannot be selected from the \
+                 local model list. Restart with `--openrouter-model <slug>`"
+            ));
+        }
         if model == self.config.model {
             return Ok(());
         }
@@ -581,7 +685,13 @@ impl Daemon {
         let run_id = RunId::new();
         self.runs.insert(
             run_id.to_string(),
-            RunSummary { id: run_id.to_string(), status: "running".into(), tokens: 0, depth: 0 },
+            RunSummary {
+                id: run_id.to_string(),
+                status: "running".into(),
+                tokens: 0,
+                depth: 0,
+                attribution: None,
+            },
         );
         let mark = |runs: &mut BTreeMap<String, RunSummary>, status: &str, tokens: u64| {
             if let Some(s) = runs.get_mut(&run_id.to_string()) {
@@ -590,32 +700,69 @@ impl Daemon {
             }
         };
 
-        let endpoint = LocalEndpoint::default_ollama();
-        let routing = match Routing::uniform(&self.config.model) {
-            Ok(r) => r,
-            Err(e) => {
-                mark(&mut self.runs, "failed", 0);
-                on_event(Event::Error { detail: e.to_string() });
-                return;
+        // ── which provider, and is it ready ────────────────────────────────────────────
+        //
+        // **Both arms degrade with a remedy and neither crashes** — invariant 4. The remedies are
+        // different because the failures are: `ollama serve` fixes one and an API key fixes the
+        // other, and a message a user cannot act on is a crash with better manners.
+        //
+        // **Neither arm falls back to the other.** A hosted run that quietly became a local one
+        // would report a frontier model's name over a 9B's answers, which for a benchmark is
+        // worse than not running at all.
+        let selected = match self.config.model_provider() {
+            ModelProviderChoice::Ollama => {
+                let endpoint = LocalEndpoint::default_ollama();
+                let routing = match Routing::uniform(&self.config.model) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        mark(&mut self.runs, "failed", 0);
+                        on_event(Event::Error { detail: e.to_string() });
+                        return;
+                    }
+                };
+                let availability = Availability::probe(&endpoint, &routing);
+                if !availability.is_ready() {
+                    mark(&mut self.runs, "degraded", 0);
+                    // Invariant 4: a declared, actionable state — not a crash and not a silent stub.
+                    on_event(Event::Degraded {
+                        what: "no model available".into(),
+                        remedy: availability.remedy(),
+                    });
+                    on_event(Event::Done {
+                        outcome: "degraded".into(),
+                        detail: availability.remedy(),
+                        spend_micros_usd: 0,
+                        elapsed_ms: 0,
+                    });
+                    return;
+                }
+                Selected::Ollama(endpoint, routing)
+            }
+            ModelProviderChoice::OpenRouter { model } => {
+                // **No network here.** A startup probe would put a round trip in front of every
+                // turn and would answer a question the first call answers anyway; what it CAN
+                // answer offline — no key, no model named — it answers offline.
+                let availability = marlowe_openrouter::Availability::check(
+                    &model,
+                    &marlowe_openrouter::ApiKey::from_environment(),
+                );
+                if !availability.is_ready() {
+                    mark(&mut self.runs, "degraded", 0);
+                    on_event(Event::Degraded {
+                        what: "no model available".into(),
+                        remedy: availability.remedy(),
+                    });
+                    on_event(Event::Done {
+                        outcome: "degraded".into(),
+                        detail: availability.remedy(),
+                        spend_micros_usd: 0,
+                        elapsed_ms: 0,
+                    });
+                    return;
+                }
+                Selected::OpenRouter(model)
             }
         };
-
-        let availability = Availability::probe(&endpoint, &routing);
-        if !availability.is_ready() {
-            mark(&mut self.runs, "degraded", 0);
-            // Invariant 4: a declared, actionable state — not a crash and not a silent stub.
-            on_event(Event::Degraded {
-                what: "no model available".into(),
-                remedy: availability.remedy(),
-            });
-            on_event(Event::Done {
-                outcome: "degraded".into(),
-                detail: availability.remedy(),
-                spend_micros_usd: 0,
-                elapsed_ms: 0,
-            });
-            return;
-        }
 
         let registry = match builtin_registry() {
             Ok(r) => r,
@@ -648,122 +795,230 @@ impl Daemon {
             Tier::Act,
         );
 
-        let mut driver = OllamaDriver::new(
-            endpoint,
-            routing,
-            builtin_registry().expect("the builtins loaded a moment ago"),
-        )
-        .with_capability(capability_for(&self.config.model))
-        .with_context_tokens(self.config.context_tokens)
-        .with_thinking(self.config.thinking);
-
-        // **`--dev`: the provider's own wire, before interpretation.**
+        // ── ONE PROVIDER PER TURN, chosen by the ONE function that decides ────────────
         //
-        // A slow turn and a hung one look identical from outside, and this is the only view that
-        // separates *the model is emitting slowly* from *nothing is arriving*. It writes to the
-        // daemon's stderr rather than the transcript: it is a diagnostic, and §B1's rule that
-        // instrumentation lives under `--dev` applies to the provider seam as much as to memory.
-        if self.config.dev {
-            // The outbound request, once per model call. This is the reading that settles whether
-            // the persona reached the model — the constructed-body test cannot.
-            driver = driver.with_request_dump(Box::new(|body| {
-                let system: Vec<&str> = body
-                    .get("messages")
-                    .and_then(|m| m.as_array())
-                    .map(|ms| {
-                        ms.iter()
-                            .filter(|m| m.get("role").and_then(|r| r.as_str()) == Some("system"))
-                            .filter_map(|m| m.get("content").and_then(|c| c.as_str()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                eprintln!("[dev] ===== OUTBOUND REQUEST =====");
-                eprintln!(
-                    "[dev] model={} num_ctx={} num_predict={}",
-                    body.get("model").and_then(|m| m.as_str()).unwrap_or("?"),
-                    body.pointer("/options/num_ctx")
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "UNSET (Ollama defaults to 2048)".into()),
-                    body.pointer("/options/num_predict")
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| "unset".into()),
-                );
-                eprintln!("[dev] system messages: {}", system.len());
-                for (i, sys) in system.iter().enumerate() {
-                    eprintln!("[dev] --- system[{i}] ({} chars) ---", sys.len());
-                    for line in sys.lines() {
-                        eprintln!("[dev] | {line}");
-                    }
-                }
+        // `self.config.model_provider()` is read here and by `status()`, and nowhere else. That
+        // is what makes "OpenRouter is opt-in" a property rather than a comment: there is no
+        // second reading of the same fact for an environment variable to sneak into.
+        let attribution_cell = std::sync::Arc::new(std::sync::Mutex::new(
+            marlowe_openrouter::RunAttribution::default(),
+        ));
+        let mut driver: Box<dyn marlowe_loop::ModelDriver> = match selected {
+            Selected::Ollama(endpoint, routing) => {
+            let mut driver = OllamaDriver::new(
+                endpoint,
+                routing,
+                builtin_registry().expect("the builtins loaded a moment ago"),
+            )
+            .with_capability(capability_for(&self.config.model))
+            .with_context_tokens(self.config.context_tokens)
+            .with_thinking(self.config.thinking);
 
-                // **Every message, with its role.** The dump printed only the system tier, so the
-                // shape of the conversation — the thing that decides whether the model can see its
-                // own previous tool calls — was the one part of the request `--dev` could not
-                // show. An instrument that omits the interesting half is how a wrong answer looks
-                // authoritative.
-                if let Some(msgs) = body.get("messages").and_then(|m| m.as_array()) {
-                    eprintln!("[dev] --- conversation ({} messages) ---", msgs.len());
-                    for (i, m) in msgs.iter().enumerate() {
-                        let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
-                        let content =
-                            m.get("content").and_then(|c| c.as_str()).unwrap_or("");
-                        let calls = m
-                            .get("tool_calls")
+            // **`--dev`: the provider's own wire, before interpretation.**
+            //
+            // A slow turn and a hung one look identical from outside, and this is the only view that
+            // separates *the model is emitting slowly* from *nothing is arriving*. It writes to the
+            // daemon's stderr rather than the transcript: it is a diagnostic, and §B1's rule that
+            // instrumentation lives under `--dev` applies to the provider seam as much as to memory.
+            if self.config.dev {
+                // The outbound request, once per model call. This is the reading that settles whether
+                // the persona reached the model — the constructed-body test cannot.
+                driver = driver.with_request_dump(Box::new(|body| {
+                    let system: Vec<&str> = body
+                        .get("messages")
+                        .and_then(|m| m.as_array())
+                        .map(|ms| {
+                            ms.iter()
+                                .filter(|m| m.get("role").and_then(|r| r.as_str()) == Some("system"))
+                                .filter_map(|m| m.get("content").and_then(|c| c.as_str()))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    eprintln!("[dev] ===== OUTBOUND REQUEST =====");
+                    eprintln!(
+                        "[dev] model={} num_ctx={} num_predict={}",
+                        body.get("model").and_then(|m| m.as_str()).unwrap_or("?"),
+                        body.pointer("/options/num_ctx")
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "UNSET (Ollama defaults to 2048)".into()),
+                        body.pointer("/options/num_predict")
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "unset".into()),
+                    );
+                    eprintln!("[dev] system messages: {}", system.len());
+                    for (i, sys) in system.iter().enumerate() {
+                        eprintln!("[dev] --- system[{i}] ({} chars) ---", sys.len());
+                        for line in sys.lines() {
+                            eprintln!("[dev] | {line}");
+                        }
+                    }
+
+                    // **Every message, with its role.** The dump printed only the system tier, so the
+                    // shape of the conversation — the thing that decides whether the model can see its
+                    // own previous tool calls — was the one part of the request `--dev` could not
+                    // show. An instrument that omits the interesting half is how a wrong answer looks
+                    // authoritative.
+                    if let Some(msgs) = body.get("messages").and_then(|m| m.as_array()) {
+                        eprintln!("[dev] --- conversation ({} messages) ---", msgs.len());
+                        for (i, m) in msgs.iter().enumerate() {
+                            let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
+                            let content =
+                                m.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                            let calls = m
+                                .get("tool_calls")
+                                .and_then(|t| t.as_array())
+                                .map(|a| a.len())
+                                .unwrap_or(0);
+                            let name = m.get("tool_name").and_then(|n| n.as_str()).unwrap_or("");
+                            eprintln!(
+                                "[dev] [{i:>3}] {role:<9} {:>5} chars  tool_calls={calls}  tool_name={name:?}  {:?}",
+                                content.len(),
+                                content.chars().take(70).collect::<String>()
+                            );
+                        }
+                    }
+                    eprintln!(
+                        "[dev] tools offered: {}",
+                        body.get("tools")
                             .and_then(|t| t.as_array())
-                            .map(|a| a.len())
-                            .unwrap_or(0);
-                        let name = m.get("tool_name").and_then(|n| n.as_str()).unwrap_or("");
-                        eprintln!(
-                            "[dev] [{i:>3}] {role:<9} {:>5} chars  tool_calls={calls}  tool_name={name:?}  {:?}",
-                            content.len(),
-                            content.chars().take(70).collect::<String>()
-                        );
+                            .map(|a| a
+                                .iter()
+                                .filter_map(|t| t.pointer("/function/name").and_then(|n| n.as_str()))
+                                .collect::<Vec<_>>()
+                                .join(", "))
+                            .unwrap_or_else(|| "NONE".into())
+                    );
+                    // **The literal bytes.** Every summary above is a rendering of this; when the two
+                    // disagree the summary is wrong, and only this settles it.
+                    if std::env::var("MARLOWE_DUMP_BODY").is_ok() {
+                        eprintln!("[dev] ===== RAW BODY =====");
+                        eprintln!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
                     }
-                }
-                eprintln!(
-                    "[dev] tools offered: {}",
-                    body.get("tools")
-                        .and_then(|t| t.as_array())
-                        .map(|a| a
-                            .iter()
-                            .filter_map(|t| t.pointer("/function/name").and_then(|n| n.as_str()))
-                            .collect::<Vec<_>>()
-                            .join(", "))
-                        .unwrap_or_else(|| "NONE".into())
-                );
-                // **The literal bytes.** Every summary above is a rendering of this; when the two
-                // disagree the summary is wrong, and only this settles it.
-                if std::env::var("MARLOWE_DUMP_BODY").is_ok() {
-                    eprintln!("[dev] ===== RAW BODY =====");
-                    eprintln!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
-                }
-                eprintln!("[dev] ===== END REQUEST =====");
-            }));
+                    eprintln!("[dev] ===== END REQUEST =====");
+                }));
 
-            let mut n: u64 = 0;
-            driver = driver.with_raw_frames(Box::new(move |frame| {
-                n += 1;
-                let think = frame
-                    .get("message")
-                    .and_then(|m| m.get("thinking"))
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("");
-                let text = frame
-                    .get("message")
-                    .and_then(|m| m.get("content"))
-                    .and_then(|c| c.as_str())
-                    .unwrap_or("");
-                if !think.is_empty() {
-                    eprintln!("[dev] frame {n:>4}  THINK {:>4} bytes", think.len());
+                let mut n: u64 = 0;
+                driver = driver.with_raw_frames(Box::new(move |frame| {
+                    n += 1;
+                    let think = frame
+                        .get("message")
+                        .and_then(|m| m.get("thinking"))
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("");
+                    let text = frame
+                        .get("message")
+                        .and_then(|m| m.get("content"))
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("");
+                    if !think.is_empty() {
+                        eprintln!("[dev] frame {n:>4}  THINK {:>4} bytes", think.len());
+                    }
+                    let done = frame.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
+                    eprintln!(
+                        "[dev] frame {n:>4}  {:>5} bytes  done={done}  {:?}",
+                        text.len(),
+                        text.chars().take(60).collect::<String>()
+                    );
+                }));
+            }
+                Box::new(driver)
+            }
+            Selected::OpenRouter(model) => {
+                // The key was already proven present by the availability check above; this is the
+                // read that consumes it. A second failure here would mean the environment changed
+                // between two statements, which is worth reporting rather than unwrapping.
+                let key = match marlowe_openrouter::ApiKey::from_environment() {
+                    Ok(k) => k,
+                    Err(e) => {
+                        mark(&mut self.runs, "failed", 0);
+                        on_event(Event::Error { detail: e.to_string() });
+                        return;
+                    }
+                };
+                let sink_cell = std::sync::Arc::clone(&attribution_cell);
+                let dev = self.config.dev;
+                let mut driver = marlowe_openrouter::OpenRouterDriver::new(
+                    Box::new(marlowe_openrouter::TlsTransport::new()),
+                    key,
+                    &model,
+                    builtin_registry().expect("the builtins loaded a moment ago"),
+                )
+                .with_context_tokens(self.config.context_tokens)
+                // **The attribution sink is wired unconditionally, NOT behind `--dev`.**
+                //
+                // Which upstream served a call is not a diagnostic; it is the difference between
+                // a benchmark row somebody can re-run and one nobody can. A run record that
+                // carried it only when a debugging flag happened to be on would be exactly the
+                // shape ADR-046 §3 exists to prevent.
+                .with_attribution_sink(Box::new(move |call| {
+                    if dev {
+                        eprintln!("[dev] openrouter: {}", call.disclosure());
+                    }
+                    sink_cell.lock().expect("attribution").push(call.clone());
+                }));
+
+                if self.config.dev {
+                    driver = driver.with_request_dump(Box::new(|body| {
+                        // **The bytes the RUNNING process sent.** Same instrument as the Ollama
+                        // adapter's, and it exists for the same reason: a test on a constructed
+                        // body cannot see a stale deployment. The API key is NOT here and cannot
+                        // be — it travels in a header, and `tests/key_containment.rs` asserts
+                        // that against this very sink.
+                        eprintln!("[dev] ===== OUTBOUND REQUEST (openrouter) =====");
+                        eprintln!(
+                            "[dev] model={} max_tokens={} temperature={}",
+                            body.get("model").and_then(|m| m.as_str()).unwrap_or("?"),
+                            body.get("max_tokens").map(|v| v.to_string()).unwrap_or_default(),
+                            body.get("temperature").map(|v| v.to_string()).unwrap_or_default(),
+                        );
+                        if let Some(msgs) = body.get("messages").and_then(|m| m.as_array()) {
+                            eprintln!("[dev] --- conversation ({} messages) ---", msgs.len());
+                            for (i, m) in msgs.iter().enumerate() {
+                                let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
+                                let content =
+                                    m.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                                let calls = m
+                                    .get("tool_calls")
+                                    .and_then(|t| t.as_array())
+                                    .map(|a| a.len())
+                                    .unwrap_or(0);
+                                eprintln!(
+                                    "[dev] [{i:>3}] {role:<9} {:>5} chars  tool_calls={calls}  {:?}",
+                                    content.len(),
+                                    content.chars().take(70).collect::<String>()
+                                );
+                            }
+                        }
+                        if std::env::var("MARLOWE_DUMP_BODY").is_ok() {
+                            eprintln!("[dev] ===== RAW BODY =====");
+                            eprintln!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
+                        }
+                        eprintln!("[dev] ===== END REQUEST =====");
+                    }));
+                    let mut n: u64 = 0;
+                    driver = driver.with_raw_frames(Box::new(move |frame| {
+                        n += 1;
+                        let text = frame
+                            .pointer("/choices/0/delta/content")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
+                        let think = frame
+                            .pointer("/choices/0/delta/reasoning")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
+                        if !think.is_empty() {
+                            eprintln!("[dev] frame {n:>4}  THINK {:>4} bytes", think.len());
+                        }
+                        eprintln!(
+                            "[dev] frame {n:>4}  {:>5} bytes  {:?}",
+                            text.len(),
+                            text.chars().take(60).collect::<String>()
+                        );
+                    }));
                 }
-                let done = frame.get("done").and_then(|d| d.as_bool()).unwrap_or(false);
-                eprintln!(
-                    "[dev] frame {n:>4}  {:>5} bytes  done={done}  {:?}",
-                    text.len(),
-                    text.chars().take(60).collect::<String>()
-                );
-            }));
-        }
+                Box::new(driver)
+            }
+        };
         let tool_scope = match WorkspaceScope::new() {
             Ok(s) => s,
             Err(e) => {
@@ -869,7 +1124,7 @@ impl Daemon {
             marlowe_loop::record::SharedJournalRecorder::new(std::sync::Arc::clone(&self.journal), trace);
         let outcome = {
             let mut ports = Ports {
-                driver: &mut driver,
+                driver: driver.as_mut(),
                 summarizer: &mut summarizer,
                 tools: &mut tools,
                 memory: Some(&mut self.memory),
@@ -906,6 +1161,27 @@ impl Daemon {
         };
         mark(&mut self.runs, status, run.spent.tokens);
 
+        // ── ADR-046 §3: WHICH MODEL ANSWERED, AND WHICH UPSTREAM SERVED IT ──────────────
+        //
+        // Dropped into the run record, where a benchmark harness reading `runs` finds it. Empty
+        // on the local path — Ollama serves the model whose name was asked for, on this machine,
+        // so there is nothing a second name could disagree with.
+        //
+        // **The line is printed as well as recorded**, and not behind `--dev`: a benchmark's
+        // stderr is where this is actually read, and a fact that decides whether a number is
+        // reproducible does not belong behind a debugging flag.
+        drop(driver);
+        let attribution = std::sync::Arc::try_unwrap(attribution_cell)
+            .map(|m| m.into_inner().expect("attribution"))
+            .unwrap_or_else(|arc| arc.lock().expect("attribution").clone());
+        if !attribution.calls.is_empty() {
+            let line = attribution.disclosure();
+            eprintln!("marlowe: openrouter · {line}");
+            if let Some(s) = self.runs.get_mut(&run_id.to_string()) {
+                s.attribution = Some(line);
+            }
+        }
+
         // The loop's own Done was filtered at emission (`to_wire`), so this is the only one.
         on_event(Event::Done {
             outcome: status.into(),
@@ -923,6 +1199,7 @@ impl Daemon {
                 status: r.status.clone(),
                 tokens: r.tokens,
                 depth: r.depth,
+                attribution: r.attribution.clone(),
             })
             .collect()
     }

@@ -96,6 +96,29 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 and four more for the clock probe, and each must start from
                                 empty state.
 
+  --provider <P>                `ollama` (DEFAULT) or `openrouter`. ADR-046.
+                                **`ollama` is the zero-config path and nothing moves it but this
+                                flag** -- not an environment variable, not a config file. K6
+                                measures install-to-answer with no configuration at all, and it
+                                is a kill criterion.
+                                `openrouter` is for BENCHMARK runs, where a stronger or faster
+                                model is needed. It requires --openrouter-model and the
+                                OPENROUTER_API_KEY environment variable, and refuses by name at
+                                startup without either -- it does NOT fall back to the local
+                                model, because a benchmark that silently measured a 9B under a
+                                frontier model's label is worse than one that would not start.
+                                It is not bit-identically reproducible; the serving upstream is
+                                recorded per call instead. See ADR-046.
+  --openrouter-model <SLUG>     The OpenRouter model, e.g. `anthropic/claude-sonnet-4.5`.
+                                REQUIRED with `--provider openrouter` and it has NO DEFAULT: no
+                                slug has been measured by this project, and a built-in one would
+                                read as a recommendation. https://openrouter.ai/models
+  --openrouter-upstream <NAME>  Pin the serving upstream, e.g. `Anthropic`. Sends
+                                `provider.order` with `allow_fallbacks: false`. OpenRouter
+                                otherwise routes one model name to several upstreams at different
+                                quantizations and may change that between two requests -- so two
+                                benchmark runs can differ while every label reads identical.
+                                Optional; the upstream is RECORDED either way.
   --embedder-model <DIR>        ADR-004's embedding model. Required, no default. The files are
                                 verified against digests pinned in the binary, so a swapped or
                                 partial model is a refusal rather than a quietly different
@@ -277,6 +300,15 @@ fn main() {
     // one that keeps reasoning out of the transcript.
     let thinking = !args.iter().any(|a| a == "--no-thinking");
 
+    // ── ADR-046: which provider, decided ONCE, refused at load ────────────────────────
+    //
+    // **Every failure here is a load-time exit, never a fallback.** CLAUDE.md's standing rule is
+    // to prefer a load-time error to a sensible default, and the "sensible default" available
+    // here — quietly using Ollama when the key or the model is missing — is the worst one this
+    // project could ship: a benchmark launched at a frontier model would silently measure a local
+    // 9B, with every label in the output reading the name that was asked for.
+    let model_provider = resolve_provider(&args);
+
     // What this machine's Ollama actually holds, so `--model` is a choice from a list rather than
     // a guess. **Cloud tags are shown and marked refused** rather than hidden: a user who has one
     // pulled will otherwise try it and get a refusal with no way to have known in advance.
@@ -315,6 +347,7 @@ fn main() {
                 // on `--status` — announced rather than silently degraded.
                 flag_value(&args, "--reranking").map(PathBuf::from),
                 flag_value(&args, "--model").map(str::to_string),
+                model_provider.clone(),
             ),
             "--status" => agent::status(workspace, profile_root),
             "--shutdown" => agent::shutdown(
@@ -333,6 +366,7 @@ fn main() {
                     context,
                     thinking,
                     flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+                    model_provider.clone(),
                 ),
                 None => Err("--ask requires a question, e.g. `marlowe --ask \"read notes.md\"`"
                     .to_string()),
@@ -780,6 +814,66 @@ fn main() {
     }
 
     // Section 4.0.6: the harness closes stdin, the implementation flushes and exits 0.
+}
+
+/// Which provider serves this process's model calls. **ADR-046.**
+///
+/// # Every branch that is not `ollama` exits rather than degrading
+///
+/// The three ways this can be wrong are a bad `--provider` value, a missing `--openrouter-model`
+/// and a missing `OPENROUTER_API_KEY`. All three exit with code 2 and name what is missing.
+///
+/// **None of them falls back to Ollama**, and that is the decision worth stating. A fallback is
+/// the obvious kindness and it is exactly wrong here: this path exists for benchmark runs, and a
+/// benchmark that silently measured a local 9B under a frontier model's label is not a degraded
+/// result, it is a wrong one — and nothing downstream would ever observe the substitution, because
+/// every label in the output would read the name that was asked for.
+///
+/// # `OPENROUTER_API_KEY` alone cannot select this path
+///
+/// It is checked **only** inside the `openrouter` branch. An environment variable that could flip
+/// the provider on its own would mean a machine with a key exported for some other tool answers
+/// `marlowe --ask` over the network and bills for it — K6 gone, silently, on a machine where
+/// nothing was configured. `tests/zero_config_is_unchanged.rs` asserts that at the daemon.
+fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
+    use marlowe_daemon::ModelProviderChoice;
+
+    let named = flag_value(args, "--provider");
+    if named.is_none() && args.iter().any(|a| a == "--provider") {
+        eprintln!("error: --provider requires a value: `ollama` or `openrouter`.");
+        std::process::exit(2);
+    }
+    match named {
+        None | Some("ollama") => ModelProviderChoice::Ollama,
+        Some("openrouter") => {
+            let Some(model) = flag_value(args, "--openrouter-model") else {
+                eprintln!(
+                    "error: --provider openrouter requires --openrouter-model <SLUG>, and it has \
+                     no default.\n       \
+                     Nothing on OpenRouter has been measured by this project, so a built-in slug \
+                     would read as a recommendation nobody made.\n       \
+                     Example: --openrouter-model anthropic/claude-sonnet-4.5\n       \
+                     The catalogue is at https://openrouter.ai/models"
+                );
+                std::process::exit(2);
+            };
+            // **Checked HERE, at load, and not at the first turn.** A key discovered missing
+            // mid-run is a turn that degrades; a key discovered missing at startup is a command
+            // that did not run. The second is what the user can act on.
+            if let Err(e) = marlowe_openrouter::ApiKey::from_environment() {
+                eprintln!("error: {e}");
+                std::process::exit(2);
+            }
+            ModelProviderChoice::OpenRouter { model: model.to_string() }
+        }
+        Some(other) => {
+            eprintln!(
+                "error: --provider {other:?} is not a provider. Valid values are `ollama` (the \
+                 default, local, zero-config) and `openrouter` (hosted, needs a key)."
+            );
+            std::process::exit(2);
+        }
+    }
 }
 
 fn flag_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
