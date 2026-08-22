@@ -470,3 +470,39 @@ an hour) was fixed in the same pass.
 checking is green for every value of that constant. A bound needs a literal somewhere, and the
 literal is the thing a future change has to argue with. Full table in
 `runs/session-openrouter/WHAT-THIS-IS.md`.
+
+### 9.3 Live verification with a working key — 2026-08-22
+
+**Four of §9.1's six open items are now closed against a real socket.** Run from the release binary
+in this worktree against `stealth/ox-alpha`, a free model, on a fresh profile each time. No key is
+recorded here or anywhere in the tree; it was supplied in the environment for the duration of the
+run and nothing persisted it.
+
+| §9.1 item | Verdict |
+|---|---|
+| 1. Does the top-level `provider` field arrive on streamed chunks | **CLOSED — yes.** The run line reads `upstream(s): Stealth`, so attribution reaches the parent from a streamed response |
+| 2. Is `usage.cost` present, and is it USD or credits | **HALF CLOSED.** The field arrives and renders — `0 µUSD` — but **zero is zero in either unit**, so the USD-vs-credits question is *untouched* by this run. It needs a paid model, and that costs money nobody has authorised |
+| 3. Is the SSE keepalive `: OPENROUTER PROCESSING` | **STILL OPEN.** Neither run was slow enough to provoke one |
+| 4. Does `provider.order` + `allow_fallbacks: false` pin | **STILL OPEN.** Not exercised; a stealth model has one upstream anyway, so this run could not have tested it |
+| 5. Does the endpoint tolerate `tools` alongside `stream: true` and `usage.include` | **CLOSED — yes.** A two-call turn: the model requested `read`, the harness executed it under the workspace scope, the result went back, and the model answered from it |
+| 6. Latency, cost and rate-limit numbers | **PARTIALLY CLOSED.** Two latencies below; no cost (free model) and no rate-limit reading (two requests) |
+
+```
+plain answer        1 call    4,025 tok    0 µUSD    upstream: Stealth    5,308 ms
+tool-calling turn   2 calls   8,123 tok    0 µUSD    upstream: Stealth   18,623 ms
+```
+
+**What the tool-calling turn actually proves**, because it is the one that matters for benchmark
+use: a file was written to the workspace, the question named it, and the model returned its
+contents. So the full loop — model → tool call → adjudicated execution under path scope → result →
+model → answer — runs end to end on a hosted provider, not just the transport.
+
+**Read the latencies as a floor, not as a measurement.** n = 1 each, a free stealth endpoint with
+unknown queueing, and the 18.6 s figure includes two round trips plus local tool execution. This
+project's own rule is that a wall-clock number at n = 1 is not a result; these are recorded to show
+the path works, and **no benchmark should quote them**.
+
+**Attribution is the line to keep watching.** `upstream(s)` is plural by construction because
+OpenRouter may serve different chunks of one run from different upstreams, and a benchmark whose
+cases were served by two providers is two populations wearing one label. It reported a single
+upstream here. That is the mechanism working, on a case where there was nothing to catch.
