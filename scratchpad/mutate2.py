@@ -117,6 +117,55 @@ MUTATIONS = {
         '                out.push_str(&format!("**Marlowe:** {t}\\n\\n"));',
         '                out.push_str(&format!("**Marlowe:** {}\\n\\n", t.replace("**", "").replace("# ", "")));',
     ),
+    # -- ADR-049: the quarantined reader's request shape --------------------------------
+    # Send `tools: []` again on the hosted path. Layer 1's empty ExposedSet renders to exactly
+    # that, and it is what returned HTTP 400 on every quarantined read.
+    "wire_tools_hosted": (
+        "crates/marlowe-openrouter/src/driver.rs",
+        """if let Some(tools) = marlowe_provider::wire::tools_field(self.tool_schema(tools)) {
+            body["tools"] = tools;
+        }""",
+        """body["tools"] = self.tool_schema(tools);""",
+    ),
+    # The same on the local path.
+    "wire_tools_local": (
+        "crates/marlowe-provider/src/ollama.rs",
+        """if let Some(tools) = crate::wire::tools_field(self.tool_schema(tools)) {
+            body["tools"] = tools;
+        }""",
+        """body["tools"] = self.tool_schema(tools);""",
+    ),
+    # Put the orphaned `tool` message back on the hosted path: a reply to a call that does not
+    # exist, which is the second half of the 400.
+    "wire_orphan_hosted": (
+        "crates/marlowe-openrouter/src/driver.rs",
+        """        marlowe_provider::wire::unorphan_tool_messages(&mut messages);
+""",
+        """""",
+    ),
+    # And on the local path, where the same shape left the chat template's think block open.
+    "wire_orphan_local": (
+        "crates/marlowe-provider/src/ollama.rs",
+        """        crate::wire::unorphan_tool_messages(&mut messages);
+""",
+        """""",
+    ),
+    # Collapse the five refusal categories back to the one sentence that reported all of them.
+    "refusal_one_string": (
+        "crates/marlowe-loop/src/engine.rs",
+        """format!("{} · {}", p.summary, refusal.note())""",
+        """format!("{} · the content could not be condensed within the contract. It was NOT placed in this window.", p.summary)""",
+    ),
+    # Drop the contract-exhaustion arm, so a reader that answered badly is reported as one
+    # that never ran -- 'do not retry' where narrowing the document is what works.
+    "refusal_contract_arm": (
+        "crates/marlowe-loop/src/engine.rs",
+        """                    LoopOutcome::Failed { error } if error.starts_with(CONTRACT_UNMET) => {
+                        QuarantineRefusal::ContractUnmet
+                    }
+""",
+        "",
+    ),
     # html: the block buffer bound -- the HTML memory peak.
     "html_blocks": (
         "crates/marlowe-extract/src/html.rs",
@@ -142,6 +191,20 @@ def main():
         raise SystemExit(
             f"MUTATION {name} DID NOT APPLY: found {text.count(find)} matches, expected 1. "
             "The code moved -- fix the pattern rather than reporting a clean mutation."
+        )
+    # **A SECOND MUTATION OF THE SAME FILE USED TO EAT ITS OWN BACKUP.** `shutil.copy` over an
+    # existing `.bak` replaced the pristine copy with the already-mutated one, so `--restore`
+    # handed back a file that still carried the first mutation -- silently, and reporting
+    # "restored". Two of this session's five bounds live in one file each with another, and the
+    # leak was caught by grepping the source afterwards rather than by anything the tool said.
+    #
+    # Refused rather than made smarter: stacking mutations is not a thing to support. The
+    # question is always "which named test notices THIS bound", and two at once cannot answer it.
+    if pathlib.Path(str(p) + BAK).exists():
+        raise SystemExit(
+            f"{p} IS ALREADY MUTATED: a backup exists at {p}{BAK}. Run --restore first. "
+            "Mutating twice would overwrite the pristine backup with a mutated one, and the "
+            "restore would report success while leaving the first mutation in place."
         )
     shutil.copy(p, str(p) + BAK)
     p.write_text(text.replace(find, repl), encoding="utf-8")

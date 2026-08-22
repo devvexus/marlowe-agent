@@ -465,6 +465,14 @@ impl OllamaDriver {
             messages.push(msg);
         }
 
+        // **A `tool` message that answers no call is refused by a strict endpoint**, and the
+        // quarantined reader's window is nothing but such messages — it never called anything and
+        // structurally never can. Ollama's own template already showed the damage before any
+        // hosted provider did: *"a MALFORMED conversation: no assistant `tool_calls`, no
+        // `tool_name`, so the template left a block open and the model continued it in
+        // `content`."* See `crate::wire`.
+        crate::wire::unorphan_tool_messages(&mut messages);
+
         // ── SLIDING-WINDOW REASONING ────────────────────────────────────────────────
         //
         // Only the most recent assistant turn keeps its `thinking`. Older reasoning is not merely
@@ -482,10 +490,9 @@ impl OllamaDriver {
             }
         }
 
-        serde_json::json!({
+        let mut body = serde_json::json!({
             "model": model,
             "messages": messages,
-            "tools": self.tool_schema(tools),
             "stream": true,
             // Declared, never inherited — see `OllamaDriver::thinking`.
             "think": self.thinking,
@@ -505,7 +512,16 @@ impl OllamaDriver {
                 // default this project keeps deleting — and it was live the whole time.
                 "num_ctx": self.context_tokens,
             }
-        })
+        });
+
+        // **`tools` is omitted, never sent empty.** `[]` is a schema violation in this dialect,
+        // not "no tools" — and the two things that produce it are both deliberate: layer 1's
+        // empty `ExposedSet` for the quarantined reader, and `FARMING_HARD_STOP` withholding
+        // tools from the parent for one call. See `crate::wire::tools_field`.
+        if let Some(tools) = crate::wire::tools_field(self.tool_schema(tools)) {
+            body["tools"] = tools;
+        }
+        body
     }
 }
 

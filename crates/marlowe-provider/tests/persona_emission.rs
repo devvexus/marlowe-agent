@@ -181,7 +181,35 @@ fn history_roles_follow_who_actually_said_it() {
     let mut state = SessionState::new(SessionId::new(), "identity");
     state.push(Block::new(SourceKind::History, "what is 2+2", TrustClass::UserAsserted));
     state.push(Block::new(SourceKind::History, "Four.", TrustClass::AgentInferred));
-    state.push(Block::new(SourceKind::ToolResults, "48 lines", TrustClass::AgentObserved));
+    // **A tool result is a reply to a call, and this one has one.** Built with the call id rather
+    // than with `Block::new`, which leaves `wire: None` and produces a `tool` message answering
+    // nothing -- the shape ADR-049 found in every quarantined reader's request and which a strict
+    // endpoint returns 400 for. The fixture said `tool` while carrying no pairing at all.
+    let mut called = Block::new(SourceKind::History, String::new(), TrustClass::AgentInferred);
+    called.wire = Some(marlowe_loop::WireTurn {
+        thinking: None,
+        tool_calls: vec![marlowe_loop::WireToolCall {
+            id: "call_1".into(),
+            name: "read".into(),
+            arguments: serde_json::json!({ "path": "notes.md" }),
+        }],
+        tool_name: None,
+        tool_call_id: None,
+        tool_summary: None,
+        tool_failed: false,
+    });
+    state.push(called);
+    state.push(Block::tool_result_for(
+        "48 lines",
+        "read",
+        TrustClass::AgentObserved,
+        None,
+        false,
+        "call_1",
+    ));
+    // The orphan, kept in the same window: a result whose call is not in this request. Trimming
+    // an assistant turn while keeping its results reaches this with no quarantine in sight.
+    state.push(Block::new(SourceKind::ToolResults, "99 orphaned", TrustClass::AgentObserved));
     let view = Assembler::new(16_384, 1_024).assemble(&state);
 
     let tools = ExposedSet::new(vec![ToolId::new("read")]).expect("one tool fits");
@@ -206,7 +234,18 @@ fn history_roles_follow_who_actually_said_it() {
         Some("assistant"),
         "Marlowe's own reply reached the model as a USER turn, so it will answer itself. Body:\n{body:#}"
     );
-    assert_eq!(role_of("48 lines").as_deref(), Some("tool"));
+    assert_eq!(
+        role_of("48 lines").as_deref(),
+        Some("tool"),
+        "a result that DOES answer a call in this request must keep the role the endpoint pairs \
+         by id; demoting it would throw away the distinction /api/chat exists to make. Body:\n{body:#}"
+    );
+    assert_eq!(
+        role_of("99 orphaned").as_deref(),
+        Some("user"),
+        "a result answering no call in this request is malformed as a `tool` message and is \
+         refused with a 400 by a strict endpoint -- ADR-049. Body:\n{body:#}"
+    );
 
     // And the persona is still where §C6 puts it.
     assert_eq!(role_of("identity").as_deref(), Some("system"));

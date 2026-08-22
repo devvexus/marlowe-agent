@@ -33,6 +33,7 @@ pub mod http;
 pub mod ollama;
 pub mod routing;
 pub mod think;
+pub mod wire;
 
 pub use capability::{ModelCapability, ToolCallReport};
 pub use marlowe_permission::ArgValue;

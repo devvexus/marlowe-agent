@@ -652,13 +652,49 @@ impl<S: PathScope> FileSystemTools<S> {
                 //
                 // The content is still reachable, through exactly one door: `read(ref=…)`, which
                 // returns it at `UntrustedContent` and goes through the quarantined reader.
+                // ── THE STATUS HAS TO REACH THE MODEL, AND IT DID NOT ────────────────────
+                //
+                // ADR-049 §5. The exact code was formatted into `ResultSummary::detail` by every
+                // arm of this function -- and **`detail` has no reader in the shipped product**.
+                // It is §8's expansion payload, nothing expands it, and `render()` walks the
+                // metrics only. So `web` computed the status, journalled it, and showed the model
+                // the bare word `http`: 400, 403, 404 and 503 were one indistinguishable state,
+                // and a malformed query looked like an outage.
+                //
+                // Same family as `inline_threshold_bytes: 0` -- a control that is declared, is
+                // correct, and that no line of code reads. It was found by an assertion on what
+                // the model receives failing, which is the only place it could have been found.
+                //
+                // Fixed in the two places the model actually looks: a harness-authored sentence
+                // at the head of the body, and a class in the state metric. **Both are harness
+                // constants and a number the harness measured** -- ADR-042's rule is unchanged,
+                // and this stays `AgentObserved` because a status line is not the page.
                 let text = reference.render();
+                let text = match status {
+                    s if s >= 500 => format!(
+                        "The server returned HTTP {s}. What follows is what came back with that \
+                         error, not the document you asked for.\n{text}"
+                    ),
+                    s if s >= 400 => format!(
+                        "The server returned HTTP {s}: it refused this request. What follows is \
+                         the error page, not the document you asked for.\n{text}"
+                    ),
+                    _ => text,
+                };
                 let chars = reference.chars as u64;
                 let (body, _, preview) = body_for(text);
                 ToolOutcome {
                     summary: ResultSummary::with_detail(
                         vec![
-                            Metric::State(if status < 400 { "ok" } else { "http" }),
+                            // `State` is `&'static str`, so the CLASS is what a metric can carry
+                            // and the exact code goes in the body above. Three constants beat one
+                            // formatted string here: no new `Metric` variant, and CONTRACTS.md
+                            // §8's pinned enum is untouched.
+                            Metric::State(match status {
+                                s if s >= 500 => "http 5xx",
+                                s if s >= 400 => "http 4xx",
+                                _ => "ok",
+                            }),
                             Metric::Count { n: chars, unit: "chars" },
                         ],
                         format!(

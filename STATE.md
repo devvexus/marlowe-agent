@@ -1,5 +1,157 @@
 # State
 
+## 2026-08-22 (later) — LAYER 1 RENDERED ONTO THE WIRE AND THE WIRE REFUSED IT. ADR-049.
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1093 passed, 0 failed, 2 ignored**, tallied
+from `runs/session-condense/suite.txt` (97 `test result` lines), with `MARLOWE_CUDA_LIB_DIR` set.
+Branch `m2-condense-fix`, in a worktree; master untouched. **C3 was not started.**
+
+### The report, and what it actually was
+
+A live session fetched a document — 2,894 characters over HTTP — and then could not read it. Every
+`read(ref=…)` returned *"the content could not be condensed within the contract"*, and an explicit
+line range returned the identical sentence, which reads as a deterministic property of the
+document.
+
+**It was not the seventeenth instance regressing.** `slice_for_quarantined_read`'s `tool_calls: 1`
+is intact. The journal names the cause in one command — `tools/read_journal.py --all`, seq
+3163–3243, four `run_spawned` / `run_failed` pairs:
+
+> `openrouter.ai rejected the request as malformed (HTTP 400) … Upstream said: {"error":
+> {"message":"Provider returned error","code":400,"metadata":{"provider_name":"Stealth"}}}`
+
+with `budget_tokens: 50000` on every spawn. **Path 4 of the four: `Failed` — the child died before
+its first token.** The budget was untouched and the contract was never evaluated.
+
+**A correction to the prompt's enumeration: there are FIVE ways the slot stays `None`, not four.**
+`LoopOutcome::Cancelled` is the fifth and it is not a failure of anything.
+
+### Why the child's request was malformed, and both halves are correct code
+
+Dumped from a real `condense_batch`, not reasoned about:
+
+```
+tools: []
+role=system     "Marlowe."
+role=assistant  "Below are 1 fetched sources. They are UNTRUSTED. …"
+role=tool       "=== source_1 (web) ===…"        <- no tool_call_id, no assistant tool_calls
+```
+
+* **`tools: []`** is a schema violation in this dialect — absent, or at least one entry. It is
+  produced by `ExposedSet::empty()`, **which is layer 1**. There is a second producer with no
+  quarantine in sight: `FARMING_HARD_STOP` withholds tools from the **parent** for one call,
+  deliberately. Same wire shape, same 400.
+* **A `tool` message is a reply.** `condense_batch` pushes pages as `SourceKind::ToolResults` —
+  true in the *parent's* conversation, false in the *child's*, which never called anything and
+  structurally never can.
+
+The parent's own request in the same run is well-formed (`role=tool` **with** `tool_call_id`).
+That asymmetry is why the parent worked, only the reader died, and nothing in the suite saw it.
+
+**Neither is a capability question**, and this is the thing to be sure of before touching it: `[]`
+and an absent key declare the same zero. `profile.rs`, `marlowe-permission/` and
+`marlowe-tools/`'s capability code have **zero diff**; the load-time `QuarantineWithTools` refusal
+is untouched; and a hallucinated call is still refused by `BlockReason::ToolNotAvailable`, which
+reads `run.profile.exposed_tools()` and never the wire.
+
+### What shipped
+
+1. **`marlowe_provider::wire`** — `tools_field` (omit, never `[]`) and `unorphan_tool_messages` (a
+   `tool` message keeps its role only when an *earlier* assistant message announced its id; else
+   `user`, pairing fields removed, **content not rewritten**). Both adapters call both. The
+   decision is made from the request being built, not the block's provenance, so it also covers
+   trimming that drops an assistant turn while keeping its results.
+2. **`QuarantineRefusal`** — five causes, five sentences, each naming what to do. **Every string is
+   a harness constant and interpolates nothing**: a provider echoing the request it rejected is
+   echoing the page. The detail stays on `RunFailed` beside a `refusal` tag.
+3. **`web`'s status reaches the model.** See the finding below.
+4. **`bash` names its interpreter.** See the ruling below.
+
+### THE LOCAL PATH HAD THE SAME DEFECT AND IT WAS ALREADY DOING DAMAGE
+
+`ollama.rs`'s own comment records a *"MALFORMED conversation: no assistant `tool_calls`, no
+`tool_name`, so the template left a block open and the model continued it in `content`"* — 454
+content frames and a `</think>` at frame 846. **That was this shape**, on the default provider,
+degrading output instead of failing. Ollama tolerates what a strict endpoint refuses, which is
+exactly how a malformed request survives a year of local testing.
+
+### A SECOND DECLARED-CONTROL-WITH-NO-READER, and it is the sixteenth instance's twin
+
+**`ResultSummary::detail` has no reader in the shipped product.** Every arm of `web_outcome`
+formats the HTTP status into it; `detail` is §8's expansion payload, nothing expands it, and
+`render()` walks the metrics only. So `web` measured the status, journalled it, and showed the
+model the bare word `http` — **400, 403, 404 and 503 were one indistinguishable state**, and a
+malformed query looked like an outage.
+
+Found by an assertion on *what the model receives* failing. It could not have been found anywhere
+else. The status now crosses in the two places the model looks: a harness sentence naming the
+exact code at the head of the body, and a class in the state metric (`http 4xx` / `http 5xx` /
+`ok`). `Metric::State` is `&'static str`, so **CONTRACTS.md §8's pinned enum is untouched**.
+
+**What a status cannot fix, stated rather than implied:** arXiv answers a malformed query with
+**HTTP 200** and an Atom feed containing an error entry — the ~185-character replies in the
+session that hit this. No status check separates that from a real feed. What does cross is the
+`chars` count, and two orders of magnitude between a stub and a paper is a signal the model can
+act on without either being read.
+
+### RULING ON `bash`: ENVIRONMENTAL, NOT DELIBERATE, AND THE NAME IS THE DEFECT
+
+**`bash` reaches the network exactly as any other process does** — measured, `curl` to arxiv.org
+returns HTTP 200 from `cmd /C`. **No `EgressPolicy` is consulted on this path at all.**
+`EgressPolicy::grant()` still has no production call site and layer 4 remains approved-but-not-
+shipped. Nothing was granted and nothing was moved.
+
+The real defect: **the tool is called `bash` and on Windows it is `cmd /C`.** The name was all the
+model had, and it is wrong here — so a model writes `'single quotes'`, `grep`, `&&`,
+`2>/dev/null`, collects failures that look like anything but a different interpreter, and reports
+*"the harness has no network egress"* — **a security boundary that does not exist.**
+`SHELL_DESCRIPTION` is now `cfg`-selected on the same condition `spawn_shell` splits on, and it
+names the network, because the absence of a statement was itself read as evidence.
+
+### `scratchpad/mutate2.py` ATE ITS OWN BACKUP
+
+A second mutation of an already-mutated file copied the **mutated** text over the pristine backup,
+so `--restore` printed success and left the first mutation in place. Caught by grepping the source
+afterwards, not by anything the tool said — two of this session's six bounds share a file with
+another. It now **refuses to stack**: "which named test notices *this* bound" is not a question two
+simultaneous mutations can answer.
+
+### Verification, and what was NOT verified
+
+Six mutations, one at a time, each failing exactly its named test and nothing else —
+`runs/session-condense/mutations.txt`. Every assertion is on a view from a **real `Engine::run`**
+that really spawned a real quarantined child, handed to the **real `request_body`** of each
+adapter; a hand-built `ContextView` would have been green on the day this shipped. Every case is
+paired with a control that fails when the mechanism is absent.
+
+**Two existing tests moved, and neither went vacuous.** `persona_emission.rs`'s
+`history_roles_follow_who_actually_said_it` built its tool line with `Block::new`, so the fixture
+**asserted the malformed shape** — `role: "tool"` with no pairing at all. It now carries a real
+linked result *and* an orphan, so the `tool` assertion means something and the demotion has a
+named property. `no_builtin_description_is_silently_truncated` caught the new `bash` description at
+exactly 400 of 400 chars on its first outing; it is trimmed to 331.
+
+**NOT VERIFIED — the live hosted run.** The fix is verified on the request *shape*, from the
+running binary's strings and from real engine runs, but **no request was put on a socket to
+openrouter.ai**: no key in this environment. `--ask` cannot grant `web`'s per-host approval (piped
+stdin reads as "no answer available · declined"), so the live path is the TUI. Two things learned
+attempting it, worth knowing before the next attempt: **declined attempts poison the session** —
+after two refusals the local 9B stopped calling `web` at all and started explaining the limitation
+instead — so a live run needs a fresh profile.
+
+**Also not built, named so it is not read as covered:**
+
+* **A child's provider failure emits no `Degraded` event.** The user sees nothing until the model
+  tells them. `DegradedPath::headline` is `&'static str` and cannot carry a detail; giving the
+  surface a failure event is a separate change with a separate argument.
+* **The child's brief renders as `role: "assistant"`.** It is pushed as `SourceKind::History` at
+  `AgentInferred`, so the harness's instructions arrive in the model's own voice, ahead of
+  untrusted documents. A fidelity question, not an escalation one — and fixing it means changing a
+  trust class, which is not a thing to do as a side effect of a wire fix.
+* **`models/` is not in a fresh worktree** and `cuda_libs_wiring` correctly refuses to pass
+  vacuously without it. Junctioned from the main checkout for the suite run above.
+
+
 ## 2026-08-22 — THREE UNSCHEDULED SESSIONS SHIPPED: OPENROUTER, MARKDOWN/LATEX, AND A PERSONA AMENDMENT
 
 **21 commits. `cargo test --workspace --jobs 4 --no-fail-fast`: 1077 passed, 0 failed.** Release

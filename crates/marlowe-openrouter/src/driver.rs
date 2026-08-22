@@ -301,10 +301,16 @@ impl OpenRouterDriver {
             messages.push(msg);
         }
 
+        // **A `tool` message that answers no call is a 400 here**, and that is the message the
+        // quarantined reader's window is made of: it never called anything and structurally never
+        // can, so the block carries no pairing and no assistant turn precedes it. Measured, not
+        // reasoned about — four `run_failed` records in the shipped profile's journal, every one
+        // an HTTP 400 on a child spawned by `condense_batch`. See `marlowe_provider::wire`.
+        marlowe_provider::wire::unorphan_tool_messages(&mut messages);
+
         let mut body = serde_json::json!({
             "model": self.model,
             "messages": messages,
-            "tools": self.tool_schema(tools),
             "stream": true,
             // **The budget's hard cap, handed to the provider**, capped against the window for
             // the reason the Ollama adapter caps it: 200,000 tokens of output against a window
@@ -323,6 +329,12 @@ impl OpenRouterDriver {
             // Honoured by some upstreams and ignored by others. Sent, and the ADR says plainly
             // that sending it is not the same as it working.
             body["seed"] = serde_json::json!(seed);
+        }
+        // **`tools` is omitted, never sent empty.** The dialect allows the key to be absent or to
+        // hold at least one entry; `[]` is neither. Layer 1's `ExposedSet::empty()` renders to
+        // exactly that, so *every* quarantined read on this provider was a malformed request.
+        if let Some(tools) = marlowe_provider::wire::tools_field(self.tool_schema(tools)) {
+            body["tools"] = tools;
         }
         if let Some(order) = &self.pin_upstream {
             body["provider"] = serde_json::json!({

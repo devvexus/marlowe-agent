@@ -3149,6 +3149,8 @@ re-litigate from scratch.
 | [ADR-045](adr/ADR-045-rerank-defaults-to-auto.md) | The reranker defaults to `auto`, on the same terms as ADR-044 |
 | [ADR-046](adr/ADR-046-openrouter.md) | OpenRouter: a hosted provider, opt-in, in its own crate so ADR-031 §2.3 survives verbatim |
 | [ADR-047](adr/ADR-047-markdown-and-latex-in-the-conversation.md) | Markdown and inline LaTeX in the conversation pane — attributes not colours, and the harness's glyphs are reserved from model prose |
+| [ADR-048](adr/ADR-048-the-persona-may-use-markdown.md) | The persona may use Markdown, because the interface now renders it — formatting is earned, never decorative |
+| [ADR-049](adr/ADR-049-the-quarantined-reader-request-shape.md) | Layer 1's empty tool set rendered as `tools: []` and the child's pages as a reply to no call — both refused by the wire, so every quarantined read on the hosted path returned nothing. Five refusals told apart; `web`'s status reaches the model; `bash` is `cmd /C` and says so |
 
 **ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
 published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA

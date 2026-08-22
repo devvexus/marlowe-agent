@@ -205,6 +205,96 @@ const MAX_CONDENSE_CACHE: usize = 512;
 pub const UNDESCRIBED_SOURCE: &str =
     "the reader did not describe this source separately; see `about`";
 
+/// The prefix every contract-exhaustion failure carries, and the **only** thing that separates
+/// "the reader answered badly" from "the reader never ran".
+///
+/// Both arrive as `LoopOutcome::Failed`, because a child that cannot satisfy its contract inside
+/// [`MAX_CONTRACT_RETRIES`] stops rather than spending the rest of its slice. That collapse is
+/// what made [`QuarantineRefusal::ContractUnmet`] all but unreachable from the parent's own
+/// `validate` call: the child has already validated by the time it returns `Completed`, so the
+/// parent re-validating the same result against the same contract cannot disagree with it.
+///
+/// A shared constant rather than a literal at each end, because two spellings of the same
+/// sentence is exactly the mismatch that goes unobserved --
+/// `a_contract_failure_is_classified_as_a_contract_failure` asserts the round trip, so changing
+/// the wording at one end fails the build instead of silently reclassifying every contract
+/// failure as a provider fault.
+pub const CONTRACT_UNMET: &str = "output contract not satisfied:";
+
+/// **Why a quarantined read produced nothing.** One sentence per cause, and the causes are
+/// distinguishable.
+///
+/// Before this existed, every empty slot in `condense_batch` rendered the same string --
+/// *"the content could not be condensed within the contract"* -- for five structurally different
+/// endings. That sentence is a *contract* diagnosis, and it was printed for a child that died on
+/// an HTTP 400 before it ever saw the contract. The agent that hit it retried with a line range,
+/// got the identical sentence, and reasonably concluded the harness was deterministic about
+/// refusing; what it could not learn was that no model call had happened at all.
+///
+/// # What may and may not be said here
+///
+/// Every string below is a **harness constant**. None interpolates the child's error, the
+/// provider's response or any part of the source, because a provider that echoes the request it
+/// rejected is echoing the page -- and the parent's window is exactly where the page may not go.
+/// The detail is journalled on `RunFailed` beside the `refusal` tag, and
+/// `tools/read_journal.py --all` is the instrument for it.
+///
+/// The remedy differs per cause, which is the whole reason to separate them: a smaller page helps
+/// the first two, a different model helps the third, and nothing the user does helps the fourth.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuarantineRefusal {
+    /// The reader answered, and the answer did not satisfy the contract -- twice. Usually length,
+    /// sometimes an unrenderable character. This is the only cause the original sentence described.
+    ContractUnmet,
+    /// The reader ran out of its slice mid-read. `BudgetShare` slices what REMAINS, so a parent
+    /// deep into a turn hands over very little.
+    OutOfBudget,
+    /// The reader tried to ask a question. It holds no `ask` tool and no channel to a user, so the
+    /// attempt is the end of it -- and it is a statement about the model, not about the page.
+    Escalated,
+    /// The run was cancelled. Not a fault, and it is enumerated so it is not reported as one.
+    Cancelled,
+    /// The reader never ran. Provider unreachable, request refused, model unavailable. **Nothing
+    /// about the document is implied**, and re-fetching or narrowing it changes nothing.
+    ReaderFailed,
+}
+
+impl QuarantineRefusal {
+    /// The wire tag, for the `RunFailed` payload. Stable: it is what a journal query greps for.
+    pub fn tag(self) -> &'static str {
+        match self {
+            QuarantineRefusal::ContractUnmet => "contract_unmet",
+            QuarantineRefusal::OutOfBudget => "out_of_budget",
+            QuarantineRefusal::Escalated => "escalated",
+            QuarantineRefusal::Cancelled => "cancelled",
+            QuarantineRefusal::ReaderFailed => "reader_failed",
+        }
+    }
+
+    /// What the parent is told. Each names the cause **and** what to do about it, because a
+    /// failure a reader cannot act on is a failure they will retry unchanged -- which is what
+    /// happened.
+    pub fn note(self) -> &'static str {
+        match self {
+            QuarantineRefusal::ContractUnmet => {
+                "the reader summarised it, but its answer did not fit the contract twice over, so                  nothing was kept. It was NOT placed in this window. Ask for a narrower part of                  the document, or say what you needed from it."
+            }
+            QuarantineRefusal::OutOfBudget => {
+                "the reader ran out of budget partway through. It was NOT placed in this window.                  Ask for a smaller page, or say what you needed from it."
+            }
+            QuarantineRefusal::Escalated => {
+                "the reader stopped to ask a question, which it has no way to ask. It was NOT                  placed in this window. Say what you needed from the document and try again."
+            }
+            QuarantineRefusal::Cancelled => {
+                "the read was cancelled. It was NOT placed in this window. Nothing is wrong with                  the document."
+            }
+            QuarantineRefusal::ReaderFailed => {
+                "the reader could not run at all -- the model behind it failed before it read                  anything. This is a harness or provider fault, NOT a property of the document,                  and re-fetching or narrowing it will not help. Say so plainly rather than                  retrying; the reason is in the run record."
+            }
+        }
+    }
+}
+
 /// How many contract violations a run may accumulate before it stops trying.
 ///
 /// # Audit finding E8 — a violation is not a failure, and that was the problem
@@ -871,7 +961,7 @@ impl<S: PathScope> Engine<S> {
                             run.status =
                                 RunStatus::Failed { error: format!("output contract: {v}") };
                             return LoopOutcome::Failed {
-                                error: format!("output contract not satisfied: {v}"),
+                                error: format!("{CONTRACT_UNMET} {v}"),
                             };
                         }
                         state.push(Block::new(
@@ -1733,6 +1823,18 @@ impl<S: PathScope> Engine<S> {
         // Per-source results, or a harness-authored refusal. **The page is never the fallback.**
         let mut per_source: Vec<Option<String>> = vec![None; fresh.len()];
         let mut about = String::new();
+        // **Which failure, not just that one happened.** One string used to report every way a
+        // quarantined read can end with nothing: budget gone, contract unmet, child escalated,
+        // child dead. They have different remedies and nothing distinguished them, so the agent
+        // that hit an HTTP 400 on the reader's provider correctly concluded "harness-side" and
+        // could get no further -- the detail was in the journal, which is not model-reachable by
+        // design. `read` reported the same sentence on the retry, and looked deterministic.
+        //
+        // **The category is harness-authored and interpolates nothing.** A provider's own words
+        // could in principle echo the request that provoked them, and the request is the page --
+        // so the detail stays in `RunFailed`, where `tools/read_journal.py --all` reads it, and
+        // only the category crosses into the parent's window.
+        let mut refusal = QuarantineRefusal::ContractUnmet;
         match outcome {
             LoopOutcome::Completed(result) => match contract.validate(&result) {
                 Ok(()) => {
@@ -1752,12 +1854,31 @@ impl<S: PathScope> Engine<S> {
                 }
             },
             other => {
+                // **Five, not four.** `Cancelled` is a fifth way the slot stays empty and it is
+                // not a failure of anything -- enumerating it is what stops it being reported as
+                // one.
+                refusal = match &other {
+                    LoopOutcome::Paused { .. } => QuarantineRefusal::OutOfBudget,
+                    LoopOutcome::Escalated { .. } => QuarantineRefusal::Escalated,
+                    LoopOutcome::Cancelled => QuarantineRefusal::Cancelled,
+                    // **A contract exhaustion is a `Failed` too**, and reporting it as a provider
+                    // fault would be the same wrong-remedy problem one level along: it tells the
+                    // reader not to retry when narrowing the document is exactly what would work.
+                    LoopOutcome::Failed { error } if error.starts_with(CONTRACT_UNMET) => {
+                        QuarantineRefusal::ContractUnmet
+                    }
+                    _ => QuarantineRefusal::ReaderFailed,
+                };
                 self.record(
                     ports,
                     EventKind::RunFailed,
                     run,
                     state,
-                    json!({ "child": child_id.to_string(), "outcome": format!("{other:?}") }),
+                    json!({
+                        "child": child_id.to_string(),
+                        "outcome": format!("{other:?}"),
+                        "refusal": refusal.tag(),
+                    }),
                 );
             }
         }
@@ -1825,11 +1946,7 @@ impl<S: PathScope> Engine<S> {
                 // model-authored text derived from attacker-controlled input and earns no special
                 // treatment.
                 Some(b) => condensed_note(p, label, note_about, &b),
-                None => format!(
-                    "{} · the content could not be condensed within the contract. It was NOT \
-                     placed in this window.",
-                    p.summary
-                ),
+                None => format!("{} · {}", p.summary, refusal.note()),
             };
             state.push(note(&p.tool, &p.summary, &p.call_ref, text));
         }

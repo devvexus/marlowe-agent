@@ -112,6 +112,18 @@ fn registration(
     })
 }
 
+/// What `bash` actually is, per platform, in the words the model reads.
+///
+/// Split by `cfg` on the same condition `marlowe_exec::spawn_shell` splits on, so the two cannot
+/// disagree about which interpreter runs. **Naming the network is deliberate**: the absence of any
+/// statement was read by a live session as evidence that there was none, and it reported a
+/// non-existent egress boundary rather than a quoting problem.
+#[cfg(windows)]
+const SHELL_DESCRIPTION: &str = "Run a command through the Windows shell, `cmd /C` — NOT bash, despite the name. Quote with double quotes, not single. No `grep`/`sed`/`awk`, no `&&`, no `2>/dev/null`. It reaches the network normally. Each call is a fresh shell and asks the user to approve it first. For something the user already told Marlowe, try `recall` first.";
+
+#[cfg(not(windows))]
+const SHELL_DESCRIPTION: &str = "Run a command through `sh -c`. It reaches the network normally. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.";
+
 /// Every builtin, registered. **Registration, not exposure** — a profile still selects ≤12.
 pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
     use ConsequenceLevel::*;
@@ -126,7 +138,21 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // unconditionally, before any tier comparison, so the approval is not tier-dependent.
             // The last sentence is routing advice, not a capability claim — a shell CAN read files,
             // which is exactly why a model reaches for it when the answer is in memory instead.
-            "Run a shell command in the workspace. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.",
+            //
+            // **THE TOOL IS CALLED `bash` AND ON WINDOWS IT IS NOT BASH.** `spawn_shell` is
+            // `cfg`-split: `cmd /C` on Windows, `sh -c` elsewhere. The name was the whole of what
+            // the model had to go on, and the name is wrong on this platform — so a model writes
+            // `'single quotes'`, `grep`, `&&`, `2>/dev/null`, and gets failures that look like
+            // anything but a different interpreter. A real session read a string of them as *"the
+            // harness has no network egress"* and reported a security boundary that does not
+            // exist: `bash` reaches the network exactly as any other process on this machine does
+            // — measured, `curl` to arxiv.org returns 200 — and no `EgressPolicy` is consulted on
+            // this path at all. ADR-049 §4.
+            //
+            // The interpreter is therefore **named**, per platform, in the text the model reads.
+            // [`SHELL_DESCRIPTION`] is `cfg`-selected rather than one string mentioning both,
+            // because a description listing two shells makes the model guess which one it has.
+            SHELL_DESCRIPTION,
             "bash",
             2_048,
             Irreversible,

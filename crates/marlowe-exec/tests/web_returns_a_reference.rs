@@ -306,3 +306,106 @@ fn the_reference_is_agent_observed_and_the_content_is_untrusted() {
         "a measurement-only result must not"
     );
 }
+
+// ─── can the model tell an error page from a document? ADR-049 §5 ────────────────────────────
+
+/// A page of `n` bytes, served with the given status. The body is real prose, so the pipeline
+/// takes the `Read` arm and the question is only what the *harness's own measurements* say.
+fn served(status: u16, filler: usize) -> Fetched {
+    let body = format!(
+        "<html><head><title>a document</title></head><body><p>{}</p></body></html>",
+        "word ".repeat(filler)
+    )
+    .into_bytes();
+    let n = body.len();
+    Fetched {
+        status,
+        content_type: Some("text/html; charset=utf-8".into()),
+        bytes: body,
+        final_url: "https://arxiv.example/q".into(),
+        redirect_to: None,
+        wire_bytes: n,
+        reused_connection: false,
+    }
+}
+
+fn seen_by_the_model(status: u16, filler: usize) -> (String, bool) {
+    let host = FileSystemTools::new(marlowe_permission::scope::WorkspaceScope::new().unwrap(), ".");
+    let f = served(status, filler);
+    let (ct, raw) = (f.content_type.clone(), f.bytes.len());
+    let out = host.web_outcome(
+        "https://arxiv.example/q",
+        status,
+        ct.as_deref(),
+        raw,
+        raw,
+        corpus::read("https://arxiv.example/q", f),
+    );
+    (format!("{:?} {}", out.body, out.summary.render()), out.failed)
+}
+
+/// **A non-2xx is not reported as "ok, N bytes".** The status crosses, the state is `http` rather
+/// than `ok`, and the outcome is marked failed — three separate signals, any one of which the
+/// model can act on.
+#[test]
+fn an_http_error_status_is_distinguishable_from_a_document() {
+    let (bad, bad_failed) = seen_by_the_model(400, 40);
+    let (good, good_failed) = seen_by_the_model(200, 40);
+
+    assert!(bad.contains("400"), "the status must reach the model: {bad}");
+    assert!(bad.contains("http"), "a non-2xx must not be stated as `ok`: {bad}");
+    assert!(bad_failed, "a 400 must mark the call failed");
+
+    // The control. Every assertion above would also hold on a build that reported everything as
+    // an error, which would be a different way of telling the model nothing. A 200 says nothing
+    // about its status **on purpose** -- there is nothing to say, and a harness sentence on the
+    // ordinary path is noise in every window that ever holds a page.
+    assert!(good.contains("ok"), "a 200 must be stated as ok: {good}");
+    assert!(!good_failed, "a 200 must not mark the call failed");
+    assert!(!good.contains("refused this request"), "a 200 must carry no error framing: {good}");
+
+    // 5xx and 4xx are told apart, because "the server is broken" and "your request is wrong" have
+    // opposite remedies and `http` alone gave the model neither.
+    let (server_error, _) = seen_by_the_model(503, 40);
+    assert!(server_error.contains("503"), "the exact code must cross: {server_error}");
+    assert!(server_error.contains("5xx"), "the class must cross: {server_error}");
+    assert!(bad.contains("4xx"), "a 400 is a 4xx, not a 5xx: {bad}");
+
+    // **Layer boundary, asserted on the same outcomes.** Everything the harness added here is a
+    // constant of its own or an integer it measured. `an_http_error_body_is_still_only_measured_
+    // _not_quoted` is the standing check that the page itself does not cross; this is the check
+    // that the new sentence did not become a hole in it.
+    for (who, seen) in [("400", &bad), ("503", &server_error)] {
+        assert!(
+            !seen.contains("word word"),
+            "{who}: the error page body reached the model through the status line: {seen}"
+        );
+    }
+}
+
+/// **The case a status cannot answer, and what does.**
+///
+/// arXiv's API answers a malformed query with **HTTP 200** and an Atom feed containing an error
+/// entry — the ~185-character replies in the 2026-08-22 session. No status check can separate
+/// that from a real feed, and ADR-042 keeps the bytes themselves out of the parent by design.
+///
+/// What crosses instead is a **measurement**: `chars`, counted by the harness. A number cannot
+/// carry an instruction, which is exactly why it is allowed to cross — and two orders of
+/// magnitude between a stub and a paper is a signal the model can act on without reading either.
+#[test]
+fn the_size_of_a_document_crosses_even_when_the_status_cannot_help() {
+    let (stub, _) = seen_by_the_model(200, 2);
+    let (paper, _) = seen_by_the_model(200, 400);
+    let n = |s: &str| -> u64 {
+        let i = s.find(" chars").expect("a char count must cross");
+        s[..i].rsplit(|c: char| !c.is_ascii_digit()).next().unwrap().parse().unwrap()
+    };
+    let (small, large) = (n(&stub), n(&paper));
+    assert!(small < 100, "a stub must be reported as small: {small} ({stub})");
+    assert!(large > 1_000, "a document must be reported as large: {large} ({paper})");
+    assert!(
+        large > small * 10,
+        "the size difference is the only signal available here and it must survive: {small} vs \
+         {large}"
+    );
+}
