@@ -89,7 +89,7 @@ fn a_markdown_reply_can_be_read() {
         "| band | old | new |\n|---|---|---|\n| low | 0.12 | 0.12 |\n| middle | 0.31 | 0.34 |\n\n",
         "```rust\nlet rate = bands.get(\"middle\").expect(\"present\");\n```\n\n",
         "Margin is $\\alpha \\times \\beta^2$ at volume; the tail integral\n",
-        "$\\int_0^\\infty e^{-x}dx$ is left as written. See [the note](https://example.invalid/j).\n\n",
+        "$\\hat{x}$ is left as written. See [the note](https://example.invalid/j).\n\n",
         "---\n\n",
         "I've left the bands as agreed and added a line saying the middle band is under review.\n",
     );
@@ -113,7 +113,7 @@ fn a_markdown_reply_can_be_read() {
     assert!(text.contains("• "), "the nested list lost its bullet");
     assert!(text.contains("β²"), "the maths that CAN be shown was not");
     assert!(
-        text.contains("$\\int_0^\\infty e^{-x}dx$"),
+        text.contains("$\\hat{x}$"),
         "the maths that cannot be shown must stay visibly its source"
     );
 }

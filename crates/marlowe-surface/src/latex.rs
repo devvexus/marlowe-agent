@@ -230,6 +230,13 @@ fn command(lex: &mut Lex) -> Option<String> {
             ',' | ';' | ':' | ' ' => Some(" ".into()),
             '!' => Some(String::new()),
             '{' | '}' | '%' | '$' | '&' | '#' | '_' => Some(first.to_string()),
+            // `\|` is the double bar KL divergence is written with: D(P \| Q). It was the ONLY
+            // unrenderable token in an expression whose every other part worked, and the
+            // all-or-nothing rule therefore discarded the whole formula.
+            //
+            // U+2016, not two ASCII bars: an ASCII `|` is this renderer's table delimiter, and a
+            // formula that could emit one is a formula that could forge a table row.
+            '|' => Some("\u{2016}".into()),
             // `\\` is a line break inside maths — a two-dimensional construct.
             _ => None,
         };
@@ -364,13 +371,48 @@ fn fraction(num: &str, den: &str) -> String {
 ///
 /// The all-or-nothing rule at its smallest scale, and the place it matters most: `x^{2n}` where
 /// only the `2` mapped would render `x²n`, which reads as `x² · n`.
+/// A sub- or superscript, as a true Unicode script where one exists and as **explicit notation**
+/// where one does not.
+///
+/// # Why this falls back rather than refusing, which is a change to the all-or-nothing rule
+///
+/// **Unicode has no subscript for most letters.** There is `ₓ` and `ₙ`, and there is no subscript
+/// `θ`, no subscript `K`, no subscript capital anything. So `\nabla_\theta`, `D_{\mathrm{KL}}` and
+/// `\mathbb{E}_{\pi_\theta}` were refused — and because the rule is all-or-nothing, each one
+/// discarded an entire formula in which **every other token rendered**. A real reply came back with
+/// four equations in raw LaTeX for want of a glyph that does not exist in the standard.
+///
+/// The refusal principle is kept, and this is not an exception to it. That principle is about
+/// **dropping** content: `\int_0^\infty` collapsing to `∫₀` loses the `∞` and states a different
+/// integral, so it must refuse. `∇_θ` loses nothing — it is the ordinary plain-text convention for
+/// a subscript, the same one every mathematician types in an email. **Degrading to explicit
+/// notation is not the same act as silently discarding a bound**, and conflating them cost more
+/// than it protected.
+///
+/// The inner expression is rendered first, so `\mathbb{E}_{\pi_\theta}` is `𝔼_{π_θ}` and not
+/// `𝔼_{\pi_\theta}`. Braces are kept when the script is more than one character, because `D_KL`
+/// invites reading `K` as the subscript and `L` as what follows it.
 fn map_script(s: &str, superscript: bool) -> Option<String> {
     let table = if superscript { SUPERSCRIPT } else { SUBSCRIPT };
-    let mut out = String::new();
-    for c in s.chars() {
-        out.push(table.iter().find(|(k, _)| *k == c).map(|(_, v)| *v)?);
+    // A true script form, but only if EVERY character has one. A partial mapping would be the
+    // dropping this module refuses.
+    if !s.is_empty() {
+        let mapped: Option<String> = s
+            .chars()
+            .map(|c| table.iter().find(|(k, _)| *k == c).map(|(_, v)| *v))
+            .collect();
+        if let Some(m) = mapped {
+            return Some(m);
+        }
     }
-    Some(out)
+    // Explicit notation, with the script itself rendered.
+    let inner = render(s)?;
+    let mark = if superscript { '^' } else { '_' };
+    if inner.chars().count() > 1 {
+        Some(format!("{mark}{{{inner}}}"))
+    } else {
+        Some(format!("{mark}{inner}"))
+    }
 }
 
 fn blackboard(c: char) -> Option<char> {
@@ -396,7 +438,7 @@ fn blackboard(c: char) -> Option<char> {
 /// harness's own separator glyph, and `2 · 3` in a reply would read a shade more like chrome than
 /// like arithmetic.
 fn space_relations(s: &str) -> String {
-    const SPACED: [char; 32] = [
+    const SPACED: [char; 35] = [
         // Relations.
         '=', '<', '>', '≤', '≥', '≠', '≈', '≡', '∈', '∉', '⊂', '⊆', '⊃', '⊇', '≜', '∼', '≃', '≅',
         // Arrows, which read worst of all unspaced: `f:X→Y`.
@@ -404,6 +446,10 @@ fn space_relations(s: &str) -> String {
         // Binary operators. `\alpha \times \beta^2` is `α × β²`, not `α×β²` — the difference was
         // obvious the moment the pane was looked at rather than reasoned about.
         '×', '÷', '±', '∓', '⊕', '⊗', '∘',
+        // Conditionals and norms. `p(a ∣ s)` against `p(a ∣s)` -- the second reads as a bar stuck to
+        // the wrong operand. The source `\mid`'s own space is consumed as the token terminator, so
+        // without this the spacing is decided by a LaTeX lexing rule rather than by how it reads.
+        '∣', '∥', '‖',
     ];
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -492,6 +538,16 @@ const SYMBOLS: &[(&str, &str)] = &[
     ("leq", "≤"), ("le", "≤"), ("geq", "≥"), ("ge", "≥"), ("neq", "≠"), ("ne", "≠"),
     ("approx", "≈"), ("equiv", "≡"), ("sim", "∼"), ("simeq", "≃"), ("cong", "≅"),
     ("propto", "∝"), ("ll", "≪"), ("gg", "≫"), ("triangleq", "≜"),
+    // **Conditionals and norms — added 2026-08-22 after a real reply came out raw.**
+    //
+    // `\mid` is the conditional bar and it is everywhere in probability: P(a | s), q(z | x),
+    // every policy in reinforcement learning. Its absence refused whole expressions in which every
+    // OTHER token rendered — the all-or-nothing rule working exactly as designed, on a gap that
+    // should not have existed. `\|` is the double bar KL divergence is written with.
+    //
+    // U+2223 DIVIDES rather than ASCII `|`: the ASCII bar is a table delimiter in this renderer,
+    // and a formula that emitted one would be a formula that could forge a table row.
+    ("mid", "∣"), ("nmid", "∤"), ("parallel", "∥"), ("perp", "⊥"),
     // Set notation and logic.
     ("in", "∈"), ("notin", "∉"), ("ni", "∋"), ("subset", "⊂"), ("subseteq", "⊆"),
     ("supset", "⊃"), ("supseteq", "⊇"), ("cup", "∪"), ("cap", "∩"), ("emptyset", "∅"),
@@ -580,9 +636,11 @@ mod tests {
         // Each of these renders *partially* under a best-effort scheme, and every partial result
         // is a different expression that looks entirely plausible.
         for (src, why) in [
-            (r"\int_0^\infty e^{-x}dx", "^\\infty has no superscript form"),
-            (r"x^q", "Unicode has no superscript q"),
-            (r"x_b", "Unicode has no subscript b"),
+            // **The three SCRIPT cases moved out of this list on 2026-08-22**, to
+            // `a_script_with_no_unicode_form_degrades_without_dropping_anything`. They are no
+            // longer refused, because a script with no glyph now degrades to explicit notation
+            // rather than vanishing — nothing is dropped, which is the whole test of this list.
+            // Everything remaining IS still refused, and each one is genuinely lossy or 2-D.
             (r"\hat{x}", "a combining mark occupies zero columns"),
             (r"\vec{v}", "same"),
             (r"\begin{pmatrix} a & b \end{pmatrix}", "a matrix is two-dimensional"),
@@ -599,14 +657,23 @@ mod tests {
 
     #[test]
     fn a_partial_translation_would_be_a_different_integral() {
-        // The specific example from the requirement, spelled out so the reason survives a rewrite.
-        // Best-effort would yield `∫₀ e⁻ˣdx`, which is a convergent-looking definite integral over
-        // a range that is not in the source.
-        assert_eq!(render(r"\int_0^\infty e^{-x}dx"), None);
-        // And the caller therefore prints the source, delimiters included.
-        let src = r"$\int_0^\infty e^{-x}dx$";
-        assert_eq!(render_or_source(src), Cow::Borrowed(src));
-        assert!(matches!(render_or_source(src), Cow::Borrowed(_)));
+        // **AMENDED 2026-08-22. The reason below is unchanged; the assertion inverted because
+        // the harm it names no longer happens.**
+        //
+        // The fear was `∫₀ e⁻ˣdx` -- a convergent-looking definite integral over a range that is
+        // NOT in the source, because `^\infty` had no superscript glyph and was DROPPED. Refusing
+        // the whole expression was the right answer to that.
+        //
+        // A script with no Unicode form now degrades to explicit notation instead of vanishing
+        // (see `map_script`), so the upper bound is present and the expression is the one that was
+        // written. Refusing is no longer protecting anything here, and it was costing four
+        // rendered formulas in a real reply for want of a `∞` that is now shown.
+        //
+        // **The property the old assertion defended is what is asserted now: the bound survives.**
+        let out = render(r"\int_0^\infty e^{-x}dx").expect("renders rather than refusing");
+        assert!(out.contains('∞'), "the upper bound was dropped -- the original defect: {out}");
+        assert!(out.contains('₀') || out.contains("_0"), "the lower bound was dropped: {out}");
+        assert!(out.contains('∫'), "{out}");
     }
 
     #[test]

@@ -1090,8 +1090,23 @@ fn autolink(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Ru
 /// emitted **as its own source, delimiters included**, styled as verbatim text — so the reader can
 /// see that they are looking at LaTeX rather than at a formula somebody has quietly rearranged.
 fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>, usize)> {
+    // **`$$...$$` MID-LINE, and this is the bug it fixes.**
+    //
+    // `display_math` only recognises `$$` when it is the WHOLE line. A model writing
+    // `Policy gradient: $$...$$` -- a label, then display maths -- never matched it and fell
+    // through to here, where `open` was a single `$`: `start` landed on the SECOND `$`, the loop
+    // matched it immediately as the close, the content was empty, `looks_like_inline_maths("")`
+    // said no, and the whole expression was emitted as literal source with its delimiters. Three
+    // of four formulas in a real reply came out raw.
+    //
+    // Two dollars is the longer delimiter and must be tried FIRST: the single-`$` arm is a prefix
+    // of it and would otherwise always win.
     let (open, close): (&[char], &[char]) = if chars[i] == '$' {
-        (&['$'], &['$'])
+        if chars.get(i + 1) == Some(&'$') {
+            (&['$', '$'], &['$', '$'])
+        } else {
+            (&['$'], &['$'])
+        }
     } else {
         (&['\\', '('], &['\\', ')'])
     };
@@ -1425,9 +1440,14 @@ mod tests {
     fn maths_renders_when_it_can_and_stays_source_when_it_cannot() {
         let a = text_of(&render(r"the area is $\pi r^2$ exactly", 60)).join("");
         assert!(a.contains("πr²"), "{a}");
-        let b = text_of(&render(r"consider $\int_0^\infty e^{-x}dx$ here", 80)).join("");
+        // **The example changed on 2026-08-22, not the property.** It was
+        // `$\int_0^\infty e^{-x}dx$`, which now RENDERS: a script with no Unicode glyph degrades
+        // to explicit notation rather than being dropped, so the bound survives and there is
+        // nothing left to protect. `\hat{x}` is still genuinely unrenderable -- a combining mark
+        // occupies zero columns, so the accent would land on the wrong glyph or on none.
+        let b = text_of(&render(r"consider $\hat{x}$ here", 80)).join("");
         assert!(
-            b.contains(r"$\int_0^\infty e^{-x}dx$"),
+            b.contains(r"$\hat{x}$"),
             "an expression that cannot be shown must stay visibly its source: {b}"
         );
     }

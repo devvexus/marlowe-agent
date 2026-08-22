@@ -54,7 +54,7 @@ assert!(gate.len() > 0);
 ```
 
 Precision is $\\alpha \\times \\beta^2$ over the held-out split, and the integral form
-$\\int_0^\\infty e^{-x}dx$ is left as written. See [the note](https://example.invalid/precision).
+$\\hat{x}$ is left as written. See [the note](https://example.invalid/precision).
 
 ---
 
@@ -67,6 +67,15 @@ fn app_saying(text: &str) -> App {
     view.transcript
         .push(Entry::Said(Speech::Model(text.to_string())));
     App::new(view).expect("the shipped key set has no conflicts")
+}
+
+/// Render one model reply and return the drawn grid as text.
+///
+/// Through `App` and a real `Buffer`, not through `markdown::render_prose` — the property is what
+/// reaches the screen, and a helper that called the parser directly would assert on an
+/// intermediate the user never sees.
+fn plain(md: &str) -> String {
+    common::buffer_text(&common::frame(&app_saying(md), 120, 40))
 }
 
 fn rich() -> App {
@@ -364,7 +373,7 @@ fn y_still_copies_the_source_markdown_and_not_the_rendered_form() {
         "> Filtering does not work. Containment works.",
         "| stage | P95 | share |",
         "[the note](https://example.invalid/precision)",
-        r"$\int_0^\infty e^{-x}dx$",
+        r"$\hat{x}$",
     ] {
         assert!(
             copied.contains(fragment),
@@ -393,4 +402,82 @@ fn plain_prose_reaches_the_grid_exactly_as_written() {
     let app = app_saying(text);
     let screen = common::buffer_text(&common::frame(&app, 160, 45));
     assert!(screen.contains(text), "plain prose was reflowed or rewritten:\n{screen}");
+}
+
+// ── ADR-047 follow-up: four formulas from a real reply came back as raw LaTeX ────────────────
+//
+// Reported from a screenshot of a live session, not from a test. Three separate causes, and the
+// third is a change to the module's stated rule rather than a bug fix.
+
+/// **`$$…$$` mid-line.** `display_math` only recognises `$$` as a whole line, so a model writing
+/// `Policy gradient: $$…$$` fell through to the inline `$` reader, whose `start` landed on the
+/// SECOND `$` — empty content, refused, emitted as source. Three of the four formulas.
+#[test]
+fn display_maths_after_a_label_on_the_same_line_renders() {
+    let out = plain(r"Policy gradient: $$\alpha \times \beta^2$$");
+    assert!(out.contains("α × β²"), "{out}");
+    // **Assert the LABEL and the maths are adjacent**, which is the actual property.
+    //
+    // The first version of this assertion was `!out.contains("$$")` and it passed against the
+    // UNFIXED code — caught by mutating the fix rather than by reading the test. Unfixed, `$$X$$`
+    // renders as `$X$`: the first `$` fails, the second opens a span that closes on the third, and
+    // the fourth is left over. Two stray dollars, never adjacent, so a test looking for `$$` sees
+    // nothing wrong. What a reader actually sees is a delimiter between the label and the formula.
+    assert!(out.contains("Policy gradient: α × β²"), "delimiters survived: {out}");
+}
+
+/// The control: `$$` on its own line must keep working, so the fix is an addition rather than a
+/// replacement.
+#[test]
+fn display_maths_on_its_own_line_still_renders() {
+    let out = plain(r"$$\alpha \times \beta^2$$");
+    assert!(out.contains("α × β²"), "{out}");
+}
+
+/// **`\mid` and `\|`.** Conditional and norm bars — `p(a \mid s)`, `D(P \| Q)` — are everywhere in
+/// probability, and their absence refused whole expressions in which every other token rendered.
+#[test]
+fn conditional_and_norm_bars_render_and_are_spaced() {
+    let out = plain(r"$p(a \mid s)$ and $D(P \| Q)$");
+    assert!(out.contains("p(a ∣ s)"), "{out}");
+    assert!(out.contains("D(P ‖ Q)"), "{out}");
+    // U+2016, never an ASCII bar: an ASCII `|` is this renderer's table delimiter, and a formula
+    // that could emit one is a formula that could forge a table row.
+    assert!(!out.contains('|'), "an ASCII bar reached the output: {out}");
+}
+
+/// **Subscripts Unicode cannot express.** There is no subscript `θ`, `K` or `L`, so
+/// `\nabla_\theta` and `D_{\mathrm{KL}}` were refused — and all-or-nothing then discarded the
+/// whole formula. They now degrade to explicit notation with the script itself rendered.
+///
+/// This is deliberately NOT the case the refusal rule exists for: `∇_θ` drops nothing, where
+/// `\int_0^\infty` → `∫₀` would drop the bound and state a different integral.
+#[test]
+fn a_subscript_with_no_unicode_form_degrades_rather_than_refusing() {
+    let out = plain(r"$\nabla_\theta J(\theta)$");
+    assert!(out.contains("∇_θ"), "{out}");
+    assert!(!out.contains("\nabla"), "refused instead of degrading: {out}");
+
+    // Multi-character scripts keep their braces: `D_KL` invites reading `K` as the subscript and
+    // `L` as what follows it.
+    let kl = plain(r"$D_{\mathrm{KL}}(P \| Q)$");
+    assert!(kl.contains("D_{KL}"), "{kl}");
+
+    // And the script is RENDERED, not passed through as source.
+    let e = plain(r"$\mathbb{E}_{\pi_\theta}$");
+    assert!(e.contains("𝔼_{π_θ}"), "{e}");
+}
+
+/// **The control that keeps the refusal rule honest.** A true Unicode script is still preferred
+/// over the fallback wherever one exists — otherwise this change would have quietly replaced every
+/// `x²` with `x^2`.
+#[test]
+fn a_script_unicode_can_express_still_uses_the_real_glyph() {
+    let out = plain(r"$\beta^2$ and $\sum_x$");
+    assert!(out.contains("β²"), "{out}");
+    assert!(out.contains("∑ₓ"), "{out}");
+    // The SOURCE must be gone, which is the property. `!contains('^')` would be a claim about
+    // every cell on the screen, chrome included.
+    assert!(!out.contains("beta^2"), "fell back where a real glyph exists: {out}");
+    assert!(!out.contains("_x"), "fell back where a real glyph exists: {out}");
 }
