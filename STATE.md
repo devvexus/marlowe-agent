@@ -25,6 +25,28 @@ graph logit units while the head order is a fusion — same class as the ADMIT_T
 carried in `retrieve.rs`. CPU behaviour is bit-identical to before (G1 exact); GPU runs get the
 better measured configuration and say so on every row.
 
+**Probes 1 and 2 are CLOSED (same session), each behind its own pre-registration:**
+* **Probe 1 — narrowing: null.** Union narrow recovered its predicted fit case for zero R@3
+  movement at +50% fuse rows; rrf-narrow missed its own band. No read earned, none spent.
+* **Found and fixed en route:** the fuse stage overwrote `rerank_score` (the shipped graph's
+  field) for the narrowed ten — ranking unaffected (gates re-verified exact on both splits) but
+  dumps carried mixed-graph logits; pinned by
+  `retrieve.rs::under_the_cascade_rerank_score_stays_the_SHIPPED_graphs_logit`.
+* **Probe 2 — the combiner: closed, characterised.** Six-zsum earned the one held-out read and
+  landed case-for-case on six-way RRF's recorded numbers (**155/204 = 0.6769/0.8908** vs the
+  pair's 160/203): +1 R@3 for −5 R@1 whether combining ranks or magnitudes. **The union-oracle
+  gap does not transfer — shared error, not complementary signal.** Fifth instance of the
+  fit→held-out collapse family. Pair stays shipped; the prewritten ship rule failed both halves.
+
+**Where the headroom actually lives now (all measured this session):** the FUSE PICK — 16
+held-out cases have gold in the narrowed ten yet outside the fused top-3 (cond@3 92.7%). The
+cut, the slate and the combiner family are measured closed. Untested: (a) a focused second pass
+whose *delta* adds information at the head (designed, unregistered); (b) the entity-graph cue /
+HP2 supersession line (multi-session; oracle +0.1666 on knowledge-update R@1_current); (c)
+prune/ingest ceiling repair (~9 cases, partly label artifacts).
+Commits: `0454950` (cascade ships), `806e8a5` (probe 1 + write-back fix), `e35a031` (probe 2).
+Branch `m0c-cues`; NOT merged — awaiting the human.
+
 ## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
 
 **Session E is closed** (`ROADMAP.md` updated): the TUI runs on the real loop, first-run onboarding
