@@ -152,3 +152,23 @@ extractable answer-value"), not relevance. It rescues buried multi-topic gold (t
 signature failure) at set level; at full weight its answer-shaped false positives overrule
 correct consensus winners at rank 1; at half weight they mostly do not, and held-out the head
 GAINS. Delta-fusion (sharpened-query second pass) killed on fit: +3/-4 R@3, -13 R@1.
+
+---
+
+## Addendum -- Stage-5 forensics: the remaining failures are COMPUTED answers, not buried ones
+
+tools/pick_forensics.py over the held-out cascade dump. The 16 fuse-pick failures decompose:
+
+* **~7 aggregation/computation/sequence answers** (counts across sessions, day-delta arithmetic,
+  chess notation, note sequences): the answer string does not appear in ANY candidate turn --
+  verified against corpus answers ("2", "14 days", "28. Kg3", "C D E F G A B A G F E D C").
+  Structurally invisible to span readers and relevance rankers alike; reachable only by a
+  generation/reasoning step. **CLOSED while LLM reranking is disallowed -- and that closure is
+  the finding:** R@3 0.95 on this benchmark is a reasoning problem, not a ranking problem.
+* **~3 long turns** (166/216/582 words vs seq-256 scoring window): truncation-limited; windowed
+  reading is the registered next probe.
+* **~6 genuine near-peers**: small turns, gold ranked 4-10 by both graphs and often the reader
+  too; the half-weight reader harvests part of this (+3 R@1/+2 R@3 measured).
+
+Ceiling statement, measured: with the reader adopted and upstream repaired, this architecture
+family tops out near R@3 0.92; the path beyond runs through the banned mechanism class.
