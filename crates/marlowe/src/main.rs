@@ -172,6 +172,20 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 RESOLVED provider is printed at startup beside the request and is
                                 stamped on every --profile-retrieval row.
 
+  --rerank-plan <P>             `auto`, `shipped` or `cascade`. DEFAULT `auto`: the cascade runs
+                                where it is measured to fit -- when the cross-encoder RESOLVED to
+                                CUDA -- and the shipped depth-10 shape runs everywhere else. The
+                                cascade draws 30 candidates, narrows them to 10 with the shipped
+                                graph and fuses a second digest-pinned opinion over the narrowed
+                                set: held-out R@1 0.6987 / R@3 0.8865 against shipped 0.6725 /
+                                0.8515 (`runs/session-m0c-m/PREREGISTRATION-CASCADE-HELDOUT.json`).
+                                It is GPU-only BY MEASUREMENT (CPU p50 1134 ms against section 5.7's
+                                300 ms), which is why `auto` keys on the resolved provider rather
+                                than on availability. `shipped` forces the depth-10 path; `cascade`
+                                forces the fusion and refuses to start without both graphs. The
+                                plan is printed at startup beside the provider and stamped on every
+                                --profile-retrieval row.
+
   --tier1-model <NAME>          The language model that has FIRST CLAIM on device memory
                                 (ADR-045 §4). Tier 1 has no CPU fallback and the embedder and
                                 reranker do, so they yield: `auto` subtracts this model's size
@@ -498,6 +512,14 @@ fn main() {
             std::process::exit(2);
         }
     };
+    let rerank_plan_flag = match rerank_plan_choice(&args) {
+        Ok(c) => c,
+        Err(message) => {
+            eprintln!("{USAGE}");
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    };
     let rerank_batch_flag = match flag_value(&args, "--rerank-batch") {
         Some("on") => Some(true),
         Some("off") => Some(false),
@@ -564,6 +586,14 @@ fn main() {
             std::process::exit(2);
         }
     };
+    // **An explicit cascade with no reranker is a contradiction, refused where both flags are in
+    // scope.** `start_with` would also refuse it; refusing here names the flag pair instead of
+    // making a reader infer it.
+    if rerank_plan_flag == PlanChoice::Cascade && reranking.is_none() {
+        eprintln!("{USAGE}");
+        eprintln!("error: --rerank-plan cascade requires --reranking <DIR>; there is nothing to narrow or fuse without a cross-encoder.");
+        std::process::exit(2);
+    }
 
     // **The un-gated control arm for K1 condition 3, and it is measurement-only.**
     //
@@ -679,9 +709,9 @@ fn main() {
 
     // Loaded HERE rather than at first retrieval, for the same reason the gate is: a bad artifact
     // must stop the process, not become a per-query error the harness scores as a wrong number.
-    let cross_encoder = match reranking {
+    let cross_encoder = match &reranking {
         Some(dir) => match marlowe_memory::rerank::CrossEncoder::load_auto(
-            &dir,
+            dir,
             rerank_threads,
             rerank_choice,
             marlowe_memory::cue::dense::vram::Probe::Device,
@@ -713,10 +743,49 @@ fn main() {
         // With `--reranking off` nothing loaded, so nothing scored. `Cpu` is the inert value here
         // and it is never read: `RerankSettings` only reaches a profile row a rerank produced.
         .unwrap_or(marlowe_memory::rerank::RerankProvider::Cpu);
+
+    // **Which SHAPE this run uses, decided ONCE, at load, and announced** -- `RerankPlan`'s own
+    // contract. `auto` keys on whether the cross-encoder RESOLVED to CUDA, not on whether a GPU
+    // exists: the cascade is GPU-only BY MEASUREMENT (CPU p50 1134 ms against §5.7's 300 ms), so
+    // "the reranker is on the GPU" is the fact that matters. An explicit arm is taken as given --
+    // it is a measurement setting -- and is still announced like everything else.
+    let plan = match rerank_plan_flag {
+        PlanChoice::Auto => marlowe_memory::retrieve::RerankPlan::select(
+            resolved_provider == marlowe_memory::rerank::RerankProvider::Cuda,
+        ),
+        PlanChoice::Shipped => marlowe_memory::retrieve::RerankPlan::Shipped,
+        PlanChoice::Cascade => marlowe_memory::retrieve::RerankPlan::Cascade,
+    };
+
+    // The cascade's second graph, digest-pinned through FUSION_GRAPHS -- there is no caller-supplied
+    // digest and no second way to load it. Its provider follows the RESOLVED one: under auto→CUDA
+    // both graphs are CUDA explicitly (a failure to construct stops the process, which is correct --
+    // the cascade was selected because CUDA was proven), and an explicit CPU measurement run keeps
+    // both on CPU. Loaded beside the primary for the same reason the primary loads here: a missing
+    // or swapped graph must stop the run before its first query, not per query.
+    let fusion_encoder = if plan == marlowe_memory::retrieve::RerankPlan::Cascade {
+        let dir = reranking.as_ref().expect("refused above: cascade without --reranking");
+        let models_root = dir.parent().unwrap_or_else(|| std::path::Path::new("."));
+        match marlowe_memory::rerank::CrossEncoder::load_fusion_member(
+            models_root,
+            marlowe_memory::rerank::CASCADE_FUSE_GRAPH,
+            resolved_provider,
+        ) {
+            Ok(e) => Some(e),
+            Err(e) => {
+                eprintln!("marlowe: {e}");
+                std::process::exit(1);
+            }
+        }
+    } else {
+        None
+    };
+
     let rerank_settings = adapter::RerankSettings {
         batched: rerank_batch_flag.unwrap_or_else(|| resolved_provider.default_batching()),
         threads: rerank_threads,
         provider: resolved_provider,
+        plan,
     };
     // ADR-029's rule, ADR-045's obligation: the RESOLVED provider is announced, never inferred,
     // and the REQUEST is on the line beside it so a fallback to CPU is legible as a fallback
@@ -724,6 +793,10 @@ fn main() {
     // about a stage that did not run is the widest possible gap between an event and a claim.
     if let Some(e) = cross_encoder.as_ref() {
         eprintln!("marlowe: {}", rerank_announcement(rerank_choice, e.plan(), rerank_settings.batched));
+        // The plan is on ITS OWN line rather than folded into the provider line: the two shapes
+        // have different published numbers, and a reader comparing a run against one of them must
+        // be able to see which shape produced it without parsing compound sentences.
+        eprintln!("marlowe: rerank plan {}", plan.label());
     }
 
     let consolidation = adapter::Consolidation {
@@ -737,6 +810,7 @@ fn main() {
             path,
             consolidation,
             cross_encoder,
+            fusion_encoder,
             rerank_settings,
             profile_path,
         ),
@@ -753,6 +827,7 @@ fn main() {
             adapter::Diagnostics { gate_features: path, retrieval_profile: profile_path },
             consolidation,
             cross_encoder,
+            fusion_encoder,
             rerank_settings,
             coverage,
         ),
@@ -846,6 +921,34 @@ fn rerank_provider_choice(args: &[String]) -> Result<marlowe_memory::rerank::Rer
             )
         }),
     }
+}
+
+/// Resolve `--rerank-plan`. **The default is `auto`**: the cascade where it is measured to fit.
+///
+/// `auto` is a rule, not a preference: the cascade is GPU-only BY MEASUREMENT (CPU p50 1134 ms
+/// against §5.7's 300 ms), so it keys on whether the cross-encoder RESOLVED to CUDA — a
+/// construction-proven fact, not an availability list. `shipped` and `cascade` are the explicit
+/// measurement arms; `cascade` additionally requires both graphs and refuses otherwise, which is
+/// `start_with`'s validation rather than this function's.
+fn rerank_plan_choice(args: &[String]) -> Result<PlanChoice, String> {
+    match flag_value(args, "--rerank-plan") {
+        None => Ok(PlanChoice::Auto),
+        Some("auto") => Ok(PlanChoice::Auto),
+        Some("shipped") => Ok(PlanChoice::Shipped),
+        Some("cascade") => Ok(PlanChoice::Cascade),
+        Some(v) => Err(format!(
+            "error: --rerank-plan takes `auto`, `shipped` or `cascade`, got {v:?}. `auto` runs \
+             the cascade where the cross-encoder resolved to CUDA and the shipped depth-10 path \
+             everywhere else; the two explicit values are measurement arms."
+        )),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlanChoice {
+    Auto,
+    Shipped,
+    Cascade,
 }
 
 /// The rerank startup line: **what was asked for, what was obtained, and how it will batch.**

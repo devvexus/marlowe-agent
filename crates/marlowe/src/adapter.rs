@@ -23,6 +23,7 @@ use marlowe_memory::{Coverage, OperatingPoint};
 use marlowe_memory::cue::dense::embedder::Embedder;
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::rerank::CrossEncoder;
+use marlowe_memory::retrieve::RerankPlan;
 use marlowe_memory::retrieve::{
     debug_assert_injection_valid, select_for_injection_probed, Rerank, Scoring, RERANK_BUDGET,
 };
@@ -73,6 +74,10 @@ pub struct RerankSettings {
     /// single most consequential thing a cell can be wrong about, and this project has already
     /// produced one "GPU" figure that was CPU.
     pub provider: marlowe_memory::rerank::RerankProvider,
+    /// Which rerank SHAPE this run uses. Stamped on every profile row beside the provider, for
+    /// the same reason: the two shapes have different published numbers and a latency row that
+    /// cannot name its shape describes an unnamed system.
+    pub plan: RerankPlan,
 }
 
 /// Where the two diagnostic side channels write, if anywhere.
@@ -123,6 +128,11 @@ pub struct Adapter {
     /// Session H's rerank stage. `None` is an EXPLICIT choice made at the command line
     /// (`--reranking off`), never a default -- see `main.rs`'s USAGE.
     cross_encoder: Option<CrossEncoder>,
+    /// The cascade's second opinion (`ms-marco-MiniLM-L-6-v2-ft-session-j`, digest-pinned in
+    /// [`marlowe_memory::rerank::FUSION_GRAPHS`]). `Some` only when the run's plan is Cascade;
+    /// `start_with` refuses any other combination so a run cannot hold a graph it never uses or
+    /// use a graph it never held.
+    fusion_encoder: Option<CrossEncoder>,
     /// How the rerank stage is configured. See [`RerankSettings`].
     rerank: RerankSettings,
     /// The retrieval stage profile, when `--profile-retrieval` named a path.
@@ -159,6 +169,7 @@ impl Adapter {
         diagnostics: Diagnostics<'_>,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        fusion_encoder: Option<CrossEncoder>,
         rerank: RerankSettings,
         coverage: Coverage,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -176,6 +187,7 @@ impl Adapter {
             Mode::Gated(gate, operating_point, dump),
             consolidation,
             cross_encoder,
+            fusion_encoder,
             rerank,
             diagnostics.retrieval_profile,
             coverage,
@@ -193,6 +205,7 @@ impl Adapter {
         dump_path: &Path,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        fusion_encoder: Option<CrossEncoder>,
         rerank: RerankSettings,
         retrieval_profile: Option<&Path>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -202,6 +215,7 @@ impl Adapter {
             Mode::FitDump(FeatureDump::create(dump_path)?),
             consolidation,
             cross_encoder,
+            fusion_encoder,
             rerank,
             retrieval_profile,
             // The fit path computes features and gates nothing, so no arm applies. Passed rather
@@ -216,6 +230,7 @@ impl Adapter {
         mode: Mode,
         consolidation: Consolidation<'_>,
         cross_encoder: Option<CrossEncoder>,
+        fusion_encoder: Option<CrossEncoder>,
         rerank: RerankSettings,
         retrieval_profile: Option<&Path>,
         coverage: Coverage,
@@ -230,6 +245,32 @@ impl Adapter {
             Consolidate::DryRun => Policy::DryRun,
             Consolidate::Frozen => Policy::load()?,
         };
+        // **The plan and the encoders must agree, and a disagreement stops the process.** A
+        // Cascade run without both graphs would fall back per query — silently measuring one
+        // configuration under another's label, which is this project's most-logged failure. The
+        // converse (a loaded fusion graph under Shipped) is refused too: a graph held but never
+        // read is a config file lying about what ran.
+        match rerank.plan {
+            RerankPlan::Cascade => {
+                if cross_encoder.is_none() || fusion_encoder.is_none() {
+                    return Err(
+                        "the cascade plan requires BOTH cross-encoders: the shipped graph to \
+                         narrow with and its fusion partner. Refusing rather than falling back \
+                         per query."
+                            .into(),
+                    );
+                }
+            }
+            RerankPlan::Shipped => {
+                if fusion_encoder.is_some() {
+                    return Err(
+                        "a fusion encoder was loaded under the shipped plan; it would never be \
+                         read. Pass --rerank-plan cascade or drop the second graph."
+                            .into(),
+                    );
+                }
+            }
+        }
         Ok(Self {
             journal,
             beliefs,
@@ -242,6 +283,7 @@ impl Adapter {
                 .map(ConsolidationDump::create)
                 .transpose()?,
             cross_encoder,
+            fusion_encoder,
             rerank,
             profile: retrieval_profile.map(RetrievalProfile::create).transpose()?,
             coverage,
@@ -459,6 +501,27 @@ impl Adapter {
         // the probe is `Option<&mut _>` so there is no second copy of this call to drift from.
         let mut timer = StageTimer::start();
         let mut probe = self.profile.as_ref().map(|_| &mut timer);
+        // One call site for every shape. `start_with` has already refused any plan/encoder
+        // mismatch, so the unreachable arm below is a genuine invariant and not optimism.
+        let mut rerank = match (self.rerank.plan, self.cross_encoder.as_mut(), self.fusion_encoder.as_mut()) {
+            (_, None, _) => Rerank::Off,
+            (RerankPlan::Cascade, Some(encoder), Some(fuse)) => {
+                Rerank::Cascade { encoder, fuse, batched: self.rerank.batched }
+            }
+            // Startup validation guarantees this arm is empty; reaching it means the invariant
+            // was broken somewhere else in this file, which must be loud rather than silently
+            // reranking at depth 10 under a cascade label.
+            (RerankPlan::Cascade, Some(_), None) => {
+                unreachable!("cascade plan without a fusion encoder survived start_with's refusal")
+            }
+            (RerankPlan::Shipped, Some(encoder), None) => {
+                Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET, batched: self.rerank.batched }
+            }
+            // Also guaranteed empty by start_with (Shipped refuses a loaded fusion graph).
+            (RerankPlan::Shipped, Some(_), Some(_)) => {
+                unreachable!("shipped plan with a fusion encoder survived start_with's refusal")
+            }
+        };
         let selection = select_for_injection_probed(
             &self.beliefs,
             &request.session_id,
@@ -468,12 +531,7 @@ impl Adapter {
             &scoring,
             &self.vectors,
             query_vector.as_deref(),
-            &mut match self.cross_encoder.as_mut() {
-                Some(encoder) => {
-                    Rerank::CrossEncoder { encoder, budget: RERANK_BUDGET, batched: self.rerank.batched }
-                }
-                None => Rerank::Off,
-            },
+            &mut rerank,
             // **`ThisSession`, and it must never change here.** LongMemEval flattens each case's
             // haystack into one history whose `session_id` is the query id, so a profile-wide scope
             // would let every case see every other case's turns. Every published R@1, the

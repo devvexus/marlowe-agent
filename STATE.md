@@ -1,5 +1,30 @@
 # State
 
+## M0c SESSION N (worktree branch `m0c-cues`) — THE CASCADE SHIPPED: R@1 0.6725 → 0.6987, R@3 0.8515 → 0.8865 held-out. Verified exact. NOT MERGED — awaiting the human.
+
+**2026-08-22.** `RerankPlan` had no call site since Session M2 wrote it; this session wired it
+(`--rerank-plan auto|shipped|cascade`, default auto = Cascade iff the reranker RESOLVED CUDA),
+loaded the fusion member through `FUSION_GRAPHS`'s pins, refused both mismatch directions at
+startup, announced the plan at startup and stamped it on every profile row, and added
+`fusion_rank` to the feature dump so drivers reconstruct the fused order from binary bytes.
+ADR-046 records it. **Every registered gate passed exactly**: fit control 0.7555/0.8996;
+cascade-on-fit 180/229 = 0.7860 and 213/229 = 0.9301; provider equivalence ZERO case movement;
+held-out reproduction **160/229 and 203/229, replicated across independent spawns**; latency P95
+29.4 ms of the 300 budget (one ~600 ms first-query warm-up spike disclosed). Suite 950 passed /
+0 failed (= master's 944 + exactly the six new tests). Full record:
+`runs/session-m0c-n/RESULT.md`.
+
+**New finding the wiring surfaced:** held-out gold surviving the 30→10 narrowing is **219/224 =
+0.9777** — five cases — where fit had shown 0.9956. The narrowing step was hidden by a favourable
+fit number and is now the newest weak link. Registered-probe queue, in order: (1) narrowing,
+(2) the combiner gap (union-oracle cond@3 0.9778 vs best combiner 0.9467 on fit), (3) a focused
+second pass for head discrimination, (4) prune/ingest ceiling repair (~9 cases).
+
+**Debt recorded in ADR-046:** under the cascade the operating point's margin stays in shipped-
+graph logit units while the head order is a fusion — same class as the ADMIT_TOP_K debt already
+carried in `retrieve.rs`. CPU behaviour is bit-identical to before (G1 exact); GPU runs get the
+better measured configuration and say so on every row.
+
 ## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
 
 **Session E is closed** (`ROADMAP.md` updated): the TUI runs on the real loop, first-run onboarding

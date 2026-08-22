@@ -172,6 +172,14 @@ pub const RRF_K: f32 = 60.0;
 pub const MODEL_FILE: &str = "model.onnx";
 pub const TOKENIZER_FILE: &str = "tokenizer.json";
 
+/// The cascade's second opinion — the fuse stage of the pre-registered configuration.
+///
+/// **The narrow stage is always [`MODEL_SHA256`] (the shipped graph)**, because the 30 → 10
+/// narrowing was measured with it (retention 0.9956). This constant names only the partner, and
+/// its digest lives in [`FUSION_GRAPHS`], which is what [`CrossEncoder::load_fusion_member`]
+/// enforces — there is deliberately no second way to spell either pin.
+pub const CASCADE_FUSE_GRAPH: &str = "ms-marco-MiniLM-L-6-v2-ft-session-j";
+
 /// The graph file the pre-Session-K builds loaded, named here **only** so a stale `--reranking`
 /// path gets an error that says what happened instead of a bare "file not found".
 const SUPERSEDED_INT8_FILE: &str = "model_int8.onnx";

@@ -24,7 +24,7 @@ use crate::entry::MemoryEntry;
 use crate::gate::{features, FrozenGate};
 use crate::operating_point::{Abstention, Coverage, OperatingPoint};
 use crate::probe::{Stage, StageProbe};
-use crate::rerank::CrossEncoder;
+use crate::rerank::{CrossEncoder, RRF_K};
 use crate::store::BeliefStore;
 
 /// The gate stamp for a build with no gate — Session A's state, retained for the feature-dump
@@ -224,6 +224,24 @@ pub enum Rerank<'a> {
         ///
         /// Carried on the variant rather than read from a global so a run cannot report one
         /// configuration and execute another; the retrieval profile records the value per query.
+        batched: bool,
+    },
+    /// The GPU cascade — depth 30, narrowed to 10 by the shipped graph, fused with a second
+    /// opinion over the narrowed set.
+    ///
+    /// Held-out (`runs/session-m0c-m/cascade-heldout-read.json`, pre-registered):
+    /// **R@1 0.6987 / R@3 0.8865** against the shipped path's **0.6725 / 0.8515**.
+    ///
+    /// `encoder` is the SHIPPED graph and must stay the shipped graph: the 30 → 10 narrowing was
+    /// measured with it (retention 0.9956), and the operating point's margin stays in its logit
+    /// units. `fuse` is the second opinion, digest-pinned in [`crate::rerank::FUSION_GRAPHS`].
+    ///
+    /// **It cannot run on CPU and must never be offered there**: the same measurement that makes
+    /// it attractive reads p50 1134 ms at the shipped pins against §5.7's 300 ms. Selection lives
+    /// in [`RerankPlan::select`], which keys on whether a CUDA session actually constructed.
+    Cascade {
+        encoder: &'a mut CrossEncoder,
+        fuse: &'a mut CrossEncoder,
         batched: bool,
     },
 }
@@ -516,6 +534,136 @@ fn dense_for(
         .collect()
 }
 
+/// The slate: the top `budget` pruning survivors under the EXISTING ranking key.
+///
+/// `(winning cue z desc, margin desc, id asc)` — the same key Session H left in place, so a
+/// cascade slate is the shipped slate's first [`CASCADE_SLATE`] entries and nothing about the
+/// draw is new to justify.
+fn draw_slate<'a>(scored: &[ScoredCandidate<'a>], budget: usize) -> Vec<usize> {
+    let mut slate: Vec<usize> = (0..scored.len()).filter(|i| scored[*i].survived_pruning).collect();
+    slate.sort_by(|a, b| {
+        let (x, y) = (&scored[*a], &scored[*b]);
+        y.score
+            .total_cmp(&x.score)
+            .then_with(|| y.margin.total_cmp(&x.margin))
+            .then_with(|| x.entry.id.cmp(&y.entry.id))
+    });
+    slate.truncate(budget);
+    slate
+}
+
+/// Score one slate against the query, writing [`ScoredCandidate::rerank_score`] in place.
+///
+/// **Batched scoring never exceeds [`crate::rerank::MAX_BATCH`].** The invariance sweep covers
+/// sizes 1..10 and nothing above; a depth-30 cascade therefore runs as chunks of at most 10 rows
+/// rather than one 30-wide forward nobody has measured. Chunking keeps every forward inside the
+/// measured envelope instead of extrapolating past it.
+///
+/// Errors are loud per pair or per chunk and leave that candidate's score unset — the same
+/// semantics the single-graph path has always had. A reranker that silently scored nothing would
+/// leave the stage looking present in the report and absent in the ranking.
+///
+/// Returns `None` when nothing was scored (empty slate), else a parallel vec where entry `i`
+/// carries `Some(logit)` or `None` for a failed pair — consumed by the cascade's second stage.
+fn score_slate(
+    encoder: &mut CrossEncoder,
+    query_text: &str,
+    scored: &mut [ScoredCandidate<'_>],
+    slate: &[usize],
+    batched: bool,
+) -> Option<Vec<Option<f32>>> {
+    if slate.is_empty() {
+        return None;
+    }
+    if !batched {
+        let mut out = vec![None; slate.len()];
+        for (slot, index) in out.iter_mut().zip(slate) {
+            match encoder.score(query_text, &scored[*index].entry.text) {
+                Ok(logit) => {
+                    scored[*index].rerank_score = Some(logit);
+                    *slot = Some(logit);
+                }
+                Err(e) => {
+                    eprintln!("marlowe: cross-encoder failed on {}: {e}", scored[*index].entry.id)
+                }
+            }
+        }
+        return Some(out);
+    }
+    let mut out = Vec::with_capacity(slate.len());
+    for chunk in slate.chunks(crate::rerank::MAX_BATCH) {
+        let documents: Vec<&str> =
+            chunk.iter().map(|i| scored[*i].entry.text.as_str()).collect();
+        match encoder.score_batch(query_text, &documents) {
+            Ok(logits) => {
+                for (index, logit) in chunk.iter().zip(logits) {
+                    scored[*index].rerank_score = Some(logit);
+                    out.push(Some(logit));
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "marlowe: cross-encoder failed on a batch of {} for query {:?}: {e}",
+                    documents.len(),
+                    query_text
+                );
+                out.extend(std::iter::repeat(None).take(documents.len()));
+            }
+        }
+    }
+    Some(out)
+}
+
+/// [`score_slate`] for an ARBITRARY ordering (the cascade's narrowed set, which is not a prefix of
+/// anything). Scores in the order given and returns logits in that same order.
+fn score_slate_ordered(
+    encoder: &mut CrossEncoder,
+    query_text: &str,
+    scored: &mut [ScoredCandidate<'_>],
+    order: &[usize],
+    batched: bool,
+) -> Option<Vec<Option<f32>>> {
+    // Identical mechanics; the distinction is documentation of intent at the call sites.
+    score_slate(encoder, query_text, scored, order, batched)
+}
+
+/// The cascade's stage-2 fusion, **a pure function of ranks** so it is testable without a graph.
+///
+/// Replicates `tools/cascade_heldout_read.py` exactly:
+///
+/// * `narrow` arrives in PRIMARY-logit order, so candidate `narrow[p]` holds primary rank `p`.
+/// * secondary rank: positions sorted by (secondary logit desc, candidate index asc) — the tool's
+///   `sorted(narrow, key=(-s6[i], i))`, whose tie-break is the pool index, which here is the
+///   candidate's position in `scored` (id ascending).
+/// * fusion score: `1/(RRF_K + primary_rank) + 1/(RRF_K + secondary_rank)` — Cormack et al.'s
+///   published default, fixed before any number existed.
+/// * output: `(candidate index, fusion rank)` pairs, fusion-descending, ties by candidate index.
+///
+/// A tie anywhere falls through to an explicit integer comparison. Nothing here reads a clock, a
+/// hash iterator or a float hash — the ranking is byte-reproducible, which `repro`'s byte-for-byte
+/// comparison depends on.
+fn cascade_fusion_order(narrow: &[usize], secondary: &[f32]) -> Vec<(usize, u32)> {
+    debug_assert_eq!(narrow.len(), secondary.len());
+    // Secondary ranks, by position in `narrow`.
+    let mut by_secondary: Vec<usize> = (0..narrow.len()).collect();
+    by_secondary.sort_by(|&a, &b| {
+        secondary[b].total_cmp(&secondary[a]).then_with(|| narrow[a].cmp(&narrow[b]))
+    });
+    let mut secondary_rank = vec![0usize; narrow.len()];
+    for (rank, &position) in by_secondary.iter().enumerate() {
+        secondary_rank[position] = rank;
+    }
+
+    let fusion = |p: usize| {
+        1.0 / (RRF_K + p as f32) + 1.0 / (RRF_K + secondary_rank[p] as f32)
+    };
+    let mut order: Vec<usize> = (0..narrow.len()).collect();
+    order.sort_by(|&a, &b| {
+        fusion(b).total_cmp(&fusion(a)).then_with(|| narrow[a].cmp(&narrow[b]))
+    });
+    order.into_iter().enumerate().map(|(rank, p)| (narrow[p], rank as u32)).collect()
+}
+
 /// Select what to inject.
 ///
 /// Ranking under [`Scoring::Gated`] is `(score desc, margin desc, id asc)` — the winning cue's
@@ -674,66 +822,52 @@ pub fn select_for_injection_probed<'a, P: StageProbe>(
     }
 
     probe.enter(Stage::Rerank);
-    if let Rerank::CrossEncoder { encoder, budget, batched } = rerank {
-        // The slate: the top `budget` survivors under the EXISTING ranking key. Drawing the slate
-        // with the key the reranker then replaces is what makes this a rerank stage rather than a
-        // new cue — and it is what Q2's registered "fixed budget of 10 reranked pairs" costs.
-        let mut slate: Vec<usize> =
-            (0..scored.len()).filter(|i| scored[*i].survived_pruning).collect();
-        slate.sort_by(|a, b| {
-            let (x, y) = (&scored[*a], &scored[*b]);
-            y.score
-                .total_cmp(&x.score)
-                .then_with(|| y.margin.total_cmp(&x.margin))
-                .then_with(|| x.entry.id.cmp(&y.entry.id))
-        });
-        slate.truncate(*budget);
+    match rerank {
+        Rerank::Off => {}
+        Rerank::CrossEncoder { encoder, budget, batched } => {
+            // The slate: the top `budget` survivors under the EXISTING ranking key. Drawing the slate
+            // with the key the reranker then replaces is what makes this a rerank stage rather than a
+            // new cue — and it is what Q2's registered "fixed budget of 10 reranked pairs" costs.
+            let slate = draw_slate(&scored, *budget);
+            score_slate(encoder, query_text, &mut scored, &slate, *batched);
+        }
+        Rerank::Cascade { encoder, fuse, batched } => {
+            let slate = draw_slate(&scored, CASCADE_SLATE);
 
-        // **One pair at a time, and this is a MEASURED choice rather than the inherited one.**
-        //
-        // M0c Session L batched the whole slate into a single `[10, 256]` forward and measured it:
-        // rerank p50 **187.6 ms → 210.2 ms**, a **12% REGRESSION**, warm-249. The output was
-        // bit-identical — the byte-identity gate on `scored-candidates.ndjson` passed — so this is
-        // a pure cost finding, not a correctness one.
-        //
-        // Why it loses: `rerank.rs` pins `intra_threads(1)` / `inter_threads(1)` for ADR-003's
-        // 1-vCPU target. Batching pays for itself through parallelism across the batch dimension,
-        // and at one thread there is none to exploit; what is left is the cost — attention is
-        // O(seq²) per row either way, so batching ten rows multiplies the intermediate tensors
-        // tenfold and loses cache locality. The tail says the same thing louder: batched max
-        // 259.3 ms against sequential 205.3 ms.
-        //
-        // **The batching path is retained in `rerank.rs` and is not dead code.** It is the shape a
-        // GPU execution provider would need, and that is a separate decision with its own ADR:
-        // determinism across execution providers is not inherited from the CPU graph, and the VPS
-        // target has no GPU, so it would be a second path rather than a replacement.
-        if *batched {
-            // One `[slate, 256]` forward. Invariance is measured at 0.000000000 across every batch
-            // size 1..10 on the shipped graph, so this produces bit-identical logits to the loop
-            // below -- the two differ in cost, never in result.
-            let documents: Vec<&str> =
-                slate.iter().map(|i| scored[*i].entry.text.as_str()).collect();
-            match encoder.score_batch(query_text, &documents) {
-                Ok(logits) => {
-                    for (index, logit) in slate.iter().zip(logits) {
-                        scored[*index].rerank_score = Some(logit);
-                    }
-                }
-                Err(e) => eprintln!(
-                    "marlowe: cross-encoder failed on a slate of {} for query {:?}: {e}",
-                    documents.len(),
-                    query_text
-                ),
-            }
-        } else {
-            for index in slate {
-                match encoder.score(query_text, &scored[index].entry.text) {
-                    Ok(logit) => scored[index].rerank_score = Some(logit),
-                    // Loud. A reranker that silently scored nothing would leave the stage looking
-                    // present in the report and absent in the ranking.
-                    Err(e) => {
-                        eprintln!("marlowe: cross-encoder failed on {}: {e}", scored[index].entry.id)
-                    }
+            // ── stage 1: the shipped graph narrows 30 → 10. Retention measured 0.9956. ──
+            score_slate(encoder, query_text, &mut scored, &slate, *batched);
+            let mut narrowed: Vec<usize> = slate
+                .iter()
+                .copied()
+                .filter(|i| scored[*i].rerank_score.is_some())
+                .collect();
+            // Logit descending, then SCORED INDEX ascending on ties — which is id ascending,
+            // because `scored` iterates the store's BTreeMap. This replicates the offline tool's
+            // `sorted(zip(sc, slate), key=(-score, pool_index))` exactly; a tie-break here is the
+            // kind of thing that would silently flip a case and fail gate G2, so it is spelled out.
+            narrowed.sort_by(|&a, &b| {
+                let (xa, xb) = (
+                    scored[a].rerank_score.unwrap_or(f32::NEG_INFINITY),
+                    scored[b].rerank_score.unwrap_or(f32::NEG_INFINITY),
+                );
+                xb.total_cmp(&xa).then_with(|| a.cmp(&b))
+            });
+            narrowed.truncate(CASCADE_NARROW);
+
+            // ── stage 2: the second opinion scores the narrowed set ──
+            let fuse_scores = score_slate_ordered(fuse, query_text, &mut scored, &narrowed, *batched);
+
+            // ── the fusion, as a pure function ──
+            // `rerank_score` keeps the PRIMARY graph's logit everywhere (see its doc): K1's cut
+            // point is calibrated in those units and nothing overwrites it.
+            if let Some(secondary) = fuse_scores {
+                let secondary: Vec<f32> = narrowed
+                    .iter()
+                    .zip(secondary)
+                    .map(|(i, s)| s.unwrap_or(*scored[*i].rerank_score.as_ref().unwrap_or(&f32::NEG_INFINITY)))
+                    .collect();
+                for (index, rank) in cascade_fusion_order(&narrowed, &secondary) {
+                    scored[index].fusion_rank = Some(rank);
                 }
             }
         }
@@ -1440,5 +1574,66 @@ mod tests {
             Some(Abstention::NoReranker),
             "the operating point decides before the budget does"
         );
+    }
+
+    // ── the cascade's stage-2 fusion ─────────────────────────────────────────────────────────
+    //
+    // These assert the ARITHMETIC of `cascade_fusion_order` against hand-computed RRF values, and
+    // the tie-breaks against the offline tool's sort keys. A mutation to any comparison in that
+    // function moves at least one assertion here; a mutation that survives them would have to
+    // preserve every rank, every tie order and the exact-tie case simultaneously.
+
+    #[test]
+    fn rrf_fusion_orders_by_reciprocal_rank_sum() {
+        // narrow arrives in PRIMARY-rank order: 10 is primary rank 0, 20 rank 1, 30 rank 2.
+        // Secondary logits order them 30, 10, 20 → secondary ranks 10→1, 20→2, 30→0.
+        //
+        //   fusion(10) = 1/(60+0) + 1/(60+1) = 0.0330601
+        //   fusion(30) = 1/(60+2) + 1/(60+0) = 0.0327957
+        //   fusion(20) = 1/(60+1) + 1/(60+2) = 0.0325224
+        let narrow = vec![10usize, 20, 30];
+        let secondary = [0.4f32, 0.2, 0.9];
+        assert_eq!(
+            cascade_fusion_order(&narrow, &secondary),
+            vec![(10usize, 0u32), (30, 1), (20, 2)],
+            "the fused order is by reciprocal-rank sum, not by either graph alone"
+        );
+    }
+
+    #[test]
+    fn an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index() {
+        // Swapping two adjacent items under two-way RRF always produces identical sums:
+        //   fusion(a) = 1/60 + 1/61 = fusion(b) = 1/61 + 1/60.
+        // The offline tool breaks this tie by POOL INDEX ascending (`key=(-fusion, i)`), and so
+        // must we — this is exactly where a silent tie-break divergence would flip a case and
+        // fail gate G2 without any logit changing.
+        let narrow = vec![7usize, 3];
+        let secondary = [0.5f32, 0.9]; // secondary ranks: 3→0, 7→1 — a perfect adjacent swap
+        assert_eq!(
+            cascade_fusion_order(&narrow, &secondary),
+            vec![(3usize, 0u32), (7, 1)],
+            "exact RRF ties resolve to the LOWER candidate index, matching cascade_heldout_read.py"
+        );
+    }
+
+    #[test]
+    fn equal_secondary_logits_get_secondary_ranks_by_index_then_still_fuse() {
+        // All-equal secondary logits are not a degenerate input — a slate can carry duplicate
+        // texts. Secondary ranks fall back to candidate index ascending (the tool's
+        // `sorted(narrow, key=(-s6[i], i))`), and the fused sums then tie again, resolving once
+        // more by index. The result must be the plain index order with no panic and no inversion.
+        let narrow = vec![8usize, 2];
+        let secondary = [0.3f32, 0.3];
+        assert_eq!(
+            cascade_fusion_order(&narrow, &secondary),
+            vec![(2usize, 0u32), (8, 1)],
+            "duplicate logits never produce an arbitrary order"
+        );
+    }
+
+    #[test]
+    fn a_single_candidate_passes_through_with_rank_zero() {
+        let narrow = vec![42usize];
+        assert_eq!(cascade_fusion_order(&narrow, &[-1.5f32]), vec![(42usize, 0u32)]);
     }
 }
