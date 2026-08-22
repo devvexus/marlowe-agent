@@ -153,14 +153,20 @@ pub fn mark_reserved(s: &str) -> Cow<'_, str> {
 ///   rows measure to the cell."* True while wrapping happened on the raw string. The markdown
 ///   renderer wraps **after** substitution, so the arithmetic sees the final text — that objection
 ///   is answered by the order of operations rather than argued away.
-/// * The TUI's defence was ratatui discarding control characters on their way into a `Buffer`. That
-///   is still true and still the enforcing layer for `ESC`. It says **nothing** about U+2028, the
-///   BiDi overrides, or the zero-width block, and each of those defeats a defence markdown
-///   rendering newly depends on: U+2028 is a line break `str::lines()` does not see, so a block
-///   parser splits differently from the eye; U+202E reverses the displayed order of a line, so an
-///   indent — the entire forgery defence — is a property the model can move; a zero-width
-///   character occupies no column while carrying bytes, so wrapped width and displayed width
-///   diverge.
+/// * The TUI's defence was ratatui discarding control characters on their way into a `Buffer`.
+///   **That was measured rather than assumed, and the first draft of this paragraph was wrong.** It
+///   claimed ratatui says nothing about U+2028, the BiDi overrides or the zero-width block; it
+///   discards all of them, along with `ESC`, `BEL`, `TAB` and C0/C1 generally.
+///
+///   What it passes through is the **tag block, U+E0000–U+E007F** — a full invisible ASCII
+///   alphabet, and the documented channel for smuggling instructions past a human reader.
+///   `marlowe_contract::text::is_renderable` refuses it by name, so the two layers are
+///   **complementary rather than redundant**. That is a better reason to run both than the one the
+///   draft gave, and it is recorded here rather than quietly corrected because the mistake is the
+///   family this project keeps logging: a claim about a mechanism, made from reading it.
+///
+///   `marlowe-surface/tests/display_sanitiser.rs` now carries the measurement as a test, on
+///   `Entry::User` — the path where ratatui is still the only thing in the way.
 ///
 /// So `marlowe_contract::text::sanitize_prose` runs first — one predicate, shared with the
 /// contract-value check, rather than a second idea of what a safe character is.

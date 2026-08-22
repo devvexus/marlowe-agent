@@ -607,11 +607,26 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
 }
 
 /// §B6's one line: `⋯ verb  target ............ summary`.
+///
+/// # The target is model-composed, and it is sanitised
+///
+/// CLAUDE.md's own example: *a tool `target` containing a newline forged a second §B6 tool line —
+/// a call the model never made.* The classic CLI closed that at its site; the TUI was covered
+/// **incidentally**, by ratatui discarding control characters on their way into a `Buffer`.
+///
+/// ADR-047 measured what ratatui does and does not discard, and the tag block U+E0000–U+E007F
+/// **reaches the grid** — a full invisible ASCII alphabet, inside the line that tells the user what
+/// the agent just did. `marlowe_contract::text::is_renderable` refuses it, so the target goes
+/// through the same predicate the approval prompt uses.
+///
+/// `Shape::Line`, not `Shape::Prose`: this is one line, and a `\n` in a target is the attack rather
+/// than a formatting nuisance. That is the same distinction `marlowe-contract` draws, drawn here
+/// for the same reason.
 fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line<'a> {
     use marlowe_view::ToolLineState;
     // Consecutive same-verb calls collapse: six reads become `⋯ read  6 files`.
     let target = if call.collapsed.is_empty() {
-        call.target.clone()
+        marlowe_contract::text::sanitize_line(&call.target).into_owned()
     } else {
         format!("{} files", call.collapsed.len() + 1)
     };
@@ -648,9 +663,14 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
     };
     let mut out = Vec::new();
     for t in &call.collapsed {
+        // Same reason as `tool_line`: these are the targets it collapsed away.
+        let t = marlowe_contract::text::sanitize_line(t);
         out.push(Line::from(Span::styled(format!("      {t}"), theme.dim())));
     }
     if let Some(d) = detail {
+        // A failure detail is genuinely multi-line — it is a stack trace or a compiler error — so
+        // `Shape::Prose` here and `Shape::Line` above. Two destinations, two correct answers.
+        let d = marlowe_contract::text::sanitize_prose(&d);
         for raw in d.lines() {
             for l in wrap(raw, w.saturating_sub(6)) {
                 out.push(Line::from(Span::styled(

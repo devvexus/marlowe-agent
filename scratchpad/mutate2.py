@@ -105,6 +105,12 @@ MUTATIONS = {
         "    if open[0] == '$' && !crate::latex::looks_like_inline_maths(&content) {\n        return None;\n    }",
         "",
     ),
+    # The §B6 tool line's model-composed target: put the raw clone back.
+    "md_toolline": (
+        "crates/marlowe-surface/src/render.rs",
+        "        marlowe_contract::text::sanitize_line(&call.target).into_owned()",
+        "        call.target.clone()",
+    ),
     # Make `Y` hand back a re-serialisation of the parse rather than the source.
     "md_copy_source": (
         "crates/marlowe-surface/src/clipboard.rs",

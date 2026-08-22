@@ -173,6 +173,28 @@ text, which is what the pane did before ADR-047. Also: an unclosed backtick run 
 `> `×10 000 is a stack overflow rather than a slow frame. Now 24 ms; the `md_budget` mutation restores
 1 415 ms in debug against a 500 ms ceiling.
 
+**4. RATATUI DOES NOT FILTER THE TAG BLOCK, and the TUI's only defence there was ratatui.**
+Measured while writing ADR-047, after the ADR's *draft* claimed the opposite about U+2028 and the
+BiDi overrides and was wrong. ratatui discards `ESC`, C0/C1, `TAB`, U+202E, U+200B, U+FEFF **and**
+U+2028. It passes **U+E0000–U+E007F** — a full invisible ASCII alphabet, the documented channel for
+smuggling instructions past a human reader.
+
+Two consequences, both closed here:
+
+* `marlowe-surface/tests/display_sanitiser.rs` **had gone vacuous about its own subject.** It
+  asserted through `Entry::Said(Speech::Model(_))`, which now has a sanitiser in front of it, so it
+  would have stayed green with ratatui's filtering removed entirely. It uses `Entry::User` — still
+  the flat path — and now records the tag-block gap as a measurement rather than a sentence.
+* **A tool `target` is model-composed and is drawn through the flat path.** `render::tool_line` and
+  `render::expansion` route the target, the collapsed targets and the failure detail through
+  `marlowe_contract::text::sanitize_{line,prose}`. `Shape::Line` for the targets — a `\n` there is
+  the attack, and that is CLAUDE.md's own logged example — and `Shape::Prose` for a detail that is
+  genuinely a stack trace.
+
+**The remaining tag-block exposure is `Entry::User` and harness notices**, and both are deliberate:
+the user is not smuggling instructions past themselves, and mangling their own typing is worse than
+the gap; harness notices are a closed vocabulary the harness authored.
+
 ### What is measured
 
 `crates/marlowe-surface/tests/markdown_cost.rs`, release, with the flat path measured **in the same
@@ -203,11 +225,11 @@ grows; nothing else is invented"*), so the pessimistic end is reachable rather t
 exactly the divergence the current design exists to prevent. Not attempted here; it is a separate
 change with its own tests.
 
-### Verified by mutation — ten bounds, one at a time, each caught by a NAMED test
+### Verified by mutation — eleven bounds, one at a time, each caught by a NAMED test
 
 `scratchpad/mutate2.py`: `md_render`, `md_chrome`, `md_ranges`, `md_rule`, `md_reversed`,
-`md_budget`, `md_latex_partial`, `md_latex_output`, `md_currency`, `md_copy_source`. Every assertion
-reads a drawn `ratatui::Buffer`, never an intermediate `Vec<Span>`.
+`md_budget`, `md_latex_partial`, `md_latex_output`, `md_currency`, `md_copy_source`, `md_toolline`.
+Every assertion reads a drawn `ratatui::Buffer`, never an intermediate `Vec<Span>`.
 
 ### Two decisions that came from LOOKING at the pane, not from reading the code
 

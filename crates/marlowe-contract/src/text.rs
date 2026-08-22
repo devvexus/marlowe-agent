@@ -27,6 +27,18 @@
 //! or would notice it going away. See `marlowe-surface/tests/display_sanitiser.rs`, which is
 //! labelled a characterisation test of a dependency rather than a guard, because that is what it is.
 //!
+//! **AMENDED BY ADR-047, 2026-08-22, and the amendment is a measurement.** ratatui's filtering was
+//! measured rather than assumed: it discards `ESC`, C0/C1, `TAB`, U+202E, U+200B, U+FEFF **and**
+//! U+2028 — more than this paragraph implied. What it passes through is the **tag block
+//! U+E0000–U+E007F**, which [`is_renderable`] refuses by name, so the two layers are complementary
+//! rather than redundant.
+//!
+//! The TUI therefore has **two** callers of this module now, both on model-composed text: model
+//! prose, before the markdown parser sees it (`marlowe-surface/src/chrome.rs`), and a §B6 tool
+//! line's target and detail (`marlowe-surface/src/render.rs`). `Entry::User` and harness notices
+//! are still unsanitised, deliberately — the user is not smuggling instructions past themselves,
+//! and a notice is a closed vocabulary the harness authored.
+//!
 //! # What a sanitised string promises, and what it does not
 //!
 //! **Promise:** no character that survives can move the cursor, repaint the line, reverse the

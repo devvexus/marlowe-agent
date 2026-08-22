@@ -251,17 +251,45 @@ trade. **Markdown is both.**
   measure to the cell."* True while wrapping happened on the raw string. `render_prose` substitutes
   **before** parsing and wrapping, so the arithmetic sees the final text — that objection is answered
   by the order of operations rather than argued away.
-* ratatui's filtering is still true and still the enforcing layer for `ESC`. It says **nothing**
-  about U+2028, the BiDi overrides, or the zero-width block, and each of those defeats a defence
-  markdown rendering newly depends on: U+2028 is a line break `str::lines()` does not see, so the
-  block parser splits differently from the eye; U+202E reverses the displayed order of a line, so an
-  indent — the entire forgery defence — becomes a property the model can move; a zero-width character
-  occupies no column while carrying bytes, so wrapped width and displayed width diverge.
+* **The draft of this ADR said ratatui *"says nothing about U+2028, the BiDi overrides, or the
+  zero-width block."* That was wrong, and one probe showed it.** ratatui discards all of them, along
+  with `ESC`, `BEL`, `TAB` and C0/C1 generally. The claim was made from reading and was not measured
+  until the file was being written — which is the failure this project logs, committed inside the
+  document arguing against it, and it is recorded here rather than quietly corrected.
+
+  **What ratatui does *not* discard is the tag block, U+E0000–U+E007F**, and that is the real gap:
+  a full invisible ASCII alphabet, the documented channel for smuggling instructions past a human
+  reader. `marlowe_contract::text::is_renderable` refuses it by name. So the two layers are
+  **complementary rather than redundant**, which is a better reason to run both than the one the
+  draft gave.
+
+  The measurement is now a test rather than a sentence:
+  `display_sanitiser.rs::ratatui_does_not_filter_the_tag_block_and_the_project_predicate_does`,
+  with `a_tag_character_reaches_the_grid_from_the_user_and_never_from_the_model` as the
+  same-character-two-paths control.
 
 So `chrome::prepare_model_text` runs `marlowe_contract::text::sanitize_prose` first: **one predicate,
 shared with the contract-value check**, rather than a second idea of what a safe character is.
-`display_sanitiser.rs` remains a characterisation test of ratatui and is still correct about what it
-covers.
+
+### 7.1 `display_sanitiser.rs` had gone vacuous about its own subject
+
+Its tests asserted that a hostile character does not reach the grid, **using
+`Entry::Said(Speech::Model(_))`** — the path that now has a sanitiser in front of it. They would have
+stayed green with ratatui's filtering removed entirely, while claiming to be the thing that noticed.
+**A characterisation test of a dependency has to use a path where the dependency is the only thing
+in the way**, so they now use `Entry::User`, which is still rendered flat.
+
+### 7.2 And the gap reached a §B6 tool line, which is where it matters most
+
+A tool `target` is model-composed and is drawn through the flat path. CLAUDE.md's own example is a
+`target` containing a newline forging a second tool line; the TUI was covered *incidentally* by
+ratatui. With the tag block passing through, an invisible alphabet could sit inside **the one line
+that states what the agent just did**.
+
+`render::tool_line` and `render::expansion` now route the target, the collapsed targets and the
+failure detail through the same predicate — `Shape::Line` for the targets, because a `\n` there is
+the attack rather than a formatting nuisance, and `Shape::Prose` for the detail, which is genuinely
+multi-line. Asserted by `markdown_forgery.rs::a_tool_target_carries_no_invisible_text`.
 
 ---
 
@@ -370,11 +398,11 @@ build where the feature does nothing. The mutation `md_copy_source` fails it.
 
 ## 11. How this was verified
 
-* **Ten mutations, one at a time, each caught by a named test.** `scratchpad/mutate2.py` entries
+* **Eleven mutations, one at a time, each caught by a named test.** `scratchpad/mutate2.py` entries
   `md_render`, `md_chrome`, `md_ranges`, `md_rule`, `md_reversed`, `md_budget`, `md_latex_partial`,
-  `md_latex_output`, `md_currency`, `md_copy_source`. `mutate2.py` refuses to run unless its pattern
-  matches exactly once, so a mutation that silently failed to apply cannot report a clean bill of
-  health.
+  `md_latex_output`, `md_currency`, `md_copy_source`, `md_toolline`. `mutate2.py` refuses to run
+  unless its pattern matches exactly once, so a mutation that silently failed to apply cannot report
+  a clean bill of health.
 * **Every acceptance assertion reads a drawn `ratatui::Buffer`**, not an intermediate `Vec<Span>`.
 * **The pane was looked at**, at 120×30 and 160×45 — `snapshot.rs::a_markdown_reply_can_be_read`.
   Two of the decisions above (binary-operator spacing, full-width rules) came from that and from

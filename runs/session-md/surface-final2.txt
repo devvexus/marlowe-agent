@@ -1,0 +1,277 @@
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1001:21
+     |
+1001 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+   Compiling marlowe-surface v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\.claude\worktrees\agent-ac68c320701f55af4\crates\marlowe-surface)
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.74s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_surface-e4b2e95a08ce1dad.exe)
+
+running 64 tests
+test chrome::tests::a_clean_string_is_borrowed_not_rebuilt ... ok
+test chrome::tests::blocking_one_rule_glyph_would_leave_sixty_others ... ok
+test clipboard::tests::a_collapsed_group_copies_every_target_it_hid ... ok
+test chrome::tests::the_pipeline_closes_the_three_families_ratatui_does_not ... ok
+test cli::display_sanitiser::a_tool_target_cannot_forge_a_second_b6_line ... ok
+test cli::display_sanitiser::a_model_reply_keeps_its_paragraphs ... ok
+test chrome::tests::ordinary_prose_punctuation_is_not_reserved ... ok
+test cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence ... ok
+test cli::display_sanitiser::the_classic_surface_never_writes_a_control_sequence_to_the_terminal ... ok
+test clipboard::tests::base64_matches_the_rfc_examples ... ok
+test clipboard::tests::osc52_is_well_formed_and_carries_utf8 ... ok
+test clipboard::tests::copied_text_carries_no_frame ... ok
+test commands::tests::a_bad_argument_is_rejected_out_loud_and_changes_nothing ... ok
+test commands::tests::a_command_cannot_return_prose_because_the_type_has_nowhere_to_put_it ... ok
+test chrome::tests::every_declared_marker_is_reserved_and_named_rather_than_dropped ... ok
+test clipboard::tests::a_failed_tool_call_copies_its_detail_not_its_summary ... ok
+test commands::tests::a_request_carries_no_narration_of_its_own ... ok
+test commands::tests::a_command_that_changes_the_session_asks_rather_than_acts ... ok
+test commands::tests::autocomplete_carries_descriptions ... ok
+test doctor::tests::the_shipped_accent_is_measured_and_the_numbers_are_recorded_here ... ok
+test commands::tests::every_registered_command_dispatches_to_something_other_than_unknown ... ok
+test inspector::tests::every_tab_renders_at_least_one_region ... ok
+test doctor::tests::the_report_states_both_backgrounds_and_the_braille_row ... ok
+test inspector::tests::the_four_deferred_panes_say_so_rather_than_showing_invented_data ... ok
+test keys::tests::a_conflict_names_both_claimants ... ok
+test keys::tests::item_keys_are_pane_scoped_and_globals_win_everywhere ... ok
+test latex::tests::a_chrome_glyph_reaching_the_output_refuses_the_whole_expression ... ok
+test keys::tests::the_shipped_key_set_has_no_conflicts ... ok
+test latex::tests::a_dollar_sign_in_prose_is_not_maths ... ok
+test latex::tests::a_partial_translation_would_be_a_different_integral ... ok
+test latex::tests::every_glyph_the_table_can_emit_passes_the_projects_display_predicate ... ok
+test latex::tests::relations_are_spaced_and_signs_are_not ... ok
+test latex::tests::the_common_cases_read_as_maths ... ok
+test latex::tests::what_cannot_be_shown_is_refused_whole ... ok
+test markdown::tests::a_block_quote_takes_the_rule_and_the_second_weight ... ok
+test markdown::tests::a_heading_loses_its_hashes_and_takes_the_accent ... ok
+test markdown::tests::a_horizontal_rule_is_not_the_compaction_marker ... ok
+test markdown::tests::a_link_always_shows_where_it_goes ... ok
+test markdown::tests::a_list_keeps_its_items_apart_and_nests ... ok
+test markdown::tests::a_paragraph_wraps_and_the_line_count_is_the_renderers_answer ... ok
+test markdown::tests::a_price_is_not_an_equation ... ok
+test markdown::tests::a_table_is_columns_and_carries_no_box_drawing ... ok
+test markdown::tests::a_table_too_wide_for_the_pane_is_shown_as_source_not_squashed ... ok
+test markdown::tests::an_ordered_list_counts_from_where_it_started ... ok
+test markdown::tests::code_is_hard_wrapped_and_never_reflowed ... ok
+test markdown::tests::a_very_long_word_is_split_rather_than_overflowing_the_pane ... ok
+test markdown::tests::emphasis_and_strong_become_attributes_not_colours ... ok
+test markdown::tests::maths_renders_when_it_can_and_stays_source_when_it_cannot ... ok
+test markdown::tests::no_span_this_module_produces_carries_a_background_or_reverse_video ... ok
+test markdown::tests::plain_prose_survives_untouched ... ok
+test meter::tests::a_full_frame_raises_every_dot ... ok
+test markdown::tests::snake_case_and_arithmetic_are_not_emphasis ... ok
+test markdown::tests::rendering_is_a_pure_function_of_its_arguments ... ok
+test meter::tests::a_silent_frame_is_all_blank_braille_cells ... ok
+test meter::tests::every_column_is_independent ... ok
+test meter::tests::every_glyph_is_inside_the_braille_block ... ok
+test meter::tests::levels_fill_from_the_bottom_up ... ok
+test meter::tests::one_level_lights_only_the_lowest_dot_row ... ok
+test meter::tests::the_meter_is_always_exactly_six_cells_wide ... ok
+test theme::tests::a_malformed_accent_refuses_rather_than_falling_back ... ok
+test theme::tests::no_color_is_reported_rather_than_swallowed ... ok
+test theme::tests::no_style_this_module_produces_has_a_background ... ok
+test theme::tests::the_accent_is_measured_against_both_backgrounds ... ok
+test theme::tests::the_depth_rule_reports_why_it_chose ... ok
+
+test result: ok. 64 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\accent_legibility.rs (target\debug\deps\accent_legibility-6b360e4ec8405493.exe)
+
+running 4 tests
+test both_floors_are_satisfiable_but_the_window_is_under_one_percent ... ok
+test the_default_accent_clears_its_floor_on_both_reference_backgrounds ... ok
+test contrast_is_measured_on_the_resolved_colour_not_the_default ... ok
+test light_is_the_binding_direction_and_its_margin_is_small ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_keyboard.rs (target\debug\deps\b13_keyboard-c44c84265372a01d.exe)
+
+running 8 tests
+test every_inspector_tab_is_reachable_by_its_digit ... ok
+test ctrl_v_does_not_walk_past_a_pending_approval ... ok
+test the_overlay_swallows_unrelated_keys_rather_than_letting_them_through ... ok
+test ctrl_keys_work_even_from_inside_a_text_field ... ok
+test esc_backs_out_one_level_and_interrupt_is_the_outermost ... ok
+test tab_and_shift_tab_cycle_every_region_in_reading_order ... ok
+test no_keystroke_is_dropped_while_the_stub_is_streaming ... ok
+test every_region_is_reachable_from_the_default_focus ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_memory_surface.rs (target\debug\deps\b13_memory_surface-b391c262c4236b6c.exe)
+
+running 3 tests
+test no_inspector_item_reports_a_score_a_count_or_a_provenance ... ok
+test no_region_in_any_pane_has_memory_as_its_subject ... ok
+test turn_event_has_no_injection_variant_and_must_never_gain_one ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_parity.rs (target\debug\deps\b13_parity-7a1eab7f44b40820.exe)
+
+running 8 tests
+test slash_autocomplete_offers_every_matching_command_with_its_description ... ok
+test an_approval_raised_by_a_command_surfaces_in_the_classic_cli_too ... ok
+test approvals_reach_the_classic_cli_too ... ok
+test the_two_surfaces_produce_the_same_data_for_a_pane ... ok
+test the_classic_cli_runs_from_a_pipe_with_no_terminal_at_all ... ok
+test the_classic_cli_never_lies_about_an_unbuilt_pane ... ok
+test the_registry_is_the_only_dispatcher ... ok
+test every_command_in_the_registry_is_reachable_in_both_surfaces ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_region_contract.rs (target\debug\deps\b13_region_contract-b2ba22fd65e500e0.exe)
+
+running 4 tests
+test every_region_in_the_tree_has_a_label_and_a_hotkey ... ok
+test no_two_regions_visible_together_claim_the_same_key ... ok
+test no_border_is_drawn_outside_the_region_contract ... ok
+test the_conversation_never_drops_below_55_percent_of_the_split ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\b13_rendering.rs (target\debug\deps\b13_rendering-402221c6f26961d4.exe)
+
+running 13 tests
+test a_settled_tool_call_occupies_exactly_one_line ... ok
+test below_the_minimum_it_refuses_and_draws_no_grid ... ok
+test the_user_the_reasoning_and_marlowe_do_not_share_a_colour ... ok
+test the_indicator_freezes_in_waiting_and_moves_in_every_other_live_state ... ok
+test no_label_hotkey_pager_or_tab_bar_falls_inside_a_scroll_area ... ok
+test a_resize_round_trip_returns_the_identical_frame ... ok
+test every_inspector_tab_rect_covers_its_own_label_in_the_rendered_frame ... ok
+test the_scrollbar_thumb_is_contiguous_full_blocks_with_no_fill ... ok
+test a_streaming_text_delta_touches_the_conversation_and_the_status_band_only ... ok
+test every_colour_emitted_is_one_of_the_declared_values ... ok
+test a_focus_change_repaints_borders_only_and_never_a_region_interior ... ok
+test not_one_cell_in_any_screen_carries_a_background ... ok
+test every_size_in_the_supported_range_renders ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+
+     Running tests\c2d_boundary.rs (target\debug\deps\c2d_boundary-e358916474cf4fbe.exe)
+
+running 2 tests
+test the_surface_depends_on_no_producer ... ok
+test the_surface_reads_no_clock_and_takes_time_as_an_argument ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\diagnostic_bound.rs (target\debug\deps\diagnostic_bound-860475e1e9498ce9.exe)
+
+running 2 tests
+test diagnostics_are_reachable_from_exactly_two_entry_points ... ok
+test a_diagnostic_never_enters_the_transcript ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\display_sanitiser.rs (target\debug\deps\display_sanitiser-ca8434a84b1989ad.exe)
+
+running 4 tests
+test the_hostile_text_actually_reached_the_screen ... ok
+test ratatui_does_not_filter_the_tag_block_and_the_project_predicate_does ... ok
+test a_tag_character_reaches_the_grid_from_the_user_and_never_from_the_model ... ok
+test ratatui_is_the_layer_that_stops_an_escape_reaching_the_grid ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\live_approval_window.rs (target\debug\deps\live_approval_window-10146aec1acc8bf0.exe)
+
+running 7 tests
+test an_unrelated_key_neither_answers_nor_dismisses ... ok
+test o_collects_a_reason_and_sends_it_with_the_decline ... ok
+test escaping_the_reason_editor_returns_to_the_question_without_answering ... ok
+test y_approves_and_n_declines ... ok
+test an_irreversible_call_says_so ... ok
+test the_window_does_not_report_which_subsystems_are_missing ... ok
+test the_whole_target_is_on_screen_however_long_it_is ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\markdown_cost.rs (target\debug\deps\markdown_cost-6538822fb9dd16ce.exe)
+
+running 3 tests
+test a_typical_transcript_lays_out_in_under_a_millisecond ... ok
+test a_pathological_reply_costs_no_more_than_a_long_one ... ok
+test laying_out_a_heavy_transcript_stays_inside_the_first_frame_budget ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.00s
+
+     Running tests\markdown_forgery.rs (target\debug\deps\markdown_forgery-63b98b5bf124900d.exe)
+
+running 8 tests
+test a_tool_target_carries_no_invisible_text ... ok
+test a_reply_cannot_forge_the_compaction_marker ... ok
+test a_reply_cannot_draw_a_disclosure_affordance ... ok
+test harness_notices_are_not_subject_to_the_reservation ... ok
+test every_reserved_glyph_is_one_the_harness_actually_draws ... ok
+test a_reply_cannot_draw_a_tool_line ... ok
+test a_reply_cannot_draw_a_bordered_region ... ok
+test a_reply_writes_nowhere_but_the_conversation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\markdown_render.rs (target\debug\deps\markdown_render-532ee4795af18fbf.exe)
+
+running 10 tests
+test y_still_copies_the_source_markdown_and_not_the_rendered_form ... ok
+test plain_prose_reaches_the_grid_exactly_as_written ... ok
+test the_attributes_reach_the_grid_and_the_source_markers_do_not ... ok
+test a_resize_round_trip_with_markdown_returns_the_identical_frame ... ok
+test markdown_never_paints_over_the_pager_or_the_border ... ok
+test not_one_cell_carries_a_background_or_reverse_video ... ok
+test markdown_emits_no_colour_outside_the_declared_palette ... ok
+test the_scroll_extent_agrees_with_what_markdown_actually_drew ... ok
+test a_focus_change_repaints_no_markdown_cell ... ok
+test a_second_render_of_the_same_state_changes_not_one_cell ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests\snapshot.rs (target\debug\deps\snapshot-c3568a89591b7173.exe)
+
+running 3 tests
+test a_dropdown_draws_over_the_frame_without_a_fill ... ok
+test a_markdown_reply_can_be_read ... ok
+test the_frame_renders_and_can_be_read ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests marlowe_surface
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

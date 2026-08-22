@@ -244,6 +244,47 @@ fn a_reply_writes_nowhere_but_the_conversation() {
     println!("model prose reaching outside the conversation region: 0 cells across 5 sizes");
 }
 
+/// **A tool target is model-composed and reaches the grid inside a §B6 line.**
+///
+/// CLAUDE.md's own example is a `target` containing a newline forging a second tool line. The TUI
+/// was covered incidentally, by ratatui's filtering — and ADR-047 measured that filtering and found
+/// the **tag block passes through it**: U+E0000–U+E007F is an invisible ASCII alphabet, and the
+/// place it would matter most is the one line that tells the user what the agent just did.
+#[test]
+fn a_tool_target_carries_no_invisible_text() {
+    use marlowe_view::turn::Metric;
+    use marlowe_view::ToolCall;
+
+    let producer = marlowe_stub::Session::new();
+    let mut view = producer.view().clone();
+    view.transcript.clear();
+    // TAG LATIN SMALL R and M — the invisible alphabet. Two is enough: each expands to eight
+    // visible columns once marked, and the assertion below needs the trailing word still to fit.
+    let hidden = "\u{E0072}\u{E006D}";
+    view.transcript.push(Entry::Tools(vec![ToolCall::ok(
+        1,
+        "read",
+        &format!("BEFORE{hidden}AFTER"),
+        vec![Metric::Count { n: 48, unit: "lines" }],
+    )]));
+    let app = App::new(view).expect("the shipped key set has no conflicts");
+    let screen = transcript_cells(&common::frame(&app, 140, 40), 140, 40);
+
+    assert!(
+        screen.contains("BEFORE") && screen.contains("AFTER"),
+        "the tool line never rendered:\n{screen}"
+    );
+    for c in hidden.chars() {
+        assert!(
+            !screen.contains(c),
+            "U+{:05X} reached a §B6 tool line. It occupies no columns and carries bytes, inside \
+             the one line that states what the agent did:\n{screen}",
+            c as u32
+        );
+    }
+    assert!(screen.contains("<U+E0072>"), "refused, but invisibly:\n{screen}");
+}
+
 /// The harness's own prose is **not** put through the reservation, and it must not be — a `/help`
 /// listing that lost its glyphs would be the cure being worse than the disease.
 ///
