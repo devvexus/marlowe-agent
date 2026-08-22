@@ -2,6 +2,11 @@
 
 ## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
 
+**AND OPENROUTER SHIPPED 2026-08-22, merged at `6df9ead`.** A hosted provider for benchmark runs —
+`--provider openrouter --openrouter-model <slug>`, opt-in, refused at load without a key, and the
+local zero-config path is unchanged and asserted by test. **Master reads 997 passed / 0 failed.**
+See the OPENROUTER section below and ADR-046.
+
 **Session E is closed** (`ROADMAP.md` updated): the TUI runs on the real loop, first-run onboarding
 ships (`ef0afec`), K6 is measured and passes by two orders of magnitude, and the accent row's
 arithmetic is asserted (`e21cae7`). Only its **by-eye** half remains and that is a human action.
@@ -34,7 +39,7 @@ now exists and has never executed.
 
 ## OPENROUTER SHIPPED, AND ONE THING ABOUT IT IS UNVERIFIED. ADR-046, 2026-08-22.
 
-**Branch `m2-openrouter`. Not merged.** `crates/marlowe-openrouter` is a working hosted provider:
+**MERGED TO `master` 2026-08-22 at `6df9ead`, and verified live.** `crates/marlowe-openrouter` is a working hosted provider:
 streams SSE, reassembles fragmented tool calls, routes loop-control tools through the **one**
 `parse_step` that already exists, degrades with a named remedy, and records what answered.
 
@@ -76,12 +81,34 @@ it. Same for the four M2 acceptance rows: the model is reachable; the harnesses 
 
 ### UNVERIFIED, and it is the whole of §9 of the ADR
 
-**No live call to openrouter.ai was made. No API key was available in this environment.** Six wire
-behaviours are therefore taken from documentation rather than from a socket: whether the top-level
-`provider` field arrives and on which chunk, whether `usage.cost` is present and in what unit, how
-the keepalive is spelled, whether `provider.order` + `allow_fallbacks: false` pins, whether the
-endpoint accepts `tools` alongside `stream: true` and `usage.include`, and every latency and cost
-number (there are none in the ADR, deliberately).
+**SUPERSEDED 2026-08-22 — a key arrived and four of the six were closed on a real socket.**
+The paragraph below is kept as written because it is what was true when the branch was built, and
+because the shape of the gap is worth preserving. **See ADR-046 §9.3 for the readings.**
+
+> ~~No live call to openrouter.ai was made. No API key was available in this environment.~~ Six wire
+> behaviours are therefore taken from documentation rather than from a socket: whether the top-level
+> `provider` field arrives and on which chunk, whether `usage.cost` is present and in what unit, how
+> the keepalive is spelled, whether `provider.order` + `allow_fallbacks: false` pins, whether the
+> endpoint accepts `tools` alongside `stream: true` and `usage.include`, and every latency and cost
+> number (there are none in the ADR, deliberately).
+
+**What the live runs settled**, against `stealth/ox-alpha` from the shipped release binary:
+
+| | |
+|---|---|
+| `provider` on streamed chunks | **CLOSED — arrives.** `upstream(s): Stealth` |
+| `tools` + `stream: true` + `usage.include` | **CLOSED.** A two-call turn: the model requested `read`, the harness executed it under workspace scope, the model answered from the result |
+| `usage.cost` unit | **HALF.** The field arrives and renders `0 µUSD` — and **zero is zero in either unit**, so USD-vs-credits is untouched. Needs a paid model |
+| keepalive spelling | **OPEN.** No run was slow enough to provoke one |
+| `provider.order` pinning | **OPEN.** A stealth model has one upstream, so this could not have tested it |
+
+```
+plain answer        1 call    4,024 tok   0 µUSD   upstream: Stealth    5,861 ms
+tool-calling turn   2 calls   8,123 tok   0 µUSD   upstream: Stealth   18,623 ms
+```
+
+**Do not quote those latencies.** n = 1 each, a free stealth endpoint with unknown queueing. They
+are recorded to show the path works.
 
 Every one of them is decoded defensively — an absent field records `NOT REPORTED` rather than a
 guess — but **defensive decoding is not a measurement.** One command closes items 1–5:
