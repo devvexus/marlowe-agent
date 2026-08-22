@@ -1454,6 +1454,7 @@ dependencies = [
  "marlowe-journal",
  "marlowe-loop",
  "marlowe-memory",
+ "marlowe-openrouter",
  "marlowe-permission",
  "marlowe-provider",
  "marlowe-stub",
@@ -1484,6 +1485,7 @@ dependencies = [
  "marlowe-journal",
  "marlowe-loop",
  "marlowe-memory",
+ "marlowe-openrouter",
  "marlowe-permission",
  "marlowe-provider",
  "marlowe-tools",
@@ -1590,6 +1592,21 @@ dependencies = [
  "rustls",
  "thiserror 2.0.19",
  "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "marlowe-openrouter"
+version = "0.1.0"
+dependencies = [
+ "marlowe-contract",
+ "marlowe-loop",
+ "marlowe-net",
+ "marlowe-permission",
+ "marlowe-provider",
+ "marlowe-tools",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
