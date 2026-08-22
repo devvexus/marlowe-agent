@@ -184,3 +184,20 @@ convert even expanded -- notation fragments compete on fluency, not vocabulary, 
 attached. Neighbour information has now been tested as feature (both signs), predecessor,
 tie-break, and input expansion: all four null or harmful. The idea family is closed with
 measurements behind every form.
+
+---
+
+## Addendum -- The stage-5 pattern, read case-by-case (16/16 read, answer-string verified)
+
+* **A. 4/16 label artifacts**: the answer string sits in our fused top-3 on UNFLAGGED turns
+  (dc439ea3 at rank 1 with 100 percent token overlap). Answer-containment R@3 is already
+  ~207/229 = 0.9040 -- the metric undercounts us by at least four cases in this band alone.
+* **B. 6/16 computed/synthesized answers** (temporal arithmetic across turns, cross-session
+  counts, suggestions-from-preferences): the flagged gold states the precondition; the answer
+  must be generated. Closed without generation -- now proven per-case, not asserted.
+* **C. 5/16 same-session near-peers** (whole session on-topic; gold carries the value): the
+  reader's home population -- 75499fd8's reader score is +11 while it holds half a vote.
+* **D. 1/16 truncation** (582-word turn, seq-256 window): windowed reading is the registered fix.
+
+Pattern in one line: we rank PRECONDITIONS against CONCLUSIONS -- and a quarter of the misses
+are already answered, uncredited.
