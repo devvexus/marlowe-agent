@@ -105,3 +105,23 @@ best combiner 0.9467 on fit) is where the measurable headroom lives.
 Also landed here: the rerank_score write-back defect and its fix -- see the section above the
 suite table in git history; the mutation-sensitive test is
 etrieve.rs::under_the_cascade_rerank_score_stays_the_SHIPPED_graphs_logit.
+
+---
+
+## Addendum — Probe 2 (the combiner): closed. The oracle gap is a fit-side mirage.
+
+PREREGISTRATION-COMBINER(-HELDOUT).json; instrument gates 229/229 on both splits;
+evaluations 
+arrow-probe.json, combiner-probe{-heldout}.json.
+
+Fit: six-vote killed by its own band (R@3 212, gained 1 / lost 2); **six-zsum earned the read**
+(fit R@1 185 / R@3 215, +5/+2, parameter-free). Held-out, one read spent: **155 / 204**
+(0.6769 / 0.8908) against the pair's 160 / 203 -- inside every predicted band, falsification not
+met, and the PREWRITTEN ship rule (R@3 >= 205 AND R@1 >= 159) failed on both halves. Not adopted.
+
+**The finding:** six-zsum lands case-for-case on the six-way RRF's already-recorded numbers
+(155/204 = 0.6769/0.8908). Rank-based and magnitude-based combination of the same six opinions
+read identically held-out -- the ensemble contributes exactly +1 R@3 for -5 R@1 no matter how it
+is combined, so the union-oracle's fit-side headroom was shared error wearing complementary
+clothes. Fifth instance of the fit-to-held-out collapse family, now characterised at the level
+of the COMBINER rather than any single arm.
