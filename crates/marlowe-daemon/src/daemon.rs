@@ -1514,7 +1514,13 @@ const PERSONA: &str = include_str!("../../../persona/v2.md");
 /// the workspace would not be the same artifact across two runs.
 const IDENTITY_FACTS: &str =
     "You are running as a terminal-native agent harness. Say what you did and what you did not, \
-     and never claim a result you did not produce.";
+     and never claim a result you did not produce. \
+     The terminal renders your replies as Markdown -- headings, lists, tables, fenced code, \
+     emphasis -- and renders LaTeX written as $inline$ or $$display$$ into Unicode where it can: \
+     Greek, operators, relations, sub- and superscripts, fractions, roots. Notation it cannot \
+     represent EXACTLY is shown as your raw source rather than approximated, so prefer notation \
+     that survives: \\frac, \\sqrt, \\sum, \\int, \\mathbb and \\operatorname render, while a \
+     matrix, an over-line or a stacked accent will appear as LaTeX.";
 
 /// What reaches the stable tier: persona first, then the run's facts.
 fn identity_block() -> String {
@@ -1541,6 +1547,30 @@ mod approval_gate_tests {
     use super::*;
     use marlowe_permission::BlastRadius;
     use std::io::Write as _;
+
+    /// **The surface renders Markdown and LaTeX, and the model is told so.**
+    ///
+    /// Without this the model has no way to know: it cannot see the terminal, and a reply written
+    /// as flat prose renders identically whether or not the renderer exists. The statement lives in
+    /// `IDENTITY_FACTS` rather than in `persona/vN.md` because it is a DEPLOYMENT fact -- the same
+    /// persona artifact runs behind a surface that renders and one that does not -- and because the
+    /// persona is a section 13 boundary a rendering note has no business editing.
+    ///
+    /// **This asserts the CONTENT; the CHANNEL is proven elsewhere.**
+    /// `marlowe-provider/tests/persona_emission.rs` asserts the stable tier reaches the outbound
+    /// request body as a `system` message, and `identity_block` is what goes into it. What is new
+    /// here is text on a path already known to carry, not a new claim about carrying.
+    #[test]
+    fn the_model_is_told_the_surface_renders_markdown_and_latex() {
+        let block = identity_block();
+        assert!(block.contains("Markdown"), "{block}");
+        assert!(block.contains("$inline$") && block.contains("$$display$$"), "{block}");
+        // The honesty half matters more than the capability half: a model that believes every
+        // expression typesets will write matrices that arrive as raw LaTeX.
+        assert!(block.contains("raw source"), "the refusal behaviour must be stated: {block}");
+        // An addition to the stable tier, not a replacement of it.
+        assert!(block.len() > PERSONA.len(), "the persona was lost: {}", block.len());
+    }
 
     fn radius() -> BlastRadius {
         BlastRadius {

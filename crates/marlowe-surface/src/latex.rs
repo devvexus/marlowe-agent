@@ -96,6 +96,24 @@ pub fn looks_like_inline_maths(content: &str) -> bool {
     if content.starts_with(' ') || content.ends_with(' ') {
         return false;
     }
+    // **A backslash command settles it, and settles it BEFORE the letter-run test below.**
+    //
+    // That test reads a run of three or more letters as English, which is what protects
+    // "it costs $5 and $10" -- `and`. It also fired on `\operatorname{softmax}(z)`, where `softmax`
+    // is a seven-letter run inside a command's own argument, and refused the whole attention
+    // formula as prose.
+    //
+    // Ordinary prose does not contain a backslash followed by a letter. Currency does not either.
+    // So the presence of one is a stronger and cheaper signal than counting letters, and the
+    // heuristic this module calls "the only heuristic in the module" keeps its job on the case it
+    // was written for.
+    if content
+        .as_bytes()
+        .windows(2)
+        .any(|w| w[0] == b'\\' && w[1].is_ascii_alphabetic())
+    {
+        return true;
+    }
     // Letter runs of three or more, ignoring anything introduced by a backslash — `\alpha` is a
     // command, `and` is English.
     let chars: Vec<char> = content.chars().collect();
@@ -298,6 +316,26 @@ fn command(lex: &mut Lex) -> Option<String> {
             }
             Some(out)
         }
+        // **Accents, and ONLY where a precomposed character exists.**
+        //
+        // The header says these are refused because "combining marks occupy zero columns". That
+        // is right about COMBINING marks and was applied one step too widely: \hat{y} is U+0177,
+        // a single precomposed codepoint with its own width, which no font has to compose and
+        // which the wrap arithmetic counts as one column. It is the predicted value in every
+        // regression loss ever written, and it was refusing the formula around it.
+        //
+        // Where Unicode has no precomposed form -- \hat{x}, \bar{\theta} -- this still refuses,
+        // because there the alternative really is a combining mark. Partial coverage is the
+        // honest outcome: render what can be represented correctly, refuse the rest.
+        "hat" | "tilde" | "bar" | "acute" | "grave" | "ddot" => {
+            let body = argument(lex)?;
+            let mut chars = body.chars();
+            let base = chars.next()?;
+            if chars.next().is_some() {
+                return None;
+            }
+            precomposed(&name, base).map(|c| c.to_string())
+        }
         // Sizing commands modify a delimiter that follows. The delimiter itself is what renders.
         "left" | "right" | "bigl" | "bigr" | "Bigl" | "Bigr" | "big" | "Big" => {
             lex.skip_spaces();
@@ -415,6 +453,24 @@ fn map_script(s: &str, superscript: bool) -> Option<String> {
     }
 }
 
+/// A base letter plus an accent, **as one precomposed codepoint or not at all**.
+///
+/// Deliberately not a combining-mark fallback. A combining mark is zero columns wide, so the
+/// renderer's wrap arithmetic and the reader's eye disagree about where the line ends, and
+/// whether it composes at all is a property of the terminal's font rather than of this program.
+fn precomposed(accent: &str, base: char) -> Option<char> {
+    let table: &[(char, char)] = match accent {
+        "hat" => &[('a', '\u{e2}'), ('e', '\u{ea}'), ('i', '\u{ee}'), ('o', '\u{f4}'), ('u', '\u{fb}'), ('y', '\u{177}'), ('c', '\u{109}'), ('g', '\u{11d}'), ('h', '\u{125}'), ('j', '\u{135}'), ('s', '\u{15d}'), ('w', '\u{175}'), ('z', '\u{1e91}'), ('A', '\u{c2}'), ('E', '\u{ca}'), ('I', '\u{ce}'), ('O', '\u{d4}'), ('U', '\u{db}'), ('Y', '\u{176}')],
+        "tilde" => &[('a', '\u{e3}'), ('n', '\u{f1}'), ('o', '\u{f5}'), ('i', '\u{129}'), ('u', '\u{169}'), ('e', '\u{1ebd}'), ('y', '\u{1ef9}'), ('A', '\u{c3}'), ('N', '\u{d1}'), ('O', '\u{d5}')],
+        "bar" => &[('a', '\u{101}'), ('e', '\u{113}'), ('i', '\u{12b}'), ('o', '\u{14d}'), ('u', '\u{16b}'), ('A', '\u{100}'), ('E', '\u{112}'), ('I', '\u{12a}'), ('O', '\u{14c}'), ('U', '\u{16a}')],
+        "acute" => &[('a', '\u{e1}'), ('e', '\u{e9}'), ('i', '\u{ed}'), ('o', '\u{f3}'), ('u', '\u{fa}'), ('y', '\u{fd}'), ('n', '\u{144}'), ('c', '\u{107}'), ('s', '\u{15b}'), ('z', '\u{17a}')],
+        "grave" => &[('a', '\u{e0}'), ('e', '\u{e8}'), ('i', '\u{ec}'), ('o', '\u{f2}'), ('u', '\u{f9}')],
+        "ddot" => &[('a', '\u{e4}'), ('e', '\u{eb}'), ('i', '\u{ef}'), ('o', '\u{f6}'), ('u', '\u{fc}'), ('y', '\u{ff}')],
+        _ => return None,
+    };
+    table.iter().find(|(k, _)| *k == base).map(|(_, v)| *v)
+}
+
 fn blackboard(c: char) -> Option<char> {
     Some(match c {
         'R' => 'ℝ',
@@ -452,6 +508,8 @@ fn space_relations(s: &str) -> String {
         '∣', '∥', '‖',
     ];
     let mut out = String::with_capacity(s.len());
+    // Whether the previous character was a relation that contributed its own trailing space.
+    let mut just_spaced = false;
     for c in s.chars() {
         if SPACED.contains(&c) {
             if !out.ends_with(' ') && !out.is_empty() {
@@ -459,9 +517,14 @@ fn space_relations(s: &str) -> String {
             }
             out.push(c);
             out.push(' ');
-        } else if c == ' ' && out.ends_with(' ') {
-            // The relation already contributed one.
+            just_spaced = true;
+        } else if c == ' ' && just_spaced {
+            // The relation already contributed one. **Only that one** -- this used to collapse
+            // EVERY run of spaces, which silently deleted `\quad` and `\qquad`. Those are the
+            // author separating two equations on one line, so `L = ... \qquad p = ...` came out as
+            // `L = ... p = ...` and read as a single malformed expression.
         } else {
+            just_spaced = false;
             out.push(c);
         }
     }
@@ -548,6 +611,9 @@ const SYMBOLS: &[(&str, &str)] = &[
     // U+2223 DIVIDES rather than ASCII `|`: the ASCII bar is a table delimiter in this renderer,
     // and a formula that emitted one would be a formula that could forge a table row.
     ("mid", "∣"), ("nmid", "∤"), ("parallel", "∥"), ("perp", "⊥"),
+    // Transpose and its neighbours. `QK^	op` is the attention formula as everyone writes
+    // it, and `	op` was the single unrenderable token in it.
+    ("top", "⊤"), ("bot", "⊥"), ("dagger", "†"), ("ddagger", "‡"),
     // Set notation and logic.
     ("in", "∈"), ("notin", "∉"), ("ni", "∋"), ("subset", "⊂"), ("subseteq", "⊆"),
     ("supset", "⊃"), ("supseteq", "⊇"), ("cup", "∪"), ("cap", "∩"), ("emptyset", "∅"),

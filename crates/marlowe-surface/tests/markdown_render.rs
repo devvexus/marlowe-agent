@@ -481,3 +481,46 @@ fn a_script_unicode_can_express_still_uses_the_real_glyph() {
     assert!(!out.contains("beta^2"), "fell back where a real glyph exists: {out}");
     assert!(!out.contains("_x"), "fell back where a real glyph exists: {out}");
 }
+
+/// **Round two, from a second screenshot of a live session.** Three more causes, none of them the
+/// renderer: a missing symbol, a spacing rule that deleted deliberate spacing, and an accent
+/// refusal that was one step too wide.
+#[test]
+fn transpose_renders_so_the_attention_formula_does() {
+    // `\top` was the single unrenderable token in the formula everyone writes as QK^T.
+    let out = plain(r"$\operatorname{softmax}\!\left( \frac{QK^\top}{\sqrt{d}} \right) V$");
+    assert!(out.contains("QK^⊤"), "{out}");
+    assert!(!out.contains("\\top"), "refused instead of rendering: {out}");
+}
+
+/// `\quad` and `\qquad` are the author separating two equations on one line. They were mapped
+/// to spaces and then DELETED by a rule that collapsed every run of spaces to one, so two
+/// equations ran together and read as a single malformed one.
+#[test]
+fn deliberate_spacing_between_equations_survives() {
+    let out = plain(r"$a = 1 \qquad b = 2$");
+    // Both equations render and stay distinct. **The width of the gap is NOT asserted**: the
+    // rendered maths re-enters prose layout, which collapses runs of spaces the way markdown does
+    // everywhere else, so `\qquad` survives as a separator rather than as four columns. Recorded
+    // rather than asserted, because asserting it would pin a wrapping detail this test does not own.
+    assert!(out.contains("a = 1"), "{out}");
+    assert!(out.contains("b = 2"), "{out}");
+    // The control: a relation still contributes exactly ONE space, not two.
+    let r = plain(r"$x = y$");
+    assert!(r.contains("x = y") && !r.contains("x  ="), "{r}");
+}
+
+/// **The accent refusal was one step too wide.** `\hat{y}` is U+0177 -- one precomposed
+/// codepoint, one column, no font composition required -- and it is the predicted value in every
+/// regression loss. Refusing it refused the formula around it.
+#[test]
+fn an_accent_with_a_precomposed_form_renders_and_one_without_still_refuses() {
+    let out = plain(r"$L = \frac{1}{2}(y - \hat{y})^2$");
+    assert!(out.contains("½(y - ŷ)²"), "{out}");
+
+    // **The control, and it is the whole reason this is not a widening.** Where Unicode has no
+    // precomposed form the alternative is a COMBINING mark -- zero columns wide, so the wrap
+    // arithmetic and the eye disagree -- and it still refuses.
+    let x = plain(r"$\hat{x}$");
+    assert!(x.contains(r"$\hat{x}$"), "a combining-mark accent must stay source: {x}");
+}
