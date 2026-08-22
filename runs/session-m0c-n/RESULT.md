@@ -217,3 +217,27 @@ Corrected figures: verified label artifacts 2/16, not 4/16; containment-adjusted
 
 Standing rule adopted for this session's artifacts: no containment claim ships without
 full-text adjudication of every case it counts. String overlap nominates; reading verifies.
+
+---
+
+## ADDENDUM -- THE READER: adopted, measured in-product, REVERSED by human decision
+
+The half-weight reader was wired into Rust (digest-pinned mobilebert, sequential scoring,
+fixture-verified against HuggingFace at 2e-3 after catching a padding-sensitivity bug -- this
+graph shifts ~1.25 logits between padded and true-length inputs). The wired binary verified at
+fit 179/217, held-out 161/205 against the pair-cascade's 180/213 / 160/203; a held-out R@1
+delta of -2 vs the offline arm was investigated to case level (7 discordant top-3 sets, ALL
+retain gold; flips are non-gold slots under implementation noise).
+
+**Latency ended it.** End-to-end P95 with the reader: **238 ms of the 300 budget** (79%). The
+fixed ~13-14 ms per session.run lives INSIDE ORT for this graph (Memcpy-node warning in its own
+log), so sequential pays it ten times and Rust does not shed it. The reader graph ALSO failed
+batch invariance (max score delta 0.017), so the cheap fix requires its own sweep, fixture and
+re-verified counts.
+
+**Human decision: not worth +1 R@1 / +2 R@3 at 79 percent of the latency budget. Reversed.**
+The working tree is back to the pair-cascade exactly (revert-check gate: 180/213 PASS); the
+reader exists only as measurement record: tools/bench_reader_{latency,batched}.py,
+check_reader_batch_invariance.py, make_reader_fixture.py, reader_wiring_diff.py, and the run
+dirs here. If the batch-invariance sweep is ever done and the numbers re-verified, this is a
+complete playbook for a second attempt.

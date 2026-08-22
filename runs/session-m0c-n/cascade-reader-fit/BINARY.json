@@ -1,0 +1,7 @@
+{
+  "_what": "the binary that produced this run. Compare its mtime against the source you believe you measured -- `cargo run --example` does not rebuild marlowe.exe.",
+  "path": "C:\\Users\\matth\\Projects\\Marlowe_cues\\target\\release\\marlowe.exe",
+  "sha256": "dce687cee640ccaa354151929430932b0ea50aa096c5230807594c13c25d004b",
+  "size": 29904384,
+  "mtime_epoch": 1787437110
+}
