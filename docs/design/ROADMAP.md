@@ -546,12 +546,11 @@ happen.
 | **C2e** | The loop honest about what it sends and what it shows: streaming, roles, think-block handling, persona *emission* | ✅ 2026-08-09 `2be2179`, `1813740` |
 | **C2f** | `web` exposed; the latch met real untrusted content; TUI approvals, `--shutdown`, `--daemon-port` | ✅ 2026-08-10 `6f8a3aa` |
 | **D** | M0b's memory wired in, including **K1 condition 3's abstention path** | ✅ 2026-08-11 `850b512`, `a5a028b`, `ddf168b` |
-| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **NOT STARTED.** Deferred past D, which this table's own rule permits. The *vocabulary* exists from Session A — `Transport::{Skill, Mcp}`, third-party descriptions carried as `UntrustedContent` — but nothing loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server |
 | — | **Layer 1 routing (ADR-039)** — `Engine::condense_batch`, the quarantined reader wired to the trust class | ✅ 2026-08-12, **unscheduled** |
 | — | **Tools and parallelism (ADR-040, ADR-041, ADR-042)** — `marlowe-extract`, `marlowe-net` rebuilt, concurrent fetch, batched quarantined reads, the document store | ✅ 2026-08-12 `1d3a428`, **unscheduled** |
 | — | **The security audit** — 108 findings from 8 read-only agents, 20+ fixed, each pinned by a test that fails on revert | ✅ 2026-08-12 `813ae2f`…`5142420`, **unscheduled** |
 | **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | ✅ **2026-08-18**, except the accent row's **by-eye** half, which is a human action and not agent work. Onboarding `ef0afec`; K6 measured; the accent arithmetic asserted `e21cae7` |
-| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **CURRENT.** The one M2 session never started — see below |
+| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **CURRENT.** The one M2 session never started. Deferred past D by this table's own rule — *a Marlowe that can be talked to beats a skills library that cannot be*. The **vocabulary** exists from Session A (`Transport::{Skill, Mcp}`, third-party descriptions carried as `UntrustedContent`); nothing loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server — see below |
 
 **Session B is verified on both platforms, and that is a standing requirement rather than a
 one-time closure.** The symlink class cannot run on Windows without elevation and the POSIX walk
