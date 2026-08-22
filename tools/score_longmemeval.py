@@ -81,6 +81,7 @@ _profile_retrieval = False
 _rerank_threads = None
 _rerank_batch = None
 _rerank_plan = None
+_injection_coverage = None
 _rerank_provider = None
 # The EMBEDDER's execution provider. `None` means "do not pass the flag", so the binary's
 # own default (cpu) applies and there is exactly one place the shipped value is written down.
@@ -679,6 +680,7 @@ def score_one(
         + (f"--rerank-threads {_rerank_threads} " if _rerank_threads is not None else "")
         + (f"--rerank-batch {_rerank_batch} " if _rerank_batch is not None else "")
         + (f"--rerank-plan {_rerank_plan} " if _rerank_plan is not None else "")
+        + (f"--injection-coverage {_injection_coverage} " if _injection_coverage is not None else "")
         + (f"--rerank-provider {_rerank_provider} " if _rerank_provider is not None else "")
         + (
             f"--embedder-provider {_embedder_provider} "
@@ -1020,6 +1022,13 @@ def main() -> int:
              "profile row, because a provider is the single most consequential thing a cell can "
              "be wrong about.")
     parser.add_argument(
+        "--injection-coverage", choices=["declared", "full"], default=None,
+        help="K1 condition 3's controlled-comparison arm. Omit for the binary's shipped "
+             "`declared` operating point. `full` is the MEASUREMENT arm: admit rank 1 whenever "
+             "a margin exists, ignoring the threshold -- never shippable, used so downstream "
+             "consumers (e.g., the QA tester) see memories on every query. The chosen arm is "
+             "stamped into every response's gate version (+coverage-full).")
+    parser.add_argument(
         "--embedder-provider", choices=["cpu", "cuda", "auto"], required=True,
         help="the EMBEDDER's execution provider. REQUIRED since ADR-044, and the reason is the "
              "same one that made --reranking required in Session K: this used to pass through to "
@@ -1059,7 +1068,7 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
-    global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch, _rerank_plan
+    global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch, _rerank_plan, _injection_coverage
     global _rerank_provider, _embedder_provider
     _cache_dir = Path(args.embedding_cache)
     _reranking = args.reranking
@@ -1067,6 +1076,7 @@ def main() -> int:
     _rerank_threads = args.rerank_threads
     _rerank_batch = args.rerank_batch
     _rerank_plan = args.rerank_plan
+    _injection_coverage = args.injection_coverage
     _rerank_provider = args.rerank_provider
     _embedder_provider = args.embedder_provider
 
