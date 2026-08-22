@@ -1,5 +1,151 @@
 # State
 
+## 2026-08-22 — THREE UNSCHEDULED SESSIONS SHIPPED: OPENROUTER, MARKDOWN/LATEX, AND A PERSONA AMENDMENT
+
+**21 commits. `cargo test --workspace --jobs 4 --no-fail-fast`: 1077 passed, 0 failed.** Release
+binary rebuilt and exercised live on both the local and the hosted path.
+
+**C3 is still the current M2 session and was not started.** These three ran alongside it and are
+recorded here rather than folded into the session table, because a session that happened is not
+evidence that a planned one did. **That brings M2 to nine scheduled sessions and six unscheduled**,
+which is worth noticing as a pattern rather than as bookkeeping.
+
+### ADR-046 — OpenRouter, a hosted provider for benchmark runs
+
+`--provider openrouter --openrouter-model <slug>`, opt-in, refused at load without a key, and the
+local zero-config path unchanged and asserted by test. `crates/marlowe-openrouter` is a new crate;
+`marlowe-net` gained a streaming POST, because it was the only crate with TLS and `marlowe-provider`
+had none — its `http.rs` header still says *"No `https`"*, which is true and was the whole design
+problem.
+
+**Verified live against `stealth/ox-alpha`**, including a two-call tool-using turn: the model
+requested `read`, the harness executed it under workspace scope, the model answered from the result.
+Attribution is reported per run — `openrouter · 1 call(s) · 4,024 tok · 0 µUSD · upstream(s):
+Stealth` — because OpenRouter can serve one model name from different upstreams, and a benchmark
+whose cases came from two of them is two populations wearing one label.
+
+**Still open, and they are far-end behaviours no unit test can close:** the SSE keepalive spelling,
+and whether `provider.order` pins (a stealth model has one upstream, so the run could not have
+tested it). `usage.cost` reads `0 µUSD` on a free model, and **zero is zero in either unit**, so
+USD-vs-credits is untouched.
+
+**This unblocks K2**, which has never been measured and which this file calls the highest-value thing
+left. The other half of that blocker is `adapter.rs:649`'s hardcoded `answered: false`.
+
+### ADR-047 — Markdown and LaTeX in the conversation pane
+
+Three new modules in `marlowe-surface`: a hand-rolled CommonMark subset, an inline-maths renderer,
+and `chrome.rs` — the single definition of what harness chrome looks like, so model prose is refused
+those glyphs rather than filtered after the fact.
+
+**Inside the colour budget, and that shaped the design.** §B13 allows one accent, three state colours
+and three foreground weights, and **state colours encode state, never category** — so syntax
+highlighting is forbidden outright, and structure is carried by attributes and the weight ladder.
+Rendered maths is **one weight lighter than its context**, relative rather than absolute: prose is
+normal and its maths brighter, a reasoning block is dim and its maths normal.
+
+**Reasoning renders too, but only when expanded.** Collapsed it stays a character count, so the
+parser never runs on the path that draws almost every frame — reasoning is the highest-volume text in
+the product and K4 budgets 150 ms to first frame. Asserted, not asserted about.
+
+**A streaming equation renders the longest valid prefix.** Requiring the closing delimiter made it
+snap in at the end; rendering only complete expressions made it flicker between typeset and source as
+each token closed. The prefix rule makes it monotonic — a prefix that rendered a frame ago still
+renders now. **Keyed on `unterminated`, not on failure**, because a CLOSED expression that will not
+render is a real refusal, and truncating it to whatever prefix worked would be the
+wrong-and-plausible output the module exists to prevent.
+
+**The agent's own correction, which stands:** ratatui discards ESC, C0/C1, TAB, U+202E, U+200B,
+U+FEFF **and** U+2028 — more than the Session E note claimed — and **passes U+E0000–U+E007F, the tag
+block**, a full invisible ASCII alphabet. `is_renderable` refuses it, so the two layers are
+complementary rather than redundant. `display_sanitiser.rs` went vacuous the moment a sanitiser
+landed on the model path, and now asserts through `Entry::User`, where ratatui is the only thing in
+the way.
+
+### ADR-048 — the persona may use Markdown, and a §13 boundary that did not gate
+
+`persona/v2.md` said *"Never use markdown … Strip it."* while `IDENTITY_FACTS` — added by ADR-047 —
+said *"The terminal renders your replies as Markdown."* **Two contradictory instructions in one system
+prompt, shipped and unnoticed for two commits.**
+
+**The rule was not a leftover from voice**, and that matters: `04-addendum-persona.md` was amended on
+2026-08-10 to record that the rule came from a *"spoken aloud through TTS"* premise and that **"the
+rule is right and the reason was wrong for this system."** It was kept on a terminal justification —
+*the interface carries the structure*. ADR-047 made that false. It is replaced by **formatting is
+earned, never decorative**, which keeps the failure the original rule guarded against.
+
+**AND THE §13 BOUNDARY DID NOT GATE THE EDIT.** `persona/vN.md` is protected. Piped a persona edit,
+the hook returns `ask` with the correct reason — **the matcher is right**. **No approval prompt
+surfaced during the actual edit.** That is exactly the gap CLAUDE.md names: *"a pipe test proves the
+matcher recognises a string; it does not prove the hook fires when the agent edits the file."*
+**The persona row is matcher-verified, not gate-verified, and every other row in that table is in the
+same position.** Check the harness's permission mode before relying on any of them.
+
+### A prompt defect I introduced, caught by a user watching a reply
+
+ADR-047's disclosure told the model *"prefer notation that survives"* and listed which commands
+render. **A user reported the model spending a visible share of its thinking checking whether its
+formulas would survive** — reasoning about the renderer instead of about the question.
+
+The degradation is **safe by construction**: unrepresentable notation is shown as the source the
+model wrote. There is no penalty on either side, so asking for a preference invented a cost-benefit
+calculation with no cost in it, and the token list handed over a checklist to run per formula. Both
+places now say there is nothing to avoid and nothing to work around.
+
+**The test asserted `"raw source"` — the presence of the sentence — and stayed green while the
+sentence beside it caused the problem.** Where the wording is the property, assert the wording.
+
+### Two entry points that accepted a flag and ignored it
+
+Both the same family as ADR-046's own two defects, and all four were found by someone trying to do
+the obvious thing rather than by the suite:
+
+- **`--tui` accepted `--provider` and threw it away**, then auto-spawned a daemon with a fixed argv —
+  so the flag was accepted and silently ignored and the answer came from the local 9B. The argv is
+  now built by `spawn_args`, a pure function, so the property is assertable without spawning a
+  process. **The key is deliberately not in the argv**: an argv is visible in every process listing.
+- **The Windows Terminal profile ignored every flag it was launched with.** `--launch` forwards its
+  extra arguments to the direct-spawn path, but the PROFILE — which is what the Start-menu shortcut
+  actually runs — built a fixed commandline. Two launch paths disagreeing about what Marlowe is, and
+  the one users click was the one that ignored them.
+
+### RECORDED, NOT BUILT — smoothed streaming output, with the design decided
+
+**The ask:** tokens currently render on arrival, which is bursty and jittery. Reveal at a
+characters-per-second rate instead, so text appears to type.
+
+**The design, after working through both options.** Measuring tokens/s and pacing from it is
+**feed-forward** — a prediction that drifts when the model speeds up or stalls. Pacing from the
+backlog is **feedback** and cannot drift, because the error is the input:
+
+> `rate = backlog / τ`, with a floor, `τ ≈ 0.3–0.5 s`.
+
+**It converges on the measured rate without measuring it:** at equilibrium `backlog = R·τ`, so
+`rate = R`. One parameter rather than two estimators that can disagree. **On turn completion, reveal
+everything immediately** — nothing should still be typing after the model has finished. A measured
+rate would only buy a warm start at the very beginning of a stream, when the backlog is still small.
+
+**Two things whoever builds it must know.** There is **no `App::tick`** — `App` has `update(view)` and
+no time hook, so the pacing state needs one, and it belongs in `App` because it is a property of
+*looking at* the session, like scroll position and `reasoning_expanded`. And **`draw` must stay a pure
+function of `(state, now_ms)`**, or `a_second_render_of_the_same_state_changes_not_one_cell` breaks.
+This lands directly on K4's surface: §B13's flicker rows diff frames cell by cell at five sizes, and
+that is the test that decides whether it is acceptable, not an argument.
+
+### Open, and none of it is C3's
+
+- **`m0c-cues` is unmerged**, now **21 commits behind master**, and its last commit corrects its own
+  number downward: *"hand-adjudicated the 4 suspected label artifacts — 2 verified, 2 were proxy
+  false positives; containment R@3 ~0.895 not 0.904."* **Its ADR number collides — it must renumber to
+  049**, since 046, 047 and 048 are taken. `crates/marlowe/src/main.rs` is modified on both sides.
+- **`ROADMAP.md` does not mention any of today's work** — zero occurrences of ADR-046, 047, 048,
+  OpenRouter or Markdown. It is stale in exactly the way this session opened by fixing.
+- **The provider is a launch-time choice everywhere**, and changing it from the TUI's own command
+  line — with the model list following the provider — is recorded in OUTSTANDING above.
+- **Still cosmetic in the renderer:** a closed equation becomes a display block and gains an indent,
+  so there is one jump at the close; and `∇_θJ(θ)` runs together, because LaTeX treats the space
+  terminating a command name as syntax and consumes it.
+
 ## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
 
 **AND OPENROUTER SHIPPED 2026-08-22, merged at `6df9ead`.** A hosted provider for benchmark runs —

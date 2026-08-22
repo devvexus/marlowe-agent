@@ -551,6 +551,15 @@ happen.
 | — | **The security audit** — 108 findings from 8 read-only agents, 20+ fixed, each pinned by a test that fails on revert | ✅ 2026-08-12 `813ae2f`…`5142420`, **unscheduled** |
 | **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | ✅ **2026-08-18**, except the accent row's **by-eye** half, which is a human action and not agent work. Onboarding `ef0afec`; K6 measured; the accent arithmetic asserted `e21cae7` |
 | **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **CURRENT.** The one M2 session never started. Deferred past D by this table's own rule — *a Marlowe that can be talked to beats a skills library that cannot be*. The **vocabulary** exists from Session A (`Transport::{Skill, Mcp}`, third-party descriptions carried as `UntrustedContent`); nothing loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server — see below |
+| — | **OpenRouter (ADR-046)** — a hosted provider for benchmark runs. New crate `marlowe-openrouter`; `marlowe-net` gained a streaming POST because it was the only crate with TLS. Live-verified including tool calls | ✅ 2026-08-22, **unscheduled** |
+| — | **Markdown and LaTeX in the conversation (ADR-047)** — inside §B13's colour budget: attributes and the weight ladder, no new colours. Reasoning renders when expanded; a streaming equation renders its longest valid prefix | ✅ 2026-08-22, **unscheduled** |
+| — | **The persona may use Markdown (ADR-048)** — the no-markdown rule rested on *"the interface carries the structure"*, which ADR-047 made false. Replaced by *formatting is earned, never decorative* | ✅ 2026-08-22, **unscheduled** |
+
+**Six of these sessions were never scheduled, against nine that were.** Layer 1, tools/parallelism,
+the security audit, and then OpenRouter, markdown/LaTeX and the persona amendment. Each was worth
+doing and each was recorded, but the ratio is the observation: **M2's plan has predicted about
+half of M2.** A seventh arriving is more likely than not, and the table should keep absorbing them
+rather than being read as the whole of what happened.
 
 **Session B is verified on both platforms, and that is a standing requirement rather than a
 one-time closure.** The symlink class cannot run on Windows without elevation and the POSIX walk
