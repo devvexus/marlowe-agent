@@ -1,0 +1,1874 @@
+[
+ {
+  "query_id": "06f04340",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "06878be2",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "Based on your past conversations, here are some accessories that would complement your setup:\n\n1. **Camera bag** \u2013 You've mentioned wanting a more comfortable, durable bag designed for your Sony gear.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0862e8bf",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Your cat's name is Luna.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "00ca467f",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "07b6f563",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "Based on your past conversations, you've been looking into two accessories for your iPhone 13 Pro:\n\n1. **Screen protector** \u2013 to replace the cracked one on your current phone.\n2. **Wallet case** \u2013 a c",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0e5e2d1a",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The study published in the journal Music and Medicine involved **38 subjects** who listened to binaural beats for 30 minutes daily for three weeks, and it found significant reductions in symptoms of d",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0e4e4c46",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your current highest score in Ticket to Ride is **132 points**, which you achieved recently (improving on your previous best of 124 points).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0a34ad58",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "0ea62687",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Your car was getting **2 miles per gallon more** a few months ago (30 mpg) compared to now (28 mpg).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0bc8ad92",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "099778bb",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "10e09553",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You caught **7 largemouth bass** with Alex on your earlier fishing trip to Lake Michigan on **7/10** (before the 7/22 trip where you caught 9).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "118b2229",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Your daily commute takes 45 minutes each way (90 minutes round trip).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "184da446",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've read 220 pages of \"A Short History of Nearly Everything\" so far.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "18bc8abd",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Kansas City Masterpiece BBQ sauce.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0a995998",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You have **2** items of clothing to pick up:\n1. The exchanged pair of boots from Zara (you're waiting on the larger size).\n2. Your navy blue blazer from the dry cleaner.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1a8a66a6",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You currently have **1** magazine subscription: The New Yorker, which you subscribed to in early February. Your Forbes subscription was canceled in early March.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1903aded",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "0bb5a684",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1c549ce4",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "$140 ($120 for the waterproof car cover + $20 for the detailing spray from Amazon).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "0bc8ad93",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1192316e",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your memories, it takes you about **1 hour (60 minutes)** to get ready and your commute takes about **30 minutes**, so the total time is **90 minutes (1.5 hours)**.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "1568498a",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1d4e3b97",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "Yes \u2014 you replaced your bike's chain and cassette on February 1st, and that maintenance has contributed to an improvement in your bike's performance.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2133c1b5",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've been living in your Harajuku studio apartment for 3 months (based on your most recent update).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "21d02d0d",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You missed **2** fun runs in March due to work commitments \u2014 one on March 5th and another on March 26th.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2311e44b",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You have 190 pages left to read in 'The Nightingale' (440 total pages minus the 250 you've already read).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "26bdc477",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've taken your Canon EOS 80D on **five trips** so far, including visits to Yellowstone, Yosemite, and the Grand Canyon.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "1c0ddc50",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1cea1afa",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You currently have 600 Instagram followers, which you recently mentioned was a nice milestone.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "29f2956b",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You dedicate 30 minutes daily to practicing guitar.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2788b940",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You attend **4 fitness classes** in a typical week:\n\n- BodyPump \u2013 Mondays at 6:30 PM\n- Zumba \u2013 Tuesdays at 7:00 PM\n- Zumba \u2013 Thursdays at 7:00 PM\n- Yoga \u2013 Sundays at 6:00 PM",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "0edc2aef",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1de5cff2",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "Veja is the brand that uses wild rubber sourced from the Amazon rainforest. They produce eco-friendly sneakers using organic cotton, recycled plastic bottles, and that wild rubber.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2c63a862",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "1d4da289",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "In our previous conversation, I mentioned the following two-factor authentication methods:\n\n1. **Biometric authentication** \u2013 such as fingerprint or facial recognition\n2. **One-time passwords (OTP)**\n",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2a1811e2",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "**21 days** had passed between the Holi celebration on February 26th and the Sunday mass at St. Mary's Church on March 19th (assuming a non-leap year).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "311778f1",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You spent around **10 hours** watching documentaries on Netflix last month.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2ebe6c90",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "27016adc",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "The renovation cost is $20,000 and the countryside property is listed at $200,000. So the renovations represent **10%** of the property's price ($20,000 \u00f7 $200,000 = 0.10).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2bf43736",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "According to our previous conversation, the discussion of the prayer of beginners\u2014focusing specifically on vocal prayer and meditation\u2014was in **Chapter 4 of Book 1** of Tanqueray's Spiritual Life trea",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "32260d93",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "Based on your love for John Mulaney's *Kid Gorgeous*, you'd probably enjoy **Mike Birbiglia's \"The New One\"** on Netflix \u2014 it's one of the best storytelling-driven comedy specials out there. If you've",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2e6d26dc",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "**5 babies** were born to friends and family members in the last few months:\n\n1. **Max** \u2013 your cousin Rachel's son (born in March)\n2. **Charlotte** \u2013 Mike and Emma's daughter (born a few weeks after ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "36580ce8",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Bronchitis.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "3a704032",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You acquired **3 plants** in the last month:\n1. A snake plant from your sister\n2. A peace lily from the nursery\n3. A succulent from the nursery",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "3e321797",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "You should leave the tomato juice and lemon juice mixture on your under-eye area for 10 minutes, then wash it off with cold water.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "2318644b",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You spent at least **$270 more per night** in Hawaii compared to Tokyo. Your Tokyo hostel cost around $30 per night, while your Maui resort costs over $300 per night ($300 \u2212 $30 = $270).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "38146c39",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "4388e9dd",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "Andy was wearing an untidy, stained white shirt.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "4c36ccef",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "Roscioli",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "4b24c848",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You have bought five tops from H&M so far.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "4dfccbf7",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "4f54b7c9",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You have **5** antique/heirloom items from your family members:\n\n1. **Vintage diamond necklace** \u2013 from your grandmother (inherited)\n2. **Antique music box** \u2013 from your great-aunt (inherited)\n3. **De",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "5025383b",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "42ec0761",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Yes \u2014 according to your memories, you have a spare screwdriver that you picked up when you organized your computer desk a while back, so you're all set for opening up your laptop.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "352ab8bd",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The average improvement in framerate when using the Hardware-Aware Modular Training (HAMT) agent was approximately 20%.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "51b23612",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The Soviet cartoon I mentioned was **\"Nu, pogodi!\"** \u2014 it was a popular Soviet cartoon that mocked Western culture and portrayed the Soviet Union as superior.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "50635ada",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "545bd2b5",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You've been averaging around **2 hours** of screen time on Instagram per day for the past two weeks.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "51c32626",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "55241a1f",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "5809eb10",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "According to our previous conversation about the Bajimaya v Reward Homes Pty Ltd case, the construction of the house began in **2014**. The contract between Mr. Bajimaya and Reward Homes Pty Ltd was t",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "561fabcd",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "3d86fd0a",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You met Sophia at a coffee shop in the city.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "5a7937c8",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your memories, you participated in faith-related activities on **3 days** in December:\n\n1. **December 10th** \u2013 Helped out at your church's annual holiday food drive\n2. **December 17th** \u2013 Led",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "5e1b23de",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "37f165cf",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "60472f9c",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You've been working on **2 projects** simultaneously (excluding your thesis): a **Data Mining project** and a **Database Systems group project** \u2014 both of which you manage with separate Trello boards ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "60bf93ed",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "5 days (bought on 1/15, arrived on 1/20).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "618f13b2",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've worn your new black Converse Chuck Taylor All Star sneakers four times, including to your friend's birthday party last Saturday.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "65240037",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The recommended ratio is **1:10** \u2014 mix a few drops of tea tree oil with a carrier oil such as coconut oil, jojoba oil, or almond oil in a 1:10 ratio. Also remember to do a patch test first to make su",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6613b389",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "About 2 months. Rachel got engaged on May 15th, and your anniversary is July 22nd, so her engagement was a little over two months before your anniversary.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "66f24dbb",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You bought your sister a yellow dress and a pair of earrings to match for her birthday.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "5831f84d",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Based on your most recent update, you've watched **12** Crash Course videos \u2014 you mentioned having just finished your 12th video on computer science. (Note: earlier messages mentioned counts of 15 and",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "6a1eabeb",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your most recent personal best time in the charity 5K run is **25:50** (you previously set a PB of 27:12 before improving it).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "58470ed2",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "According to our previous conversation, Borges wrote: \"The Library is a sphere whose exact center is any one of its hexagons and whose circumference is inaccessible.\" (Borges, 1941)",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "59524333",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your memories show your gym sessions are usually at **7:00 pm on Mondays, Wednesdays, and Fridays**. (Note: one memory mentions 6:00 pm, so there's a slight inconsistency in your past conversations.)",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "60159905",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your memories, you've attended **3 dinner parties** in the past month:\n\n1. **Sarah's place** \u2013 an Italian feast last week, followed by board games late into the night\n2. **Alex's place** \u2013 a ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6b168ec8",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You own three bikes: a road bike, a mountain bike, and a commuter bike.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6ae235be",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "At the Lake Charles Refinery, the main refining processes include:\n\n1. **Atmospheric distillation** \u2013 the first step in the refining process, where crude oil is heated and separated into different fra",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "603deb26",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've tried making a Negroni at home 10 times since your friend Emma showed you how to make it.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6aeb4375",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Four \u2014 you mentioned having tried four different Korean restaurants in your city so far (though in another conversation you also mentioned trying three of them recently).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "71017276",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "6ade9755",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You take yoga classes at Serenity Yoga.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "67e0d0f2",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "71315a70",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've spent around 10-12 hours on your abstract ocean sculpture so far, and it's still a work in progress.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "71017277",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "6a27ffc2",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You have completed 30 videos of Corey Schafer's Python programming series so far.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "7161e7e2",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "According to our previous chat, in the shift rotation sheet for GM social media agents, **Admon was scheduled for the Day Shift (8 am - 4 pm) on Sunday**.\n\nFor reference, the full Sunday rotation was:",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "726462e0",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You got a 10% discount on your first purchase from the new clothing brand.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "7401057b",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You can redeem **one free night's stay** at any Hilton property with your accumulated points. Since the Hilton Lake Las Vegas Resort is a Category 5 hotel, you're set to use those points for a weekend",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "7527f7e2",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "$800",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6b7dfb22",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "You've mentioned before that you draw inspiration from social media, and you're currently in the middle of a 30-day painting challenge. Leaning into that challenge and revisiting the artists or posts ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "6e984301",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "76d63226",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Your new Samsung TV is 55 inches.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "7024f17c",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your records: you did **0.5 hours of jogging** (a 30-minute jog on Saturday) and **0 hours of yoga** last week \u2014 you mentioned you'd been slacking off on yoga and were hoping to restart this ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "75499fd8",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "73d42213",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Around 9:00 AM. You left home at 7 AM on Monday, and the trip to your clinic takes about two hours.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "1faac195",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Your sister Emily lives in Denver.",
+  "correct": null,
+  "judge_raw": ""
+ },
+ {
+  "query_id": "7e00a6cb",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "7a87bd0c",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've been sticking to your daily tidying routine for **4 weeks** now \u2014 great job keeping it consistent!",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "7405e8b1",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Yes. You received 40% off your first HelloFresh order, compared to 20% off your UberEats order \u2014 so the HelloFresh discount was higher.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "853b0a1d",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You were 18 \u2014 your grandma gave you the silver necklace on your 18th birthday.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "86f00804",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You're currently reading **\"The Seven Husbands of Evelyn Hugo\"** \u2014 you mentioned you're devouring it and finding it hard to put down!",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "85fa3a3f",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "87f22b4a",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You've made **$120** from selling eggs this month (40 dozen \u00d7 $3 per dozen).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "75832dbd",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "80ec1f4f",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "**1** \u2014 In February, you visited **The Art Cube**, attending the opening night of the \"Disrupting Reality\" exhibition on 15th February. (Your visit to the Modern Art Museum was in January, not Februar",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "8752c811",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "86b68151",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "IKEA",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8464fc84",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The famous deli near the Vatican is **Roscioli** \u2014 it's known for serving the best cured meats, cheeses, and traditional Roman cuisine.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "89941a93",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You currently own **four bikes**: your road bike, mountain bike, commuter bike, and a newly purchased hybrid bike.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "7e974930",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "$420",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8c18457d",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "8ebdbe50",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You completed a certification in **Data Science** last month.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8a137a7f",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "A Philips LED bulb \u2014 you've been using one in your bedside lamp and like the warm tone it provides.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8cf4d046",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "9d25d4e0",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You acquired **2 pieces** of jewelry in the last two months:\n\n1. A silver necklace with a small pendant (bought on the 15th of last month)\n2. A pair of emerald earrings from a flea market (last weeken",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "95228167",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "9ea5eabc",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Paris",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "993da5e2",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "Based on your memories, you got the new area rug about a month ago and rearranged your living room furniture about three weeks ago. That means you had been using the new area rug for roughly **one wee",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8979f9ec",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "8 lunch meals (3 from the chicken fajitas + 5 from the lentil soup).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "81507db6",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You've attended **2** graduation ceremonies in the past three months:\n\n1. Your best friend **Rachel's** master's degree graduation ceremony (a couple of weeks ago)\n2. Your colleague **Alex's** graduat",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "a82c026e",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You beat the last boss in the **Dark Souls 3 DLC** last weekend, after weeks of trying.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "a40e080f",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The two companies mentioned were **Patagonia** and **Southwest Airlines**.\n\n1. **Patagonia** \u2013 the outdoor clothing and gear company known for its commitment to environmental conservation and employee",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "89941a94",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Yes \u2014 in addition to your mountain bike and commuter bike, you also had your road bike, which you've been using for long weekend rides and planning to use for your century ride (with 2,000 miles alrea",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "a96c20ee",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Harvard University.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ac031881",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "Your jumpsuit had the designation \"LIV,\" which you realized was the Roman numeral for 54 \u2014 this led you to search for file number 54 in the records room.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "8e91e7d9",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You have 3 sisters, so your total number of siblings is **3**.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "af082822",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You attended the friends and family sale at Nordstrom **yesterday** \u2014 so it was less than a week ago, not weeks ago.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "9ee3ecd6",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You need a total of **300 points** to redeem a free skincare product at Sephora. You currently have 200 points, so you're close to reaching that goal!",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b320f3f8",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You bought a rare blue Snaggletooth action figure from a thrift store.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "a1cc6108",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "aae3761f",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b759caee",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The UK-based designer who works with unusual gemstones is **Jessica Poole**, and her Instagram handle is **@jessica_poole_jewellery**. She creates unique engagement rings using a combination of tradit",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "b46e15ee",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b5ef892d",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You spent **8 days** on camping trips this year:\n- **5 days** camping at Yellowstone National Park\n- **3 days** solo camping at Big Sur in early April\n\n(Note: Your 7-day Utah family road trip in Febru",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "bb7c3b45",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You saved $300 on the Jimmy Choo heels \u2014 they originally retailed for $500, and you got them at the outlet mall for $200.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ba358f49",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b01defab",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Yes, you finished reading \"The Nightingale\" by Kristin Hannah. You mentioned finishing it recently and described it as an amazing, powerful, and emotional read.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "bc8a6e93",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You baked a lemon blueberry cake for your niece's birthday party, and it was a huge hit.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "bc149d6b",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "50 pounds \u2014 you purchased a 50-pound batch of layer feed from the local farm supply store.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "c19f7a0b",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You usually get home from work around 6:30 pm on weeknights.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "c18a7dc8",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "c7cf7dfd",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The online store based in India is called **Nostalgia**. It offers an expansive collection of traditional Indian fabrics, threads, and embellishments.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "af8d2e46",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "c4a1ceb8",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your memories, you've used **2 different types of citrus fruits** in your cocktail recipes:\n\n1. **Orange** \u2013 you made your own orange bitters using orange peels and vodka\n2. **Lime** \u2013 used i",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b6019101",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You watched 5 MCU films in the last 3 months (out of 12 total films).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "c8f1aeed",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "Pennsylvania.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "b3c15d39",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "It took **5 days** for the new remote shutter release to arrive \u2014 you lost the original and ordered a new one on February 5th, and it arrived on February 10th.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "a2f3aa27",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Based on your most recent update, you said you're close to **1,300 followers** on Instagram now (up from 1,250 previously).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "cc5ded98",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Based on your most recent message, you've been dedicating **about an hour each day** to coding exercises. (Note: in earlier conversations you had mentioned dedicating about two hours daily.)",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "b9cfe692",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You took five and a half weeks combined \u2014 two and a half weeks for \"The Seven Husbands of Evelyn Hugo\" and three weeks for \"The Nightingale\".",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ce6d2d27",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Friday \u2014 you mentioned having a cocktail-making class on Friday in two of your messages (though one message mentioned a class on Thursday).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "cf22b7bf",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've lost **10 pounds** since you started going consistently to the gym 3 months ago.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "c8c3f81d",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Nike",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "d23cf73b",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Based on your memories, you've explored **3 different cuisines**:\n\n1. **Ethiopian** \u2013 You tried a new Ethiopian restaurant and loved it\n2. **Vegan** \u2013 You attended a class on vegan cuisine that inspir",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "d52b4f67",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You attended your cousin's wedding at the Grand Ballroom.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "d6062bb9",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "Your most popular TikTok video (Luna chasing a laser pointer) has 1,456 views, and your most popular YouTube video (social media analytics tutorial) has 542 views, for a total of **1,998 views**.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "caf03d32",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "dc439ea3",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "The Hoop Dance \u2014 it involves intricate movements with multiple hoops and was described as often being performed by skilled dancers at powwows.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "dcfa8644",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "14 days had passed between buying your Adidas running shoes (January 10th) and realizing the shoelace on your old Converse sneakers had broken (January 24th).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "db467c8c",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your parents have been staying with you in the US for nine months now.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "e47becba",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You graduated with a degree in **Business Administration**.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "e56a43b9",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You'll get a $5 discount on your next purchase at FreshMart, since you reached 500 points and every 100 points equals $1 off.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "c7dc5443",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your volleyball team, the Net Ninjas, has a current record of 5-2.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "e61a7584",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "You've had Luna for about 9 months now.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ceb54acb",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "In our previous chat, besides \"sexual compulsions,\" I suggested these four other options:\n\n1. **Sexual fixations** \u2013 implying a strong preoccupation with sexual thoughts or behaviors that may interfer",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "dd2973ad",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "eeda8a6d",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You have **17 fish in total** across both aquariums:\n\n- **10-gallon tank:** 1 fish (Bubbles the betta)\n- **20-gallon tank:** 16 fish (10 neon tetras + 5 golden honey gouramis + 1 pleco catfish)",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ef66a6e5",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "2",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "ccb36322",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Spotify",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "eaca4986",
+  "category": "single-session-assistant",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "f0e564bc",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "$1,300 ($800 for the Coach handbag + $500 for the high-end skincare products).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "f4f1d8a4",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "Your sister gave you the new stand mixer as a birthday gift.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "f0853d11",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "**14 days** had passed between the two events \u2014 the 'Walk for Hunger' was on February 21st and the 'Coastal Cleanup' was on March 7th.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "d24813b1",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "Based on your past baking, a lemon-flavored cake would be a great choice \u2014 your lemon poppyseed cake was a hit at your colleague's going-away party, so something similar would likely go over well agai",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "f685340e",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Previously, you played tennis with your friends **weekly**. Now, you play **every other week** (biweekly).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "f8c5f88b",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "You bought your new tennis racket from a sports store downtown.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "e4e14d04",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "About two weeks. According to your memories, you joined \"Book Lovers Unite\" three weeks ago, and you attended the meetup last week \u2014 meaning you had been a member for roughly two weeks at the time of ",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "faba32e5",
+  "category": "single-session-user",
+  "n_memories": 3,
+  "answer": "24 hours.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_1916e0ea",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "f9e8c073",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "Your memories contain conflicting information on this: one memory states you attended **three sessions**, while another recalls attending **five sessions**. I can't determine which is correct from the",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "fca70973",
+  "category": "single-session-preference",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_1a1dc16d",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "e6041065",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You packed 5 pairs of shoes on your last trip but only wore 2 (your sneakers and sandals), so you wore **40%** of the shoes you packed.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_1e4a8aeb",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_213fd887",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_1e4a8aec",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_21adecb5",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_2312f94c",
+  "category": "temporal-reasoning",
+  "n_memories": 0,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_2487a7cb",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You attended the **'Data Analysis using Python' webinar** first \u2014 it took place two months ago, while the 'Effective Time Management' workshop at the local community center was just last Saturday.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_194be4b3",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You currently own 3 musical instruments: a black Fender Stratocaster electric guitar, a Korg B1 piano, and a Yamaha FG800 acoustic guitar.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_4edbafa2",
+  "category": "temporal-reasoning",
+  "n_memories": 0,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_4929293b",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "Your niece's kindergarten graduation ceremony, which took place last week. Your sister hosted a small reception afterwards with cupcakes and juice boxes for the kids.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_2f91af09",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "**23 pieces** \u2014 that breaks down as:\n\n- **17 poems** (written in the past two weeks)\n- **5 short stories** (completed so far)\n- **1 writing challenge piece** (\"The Smell of Old Books,\" written in resp",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_4ef30696",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_1d80365e",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_59149c77",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_2d58bcd6",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "**The Hate U Give** \u2014 you finished it a few days before your book club meeting, which took place two weeks ago, while you finished *The Nightingale* just last weekend.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_61e13b3c",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_68e94288",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "#PlankChallenge",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "efc3f7c2",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "You wake up **30 minutes earlier** on Fridays \u2014 6:00 AM instead of your usual 6:30 AM weekday wake-up time.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_6ed717ea",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You purchased the training pads for Luna first \u2014 you got them about a month ago, while the dog bed for Max was bought 3 weeks ago.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_76048e76",
+  "category": "temporal-reasoning",
+  "n_memories": 0,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_74aed68e",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_7bc6cf22",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_7ddcf75f",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_59149c78",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You attended the **\"Impressionist Masterpieces\" exhibition**, which was held at the **City Art Museum**.",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_7fce9456",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_7f6b06db",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_5501fe77",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "**TikTok** \u2014 you gained around 200 followers there over the past three weeks, which exceeds your Twitter growth of about 120 followers (from 420 to 540) over the past month.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_7a0daae1",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_93159ced",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_93f6379c",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You joined **Page Turners** first. According to your memories, you joined the book club \"Page Turners\" last week, while you joined the \"Marketing Professionals\" LinkedIn group just yesterday.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_7de946e7",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "The persistent cough came first. You had been dealing with the cough for about three weeks before visiting Dr. Smith on February 10th (meaning it started around late January), while the skin tag remov",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_b5700ca0",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You attended the Maundy Thursday service at the Episcopal Church.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_88806d6e",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_c27434e8",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "You started the Japanese Zero fighter plane model first. According to your memories, you began the 1/48 scale Zero about a month ago, while the Ferrari 288 GTO was started about three weeks ago on a S",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_d9af6064",
+  "category": "temporal-reasoning",
+  "n_memories": 0,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "e66b632c",
+  "category": "knowledge-update",
+  "n_memories": 3,
+  "answer": "**Your previous personal best time for the charity 5K run was 27 minutes and 45 seconds.**\n\nBased on your memories, your most recent charity 5K personal best is 26 minutes and 30 seconds, which improv",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_8279ba02",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_af6db32f",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_e061b84g",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "Based on your memories, the sports event you mentioned participating in was **the company's annual charity soccer tournament**. You were looking for injury prevention and recovery tips for soccer play",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_e072b769",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_ec93e27f",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "A train. Your most recent recorded trip was a train ride to visit your family in the countryside (a 2-hour journey), and you've been favoring trains for shorter distances lately.",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ },
+ {
+  "query_id": "gpt4_e414231e",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_fe651585",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_f420262d",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_65aabe59",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_8279ba03",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_fa19884d",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_f420262c",
+  "category": "temporal-reasoning",
+  "n_memories": 3,
+  "answer": "NOT_ENOUGH_INFORMATION",
+  "correct": false,
+  "judge_raw": "{\"correct\": false}"
+ },
+ {
+  "query_id": "gpt4_d84a3211",
+  "category": "multi-session",
+  "n_memories": 3,
+  "answer": "$185 ($25 chain + $40 bike lights + $120 Bell Zephyr helmet).",
+  "correct": true,
+  "judge_raw": "{\"correct\": true}"
+ }
+]

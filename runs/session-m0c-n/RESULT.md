@@ -265,3 +265,23 @@ P95). Closed with numbers: narrowing, six-graph ensembles (combiner-invariant), 
 expansion (4th form), delta-passes, prune-widening. Proven structural: computed answers need
 generation. Label noise verified in both directions (2 genuine artifacts; 2 proxy false
 positives corrected).
+
+---
+
+## THE FIRST OFFICIAL QA ACCURACY (held-out, n=234, ox-alpha answers+judges via OpenRouter)
+
+answer_accuracy **0.5837** (136/233 graded; 1 unparseable judgment excluded; 4 queries injected
+nothing even at coverage-full). Measurement arm disclosed: --injection-coverage full so every
+query injects its memories; never shippable per K1 condition 3.
+
+By category: ss-user 29/31=.936 | knowledge-update 29/36=.806 | ss-assistant 22/28=.786 |
+multi-session 33/60=.550 | ss-preference 6/15=.400 | temporal-reasoning 17/63=.270.
+
+The two walls found by case-level forensics are CONFIRMED by the official metric: temporal
+arithmetic (.270) and preference-synthesis (.400) are exactly the computed-answer populations.
+Simple fact recall (.936) shows the memory system works where answers are stated.
+
+Tooling: tools/qa_tester.py (OpenRouter stealth/ox-alpha, temp 0, disk-cached verdicts,
+concurrent), scorer passthrough --injection-coverage recorded verbatim in target strings.
+Session recalls same config: S@1 .8734 / S@3 .9651 / S@5 .9825 -- above the published
+session-level-R@5 field (96.6 percent).
