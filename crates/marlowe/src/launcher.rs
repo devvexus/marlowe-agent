@@ -102,7 +102,7 @@ fn launch_windows(extra_args: &[String]) -> std::io::Result<Outcome> {
 
     let exe = std::env::current_exe()?;
     let mut globals_changed = Vec::new();
-    let profile_written = match write_profile(&exe) {
+    let profile_written = match write_profile(&exe, extra_args) {
         Ok((written, globals)) => {
             globals_changed = globals;
             written
@@ -175,7 +175,40 @@ fn settings_path() -> Option<PathBuf> {
 /// Add or refresh the Marlowe profile and colour scheme. `Ok(false)` means "no settings file",
 /// which is not an error — it just means the direct launch is used.
 #[cfg(windows)]
-fn write_profile(exe: &std::path::Path) -> Result<(bool, Vec<String>), String> {
+/// The `commandline` a Windows Terminal profile is written with.
+///
+/// **Pure, and separate from `write_profile`, because `write_profile` touches the user's real
+/// `settings.json`** — the property worth asserting is what string gets built, and that must be
+/// assertable without writing to a file a person owns.
+///
+/// # The defect this closes
+///
+/// It was `format!("\"{}\" --tui --ground", exe)` — a fixed string. `--launch` forwards its extra
+/// arguments to the direct-spawn path, but the PROFILE is what the Start-menu shortcut and
+/// `wt -p Marlowe` actually run, so the shortcut ignored every flag it was launched with. Two
+/// launch paths, disagreeing about what Marlowe is.
+///
+/// **No key is ever written here.** This string lands in `settings.json` in plain text; the child
+/// inherits `OPENROUTER_API_KEY` from the environment instead.
+fn profile_commandline(exe: &std::path::Path, extra_args: &[String]) -> String {
+    let mut out = format!("\"{}\" --tui --ground", exe.display());
+    for a in extra_args {
+        out.push(' ');
+        // Quoted per-argument: a slug has no spaces today, and a commandline built by
+        // concatenation is one odd argument away from being wrong. This file is written once and
+        // read by Windows Terminal forever.
+        if a.contains(' ') {
+            out.push('"');
+            out.push_str(a);
+            out.push('"');
+        } else {
+            out.push_str(a);
+        }
+    }
+    out
+}
+
+fn write_profile(exe: &std::path::Path, extra_args: &[String]) -> Result<(bool, Vec<String>), String> {
     let Some(path) = settings_path() else {
         return Ok((false, Vec::new()));
     };
@@ -186,7 +219,8 @@ fn write_profile(exe: &std::path::Path) -> Result<(bool, Vec<String>), String> {
     let mut root: serde_json::Value = serde_json::from_str(&raw)
         .map_err(|e| format!("settings.json is not plain JSON ({e}); it may contain comments"))?;
 
-    let commandline = format!("\"{}\" --tui --ground", exe.display());
+    let commandline = profile_commandline(exe, extra_args);
+
     let profile = serde_json::json!({
         "guid": PROFILE_GUID,
         "name": PROFILE_NAME,
@@ -437,5 +471,50 @@ mod tests {
         // serde_json would delete them, so parsing has to fail loudly and skip the write.
         let jsonc = "{\n  // the default profile\n  \"profiles\": { \"list\": [] }\n}";
         assert!(serde_json::from_str::<serde_json::Value>(jsonc).is_err());
+    }
+}
+
+#[cfg(test)]
+mod profile_commandline_tests {
+    use super::*;
+    use std::path::Path;
+
+    /// **The regression: the shortcut ignored the flags it was launched with.**
+    #[test]
+    fn the_shortcut_carries_the_provider_it_was_launched_with() {
+        let c = profile_commandline(
+            Path::new("C:/m/marlowe.exe"),
+            &["--provider".into(), "openrouter".into(),
+              "--openrouter-model".into(), "stealth/ox-alpha".into()],
+        );
+        assert!(c.contains("--provider openrouter"), "{c}");
+        assert!(c.contains("--openrouter-model stealth/ox-alpha"), "{c}");
+        assert!(c.contains("--tui"), "{c}");
+    }
+
+    /// The control. Without it, the assertion above passes on a build that appends the flags
+    /// unconditionally, and "carries what it was launched with" says nothing.
+    #[test]
+    fn a_plain_launch_writes_exactly_what_it_always_did() {
+        let c = profile_commandline(Path::new("C:/m/marlowe.exe"), &[]);
+        assert_eq!(c, "\"C:/m/marlowe.exe\" --tui --ground");
+    }
+
+    /// `settings.json` is plain text on disk and readable by anything on the machine.
+    #[test]
+    fn a_key_can_never_reach_the_profile() {
+        let c = profile_commandline(
+            Path::new("C:/m/marlowe.exe"),
+            &["--provider".into(), "openrouter".into()],
+        );
+        assert!(!c.contains("sk-or"), "{c}");
+        assert!(!c.to_lowercase().contains("api_key"), "{c}");
+    }
+
+    /// An argument containing a space must survive as ONE argument.
+    #[test]
+    fn an_argument_with_a_space_is_quoted() {
+        let c = profile_commandline(Path::new("C:/m/marlowe.exe"), &["a b".into()]);
+        assert!(c.ends_with("\"a b\""), "{c}");
     }
 }

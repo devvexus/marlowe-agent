@@ -276,6 +276,43 @@ follows a junction, and the target is 4 GB of models.
 Consolidated 2026-08-17 because the items were spread across twelve sections written by different
 agents, and reconstructing them from the history is how one gets missed.
 
+### Named for a future session — the provider is a LAUNCH-TIME choice and should not be
+
+**Recorded 2026-08-22, not built, and the human asked for it to be written down rather than done.**
+
+`--provider openrouter --openrouter-model <slug>` now reaches `--serve`, `--ask`, `--status`,
+`--tui` and the Windows Terminal profile the shortcut launches. **All of them decide at process
+start.** Once a daemon is up, the provider is fixed for its lifetime, and the only way to change it
+is to stop the daemon and start another.
+
+**What is wanted instead: change the provider from the TUI's own command line** — the message field,
+as a slash command — the way `/model` would work in any other tool.
+
+**And the second half is the part that makes it more than a convenience.** The model list is a
+property of the provider: today `marlowe --models` asks the local Ollama what it holds, and that is
+the only catalogue the product knows. Under OpenRouter the catalogue is ~421 models fetched from
+`https://openrouter.ai/api/v1/models`. **So switching provider must change what the model picker
+offers**, and the control-strip field that shows the model has to follow it.
+
+**Three things a session that builds this will hit, named so they are not rediscovered:**
+
+1. **The daemon owns the run, and §2.14 says a surface holds no state the daemon lacks.** So this is
+   not a surface feature with a local variable — it is a daemon operation the surface requests, and
+   the wire protocol has no verb for it. `Request`/`Event` in `marlowe-daemon::protocol` would need
+   one, and `CONTRACTS.md` schemas are pinned.
+2. **Switching provider mid-session changes what a turn costs and where it goes.** ADR-029's rule is
+   *announced, never inferred*; a provider change is more consequential than a model change and the
+   §B5 band should say so. Whether it needs an approval is a real question, not a rhetorical one —
+   it moves money and network egress.
+3. **The catalogue fetch is network I/O on a keystroke.** `marlowe --models` is a blocking probe
+   today. Doing that from the TUI's render or input path would freeze the surface, which is the rule
+   CLAUDE.md states in capitals about heavy work on the daemon thread.
+
+**Until it exists**, changing provider means `marlowe --shutdown` and relaunching — and note that a
+`--provider` flag on a client invocation is silently inert when a daemon is already up, because
+`ensure_daemon` only spawns when none is listening. That is correct behaviour and it is also a
+sharp edge.
+
 ### Blocking, in the sense that something is wrong right now
 
 **1. `auto_sessions` discards its warm-up result.** A failed warm-up collapses the per-session cost
