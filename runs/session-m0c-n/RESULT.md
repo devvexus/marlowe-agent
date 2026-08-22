@@ -172,3 +172,15 @@ tools/pick_forensics.py over the held-out cascade dump. The 16 fuse-pick failure
 
 Ceiling statement, measured: with the reader adopted and upstream repaired, this architecture
 family tops out near R@3 0.92; the path beyond runs through the banned mechanism class.
+
+---
+
+## Addendum -- Probe 4 (neighbour expansion): closed. Fourth and final form of the neighbour idea.
+
+PREREGISTRATION-EXPANSION.json; gate 229/229. Expansion of <=16-word candidates with their own
+session neighbours (prev+turn+next) at scoring time: fit R@3 unchanged vs reader-alone (216 both)
+at -3 R@1. The forensic case that motivated it (six-word '28. Kg3 would be my move.') does not
+convert even expanded -- notation fragments compete on fluency, not vocabulary, once context is
+attached. Neighbour information has now been tested as feature (both signs), predecessor,
+tie-break, and input expansion: all four null or harmful. The idea family is closed with
+measurements behind every form.
