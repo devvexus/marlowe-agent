@@ -217,6 +217,13 @@ understatement does not, since prosody makes it read as flat rather than wry. Li
 > report of a daemon with no voice pipeline, and a persona claiming to be spoken aloud would have
 > been the same defect as the `<vision>` section that was cut.
 >
+> **SUPERSEDED IN PART 2026-08-22 by ADR-048.** The no-markdown rule rested on *"the interface
+> carries the structure"*, and ADR-047 made that false: the conversation pane now renders Markdown
+> and typesets LaTeX. The rule is replaced by **formatting is earned, never decorative** — the
+> register is unchanged and the failure it guarded against (a short answer dressed as a report) is
+> still guarded against. The paragraph below stands: the reason was never voice, and it is not
+> voice now.
+>
 > Voice and Messaging remain specified above and **unimplemented**. When either lands, its
 > register is a delta on the terminal one, not a rewrite — and the artifact will need a surface
 > selector, which it does not currently have.

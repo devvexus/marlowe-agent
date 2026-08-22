@@ -611,3 +611,33 @@ fn collapsed_reasoning_parses_nothing_and_reports_a_count() {
     assert!(text.contains("thought for"), "the head line must report a count:\n{text}");
     assert!(!text.contains("α × β"), "collapsed reasoning rendered its body:\n{text}");
 }
+
+/// **Display maths gets the same weight as inline maths.**
+///
+/// It took the surrounding prose style, so `$x$` stood out and `$$x$$` did not -- backwards, since
+/// the display form is the one the author decided was important enough to put on its own line.
+#[test]
+fn display_maths_stands_out_the_same_way_inline_maths_does() {
+    let build = |md: &str| {
+        let producer = marlowe_stub::Session::new();
+        let mut view = producer.view().clone();
+        view.transcript.clear();
+        view.transcript.push(Entry::Said(Speech::Model(md.to_string())));
+        common::frame(&App::new(view).unwrap(), 120, 40)
+    };
+    let fg = |buf: &ratatui::buffer::Buffer, sym: &str| {
+        (0..buf.area.height)
+            .flat_map(|y| (0..buf.area.width).map(move |x| (x, y)))
+            .find(|(x, y)| buf.cell((*x, *y)).is_some_and(|c| c.symbol() == sym))
+            .and_then(|(x, y)| buf.cell((x, y)).map(|c| c.fg))
+    };
+    let inline = build(r"value $\alpha$ here");
+    let display = build(r"$$\alpha$$");
+    let a = fg(&inline, "α").expect("inline rendered");
+    let b = fg(&display, "α").expect("display rendered");
+    assert_eq!(a, b, "display maths is styled differently from inline maths");
+
+    // The control: it is not simply the prose colour in both.
+    let prose = fg(&inline, "v").expect("prose on screen");
+    assert_ne!(a, prose, "maths does not stand out at all");
+}

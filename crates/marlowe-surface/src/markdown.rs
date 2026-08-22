@@ -649,7 +649,11 @@ fn layout_block(block: &Block, ctx: &Ctx, width: usize) -> Vec<Line<'static>> {
         Block::DisplayMath(src) => {
             let rendered = crate::latex::render_or_source(src);
             let style = match &rendered {
-                std::borrow::Cow::Owned(_) => ctx.base,
+                // **`maths()`, not `base`** -- the same weight the INLINE path gives an equation.
+                // Display maths took the surrounding prose's style, so `$x$` stood out and
+                // `$$x$$` did not, which is backwards: the display form is the one the author
+                // decided was important enough to put on its own line.
+                std::borrow::Cow::Owned(_) => ctx.maths(),
                 // Refused: this is source, and it is styled as source so the reader can see that.
                 std::borrow::Cow::Borrowed(_) => ctx.code(),
             };
