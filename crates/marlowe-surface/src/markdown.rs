@@ -140,6 +140,26 @@ impl Ctx<'_> {
     fn code(&self) -> Style {
         Style::default().fg(Color::Reset)
     }
+
+    /// **Rendered maths, one weight LIGHTER than the prose around it.**
+    ///
+    /// An equation is the load-bearing part of a technical reply and it should be findable by
+    /// scanning. It is not given a colour, because §B13 allows one accent plus three state colours
+    /// plus three foreground weights and **state colours encode state, never category** — amber for
+    /// a formula would say "needs attention" to a reader who has learned what amber means.
+    ///
+    /// So it moves up the weight ladder instead, relative to its context rather than absolutely:
+    /// prose is `normal` and its maths is `bright`; a reasoning block is `dim` and its maths is
+    /// `normal`. The equation stands out by the same distance either way, and a reasoning block
+    /// stays quieter than the conversation, which is the whole point of dimming it.
+    fn maths(&self) -> Style {
+        let lighter = if self.base.fg == Some(self.theme.dim().fg.unwrap_or(Color::Reset)) {
+            self.theme.normal()
+        } else {
+            self.theme.bright()
+        };
+        Style::default().fg(lighter.fg.unwrap_or(Color::Reset))
+    }
     fn accent(&self) -> Style {
         Style::default().fg(self.theme.accent())
     }
@@ -1132,7 +1152,10 @@ fn maths(chars: &[char], i: usize, ctx: &Ctx, style: Style) -> Option<(Vec<Run>,
     let runs = match crate::latex::render(&content) {
         Some(rendered) => vec![Run {
             text: rendered,
-            style,
+            // Lighter than the prose around it — see `Ctx::maths`. The REFUSED arm below keeps the
+            // verbatim style, because unrendered source is not an equation standing out, it is
+            // source the reader should recognise as source.
+            style: ctx.maths().patch(style.sub_modifier),
         }],
         None => vec![Run {
             text: source,

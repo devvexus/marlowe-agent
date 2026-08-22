@@ -576,8 +576,29 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                 };
                 out.push(Line::from(Span::styled(head, theme.dim())));
                 if expanded {
-                    for l in wrap(text, w.saturating_sub(2)) {
-                        out.push(Line::from(Span::styled(format!("  {l}"), theme.dim())));
+                    // **Markdown here too, and only when EXPANDED.**
+                    //
+                    // Reasoning is where a model puts its working, and its working is where the
+                    // equations are. Rendering it flat meant the one place a derivation actually
+                    // lives was the one place it stayed raw.
+                    //
+                    // Collapsed, this costs nothing: the head line is a character COUNT, so the
+                    // parser never runs on the path that draws 99% of frames. That matters because
+                    // reasoning is the highest-volume text in the product -- a reasoning model can
+                    // spend most of a turn here -- and K4 budgets 150 ms to first frame.
+                    //
+                    // The base stays `dim`. A reasoning block is not what Marlowe said (ADR-030):
+                    // it does not carry the persona and it must not read as a conclusion, so
+                    // markdown gives it structure without promoting it to speech.
+                    for line in crate::markdown::render_prose(
+                        text,
+                        w.saturating_sub(2),
+                        theme,
+                        theme.dim(),
+                    ) {
+                        let mut spans = vec![Span::styled("  ".to_string(), theme.dim())];
+                        spans.extend(line.spans);
+                        out.push(Line::from(spans));
                     }
                 }
                 out.push(Line::from(""));

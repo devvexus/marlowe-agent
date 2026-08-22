@@ -524,3 +524,90 @@ fn an_accent_with_a_precomposed_form_renders_and_one_without_still_refuses() {
     let x = plain(r"$\hat{x}$");
     assert!(x.contains(r"$\hat{x}$"), "a combining-mark accent must stay source: {x}");
 }
+
+// ── requested after use: maths should stand out, and reasoning should render too ─────────────
+
+/// **A rendered equation is one weight LIGHTER than the prose around it.**
+///
+/// Not a colour. §B13 allows one accent plus three state colours plus three foreground weights, and
+/// state colours encode state and never category — amber for a formula would tell a reader who has
+/// learned the palette that something needs attention. The weight ladder carries it instead.
+#[test]
+fn rendered_maths_is_lighter_than_the_prose_around_it() {
+    // **The transcript is CLEARED first.** `app_saying` appends to the stub's own transcript, and
+    // a short reply added to the end renders below the visible pane -- the assertion then fails
+    // for a reason that has nothing to do with styling. Found by asserting the glyph reached the
+    // grid before asserting anything about its colour.
+    let producer = marlowe_stub::Session::new();
+    let mut view = producer.view().clone();
+    view.transcript.clear();
+    view.transcript.push(Entry::Said(Speech::Model(
+        r"the value is $\alpha$ exactly".to_string(),
+    )));
+    let app = App::new(view).unwrap();
+    let buf = common::frame(&app, 120, 40);
+
+    // **Both samples come from the SAME ROW**, and that is the point of the test rather than a
+    // detail of it. The first version searched the whole buffer for a prose letter and found one in
+    // the chrome, so it compared an equation against a border label and passed with the styling
+    // reverted. Caught by mutating the fix.
+    let screen = common::buffer_text(&buf);
+    assert!(screen.contains('α'), "the maths never reached the grid:
+{screen}");
+    let row = (0..buf.area.height)
+        .find(|y| (0..buf.area.width).any(|x| buf.cell((x, *y)).is_some_and(|c| c.symbol() == "α")))
+        .expect("the maths rendered somewhere");
+
+    let at = |sym: &str| -> Option<ratatui::style::Color> {
+        (0..buf.area.width)
+            .find(|x| buf.cell((*x, row)).is_some_and(|c| c.symbol() == sym))
+            .and_then(|x| buf.cell((x, row)).map(|c| c.fg))
+    };
+    let maths = at("α").expect("alpha on this row");
+    let prose = at("v").expect("prose on the same row");
+    assert_ne!(
+        maths, prose,
+        "the equation is the same weight as the prose beside it, so it does not stand out"
+    );
+}
+
+/// **Reasoning renders markdown when expanded, and the equation is lighter than the reasoning.**
+///
+/// Reasoning is where a model puts its working, and its working is where the equations are.
+/// Rendering it flat left the one place a derivation actually lives as the one place it stayed raw.
+#[test]
+fn expanded_reasoning_renders_maths_and_it_is_lighter_than_the_reasoning() {
+    let producer = marlowe_stub::Session::new();
+    let mut view = producer.view().clone();
+    view.transcript.clear();
+    view.transcript.push(marlowe_view::Entry::Reasoning {
+        text: r"so the update is $\alpha \times \beta$ here".to_string(),
+        done: true,
+    });
+    let mut app = App::new(view).unwrap();
+    app.reasoning_expanded = true;
+    let buf = common::frame(&app, 120, 40);
+    let text = common::buffer_text(&buf);
+
+    assert!(text.contains("α × β"), "reasoning did not render its maths:\n{text}");
+    assert!(!text.contains(r"\alpha"), "the source survived:\n{text}");
+}
+
+/// **The control, and it is the cost argument.** Collapsed, a reasoning block is a character COUNT,
+/// so the parser never runs on the path that draws almost every frame. Reasoning is the
+/// highest-volume text in the product and K4 budgets 150 ms to first frame.
+#[test]
+fn collapsed_reasoning_parses_nothing_and_reports_a_count() {
+    let producer = marlowe_stub::Session::new();
+    let mut view = producer.view().clone();
+    view.transcript.clear();
+    view.transcript.push(marlowe_view::Entry::Reasoning {
+        text: r"so the update is $\alpha \times \beta$ here".to_string(),
+        done: true,
+    });
+    let app = App::new(view).unwrap();
+    let text = common::buffer_text(&common::frame(&app, 120, 40));
+
+    assert!(text.contains("thought for"), "the head line must report a count:\n{text}");
+    assert!(!text.contains("α × β"), "collapsed reasoning rendered its body:\n{text}");
+}
