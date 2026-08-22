@@ -241,3 +241,27 @@ reader exists only as measurement record: tools/bench_reader_{latency,batched}.p
 check_reader_batch_invariance.py, make_reader_fixture.py, reader_wiring_diff.py, and the run
 dirs here. If the batch-invariance sweep is ever done and the numbers re-verified, this is a
 complete playbook for a second attempt.
+
+---
+
+## ADDENDUM -- Upstream easy-win audit: the funnel is now fully mapped, end to end
+
+tools/upstream_forensics.py + prune_reach.py over the held-out dump:
+
+* ingest/scope: ZERO gold sessions lost -- stage 1 is clean at session level (1 turn-level
+  attribution oddity).
+* pruning: 25 gold turns die across 4 queries that lose ALL their gold. Widening keep-N:
+  N=4 recovers 1 of 4 (pool +50 percent); the others need N>6 (ranks 7/8/25). CLOSED --
+  inherited constant was never the binding constraint; the losses are cue-blindness upstream,
+  the same disease the pick already characterized.
+* With this, every stage of the funnel has a case-resolved disposition. Remaining recoverable
+  mass in this architecture family: scattered singles only. The measured ceiling stands.
+
+## SESSION TOTALS (all committed on m0c-cues)
+
+Shipped: cascade (ADR-046) -- held-out R@1 0.6987 / R@3 0.8865 from 0.6725/0.8515.
+Reversed on latency grounds: half-weight reader (measured +1/+2 through the binary at 238 ms
+P95). Closed with numbers: narrowing, six-graph ensembles (combiner-invariant), neighbour
+expansion (4th form), delta-passes, prune-widening. Proven structural: computed answers need
+generation. Label noise verified in both directions (2 genuine artifacts; 2 proxy false
+positives corrected).
