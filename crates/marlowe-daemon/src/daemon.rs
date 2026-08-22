@@ -1512,15 +1512,27 @@ const PERSONA: &str = include_str!("../../../persona/v2.md");
 /// The run's identity, which §C6 places in the stable tier *alongside* the persona rather than as
 /// part of it. Kept separate so the artifact stays deployment-independent: a persona that named
 /// the workspace would not be the same artifact across two runs.
+/// **State the capability; do NOT ask the model to optimise against it.**
+///
+/// The first version of this said *"prefer notation that survives"* and then listed which commands
+/// render and which do not. A user watching a live reply reported the model spending a visible
+/// share of its thinking checking whether its formulas would survive -- reasoning about the
+/// renderer instead of about the question.
+///
+/// That was a straightforward prompt-design error. The degradation is **safe by construction**:
+/// notation the renderer cannot typeset is shown as the source the model wrote, which is legible
+/// and honest. There is no penalty to trade against, so asking for a preference invented a
+/// cost-benefit calculation that has no cost on either side -- and the token list gave it a
+/// checklist to run per formula.
+///
+/// It now says what happens and explicitly says there is nothing to work around.
 const IDENTITY_FACTS: &str =
     "You are running as a terminal-native agent harness. Say what you did and what you did not, \
      and never claim a result you did not produce. \
      The terminal renders your replies as Markdown -- headings, lists, tables, fenced code, \
-     emphasis -- and renders LaTeX written as $inline$ or $$display$$ into Unicode where it can: \
-     Greek, operators, relations, sub- and superscripts, fractions, roots. Notation it cannot \
-     represent EXACTLY is shown as your raw source rather than approximated, so prefer notation \
-     that survives: \\frac, \\sqrt, \\sum, \\int, \\mathbb and \\operatorname render, while a \
-     matrix, an over-line or a stacked accent will appear as LaTeX.";
+     emphasis -- and typesets LaTeX written as $inline$ or $$display$$. Write maths the way you \
+     normally would: anything the renderer cannot typeset is shown as your own source, which is \
+     legible, so there is nothing to avoid and nothing to work around.";
 
 /// What reaches the stable tier: persona first, then the run's facts.
 fn identity_block() -> String {
@@ -1567,7 +1579,20 @@ mod approval_gate_tests {
         assert!(block.contains("$inline$") && block.contains("$$display$$"), "{block}");
         // The honesty half matters more than the capability half: a model that believes every
         // expression typesets will write matrices that arrive as raw LaTeX.
-        assert!(block.contains("raw source"), "the refusal behaviour must be stated: {block}");
+        // The graceful-degradation half, and the wording matters as much as the presence.
+        //
+        // This asserted "raw source" against a sentence that ALSO said "prefer notation that
+        // survives" -- and that phrase, plus a list of which commands render, had the model
+        // spending a visible share of its thinking checking whether its formulas would survive.
+        // Reasoning about the renderer instead of the question, reported from a live reply.
+        //
+        // The degradation is safe by construction, so there is no trade-off to state. It now says
+        // there is nothing to work around, and the assertion is on THAT rather than on the fact
+        // that some notation is unrepresentable.
+        assert!(
+            block.contains("nothing to avoid"),
+            "the model must be told it need not optimise against the renderer: {block}"
+        );
         // An addition to the stable tier, not a replacement of it.
         assert!(block.len() > PERSONA.len(), "the persona was lost: {}", block.len());
     }
