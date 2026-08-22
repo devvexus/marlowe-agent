@@ -1,0 +1,34 @@
+{
+  "_what": "Probe 3 evaluation",
+  "prereg": "PREREGISTRATION-PICK.json",
+  "instrument_gate_mismatches": 0,
+  "arms": [
+    {
+      "name": "BASELINE pair-RRF",
+      "R@1": 180,
+      "R@3": 213,
+      "gained1": 0,
+      "lost1": 0,
+      "gained3": 0,
+      "lost3": 0
+    },
+    {
+      "name": "PRIMARY reader-fusion",
+      "R@1": 176,
+      "R@3": 219,
+      "gained1": 7,
+      "lost1": -11,
+      "gained3": 7,
+      "lost3": -1
+    },
+    {
+      "name": "SECONDARY delta-fusion",
+      "R@1": 174,
+      "R@3": 212,
+      "gained1": 7,
+      "lost1": -13,
+      "gained3": 3,
+      "lost3": -4
+    }
+  ]
+}

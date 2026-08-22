@@ -1,0 +1,23 @@
+{
+  "_what": "Probe 3b -- HALF-WEIGHT READER. Registered entirely before any number exists: fit gate, earn rule, held-out bands and ship rule are all fixed here.",
+  "_motivation_from_measured_data": "full-weight reader: fit +7/-1 R@3, -4 R@1; held-out +3/-0 R@3, -4 R@1. The rescue is real and lossless at set level; the head cost scales with the opinion's vote share. Halving the vote share is the single declared parameter, argued here BEFORE any half-weight number exists: two relevance graphs keep 4/5 of the vote mass, the reader holds 1/5.",
+  "_no_sweep": "w=0.5 is the only value ever run. A sweep would be fitting the vote share.",
+
+  "implementation": "third-list contribution in the RRF sum multiplied by 0.5 (algebraically identical to presenting the reader list at k_eff = 130); everything else identical to PREREGISTRATION-PICK.json",
+
+  "FIT_GATE": {
+    "base": {"R@1": 180, "R@3": 213},
+    "R@3_band": [214, 218],
+    "R@1_band": [177, 182],
+    "kill_if": "fit R@3 <= 212 OR fit R@1 <= 174"
+  },
+  "EARN_RULE": "fit R@3 >= 215 AND fit R@1 >= 178",
+  "HELDOUT_BANDS_IF_EARNED": {
+    "base": {"R@1": 160, "R@3": 203},
+    "R@3_band": [204, 210],
+    "R@1_band": [154, 162],
+    "falsified_if": "R@3 <= 203 AND R@1 <= 158",
+    "SHIP_IF": "held-out R@3 >= 206 AND R@1 >= 158"
+  },
+  "_ship_rule_rationale_written_before_data": "at half weight the expected trade is +2-3 R@3 against -1-2 R@1; requiring R@3 >= 206 demands a REAL gain, requiring R@1 >= 158 caps the head cost at two cases."
+}

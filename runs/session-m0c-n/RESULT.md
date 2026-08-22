@@ -125,3 +125,30 @@ read identically held-out -- the ensemble contributes exactly +1 R@3 for -5 R@1 
 is combined, so the union-oracle's fit-side headroom was shared error wearing complementary
 clothes. Fifth instance of the fit-to-held-out collapse family, now characterised at the level
 of the COMBINER rather than any single arm.
+
+---
+
+## Addendum -- Probe 3 (the pick): the reader works. Adoption blocked by a prewritten bar, by ONE case.
+
+PREREGISTRATION-PICK{,-HELDOUT-AMENDMENT,-HALFWEIGHT}.json; instrument gates 229/229 on every
+run; evaluations pick-probe{,-heldout,-halfweight-*}.json.
+
+| configuration | fit R@1/R@3 | held-out R@1/R@3 |
+|---|---|---|
+| shipped pair-cascade | 180 / 213 | 160 / 203 |
+| reader @ w=1.0 | 176 / 219 (+7/-1) | 156 / 206 (+3/-0) |
+| **reader @ w=0.5** | 179 / 216 (+4/-1) | **163 / 205 (+11/-8 / +2/-0)** |
+
+Full weight: R@3 +3 clean held-out, R@1 -4 -- ship rule failed (R@3 < 208). Half weight,
+registered end-to-end before any w=0.5 number: fit gate cleared inside both bands; held-out read
+**strictly better on both metrics** (+3 R@1, +2 R@3, zero R@3 losses) -- and the R@1 band was
+violated UPWARD (163 > 162; the trade model was wrong in the favourable direction). The
+prewritten ship rule demanded R@3 >= 206; the read is 205. **Not adopted; the rule governs until
+the human says otherwise.** The rule's design flaw is disclosed: it required R@3 alone to carry
+an adoption whose actual shape was both-metrics improvement.
+
+Mechanism, for the record: the reader scores answerability ("does this turn contain an
+extractable answer-value"), not relevance. It rescues buried multi-topic gold (the corpus's
+signature failure) at set level; at full weight its answer-shaped false positives overrule
+correct consensus winners at rank 1; at half weight they mostly do not, and held-out the head
+GAINS. Delta-fusion (sharpened-query second pass) killed on fit: +3/-4 R@3, -13 R@1.
