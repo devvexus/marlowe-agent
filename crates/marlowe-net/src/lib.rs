@@ -465,6 +465,9 @@ struct Head {
     status: u16,
     content_type: Option<String>,
     location: Option<String>,
+    /// `Retry-After`, verbatim. Read here rather than re-parsed by a caller, because a caller
+    /// that re-reads the socket to find it has already consumed the body.
+    retry_after: Option<String>,
     content_encoding: Option<String>,
     content_length: Option<usize>,
     chunked: bool,
@@ -492,6 +495,7 @@ fn read_head(reader: &mut BufReader<TlsStream>, host: &str) -> Result<Head, Fetc
         status,
         content_type: None,
         location: None,
+        retry_after: None,
         content_encoding: None,
         content_length: None,
         chunked: false,
@@ -514,6 +518,7 @@ fn read_head(reader: &mut BufReader<TlsStream>, host: &str) -> Result<Head, Fetc
         match name.trim().to_ascii_lowercase().as_str() {
             "content-type" => head.content_type = Some(value),
             "location" => head.location = Some(value),
+            "retry-after" => head.retry_after = Some(value),
             "content-encoding" => head.content_encoding = Some(value.to_ascii_lowercase()),
             "transfer-encoding" if value.eq_ignore_ascii_case("chunked") => head.chunked = true,
             "content-length" => head.content_length = value.parse().ok(),
@@ -782,5 +787,233 @@ mod tests {
             encoding: "br".into(),
             detail: "x".into()
         }));
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// A STREAMING POST. ADR-046.
+// ─────────────────────────────────────────────────────────────────────────────────────────
+//
+// # Why this lives here rather than in the provider crate
+//
+// ADR-031 §2.3 makes this crate **the whole of the TLS supply-chain surface**, so that
+// `cargo tree -p marlowe-provider` keeps showing no TLS and ADR-028's *"the default path reaches
+// no network"* stays a property rather than a comment. A hosted model provider needs HTTPS. The
+// two ways to give it one are to add `rustls` to a second crate — which ends the §2.3 property —
+// or to add the one primitive it is missing here. This is the second.
+//
+// # What it deliberately is not
+//
+// It is not a general HTTP client and it holds no policy. It does not follow redirects, does not
+// pool (a streamed body has no unambiguous end until it is fully read, and returning a
+// half-drained connection to the pool desynchronises the next request on it), and — the part that
+// matters for `marlowe-openrouter` — **it never stores, logs or formats a header value.** Headers
+// are borrowed for the length of one `write_all` and dropped. `FetchError` carries a host and an
+// I/O detail and has no variant that can hold one.
+
+/// A response whose body is read **as it arrives**.
+pub struct ResponseStream {
+    pub status: u16,
+    pub content_type: Option<String>,
+    /// `Retry-After`, verbatim, when the server sent one. The caller decides what to do with it;
+    /// this crate has no retry policy.
+    pub retry_after: Option<String>,
+    body: Box<dyn BufRead + Send>,
+    host: String,
+}
+
+impl ResponseStream {
+    /// The body, line-oriented, decoded through any `Transfer-Encoding: chunked` framing.
+    pub fn body(&mut self) -> &mut dyn BufRead {
+        &mut *self.body
+    }
+
+    /// Drain at most `limit` bytes. For an error response, whose body is small and wanted whole.
+    pub fn read_capped(&mut self, limit: usize) -> String {
+        let mut buf = Vec::new();
+        let _ = Read::by_ref(&mut self.body).take(limit as u64).read_to_end(&mut buf);
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+}
+
+/// A header name/value pair is written verbatim, so **it may not contain CR or LF.**
+///
+/// This is the header-injection guard and it is here rather than in the caller on purpose: the
+/// caller is the crate that holds a credential and a user-supplied model name, and a value that
+/// could carry a line break would let either of them append headers of its own — including a
+/// second `Authorization`. Refused by name at the point of writing rather than sanitised, because
+/// a silently-stripped newline is a mismatch nothing observes.
+fn validate_header(name: &str, value: &str, host: &str) -> Result<(), FetchError> {
+    let bad = |what: &str| FetchError::Unsupported {
+        url: format!("https://{host}"),
+        // **The VALUE is never included.** One of these values is an API key.
+        detail: format!("header `{name}` {what}"),
+    };
+    if name.is_empty() || name.contains(|c: char| c.is_control() || c == ':' || c == ' ') {
+        return Err(bad("has a name that is not a token"));
+    }
+    if value.contains('\r') || value.contains('\n') || value.contains('\0') {
+        return Err(bad("contains a control character; header injection is refused, not stripped"));
+    }
+    Ok(())
+}
+
+impl Client {
+    /// POST `body` and return the response **without buffering it**.
+    ///
+    /// `read_timeout` applies per read, not to the whole response: a model that takes two minutes
+    /// to answer is working, not hung, and a whole-response deadline would kill exactly the long
+    /// turns streaming exists to make bearable.
+    pub fn post_streaming(
+        &self,
+        target: &Target,
+        headers: &[(&str, &str)],
+        body: &[u8],
+        read_timeout: Duration,
+    ) -> Result<ResponseStream, FetchError> {
+        for (name, value) in headers {
+            validate_header(name, value, &target.host)?;
+        }
+
+        // **No pooled connection is taken and none is given back.** See the section header.
+        self.stats.handshakes.fetch_add(1, Ordering::Relaxed);
+        let mut reader = self.connect(target)?;
+        reader.get_ref().sock.set_read_timeout(Some(read_timeout)).ok();
+        reader.get_ref().sock.set_write_timeout(Some(read_timeout)).ok();
+
+        let mut head = format!(
+            "POST {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: marlowe\r\n\
+             Content-Type: application/json\r\nContent-Length: {}\r\n\
+             Accept-Encoding: identity\r\nConnection: close\r\n",
+            target.path,
+            target.host,
+            body.len()
+        );
+        for (name, value) in headers {
+            head.push_str(name);
+            head.push_str(": ");
+            head.push_str(value);
+            head.push_str("\r\n");
+        }
+        head.push_str("\r\n");
+
+        let unreachable = |e: std::io::Error| FetchError::Unreachable {
+            host: target.host.clone(),
+            detail: e.to_string(),
+        };
+        reader.get_mut().write_all(head.as_bytes()).map_err(unreachable)?;
+        // `head` held the credential. Cleared before the response is read, so a later panic
+        // cannot unwind with it still live in this frame.
+        head.clear();
+        reader.get_mut().write_all(body).map_err(unreachable)?;
+        reader.get_mut().flush().map_err(unreachable)?;
+
+        let parsed = read_head(&mut reader, &target.host)?;
+        let body: Box<dyn BufRead + Send> = if parsed.chunked {
+            Box::new(BufReader::with_capacity(
+                16 * 1024,
+                ChunkedReader { inner: reader, remaining: 0, finished: false },
+            ))
+        } else {
+            Box::new(reader)
+        };
+        Ok(ResponseStream {
+            status: parsed.status,
+            content_type: parsed.content_type,
+            retry_after: parsed.retry_after,
+            body,
+            host: target.host.clone(),
+        })
+    }
+}
+
+/// `Transfer-Encoding: chunked`, decoded incrementally.
+///
+/// [`read_chunked`] above collects every chunk into a `Vec` before returning — correct for a
+/// document, and fatal to streaming, because the first byte reaches the caller only after the
+/// last one has arrived.
+struct ChunkedReader<R: BufRead> {
+    inner: R,
+    remaining: usize,
+    finished: bool,
+}
+
+impl<R: BufRead> Read for ChunkedReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.finished {
+            return Ok(0);
+        }
+        if self.remaining == 0 {
+            let mut size_line = String::new();
+            self.inner.read_line(&mut size_line)?;
+            if size_line.trim().is_empty() {
+                // The CRLF that terminated the previous chunk.
+                size_line.clear();
+                self.inner.read_line(&mut size_line)?;
+            }
+            if size_line.is_empty() {
+                self.finished = true;
+                return Ok(0);
+            }
+            let size = usize::from_str_radix(
+                size_line.trim().split(';').next().unwrap_or("").trim(),
+                16,
+            )
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+            if size == 0 {
+                self.finished = true;
+                return Ok(0);
+            }
+            self.remaining = size;
+        }
+        let want = buf.len().min(self.remaining);
+        let n = self.inner.read(&mut buf[..want])?;
+        self.remaining -= n;
+        Ok(n)
+    }
+}
+
+#[cfg(test)]
+mod post_streaming_tests {
+    use super::*;
+
+    #[test]
+    fn a_header_value_carrying_crlf_is_refused_rather_than_stripped() {
+        // The values this guards are an API key and a user-chosen model name. A line break in
+        // either would append a header of the sender's choosing — including a second
+        // `Authorization`.
+        //
+        // **The refusal must not quote the value**, because one of these values is a credential.
+        let e = validate_header("Authorization", "Bearer sk-or-v1-SECRET\r\nX-Evil: 1", "h")
+            .unwrap_err();
+        let rendered = e.to_string();
+        assert!(rendered.contains("header injection is refused"), "{rendered}");
+        assert!(
+            !rendered.contains("SECRET"),
+            "the refusal quoted the header value, which is where a key would be: {rendered}"
+        );
+
+        assert!(validate_header("Authorization", "Bearer sk-or-v1-ok", "h").is_ok());
+        assert!(validate_header("X-Title", "marlowe", "h").is_ok());
+        assert!(validate_header("Bad Name", "v", "h").is_err());
+    }
+
+    #[test]
+    fn chunked_framing_is_decoded_incrementally() {
+        // The property is that a reader over this yields bytes before the last chunk has been
+        // supplied — which a `Vec`-collecting decoder cannot do.
+        let wire = b"5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n";
+        let mut r = BufReader::new(ChunkedReader {
+            inner: BufReader::new(&wire[..]),
+            remaining: 0,
+            finished: false,
+        });
+        let mut out = String::new();
+        r.read_to_string(&mut out).expect("chunked body decodes");
+        assert_eq!(out, "hello world");
     }
 }
