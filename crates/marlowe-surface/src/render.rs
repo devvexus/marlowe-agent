@@ -290,7 +290,10 @@ fn draw_control(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &m
             ),
         ]);
         Paragraph::new(value).render(text, buf);
-        Paragraph::new(Line::from(Span::styled("▾", theme.dim())))
+        Paragraph::new(Line::from(Span::styled(
+            crate::chrome::DISCLOSURE_OPEN.to_string(),
+            theme.dim(),
+        )))
             .alignment(Alignment::Right)
             .render(text, buf);
     }
@@ -450,6 +453,10 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
     Paragraph::new(visible).render(text_area, buf);
 
     if total > view {
+        // The glyphs come from `crate::chrome`, which is also the set model prose may not contain —
+        // so the model cannot draw a second scrollbar down the middle of its own reply.
+        let track = crate::chrome::SCROLL_TRACK.to_string();
+        let thumb = crate::chrome::SCROLL_THUMB.to_string();
         let mut state = ScrollbarState::new(max_off).position(offset);
         StatefulWidget::render(
             Scrollbar::new(ScrollbarOrientation::VerticalRight)
@@ -458,10 +465,10 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
                 // ratatui's default vertical track is `║` U+2551 — a doubled box-drawing rule,
                 // which reads as a second border inside the region. §B9's overlay is the only
                 // doubled border in the design, and it means modality.
-                .track_symbol(Some("│"))
+                .track_symbol(Some(&track))
                 // U+2588 FULL BLOCK, which tiles edge to edge. A partial block or a box-drawing
                 // glyph leaves gaps between rows and the thumb reads as segmented.
-                .thumb_symbol("█")
+                .thumb_symbol(&thumb)
                 .track_style(Style::default().fg(theme.structure()))
                 // The scroll position is not a state, so it is not amber. It is structure, and
                 // structure is the accent's role (§B2).
@@ -513,23 +520,34 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                 out.push(Line::from(""));
             }
             Entry::Said(speech) => {
-                // Both halves render identically — the user must not see a seam between the model
-                // talking and the harness talking. The TYPE records who composed it; the frame
-                // does not, because that is not the user's problem.
-                let text = &match speech {
-                    marlowe_view::Speech::Model(t) => t.clone(),
-                    marlowe_view::Speech::Harness(n) => {
-                        crate::commands::render_notice(app.view(), n).join("
-")
-                    }
-                };
+                // Both halves render in the same colour — the user must not see a seam between the
+                // model talking and the harness talking. The TYPE records who composed it; the
+                // frame does not, because that is not the user's problem.
+                //
                 // The one place colour marks WHO is speaking rather than state. White prose read
                 // as terminal output rather than as somebody talking.
-                for l in wrap(text, w) {
-                    out.push(Line::from(Span::styled(
-                        l,
-                        Style::default().fg(theme.speech()),
-                    )));
+                let base = Style::default().fg(theme.speech());
+                match speech {
+                    // **Model prose is markdown (ADR-047).** It always was; until ADR-047 it was
+                    // drawn flat, so a reply built out of headings, lists and code arrived as one
+                    // paragraph with punctuation in it.
+                    marlowe_view::Speech::Model(t) => {
+                        out.extend(crate::markdown::render_prose(t, w, theme, base));
+                    }
+                    // **Harness notices are NOT markdown, and that is deliberate.** They are a
+                    // closed vocabulary (ADR-030) rendered from typed data — a `/help` listing, a
+                    // refusal, a copy confirmation. None of them contains markup, so interpreting
+                    // it buys nothing, and interpreting it would mean an `*` in a path or a `_` in
+                    // a flag name silently becoming emphasis in the one text the harness itself
+                    // authored. They also skip the chrome reservation, because the harness is
+                    // allowed to draw chrome and the model is not.
+                    marlowe_view::Speech::Harness(n) => {
+                        for raw in crate::commands::render_notice(app.view(), n) {
+                            for l in wrap(&raw, w) {
+                                out.push(Line::from(Span::styled(l, base)));
+                            }
+                        }
+                    }
                 }
                 out.push(Line::from(""));
             }
@@ -541,12 +559,20 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
             // this is the part of the work that was invisible.
             Entry::Reasoning { text, done } => {
                 let expanded = app.reasoning_expanded;
-                let marker = if expanded { "▾" } else { "▸" };
+                // The glyphs come from `crate::chrome`, which is also the set model prose may not
+                // contain. One definition: a marker that is drawn is a marker that is reserved,
+                // and there is nowhere else to get one from.
+                let marker = if expanded {
+                    crate::chrome::DISCLOSURE_OPEN
+                } else {
+                    crate::chrome::DISCLOSURE_CLOSED
+                };
+                let key = crate::chrome::KEYCAP_ENTER;
                 let head = if *done {
-                    format!("{marker} thought for {} characters   ↵", text.len())
+                    format!("{marker} thought for {} characters   {key}", text.len())
                 } else {
                     // Live: the count moves, so the line itself reports progress.
-                    format!("{marker} thinking… {} characters   ↵", text.len())
+                    format!("{marker} thinking… {} characters   {key}", text.len())
                 };
                 out.push(Line::from(Span::styled(head, theme.dim())));
                 if expanded {
@@ -557,7 +583,8 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                 out.push(Line::from(""));
             }
             Entry::Compacted { turns } => {
-                let text = format!("─ compacted · {turns} turns → summary ─");
+                let r = crate::chrome::RULE;
+                let text = format!("{r} compacted · {turns} turns → summary {r}");
                 let pad = w.saturating_sub(text.chars().count()) / 2;
                 out.push(Line::from(Span::styled(
                     format!("{}{}", " ".repeat(pad), text),
@@ -588,7 +615,12 @@ fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line
     } else {
         format!("{} files", call.collapsed.len() + 1)
     };
-    let left = format!("  ⋯ {:<9} {}", call.verb, target);
+    let left = format!(
+        "  {} {:<9} {}",
+        crate::chrome::TOOL_MARKER,
+        call.verb,
+        target
+    );
     let (right, right_style) = match &call.state {
         // Live lines animate in place with elapsed time. Never scrolled in and then cleared.
         ToolLineState::Running { elapsed_ms } => (

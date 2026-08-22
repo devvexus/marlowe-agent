@@ -209,7 +209,8 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
             // rather than the content: it is progress, not an answer.
             Entry::Reasoning { text, done } => writeln!(
                 out,
-                "  ⋯ thinking   {} chars{}",
+                "  {} thinking   {} chars{}",
+                crate::chrome::TOOL_MARKER,
                 text.len(),
                 if *done { "" } else { " …" }
             )?,

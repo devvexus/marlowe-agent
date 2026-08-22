@@ -294,6 +294,16 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         // reading one. Restructuring it to use an injected clock would mean injecting a clock into
         // the test's own peer, which measures the harness rather than the daemon.
         "marlowe-daemon/tests/socket_auth.rs",
+        // ADR-047: what markdown rendering costs per frame, against K4's 150 ms first-frame
+        // budget. The whole file is a wall-clock number and cannot be written without one; it
+        // renders into a headless `TestBackend` and reports to nobody -- no journal timestamp, no
+        // memory id, no repro hash.
+        //
+        // `marlowe-surface` still gets NO exemption in `src/`, which is the claim this guard's own
+        // header makes and `marlowe-surface/tests/c2d_boundary.rs` asserts locally. This is a
+        // FILE entry for the same reason every other line here is: exempting the directory would
+        // excuse the next timing read in a crate whose whole property is that it has none.
+        "marlowe-surface/tests/markdown_cost.rs",
     ];
     assert_every_entry_still_exists(BENCHMARKS_AND_TIMING_TESTS, "BENCHMARKS_AND_TIMING_TESTS");
 

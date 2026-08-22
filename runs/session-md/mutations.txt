@@ -1,0 +1,75 @@
+================ md_render ================
+reverted bound: md_render (render.rs)
+error: 2 targets failed:
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_forgery`
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_render`
+test a_reply_cannot_draw_a_bordered_region ... FAILED
+test a_reply_cannot_draw_a_disclosure_affordance ... FAILED
+test a_reply_cannot_draw_a_tool_line ... FAILED
+test a_reply_cannot_forge_the_compaction_marker ... FAILED
+test every_reserved_glyph_is_one_the_harness_actually_draws ... FAILED
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+test the_attributes_reach_the_grid_and_the_source_markers_do_not ... FAILED
+test y_still_copies_the_source_markdown_and_not_the_rendered_form ... FAILED
+restored crates\marlowe-surface\src\render.rs
+================ md_ranges ================
+reverted bound: md_ranges (chrome.rs)
+error: 2 targets failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_forgery`
+test a_reply_cannot_draw_a_bordered_region ... FAILED
+test chrome::tests::blocking_one_rule_glyph_would_leave_sixty_others ... FAILED
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: FAILED. 63 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-surface\src\chrome.rs
+================ md_rule ================
+reverted bound: md_rule (markdown.rs)
+error: 2 targets failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_forgery`
+test a_reply_cannot_forge_the_compaction_marker ... FAILED
+test markdown::tests::a_horizontal_rule_is_not_the_compaction_marker ... FAILED
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test result: FAILED. 63 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-surface\src\markdown.rs
+================ md_reversed ================
+reverted bound: md_reversed (markdown.rs)
+error: 2 targets failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_render`
+test markdown::tests::no_span_this_module_produces_carries_a_background_or_reverse_video ... FAILED
+test not_one_cell_carries_a_background_or_reverse_video ... FAILED
+test result: FAILED. 63 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+restored crates\marlowe-surface\src\markdown.rs
+================ md_latex_partial ================
+reverted bound: md_latex_partial (latex.rs)
+error: 1 target failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+test latex::tests::a_partial_translation_would_be_a_different_integral ... FAILED
+test latex::tests::what_cannot_be_shown_is_refused_whole ... FAILED
+test markdown::tests::maths_renders_when_it_can_and_stays_source_when_it_cannot ... FAILED
+test result: FAILED. 61 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-surface\src\latex.rs
+================ md_latex_output ================
+reverted bound: md_latex_output (latex.rs)
+error: 1 target failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+test latex::tests::a_chrome_glyph_reaching_the_output_refuses_the_whole_expression ... FAILED
+test result: FAILED. 63 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-surface\src\latex.rs
+================ md_currency ================
+reverted bound: md_currency (markdown.rs)
+error: 1 target failed:
+error: test failed, to rerun pass `-p marlowe-surface --lib`
+test markdown::tests::a_price_is_not_an_equation ... FAILED
+test result: FAILED. 63 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-surface\src\markdown.rs
+================ md_copy_source ================
+reverted bound: md_copy_source (clipboard.rs)
+error: 1 target failed:
+error: test failed, to rerun pass `-p marlowe-surface --test markdown_render`
+test result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+test y_still_copies_the_source_markdown_and_not_the_rendered_form ... FAILED
+restored crates\marlowe-surface\src\clipboard.rs

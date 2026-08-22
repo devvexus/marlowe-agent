@@ -134,6 +134,121 @@ before any number from this path is published**, and record the reading beside A
   `NOT MEASURED`. `qwen3.5:9b`'s 12/12 stays where it belongs.
 
 
+## MARKDOWN AND INLINE LATEX SHIP IN THE CONVERSATION PANE. ADR-047, 2026-08-22.
+
+**`crates/marlowe-surface/src/{markdown,latex,chrome}.rs`.** Model replies were always markdown and
+were drawn flat; they now render as prose, inside §B2's colour budget, with **no new colour and no
+background fill**. Inline maths is translated where a character grid can carry it and left visibly as
+its own source where it cannot.
+
+### The three things a later session needs to know before touching this
+
+**1. `chrome.rs` is the single definition of what harness chrome looks like, and BOTH sides read
+it.** `render.rs` gets its tool marker, disclosure triangles, keycap, quote rule and scrollbar
+glyphs from `chrome::MARKERS`; `chrome::mark_reserved` refuses that same set — plus the whole of box
+drawing (U+2500–U+257F) and block elements (U+2580–U+259F) — in model prose, replacing each with
+`<U+XXXX>`. **A new chrome glyph that is not declared there is not drawn either, because there is
+nowhere else to get one from.** Ranges rather than a list, because §B2's premise is about *borders*,
+and blocking `─` alone leaves sixty other glyphs that draw a box just as convincingly.
+
+`markdown_forgery.rs` asserts both halves on the drawn buffer, and the second half is the one that
+rots silently: **every glyph in `MARKERS` must actually appear in a rendered frame**, or the
+reservation is guarding something nobody draws. That is the fourteenth-instance shape applied to a
+glyph instead of a file path.
+
+**2. `Modifier::REVERSED` is a background fill that §B13's existing row cannot see.** The zero-fills
+walk asserts `cell.bg == Color::Reset`; reverse video is a *modifier*, so a cell carrying it reports
+`Reset` and the terminal paints a solid slab. It is also the obvious way to draw a code fence.
+`markdown_render.rs` now asserts both, and code takes foreground **weight 1** with a two-column
+indent instead. **If a future change reaches for reverse video anywhere in this crate, that is the
+test that should fire.**
+
+**3. A model can stall the surface by choosing its punctuation, and the cost test is what found it.**
+Inline markdown scans forward for a closer; an opener with no closer scans to the end of the block.
+140 KB of `[[[[…`, backtick runs and `***nested ` took **144 ms in one release frame** — past K4's
+entire 150 ms first-frame budget. Closed by `markdown::scan_budget`: one look-ahead budget per reply,
+16× its length, shared by every scanning construct; when it runs out the rest renders as literal
+text, which is what the pane did before ADR-047. Also: an unclosed backtick run is skipped **whole**
+(retrying re-counts it — the quadratic in miniature), and block nesting stops at six levels because
+`> `×10 000 is a stack overflow rather than a slow frame. Now 24 ms; the `md_budget` mutation restores
+1 415 ms in debug against a 500 ms ceiling.
+
+### What is measured
+
+`crates/marlowe-surface/tests/markdown_cost.rs`, release, with the flat path measured **in the same
+process on the same bytes** as the control:
+
+| case | flat (before) | markdown | ceiling |
+|---|---|---|---|
+| 32 KB — a typical first frame | — | **3.4 ms** | 8 ms |
+| 400 KB at 66 cols — a full context window | 3.4 ms | **29 ms** | 50 ms |
+| 400 KB at 136 cols | 3.2 ms | **25 ms** | 50 ms |
+| 140 KB adversarial punctuation | — | **24 ms** | 50 ms |
+
+**Ceilings are profile-aware and each is labelled with what it can establish.** K4 is a property of
+the release binary; debug measures 7–8× slower on identical input, so the debug ceilings (60 / 500
+ms) are evidence about the *algorithm* and say nothing about K4. That is why the workspace suite,
+which runs debug, still fails if the quadratic returns.
+
+### THE OPEN ITEM THIS LEAVES, and it is architectural rather than a bug
+
+**`render::transcript_lines` lays out the ENTIRE transcript on every frame**, because the scrollbar
+needs the true line count and only the renderer knows it. That was 3.4 ms and is now **29 ms** at the
+pessimistic end — **paid per frame, not per turn** — so a long session tightens the ceiling on how
+often the surface can repaint. The daemon appends without bound (`project.rs`: *"the transcript
+grows; nothing else is invented"*), so the pessimistic end is reachable rather than hypothetical.
+
+**The fix is windowed layout with a cached total, and it is a change to `transcript_lines`' contract**
+— `App::scroll_max`, the scrollbar and the pager all read that one number, and two answers to it is
+exactly the divergence the current design exists to prevent. Not attempted here; it is a separate
+change with its own tests.
+
+### Verified by mutation — ten bounds, one at a time, each caught by a NAMED test
+
+`scratchpad/mutate2.py`: `md_render`, `md_chrome`, `md_ranges`, `md_rule`, `md_reversed`,
+`md_budget`, `md_latex_partial`, `md_latex_output`, `md_currency`, `md_copy_source`. Every assertion
+reads a drawn `ratatui::Buffer`, never an intermediate `Vec<Span>`.
+
+### Two decisions that came from LOOKING at the pane, not from reading the code
+
+`snapshot.rs::a_markdown_reply_can_be_read` prints the frame at 120×30 and 160×45. It produced both
+of these and nothing else would have: **binary operators are spaced** (`α × β²`, not `α×β²` — LaTeX's
+command-terminating space is syntax and is consumed, so the spacing has to be re-derived), and
+**horizontal rules span the full pane** rather than stopping at an arbitrary 80 columns, which read as
+a truncation.
+
+### Verified in the RUNNING binary, and the instrument is reusable
+
+`marlowe --tui --scripted --timing-probe` renders **one real frame** and exits, and the emitted
+escape stream can be captured from a non-TTY shell. That is the instrument for anything that has to
+be true of the deployed binary rather than of a `TestBackend` — the same gap that made
+`persona_emission.rs` green while the model had never seen the persona.
+
+Markdown was pushed through it by temporarily adding one reply to the stub's opening transcript,
+rebuilding release, capturing, and reverting. In the captured stream at 120×30, `TERM=xterm-256color`:
+real `ESC[38;5;…` and `ESC[1m`; `Margin is α × β²; the tail $\int_0^\infty e^{-x}dx$ is left as
+written.`; `See the note (https://example.invalid/j).`; a `·` rule rather than a `─` one; **the
+forged tool line refused and marked as `<U+22EF>` on the same screen as a real `⋯ run  deep-research`
+line**; the scripted `$3` untouched; **`time_to_first_frame_ms  1`** against K4's 150.
+
+### What is NOT verified
+
+**No interactive session.** This environment has no PTY, so scrolling, live resize, and `y`/`Y`
+against a real clipboard were not exercised.
+
+**Italic was above the fold in that frame, and italic is the one attribute a FONT can silently
+refuse.** `ESC[3m` does not appear in the captured stream. It is asserted on the grid by
+`markdown_render.rs`, but whether a terminal font has an italic face is a property no test in this
+repository can see — on a font without one, **emphasis and body will look identical and nothing will
+report it**. §B13's by-eye row covers the accent; nothing covers emphasis. **Look at a markdown reply
+in a real terminal before treating that as closed.**
+
+**The suite needs `models/` present.** A fresh `git worktree` does not have it (gitignored, lives in
+the main checkout), and `marlowe-memory/tests/cuda_libs_wiring.rs` then fails *by design* — it
+refuses to report a pass when neither model is there to exercise. That is one failure that is
+environmental rather than a regression. **Do not `mklink /J` the directory in** — `git clean -xdf`
+follows a junction, and the target is 4 GB of models.
+
 ## OUTSTANDING — read this first. Everything below this section is history.
 
 Consolidated 2026-08-17 because the items were spread across twelve sections written by different
@@ -145,6 +260,12 @@ agents, and reconstructing them from the history is how one gets missed.
 estimate to a 188 MB floor against a real 690-800 MB, so ORT's allocator rather than the budget is
 what stops the loop. Measured, deliberately not fixed: its failure branch cannot be driven from a
 test, and an untestable budget change is the shape that goes green and does nothing.
+
+**2. `render::transcript_lines` re-lays the whole transcript every frame, and ADR-047 made that 8×
+more expensive.** 3.4 ms -> 29 ms for a full context window of prose, per frame. Not a bug and not
+a regression in correctness; it narrows the headroom under K4 for a long session. The fix is
+windowed layout with a cached total, which changes `transcript_lines`' contract — see the ADR-047
+section above.
 
 ### IDEAS, NOT ACTIONS — do not schedule these
 

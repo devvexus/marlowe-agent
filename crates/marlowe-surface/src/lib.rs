@@ -20,18 +20,25 @@
 //! | zero memory regions | `tests/no_memory_surface.rs` |
 //! | honest refusal below 120×30 | [`render::draw`] |
 //! | classic CLI parity | [`commands`] — one registry, one dispatcher, both surfaces |
+//! | rendered markdown cannot forge chrome | [`chrome`] — one definition of what chrome looks like |
 //!
 //! The tests are in `tests/`; this table is the map, not the enforcement.
 
 #![forbid(unsafe_code)]
 
 pub mod app;
+/// The glyphs harness chrome draws, and the reservation that keeps them out of model prose.
+pub mod chrome;
 pub mod cli;
 pub mod clipboard;
 pub mod commands;
 pub mod doctor;
 pub mod inspector;
 pub mod keys;
+/// Inline maths — legible where it can be, visibly source where it cannot. ADR-047.
+pub mod latex;
+/// Markdown for the conversation pane, inside §B2's colour budget. ADR-047.
+pub mod markdown;
 pub mod meter;
 pub mod overlay;
 pub mod region;

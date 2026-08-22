@@ -155,7 +155,7 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
             lines.push(Line::from(Span::styled(format!("{text}\u{2588}"), theme.bright())));
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
-                Span::styled("↵ ", theme.bright()),
+                Span::styled(format!("{} ", crate::chrome::KEYCAP_ENTER), theme.bright()),
                 Span::styled("send    ", theme.normal()),
                 Span::styled("esc ", theme.bright()),
                 Span::styled("back to the question", theme.normal()),

@@ -1,0 +1,679 @@
+//! **Inline maths, made legible where it can be and left visibly as source where it cannot.**
+//!
+//! # The line, stated before the table
+//!
+//! You cannot render LaTeX in a character grid. There is no vinculum, no radical sign that spans,
+//! no stacked limits, no matrix. What a terminal *can* do is Greek letters, sub- and superscripts,
+//! the common operators and relations, and simple fractions — and that covers most of the maths
+//! that appears in a conversational reply.
+//!
+//! So this module answers one question per expression: **can the whole of it be represented?** If
+//! yes, it returns the Unicode. If any single token cannot, it returns [`None`] and the caller
+//! prints the source, delimiters and all, styled as verbatim text.
+//!
+//! **All-or-nothing is the whole design.** A partially translated formula is the failure this
+//! project's §B11 instinct is about, in a new place: *an honest refusal beats a degraded
+//! imitation.* `\int_0^\infty e^{-x}dx` with the `\infty` quietly dropped is `∫₀ e⁻ˣdx`, which is a
+//! **different integral** and looks entirely plausible. A wrong formula that looks right is worse
+//! than a raw one that looks raw — the reader of the raw one knows to go and check.
+//!
+//! # What is refused, and why each refusal is deliberate rather than unfinished
+//!
+//! | construct | why not |
+//! |---|---|
+//! | `\hat`, `\bar`, `\vec`, `\tilde`, `\dot` | combining marks occupy zero columns; the wrap arithmetic and the eye would disagree, and `x̂` is not reliably composed by every terminal font |
+//! | `\begin{…}` / `\end{…}`, `&`, `\\` | matrices and alignments are two-dimensional. There is no honest one-line form |
+//! | `\sqrt[3]{x}` | an index on the radical has no inline form. `\sqrt{x}` has one and is accepted |
+//! | `\overline`, `\underbrace`, `\stackrel` | same: the notation *is* the geometry |
+//! | any `\command` not in the table | an unknown command is an unknown meaning. Silence is not translation |
+//! | a superscript or subscript whose characters have no Unicode form | `^q` and `_b` do not exist; refusing is the only alternative to inventing one |
+//!
+//! # Two safety properties, enforced here rather than asserted about here
+//!
+//! 1. **Every emitted codepoint passes `marlowe_contract::text::is_renderable`.** That predicate is
+//!    the project's one answer to what may reach a screen, and it refuses U+202E, U+2028 and the
+//!    zero-width block for documented reasons. A maths renderer with its own private table would
+//!    walk straight around it.
+//! 2. **No emitted codepoint is a [`crate::chrome`] marker.** This matters more than it looks:
+//!    `chrome::prepare_model_text` runs over the raw reply *before* parsing, so anything this
+//!    module produces afterwards has already passed the chrome reservation. A table entry mapping
+//!    some command to `─` would be a hole straight through §B2's premise, opened by a maths
+//!    table nobody would think to audit for borders.
+//!
+//! Both are checked on the output of every call, not only in a test over the table — the table is
+//! one way to reach the output and a future `\command` handler would be another.
+
+use std::borrow::Cow;
+
+/// Render a LaTeX expression to Unicode, or refuse.
+///
+/// `src` is the expression **without** its delimiters: `\alpha^2`, not `$\alpha^2$`.
+pub fn render(src: &str) -> Option<String> {
+    let chars: Vec<char> = src.chars().collect();
+    let mut lex = Lex { s: &chars, i: 0 };
+    let body = seq(&mut lex, false)?;
+    if lex.i != chars.len() {
+        // A stray `}` — unbalanced input. Refuse rather than guess where the group ended.
+        return None;
+    }
+    let spaced = space_relations(&body);
+    // The two safety properties, on the output rather than on the table.
+    if spaced.chars().any(|c| !marlowe_contract::text::is_renderable(c)) {
+        return None;
+    }
+    if spaced.chars().any(crate::chrome::is_reserved) {
+        return None;
+    }
+    Some(spaced)
+}
+
+/// Whether a `$…$` span should be treated as maths at all.
+///
+/// # This is currency protection, and it is the only heuristic in the module
+///
+/// `$` is the dollar sign far more often than it is a maths delimiter. *"it costs $5 and $10"*
+/// contains a perfectly well-formed `$…$` span whose content is `5 and `, and translating it
+/// yields `5and` — a silent, confident corruption of ordinary prose, which is precisely the class
+/// of failure the all-or-nothing rule exists to prevent. The refusal has to happen **before**
+/// [`render`] is asked, because `5 and ` renders successfully.
+///
+/// Four conditions, each earning its place against a real sentence:
+///
+/// | rule | the sentence it protects |
+/// |---|---|
+/// | no leading or trailing space in the content | `$5 to $10` — content `5 to ` |
+/// | no run of three or more letters outside a command | `$5 and $10` — content `5 and ` |
+/// | at least one maths signal, or a single letter | `$100–$200` — content `100–` |
+/// | no newline, and a bounded length | a `$` opening at the top of a reply and closing at the end |
+///
+/// The cost is named: a bare `$n$` with **no** operator is accepted only because it is a single
+/// letter, and `$5$` — a lone digit — is refused and stays as source. That is the right direction.
+/// A reader seeing `$5$` has lost nothing; a reader seeing `5` where the author wrote a price has.
+pub fn looks_like_inline_maths(content: &str) -> bool {
+    if content.is_empty() || content.len() > 200 || content.contains('\n') {
+        return false;
+    }
+    if content.starts_with(' ') || content.ends_with(' ') {
+        return false;
+    }
+    // Letter runs of three or more, ignoring anything introduced by a backslash — `\alpha` is a
+    // command, `and` is English.
+    let chars: Vec<char> = content.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' {
+            i += 1;
+            while i < chars.len() && chars[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            continue;
+        }
+        if chars[i].is_ascii_alphabetic() {
+            let start = i;
+            while i < chars.len() && chars[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            let word: String = chars[start..i].iter().collect();
+            // One list of operator names, shared with `command` — a second copy here would drift,
+            // and the drift would show up as a formula that parses and then refuses.
+            if word.len() >= 3 && !FUNCTIONS.contains(&word.as_str()) && word != "mod" {
+                return false;
+            }
+            continue;
+        }
+        i += 1;
+    }
+    let single_letter = chars.len() == 1 && chars[0].is_alphabetic();
+    let signal = content.contains(['\\', '^', '_', '=', '+', '<', '>', '/', '*']);
+    single_letter || signal
+}
+
+struct Lex<'a> {
+    s: &'a [char],
+    i: usize,
+}
+
+impl Lex<'_> {
+    fn peek(&self) -> Option<char> {
+        self.s.get(self.i).copied()
+    }
+    fn bump(&mut self) -> Option<char> {
+        let c = self.peek();
+        if c.is_some() {
+            self.i += 1;
+        }
+        c
+    }
+    fn skip_spaces(&mut self) {
+        while matches!(self.peek(), Some(c) if c.is_whitespace()) {
+            self.i += 1;
+        }
+    }
+}
+
+/// Render a run of tokens. `in_group` means a `}` ends it rather than being an error.
+fn seq(lex: &mut Lex, in_group: bool) -> Option<String> {
+    let mut out = String::new();
+    loop {
+        let Some(c) = lex.peek() else {
+            return if in_group { None } else { Some(out) };
+        };
+        match c {
+            '}' => {
+                if in_group {
+                    lex.i += 1;
+                    return Some(out);
+                }
+                return None;
+            }
+            '{' => {
+                lex.i += 1;
+                out.push_str(&seq(lex, true)?);
+            }
+            '\\' => out.push_str(&command(lex)?),
+            '^' | '_' => {
+                lex.i += 1;
+                let script = argument(lex)?;
+                out.push_str(&map_script(&script, c == '^')?);
+            }
+            // `&` is an alignment tab and `%` starts a comment: both belong to constructs with no
+            // one-line form. `#` is a macro parameter. All three mean the input is not the kind of
+            // expression this module claims to handle.
+            '&' | '%' | '#' => return None,
+            c if c.is_whitespace() => {
+                lex.i += 1;
+                // **A single space is kept where the source had one.** LaTeX itself discards it and
+                // re-derives spacing from the grammar, which a character grid cannot do —
+                // discarding it here turns `O(n \log n)` into `O(nlogn)`. Keeping it costs nothing
+                // and is never wrong, because the author put it there.
+                //
+                // Not after an opening delimiter, though: `\left( x \right)` is `(x)`, and `( x )`
+                // reads as a deliberate space the author did not write.
+                if !out.is_empty() && !out.ends_with(' ') && !out.ends_with(['(', '[', '{', '⟨', '⌊', '⌈']) {
+                    out.push(' ');
+                }
+            }
+            _ => {
+                lex.i += 1;
+                out.push(c);
+            }
+        }
+    }
+}
+
+/// The argument of `^`, `_`, `\frac` or `\sqrt`: a braced group, a command, or one character.
+fn argument(lex: &mut Lex) -> Option<String> {
+    lex.skip_spaces();
+    match lex.peek()? {
+        '{' => {
+            lex.i += 1;
+            seq(lex, true)
+        }
+        '\\' => command(lex),
+        '}' | '^' | '_' | '&' | '%' | '#' => None,
+        _ => {
+            let c = lex.bump()?;
+            Some(c.to_string())
+        }
+    }
+}
+
+fn command(lex: &mut Lex) -> Option<String> {
+    debug_assert_eq!(lex.peek(), Some('\\'));
+    lex.i += 1;
+    let Some(first) = lex.peek() else { return None };
+    if !first.is_ascii_alphabetic() {
+        lex.i += 1;
+        return match first {
+            // Spacing commands. `\!` is a negative thin space and has no terminal form; collapsing
+            // it to nothing is the closest honest reading.
+            ',' | ';' | ':' | ' ' => Some(" ".into()),
+            '!' => Some(String::new()),
+            '{' | '}' | '%' | '$' | '&' | '#' | '_' => Some(first.to_string()),
+            // `\\` is a line break inside maths — a two-dimensional construct.
+            _ => None,
+        };
+    }
+    let start = lex.i;
+    while matches!(lex.peek(), Some(c) if c.is_ascii_alphabetic()) {
+        lex.i += 1;
+    }
+    let name: String = lex.s[start..lex.i].iter().collect();
+    match name.as_str() {
+        // LaTeX's own rule: the whitespace that TERMINATES a command name is syntax, not spacing,
+        // and is consumed. `lpha x` is `αx`. Operator names are the exception two arms down —
+        // `\log n` is `log n`, and running them together would read as a variable called `logn`.
+        _ if FUNCTIONS.contains(&name.as_str()) => {
+            lex.skip_spaces();
+            let next_is_atom =
+                matches!(lex.peek(), Some(c) if c.is_alphanumeric() || c == '\\');
+            let upright = SYMBOLS
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| *v)
+                .unwrap_or("");
+            Some(if next_is_atom {
+                format!("{upright} ")
+            } else {
+                upright.to_string()
+            })
+        }
+        "frac" | "dfrac" | "tfrac" => {
+            let num = argument(lex)?;
+            let den = argument(lex)?;
+            Some(fraction(&num, &den))
+        }
+        "sqrt" => {
+            lex.skip_spaces();
+            // `\sqrt[3]{x}` — an index on the radical, which has no inline form.
+            if lex.peek() == Some('[') {
+                return None;
+            }
+            let body = argument(lex)?;
+            // Parenthesising a compound radicand is not a decoration: `√x+1` reads as `(√x)+1` and
+            // is a different expression. `√(x+1)` is correct, so it is what gets emitted.
+            if body.chars().count() == 1 {
+                Some(format!("√{body}"))
+            } else {
+                Some(format!("√({body})"))
+            }
+        }
+        // Upright text inside maths. The contents are rendered as an ordinary sequence, so a
+        // command inside them is still checked.
+        "text" | "textrm" | "mathrm" | "operatorname" | "mathit" | "mathsf" | "mathtt" => {
+            argument(lex)
+        }
+        "mathbb" => {
+            let body = argument(lex)?;
+            let mut out = String::new();
+            for c in body.chars() {
+                out.push(blackboard(c)?);
+            }
+            Some(out)
+        }
+        // Sizing commands modify a delimiter that follows. The delimiter itself is what renders.
+        "left" | "right" | "bigl" | "bigr" | "Bigl" | "Bigr" | "big" | "Big" => {
+            lex.skip_spaces();
+            match lex.peek()? {
+                '.' => {
+                    lex.i += 1;
+                    Some(String::new())
+                }
+                '\\' => command(lex),
+                c => {
+                    lex.i += 1;
+                    Some(c.to_string())
+                }
+            }
+        }
+        _ => {
+            let found = SYMBOLS
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| (*v).to_string())?;
+            lex.skip_spaces();
+            Some(found)
+        }
+    }
+}
+
+/// The commands LaTeX sets upright as operators, which therefore keep a space before the atom that
+/// follows them. Shared with [`looks_like_inline_maths`], where the same names are the words that
+/// may legitimately appear inside a `$…$` span.
+const FUNCTIONS: [&str; 19] = [
+    "sin", "cos", "tan", "sec", "csc", "cot", "log", "ln", "exp", "max", "min", "lim", "det",
+    "dim", "ker", "deg", "arg", "gcd", "bmod",
+];
+
+/// `a/b`, with parentheses wherever they are needed for the result to mean what the source meant.
+///
+/// Vulgar fractions are used for the handful Unicode actually has, because `½` is what a reader
+/// expects to see and `1/2` is what they have to parse.
+fn fraction(num: &str, den: &str) -> String {
+    const VULGAR: [(&str, &str, char); 15] = [
+        ("1", "2", '½'),
+        ("1", "3", '⅓'),
+        ("2", "3", '⅔'),
+        ("1", "4", '¼'),
+        ("3", "4", '¾'),
+        ("1", "5", '⅕'),
+        ("2", "5", '⅖'),
+        ("3", "5", '⅗'),
+        ("4", "5", '⅘'),
+        ("1", "6", '⅙'),
+        ("5", "6", '⅚'),
+        ("1", "8", '⅛'),
+        ("3", "8", '⅜'),
+        ("5", "8", '⅝'),
+        ("7", "8", '⅞'),
+    ];
+    if let Some((_, _, g)) = VULGAR.iter().find(|(n, d, _)| *n == num && *d == den) {
+        return g.to_string();
+    }
+    let wrap = |s: &str| {
+        if s.chars().count() > 1 && !(s.starts_with('(') && s.ends_with(')')) {
+            format!("({s})")
+        } else {
+            s.to_string()
+        }
+    };
+    format!("{}/{}", wrap(num), wrap(den))
+}
+
+/// A superscript or subscript, or [`None`] if **any** character in it has no Unicode form.
+///
+/// The all-or-nothing rule at its smallest scale, and the place it matters most: `x^{2n}` where
+/// only the `2` mapped would render `x²n`, which reads as `x² · n`.
+fn map_script(s: &str, superscript: bool) -> Option<String> {
+    let table = if superscript { SUPERSCRIPT } else { SUBSCRIPT };
+    let mut out = String::new();
+    for c in s.chars() {
+        out.push(table.iter().find(|(k, _)| *k == c).map(|(_, v)| *v)?);
+    }
+    Some(out)
+}
+
+fn blackboard(c: char) -> Option<char> {
+    Some(match c {
+        'R' => 'ℝ',
+        'N' => 'ℕ',
+        'Z' => 'ℤ',
+        'Q' => 'ℚ',
+        'C' => 'ℂ',
+        'H' => 'ℍ',
+        'P' => 'ℙ',
+        'E' => '𝔼',
+        _ => return None,
+    })
+}
+
+/// One space either side of anything that is **unambiguously binary**, which is how maths is set
+/// and how it becomes scannable: `x²+y²=z²` against `x² + y² = z²`.
+///
+/// `+` and `-` are deliberately absent: they are also unary, and `-x` spaced as `- x` reads as a
+/// subtraction with a missing left operand. Everything in this list can only sit between two
+/// operands, so spacing it is never wrong. `·` is absent for a different reason — it is the
+/// harness's own separator glyph, and `2 · 3` in a reply would read a shade more like chrome than
+/// like arithmetic.
+fn space_relations(s: &str) -> String {
+    const SPACED: [char; 32] = [
+        // Relations.
+        '=', '<', '>', '≤', '≥', '≠', '≈', '≡', '∈', '∉', '⊂', '⊆', '⊃', '⊇', '≜', '∼', '≃', '≅',
+        // Arrows, which read worst of all unspaced: `f:X→Y`.
+        '→', '←', '↔', '⇒', '⇐', '⇔', '↦',
+        // Binary operators. `\alpha \times \beta^2` is `α × β²`, not `α×β²` — the difference was
+        // obvious the moment the pane was looked at rather than reasoned about.
+        '×', '÷', '±', '∓', '⊕', '⊗', '∘',
+    ];
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if SPACED.contains(&c) {
+            if !out.ends_with(' ') && !out.is_empty() {
+                out.push(' ');
+            }
+            out.push(c);
+            out.push(' ');
+        } else if c == ' ' && out.ends_with(' ') {
+            // The relation already contributed one.
+        } else {
+            out.push(c);
+        }
+    }
+    // A space before a closing delimiter or a comma is a space nobody typed — it is the artefact of
+    // `\right)` having been a token. Same reason the opening case is handled in `seq`.
+    let mut tidy = String::with_capacity(out.len());
+    for c in out.chars() {
+        if matches!(c, ')' | ']' | '}' | '⟩' | '⌋' | '⌉' | ',' | ';') && tidy.ends_with(' ') {
+            tidy.pop();
+        }
+        tidy.push(c);
+    }
+    while tidy.ends_with(' ') {
+        tidy.pop();
+    }
+    tidy
+}
+
+/// Strip the leading and trailing `$`, `\(`/`\)` or `\[`/`\]` from a delimited expression.
+pub fn strip_delimiters(s: &str) -> Option<(&str, Delimiter)> {
+    let t = s.trim();
+    for (open, close, kind) in [
+        ("$$", "$$", Delimiter::Display),
+        ("\\[", "\\]", Delimiter::Display),
+        ("\\(", "\\)", Delimiter::Inline),
+        ("$", "$", Delimiter::Inline),
+    ] {
+        if let Some(rest) = t.strip_prefix(open) {
+            if let Some(inner) = rest.strip_suffix(close) {
+                return Some((inner, kind));
+            }
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Delimiter {
+    Inline,
+    Display,
+}
+
+/// Render a delimited expression, falling back to its own source.
+///
+/// The [`Cow`] is the fallback made visible in the type: `Borrowed` is the source, unchanged and
+/// about to be drawn as verbatim text; `Owned` is a translation.
+pub fn render_or_source(src: &str) -> Cow<'_, str> {
+    match strip_delimiters(src).and_then(|(inner, _)| render(inner)) {
+        Some(out) => Cow::Owned(out),
+        None => Cow::Borrowed(src),
+    }
+}
+
+/// Greek, operators, relations, arrows and set notation.
+///
+/// Curated rather than exhaustive: every entry is something that turns up in a conversational
+/// reply, and an entry that is not here produces a visible refusal rather than a wrong glyph.
+const SYMBOLS: &[(&str, &str)] = &[
+    // Greek, lower case.
+    ("alpha", "α"), ("beta", "β"), ("gamma", "γ"), ("delta", "δ"), ("epsilon", "ε"),
+    ("varepsilon", "ϵ"), ("zeta", "ζ"), ("eta", "η"), ("theta", "θ"), ("vartheta", "ϑ"),
+    ("iota", "ι"), ("kappa", "κ"), ("lambda", "λ"), ("mu", "μ"), ("nu", "ν"), ("xi", "ξ"),
+    ("pi", "π"), ("varpi", "ϖ"), ("rho", "ρ"), ("varrho", "ϱ"), ("sigma", "σ"),
+    ("varsigma", "ς"), ("tau", "τ"), ("upsilon", "υ"), ("phi", "φ"), ("varphi", "ϕ"),
+    ("chi", "χ"), ("psi", "ψ"), ("omega", "ω"),
+    // Greek, upper case.
+    ("Gamma", "Γ"), ("Delta", "Δ"), ("Theta", "Θ"), ("Lambda", "Λ"), ("Xi", "Ξ"), ("Pi", "Π"),
+    ("Sigma", "Σ"), ("Upsilon", "Υ"), ("Phi", "Φ"), ("Psi", "Ψ"), ("Omega", "Ω"),
+    // Binary operators.
+    ("times", "×"), ("div", "÷"), ("cdot", "·"), ("pm", "±"), ("mp", "∓"), ("ast", "∗"),
+    ("star", "⋆"), ("circ", "∘"), ("bullet", "∙"), ("oplus", "⊕"), ("otimes", "⊗"),
+    ("wedge", "∧"), ("vee", "∨"), ("setminus", "\\"),
+    // Relations.
+    ("leq", "≤"), ("le", "≤"), ("geq", "≥"), ("ge", "≥"), ("neq", "≠"), ("ne", "≠"),
+    ("approx", "≈"), ("equiv", "≡"), ("sim", "∼"), ("simeq", "≃"), ("cong", "≅"),
+    ("propto", "∝"), ("ll", "≪"), ("gg", "≫"), ("triangleq", "≜"),
+    // Set notation and logic.
+    ("in", "∈"), ("notin", "∉"), ("ni", "∋"), ("subset", "⊂"), ("subseteq", "⊆"),
+    ("supset", "⊃"), ("supseteq", "⊇"), ("cup", "∪"), ("cap", "∩"), ("emptyset", "∅"),
+    ("varnothing", "∅"), ("forall", "∀"), ("exists", "∃"), ("nexists", "∄"), ("neg", "¬"),
+    ("lnot", "¬"), ("land", "∧"), ("lor", "∨"), ("therefore", "∴"), ("because", "∵"),
+    // Arrows.
+    ("to", "→"), ("rightarrow", "→"), ("leftarrow", "←"), ("leftrightarrow", "↔"),
+    ("Rightarrow", "⇒"), ("Leftarrow", "⇐"), ("Leftrightarrow", "⇔"), ("mapsto", "↦"),
+    ("uparrow", "↑"), ("downarrow", "↓"), ("implies", "⇒"), ("iff", "⇔"),
+    // Big operators. These are the operator itself; their limits ride on `_` and `^`, and refuse
+    // there when the limit has no script form — which is exactly the `\int_0^\infty` case.
+    ("sum", "∑"), ("prod", "∏"), ("coprod", "∐"), ("int", "∫"), ("iint", "∬"),
+    ("oint", "∮"), ("bigcup", "⋃"), ("bigcap", "⋂"),
+    // Calculus and analysis.
+    ("infty", "∞"), ("partial", "∂"), ("nabla", "∇"), ("Re", "ℜ"), ("Im", "ℑ"),
+    ("aleph", "ℵ"), ("hbar", "ℏ"), ("ell", "ℓ"), ("degree", "°"), ("prime", "′"),
+    // Punctuation and delimiters.
+    // `\cdots` is NOT U+22EF here, and the reason is worth reading: U+22EF is §B6's tool-line
+    // marker. `render`'s output check would refuse it, so the expression would fall back to source
+    // — correct, but a worse reply for no gain. Three middle dots say the same thing in glyphs the
+    // harness does not use.
+    ("ldots", "…"), ("dots", "…"), ("cdots", "···"), ("vdots", "⋮"), ("langle", "⟨"),
+    ("rangle", "⟩"), ("lfloor", "⌊"), ("rfloor", "⌋"), ("lceil", "⌈"), ("rceil", "⌉"),
+    ("quad", "  "), ("qquad", "    "),
+    // Upright function names. LaTeX sets them upright; a terminal has no italic to contrast
+    // against here, so the name itself is the whole rendering.
+    ("sin", "sin"), ("cos", "cos"), ("tan", "tan"), ("sec", "sec"), ("csc", "csc"),
+    ("cot", "cot"), ("log", "log"), ("ln", "ln"), ("exp", "exp"), ("lim", "lim"),
+    ("max", "max"), ("min", "min"), ("det", "det"), ("dim", "dim"), ("ker", "ker"),
+    ("deg", "deg"), ("arg", "arg"), ("gcd", "gcd"), ("bmod", "mod"), ("pmod", "mod"),
+];
+
+/// Unicode has no superscript `q`, so `x^q` refuses. That gap is the reason [`map_script`] is
+/// all-or-nothing rather than best-effort.
+const SUPERSCRIPT: &[(char, char)] = &[
+    ('0', '⁰'), ('1', '¹'), ('2', '²'), ('3', '³'), ('4', '⁴'), ('5', '⁵'), ('6', '⁶'),
+    ('7', '⁷'), ('8', '⁸'), ('9', '⁹'), ('+', '⁺'), ('-', '⁻'), ('−', '⁻'), ('=', '⁼'),
+    ('(', '⁽'), (')', '⁾'), ('a', 'ᵃ'), ('b', 'ᵇ'), ('c', 'ᶜ'), ('d', 'ᵈ'), ('e', 'ᵉ'),
+    ('f', 'ᶠ'), ('g', 'ᵍ'), ('h', 'ʰ'), ('i', 'ⁱ'), ('j', 'ʲ'), ('k', 'ᵏ'), ('l', 'ˡ'),
+    ('m', 'ᵐ'), ('n', 'ⁿ'), ('o', 'ᵒ'), ('p', 'ᵖ'), ('r', 'ʳ'), ('s', 'ˢ'), ('t', 'ᵗ'),
+    ('u', 'ᵘ'), ('v', 'ᵛ'), ('w', 'ʷ'), ('x', 'ˣ'), ('y', 'ʸ'), ('z', 'ᶻ'), ('A', 'ᴬ'),
+    ('B', 'ᴮ'), ('D', 'ᴰ'), ('E', 'ᴱ'), ('G', 'ᴳ'), ('H', 'ᴴ'), ('I', 'ᴵ'), ('J', 'ᴶ'),
+    ('K', 'ᴷ'), ('L', 'ᴸ'), ('M', 'ᴹ'), ('N', 'ᴺ'), ('O', 'ᴼ'), ('P', 'ᴾ'), ('R', 'ᴿ'),
+    ('T', 'ᵀ'), ('U', 'ᵁ'), ('V', 'ⱽ'), ('W', 'ᵂ'), ('°', '°'), ('′', '′'),
+];
+
+/// Subscripts are sparser than superscripts — no `b`, `c`, `d`, `f`, `g`, `w`, `y` or `z` — so
+/// `x_b` refuses where `x^b` does not. That asymmetry is Unicode's, not this module's.
+const SUBSCRIPT: &[(char, char)] = &[
+    ('0', '₀'), ('1', '₁'), ('2', '₂'), ('3', '₃'), ('4', '₄'), ('5', '₅'), ('6', '₆'),
+    ('7', '₇'), ('8', '₈'), ('9', '₉'), ('+', '₊'), ('-', '₋'), ('−', '₋'), ('=', '₌'),
+    ('(', '₍'), (')', '₎'), ('a', 'ₐ'), ('e', 'ₑ'), ('h', 'ₕ'), ('i', 'ᵢ'), ('j', 'ⱼ'),
+    ('k', 'ₖ'), ('l', 'ₗ'), ('m', 'ₘ'), ('n', 'ₙ'), ('o', 'ₒ'), ('p', 'ₚ'), ('r', 'ᵣ'),
+    ('s', 'ₛ'), ('t', 'ₜ'), ('u', 'ᵤ'), ('v', 'ᵥ'), ('x', 'ₓ'),
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_common_cases_read_as_maths() {
+        for (src, want) in [
+            (r"\alpha", "α"),
+            (r"x^2", "x²"),
+            (r"x_i", "xᵢ"),
+            (r"E = mc^2", "E = mc²"),
+            (r"\sum_{i=1}^{n} i", "∑ᵢ₌₁ⁿ i"),
+            (r"\frac{1}{2}", "½"),
+            (r"\frac{a+b}{c}", "(a+b)/c"),
+            (r"\sqrt{2}", "√2"),
+            (r"\sqrt{x+1}", "√(x+1)"),
+            (r"a \leq b", "a ≤ b"),
+            (r"\mathbb{R}^n", "ℝⁿ"),
+            (r"f: X \to Y", "f: X → Y"),
+            (r"\left( x \right)", "(x)"),
+            (r"O(n \log n)", "O(n log n)"),
+            (r"\pi \approx 3.14159", "π ≈ 3.14159"),
+        ] {
+            assert_eq!(render(src).as_deref(), Some(want), "rendering {src:?}");
+        }
+    }
+
+    #[test]
+    fn what_cannot_be_shown_is_refused_whole() {
+        // Each of these renders *partially* under a best-effort scheme, and every partial result
+        // is a different expression that looks entirely plausible.
+        for (src, why) in [
+            (r"\int_0^\infty e^{-x}dx", "^\\infty has no superscript form"),
+            (r"x^q", "Unicode has no superscript q"),
+            (r"x_b", "Unicode has no subscript b"),
+            (r"\hat{x}", "a combining mark occupies zero columns"),
+            (r"\vec{v}", "same"),
+            (r"\begin{pmatrix} a & b \end{pmatrix}", "a matrix is two-dimensional"),
+            (r"\sqrt[3]{x}", "an index on the radical has no inline form"),
+            (r"\overline{AB}", "the notation is the geometry"),
+            (r"\unknowncommand", "an unknown command is an unknown meaning"),
+            (r"a \\ b", "a line break inside maths"),
+            (r"{a", "unbalanced"),
+            (r"a}", "unbalanced"),
+        ] {
+            assert_eq!(render(src), None, "{src:?} should refuse: {why}");
+        }
+    }
+
+    #[test]
+    fn a_partial_translation_would_be_a_different_integral() {
+        // The specific example from the requirement, spelled out so the reason survives a rewrite.
+        // Best-effort would yield `∫₀ e⁻ˣdx`, which is a convergent-looking definite integral over
+        // a range that is not in the source.
+        assert_eq!(render(r"\int_0^\infty e^{-x}dx"), None);
+        // And the caller therefore prints the source, delimiters included.
+        let src = r"$\int_0^\infty e^{-x}dx$";
+        assert_eq!(render_or_source(src), Cow::Borrowed(src));
+        assert!(matches!(render_or_source(src), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn every_glyph_the_table_can_emit_passes_the_projects_display_predicate() {
+        // The predicate refuses U+202E, U+2028 and the zero-width block for reasons its own module
+        // documents. A maths table with its own idea of a safe character would walk around it.
+        let mut checked = 0;
+        for (name, value) in SYMBOLS {
+            for c in value.chars() {
+                assert!(
+                    marlowe_contract::text::is_renderable(c),
+                    "\\{name} emits U+{:04X}, which the display predicate refuses",
+                    c as u32
+                );
+                assert!(
+                    !crate::chrome::is_reserved(c),
+                    "\\{name} emits U+{:04X}, which is harness chrome. `prepare_model_text` runs \
+                     BEFORE this module, so a chrome glyph produced here would reach the screen \
+                     unmarked and §B2's premise — a border means a region — would be forgeable \
+                     through a maths table",
+                    c as u32
+                );
+                checked += 1;
+            }
+        }
+        for (k, v) in SUPERSCRIPT.iter().chain(SUBSCRIPT.iter()) {
+            assert!(marlowe_contract::text::is_renderable(*v), "{k:?} -> {v:?}");
+            assert!(!crate::chrome::is_reserved(*v), "{k:?} -> {v:?}");
+            checked += 1;
+        }
+        assert!(checked > 200, "only {checked} glyphs walked; the tables did not load");
+        println!("latex: {checked} emittable glyphs, all renderable, none of them chrome");
+    }
+
+    #[test]
+    fn a_chrome_glyph_reaching_the_output_refuses_the_whole_expression() {
+        // **The output check, exercised rather than assumed.**
+        //
+        // In the shipped pipeline `chrome::prepare_model_text` marks box-drawing before this
+        // module is ever called, so the only way a border could reach here is a future table entry
+        // — which is what the table walk above covers. This is the other half: the check lives on
+        // the RESULT, so a literal reserved glyph arriving by any route refuses the expression
+        // rather than being drawn.
+        assert_eq!(render("a─b"), None, "a box-drawing rule rendered as maths");
+        assert_eq!(render("x⋯y"), None, "§B6's tool marker rendered as maths");
+        // The control: the identical expression with an ordinary glyph renders.
+        assert_eq!(render("a-b").as_deref(), Some("a-b"));
+    }
+
+    #[test]
+    fn a_dollar_sign_in_prose_is_not_maths() {
+        // Every one of these is a real sentence, and every one contains a well-formed `$…$` span.
+        for content in ["5 and ", "5 to ", "100–", "3.99 or ", "x and y"] {
+            assert!(
+                !looks_like_inline_maths(content),
+                "{content:?} would have been silently rewritten as maths"
+            );
+        }
+        for content in ["x^2", r"\alpha", "a + b", "n", "E = mc^2", r"\sum_{i}"] {
+            assert!(looks_like_inline_maths(content), "{content:?} is maths");
+        }
+    }
+
+    #[test]
+    fn relations_are_spaced_and_signs_are_not() {
+        assert_eq!(render("x^2+y^2=z^2").as_deref(), Some("x²+y² = z²"));
+        // A unary minus spaced as `- x` reads as a subtraction with a missing operand.
+        assert_eq!(render("-x").as_deref(), Some("-x"));
+    }
+}

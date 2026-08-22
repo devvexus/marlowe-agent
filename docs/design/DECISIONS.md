@@ -3146,6 +3146,9 @@ re-litigate from scratch.
 | [ADR-042](adr/ADR-042-document-store.md) | The document store, and why a reference carrying only counts needs no quarantine |
 | [ADR-043](adr/ADR-043-navigation-is-selection.md) | A research run navigates by SELECTING a link, never by composing a URL |
 | [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** — GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
+| [ADR-045](adr/ADR-045-rerank-defaults-to-auto.md) | The reranker defaults to `auto`, on the same terms as ADR-044 |
+| [ADR-046](adr/ADR-046-openrouter.md) | OpenRouter: a hosted provider, opt-in, in its own crate so ADR-031 §2.3 survives verbatim |
+| [ADR-047](adr/ADR-047-markdown-and-latex-in-the-conversation.md) | Markdown and inline LaTeX in the conversation pane — attributes not colours, and the harness's glyphs are reserved from model prose |
 
 **ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
 published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA
