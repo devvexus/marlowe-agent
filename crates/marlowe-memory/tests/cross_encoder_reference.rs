@@ -81,6 +81,16 @@ const REFERENCES: &[Reference] = &[
         fixture: "cross-encoder-reference-ft-session-j.json",
         shipped: true,
     },
+    // The cascade's fuse stage (`rerank::CASCADE_FUSE_GRAPH`). Its tokenizer is the same pinned
+    // file as the shipped graph's, so the pair-encoder half exercises it too; the graph half runs
+    // through `load_fusion_member`, whose digest pin lives in FUSION_GRAPHS. Per-graph rule: this
+    // row's checks are taken on THIS graph, never inherited from the shipped one.
+    Reference {
+        dir: "ms-marco-MiniLM-L-6-v2-ft-session-j",
+        graph_file: MODEL_FILE,
+        fixture: "cross-encoder-reference-ft-session-j-L6.json",
+        shipped: false,
+    },
     // Session H's record. The pair encoder must reproduce HuggingFace on this vocabulary too; the
     // graph is no longer loadable through `CrossEncoder` and is not expected to be.
     Reference {
@@ -283,6 +293,99 @@ fn the_rust_graph_reproduces_the_reference_logits() {
             (got - expected).abs() <= LOGIT_TOLERANCE,
             "{name:?}: Rust {got} vs reference {expected}, difference {} exceeds {LOGIT_TOLERANCE}",
             (got - expected).abs()
+        );
+    }
+}
+
+/// The cascade's fuse graph, against ITS OWN fixture, through the constructor the product calls.
+///
+/// [`CrossEncoder::load`] refuses this graph by digest — the pin working. The fuse stage loads it
+/// through `load_fusion_member`, whose digest lives in [`marlowe_memory::rerank::FUSION_GRAPHS`],
+/// so that is the path under test here. Per-graph rule: this fixture was generated from
+/// HuggingFace on THIS graph and nothing about it is inherited from the shipped row.
+#[test]
+fn the_cascade_fuse_graph_reproduces_its_own_reference_logits() {
+    use marlowe_memory::rerank::{CASCADE_FUSE_GRAPH, FUSION_GRAPHS};
+    let dir = repo_root().join("models").join(CASCADE_FUSE_GRAPH);
+    if !dir.join(MODEL_FILE).exists() {
+        eprintln!("SKIP: {} is absent.", dir.join(MODEL_FILE).display());
+        return;
+    }
+    let r = REFERENCES
+        .iter()
+        .find(|r| r.dir == CASCADE_FUSE_GRAPH)
+        .expect("the fuse graph has a REFERENCES row");
+    let fx = fixture(r);
+    let mut encoder = CrossEncoder::load_fusion_member(
+        &repo_root().join("models"),
+        CASCADE_FUSE_GRAPH,
+        marlowe_memory::rerank::RerankProvider::Cpu,
+    )
+    .expect("the digest-pinned fuse graph loads through load_fusion_member");
+    assert_eq!(
+        encoder.provider(),
+        marlowe_memory::rerank::RerankProvider::Cpu,
+        "the fixture row labelled cpu compares against CPU"
+    );
+    // A guard on the TABLE as well as the graph: the name must be in FUSION_GRAPHS with the same
+    // digest the loader enforced, or the fixture would be checking a graph the cascade never runs.
+    assert!(
+        FUSION_GRAPHS.iter().any(|(n, _)| *n == CASCADE_FUSE_GRAPH),
+        "CASCADE_FUSE_GRAPH must be a pinned member of FUSION_GRAPHS"
+    );
+
+    for case in fx["cases"].as_array().expect("cases") {
+        let name = case["name"].as_str().unwrap();
+        let expected = case["logit"].as_f64().unwrap() as f32;
+        let got = encoder
+            .score(case["query"].as_str().unwrap(), case["document"].as_str().unwrap())
+            .expect("scoring succeeds");
+        assert!(
+            (got - expected).abs() <= LOGIT_TOLERANCE,
+            "{name:?}: Rust {got} vs L-6 reference {expected}, difference {} exceeds \
+             {LOGIT_TOLERANCE}",
+            (got - expected).abs()
+        );
+    }
+}
+
+/// Per-graph batch invariance on the FUSE graph, never inherited from the shipped one.
+///
+/// The cascade scores its narrowed slate through this graph; if a future re-pin breaks batch
+/// invariance HERE, the shipped graph's 0.000000000 artifact must not keep the build green.
+#[test]
+fn batched_and_single_scoring_are_bit_identical_on_the_cascade_fuse_graph() {
+    use marlowe_memory::rerank::{CASCADE_FUSE_GRAPH, RerankProvider};
+    let dir = repo_root().join("models").join(CASCADE_FUSE_GRAPH);
+    if !dir.join(MODEL_FILE).exists() {
+        eprintln!("SKIP: {} is absent.", dir.join(MODEL_FILE).display());
+        return;
+    }
+    let mut encoder = CrossEncoder::load_fusion_member(
+        &repo_root().join("models"),
+        CASCADE_FUSE_GRAPH,
+        RerankProvider::Cpu,
+    )
+    .expect("loads");
+    let query = "which database did the analytics warehouse move to";
+    let documents = [
+        "Postgres.",
+        "I moved the analytics warehouse off Postgres in April after the ingest job timed out, \
+         and the migration took three weekends of careful cutover work with a read replica.",
+        "we had pasta for dinner",
+        "The warehouse now runs on ClickHouse; the ingest job that used to time out nightly \
+         finishes in under four minutes, which is the whole reason the move was worth doing.",
+        "unrelated chatter about the weather",
+    ];
+    let batched = encoder.score_batch(query, &documents).expect("batch scores");
+    for (i, document) in documents.iter().enumerate() {
+        let single = encoder.score(query, document).expect("scores");
+        let b = batched[i];
+        assert_eq!(
+            b.to_bits(),
+            single.to_bits(),
+            "fuse-graph pair {i}: batched {b} vs single {single} -- bit-identity is the \
+             bar on every scored-path graph"
         );
     }
 }

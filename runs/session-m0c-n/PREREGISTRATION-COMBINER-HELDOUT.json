@@ -1,0 +1,22 @@
+{
+  "_what": "AMENDMENT -- the earned held-out read for Probe 2's surviving arm, registered AFTER the fit read selected it and BEFORE the held-out data was touched.",
+  "_arm": "SECONDARY six_zsum: per-query z-normalised logit sum across the six pinned graphs over the narrowed ten",
+  "_why_this_arm": "fit R@3 215/229 = 0.9389 (+2 gained, 0 lost) and fit R@1 185/229 = 0.8079 (+5); parameter-free; the only arm meeting PREREGISTRATION-COMBINER.json's earn-a-read rule.",
+  "_the_prior_that_widens_these_bands": "six-way RRF's spent read (l4-heldout-read.json) gained fit R@1 +4 yet LOST held-out R@1 -4. A rank-free magnitude combiner may transfer differently; nothing here assumes it does.",
+
+  "heldout_baseline": {"R@1": [160, 229], "R@3": [203, 229]},
+
+  "REGISTERED_PREDICTION": {
+    "R@3": "201 to 208 of 229 (base 203; expected +0 to +3 from the fit signal)",
+    "R@1": "154 to 166 of 229 (base 160; the six-way precedent cuts -4, the fit signal says +5 -- both inside)"
+  },
+  "FALSIFIED_IF": "R@3 <= 203 AND R@1 <= 158 -- i.e. strictly worse than the shipped pair on BOTH metrics",
+
+  "SHIP_DECISION_PREWRITTEN": {
+    "adopt_as_gpu_default_if": "held-out R@3 >= 205 AND R@1 >= 159 (a real R@3 gain with no meaningful R@1 loss)",
+    "otherwise": "report, keep the pair as shipped, and record why"
+  },
+  "latency_gate": "+4 batched forwards on CUDA must hold end-to-end P95 under 100 ms (it reads ~29 ms today; budget is 300)",
+
+  "one_read_only": "this amendment spends exactly one held-out evaluation of exactly this configuration. No re-rolls, no third combiner afterwards."
+}

@@ -1,0 +1,62 @@
+{
+  "_what": "M0c Session N: WIRING VERIFICATION of the cascade. This session ships no new mechanism, tunes nothing, and reads held-out exactly once -- to confirm the wired binary reproduces the configuration already measured and pre-registered in runs/session-m0c-m/PREREGISTRATION-CASCADE-HELDOUT.json.",
+  "_written_before_implementation": true,
+  "_inherits_configuration_from": "runs/session-m0c-m/PREREGISTRATION-CASCADE-HELDOUT.json",
+  "_why_this_session_exists": "RerankPlan::select has no call site. The best measured held-out configuration (R@1 0.6987 / R@3 0.8865) is unreachable by the product. The four named blockers: (1) single MODEL_SHA256 pin -- already solved by FUSION_GRAPHS + load_fusion_member; (2) Rerank holds one encoder -- solved this session; (3) MAX_BATCH=10 vs depth 30 -- solved by chunking to measured envelope sizes; (4) missing cross-encoder fixture for L-6-ft-session-j -- generated this session from HuggingFace, authority direction preserved.",
+
+  "configuration_FIXED_inherited": {
+    "slate": "top 30 of the PRE-RERANK CUE KEY among pruning survivors, as retrieve.rs draws it",
+    "stage_1_narrow": "ms-marco-MiniLM-L-2-v2-ft-session-j scores all 30, keep its top 10",
+    "narrow_tiebreak": "slate order ascending (replicates the offline tool's stable sort exactly)",
+    "stage_2_fuse": "ms-marco-MiniLM-L-6-v2-ft-session-j scores the narrowed 10",
+    "fusion": "RRF k=60 over the two rankings of the narrowed 10; ties break by candidate id ascending",
+    "admit": "top 3 (ADMIT_TOP_K unchanged)",
+    "max_seq": 256,
+    "operating_point_note": "rank_one/rank_two remain PRIMARY-graph logits of the final order's first two entries, in the calibration's logit units. The margin distribution under fusion ordering differs from depth-10 ordering; this is recorded as debt of the same class ADMIT_TOP_K=3 already carries, not silently absorbed."
+  },
+
+  "plan_selection_rule_declared_before_code": {
+    "rule": "Cascade runs iff the primary cross-encoder RESOLVED to CUDA (construction-proven, error_on_failure) AND the fusion member loaded. Otherwise Shipped, bit-identical to today.",
+    "override": "--rerank-plan <auto|shipped|cascade> exists for measurement only; auto is the default and resolves by the rule above.",
+    "rationale": "The cascade is GPU-only BY MEASUREMENT (CPU p50 1134 ms vs 300 ms budget). CPU-pinned published numbers do not move. A GPU run that resolves CUDA gets the strictly better measured configuration, announced at startup via RerankPlan::label."
+  },
+
+  "gates_BEFORE_heldout_is_touched": {
+    "G1_control_shipped_path": "the wired binary pinned to CPU rerank reproduces fit R@1 0.7555 and held-out R@1 0.6725 EXACTLY from its own dumps. If not, the refactor broke the shipped path and everything stops.",
+    "G2_cascade_on_fit_exact": "with --rerank-plan cascade forced on CPU, the binary's dump must reproduce the offline fit artifact EXACTLY at case level: R@1 180/229 = 0.7860, R@3 213/229 = 0.9301, input_recall@30 = 0.9825, post-narrowing recall = 225/229 = 0.9825*0.9956. ANY case-count difference falsifies the wiring; halt and investigate. No rationalising a near match.",
+    "G3_provider_equivalence_fit_only": "cascade on CUDA vs cascade on CPU, fit split, paired per-query final orders. Hard gate: identical R@1 and R@3 case counts. Order diffs are reported per query with counts. This is the ADR-029-style ranking-equivalence check for THIS configuration, taken on fit so the held-out read stays spent-once.",
+    "G4_fixture": "cross-encoder-reference fixture for L-6-ft-session-j generated from HuggingFace/sentence-transformers side (never from our Rust), Rust-vs-HF max abs diff within the existing per-graph tripwires; batch invariance on the L-6 graph re-measured per graph at sizes 1..10 before any batched scoring uses it. NOT inherited from the shipped graph."
+  },
+
+  "heldout_read_ONE": {
+    "status": "REPRODUCTION of an already-spent read through the wired binary. Not a new hypothesis. The hypothesis was tested in session-m0c-m; what is under test here is THE WIRING.",
+    "prediction_exact": {
+      "R@1": "160/229 = 0.6987",
+      "R@3": "203/229 = 0.8865",
+      "input_recall_at_30": "224/229 = 0.9782",
+      "cond_at_3": "203/224 = 0.9062"
+    },
+    "falsified_if": "any of these case counts differ. A difference means the wired path is not the measured path; it is a bug finding, not a quality finding.",
+    "no_second_read": "if G1-G4 pass and this reproduction matches, the cascade ships and the session's quality work is done. If it does not match, fix and re-run the REPRODUCTION (instrument repair), which is not a new arm."
+  },
+
+  "latency_gate": {
+    "cuda_end_to_end": "retrieval P95 on CUDA <= 300 ms (section 5.7) measured via retrieval profile on the fit split. Latency-only pass; no quality number is read from it.",
+    "cpu_reported_as_information": "the CPU cascade latency (~1134 ms p50, session-m0c-m) makes plan=auto resolve Shipped on CPU. Never selected by default there."
+  },
+
+  "predictions_registered": [
+    "P1: G1 passes exactly (control intact).",
+    "P2: G2 passes exactly (chunked sequential CPU scoring is decision-equivalent to the offline tool's single 30-wide forward on f32; sub-decision logit noise may exist but must not flip any ranked pair that changes a case count).",
+    "P3: G3 shows zero case-count movement between providers for the cascade config.",
+    "P4: CUDA end-to-end P95 lands under 60 ms (30+10 pairs, batched chunks at measured sizes)."
+  ],
+
+  "what_will_NOT_be_done": [
+    "no sweep of narrow width, slate depth, or RRF k -- all three stay at their pre-registered values",
+    "no third graph, no subset selection of fusion members",
+    "no change to ADMIT_TOP_K, the frozen gate, MAX_SEQ_LEN, or eval/",
+    "no daemon / marlowe-tools / marlowe-loop / surface / exec / net / extract changes; crates/marlowe edits are limited to the call site, the dump field, the CLI flag and the announcement",
+    "no held-out read other than the single reproduction above"
+  ]
+}

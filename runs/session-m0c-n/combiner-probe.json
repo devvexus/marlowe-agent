@@ -1,0 +1,28 @@
+{
+  "_what": "Probe 2 evaluation",
+  "prereg": "PREREGISTRATION-COMBINER.json",
+  "instrument_gate_mismatches": 0,
+  "arms": [
+    {
+      "name": "BASELINE pair-RRF",
+      "R@1": 180,
+      "R@3": 213,
+      "gained3": 0,
+      "lost3": 0
+    },
+    {
+      "name": "PRIMARY six-vote",
+      "R@1": 183,
+      "R@3": 212,
+      "gained3": 1,
+      "lost3": 2
+    },
+    {
+      "name": "SECONDARY six-zsum",
+      "R@1": 185,
+      "R@3": 215,
+      "gained3": 2,
+      "lost3": 0
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "_what": "M0c Session N Probe 1 -- THE NARROWING. Can the 30->10 cut stop dropping gold without paying more in distractors than it recovers?",
+  "_written_before_any_arm_was_evaluated": true,
+  "_diagnosis_already_published": "tools/narrow_census.py + narrow_loss_cue_ranks.py over committed dumps: held-out loses 5 cases at narrowing (L2-ranks 11,11,14,17,20; cue-ranks 15,15,2,10,16); fit loses 1 (L2-18, cue-7). Diagnostic only; no arm was scored before this file.",
+
+  "arms": {
+    "PRIMARY_union_narrow": {
+      "definition": "narrowed = (L-2 top-10 of slate) UNION (cue-key top-10 of slate); fuse = RRF k=60 over (L-2 logit rank within union, L-6 logit rank within union); admit top-3. Everything else identical.",
+      "why_primary": "recovers the cue-strong family directly (held-out cue-ranks 2 and 10); the union rule is the one rule-family with precedent in this project's history; no numeric knob.",
+      "cost_risk": "union size ~12-16 adds distractors to the fuse for most queries."
+    },
+    "SECONDARY_rrf_narrow": {
+      "definition": "rank the slate by RRF k=60 over (L-2 logit rank, cue-key rank); take the top 10 AS the narrowed set; stage 2 unchanged. Width stays exactly 10.",
+      "why_registered": "parameter-free AND width-preserving -- zero added fuse cost by construction; the honest rival to the union.",
+      "cost_risk": "may recover fewer cases than the union (deep L2 misses with middling cue rank stay out)."
+    }
+  },
+
+  "instrument_gate": "the probe first re-scores the CURRENT narrowed tens with L-6 through the offline loader and must reproduce the binary's fusion_rank ORDER on 229/229 fit queries (provider may be CUDA; order must match case-for-case). If not, nothing downstream means anything.",
+
+  "registered_predictions": {
+    "primary_union_fit": {
+      "post_narrow_recall": "225 or 226 of 229 (the known fit loss e8a79c70 is recovered; nothing else should newly arrive)",
+      "R@3": "211 to 216 (base 213): recovery +1, distractor cost bounded by -2",
+      "R@1": "177 to 183 (base 180)",
+      "kill": "fit R@3 <= 212 OR post-narrow recall fails to rise"
+    },
+    "secondary_rrf_narrow_fit": {
+      "post_narrow_recall": "224 or 225 (carries cue-rank<=10 losses only)",
+      "R@3": "211 to 215",
+      "R@1": "177 to 183",
+      "kill": "fit R@3 <= 212"
+    }
+  },
+
+  "what_would_earn_a_heldout_read": "an arm whose fit R@3 >= 214 AND post-narrow recall rises, with the distractor cost visible and bounded. Held-out has 5 narrowing losses (3 union-recoverable) so the upside there is up to +3 cases; the read is spent ONCE on the single better arm by the pre-written tie-break: higher fit R@3, ties broken by smaller mean union size (less added latency).",
+  "what_will_not_be_done": ["no width knob (12, 15, 20) -- registering one after seeing these diagnostics would be fitting the cut to the losses", "no third arm", "no change to slate depth, RRF k, or admit"],
+  "latency_note": "union widens the fuse forward by ~4 rows on CUDA (~1 ms); CPU deployments never run the cascade."
+}

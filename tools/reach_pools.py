@@ -76,6 +76,10 @@ class Candidate:
     encoder loaded. Never "scored zero": a cross-encoder logit is signed and near-zero is a real,
     middling reading, so a 0.0 sentinel would be indistinguishable from a genuine one."""
     session_key: int | None = None
+    # Added M0c Session N, defaulted for the same reason as the three above: the cascade writes a
+    # fusion rank the earlier dumps legitimately lack. `None` means the cascade did not run or the
+    # candidate was outside the narrowed set -- never "fused last".
+    fusion_rank: int | None = None
 
 
 @dataclass(frozen=True)
@@ -211,6 +215,7 @@ def load_pools(run_dir: Path = DEFAULT_RUN) -> tuple[dict[str, Pool], dict]:
                 survived_pruning=row.get("survived_pruning"),
                 rerank_score=row.get("rerank_score"),
                 session_key=row.get("session_key"),
+                fusion_rank=row.get("fusion_rank"),
             )
         )
 

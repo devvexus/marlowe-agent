@@ -1,4 +1,4 @@
-"""Score the fitted gate against LongMemEval-S, held-out and all-500.
+﻿"""Score the fitted gate against LongMemEval-S, held-out and all-500.
 
 **`eval/` is not modified by this script or by anything in `tools/`.** The harness exposes
 fixtures through `--corpus` and reaches a real corpus only through `verify-corpus`; that
@@ -80,6 +80,8 @@ _profile_retrieval = False
 # so a cell cannot be labelled one way and run another.
 _rerank_threads = None
 _rerank_batch = None
+_rerank_plan = None
+_injection_coverage = None
 _rerank_provider = None
 # The EMBEDDER's execution provider. `None` means "do not pass the flag", so the binary's
 # own default (cpu) applies and there is exactly one place the shipped value is written down.
@@ -126,7 +128,7 @@ def iter_ndjson(path: Path):
     """Yield one parsed object per NDJSON line.
 
     **File iteration, never `str.splitlines()`.** `splitlines()` also splits on U+2028, U+2029
-    and U+0085, which JSON does not require to be escaped inside a string — and LongMemEval
+    and U+0085, which JSON does not require to be escaped inside a string â€” and LongMemEval
     transcripts contain them. Splitting there tears a frame in half and the parse fails partway
     through a 470 KB line, which is how this was found. Python's file iterator splits on `\\n`
     alone, which is what section 4.0.2 defines a frame boundary to be.
@@ -209,7 +211,7 @@ def diagnostics(records: list[dict], scored: dict[str, list[dict]]) -> dict:
 
     `records` are what actually went on the wire (the injected set at the frozen threshold).
     `scored` is every candidate the gate judged, carrying the implementation's own
-    `calibrated_precision` — that is what the swept curve is built from, because when the gate
+    `calibrated_precision` â€” that is what the swept curve is built from, because when the gate
     abstains everywhere the wire carries nothing to sweep.
     """
     answerable = [r for r in records if not r.get("is_abstention")]
@@ -677,6 +679,8 @@ def score_one(
         + (f"--profile-retrieval {profile} " if _profile_retrieval else "")
         + (f"--rerank-threads {_rerank_threads} " if _rerank_threads is not None else "")
         + (f"--rerank-batch {_rerank_batch} " if _rerank_batch is not None else "")
+        + (f"--rerank-plan {_rerank_plan} " if _rerank_plan is not None else "")
+        + (f"--injection-coverage {_injection_coverage} " if _injection_coverage is not None else "")
         + (f"--rerank-provider {_rerank_provider} " if _rerank_provider is not None else "")
         + (
             f"--embedder-provider {_embedder_provider} "
@@ -745,13 +749,13 @@ def budget_verdict(report: dict, records: list[dict]) -> dict:
 def power_verdict(at_op: dict, prereg: dict, answerable: int) -> dict:
     """Pre-registered power floor: is the operating-point precision READABLE at all?
 
-    **Partial coverage at high precision is a PASS** — brief §5.5 is precision-first and K1 carries
+    **Partial coverage at high precision is a PASS** â€” brief Â§5.5 is precision-first and K1 carries
     no coverage term. What this floor catches is different and narrower: a precision computed over
     a handful of injections cannot distinguish 0.95 from 0.90 whatever it reads, and quoting it as
     if it could is the failure. Below `n_min` the number is reported UNDERPOWERED, which is a
     statement about the INSTRUMENT rather than about the gate.
 
-    `n_min` is read from the pre-registration, never recomputed here — the whole point is that it
+    `n_min` is read from the pre-registration, never recomputed here â€” the whole point is that it
     was fixed before the number existed.
     """
     floor = prereg["power_floor"]
@@ -784,14 +788,14 @@ def power_verdict(at_op: dict, prereg: dict, answerable: int) -> dict:
 def label_set_projection(records: list[dict], prereg: dict) -> dict:
     """COMPANION, no verdict. Is K1's own validation instrument reachable at this operating point?
 
-    K1's headline is human-judged and needs ≥400 judged injections with ≥50 per category. A gate
-    whose output cannot support that draw has a headline nobody can compute — which is worth
+    K1's headline is human-judged and needs â‰¥400 judged injections with â‰¥50 per category. A gate
+    whose output cannot support that draw has a headline nobody can compute â€” which is worth
     knowing early, and is **not** a reason to fail a precision-first result. Registered with no
     verdict precisely because at one injection per firing case it is unmeetable by construction,
     and a band on an unreachable quantity is the ADR-010 error.
 
     Counted from the **all-500** run. That run is contaminated for PRECISION, and these are counts
-    rather than precisions, so the contamination does not apply to what is reported here — stated
+    rather than precisions, so the contamination does not apply to what is reported here â€” stated
     explicitly rather than left for a reader to work out.
     """
     spec = prereg["label_set_feasibility"]
@@ -850,14 +854,14 @@ def _forward_cuda_lib_dir_onto_path() -> str:
     `minimal_env()` in `eval/src/marlowe_eval/adapter/subprocess_ndjson.py` is that declaration, it
     is a fixed allowlist, and `MARLOWE_CUDA_LIB_DIR` is not on it. So a scoring run launched with
     the variable set gets a child that reports *"MARLOWE_CUDA_LIB_DIR is not set"* and, on the
-    `cuda` refusal arm, exits — correctly, and for a reason that has nothing to do with the card.
+    `cuda` refusal arm, exits â€” correctly, and for a reason that has nothing to do with the card.
 
     That is the mechanism shipped in `cuda_libs.rs` being **unreachable from the one caller that
     matters most**: a control with a reader, on a path that removes the value before the reader
     runs. `eval/` is the scoreboard and is not modified to accommodate an implementation, so the
     fix belongs here.
 
-    **`PATH` is on the allowlist**, and `PATH` is what the loader actually reads — it is how every
+    **`PATH` is on the allowlist**, and `PATH` is what the loader actually reads â€” it is how every
     CUDA run in `runs/session-l/` worked, before any of this had a name. So this prepends the
     configured directories to `PATH` **in this process**, which the harness then hands to the child
     verbatim. The variable stays the single place a human writes the configuration down; only the
@@ -891,13 +895,13 @@ def _record_binary_identity(out: Path) -> None:
 
     This exists because a run was very nearly attributed to a source change it did not measure.
     `score_longmemeval.py` drives `target/release/marlowe.exe`, and `cargo run --example` does not
-    rebuild it — so a scoring pass launched right after editing a constant happily measures the
+    rebuild it â€” so a scoring pass launched right after editing a constant happily measures the
     *previous* value and writes it into a directory named for the new one. The source said 1024,
     the artifact said 8192, and the directory name agreed with the source.
 
     It is the pipe-verified/live-verified family that CLAUDE.md already logs four times: the source
     emits it versus the *running process* emits it. The instrument there was `--dev`'s outbound
-    dump — the bytes the running process actually sent. The instrument here is the binary's own
+    dump â€” the bytes the running process actually sent. The instrument here is the binary's own
     mtime and digest, written where the numbers are, so a later reader can check the artifact rather
     than trusting the directory name.
 
@@ -1000,6 +1004,14 @@ def main() -> int:
         "--rerank-batch", choices=["on", "off"], default=None,
         help="score the depth-10 slate in one forward pass. Omit to use the binary's default.")
     parser.add_argument(
+        "--rerank-plan", choices=["auto", "shipped", "cascade"], default=None,
+        help="which rerank SHAPE runs. Omit for the binary's default (`auto`: the cascade where "
+             "the cross-encoder resolved to CUDA, shipped depth-10 otherwise). `cascade` forces "
+             "the depth-30 narrow-and-fuse configuration on CPU as a measurement arm -- it is "
+             "GPU-only by measurement and over budget on CPU by ~4x, so a CPU cascade run is "
+             "NEVER publishable as a latency result, only as a ranking-equivalence check. The "
+             "value lands in the target string report.json records verbatim.")
+    parser.add_argument(
         "--rerank-provider", choices=["cpu", "cuda", "auto"], required=True,
         help="the CROSS-ENCODER's execution provider. REQUIRED since ADR-045, for exactly the "
              "reason --embedder-provider became required in ADR-044: this passed through to the "
@@ -1009,6 +1021,13 @@ def main() -> int:
              "the only value safe to publish a number under. The value is stamped on every "
              "profile row, because a provider is the single most consequential thing a cell can "
              "be wrong about.")
+    parser.add_argument(
+        "--injection-coverage", choices=["declared", "full"], default=None,
+        help="K1 condition 3's controlled-comparison arm. Omit for the binary's shipped "
+             "`declared` operating point. `full` is the MEASUREMENT arm: admit rank 1 whenever "
+             "a margin exists, ignoring the threshold -- never shippable, used so downstream "
+             "consumers (e.g., the QA tester) see memories on every query. The chosen arm is "
+             "stamped into every response's gate version (+coverage-full).")
     parser.add_argument(
         "--embedder-provider", choices=["cpu", "cuda", "auto"], required=True,
         help="the EMBEDDER's execution provider. REQUIRED since ADR-044, and the reason is the "
@@ -1049,13 +1068,15 @@ def main() -> int:
             "held-out number against a split the gate did not actually hold out."
         )
 
-    global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch
+    global _cache_dir, _reranking, _profile_retrieval, _rerank_threads, _rerank_batch, _rerank_plan, _injection_coverage
     global _rerank_provider, _embedder_provider
     _cache_dir = Path(args.embedding_cache)
     _reranking = args.reranking
     _profile_retrieval = args.profile_retrieval
     _rerank_threads = args.rerank_threads
     _rerank_batch = args.rerank_batch
+    _rerank_plan = args.rerank_plan
+    _injection_coverage = args.injection_coverage
     _rerank_provider = args.rerank_provider
     _embedder_provider = args.embedder_provider
 
@@ -1215,13 +1236,13 @@ def main() -> int:
     #
     # It is read from disk by path while the binary embeds its own copy with `include_str!`, so
     # the two can disagree the moment a session bumps the artifact version and this path is not
-    # updated with it — which is exactly what happened here on the first Session F scoring pass.
+    # updated with it â€” which is exactly what happened here on the first Session F scoring pass.
     # Every measured number stayed correct, because those come off the wire; but the reported
     # `gate` block and the calibration-generalization PREDICTIONS were the previous version's,
     # compared against this version's held-out measurements. Nothing failed and nothing looked
     # wrong.
     #
-    # §4.2's gate stamp is the run's own statement of what scored it, so that is what this checks.
+    # Â§4.2's gate stamp is the run's own statement of what scored it, so that is what this checks.
     stamps = {r["gate_version"] for r in runs["heldout"]["records"]}
     if stamps != {artifact["version"]}:
         raise SystemExit(

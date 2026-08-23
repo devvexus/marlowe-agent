@@ -1,8 +1,8 @@
-# Marlowe — Decisions
+﻿# Marlowe â€” Decisions
 
 ADR format. **Settled.** Argue explicitly to revisit one; do not quietly design around it.
 
-Part 1 answers all sixteen Hard Problems (brief §14, addendum §A15). Each states the choice,
+Part 1 answers all sixteen Hard Problems (brief Â§14, addendum Â§A15). Each states the choice,
 the alternative rejected, and the cost accepted. Where a problem is genuinely unsolved it says
 so and names the experiment that would resolve it.
 
@@ -10,52 +10,52 @@ Part 2 records infrastructure choices.
 
 ---
 
-# Part 1 — The Hard Problems
+# Part 1 â€” The Hard Problems
 
-## HP1 · The salience problem
+## HP1 Â· The salience problem
 
-**Context.** Auto-injection must decide relevance before knowing what the user wants. §5.7 sets
-injection precision ≥0.95 as the project kill criterion. §B1 forbids the interface from ever
+**Context.** Auto-injection must decide relevance before knowing what the user wants. Â§5.7 sets
+injection precision â‰¥0.95 as the project kill criterion. Â§B1 forbids the interface from ever
 indicating that retrieval occurred, which removes the obvious label source. The 300 ms P95
 rules out an LLM judge in the hot path.
 
-**Decision.** The gate is a small learned scorer over cheap features, **frozen in M0** — fixed
+**Decision.** The gate is a small learned scorer over cheap features, **frozen in M0** â€” fixed
 weights, fixed threshold, no online learning. Three properties:
 
 1. **Weights are a build-time artifact**, trained on benchmark gold evidence. LongMemEval
    supplies real supervised (query, gold-evidence) pairs; this is genuine training data, not a
    bootstrap hack.
-2. **Features are user-specific even though weights are not** — entity frequency in *this*
+2. **Features are user-specific even though weights are not** â€” entity frequency in *this*
    profile's graph, recency, access count, activation, effective trust class, and cue-agreement
    count. The gate adapts to a user's data without the model drifting.
 3. **The threshold is expressed in calibrated precision units, not raw score.** An isotonic
-   calibration curve maps score → predicted precision, so "0.95" means *predicted precision
-   ≥0.95*. This is what makes the operating point portable across profiles.
+   calibration curve maps score â†’ predicted precision, so "0.95" means *predicted precision
+   â‰¥0.95*. This is what makes the operating point portable across profiles.
 
 All three supervision tiers are **built and logged in M0, feeding back into nothing**: build-time
 gold evidence; runtime implicit signals (utilization, explicit `recall` after injection,
 restatement, correction); and an offline consolidation-time judge calibrated against human
 labels. A clean baseline that is not moving while it is being measured.
 
-**Pinned regardless of any later adaptivity milestone — the supervision asymmetry:**
+**Pinned regardless of any later adaptivity milestone â€” the supervision asymmetry:**
 utilization is a **weak negative only**; positives come only from the offline judge and explicit
 corrections. Recorded because it is easy to "optimise" away: a naive utilization reward would
 let a poisoned memory train the gate to prefer it. Attention-grabbing and correct are not the
 same property.
 
-### The freeze scope — normative for the whole system
+### The freeze scope â€” normative for the whole system
 
 The freeze is **not** "the injection gate only," and it is **not** "everything." Other ADRs must
 cite this rule rather than granting themselves an exemption. A component may adapt in M0 only if
 **both** conditions hold:
 
-1. **It is off the measured path.** Anything influencing what the M0a suite measures — query →
-   routing → cues → fusion → gate → injected set — is on the path and is frozen. This
+1. **It is off the measured path.** Anything influencing what the M0a suite measures â€” query â†’
+   routing â†’ cues â†’ fusion â†’ gate â†’ injected set â€” is on the path and is frozen. This
    deliberately includes components that do not feel like "the gate": **cue and fusion weights,
    the query-type router, entity-resolution thresholds (HP2), and consolidation merge thresholds
    (HP5)** all change what is retrievable and are therefore frozen in M0.
 2. **It adapts from an explicit user act, not an inferred reward.** A tier change because the
-   user granted, corrected, or dismissed is a *recorded decision* — discrete, attributable,
+   user granted, corrected, or dismissed is a *recorded decision* â€” discrete, attributable,
    auditable, and revertible. Learning weights from a proxy signal is an *inferred reward*.
    Inferred rewards are frozen in M0 everywhere, regardless of position.
 
@@ -63,20 +63,20 @@ cite this rule rather than granting themselves an exemption. A component may ada
 |---|---|---|
 | Injection gate, cue/fusion weights, router | **Frozen** | On the measured path |
 | Entity-resolution and merge thresholds | **Frozen** | Change what is retrievable |
-| Trust ledger tiers (§A8) | **Adapts** | Recorded user decisions, off the path |
+| Trust ledger tiers (Â§A8) | **Adapts** | Recorded user decisions, off the path |
 | Noticing per-class suppression (HP11) | **Adapts** | Same mechanism as the ledger |
-| Commitment mid-band handling (HP15) | **Adapts, narrowly** | See HP15 — the *band classifier* stays frozen |
-| Voice model from sent mail (§A3) | **Adapts** | Off the path; not a reward signal |
+| Commitment mid-band handling (HP15) | **Adapts, narrowly** | See HP15 â€” the *band classifier* stays frozen |
+| Voice model from sent mail (Â§A3) | **Adapts** | Off the path; not a reward signal |
 
 The rule in one line: **recorded decisions are always permitted; inferred rewards wait for
-M10.** The reason is measurement integrity, not caution — a baseline that moves while it is
+M10.** The reason is measurement integrity, not caution â€” a baseline that moves while it is
 being measured cannot support K1.
 
 Proactive salience runs **outside the hot path**, pre-staging candidates continuously, so the
 eleven-week callback is not computed inside a 300 ms budget.
 
 **Rejected.** Per-profile online learning from turn one. A moving baseline cannot be measured,
-and §5.7 requires results reproducible with a published harness.
+and Â§5.7 requires results reproducible with a published harness.
 
 **Cost accepted.** No gate personalization in v1. A user whose memory density is far from the
 benchmark distribution gets benchmark-tuned behaviour until M10.
@@ -84,19 +84,19 @@ benchmark distribution gets benchmark-tuned behaviour until M10.
 **Failure mode, recorded explicitly.** If M0b lands well below 0.95 with the gate frozen, **the
 answer is not "add learning."** That treats a retrieval problem as a tuning problem. The correct
 responses are better cues, a better query-type router, or accepting lower recall at the same
-precision — recall is recovered through `recall`, per §5.5.
+precision â€” recall is recovered through `recall`, per Â§5.5.
 
-### Amendment (2026-08-03) · The fit/report split
+### Amendment (2026-08-03) Â· The fit/report split
 
 **This closes an underspecification in HP1, not a deviation from it.** Property 1 says the
 weights are a build-time artifact trained on benchmark gold evidence, and that stands unchanged.
-What it does not say is what the fitted gate is then *reported against* — and M0b Session B, the
+What it does not say is what the fitted gate is then *reported against* â€” and M0b Session B, the
 first session to actually fit one, could not proceed without an answer.
 
 Read literally, the omission licenses fitting on all 500 LongMemEval-S cases and reporting
 evidence precision on the same 500. That is train-on-test. The isotonic curve has enough freedom
 to memorize the score distribution it was fit on, so the reported number would be optimistically
-biased by an unknown amount — and "unknown" is the problem, since the bias cannot be subtracted
+biased by an unknown amount â€” and "unknown" is the problem, since the bias cannot be subtracted
 out or bounded from the number itself.
 
 **Decision.** The corpus is split before any fitting, by a rule fixed in advance:
@@ -104,13 +104,13 @@ out or bounded from the number itself.
 | | |
 |---|---|
 | Rule | Within each harness category, sort `query_id`s by `(sha256(query_id), query_id)`; even indices to `fit`, odd to `heldout` |
-| Stratification | Per category, so all seven are split within one case — not merely random assignment that happens to balance |
+| Stratification | Per category, so all seven are split within one case â€” not merely random assignment that happens to balance |
 | Recorded in | `tools/split.json`, with the corpus digest and its own content digest |
 | Enforced by | `tools/fit_gate.py`, which refuses to run without that file and refuses if either digest disagrees |
 | Copied into | the gate artifact, so a gate and the split it was fit under travel together |
 
 **The held-out figure is the headline everywhere it appears.** The all-cases figure is still
-reported — it is the one comparable to a published 500-case number — but its contamination is
+reported â€” it is the one comparable to a published 500-case number â€” but its contamination is
 attached to the value itself, the same treatment `corpus_variant` already gets, and there is no
 place in the output where it appears bare. A contaminated number sitting beside a clean one with
 the caveat in surrounding prose will be quoted without the prose.
@@ -119,14 +119,14 @@ the caveat in surrounding prose will be quoted without the prose.
 interval is wider, and it is not directly comparable to a vendor's 500-case figure. That is the
 right trade: a wider interval around an honest number beats a tight one around a biased one.
 
-**A related hazard, recorded because it generalizes — and because the first fit found two
+**A related hazard, recorded because it generalizes â€” and because the first fit found two
 different versions of it.** A coefficient can be meaningless in two ways, and only one of them
 is detectable by looking at the fit data:
 
 | | Detected by | Example | Why the weight is meaningless |
 |---|---|---|---|
-| **No variance** | the fitter, automatically | `effective_trust`, `fidelity` — constant across LongMemEval, since every turn is terminal-origin and no demotion has run | fit on noise; becomes load-bearing the moment the feature starts varying |
-| **Varies, but is collinear and will change meaning** | nobody — it must be **declared** | `cue_agreement` — with one cue it is exactly `1[lexical_bm25 > 0]` | the split between its weight and the cue's cannot change any ranking, and its semantics change from a 0/1 indicator to a 0..2 count when cue 2 lands |
+| **No variance** | the fitter, automatically | `effective_trust`, `fidelity` â€” constant across LongMemEval, since every turn is terminal-origin and no demotion has run | fit on noise; becomes load-bearing the moment the feature starts varying |
+| **Varies, but is collinear and will change meaning** | nobody â€” it must be **declared** | `cue_agreement` â€” with one cue it is exactly `1[lexical_bm25 > 0]` | the split between its weight and the cue's cannot change any ranking, and its semantics change from a 0/1 indicator to a 0..2 count when cue 2 lands |
 
 The second is the dangerous one precisely because a variance check passes it. The first fit did
 hand `cue_agreement` a weight of 4.998, which looked like a finding and was an artifact of
@@ -135,12 +135,12 @@ same maximum) with the bias absorbing the difference, which is the evidence that
 
 Both kinds are therefore **pinned to zero in the artifact, with the reason stored per feature,
 and the pin is enforced at load time.** This is not a comment: `FrozenGate::load` rejects a pinned
-weight that is not zero. **Refit deliberately when the cue set changes** — a pin is a statement
+weight that is not zero. **Refit deliberately when the cue set changes** â€” a pin is a statement
 about the current cue set, not a permanent property of the feature.
 
 ---
 
-## HP2 · Cross-session identity
+## HP2 Â· Cross-session identity
 
 **Context.** When is "the API" in session 47 the same entity as in session 3? Resolution
 failures cascade through every graph-based memory system.
@@ -149,7 +149,7 @@ failures cascade through every graph-based memory system.
 memory entry with confidence and provenance, produced by consolidation and correctable in plain
 speech. Blocking on normalized surface form and channel address; scoring on embedding
 similarity, co-occurrence, temporal contiguity, and handle match. Below threshold the system
-keeps **two** entities and traverses `SameAs` at query time — a cheap one-hop union.
+keeps **two** entities and traverses `SameAs` at query time â€” a cheap one-hop union.
 
 Asymmetry, mirroring the trust ledger: merges are proposed, recorded, and reversible by
 supersession; splits are automatic on contradiction.
@@ -163,7 +163,7 @@ leaks one person's data into another's context. The asymmetry of harm sets the d
 
 ---
 
-## HP3 · Temporal abstraction at scale
+## HP3 Â· Temporal abstraction at scale
 
 **Context.** "The user has been getting steadily more frustrated with this project over six
 weeks" is a fact no single episode contains and no summarizer will surface.
@@ -187,14 +187,14 @@ extractors that never confirm.
 
 ---
 
-## HP4 · Staleness
+## HP4 Â· Staleness
 
 **Context.** How does the system know a fact has expired without being told? Confidence decay is
 a proxy, not an answer.
 
 **Decision.** Three detectors, no one of which is decay alone:
 
-1. **Contradiction at retrieval** (reconsolidation, §5.3). When two candidates for the same
+1. **Contradiction at retrieval** (reconsolidation, Â§5.3). When two candidates for the same
    (entity, relation) disagree, resolve at retrieval time on recency and source trust. The loser
    is superseded then and there, not left to rot.
 2. **Typed volatility priors.** Stability is a property of the relation, not a global constant.
@@ -208,15 +208,15 @@ too slow for volatile ones, which is the worst of both.
 
 **Cost accepted.** This is a proxy stack, not a solution.
 
-**Genuinely unsolved.** *Silent* staleness — a fact that expired with no contradicting
-observation ever arriving — is undetected by all three. **Experiment:** staleness half-life is a
+**Genuinely unsolved.** *Silent* staleness â€” a fact that expired with no contradicting
+observation ever arriving â€” is undetected by all three. **Experiment:** staleness half-life is a
 first-class measured metric in M0a, reported on LongMemEval's knowledge-update category. If it
 measures poorly, the fallback is to *ask* occasionally rather than to pretend, and the cost of
 asking is bounded by the same interruption budget as noticing.
 
 ---
 
-## HP5 · The consolidation failure taxonomy
+## HP5 Â· The consolidation failure taxonomy
 
 **Context.** Consolidation introduces its own errors. Which are accepted, which detected, how?
 
@@ -228,7 +228,7 @@ asking is bounded by the same interruption budget as noticing.
 | **Wrong side of a contradiction** | **Detect, then refuse** | When confidence delta falls inside a band, **do not resolve.** Keep both, mark contested, and let retrieval abstain or surface the conflict. |
 
 Consolidation is itself an episodic event: what it merged and what it discarded is journaled,
-which is what makes the memory system auditable and debuggable (§5.3).
+which is what makes the memory system auditable and debuggable (Â§5.3).
 
 **Rejected.** Always resolving contradictions. A confidently-wrong resolution is worse than a
 visible conflict, because the conflict is recoverable and the resolution is not.
@@ -237,7 +237,7 @@ visible conflict, because the conflict is recoverable and the resolution is not.
 
 ---
 
-## HP6 · Memory laundering
+## HP6 Â· Memory laundering
 
 **Context.** Untrusted content transformed through several LLM derivations into an
 authentic-looking agent-written memory. Content signals and coarse taint tracking are
@@ -245,11 +245,11 @@ structurally insufficient.
 
 **Decision.** Three mechanisms, all structural:
 
-1. **Worst-case trust propagation over the full lineage** (`CONTRACTS.md` §3.3), computed at
+1. **Worst-case trust propagation over the full lineage** (`CONTRACTS.md` Â§3.3), computed at
    write time. No content signal is consulted, because content signals cannot survive
    derivation.
 2. **The `(action, target)` split.** Untrusted-derived content may shape inert *payload* fields
-   freely — a draft body, a summary — and may never shape *targets*: tool selection, recipient,
+   freely â€” a draft body, a summary â€” and may never shape *targets*: tool selection, recipient,
    path, host, amount, identifier. The dangerous thing is not the text; it is the pair.
 3. **Default-deny at load time.** An undeclared or malformed manifest is a startup error, not a
    call-time warning. Third-party tools cannot self-declare low consequence.
@@ -259,12 +259,12 @@ defeated by laundering through derivation.
 
 **Cost accepted.** Untrusted-derived beliefs can never target a consequential action *even when
 correct*. Some legitimate work is blocked. The escape hatch is a blocking approval that displays
-the provenance chain — deliberately not frictionless, because frictionless is how the CVE-class
+the provenance chain â€” deliberately not frictionless, because frictionless is how the CVE-class
 failures happened.
 
 ---
 
-## HP7 · The 15× cost problem
+## HP7 Â· The 15Ã— cost problem
 
 **Context.** Deep research quality tracks token spend almost linearly. How does the user control
 that dial without understanding it?
@@ -272,18 +272,18 @@ that dial without understanding it?
 **Decision.** **Effort is a property of the ask, not a setting.** The orchestrator sizes the
 investigation from assessed complexity, and the only user-facing control is a per-run ceiling in
 money and wall-clock, defaulted, and stated in the same breath as the plan: *"About twenty
-minutes and roughly $3 — go?"* Caps are harness-enforced; hitting one pauses and asks.
+minutes and roughly $3 â€” go?"* Caps are harness-enforced; hitting one pauses and asks.
 
-**Rejected.** A depth slider — users cannot calibrate an abstract effort scale. And silent
-auto-scaling — a surprise 15× bill destroys trust permanently.
+**Rejected.** A depth slider â€” users cannot calibrate an abstract effort scale. And silent
+auto-scaling â€” a surprise 15Ã— bill destroys trust permanently.
 
 **Cost accepted.** An explicit confirmation on expensive runs, which is friction on exactly the
-runs the user most wants to fire and forget. Justified by §10.2: a 15× multiplier is acceptable
+runs the user most wants to fire and forget. Justified by Â§10.2: a 15Ã— multiplier is acceptable
 when disclosed and controllable, not as a surprise.
 
 ---
 
-## HP8 · Approval fatigue
+## HP8 Â· Approval fatigue
 
 **Context.** Users click through prompts within a day. What keeps approval meaningful in week
 ten?
@@ -292,12 +292,12 @@ ten?
 
 1. **Risk tiering so most actions never prompt.** Approval scarcity is what preserves meaning;
    a prompt on every action is a prompt on none.
-2. **Rubber-stamping is measured** (§B9): approval latency and approve-without-expand rate,
+2. **Rubber-stamping is measured** (Â§B9): approval latency and approve-without-expand rate,
    per class. When the user is clicking through, the system says so and proposes either
    promoting the class (stop asking) or tightening it.
 3. **Novelty gating**, so the prompts that do fire skew toward the genuinely unusual.
 
-**Rejected.** Escalating prominence — bigger warnings, more friction. Habituation defeats
+**Rejected.** Escalating prominence â€” bigger warnings, more friction. Habituation defeats
 salience; the answer is fewer prompts, not louder ones.
 
 **Cost accepted.** Measuring rubber-stamping means measuring the user. Disclosed in `/trust`
@@ -305,7 +305,7 @@ rather than hidden.
 
 ---
 
-## HP9 · Voice and deep work
+## HP9 Â· Voice and deep work
 
 **Context.** A voice turn runs at 800 ms; a research task runs ten minutes. How do they coexist
 in one session model without blocking or fragmenting?
@@ -315,26 +315,26 @@ is a unit of work. A voice turn is a short run, research is a long run, and they
 session. The voice path never blocks on a run: long work is announced, handed to a background
 run, and notified on completion.
 
-**Rejected.** A separate async mode — that is a second loop wearing a costume, and §4 forbids it.
+**Rejected.** A separate async mode â€” that is a second loop wearing a costume, and Â§4 forbids it.
 
 **Cost accepted.** The voice user must tolerate *"I'll ping you."* Some users dislike it. Holding
 a voice channel open through a ten-minute task is worse on every axis.
 
 ---
 
-## HP10 · Simplicity under accumulation
+## HP10 Â· Simplicity under accumulation
 
-**Context.** Every requirement adds surface. What is the *mechanism* — not the intention — that
+**Context.** Every requirement adds surface. What is the *mechanism* â€” not the intention â€” that
 keeps this from becoming another framework in eighteen months?
 
 **Decision.** Four **executable budget tests that fail the build**:
 
 | Test | Enforcement |
 |---|---|
-| Model-visible tools ≤ 12 | `ExposedSet` constructor asserts; a test enumerates every capability profile |
-| User-facing nouns ≤ 7 | A test greps CLI help, the slash-command table, and `/status` against an allowlist |
+| Model-visible tools â‰¤ 12 | `ExposedSet` constructor asserts; a test enumerates every capability profile |
+| User-facing nouns â‰¤ 7 | A test greps CLI help, the slash-command table, and `/status` against an allowlist |
 | Agent loops == 1 | A test fails if a second driving loop appears in the loop crate |
-| Zero-config first run | A test runs install → first useful output in a clean container with no config file |
+| Zero-config first run | A test runs install â†’ first useful output in a clean container with no config file |
 
 Plus a process rule: every new user-facing concept must delete one, and the PR template asks
 which.
@@ -342,19 +342,19 @@ which.
 **Rejected.** Architectural review as the mechanism. Intentions do not survive eighteen months
 and a contributor rotation; a failing build does.
 
-**Cost accepted.** These tests are crude — noun-grepping especially will produce false positives
+**Cost accepted.** These tests are crude â€” noun-grepping especially will produce false positives
 and require an allowlist that itself needs maintenance. A crude enforced mechanism beats an
 elegant unenforced one.
 
 ---
 
-## HP11 · Proactive precision without labels (cold start)
+## HP11 Â· Proactive precision without labels (cold start)
 
-**Context.** §A5 requires ≥0.80 precision on unprompted surfacing with no training data at
-install, and ≤5 interruptions per day.
+**Context.** Â§A5 requires â‰¥0.80 precision on unprompted surfacing with no training data at
+install, and â‰¤5 interruptions per day.
 
 **Decision.** **Week one has no judgment-based proactive surfacing at all.** Noticing classes
-enter at tier 0 (Observe — records, surfaces nothing) and promote individually on the standard
+enter at tier 0 (Observe â€” records, surfaces nothing) and promote individually on the standard
 evidence ramp, seeded by the user's dismissals. Per-class precision is tracked and classes that
 consistently miss are suppressed.
 
@@ -362,21 +362,21 @@ The cold-start bootstrap is that **some noticing classes are deterministic, not 
 
 | Ships on at day one (facts) | Starts in shadow (judgment) |
 |---|---|
-| **Conflict** — a calendar collision is a fact | **Drift** — "your norm is two weeks" |
-| **Approach** — a renewal date is a fact | **Pattern break** — "you've moved this four times" |
-| **Silence** — an unanswered ask past its SLA is a fact | **Anomaly** — "this invoice is 3× usual" |
-| **Preparation** — who you're meeting and what you promised | |
+| **Conflict** â€” a calendar collision is a fact | **Drift** â€” "your norm is two weeks" |
+| **Approach** â€” a renewal date is a fact | **Pattern break** â€” "you've moved this four times" |
+| **Silence** â€” an unanswered ask past its SLA is a fact | **Anomaly** â€” "this invoice is 3Ã— usual" |
+| **Preparation** â€” who you're meeting and what you promised | |
 
 **Rejected.** Shipping all classes on at a conservative global threshold. One system-wide
 threshold cannot serve both a calendar collision and a tone-drift inference, and being wrong
 five times in week one is how users disable noticing permanently.
 
-**Cost accepted.** The *impressive* noticings arrive last. Week one is useful but not uncanny —
+**Cost accepted.** The *impressive* noticings arrive last. Week one is useful but not uncanny â€”
 which is the honest trade, since the alternative risks never reaching week ten.
 
 ---
 
-## HP12 · Voice without impersonation harm
+## HP12 Â· Voice without impersonation harm
 
 **Context.** How faithfully should the system imitate a person, and what prevents an assistant
 that is too convincing from becoming a liability?
@@ -388,7 +388,7 @@ lines:
 1. **Sending as the user is a distinct permission from sending as the assistant.** Off by
    default, granted per channel, with a **hard ceiling in the trust ledger that no amount of
    evidence lifts.** Some lines are chosen, not earned.
-2. **Attribution never lies.** Asked directly whether it is an AI — any channel, any tier — the
+2. **Attribution never lies.** Asked directly whether it is an AI â€” any channel, any tier â€” the
    answer is yes. This is not a sentence in a system prompt. It is an action class whose only
    permitted response is truthful and which cannot be tier-promoted, so no autonomy setting can
    route around it.
@@ -401,11 +401,11 @@ be, and the user must grant an explicit per-channel permission to send under the
 
 ---
 
-## HP13 · Multi-party etiquette
+## HP13 Â· Multi-party etiquette
 
 **Context.** When the assistant is CC'd on a thread, what are its manners?
 
-**Decision.** A declared, inspectable policy — not a vibe:
+**Decision.** A declared, inspectable policy â€” not a vibe:
 
 - **Speaks** when it holds the action (scheduling, chasing, confirming) or is directly addressed.
 - **Stays silent** on threads where its principal replied within the last turn.
@@ -424,15 +424,15 @@ principal.
 
 ---
 
-## HP14 · The complacency-competence tension
+## HP14 Â· The complacency-competence tension
 
-**Context.** The more reliable a system appears, the less vigilant its overseers become — and
+**Context.** The more reliable a system appears, the less vigilant its overseers become â€” and
 this is worse in high-performing systems than mediocre ones.
 
 **Decision.** Four mechanisms: **verification sampling** at a rate that scales with consequence
 *and* with time-since-last-review (not a flat rate); **drift detection** that demotes before the
-user complains; **novelty gating**; and — the one the requirements do not name — **failures
-shown as prominently as successes** in the dashboard (§A9.3), so the user's mental model is
+user complains; **novelty gating**; and â€” the one the requirements do not name â€” **failures
+shown as prominently as successes** in the dashboard (Â§A9.3), so the user's mental model is
 calibrated by what they see rather than by what they remember.
 
 **Rejected.** Flat-rate sampling. It is predictable, and predictable review is skimmed review.
@@ -446,19 +446,19 @@ that complacency is designable-away.
 **Experiment.** At M6, inject known-bad actions into the verification sample stream for a
 consenting cohort and measure catch rate against a control that receives no samples.
 
-**Falsification condition — declared before the experiment runs, per the pre-registration rule
+**Falsification condition â€” declared before the experiment runs, per the pre-registration rule
 in ADR-003.** Verification sampling is **theatre** if any of these holds:
 
 | Result | Reading |
 |---|---|
-| Sampled-cohort catch rate is within noise of control (≤5 pp absolute, at the cohort's power) | Sampling does not create vigilance; it creates the *feeling* of vigilance, which is worse than nothing because it licenses higher tiers. |
+| Sampled-cohort catch rate is within noise of control (â‰¤5 pp absolute, at the cohort's power) | Sampling does not create vigilance; it creates the *feeling* of vigilance, which is worse than nothing because it licenses higher tiers. |
 | Catch rate is above control initially but decays to control within 30 days | Habituation defeats it on the timescale that matters. A mechanism that works for a month and then silently stops is the most dangerous outcome. |
-| Catch rate improves but review latency collapses (median review time falls below a plausible reading time) | Users are clearing samples, not reviewing them — the same rubber-stamping failure the mechanism exists to prevent. |
+| Catch rate improves but review latency collapses (median review time falls below a plausible reading time) | Users are clearing samples, not reviewing them â€” the same rubber-stamping failure the mechanism exists to prevent. |
 
-**Replacement if falsified — decided now so the failure has somewhere to go.** Verification
-sampling is removed rather than tuned, and tier ≥4 classes get **hard periodic re-consent**: the
+**Replacement if falsified â€” decided now so the failure has somewhere to go.** Verification
+sampling is removed rather than tuned, and tier â‰¥4 classes get **hard periodic re-consent**: the
 tier expires on a consequence-scaled interval and returns to Confirm until the user re-grants it
-against fresh evidence. This is worse UX and is chosen deliberately — an expiring grant does not
+against fresh evidence. This is worse UX and is chosen deliberately â€” an expiring grant does not
 depend on the user being vigilant, only on their being present, and presence is observable while
 vigilance is not.
 
@@ -468,7 +468,7 @@ That is a weaker claim, and if the experiment falsifies sampling it is the true 
 
 ---
 
-## HP15 · Commitment extraction precision
+## HP15 Â· Commitment extraction precision
 
 **Context.** "I'll take a look" is not a commitment. "I'll send it Thursday" is. "Let me get
 back to you" is ambiguous. Where is the line and what happens at it?
@@ -478,11 +478,11 @@ Extraction emits a confidence, and **status is gated by the band**:
 
 | Band | Example | Behaviour |
 |---|---|---|
-| **High** — explicit object + explicit time | "I'll send the pricing sheet Thursday" | Open commitment, chase policy active |
-| **Mid** — intent without object or time | "Let me get back to you" | Open, appears in the open-loop list, **never chased autonomously**; chaseable on one tap |
-| **Low** — acknowledgement only | "I'll take a look" | Not a commitment. Recorded as an episode. |
+| **High** â€” explicit object + explicit time | "I'll send the pricing sheet Thursday" | Open commitment, chase policy active |
+| **Mid** â€” intent without object or time | "Let me get back to you" | Open, appears in the open-loop list, **never chased autonomously**; chaseable on one tap |
+| **Low** â€” acknowledgement only | "I'll take a look" | Not a commitment. Recorded as an episode. |
 
-The mid band is the mechanism: it lets extraction recall stay ≥90% (§A12) without the chase
+The mid band is the mechanism: it lets extraction recall stay â‰¥90% (Â§A12) without the chase
 policy firing on ambiguity, which is what would produce false closures and awkward chases.
 
 **Rejected.** A single threshold. It forces a choice between missing real commitments and
@@ -490,10 +490,10 @@ chasing imagined ones, and both failures are visible to third parties.
 
 **Cost accepted.** The open-loop list carries noise in the mid band.
 
-**Freeze status, per HP1's rule — not self-granted.** Two components here, and they are treated
+**Freeze status, per HP1's rule â€” not self-granted.** Two components here, and they are treated
 differently:
 
-- **The band classifier** — what assigns high/mid/low to an utterance — is **frozen in M0**. It
+- **The band classifier** â€” what assigns high/mid/low to an utterance â€” is **frozen in M0**. It
   determines what enters the commitment index and is therefore on the measured path.
 - **Per-phrasing mid-band handling** adapts, narrowly: an explicit user dismissal of a specific
   open-loop item records a decision ("this user does not treat *let me get back to you* as a
@@ -505,7 +505,7 @@ implementation finds itself fitting weights to dismissals, it has crossed the li
 
 ---
 
-## HP16 · The self-hosting split
+## HP16 Â· The self-hosting split
 
 **Context.** A managed auth broker is the right engineering answer and the wrong answer for the
 most trust-sensitive users.
@@ -513,51 +513,51 @@ most trust-sensitive users.
 **Decision.** **Ship both**, behind one `Broker` trait: a managed adapter (Nango / Composio /
 Arcade class) and a local keychain broker.
 
-**What breaks, stated plainly.** The local path supports far fewer apps — those with device-code
-OAuth, app passwords, or plain API keys — and receives no token-refresh maintenance across
+**What breaks, stated plainly.** The local path supports far fewer apps â€” those with device-code
+OAuth, app passwords, or plain API keys â€” and receives no token-refresh maintenance across
 hundreds of providers. The product must state which apps are available on the local path
 **before** the user chooses, not after they have committed.
 
 **Rejected.** Managed-only (unacceptable for the highest-trust install a person makes, and it
-violates §15's no-cloud-dependency-for-core-function) and local-only (connector maintenance is a
-permanent tax with zero differentiation, per §A2.1).
+violates Â§15's no-cloud-dependency-for-core-function) and local-only (connector maintenance is a
+permanent tax with zero differentiation, per Â§A2.1).
 
 **Cost accepted.** Two code paths and a disclosed capability difference at onboarding.
 
 ---
 
-# Part 2 — Infrastructure
+# Part 2 â€” Infrastructure
 
-## ADR-001 · Language and runtime: Rust
+## ADR-001 Â· Language and runtime: Rust
 
 **Context.** Single-binary install, useful on a $5 VPS, <150 ms first frame, kernel-enforced
 sandboxing, local embeddings, durable runs.
 
-**Decision.** Rust for daemon, client, and TUI — `tokio`, `rusqlite`, `ratatui`, `ort` (ONNX
+**Decision.** Rust for daemon, client, and TUI â€” `tokio`, `rusqlite`, `ratatui`, `ort` (ONNX
 Runtime). Python only for the M0a eval harness, which is a separate artifact.
 
-**Rejected.** *Go* — genuinely competitive (single binary, fast start, Bubble Tea is good) but a
+**Rejected.** *Go* â€” genuinely competitive (single binary, fast start, Bubble Tea is good) but a
 weaker local-inference story and less control over allocation for the frame budget.
-*TypeScript/Node* — the best MCP ecosystem, the worst startup and memory profile for a $5 VPS.
-*Python for the core* — cannot meet the frame budget or the single-binary requirement.
+*TypeScript/Node* â€” the best MCP ecosystem, the worst startup and memory profile for a $5 VPS.
+*Python for the core* â€” cannot meet the frame budget or the single-binary requirement.
 
 **Cost accepted.** Implementation cost is materially higher and the contributor pool is smaller.
 Mitigated by skills being subprocess-executed in any language, so the extension surface is not
 Rust-bound.
 
-## ADR-002 · Process model: thin client + daemon, one binary, two roles
+## ADR-002 Â· Process model: thin client + daemon, one binary, two roles
 
 **Decision.** `marlowe` (client) and `marlowe --serve` (daemon), same binary. The daemon owns
 journal, indexes, runs, triggers, gateway, voice. Client holds no run state and auto-spawns the
 daemon. One daemon per profile. Local socket transport.
 
-Forced by invariant 6 — if the client owned the run, closing the terminal would end it. It also
+Forced by invariant 6 â€” if the client owned the run, closing the terminal would end it. It also
 buys the 150 ms first frame, since the client has almost nothing to initialize.
 
-### Execution model — revised 2026-08-02
+### Execution model â€” revised 2026-08-02
 
 > **This revision supersedes the original sandbox-by-default position and the WSL2 development
-> rule.** Brief **§8.2 was amended in the same change** rather than left to contradict this ADR —
+> rule.** Brief **Â§8.2 was amended in the same change** rather than left to contradict this ADR â€”
 > a requirement and an ADR that disagree get reconciled by whoever reads them next, and that is
 > not a decision to leave to a default six months out. The brief now carries the divergence and
 > its cost at the point where it states the claim; this ADR carries the engineering detail.
@@ -575,53 +575,53 @@ specifies, and every part of it is platform-independent and native on Windows:
 
 | Mechanism | Where it is pinned | What it stops |
 |---|---|---|
-| Declared paths and hosts in the capability manifest, default-deny at load time | `CONTRACTS.md` §7.3 | A tool touching anything it did not declare |
-| The `(action, target)` split | §9, HP6 | Untrusted content choosing a recipient, path, host, amount, or identifier |
-| Worst-case trust propagation over full lineage | §3.3, HP6 | Laundering — untrusted content acquiring authority through derivation |
-| Egress allowlisting, deny-by-default | §5 `CapabilityProfile` | Exfiltration, the third leg of the trifecta |
-| Risk-tiered approval with blast radius | §9, HP8 | Consequential actions happening unseen |
+| Declared paths and hosts in the capability manifest, default-deny at load time | `CONTRACTS.md` Â§7.3 | A tool touching anything it did not declare |
+| The `(action, target)` split | Â§9, HP6 | Untrusted content choosing a recipient, path, host, amount, or identifier |
+| Worst-case trust propagation over full lineage | Â§3.3, HP6 | Laundering â€” untrusted content acquiring authority through derivation |
+| Egress allowlisting, deny-by-default | Â§5 `CapabilityProfile` | Exfiltration, the third leg of the trifecta |
+| Risk-tiered approval with blast radius | Â§9, HP8 | Consequential actions happening unseen |
 
-**Sandboxing is retained, scoped to one profile.** The quarantined reader —
-`reads_untrusted: true`, `exposed_tools` empty — keeps a sandbox backend. That is §8.2's
-structural trifecta break, and `CONTRACTS.md` §5 already makes
+**Sandboxing is retained, scoped to one profile.** The quarantined reader â€”
+`reads_untrusted: true`, `exposed_tools` empty â€” keeps a sandbox backend. That is Â§8.2's
+structural trifecta break, and `CONTRACTS.md` Â§5 already makes
 `reads_untrusted && !exposed_tools.is_empty()` a load-time error. It is a small, isolated
 component with no interactive path, so a container backend covers it on Windows without the
 override-erosion problem that killed the general case.
 
 **Development happens on native Windows.** No WSL2 move. The original argument for WSL2 was that
-a sandbox default erodes when its override becomes a daily convenience — with no sandbox default
+a sandbox default erodes when its override becomes a daily convenience â€” with no sandbox default
 on the ordinary path, there is no override, and the argument no longer applies. Linux and macOS
 remain first-class deployment targets and the $5 VPS target is unchanged; CI is where
 cross-platform divergence gets caught, not the developer's desk.
 
 **Cost accepted, and it is the real one: a permission-layer bug has no kernel backstop.** Under
 the original design, a defect in path handling or argument provenance was contained by the
-kernel — the sandbox was a second wall behind a first. It is now the only wall on the ordinary
+kernel â€” the sandbox was a second wall behind a first. It is now the only wall on the ordinary
 path. **The permission layer therefore carries materially more weight than it was designed to
 carry**, and three things follow that are not optional:
 
-1. **It is the highest-value target in the system for review and testing.** §8.3's AgentDojo-style
+1. **It is the highest-value target in the system for review and testing.** Â§8.3's AgentDojo-style
    suite stops being a check on defence-in-depth and becomes the primary evidence that
    containment works at all. ASR there is now a first-order number.
-2. **The red-team classes in §8.3 gain weight** — particularly sandbox-boundary redefinition via
-   agent output, which is why §9 checks `Reversible` tools and not only `Consequential` ones. A
+2. **The red-team classes in Â§8.3 gain weight** â€” particularly sandbox-boundary redefinition via
+   agent output, which is why Â§9 checks `Reversible` tools and not only `Consequential` ones. A
    workspace write is a durable channel into a later run's context, and there is no longer a
    kernel boundary underneath that check.
 3. **`Inert` reads stay unchecked on targets, and that is now a narrower call than it was.** The
    containment for reads is that fetched content returns `UntrustedContent`, returns by
-   reference, and cannot reach a Target downstream — three mechanisms, none of them the kernel.
+   reference, and cannot reach a Target downstream â€” three mechanisms, none of them the kernel.
    If any one of them weakens, this exemption must be revisited.
 
 #### Path scoping is a security boundary, not a convenience
 
 Under the original design, `paths: ["./out/**"]` in a capability manifest was a declaration the
 kernel would have enforced anyway. It is now the enforcement. **A path check that can be defeated
-by string manipulation is the whole protection gone** — there is nothing behind it.
+by string manipulation is the whole protection gone** â€” there is nothing behind it.
 
 **AMENDED 2026-08-08, at the close of M2 Session B.** The original wording is kept, because a
 future session must be able to see what was strengthened and why.
 
-> **Original — SUPERSEDED. An implementation that satisfies this wording exactly is still
+> **Original â€” SUPERSEDED. An implementation that satisfies this wording exactly is still
 > vulnerable: it produces a resolved path, compares it, and then opens it, and a link planted
 > between the comparison and the open defeats it. Do not implement to this paragraph. The binding
 > rule is the amended one below.**
@@ -635,7 +635,7 @@ future session must be able to see what was strengthened and why.
 **The amended rule: the hostile string is never canonicalized at all.**
 
 The original is right about the ordering and wrong about what it permits. It describes a resolved
-path being produced and then compared — and **an implementation doing exactly that complies with
+path being produced and then compared â€” and **an implementation doing exactly that complies with
 every word of it and is still defeated by a link planted between the comparison and the open.** The
 resolved string is a value that exists, is trusted, and can go stale. The wording admits the very
 window the paragraph below it was added to close, so a session implementing to its letter could ship
@@ -644,7 +644,7 @@ a check-then-open resolver and believe it had complied.
 The rule is therefore stated as the property, not the ordering:
 
 > **No resolved path string is ever produced for the purpose of being trusted.** A requested path is
-> (1) refused if its *spelling* is ambiguous — `..`, rooted, UNC, extended-length, device,
+> (1) refused if its *spelling* is ambiguous â€” `..`, rooted, UNC, extended-length, device,
 > drive-relative, alternate data stream, reserved device name, 8.3 short name, munged trailing dot
 > or space, homoglyph separator; (2) matched against the manifest's declared globs as a relative
 > string, before any syscall; and (3) **walked open one component at a time**, with the kernel
@@ -661,11 +661,11 @@ path pinned open with a share mode excluding `FILE_SHARE_DELETE`, each component
 verified before and after. **ADR-027** carries the implementation, its measured gaps, and the test
 that defeats a check-then-open reference implementation on purpose.
 
-**Nothing is relaxed.** The original's intent — never compare against the string the model supplied —
+**Nothing is relaxed.** The original's intent â€” never compare against the string the model supplied â€”
 is preserved and strengthened; what is removed is the implicit permission to hold a resolved path and
 trust it.
 
-**M2 acceptance gains a path-traversal suite.** Not a smoke test — an adversarial one, covering
+**M2 acceptance gains a path-traversal suite.** Not a smoke test â€” an adversarial one, covering
 at minimum:
 
 | Class | Examples |
@@ -681,7 +681,7 @@ at minimum:
 
 **One addition to that list, because canonicalization alone does not close it: the check-then-use
 race.** Canonicalizing and then opening by path leaves a window in which the resolved path can be
-swapped — a symlink planted between the check and the open. The check is correct and the open
+swapped â€” a symlink planted between the check and the open. The check is correct and the open
 still lands outside the scope. Closing it means operating on a handle rather than re-resolving a
 string: `openat`/`O_NOFOLLOW` on POSIX, and on Windows opening with reparse-point semantics made
 explicit and verifying the final handle's identity. Worth pinning at M2 alongside the suite,
@@ -689,30 +689,30 @@ because a traversal suite that passes against a TOCTOU-vulnerable implementation
 boundary that is not there.
 
 **Requirement, not a nicety: first-run onboarding states plainly what Marlowe can reach.** In
-plain language, before the first action — which directories, which hosts, what it will ask before
+plain language, before the first action â€” which directories, which hosts, what it will ask before
 doing versus do silently. A user who does not know the blast radius cannot consent to it, and
 "it runs on your real filesystem" is exactly the fact that must not be discovered later. This is
 an M2 acceptance item (the zero-config first run must not become a zero-disclosure first run).
 
 **Rejected.** Sandbox-on-by-default with a loud override (the original position): on Windows it
 degrades to "refuse to run without a container", which for a secretary means refuse to run. And
-the override, used daily, stops reading as a warning inside a week — the erosion argument was
+the override, used daily, stops reading as a warning inside a week â€” the erosion argument was
 right, which is why the answer is to remove the default rather than to keep a default nobody
 exercises.
 
-**Consequence for M1.** The §B13 suite must still run on native Windows Terminal *and* on a Linux
-terminal emulator. The direction of the gap has inverted — development is now on Windows, so
-**Linux is the surface at risk of being verified only in CI** — but the requirement is symmetric
+**Consequence for M1.** The Â§B13 suite must still run on native Windows Terminal *and* on a Linux
+terminal emulator. The direction of the gap has inverted â€” development is now on Windows, so
+**Linux is the surface at risk of being verified only in CI** â€” but the requirement is symmetric
 and unchanged.
 
-## ADR-003 · Storage substrate: one journal, one live-only hot index
+## ADR-003 Â· Storage substrate: one journal, one live-only hot index
 
 **Context.** The plan pre-committed to pinning the single-journal design only if it measured.
 See `docs/design/spike-2026-08-01.md` for the full method and raw table.
 
 **Decision. Single append-only journal**; memory, runs, sessions, lineage, and audit are
 materialized views over it. **The split (live-only) hot index is a requirement, not an
-optimization** — it is what makes the single journal viable.
+optimization** â€” it is what makes the single journal viable.
 
 **The measured curve, at 100k live memories, 1 pinned vCPU, concurrent durable writes:**
 
@@ -727,10 +727,10 @@ optimization** — it is what makes the single journal viable.
 
 Auto-injection reads an index containing only injectable entries; tombstones and superseded
 entries never enter it, reaching only the explicit `recall` tool and the abstention check.
-**An unpartitioned index crosses the 120 ms storage budget at f ≈ 0.45 and reaches 258 ms by
+**An unpartitioned index crosses the 120 ms storage budget at f â‰ˆ 0.45 and reaches 258 ms by
 f = 0.80. The partitioned index is flat across the entire range** because its cost is bounded by
-the live set, not the total. Note f = 0.00 already carries 3.0× over-fetch: with chain depth 3,
-two-thirds of rows are superseded before a single tombstone exists — supersession, not
+the live set, not the total. Note f = 0.00 already carries 3.0Ã— over-fetch: with chain depth 3,
+two-thirds of rows are superseded before a single tombstone exists â€” supersession, not
 forgetting, is what makes an unpartitioned index expensive.
 
 **The nominal operating point (tombstone fraction 0.30, chain depth 3) is PRE-REGISTERED for
@@ -742,16 +742,16 @@ property of any real workload. **The curve is the artifact.** A later session mu
 
 | Measurement | Result | Gate |
 |---|---|---|
-| Sustained durable append | 633.2/s | ≥50/s |
-| Full index rebuild (replaying fidelity + supersession events) | 11.7 s | ≤10 min |
-| **Rebuild correctness — exact per-entry fidelity** | **exact match, 0 mismatches** | exact |
-| Page bloat vs. compacted | 1.091× | report |
+| Sustained durable append | 633.2/s | â‰¥50/s |
+| Full index rebuild (replaying fidelity + supersession events) | 11.7 s | â‰¤10 min |
+| **Rebuild correctness â€” exact per-entry fidelity** | **exact match, 0 mismatches** | exact |
+| Page bloat vs. compacted | 1.091Ã— | report |
 
 **The append number travels with its caveat, never alone.** 633/s was measured on workstation
-NVMe with fsync p50 = 1.14 ms / p95 = 2.12 ms. **VPS shared storage is typically 5–20× slower**,
-which puts the same workload at roughly 175/s (5×) down to ~44/s (20×) — *at or below the 50/s
+NVMe with fsync p50 = 1.14 ms / p95 = 2.12 ms. **VPS shared storage is typically 5â€“20Ã— slower**,
+which puts the same workload at roughly 175/s (5Ã—) down to ~44/s (20Ã—) â€” *at or below the 50/s
 gate at the pessimistic end.* Mitigation, and it is a design requirement rather than a
-contingency: **group commit** — batch N events per fsync — which restores an order of magnitude
+contingency: **group commit** â€” batch N events per fsync â€” which restores an order of magnitude
 and is standard for append-only logs.
 
 **Scaling ceiling (Tier C), and it changes an M0b requirement.** The Tier B sweep held the live
@@ -767,11 +767,11 @@ set constant and grew only the dead set. Sweeping the *live* set at nominal shap
 Two ceilings, and **RAM binds before latency**:
 
 - **RAM.** Float32 vectors at 500k live are 768 MB, which does not fit a 1 GB VPS beside the
-  daemon and page cache. With ~600 MB available the float32 ceiling is ≈390k vectors.
-  **int8 quantization** at 384 B/vector (4× smaller; 384 MB at 1M live) lifts that ceiling to
-  ≈1.56M.
-- **Latency.** Brute-force scan crosses the 120 ms storage budget between 500k and 1M live —
-  interpolating, ≈600k.
+  daemon and page cache. With ~600 MB available the float32 ceiling is â‰ˆ390k vectors.
+  **int8 quantization** at 384 B/vector (4Ã— smaller; 384 MB at 1M live) lifts that ceiling to
+  â‰ˆ1.56M.
+- **Latency.** Brute-force scan crosses the 120 ms storage budget between 500k and 1M live â€”
+  interpolating, â‰ˆ600k.
 
 **Therefore: ANN indexing is an M0b requirement, not a later optimization**, together with int8
 quantization of the hot vector array. Brute force is acceptable only below ~250k live memories,
@@ -779,7 +779,7 @@ which a multi-year heavy user will exceed.
 
 **ANN is accepted on recall, not on latency.** The 120 ms storage budget above was derived under
 **brute-force (exact) assumptions**, so latency alone cannot accept an approximate index. An ANN
-index that is fast and silently drops true neighbours passes the latency gate and fails K1 — and
+index that is fast and silently drops true neighbours passes the latency gate and fails K1 â€” and
 the failure would present as a retrieval-*quality* problem, sending investigation to the cues,
 the router, or the gate, none of which are at fault. That misdiagnosis is the expensive part.
 
@@ -788,7 +788,7 @@ corpus**:
 
 | Measurement | Target |
 |---|---|
-| ANN recall@50 vs. exact search, at each Tier-C size point | ≥0.99 |
+| ANN recall@50 vs. exact search, at each Tier-C size point | â‰¥0.99 |
 | Reported alongside | the latency that recall was achieved at |
 
 Two implementation consequences, both binding:
@@ -804,31 +804,31 @@ exact* search clears the same floor. A recall loss from quantization is indistin
 downstream from a recall loss from the index, so both are measured against the same ground
 truth.
 
-**Rejected.** A shared event-log substrate with separate materialized stores — the pre-committed
+**Rejected.** A shared event-log substrate with separate materialized stores â€” the pre-committed
 fallback had either gate failed. Not taken, because both passed.
 
 **Cost accepted.** One hot substrate serves retrieval, rendering, and writes, so schema evolution
 touches every subsystem at once. The mitigation is that every index is rebuildable from the log,
-which makes migration a rebuild rather than a data migration — bounded at 11.7 s.
+which makes migration a rebuild rather than a data migration â€” bounded at 11.7 s.
 
 **Forgetting, and the honest qualification.** Graduated fidelity is a property of the retrieval
 index, not of storage: the log preserves **availability**, forgetting removes **accessibility**.
-That split is the reason this design holds and is not a convenient reframing — it is what lets
-§5.4's ladder and the append-only log coexist without contradiction. Two things nonetheless
+That split is the reason this design holds and is not a convenient reframing â€” it is what lets
+Â§5.4's ladder and the append-only log coexist without contradiction. Two things nonetheless
 write outside the append-only model and are named rather than absorbed:
 
-- **Blob eviction** — content-addressed, evictable, leaving hash + typed summary + tombstone.
-- **Privacy redaction** — destructive and audited, because a logical tombstone is not a delete
+- **Blob eviction** â€” content-addressed, evictable, leaving hash + typed summary + tombstone.
+- **Privacy redaction** â€” destructive and audited, because a logical tombstone is not a delete
   when the user asked for a delete. **Crypto-shredding key granularity is per-`(profile,
   person)` at minimum**, with per-record DEKs wrapped once per subject, so deleting one contact
   never forces shredding a scope that takes others with it. **Accepted limitation:** a
   multi-subject record survives until its last subject wrap is destroyed, so deleting person A
   does not remove A's contribution from a record also keyed to B.
 
-### ADR-003 · AMENDMENT 2026-08-08 (M0c Session L) — the hot index is a CAPACITY requirement, and the 94.9 ms does not transfer to the retrieval path
+### ADR-003 Â· AMENDMENT 2026-08-08 (M0c Session L) â€” the hot index is a CAPACITY requirement, and the 94.9 ms does not transfer to the retrieval path
 
-**Status: amended on measurement. The decision is unchanged — the partition is still a requirement
-— but the claim it rests on is split in two, because the text above reads as a latency requirement
+**Status: amended on measurement. The decision is unchanged â€” the partition is still a requirement
+â€” but the claim it rests on is split in two, because the text above reads as a latency requirement
 and the latency half is not supported on the path retrieval actually runs.**
 
 **What this amendment does NOT do:** it does not retire the hot index, weaken the ANN recall gate,
@@ -846,14 +846,14 @@ or change the deployment target. It separates two claims that the original text 
 `docs/design/spike-2026-08-01.md` measured **94.9 ms unpartitioned against 16.2 ms partitioned** at
 100k live, tombstone fraction 0.30. **That was a physical storage index under concurrent durable
 writes.** What `retrieve::select_for_injection` actually does is iterate an in-memory `BTreeMap`
-and collect matching references — no index pages, no fsync contention, no concurrent writer.
+and collect matching references â€” no index pages, no fsync contention, no concurrent writer.
 
 Measured on the real retrieval path, warm, 249 held-out queries, `considered` = **113,000**
 (`runs/session-l/RESULT.md`, `cell3-warm-profiled`):
 
 | stage | p50 | p95 | share of the P95 query |
 |---|---|---|---|
-| `candidates` (§4.3 exclusions over the whole store) | **2.586 ms** | 3.136 ms | 1.21% |
+| `candidates` (Â§4.3 exclusions over the whole store) | **2.586 ms** | 3.136 ms | 1.21% |
 | `scope` (session filter over the survivors) | **1.243 ms** | 1.615 ms | 0.57% |
 | **both together** | **3.83 ms** | 4.75 ms | **1.78%** |
 
@@ -864,16 +864,16 @@ spike's is not wrong; it is not about this path.
 
 **A future session building the partition and expecting a speedup would be building it on a number
 that does not transfer.** It would be a correct implementation of a requirement that holds, sold
-on a benefit that does not, and the disappointment would arrive *after* the work — at which point
+on a benefit that does not, and the disappointment would arrive *after* the work â€” at which point
 the natural conclusion ("the partition didn't help") is also wrong, because the partition is not
 for that.
 
 Build it for the reason that survives: **the scan is O(store) and every other retrieval stage is
 O(scoped)**, so it is the one stage whose cost grows with a user's history rather than with a
-query. At 113k entries it is 1.78% of P95. At 10× that it is not, and the Tier-C RAM ceiling
+query. At 113k entries it is 1.78% of P95. At 10Ã— that it is not, and the Tier-C RAM ceiling
 (~390k float32 vectors on a 1 GB VPS) arrives before the latency one either way.
 
-**Quote 3.83 ms for what the partition saves on today's retrieval path, and 94.9 ms → 16.2 ms only
+**Quote 3.83 ms for what the partition saves on today's retrieval path, and 94.9 ms â†’ 16.2 ms only
 for the storage path it was measured on. Never the second as if it were the first.**
 
 #### Not decided here
@@ -881,26 +881,26 @@ for the storage path it was measured on. Never the second as if it were the firs
 The 1-vCPU deployment target is what forces `rerank::SHIPPED_THREADS = 1`, and M0c Session L
 measured that raising it is a **+158.9 ms regression** on this model (see `runs/session-l/`), so no
 target change is proposed and none is implied. **A deployment-target change is a design decision,
-not a performance finding, even when a performance finding surfaces it** — it needs its own
+not a performance finding, even when a performance finding surfaces it** â€” it needs its own
 registration.
 
 ---
 
-## ADR-004 · Embedding strategy
+## ADR-004 Â· Embedding strategy
 
 **Decision.** Local ONNX small model, 384 dimensions, **int8-quantized in the hot array** (see
 ADR-003). Optional API embedder for users who prefer it, behind the same interface. Skills embed
-**description + trigger phrases only** — never full instruction prose, which pollutes the vector
-space (§7.1).
+**description + trigger phrases only** â€” never full instruction prose, which pollutes the vector
+space (Â§7.1).
 
-**Rejected.** API-only embedding — it breaks the offline path and puts a network round-trip
-inside a 300 ms budget. Large local models — they do not fit the VPS target.
+**Rejected.** API-only embedding â€” it breaks the offline path and puts a network round-trip
+inside a 300 ms budget. Large local models â€” they do not fit the VPS target.
 
 **Cost accepted.** A small local embedder is weaker than a frontier API embedder. Precision is
-bought by the gate, not by the embedder, so this is the right place to economize — but if M0b
+bought by the gate, not by the embedder, so this is the right place to economize â€” but if M0b
 misses on recall rather than precision, the embedder is the first thing to revisit.
 
-### Amended 2026-08-04 (M0b Session C) — the runtime and the model are now named
+### Amended 2026-08-04 (M0b Session C) â€” the runtime and the model are now named
 
 ADR-004 said "local ONNX small model, 384 dimensions" and named **neither an inference engine nor
 a model**. Both gaps are load-bearing, because `marlowe-eval repro` hashes the injected set byte
@@ -911,9 +911,9 @@ by measurement, and the measurements are in
 
 **Runtime: `ort` 2.0.0-rc.10, threads pinned to 1, `GraphOptimizationLevel::Level1`.**
 
-Chosen by a gate pre-committed before either engine was built (≥25 texts/s/core, ≤120 ms
+Chosen by a gate pre-committed before either engine was built (â‰¥25 texts/s/core, â‰¤120 ms
 retrieval P95, loads the pinned file, byte-identical across calls / spawns / worker counts).
-tract 0.23.4 passed every gate except throughput — 21.8/s/core against 25, missing by 13% — and
+tract 0.23.4 passed every gate except throughput â€” 21.8/s/core against 25, missing by 13% â€” and
 the rule selected ort. **The gate was not revisited after seeing 21.8.** Both engines were fully
 deterministic; throughput was the only separator.
 
@@ -927,7 +927,7 @@ with nothing recording it.
 (Rust) and 1.24.2 (Python) differs by **2.75e-6 max abs**. Small, non-zero, and exactly why the
 version is pinned rather than tracked.
 
-*Costs accepted:* ort has **no stable release** — 2.0.0-rc.13 is newest and there has never been
+*Costs accepted:* ort has **no stable release** â€” 2.0.0-rc.13 is newest and there has never been
 a 2.0.0, so it is pinned with `=`. Determinism is measured rather than structural (tract has no
 thread pool; ort has one, pinned to 1), so the standing test is the mitigation, not the config.
 Cross-hardware bit-identity is not claimed by either engine and no tolerance window is introduced
@@ -936,12 +936,12 @@ to pretend otherwise. Binary size ~46 MB.
 **Model: `jinaai/jina-embeddings-v2-small-en`, 512 dimensions, 8192-token ALiBi window.**
 Not all-MiniLM-L6-v2, and **not 384 dimensions**.
 
-Measured on 42 fit-split cases (held-out untouched), gold-turn recall@k under pure cosine — no
+Measured on 42 fit-split cases (held-out untouched), gold-turn recall@k under pure cosine â€” no
 gate, no fitted weights:
 
 | config | dim | turns truncated | texts/s/core | R@1 | R@10 | R@20 |
 |---|---|---|---|---|---|---|
-| all-MiniLM-L6-v2, truncate 128 | 384 | 46% | — | 0.314 | 0.869 | 0.913 |
+| all-MiniLM-L6-v2, truncate 128 | 384 | 46% | â€” | 0.314 | 0.869 | 0.913 |
 | all-MiniLM-L6-v2, truncate 256 | 384 | 34% | 46.7 | 0.345 | 0.833 | 0.913 |
 | all-MiniLM-L6-v2, chunk 256/192 | 384 | 0% | 23.9 | 0.309 | 0.794 | 0.913 |
 | **jina-embeddings-v2-small-en** | **512** | **0.002%** | **20.1** | **0.452** | **0.885** | **0.968** |
@@ -952,7 +952,7 @@ gate, no fitted weights:
    of the corpus's word pieces never reached the embedder at 256 tokens, and both the operator
    and the agent reasoned that the dense number would substantially measure truncation rather
    than retrieval. **That was wrong.** Within a *fixed* model, 46% / 34% / 0% of turns truncated
-   gives recall@1 of 0.314 / 0.345 / 0.309 — flat, and not monotone in how much text reached the
+   gives recall@1 of 0.314 / 0.345 / 0.309 â€” flat, and not monotone in how much text reached the
    encoder. The first 256 word pieces carry essentially all the retrievable signal despite being
    61% of the tokens. Recorded as a wrong call caught by measurement, not softened into a
    near-miss: neither party had data, and the data disagreed with both.
@@ -961,88 +961,88 @@ gate, no fitted weights:
    read "longer context helped" from this record.**
 3. **Chunk-and-pool was measured and rejected**, not skipped. Max-over-windows lost on both axes:
    recall@1 0.309 against 0.345, at 23.9 texts/s/core against a 25 gate. The mechanism was
-   predicted in advance and then observed — a long turn gets more windows and so more chances for
+   predicted in advance and then observed â€” a long turn gets more windows and so more chances for
    one to look relevant in isolation, crowding the gold turn out of the top ranks.
 
 **The throughput gate was replaced, not overridden.** jina fails the engine gate at 20.1/s/core.
 That gate was scoped to a choice between engines producing *identical* vectors, where throughput
 was the only axis; it cannot adjudicate a trade of quality against throughput. Overriding it
-would have made it advisory — and this project's thresholds hold because none has been overridden
+would have made it advisory â€” and this project's thresholds hold because none has been overridden
 once. So a **new** condition was derived, scoped to the model decision, from the same underlying
 constraint that produced the 25/s figure ("a full fit-and-score cycle must run twice in a
-session"): **two consecutive full cycles ≤ 90 minutes of embedding work**, against a measured
+session"): **two consecutive full cycles â‰¤ 90 minutes of embedding work**, against a measured
 493,500 embeddings per cycle. jina fails that uncached (142.5 min) and passes it with the
 content-addressed embedding cache specified in the plan *before* any model comparison existed
 (71.3 min, second cycle free). **The cache is therefore load-bearing for the model choice, not an
 optimization**, and if it fails its byte-identity test the pre-registered branch is to revert to
 all-MiniLM-L6-v2.
 
-**Dimensions: 384 → 512.** Under the int8 hot array this ADR already mandates, 512 holds ~1.95M
+**Dimensions: 384 â†’ 512.** Under the int8 hot array this ADR already mandates, 512 holds ~1.95M
 entries per GB against 384's ~2.6M, so it does not bind. What *does* get tighter is the
-exact-search f32 path ROADMAP keeps permanently as ANN validation ground truth: **0.75× as dense
-per GB** — ~488k entries against ~651k. The ANN session inherits that budget and should size its
+exact-search f32 path ROADMAP keeps permanently as ANN validation ground truth: **0.75Ã— as dense
+per GB** â€” ~488k entries against ~651k. The ANN session inherits that budget and should size its
 Tier-C validation points accordingly.
 
 **Unchanged by this amendment:** int8 in the hot array; the rejection of API-only embedding,
 which does not weaken under latency pressure because a network round-trip inside a 300 ms budget
 is the reason the budget exists; and skills embedding description + trigger phrases only.
 
-**If cues 3–5 exhaust the remaining latency budget**, the response is pre-committed in
+**If cues 3â€“5 exhaust the remaining latency budget**, the response is pre-committed in
 `runs/session-c/PREREGISTRATION-model.json` and is, in order: ADR-003's hot index and the ANN
 index first (both already M0b requirements, and `considered` still costs a full-store scan);
 then the embedder's sequence length and model size; then the engine. The 300 ms budget does not
-move — it is K1's definition, and a cue set that cannot fit inside it is a finding about the cue
+move â€” it is K1's definition, and a cue set that cannot fit inside it is a finding about the cue
 set.
 
-## ADR-005 · Auth broker
+## ADR-005 Â· Auth broker
 
 Covered by HP16. One `Broker` trait, two implementations, disclosed capability difference.
 
-## ADR-006 · Eleven model-visible tools
+## ADR-006 Â· Eleven model-visible tools
 
-`bash · read · edit · find · web · recall · remember · use · run · ask · done`
+`bash Â· read Â· edit Â· find Â· web Â· recall Â· remember Â· use Â· run Â· ask Â· done`
 
-One slot spare against the ≤12 budget. `use` deliberately unifies skill-load and tool-load behind
+One slot spare against the â‰¤12 budget. `use` deliberately unifies skill-load and tool-load behind
 one discriminated return rather than spending two slots. Registration is unlimited; twenty
-connected apps still expose ≤12 because connectors are found through `use`, not front-loaded.
+connected apps still expose â‰¤12 because connectors are found through `use`, not front-loaded.
 
 **Cost accepted.** `bash` carries enormous surface area for a single tool, which is precisely the
-§7.2 bet: code execution as the universal adapter is the largest simplicity lever available, and
+Â§7.2 bet: code execution as the universal adapter is the largest simplicity lever available, and
 it trades tool-count for sandbox-quality dependence.
 
-## ADR-007 · Seven nouns
+## ADR-007 Â· Seven nouns
 
-`session · memory · skill · tool · run · trigger · profile`. The full mapping of every secretary
-concept onto these is in `ARCHITECTURE.md` §5. Enforced by the budget test in HP10.
+`session Â· memory Â· skill Â· tool Â· run Â· trigger Â· profile`. The full mapping of every secretary
+concept onto these is in `ARCHITECTURE.md` Â§5. Enforced by the budget test in HP10.
 
-## ADR-008 · Tiered model routing
+## ADR-008 Â· Tiered model routing
 
 **Decision.** Strong model for orchestration and synthesis; fast cheap models for subagent
 search, extraction, classification, consolidation, and semantic turn detection. Routing is by
 task role, declared in `CapabilityProfile`, not by user preference.
 
-This is the single largest cost lever in the system (§12), and it is what makes continuous
+This is the single largest cost lever in the system (Â§12), and it is what makes continuous
 offline consolidation affordable enough to be the default rather than a paid feature.
 
-> **AMENDED 2026-08-10 (M2 C2f) — a THIRD role: compression. ADR-037 §2.**
+> **AMENDED 2026-08-10 (M2 C2f) â€” a THIRD role: compression. ADR-037 Â§2.**
 >
 > The table above has a research/search role and a synthesis role. It does not have a **compression**
 > role, and compression is folded into "extraction", which is a different job: extraction pulls
 > fields out of a document; **compression decides what survives contact with the orchestrator.**
 >
-> That makes it the enforcement point for brief §10's *"condensed structured returns"* — the
-> requirement that stops an orchestrator's context accumulating worker transcripts — and after
-> ADR-037 §6 it is also the **security interface**, because everything the orchestrator will ever
+> That makes it the enforcement point for brief Â§10's *"condensed structured returns"* â€” the
+> requirement that stops an orchestrator's context accumulating worker transcripts â€” and after
+> ADR-037 Â§6 it is also the **security interface**, because everything the orchestrator will ever
 > act on passes through it. **The component enforcing both currently has no entry in this table.**
 >
 > `ModelRoute` gains a compression role. It is the role most likely to be handed to the strong model
-> "just for now", which is how a 15× token multiplier becomes 25× with nobody deciding — so it is
+> "just for now", which is how a 15Ã— token multiplier becomes 25Ã— with nobody deciding â€” so it is
 > named here rather than left to the first implementation's convenience.
 
-## ADR-009 · No structural signature on the memory envelope
+## ADR-009 Â· No structural signature on the memory envelope
 
-**Context.** `CONTRACTS.md` §3.1 pins `MemoryEntry` with `embedding_ref: Option<VectorId>`. M9's
-candidate direction — analogical retrieval, matching on structure rather than surface — would want
+**Context.** `CONTRACTS.md` Â§3.1 pins `MemoryEntry` with `embedding_ref: Option<VectorId>`. M9's
+candidate direction â€” analogical retrieval, matching on structure rather than surface â€” would want
 a second derived key beside it, so that two problems with the same shape and different vocabulary
 can match. All five cues match on surface features, so today they cannot.
 
@@ -1055,24 +1055,24 @@ foreclosed-at-the-worst-price.
 That framing is answered below, but it is **not** the load-bearing reason. The order matters,
 because a later session will reuse whichever argument is stated first.
 
-**Decision. `MemoryEntry` does not carry a structural-signature field — not at M0b, and not in this
+**Decision. `MemoryEntry` does not carry a structural-signature field â€” not at M0b, and not in this
 shape later.** The option is preserved by the rebuild path instead.
 
 ### The primary reason is correctness: a write-time structural signature is a forgetting leak
 
 A signature computed at write time and stored on the envelope is a derivative of the entry's
-content **that does not demote when the entry's fidelity does.** §5.4's ladder (record → summary →
-gist → tombstone) and `ARCHITECTURE.md`'s availability/accessibility split are what let real
+content **that does not demote when the entry's fidelity does.** Â§5.4's ladder (record â†’ summary â†’
+gist â†’ tombstone) and `ARCHITECTURE.md`'s availability/accessibility split are what let real
 forgetting and an append-only log coexist: the log keeps the record **available**, and demotion
 removes its **accessibility**. A signature derived from the Record survives at full strength on the
-Gist and keeps matching at full strength — accessibility restored through a side channel. That is
-§5.4's worst-failure clause exactly: *a memory the user can no longer surface but the system
+Gist and keeps matching at full strength â€” accessibility restored through a side channel. That is
+Â§5.4's worst-failure clause exactly: *a memory the user can no longer surface but the system
 silently acted on.*
 
-Under §3.4 it is worse than a leak. Redaction is crypto-shredding — per-record DEKs, wrapped once
+Under Â§3.4 it is worse than a leak. Redaction is crypto-shredding â€” per-record DEKs, wrapped once
 per subject, destroyed on `Redacted`. A plaintext signature on the envelope, outside the encrypted
 record, is **residue of a redacted record**: it survives the shred and still matches. That is an
-invariant 5 hole (*see, edit, delete* — a real delete, not a logical tombstone), not a schema-cost
+invariant 5 hole (*see, edit, delete* â€” a real delete, not a logical tombstone), not a schema-cost
 question.
 
 Making a signature demote with fidelity and shred with its subject is possible, and is specified
@@ -1086,51 +1086,51 @@ Recorded so the prices are not reused as precedent:
 
 | Priced as | What the pinned documents say |
 |---|---|
-| A contract **major** bump | `MemoryEntry` is §3. It crosses no process or language line — §4 is the only contract that does, which is why §4 alone pins a JSON wire format. An **optional** field is additive, and this document's own precedents make additive changes minor: §1.1 *"Adding a kind is a minor version bump; changing one is major"*; §3.2 *"Adding a variant is a minor bump."* |
-| A **journal migration** | The belief store is a materialized view over the log (`ARCHITECTURE.md` §1, §2.3 *"fully rebuildable from the log"*). Adding a field to a derived view changes no journal event payload, so §1's forever-decodable rule is not engaged at all. ADR-003's stated purpose is that this class of change *"makes migration a rebuild rather than a data migration."* |
-| **Re-deriving across full history** | Invariant 9: the index *"rebuilds to current state, not full fidelity"*, and *"a rebuild that resurrects forgotten memories is a correctness failure."* A derivation at rebuild time may run only over live entries at their then-current fidelity. Deriving over the forgotten tail is not expensive — it is **forbidden**, and it is the leak above wearing a different hat. |
+| A contract **major** bump | `MemoryEntry` is Â§3. It crosses no process or language line â€” Â§4 is the only contract that does, which is why Â§4 alone pins a JSON wire format. An **optional** field is additive, and this document's own precedents make additive changes minor: Â§1.1 *"Adding a kind is a minor version bump; changing one is major"*; Â§3.2 *"Adding a variant is a minor bump."* |
+| A **journal migration** | The belief store is a materialized view over the log (`ARCHITECTURE.md` Â§1, Â§2.3 *"fully rebuildable from the log"*). Adding a field to a derived view changes no journal event payload, so Â§1's forever-decodable rule is not engaged at all. ADR-003's stated purpose is that this class of change *"makes migration a rebuild rather than a data migration."* |
+| **Re-deriving across full history** | Invariant 9: the index *"rebuilds to current state, not full fidelity"*, and *"a rebuild that resurrects forgotten memories is a correctness failure."* A derivation at rebuild time may run only over live entries at their then-current fidelity. Deriving over the forgotten tail is not expensive â€” it is **forbidden**, and it is the leak above wearing a different hat. |
 
-The real late-adoption price is a minor bump plus one rebuild — the rebuild ADR-003 already commits
-to and measured at 11.7 s — not a three-part migration.
+The real late-adoption price is a minor bump plus one rebuild â€” the rebuild ADR-003 already commits
+to and measured at 11.7 s â€” not a three-part migration.
 
 ### What preserves the option, since it is not a column
 
-Journal payloads stay decodable forever (§1), and the belief store is a *derivation* over them. One
+Journal payloads stay decodable forever (Â§1), and the belief store is a *derivation* over them. One
 M0b requirement therefore carries the whole option:
 
 > The belief-store rebuild is expressed as a **versioned derivation** over the event stream, with
 > `derivation_version` recorded in the profile. Adding a derived per-entry field is a version bump
 > and a rebuild, never a migration.
 
-That is a testable property. A nullable column with no producer and no consumer is not — and an
+That is a testable property. A nullable column with no producer and no consumer is not â€” and an
 untested nullable field is the same shape as every other unobservable-mismatch defect this project
 has logged.
 
 **Rejected.** Reserving one nullable `structural_signature` at M0b. It buys a minor bump and a
 rebuild we would pay anyway, parks the demotion/shred hazard where a later session meets it as an
-existing field rather than as a decision, and adds a field nothing writes and nothing reads — so
+existing field rather than as a decision, and adds a field nothing writes and nothing reads â€” so
 nothing observes it being wrong until something starts filling it.
 
 **Cost accepted, and it is real.** If M9's analogical retrieval needs signatures derived from
 **pre-demotion** content, that content is legitimately less accessible by then, and signatures
 derived at M9 will be weaker than write-time ones would have been. We are choosing weaker
-analogical matching over a forgetting leak. Brief §5.4 makes forgetting mandatory and names silent
-influence as the worst failure, so the direction is right — but it is a loss, not a free choice.
+analogical matching over a forgetting leak. Brief Â§5.4 makes forgetting mandatory and names silent
+influence as the worst failure, so the direction is right â€” but it is a loss, not a free choice.
 
 Gated as M9 always was: nothing before M9 needs the field to work, and if M0b misses K1 a sixth cue
 is irrelevant.
 
 ---
 
-## ADR-010 · Cue fusion: calibration cannot both compare cues and order within one
+## ADR-010 Â· Cue fusion: calibration cannot both compare cues and order within one
 
 **Status: the shape this ADR tests FAILED its pre-registered floor.** It is recorded anyway,
 because the reason it failed is a constraint on every future fusion shape and is more valuable
 than the shape was.
 
 **Context.** Session C measured the two-cue combiner against its own inputs
-(`runs/session-c/cue-overlap.json`). The cues are complementary — per-case Spearman 0.233, the
-either-cue oracle reaching 0.652 at top-1 — but the fitted logistic reached **0.4957 at top-1
+(`runs/session-c/cue-overlap.json`). The cues are complementary â€” per-case Spearman 0.233, the
+either-cue oracle reaching 0.652 at top-1 â€” but the fitted logistic reached **0.4957 at top-1
 against lexical alone at 0.5478**. It won at k=5 and k=10 and lost only at k=1, which is where the
 operating point reads.
 
@@ -1147,7 +1147,7 @@ fusion cannot express at any weighting.
 
 ### It failed, and the failure is the finding
 
-Floor: **0.4783 at top-1** against a required 0.5478 — worse than its best single input, and worse
+Floor: **0.4783 at top-1** against a required 0.5478 â€” worse than its best single input, and worse
 than the v2 linear gate at every k. Measured mechanism
 (`runs/session-d/fusion-failure.json`, 230 held-out cases):
 
@@ -1159,10 +1159,10 @@ than the v2 linear gate at every k. Measured mechanism
 | Gold inside the unorderable band, not picked | **20.9%** of cases |
 
 > **Isotonic calibration maps a continuous score to a step function. `max` over step functions has
-> no resolution at the top — exactly where the operating point reads.**
+> no resolution at the top â€” exactly where the operating point reads.**
 
 Lexical alone orders its head by continuous BM25. Max-fusion flattens that head to a single value
-and hands the decision to the tiebreak — and the tiebreak, `min_calibrated_precision`, is *the
+and hands the decision to the tiebreak â€” and the tiebreak, `min_calibrated_precision`, is *the
 other cue's opinion*, so inside a lexical-dominated tie it defers to the weaker cue at top-1.
 
 **Decision, and it binds future shapes:** *calibration puts cues in common units by destroying the
@@ -1179,7 +1179,7 @@ Recorded here so it is inherited rather than rediscovered:
 ### The second cost, which was missed when the shape was argued
 
 Under max fusion, `max_calibrated_precision = max_c (cue c's own top block)`. **The fusion enters
-the ranking and cannot enter the ceiling at all.** v2's joint logistic could, and did — 0.3176
+the ranking and cannot enter the ceiling at all.** v2's joint logistic could, and did â€” 0.3176
 above both cues' solo ceilings of 0.3090 and 0.2876, because blending produced a joint score whose
 top block was marginally purer than either cue's own. The shape was argued on ranking; its
 structural cap on the ceiling was not identified until after the fit.
@@ -1198,19 +1198,19 @@ point, not two, and the escalation is not licensed by it.**
 
 | Shape | Why not |
 |---|---|
-| Fitted combination on **rank features** | Measured null: RRF scores 0.4957 at top-1, identical to the fitted gate to four decimals. A fitted rank combiner differs only by weights — same global weight vector, same aggregate loss, strictly less information, since ranks discard the magnitude calibration reads. |
-| **Cascade** (dense filters, lexical reranks) | Not rejected — **deferred and now promoted.** It was ranked second because `N` is an unmeasured constant on the frozen path, which is verbatim the objection that keeps `cue_agreement_2cue` pinned. It is now the only candidate left, and `N` must be registered from dense's held-out recall curve before any reranker exists. |
+| Fitted combination on **rank features** | Measured null: RRF scores 0.4957 at top-1, identical to the fitted gate to four decimals. A fitted rank combiner differs only by weights â€” same global weight vector, same aggregate loss, strictly less information, since ranks discard the magnitude calibration reads. |
+| **Cascade** (dense filters, lexical reranks) | Not rejected â€” **deferred and now promoted.** It was ranked second because `N` is an unmeasured constant on the frozen path, which is verbatim the objection that keeps `cue_agreement_2cue` pinned. It is now the only candidate left, and `N` must be registered from dense's held-out recall curve before any reranker exists. |
 | Lowering the threshold to make the gate inject | HP1 freezes it; ROADMAP M10 is the only milestone permitted to move an operating point, and says in as many words that adaptivity is not the remedy for a missed K1. |
 
 **What ships, and the interlock that makes it safe.** `frozen-v3` stays the embedded artifact even
 though it failed. The gate abstains on 100% of queries under both v2 and v3 (ceilings 0.3176 and
 0.3090, both far under the frozen 0.95), so the ranking difference is invisible on the wire and
 costs nothing operationally; and v3's per-cue curve structure is a strict superset of what the
-cascade needs — a filter curve and a reranker. Reverting would discard the expanded refusal set and
+cascade needs â€” a filter curve and a reranker. Reverting would discard the expanded refusal set and
 the diagnostic for no measurable gain.
 
 **That justification expires exactly when the next session succeeds**, because the cascade's whole
-purpose is to make the gate inject — the worst possible timing for an argument to lapse, and the
+purpose is to make the gate inject â€” the worst possible timing for an argument to lapse, and the
 kind of thing a session is guaranteed not to be thinking about on the day it finally gets a number
 above the threshold.
 
@@ -1236,19 +1236,19 @@ interlock landed.
 
 ---
 
-## ADR-011 · The calibration was asking an incoherent cross-query question
+## ADR-011 Â· The calibration was asking an incoherent cross-query question
 
 **Status: the hypothesis is CONFIRMED and the shape still FAILED its floor.** Both are recorded,
 because the second is what the next session has to solve and the first is why it is now a different
 problem.
 
 **Context.** Through `frozen-v3` every cue curve was fit on that cue's **pooled raw score** across
-all fit queries — one isotonic curve over ~119,340 candidates, asking *what fraction of this score
+all fit queries â€” one isotonic curve over ~119,340 candidates, asking *what fraction of this score
 band is gold*. That question requires BM25 and cosine to be comparable **across** queries.
 
 They are not, and Session B made them that way on purpose. `lexical::BM25_SATURATION` is an
 *absolute* map (`s/(s+10)`) rather than min-max, because min-max forces the best candidate of every
-query to 1.0 — including queries where nothing matches — and a gate whose top feature is 1.0 by
+query to 1.0 â€” including queries where nothing matches â€” and a gate whose top feature is 1.0 by
 construction cannot abstain. The cost of that correct choice is that a query whose wording matches a
 lot of text has *all* its candidates scoring high.
 
@@ -1258,20 +1258,20 @@ best block was **31.0%** gold.
 ### The diagnosis, measured before any curve was fit
 
 Count the **distinct queries** represented in the top block. If the block were a uniform random
-sample of candidates, occupancy gives `m·(1−(1−1/m)ⁿ)` = **206.9 ± 4.5** of 242 queries.
+sample of candidates, occupancy gives `mÂ·(1âˆ’(1âˆ’1/m)â¿)` = **206.9 Â± 4.5** of 242 queries.
 
 | ranked by | distinct queries | z |
 |---|---|---|
-| `lexical_bm25` (pooled) | **133** | **−16.4** |
-| `dense_cosine` (pooled) | 138 | −15.3 |
+| `lexical_bm25` (pooled) | **133** | **âˆ’16.4** |
+| `dense_cosine` (pooled) | 138 | âˆ’15.3 |
 
 **The pooled top block really does fill from a minority of queries.** Concentration alone would not
-prove it *harmful* — high-BM25 queries might genuinely have better matches — but the conjunction
+prove it *harmful* â€” high-BM25 queries might genuinely have better matches â€” but the conjunction
 does: that block is 31% gold while each query's own rank-1 is 56%.
 
 ### The fix, and what it bought
 
-Calibrate on **`{cue}_margin`** — the candidate's lead over its own runner-up, in raw score units —
+Calibrate on **`{cue}_margin`** â€” the candidate's lead over its own runner-up, in raw score units â€”
 and rank by **`{cue}_z`**, dimensionless so it can order a lexical-won candidate against a dense-won
 one. Same cue, same scores, query-local question:
 
@@ -1280,57 +1280,57 @@ one. Same cue, same scores, query-local question:
 | `lexical_bm25` pooled | 0.418 | 0.261 |
 | **`lexical_margin`** | **0.579** | **0.483** |
 
-Both terms improved at once. The ceiling moved **0.309013 → 0.371245**, against **+0.0086** for
+Both terms improved at once. The ceiling moved **0.309013 â†’ 0.371245**, against **+0.0086** for
 adding an entire new cue in Session C.
 
 **Why margin is calibrated and z is not.** Within a query the two give the identical order, so the
 choice only bites in two places and they want opposite properties. The ranking needs something
 *dimensionless*; the threshold needs something that *preserves absolute magnitude*, because
-σ-normalized z carries Session B's min-max defect in weaker form — a candidate that barely beats
+Ïƒ-normalized z carries Session B's min-max defect in weaker form â€” a candidate that barely beats
 noise in a tight distribution still scores high. A query where everything is near zero has a tiny
 margin, and that is what keeps abstention possible.
 
 ### It still failed the floor, and the failure changed kind
 
-**0.5435 at top-1 against a required 0.5478 — one case in 230.** Session D scored 0.4783 against the
+**0.5435 at top-1 against a required 0.5478 â€” one case in 230.** Session D scored 0.4783 against the
 same floor, so v4 recovers 0.065 and lands at parity-minus-one-case with always-lexical.
 
 > **Session D's failure was a CALIBRATION failure; this one is an ARBITRATION failure.** A step
-> function deciding rank cannot recur — no calibrated value appears in the v4 ranking key at all.
+> function deciding rank cannot recur â€” no calibrated value appears in the v4 ranking key at all.
 > What remains is that every cue scores a memory *in isolation* and the gate compares isolated
 > opinions. Choosing between them by calibrated margin picks wrong slightly more often than never
 > choosing at all.
 
 **Decision, and it binds the next shape:** *per-query normalization fixes the question the
-calibration asks. It cannot fix cue selection at rank 1, and no fusion over per-cue scores can —
+calibration asks. It cannot fix cue selection at rank 1, and no fusion over per-cue scores can â€”
 the top-1 either-cue oracle is 0.652 and that is the exact ceiling on perfect arbitration. Moving
 past it requires a scorer that reads query and candidate together.*
 
 ### A structural cap, accepted knowingly
 
 `margin` is positive for **at most one candidate per cue per query**, and an isotonic curve is
-non-decreasing, so at most 2 candidates per query can ever clear the threshold — usually one.
+non-decreasing, so at most 2 candidates per query can ever clear the threshold â€” usually one.
 Coverage is therefore capped by the top-1 hit rate, and `m` is bounded by 2.
 
-This is not a defect to fix by widening the feature. §5.5 is precision-first and recovers recall
+This is not a defect to fix by widening the feature. Â§5.5 is precision-first and recovers recall
 through the explicit search tool. It is the cost of asking a decisiveness question, it was
 registered before the fit, and it is asserted by test.
 
-### The pre-registration lesson — ADR-010's mirror image
+### The pre-registration lesson â€” ADR-010's mirror image
 
 ADR-010 recorded: *a band on a quantity the tested shape cannot structurally move is not a valid
 read.* The symmetric failure is now on the record too:
 
 > **A band whose confirming and falsifying regions OVERLAP is equally unreadable.** Session E's
-> ceiling band had CONFIRMED at ≥0.337 and UNMOVED at <0.354, because the predicted movement was
+> ceiling band had CONFIRMED at â‰¥0.337 and UNMOVED at <0.354, because the predicted movement was
 > smaller than two binomial standard errors on a 466-row block. Check separation *before*
 > registering, with the same discipline that checks reachability.
 
-**And the response to a failed separation check is not to narrow the band.** δ was derived from the
+**And the response to a failed separation check is not to narrow the band.** Î´ was derived from the
 block size; shrinking it after seeing non-separation would be tuning the instrument to guarantee an
 answer. The band was left exactly as derived, demoted to a secondary read, and a **well-powered**
-diagnostic — top-block query concentration, where the difference between concentrated and diffuse is
-hundreds of queries rather than hundredths of a rate — became the primary. The measured ceiling then
+diagnostic â€” top-block query concentration, where the difference between concentrated and diffuse is
+hundreds of queries rather than hundredths of a rate â€” became the primary. The measured ceiling then
 cleared *both* boundaries, so the overlap was never entered; that was luck, and the demotion was not
 contingent on it.
 
@@ -1342,7 +1342,7 @@ Both are Session D's inverted selectivity comparison in new clothes, and both we
    251 fit cases have gold in scope; the other 22 contribute a row to every rank slice and a hit to
    none. Scale each slice by the gold-bearing fraction.
 2. **The block is not a random sample of ranks.** Only one candidate per query has a positive
-   margin, so the remainder is the *least-negative* margins — rank-2s from queries where s₁ ≈ s₂,
+   margin, so the remainder is the *least-negative* margins â€” rank-2s from queries where sâ‚ â‰ˆ sâ‚‚,
    whose gold rate is below the rank-2 average. The prediction is an **upper bound**, not a point
    estimate, and was registered as one.
 
@@ -1353,17 +1353,17 @@ exactly.
 
 ---
 
-## ADR-012 · Consolidation is a supersession edge, and it does not move retrieval on this corpus
+## ADR-012 Â· Consolidation is a supersession edge, and it does not move retrieval on this corpus
 
 **Status: the pre-registered prediction is CONFIRMED. Consolidation is built, journaled,
-reversible, and measured — and it moves nothing.** The either-cue top-1 oracle goes
-**0.6522 → 0.6435** like-for-like (−0.0087, two cases in 230). Recorded because the null is the
+reversible, and measured â€” and it moves nothing.** The either-cue top-1 oracle goes
+**0.6522 â†’ 0.6435** like-for-like (âˆ’0.0087, two cases in 230). Recorded because the null is the
 last named lever closing, and because two of the decisions taken on the way are binding regardless
 of the result.
 
-**Context.** Sessions B–E moved the ceiling 0.309 → 0.371 against a frozen 0.95 and left the
-two-cue oracle at 0.652, which caps perfect arbitration. The cross-encoder — the one named lever
-that could exceed that oracle — was ruled out at M0b on latency (ADR-011, spike 2026-08-04).
+**Context.** Sessions Bâ€“E moved the ceiling 0.309 â†’ 0.371 against a frozen 0.95 and left the
+two-cue oracle at 0.652, which caps perfect arbitration. The cross-encoder â€” the one named lever
+that could exceed that oracle â€” was ruled out at M0b on latency (ADR-011, spike 2026-08-04).
 Consolidation was the last named lever, and its claim was different in kind: it changes *which
 candidates exist* rather than how they are ranked, so unlike Session E's per-query features it is
 not rank-preserving and **can** move the oracle.
@@ -1371,28 +1371,28 @@ not rank-preserving and **can** move the oracle.
 ### The shape, and why it mints no new belief
 
 A near-duplicate cluster elects one of its **existing** members and the rest get `Superseded`;
-§4.3's exclusion (2) then removes them from the candidate set. **HP5 already specified this** —
-*"merges are supersedes edges and are therefore undoable"* — and two properties follow:
+Â§4.3's exclusion (2) then removes them from the candidate set. **HP5 already specified this** â€”
+*"merges are supersedes edges and are therefore undoable"* â€” and two properties follow:
 
 1. **Reversibility.** An over-eager merge is an appended edge over untouched beliefs, so HP5's
    *detect + reverse* is structural rather than aspirational.
 2. **Attribution survives.** M0a's `Attributor` builds its reverse map as
    `_turn_of[memory_id] = turn_id`, **last write wins**, and `evidence_precision` drops
    unattributable injections from its denominator entirely. A merge minting a *new* id would
-   therefore be scored against whichever constituent turn happened to be recorded last, silently —
+   therefore be scored against whichever constituent turn happened to be recorded last, silently â€”
    or, reported under no turn, would leave precision as a ratio over an empty set. Neither failure
    is visible in any number the harness prints.
 
 > **Decision, and it binds any future consolidation work at M0b: a merged memory must remain
 > attributable to exactly one ingested turn.** Distillation that rewrites text under a new id is
 > not measurable on a per-turn evidence key, and making it measurable is an M0a change argued
-> separately — not something an implementation session grants itself.
+> separately â€” not something an implementation session grants itself.
 
 ### Two decisions that measurement changed, before any band was written
 
 **Single-link clustering is wrong on dense embeddings of conversation.** jina's similarity over
 chat turns is anisotropic: **40.8%** of all 30.6M fit-split pairs reach cosine 0.70. A transitive
-linkage therefore chains — at threshold 0.70 single link removed **99.8%** of the candidate pool
+linkage therefore chains â€” at threshold 0.70 single link removed **99.8%** of the candidate pool
 and built a **616-member** cluster, declaring an entire session one memory. Complete link ships.
 Both are swept in the dry run and both tables are in the pre-registration, so the rejection stays
 measured rather than becoming folklore.
@@ -1401,17 +1401,17 @@ measured rather than becoming folklore.
 displaces an older one, and LongMemEval's **knowledge-update** category is built on exactly that:
 gold is the latest statement of a fact whose earlier statements are distractors. Electing the
 earliest would have systematically suppressed gold across the one category whose whole difficulty
-is recency — and would have presented as an unexplained retrieval regression with no visible cause.
+is recency â€” and would have presented as an unexplained retrieval regression with no visible cause.
 
 ### The result, with both halves attached
 
 | | |
 |---|---|
-| Held-out pool reduction | **1.186%** — the pre-registered `< 0.03` band, **PREMISE REFUTED** |
-| Pairs at cosine ≥ 0.98 | **0.0086%** of 30,587,870 |
-| Oracle, like-for-like | 0.6522 → **0.6435** |
+| Held-out pool reduction | **1.186%** â€” the pre-registered `< 0.03` band, **PREMISE REFUTED** |
+| Pairs at cosine â‰¥ 0.98 | **0.0086%** of 30,587,870 |
+| Oracle, like-for-like | 0.6522 â†’ **0.6435** |
 | Largest movement anywhere in the R@k table | 0.0087, against a Wilson half-width of **0.062** |
-| Cost | **123 ms P95** per session close, 0.41% of the §4.0.7 ingest deadline |
+| Cost | **123 ms P95** per session close, 0.41% of the Â§4.0.7 ingest deadline |
 
 `STATE.md` carried the claim that the pool is *"~493 turns where near-duplicates compete with
 gold."* It is ~493 **distinct** turns. There is very little for a near-duplicate rule to remove
@@ -1423,13 +1423,13 @@ because there is very little duplication present.
 >
 > **It does not generalize to real user history**, where the same thing genuinely does get said
 > repeatedly across months. A null here is evidence about *this benchmark's candidate pool*. It is
-> **not** evidence that §5.3 consolidation is unnecessary in production.
+> **not** evidence that Â§5.3 consolidation is unnecessary in production.
 
 Both halves were registered before the fit, so neither can be quoted without the other.
 
 ### The oracle carried no band, and that is ADR-011's lesson mirrored
 
-The reach check passed — removal changes ranks, so the metric is structurally movable, unlike
+The reach check passed â€” removal changes ranks, so the metric is structurally movable, unlike
 Session E's monotone within-query transforms. But the measured fit-split headroom was **+0.0044,
 one case in 229**, against a Wilson half-width of 0.062. **A band an order of magnitude narrower
 than the instrument's resolution cannot be read.** ADR-010 says do not register a band on a
@@ -1441,7 +1441,7 @@ resolve. Both checks now run before bands are written.
 The floor was the prior session's best single cue, which was safe only while the cues were fixed.
 Consolidation changes the cues, so an inherited floor could be cleared on a cue improvement the
 fusion did not earn. **Re-based before the fit to the best single cue measured in the same run:
-required ≥ 0.5415, measured 0.5371.** It fails against the superseded 0.5478 basis too.
+required â‰¥ 0.5415, measured 0.5371.** It fails against the superseded 0.5478 basis too.
 
 Three sessions of the fused gate losing to its own best input at top-1 is now a stable property of
 two-cue arbitration, not an accident of one shape.
@@ -1450,13 +1450,13 @@ two-cue arbitration, not an accident of one shape.
 
 The named-lever list. Registered before the result existed, so it cannot read as a reaction to a
 disappointing number: **there is no further named mechanism that raises the either-cue oracle
-within M0b's budget.** The next conversation is about K1's definition — what 0.95 injection
+within M0b's budget.** The next conversation is about K1's definition â€” what 0.95 injection
 precision means, and whether it is the right bar for a two-cue content-similarity system whose
-oracle caps at 0.65 — and not about the next lever.
+oracle caps at 0.65 â€” and not about the next lever.
 
 ---
 
-## ADR-013 · The query side is measured, and the problem is inside the session
+## ADR-013 Â· The query side is measured, and the problem is inside the session
 
 **Status: the direction change is recorded, the four named query-side mechanisms are measured, and
 three of four are closed.** Session G ships nothing. Its value is that it moves the open question
@@ -1466,7 +1466,7 @@ levers rather than accumulating them.
 **Context, and why this does not violate Session F's registration.** Session F registered, before
 its result existed, that *"there is no further named mechanism that raises the either-cue oracle
 within M0b's budget."* That statement stands as written and was true of the project's option space
-at the time. External research then named mechanisms the project had not — SmartSearch's
+at the time. External research then named mechanisms the project had not â€” SmartSearch's
 cross-encoder-carries-all-precision result, Supermemory's session-level ingest granularity, Mastra's
 three-date temporal structure. **The option space was extended from outside; a registered escalation
 was not quietly reversed after a disappointing number.** ADR-012 records the same distinction.
@@ -1479,15 +1479,15 @@ set; arms 2 and 3 change the per-cue scores via a new query representation.
 
 | arm | verdict | number |
 |---|---|---|
-| 1 · session-level pruning | **oracle read VACUOUS**; value is pool reduction | 10.3% pool at 98.25% gold retention, N=3 |
-| 2 · PRF + entity expansion | **HARMFUL**, both configurations | −0.2358 / −0.1179, p < 0.001 |
-| 3 · hypothetical answer embedding | **PREMISE REFUTED** | answer-for-question −0.2227; realizable +0.0218, p=0.27 |
-| 4 · temporal anchoring, hard constraint | **NOT REACHED**, and the corpus explains it | 1 of 59 temporal questions carries a window |
+| 1 Â· session-level pruning | **oracle read VACUOUS**; value is pool reduction | 10.3% pool at 98.25% gold retention, N=3 |
+| 2 Â· PRF + entity expansion | **HARMFUL**, both configurations | âˆ’0.2358 / âˆ’0.1179, p < 0.001 |
+| 3 Â· hypothetical answer embedding | **PREMISE REFUTED** | answer-for-question âˆ’0.2227; realizable +0.0218, p=0.27 |
+| 4 Â· temporal anchoring, hard constraint | **NOT REACHED**, and the corpus explains it | 1 of 59 temporal questions carries a window |
 
 ### The decision, and it binds the next session
 
 > **Session selection is close to solved; ranking inside a correct session is not.** At N=3 the
-> failure decomposition is 4 wrong-session against 77 right-session-wrong-rank — **19.2 to 1**.
+> failure decomposition is 4 wrong-session against 77 right-session-wrong-rank â€” **19.2 to 1**.
 
 Sessions D, E and F attacked arbitration over a ~487-turn pool, which is what carries the 0.6435
 oracle cap. Ranking ~47 topically coherent turns is a different problem and is **not known** to
@@ -1495,15 +1495,15 @@ carry the same bound. Session G did not measure it and did not claim it. The que
 forward and unmeasured in `runs/session-g/REGISTERED-QUESTION-in-session-rerank.json`, with its pass
 condition fixed in advance.
 
-**A better session scorer is worth approximately nothing** — four cases. Do not build one.
+**A better session scorer is worth approximately nothing** â€” four cases. Do not build one.
 
 ### Two things that are closed, and one that is not
 
 **Closed: query expansion.** PRF draws feedback from the first pass, and the first pass is worst
-exactly where help is needed. This was predicted before measurement and confirmed at −0.2358.
+exactly where help is needed. This was predicted before measurement and confirmed at âˆ’0.2358.
 
 **Closed: HyDE as specified.** Embedding a plausible answer *instead of* the question costs 22 points
-**with a perfect generator** — the released gold answer. The premise that answers resemble the
+**with a perfect generator** â€” the released gold answer. The premise that answers resemble the
 searched turns better than questions do is refuted, not merely unsupported. What helps is the answer
 *augmenting* the question, and that is only visible at an upper bound requiring the answer to be
 known already.
@@ -1515,8 +1515,8 @@ is untested here and remains open.
 
 ### The cross-encoder, re-costed and still not adopted
 
-`L-2-int8` clears the registered latency bar with room to spare — **92.41 ms P95 at 1 thread against
-240 ms** — and is still NOT ADOPTED, on two independent grounds registered before measurement:
+`L-2-int8` clears the registered latency bar with room to spare â€” **92.41 ms P95 at 1 thread against
+240 ms** â€” and is still NOT ADOPTED, on two independent grounds registered before measurement:
 
 1. **Batch invariance FAILS for int8**, max logit difference 0.050 (L-6) and 0.037 (L-2), where the
    spike's fp32 L-6 passed at exactly 0.000e+00. Quantization changes the reduction order. A stage
@@ -1529,13 +1529,13 @@ is untested here and remains open.
 
 ### The pre-registration lesson, which is the durable part
 
-Arm 1's registered primary read returned **+0.0000 at every N in both modes** — an identity, not a
+Arm 1's registered primary read returned **+0.0000 at every N in both modes** â€” an identity, not a
 null. Under max aggregation a session's score *is* its best turn's score, so the top-scoring turn
 always lies in the top-scoring session and pruning cannot displace it. Proven, not argued: 458/458
 case-cue pairs, zero violations.
 
 The registration performed the ADR-010 reach check correctly. It verified that **the shape can move
-the metric** — and pruning genuinely can. It did not verify that **the read, under the chosen
+the metric** â€” and pruning genuinely can. It did not verify that **the read, under the chosen
 aggregation, can vary at all.**
 
 > **Binding on every future pre-registration: check that the READ can vary, not only that the SHAPE
@@ -1563,7 +1563,7 @@ execution providers and the VPS deployment target each need their own ADR.
 
 ---
 
-## ADR-014 · The cross-encoder is the gain; the in-session framing is not
+## ADR-014 Â· The cross-encoder is the gain; the in-session framing is not
 
 **Status: shipped and measured. The retrieval path prunes and reranks; the registered question that
 motivated the pruning half FAILS.** Both halves are this session's result.
@@ -1584,7 +1584,7 @@ int8 at batch 1.
 | ceiling | 0.3739 | 0.3739 (**pinned**) |
 | retrieval P95 | 33 ms cold subset | 149 ms warm, full split |
 
-**The shipped ranker beats the best single cue for the first time in this project** — 0.5764 against
+**The shipped ranker beats the best single cue for the first time in this project** â€” 0.5764 against
 lexical's 0.5415. Sessions D, E and F each shipped a fusion that did not.
 
 ### The decision, and it binds the next session
@@ -1603,7 +1603,7 @@ remains a cost mechanism and reduces `considered` as a side effect.
 ### The number that matters for K1
 
 **The reranker is NOT capped by the either-cue oracle, and lands below it anyway.** Its presence
-ceiling on the pruned pool is **0.9825** against the 0.6435 cap — measured on the fit split before
+ceiling on the pruned pool is **0.9825** against the 0.6435 cap â€” measured on the fit split before
 anything was built, per ADR-010, and confirmed rather than assumed. It is structurally free to reach
 ~0.98. It reads **0.5764** against a held-out oracle of **0.6463**.
 
@@ -1611,28 +1611,28 @@ Sessions D and E were bounded by that oracle **because of their shape**. This me
 performs in the same neighbourhood regardless.
 
 > **The bound is a property of the task, not of the combiner.** A better arbitration shape is not
-> the missing piece — this was not an arbitration and did not clear the bar either.
+> the missing piece â€” this was not an arbitration and did not clear the bar either.
 
 ### The pre-registration lesson: verify the CONTRAST can vary, not just the read
 
-**The registered α was unreachable.** Exact McNemar is a binomial over the discordant pairs, so the
+**The registered Î± was unreachable.** Exact McNemar is a binomial over the discordant pairs, so the
 smallest attainable p is `2/2^n`: 0.25 at n=3, 1.0 at n=1. Q1 had **3** discordant pairs and Q2 had
 **1**. `p < 0.05` was **not attainable at any outcome**, and the significance half of both verdicts
 is uninformative by construction.
 
-The ADR-013 instrument check **passed** — 62 discordant, both directions — and measured the wrong
+The ADR-013 instrument check **passed** â€” 62 discordant, both directions â€” and measured the wrong
 thing. It compared reranked top-1 against **the ranking the reranker replaces**. The registered test
 consumes a different contrast: **reranked-pruned against reranked-unpruned**, two arms sharing one
 reranker.
 
 Third member of one family, arriving a level deeper each time:
 
-1. **ADR-011** — the *mechanism* could not move the metric.
-2. **ADR-013** — the *read* could not vary.
-3. **ADR-014, here** — the read varies; the **contrast the test consumes** does not.
+1. **ADR-011** â€” the *mechanism* could not move the metric.
+2. **ADR-013** â€” the *read* could not vary.
+3. **ADR-014, here** â€” the read varies; the **contrast the test consumes** does not.
 
 > **Binding: a pre-registration using a paired test MUST state the minimum discordant count at which
-> its α is attainable, and its instrument check MUST confirm the arms disagree that often — on the
+> its Î± is attainable, and its instrument check MUST confirm the arms disagree that often â€” on the
 > exact contrast, not on a proxy for it.**
 
 The **delta** criterion is unaffected and carries the conclusion: +0.0131 and +0.0044 against +0.05
@@ -1646,26 +1646,26 @@ distribution is two sides silently disagreeing. Every `calibrated_precision` is 
 Session F's. **Refitting the gate on pruned pools is the named next lever and needs its own
 registration.**
 
-**The max-aggregation identity is partition-independent**, so it holds for derived sessions —
+**The max-aggregation identity is partition-independent**, so it holds for derived sessions â€”
 re-measured, 458/458, zero violations, both partitions. Consequently **the unchanged-cue check is a
 null instrument for a pruning change** and its silence is not evidence.
 
 **Seventh instance of the two-sides-silently-disagree pattern.** Session G re-costed at ORT's
 default `ENABLE_ALL`; the Rust builds at `Level1`. Same pinned graph, same token ids, **logits
-0.0699 apart** — nearly twice the batch-invariance failure that blocked adoption. Caught by the
+0.0699 apart** â€” nearly twice the batch-invariance failure that blocked adoption. Caught by the
 reference fixture. Both sides now pin `ORT_ENABLE_BASIC`.
 
 **Batch is 1 structurally**, not by configuration: one pair per call, asserted leading dimension, no
 slice entry point. Batch invariance at Level1 is **0.0958**, worse than at `ENABLE_ALL`.
 `repro --runs 2` is byte-identical with the reranker live.
 
-**§4.6 carries no session structure and that is the real defect.** Deriving sessions from timestamps
+**Â§4.6 carries no session structure and that is the real defect.** Deriving sessions from timestamps
 is an approximation of something the contract could carry. **An M0a change with its own
 registration**, not absorbed as a permanent workaround.
 
 ---
 
-## ADR-015 · The sequence cap is an accidental length normalizer, and quantized graphs are shape-bound
+## ADR-015 Â· The sequence cap is an accidental length normalizer, and quantized graphs are shape-bound
 
 **Status: measured, and NOTHING SHIPPED. `rerank.rs` is unchanged.** Session I's scope was narrowed
 twice; the sweep was not run. Three findings are the result, and the first one is why no code
@@ -1673,11 +1673,11 @@ changed.
 
 ### The decision, and it binds the next session
 
-> **Do not raise `MAX_SEQ_LEN` on its own. It is a −0.0917 R@1 regression, and the reason is that
+> **Do not raise `MAX_SEQ_LEN` on its own. It is a âˆ’0.0917 R@1 regression, and the reason is that
 > the 256 cap is doing two opposing jobs.** It costs the 7.86% of gold turns that do not fit, and it
 > earns more than that back by capping how much score a long distractor can accumulate. **Removing
 > the cap removes the normalization.** Raising sequence length is viable only alongside **explicit
-> length normalization of the rerank score** — which is therefore promoted to the named next lever.
+> length normalization of the rerank score** â€” which is therefore promoted to the named next lever.
 
 L-2 f32, depth 10, window 0, fit split, everything but sequence length identical:
 
@@ -1686,7 +1686,7 @@ L-2 f32, depth 10, window 0, fit split, everything but sequence length identical
 | seq 256 | 0.5983 | 0.6493 |
 | seq 512 | 0.5066 | 0.5498 |
 
-Discordant 31 (5 gained, 26 lost), exact McNemar **p = 0.0002, α attainable** — the first
+Discordant 31 (5 gained, 26 lost), exact McNemar **p = 0.0002, Î± attainable** â€” the first
 significance statement in this project since ADR-014's defect that actually carries information.
 
 **The mechanism was registered as a two-way prediction before the measurement.** Either (a) the
@@ -1698,18 +1698,18 @@ from 50.0% assistant-authored at 157 median word pieces to **74.3% at 487**, aga
 ### Quantized graphs are bound to their tensor shape, in every dimension
 
 **`[1, 256]` is load-bearing on the shipped int8 graph exactly as batch = 1 is.** With bit-identical
-token ids, stripped of padding and re-padded to a longer tensor — only the shape differing:
+token ids, stripped of padding and re-padded to a longer tensor â€” only the shape differing:
 
-| padding-only, 600 pairs | median \|Δlogit\| | p95 | max | top-1 flips from padding alone |
+| padding-only, 600 pairs | median \|Î”logit\| | p95 | max | top-1 flips from padding alone |
 |---|---|---|---|---|
 | L-2 **int8** | 0.010904 | 0.046044 | 0.417379 | **9/60 = 15%** |
 | L-2 **f32** | 0.000000 | 0.000000 | 0.000000 | **0/60** |
 
 **Standing check: any sweep that varies sequence length runs f32, or its cells are different
 scorers.** The first read of the contrast above was taken on int8 and is void for that reason;
-int8 and f32 both landing on −0.0917 is coincidence, not corroboration. Eighth instance of the
+int8 and f32 both landing on âˆ’0.0917 is coincidence, not corroboration. Eighth instance of the
 two-sides-silently-disagree pattern. It also corrects ADR-014's neighbourhood: batch invariance
-failed because of **quantization, not architecture** — all eight f32 graphs are invariant to
+failed because of **quantization, not architecture** â€” all eight f32 graphs are invariant to
 0.000000.
 
 ### CUDA is unblocked, and nothing was missing
@@ -1729,18 +1729,18 @@ the depth table (**saturates at 30**, and depth 30 *is* the whole pruned pool), 
 repository revision **and** sha256, the model gate, and the truncation reachability grid. **A later
 session resumes at Phase 2 and does not repeat Phase 0 or Phase 1.**
 
-**Arm 6 is reclassified rather than deferred: per-query normalization CANNOT move R@1** — a strictly
+**Arm 6 is reclassified rather than deferred: per-query normalization CANNOT move R@1** â€” a strictly
 increasing within-query transform against a within-query ordering read is an identity, the same
 defect as ADR-011 and ADR-013. It belongs to the coverage curve, where the decision is cross-query.
 
 ---
 
-## ADR-016 · The 0.95 injection threshold was unreachable by construction, and 0.3739 never measured retrieval quality
+## ADR-016 Â· The 0.95 injection threshold was unreachable by construction, and 0.3739 never measured retrieval quality
 
 **Status: measured in Session J Part 0, before any band was registered. This is an ADR-010
 reachability check that came back NEGATIVE, and it reframes nine sessions retroactively.**
 
-`runs/session-j/gate-resolution.json`. Licensed by the standing reconstruction fidelity gate —
+`runs/session-j/gate-resolution.json`. Licensed by the standing reconstruction fidelity gate â€”
 lexical 0.5415, dense 0.4454, either-cue 0.6463, all reproduced exactly.
 
 ### The decision
@@ -1756,20 +1756,20 @@ lexical 0.5415, dense 0.4454, either-cue 0.6463, all reproduced exactly.
 ### The mechanism, in three steps
 
 **1. The calibration cannot express an operating point smaller than one block.** `fit_isotonic`
-buckets fit rows into 256 **equal-count** blocks and then pools — adjacent blocks sharing a score
+buckets fit rows into 256 **equal-count** blocks and then pools â€” adjacent blocks sharing a score
 bound, then adjacent PAVA violators. Every one of those operations makes a block *larger*. On the
 licensed gated fit population (111510 rows, 445 gold, 229 cases) the smallest expressible block is
 **435 rows = 1.90 candidates per query**.
 
 **2. That block is forced to span every query, so the only operating point is FULL COVERAGE.**
-The calibrated features are `{cue}_margin` — the candidate's lead over its own query's runner-up —
+The calibrated features are `{cue}_margin` â€” the candidate's lead over its own query's runner-up â€”
 so **exactly one candidate per query has a positive value**. The global top block is therefore
 structurally "one row from every query, then the least-negative rank-2s". Measured, not asserted:
 
 | | rows in top block | of which their query's rank-1 | distinct queries touched |
 |---|---|---|---|
-| `lexical_margin` | 435 | **229 — one per query** | **229 of 229 = 100%** |
-| `dense_margin` | 435 | **229 — one per query** | **229 of 229 = 100%** |
+| `lexical_margin` | 435 | **229 â€” one per query** | **229 of 229 = 100%** |
+| `dense_margin` | 435 | **229 â€” one per query** | **229 of 229 = 100%** |
 
 **A precision threshold is a request for a confident SUBSET. The gate has no vocabulary for
 subsets.** It can only answer at 100% coverage.
@@ -1784,7 +1784,7 @@ into the block and are almost all negative:
 
 ### The oracle, which is the number that closes it
 
-The naive bound `min(positives, block) / block` is **1.0000 here and is vacuous** — it ignores
+The naive bound `min(positives, block) / block` is **1.0000 here and is vacuous** â€” it ignores
 *where* gold rows can be. Under the forced composition a query contributes a gold row at rank 2
 only if it *has* a second gold row, and **89 of 229 fit queries have exactly one**:
 
@@ -1802,7 +1802,7 @@ only if it *has* a second gold row, and **89 of 229 fit queries have exactly one
 
 - **The resolution bound is general**: at 256 equal-count blocks over ~111k rows, no operating
   point narrower than ~435 rows exists, whatever is calibrated.
-- **The 0.8483 oracle is specific to the `{cue}_margin` composition** — one positive per query.
+- **The 0.8483 oracle is specific to the `{cue}_margin` composition** â€” one positive per query.
   A gate calibrating a feature that is *not* query-local would fill its top block differently.
   That is a different gate design, and it is not what has been shipped since v4.
 - **`THRESHOLD = 0.95` is untouched and stays untouched.** This ADR does not lower it; it records
@@ -1815,15 +1815,15 @@ from the ranking, never from the calibration, and none of them passes through a 
 
 **Does change, retroactively:** every statement that the gate "abstains on every query" *because
 retrieval is not good enough*. It abstains because the only operating point it can express is full
-coverage, where no achievable value clears 0.95. The §4.3 maturation gap's closing condition — "the
-gate begins injecting" — was therefore not reachable through the work Sessions B through I did.
+coverage, where no achievable value clears 0.95. The Â§4.3 maturation gap's closing condition â€” "the
+gate begins injecting" â€” was therefore not reachable through the work Sessions B through I did.
 
 **Consequence for Session J:** Part 3(a) reports this bound and stops, as instructed. **Conformal
 risk control is the K1 answer**, and the reason is now mechanical rather than preferential: it
 thresholds a per-query margin and abstains per query, so its operating point has resolution 1/229
 instead of 435 rows, and it can name a confident subset at all.
 
-### A constraint for whoever owns the gate design after M0b — recorded, not discovered
+### A constraint for whoever owns the gate design after M0b â€” recorded, not discovered
 
 **This is not Session J's scope and re-tuning the calibration resolution stays forbidden.** But the
 0.8483 oracle is now a measured fact and it forecloses something, so it is written down here rather
@@ -1836,23 +1836,23 @@ than left to be rediscovered by the session that tries.
 The two are the only load-bearing inputs to the bound, and they fail differently:
 
 - **The resolution rule** (`CALIBRATION_BLOCKS = 256`, equal-count) sets the block at ~1.9
-  candidates per query. Finer blocks raise the reachable precision — which is exactly why
+  candidates per query. Finer blocks raise the reachable precision â€” which is exactly why
   `fit_gate.py` fixes the resolution on a stated principle and why choosing it after seeing whether
   the curve clears 0.95 is tuning the operating point through the back door. **Any future change
   here must be argued and pre-registered before the fit, not selected against the outcome.**
 - **The one-positive-per-query property** is what forces the top block to span 100% of queries.
   It is a consequence of calibrating a *within-query margin*, which Session E adopted for a good
-  reason — pooled raw scores ask an incoherent cross-query question (ADR, v4). Changing it means
+  reason â€” pooled raw scores ask an incoherent cross-query question (ADR, v4). Changing it means
   re-opening that decision, not tweaking a constant.
 
 **The claim is bounded and should stay bounded.** The 0.8483 figure is specific to the
 `{cue}_margin` composition on this population. A gate calibrating a feature that is not query-local
-would fill its top block differently — and would inherit Session E's incoherence problem instead.
+would fill its top block differently â€” and would inherit Session E's incoherence problem instead.
 Neither escape is free, and this ADR does not pick one.
 
 ---
 
-## ADR-017 · Length normalization works, the registered estimator had the wrong sign, and the defect closes only on a model that cannot ship
+## ADR-017 Â· Length normalization works, the registered estimator had the wrong sign, and the defect closes only on a model that cannot ship
 
 **Status: measured in Session J Part 1, fit split, five cells.** Pre-registration
 `runs/session-j/PREREGISTRATION.json`; post-hoc addendum `ADDENDUM-post-hoc-length-form.json`,
@@ -1877,8 +1877,8 @@ Measured on the fit slate, L-2 f32 at seq 256:
 `E[s | len]`, so that estimator cannot see the gap it was registered to close.
 
 The consequence was not subtle. The fitted slope came out **-0.5091** logits per log word piece and
-the fitted role coefficient **-0.9352** — on the slate the model *already* scores long and
-assistant-authored candidates lower on average — so subtracting the fitted mean **added** score to
+the fitted role coefficient **-0.9352** â€” on the slate the model *already* scores long and
+assistant-authored candidates lower on average â€” so subtracting the fitted mean **added** score to
 exactly the candidates that needed penalizing:
 
 | registered arm | best on grid | delta R@1 |
@@ -1898,7 +1898,7 @@ could not have measured the quantity it was registered to correct.**
 ### 2. Normalization works, and the registered directional prediction is falsified
 
 Fit split, R@1. `7c` is the registered divisive arm; `7f` is the post-hoc `s - 2.0*log(len)` form,
-**selection-biased and not a result** — see the addendum.
+**selection-biased and not a result** â€” see the addendum.
 
 | cell | control | 7c registered | delta | discordant | exact p | 7f post-hoc |
 |---|---|---|---|---|---|---|
@@ -1906,10 +1906,10 @@ Fit split, R@1. `7c` is the registered divisive arm; `7f` is the post-hoc `s - 2
 | L-2 f32 @512 | 0.5066 | 0.6114 | **+0.1048** | 50 | 0.0009 | 0.6419 |
 | L-6 f32 @256 | 0.6114 | 0.6638 | **+0.0524** | 32 | 0.0501 | 0.6856 |
 | L-6 f32 @512 | 0.6026 | 0.6638 | **+0.0612** | 34 | 0.0243 | 0.6856 |
-| L-2 int8 @256 *(shipped)* | 0.6201 | 0.6463 | +0.0262 | — | — | 0.6681 |
+| L-2 int8 @256 *(shipped)* | 0.6201 | 0.6463 | +0.0262 | â€” | â€” | 0.6681 |
 
 **The registered prediction that L-2 gains MORE than L-6 is wrong.** At the registered comparison
-point — seq 256 — L-2 gains +0.0349 and L-6 gains +0.0524.
+point â€” seq 256 â€” L-2 gains +0.0349 and L-6 gains +0.0524.
 
 **ADR-015's weak-model reading is not overturned, it is bounded.** The length bias is a weak-model
 artifact *when long documents are actually present*: at seq 512, L-2 gains +0.1048 against L-6's
@@ -1917,7 +1917,7 @@ artifact *when long documents are actually present*: at seq 512, L-2 gains +0.10
 larger on the stronger model. **The correct statement is that the seq-256 cap hides a bias both
 models carry, and hides more of L-2's.**
 
-### 3. The truncation defect closes on a model that cannot ship — and this is the finding
+### 3. The truncation defect closes on a model that cannot ship â€” and this is the finding
 
 ADR-015 left `MAX_SEQ_LEN = 256` standing as "do not raise on its own", with explicit length
 normalization named as the only route by which raising it becomes viable. That route was tested.
@@ -1931,7 +1931,7 @@ The registered closing condition was non-inferiority at `delta >= -0.01`.
 
 > **On L-6 f32 the truncation defect is CLOSED.** Raising the sequence length to 512 alongside
 > length normalization costs exactly 0.0000 R@1 while recovering the 7.86% of gold turns that were
-> being scored on a fragment. The equality is not trivial — the two configurations decide top-1
+> being scored on a fragment. The equality is not trivial â€” the two configurations decide top-1
 > differently on 9 of 229 queries and net to zero. Discordant is 2, so **no significance statement
 > is available in either direction** and the delta carries the verdict, per ADR-014.
 >
@@ -1947,7 +1947,7 @@ The registered closing condition was non-inferiority at `delta >= -0.01`.
 **This is what makes fine-tuning L-2 load-bearing rather than a completeness exercise.** If domain
 adaptation moves L-2 into the region where normalization holds at seq 512, the defect closes on a
 shippable model. If it does not, then the honest position is that the defect is closed only in
-principle, and `MAX_SEQ_LEN = 256` stays exactly where ADR-015 left it — with the 7.86% gold
+principle, and `MAX_SEQ_LEN = 256` stays exactly where ADR-015 left it â€” with the 7.86% gold
 truncation now understood as the price of shipping rather than as an unexamined constant.
 
 ### 4. What ships free, and what does not
@@ -1958,10 +1958,10 @@ computes when it encodes the pair. **No schema change, no `DERIVATION_VERSION` b
 The **role arms are a different matter and were flagged before they were measured**: `speaker` is
 carried on the section 4.6 wire (`marlowe-contract/src/wire.rs`) and **discarded by ingest**, so
 `MemoryEntry` has no role field. Shipping 7d or 7e would need the schema addition Session H made
-for `occurred_at_ms`. They failed on their merits, so the question does not arise — but the check
+for `occurred_at_ms`. They failed on their merits, so the question does not arise â€” but the check
 was made in advance rather than discovered afterwards.
 
-### ADR-017 · AMENDMENT, same session — arm 7 does not survive held-out, and the closure claim is withdrawn
+### ADR-017 Â· AMENDMENT, same session â€” arm 7 does not survive held-out, and the closure claim is withdrawn
 
 **The sections above were written from fit-split numbers. The held-out read contradicts them, and
 the correction is recorded here rather than by editing them.**
@@ -2014,7 +2014,7 @@ normalization.** See ADR-018.
 
 ---
 
-## ADR-018 · Domain adaptation is the lever. Fine-tuning L-2 on same-session hard negatives is +0.0699 R@1 on held-out, significant, and it ships.
+## ADR-018 Â· Domain adaptation is the lever. Fine-tuning L-2 on same-session hard negatives is +0.0699 R@1 on held-out, significant, and it ships.
 
 **Status: measured in Session J Part 2.** Held-out, paired, alpha attainable.
 `runs/session-j/finetune-*.json`, `export-verification-*.json`.
@@ -2100,27 +2100,27 @@ shape-binding on a graph nobody has measured that way.
 
 ---
 
-## ADR-019 · K1 is judged on a published precision/coverage curve, the threshold is not moved, and a new kill condition is added
+## ADR-019 Â· K1 is judged on a published precision/coverage curve, the threshold is not moved, and a new kill condition is added
 
-**Status: adopted 2026-08-08, M0b Session K.** Pinned text in `ROADMAP.md` → "K1 — amended
-2026-08-08" and in brief §5.7.1. Proposal of record: `docs/requirements/proposed-K1-amendment.md`
+**Status: adopted 2026-08-08, M0b Session K.** Pinned text in `ROADMAP.md` â†’ "K1 â€” amended
+2026-08-08" and in brief Â§5.7.1. Proposal of record: `docs/requirements/proposed-K1-amendment.md`
 (Part A adopted verbatim; this ADR is Part B). Measurement: `runs/session-j/RESULT.md` Part 3.
 
 ### The decision
 
 > **K1 is measured against a published precision/coverage curve rather than a single threshold.**
-> Three conditions bind — the curve ships with the product, the operating point is declared on it,
+> Three conditions bind â€” the curve ships with the product, the operating point is declared on it,
 > and the abstention path is real. **The 0.95 threshold is NOT lowered**, and a **new** kill
 > condition is added: a flat curve, meaning precision at 10% coverage not materially above
 > precision at 100% coverage, is a project-level finding.
 
-### 1 · The instrument could not have passed
+### 1 Â· The instrument could not have passed
 
 **ADR-016, measured not derived: a perfect retrieval system scores 0.8483 on the shipped gate
 against a 0.95 threshold.** Three steps, each measured on the fit split:
 
 1. Every pooling operation in `fit_isotonic` makes a block larger, never smaller. The smallest
-   expressible block is 435 rows — 1.90 candidates per query.
+   expressible block is 435 rows â€” 1.90 candidates per query.
 2. `{cue}_margin` is positive for exactly one candidate per query, so the top block is forced to be
    "one row from every query, then the least-negative rank-2s." Measured: the top block spans
    **229 of 229 queries** for both cues. **The gate has no vocabulary for confident subsets.**
@@ -2130,15 +2130,15 @@ against a 0.95 threshold.** Three steps, each measured on the fit split:
 Sessions B through H each read the 0.3739 ceiling as evidence retrieval was not improving. It was
 reporting a structural property of the calibration shape and would have read approximately the same
 with a flawless retriever. **The honest K1 number was first produced in Session J, from a conformal
-reading at query resolution — the only resolution that can express a subset.**
+reading at query resolution â€” the only resolution that can express a subset.**
 
 **This does not invalidate any retrieval measurement.** R@1, R@5, R@10, conditional accuracy, the
 oracle, every closed mechanism and every failure decomposition were measured against gold turns
 **with the gate uninvolved**. It invalidates the *interpretation* of one number.
 
-### 2 · The measured answer is a real negative, not an instrument artifact
+### 2 Â· The measured answer is a real negative, not an instrument artifact
 
-The conformal arm is not subject to §1's defect. It operates at query resolution (1/229), sets tau
+The conformal arm is not subject to Â§1's defect. It operates at query resolution (1/229), sets tau
 at the `(1-alpha)(1+1/n)` quantile of the rank-1 minus rank-2 rerank margin, and produces a genuine
 coverage curve. **It still does not reach 0.95 with a bounded interval.**
 
@@ -2148,18 +2148,18 @@ and **that marginal guarantee does not cover precision conditional on having inj
 the selective-risk quantity K1 asks about. Reporting one as the other would be the same category
 error the isotonic ceiling was read with for nine sessions.
 
-### 3 · More retrieval quality is not the lever
+### 3 Â· More retrieval quality is not the lever
 
 **Session J's highest-weighted finding: +0.0699 R@1 from fine-tuning bought nothing at the operating
 point.** Fine-tuning dominates the precision/coverage curve from 100% down to roughly 25% coverage
-and stops helping at the head — which is exactly where K1 reads.
+and stops helping at the head â€” which is exactly where K1 reads.
 
 So this amendment is not "the target was too hard and we tried our best." Nine sessions of work
 established, with measurements, that the binding constraint is **separability at the head of the
 ranking**, and that the rerank margin is not the signal that provides it. That is a specific
 unsolved problem, not a shortfall.
 
-### 4 · The field context, which is why there was no prior art to borrow
+### 4 Â· The field context, which is why there was no prior art to borrow
 
 No published system reports injection precision at all. Headline LongMemEval results in the 90s are
 QA accuracy or Recall@k. The closest independent work on admission thresholds tops out near 0.58.
@@ -2167,11 +2167,11 @@ Every system reaching 90%+ spends materially more than 300 ms, or performs no re
 the log in context. **K1 set a bar the field does not measure, at a budget the field does not meet.**
 That was a deliberate and defensible choice, and it is why the answer had to be measured.
 
-### 5 · What the amended criterion preserves
+### 5 Â· What the amended criterion preserves
 
 The original K1 exists to prevent one specific failure: a memory system that injects confidently and
 wrongly, corrupting reasoning while appearing to work. **The amended criterion prevents the same
-failure by a different route** — the curve makes precision at any chosen coverage a published number
+failure by a different route** â€” the curve makes precision at any chosen coverage a published number
 rather than an assumption, and condition 3 forbids buying coverage with precision.
 
 ### What this ADR deliberately does NOT do
@@ -2185,7 +2185,7 @@ condition is **added**.
 reachable. The measurement is what changed.
 
 **It does not close the two remaining directions.** Both are carried forward as named work rather
-than as preconditions, per the human decision of 2026-08-08 — option (a) with (c)'s directions
+than as preconditions, per the human decision of 2026-08-08 â€” option (a) with (c)'s directions
 retained:
 
 1. **A separability mechanism at the head.** Something must make the top decile separable and the
@@ -2193,17 +2193,17 @@ retained:
    **relevance** rather than against score (ADR-017's rule), and set-wise or listwise scoring that
    observes candidates jointly rather than independently.
 2. **The human label set.** >=400 judged injections, >=50 per category, judged blind, stratified by
-   score decile. **True injection precision — the quantity K1 actually names — has never been
+   score decile. **True injection precision â€” the quantity K1 actually names â€” has never been
    computed.** Every figure to date is a gold-turn proxy. It is drawable now that a conformal
    operating point exists to sample from.
 
-**It does not authorize skipping the abstention path.** §5.5 is precision-first with recall
+**It does not authorize skipping the abstention path.** Â§5.5 is precision-first with recall
 recovered through the explicit `recall` tool. At a 10% operating point the other 90% must abstain
 and the agent must be able to search explicitly. That is M2 work and it is now load-bearing.
 
 ---
 
-## ADR-020 · The fine-tuned L-2 ships, the scored path moves from int8 to f32, and the loader accepts exactly one graph
+## ADR-020 Â· The fine-tuned L-2 ships, the scored path moves from int8 to f32, and the loader accepts exactly one graph
 
 **Status: shipped 2026-08-08, M0b Session K.** `runs/session-k/RESULT.md`,
 `runs/session-k/export-verification-ms-marco-MiniLM-L-2-v2-ft-session-j.json`,
@@ -2231,12 +2231,12 @@ oracle are **bit-identical** to Session H, which is the control.
 
 ### Two deltas, and they answer different questions
 
-**+0.0699** (ADR-018) is fine-tuned L-2 f32 against **un-tuned L-2 f32** — the contrast that
+**+0.0699** (ADR-018) is fine-tuned L-2 f32 against **un-tuned L-2 f32** â€” the contrast that
 isolates domain adaptation, with the McNemar test behind it (discordant 38, exact `p = 0.0139`,
 alpha attainable). **+0.0961** is what a user gets, because what was replaced was the **int8** graph.
 
 > **Quote +0.0699 for the effect of fine-tuning and +0.0961 for the effect of this session. Do not
-> quote +0.0961 as the fine-tuning effect** — part of it is the precision change, which ADR-015
+> quote +0.0961 as the fine-tuning effect** â€” part of it is the precision change, which ADR-015
 > measured as a separate thing.
 
 ### The precision change removes a hazard rather than adding one
@@ -2252,9 +2252,9 @@ pair encoder.
 
 **Do not re-quantize this graph without re-measuring `[1, 256]`.** Shape-binding is a property of
 int8 graphs and the fine-tuned graph has never been measured that way. Quantizing it re-opens
-ADR-015 on an unmeasured graph — which is exactly the trade this ADR declined.
+ADR-015 on an unmeasured graph â€” which is exactly the trade this ADR declined.
 
-### Batch stays 1, and the REASON changed — which is why the docs were rewritten rather than patched
+### Batch stays 1, and the REASON changed â€” which is why the docs were rewritten rather than patched
 
 Session G's original reason was that int8 batch invariance failed at 0.037 logits. **That reason no
 longer applies to the shipped graph.** Leaving it in place would have been a stale comment defending
@@ -2268,7 +2268,7 @@ a constant nobody had re-examined. Two reasons replace it:
 ### The loader accepts exactly ONE graph, deliberately
 
 There is **no table of accepted graphs**. A loader that accepts two lets a target string name one
-scorer and measure another — the failure this project has recorded ten instances of. The superseded
+scorer and measure another â€” the failure this project has recorded ten instances of. The superseded
 int8 directory produces a **named** load error pointing at ADR-018, not a missing-file error, because
 a stale `--reranking` path is the most likely way this stage gets loaded wrong. The int8 graph stays
 reachable through the offline tools, which is where ablations belong.
@@ -2278,11 +2278,11 @@ reachable through the offline tools, which is where ablations belong.
 1. **`score_longmemeval.py --reranking` defaulted to the int8 directory.** The moment the shipped
    graph moved, that default would have scored the OLD graph and written the result under the
    shipped label, with nothing observing the mismatch.
-2. **`session_j_verify_export.py --out-dir` defaulted to `runs/session-j/`** — so re-running it in a
+2. **`session_j_verify_export.py --out-dir` defaulted to `runs/session-j/`** â€” so re-running it in a
    later session **silently overwrote Session J's record of what Session J measured**. A
    verification artifact a re-run can replace is not a record.
 
-### The export gap is bounded, not closed — and it is now on the SHIPPED path
+### The export gap is bounded, not closed â€” and it is now on the SHIPPED path
 
 ADR-018 recorded the fine-tuned graphs as self-validated only. **That gap has now moved from an
 offline measurement into the running binary.** There is no external authority for a model this
@@ -2303,47 +2303,47 @@ both vocabularies, and that agreement is now a test.
 
 ---
 
-## ADR-021 · The status indicator is a braille amplitude meter, 6×2 cells, and it has no fallback
+## ADR-021 Â· The status indicator is a braille amplitude meter, 6Ã—2 cells, and it has no fallback
 
-**Status: decided 2026-08-08, at the start of M1, before implementation.** §B5 requires the glyph
+**Status: decided 2026-08-08, at the start of M1, before implementation.** Â§B5 requires the glyph
 form to be decided and recorded first, because the choice is not reversible once seven states and an
 acceptance suite are written against it.
 
 ### The decision
 
-> **The status indicator is a braille column meter over U+2800–U+28FF, six cells wide by two rows
-> tall — twelve horizontal samples at eight vertical levels. There is exactly one glyph set. There
+> **The status indicator is a braille column meter over U+2800â€“U+28FF, six cells wide by two rows
+> tall â€” twelve horizontal samples at eight vertical levels. There is exactly one glyph set. There
 > is no capability probe and no fallback.**
 
-Braille packs 2×4 dots into a character cell. Two rows of six cells is therefore a 12×8 sample grid
-in the space a 6×2 block-character meter would give 6 columns at 8 levels with no vertical
+Braille packs 2Ã—4 dots into a character cell. Two rows of six cells is therefore a 12Ã—8 sample grid
+in the space a 6Ã—2 block-character meter would give 6 columns at 8 levels with no vertical
 subdivision inside a row. **That resolution is the point.** It is the form `btop` and `bottom` use,
-and it is the register §B0 is aiming for — an engineer opens it and thinks someone who uses
+and it is the register Â§B0 is aiming for â€” an engineer opens it and thinks someone who uses
 terminals every day built this.
 
 ### What was considered and rejected
 
-**Block characters (`▁▂▃▄▅▆▇█`), rejected.** Two arguments were made for them and both were wrong.
+**Block characters (`â–â–‚â–ƒâ–„â–…â–†â–‡â–ˆ`), rejected.** Two arguments were made for them and both were wrong.
 
 The first was font coverage, and it is **largely stale**. Cascadia Code, DejaVu Sans Mono, JetBrains
-Mono, Fira Code and the Nerd Fonts patch set all cover U+2800–U+28FF. The terminal fonts that do not
+Mono, Fira Code and the Nerd Fonts patch set all cover U+2800â€“U+28FF. The terminal fonts that do not
 are not the fonts this product's users run.
 
-The second was legibility — that braille is too fine to read `waiting` from across a room. That
+The second was legibility â€” that braille is too fine to read `waiting` from across a room. That
 **misattributes the work.** `waiting` is legible because three signals fire together: the indicator
-**freezes**, the state name reads `waiting`, and the region goes amber. §B5's requirement is carried
+**freezes**, the state name reads `waiting`, and the region goes amber. Â§B5's requirement is carried
 by the combination, not by one glyph's stroke weight. Choosing a coarser glyph to make a single
 signal do three signals' work is the wrong trade.
 
 ### The widget renders what the source reports, and animates nothing
 
 **The widget has no animation of its own.** It draws whatever its sample source last reported and
-**holds the last frame when sampling stops.** This is what makes §B5's central rule structural rather
+**holds the last frame when sampling stops.** This is what makes Â§B5's central rule structural rather
 than a special case:
 
 > Motion means Marlowe is working. Stillness means the ball is in the user's court.
 
-`waiting` freezes because `waiting` **stops sampling** — not because a branch somewhere disables an
+`waiting` freezes because `waiting` **stops sampling** â€” not because a branch somewhere disables an
 animation timer for that one state. A frozen indicator is the absence of a source, which is exactly
 what the state means.
 
@@ -2352,28 +2352,28 @@ what the state means.
 | listening, speaking | microphone amplitude |
 | thinking, writing | token/stream progress |
 | running | elapsed against expected duration |
-| **waiting** | **nothing — sampling stops, last frame held** |
+| **waiting** | **nothing â€” sampling stops, last frame held** |
 | idle | a flat zero baseline, still and dim |
 
 ### M1's source is a scripted envelope, not a microphone
 
-**Stated plainly, because §B12 forbids decorative motion and this is the seam where that could rot.**
+**Stated plainly, because Â§B12 forbids decorative motion and this is the seam where that could rot.**
 M1 has no microphone and no model. The M1 sample source is the stub's scripted amplitude envelope.
-Real data flows through the real path and the widget still invents nothing — but a scripted envelope
-is not a microphone. §B12's "reports real state" is **structurally satisfied, not done.** M2 replaces
+Real data flows through the real path and the widget still invents nothing â€” but a scripted envelope
+is not a microphone. Â§B12's "reports real state" is **structurally satisfied, not done.** M2 replaces
 the *source*; the widget does not change.
 
 ### The cost of braille, and how it is paid
 
-**There is no way to detect whether a font renders U+2800–U+28FF.** The terminal reports no glyph
+**There is no way to detect whether a font renders U+2800â€“U+28FF.** The terminal reports no glyph
 coverage; a missing glyph surfaces as tofu, a blank, or a width-2 replacement, and none of those are
 distinguishable from a correctly rendered dim frame by anything the program can measure.
 
 **No fallback is added, and that is deliberate.** A silent block-character fallback would mean two
-users see two different indicators with nothing observing the divergence — the exact class of defect
+users see two different indicators with nothing observing the divergence â€” the exact class of defect
 CLAUDE.md warns about, and the fifth instance of it in this project. Instead:
 
-1. **The font requirement is documented** — a terminal font covering U+2800–U+28FF.
+1. **The font requirement is documented** â€” a terminal font covering U+2800â€“U+28FF.
 2. **`marlowe doctor` prints the glyph row and asks the user to confirm it by eye.** One honest
    one-time check, at a moment the user is looking, beats a silent divergence that never surfaces.
 
@@ -2382,24 +2382,24 @@ that actually reads this, so the check is given to the human.
 
 ### Consequences
 
-- The meter is a custom `ratatui` widget over a 6×2 cell rect (§B15's last row).
+- The meter is a custom `ratatui` widget over a 6Ã—2 cell rect (Â§B15's last row).
 - Sampling is pull-based from a source trait. `waiting` is the absence of a source, not a flag.
 - `marlowe doctor` is an M1 deliverable, not a later convenience.
-- Any future re-decision re-opens this ADR. **Do not add a fallback to make a font problem go away** —
+- Any future re-decision re-opens this ADR. **Do not add a fallback to make a font problem go away** â€”
   fix the font, or change the decision here in the open.
 
 ---
 
-## ADR-022 · The loop is a state machine over ports, and a subagent is that loop re-entered
+## ADR-022 Â· The loop is a state machine over ports, and a subagent is that loop re-entered
 
-**Context.** M2 builds ARCHITECTURE §3. Two shapes were available. The loop could own its
+**Context.** M2 builds ARCHITECTURE Â§3. Two shapes were available. The loop could own its
 provider client, its tool executors and its journal directly, or it could take them as injected
 ports. And a subagent could be a scheduler entry, or the same function called again.
 
 **Decision. Ports, and recursion.**
 
 `Engine::run(run, state, provenance, ports)` is the only driving loop in `marlowe-loop`.
-`Ports` carries nine trait objects — driver, summarizer, tool host, memory, approvals, sink,
+`Ports` carries nine trait objects â€” driver, summarizer, tool host, memory, approvals, sink,
 control, clock, recorder. A **spawn is `Engine::run` calling itself** with a fresh `Run`, a
 fresh `SessionState` and a fresh `Provenance`.
 
@@ -2425,19 +2425,19 @@ the model can read. Anthropic's documented deep-research failures were excessive
 spawning and endless loops; depth, subagent count, and a `MAX_STEPS` cap are the structural
 answers, and all three are tested.
 
-### Two refusals on `CapabilityProfile` that CONTRACTS §5 does not state
+### Two refusals on `CapabilityProfile` that CONTRACTS Â§5 does not state
 
-§5 pins one load-time error: `reads_untrusted && !exposed_tools.is_empty()`. Two more are
-enforced, and they are **strictly narrower** — no profile that satisfied §5 is rejected unless it
+Â§5 pins one load-time error: `reads_untrusted && !exposed_tools.is_empty()`. Two more are
+enforced, and they are **strictly narrower** â€” no profile that satisfied Â§5 is rejected unless it
 also recombines a trifecta leg:
 
-- `reads_untrusted && may_write_memory` — the empty tool set does not close memory writing,
+- `reads_untrusted && may_write_memory` â€” the empty tool set does not close memory writing,
   because the loop's own `MemoryWrite` step is not a tool. A quarantined reader that can write
   beliefs is laundering with the derivation step built in (HP6).
-- `reads_untrusted && egress != DenyAll` — egress needs no tool either, if the profile grants it.
+- `reads_untrusted && egress != DenyAll` â€” egress needs no tool either, if the profile grants it.
 
 Recorded here rather than left in the code because they are additions to a pinned contract's
-validation, and a later reader is entitled to know they were deliberate. If §5 should carry them,
+validation, and a later reader is entitled to know they were deliberate. If Â§5 should carry them,
 that is a contract amendment and a separate change.
 
 **Consequences.**
@@ -2446,13 +2446,13 @@ that is a contract amendment and a separate change.
   The exemption marker is a comment on the line, so an exemption appears in the diff.
 - The layering is one-way: `marlowe-tools` then `marlowe-permission` then `marlowe-loop`. The
   permission layer reads manifests, the loop calls the permission layer before execution, and
-  nothing depends on the loop except a surface (§2.14).
+  nothing depends on the loop except a surface (Â§2.14).
 - A `Recorder` port rather than an `Option<Journal>`. A write path that sometimes does not write
   makes an audit trail unfalsifiable; the in-memory recorder records the same sequence.
 
-## ADR-023 · Argument provenance is computed from the context window, never declared by the model
+## ADR-023 Â· Argument provenance is computed from the context window, never declared by the model
 
-**Context.** ARCHITECTURE §3 calls `taint.of(args)` inside adjudication, and CONTRACTS §12 pins
+**Context.** ARCHITECTURE Â§3 calls `taint.of(args)` inside adjudication, and CONTRACTS Â§12 pins
 `TaintSet` as per-value provenance. Neither says **who computes it**. The convenient answer is
 that the model's tool call carries it, because the model knows where it got each value.
 
@@ -2462,7 +2462,7 @@ Two sources of truth, in order:
 
 1. **Attribution.** The harness records the exact strings the user typed and the exact fields it
    itself computed. An argument whose value matches one **exactly** carries that class.
-2. **The floor.** Everything else is model-composed and carries §3.3's worst-case rule applied to
+2. **The floor.** Everything else is model-composed and carries Â§3.3's worst-case rule applied to
    the window it was composed in: the **minimum trust class of any block in the context view**.
 
 **A model that could label its own arguments trusted would be the security boundary**, which
@@ -2470,13 +2470,13 @@ invariant 3 says it is not. That is the whole argument, and it is why the field 
 type rather than ignored by the adjudicator.
 
 **The consequence, stated because it looks like a bug the first time it fires.** Once a run has
-read untrusted content, **every model-composed Target in that run is blocked** — a fetched page in
+read untrusted content, **every model-composed Target in that run is blocked** â€” a fetched page in
 the window drags the floor to `UntrustedContent`, and the (action, target) check refuses any
 target that is not separately attributable.
 
-That is §8.2's structural trifecta break arriving as a property of provenance rather than as a
+That is Â§8.2's structural trifecta break arriving as a property of provenance rather than as a
 second mechanism bolted beside it. The way to act on what a page said is to spawn a quarantined
-reader that returns structured findings, and let the orchestrator — which never saw the page —
+reader that returns structured findings, and let the orchestrator â€” which never saw the page â€”
 act. The design already required that; this makes it the path of least resistance instead of a
 rule somebody has to remember.
 
@@ -2489,18 +2489,18 @@ the user typed to a parent is not user-asserted inside a child that never saw th
 Without this a spawn is a laundering step. Tested.
 
 **Rejected.** Substring or normalized matching (promotes by similarity). Per-message taint rather
-than per-value (§12 pins per-value, and a call mixing a trusted recipient with an untrusted body is
+than per-value (Â§12 pins per-value, and a call mixing a trusted recipient with an untrusted body is
 the case that has to adjudicate correctly). Trusting the driver (invariant 3).
 
 **Cost accepted, and it is real.** Research-then-act in a single run is not possible. That is the
 intended shape, but it means the orchestrator-worker split is not an optimization for hard
-questions — it is **required** for any run that reads the web and then does anything. If that
+questions â€” it is **required** for any run that reads the web and then does anything. If that
 proves too strict in practice, the fix is a narrower attribution path for specific harness-computed
-fields, argued here — not a wider floor.
+fields, argued here â€” not a wider floor.
 
-## ADR-024 · Path scoping ships with its traversal suite and its handle discipline, or it does not ship
+## ADR-024 Â· Path scoping ships with its traversal suite and its handle discipline, or it does not ship
 
-**Context.** ADR-002 (revised) removed the kernel backstop from the ordinary path, and brief §8.3
+**Context.** ADR-002 (revised) removed the kernel backstop from the ordinary path, and brief Â§8.3
 states the consequence: *"inseparable from handle-based access: canonicalize-then-open leaves a
 check-then-use race, so a traversal suite passing against a check-then-open implementation reports
 a boundary that is not there. The suite and the handle discipline are one requirement and ship
@@ -2510,7 +2510,7 @@ together."* M2 Session A had room for a path check but not for the suite and the
 
 `marlowe_permission::scope` contains a `PathScope` trait and exactly one implementation,
 `Unavailable`, which refuses every path with a message naming the reason. The adjudicator routes
-every `ParamType::Path` argument through it at **every** consequence level — path scoping is a
+every `ParamType::Path` argument through it at **every** consequence level â€” path scoping is a
 different question from target provenance, and the `Inert` exemption does not reach it.
 
 **The consequence is loud and intended: `read`, `edit`, `find` and `bash` cannot run in this
@@ -2521,25 +2521,25 @@ ever passes through a check that does not exist.
 prefix comparison passes every obvious test, reads as done in a review, and certifies a boundary
 that a symlink planted between the check and the open walks straight through. The next session
 would then be *improving* a passing check rather than *building* a missing one, and the traversal
-suite written against it would be measuring the wrong thing. §8.3 calls that worse than no suite,
+suite written against it would be measuring the wrong thing. Â§8.3 calls that worse than no suite,
 because it is believed.
 
 **`ScopedPath` has no constructor from a string.** It holds an open handle and a resolved path,
 both private, and the only accessor for the path is documented as *not for re-opening*. An
 implementation that resolved without opening cannot produce the type the adjudicator requires.
-`Adjudication` carries the handles it opened, and the tool host is expected to use them — otherwise
+`Adjudication` carries the handles it opened, and the tool host is expected to use them â€” otherwise
 the check-then-use race reopens **across the permission boundary**, which is the one place a
 traversal suite would not look, because the suite tests the checker and the race is in the caller.
 
 **What Session B owes.** `openat`/`O_NOFOLLOW` on POSIX; explicit reparse semantics plus
-final-handle identity verification on Windows; and the suite from ADR-002's table — relative
+final-handle identity verification on Windows; and the suite from ADR-002's table â€” relative
 traversal, symlinks and junctions, extended-length and UNC and device forms, 8.3 short names, case
 collisions, Win32 name munging, alternate data streams, Unicode normalization. Together, in one
 session, or neither.
 
-## ADR-025 · A source may be trimmed out of the context view only if its content is recoverable
+## ADR-025 Â· A source may be trimmed out of the context view only if its content is recoverable
 
-**Context.** Brief §6 requires an explicit token budget per source, enforced by the assembler. The
+**Context.** Brief Â§6 requires an explicit token budget per source, enforced by the assembler. The
 obvious enforcement drops a source's oldest blocks when it exceeds its cap. Applied uniformly, that
 silently evicts old conversation turns to stay under a history budget.
 
@@ -2547,10 +2547,10 @@ silently evicts old conversation turns to stay under a history budget.
 files (re-readable), skills, tool schemas, injected memory (re-retrievable) and child results may be
 shortened. **Identity, governance and history may not.**
 
-Dropping conversation turns to stay under a cap is eviction with no durable append — invariant 1's
-failure — and it would present as a working budget. History pressure therefore raises `fill_pct`
+Dropping conversation turns to stay under a cap is eviction with no durable append â€” invariant 1's
+failure â€” and it would present as a working budget. History pressure therefore raises `fill_pct`
 until **compaction** handles it, with `SessionSummarized` and `SessionSpawned` durable first. History
-keeps its budget entry, because §6 asks for per-source accounting; what the entry does not do is
+keeps its budget entry, because Â§6 asks for per-source accounting; what the entry does not do is
 authorise a silent drop.
 
 **Nothing is omitted silently even where trimming is allowed.** A block that does not fit is replaced
@@ -2560,43 +2560,43 @@ per-source accounting describing a different view than the one that was sent.
 
 **This was found by a failing test, not by design.** The first implementation dropped any block whose
 own size exceeded its source cap, which made a single large turn vanish. The test that caught it was
-asserting the 70% trigger and got `fill_pct = 0.0024`. Recorded because the failure mode — a budget
-that enforces correctly and loses data while doing it — is not visible from the budget's own tests.
+asserting the 70% trigger and got `fill_pct = 0.0024`. Recorded because the failure mode â€” a budget
+that enforces correctly and loses data while doing it â€” is not visible from the budget's own tests.
 
-## ADR-026 · A manifest's declared consequence is the ceiling a tool can reach, and `bash` is Irreversible
+## ADR-026 Â· A manifest's declared consequence is the ceiling a tool can reach, and `bash` is Irreversible
 
-**Context.** CONTRACTS §7.3 pins `consequence` per tool. A shell tool can do anything, so the honest
-declaration is `Irreversible` — which means every `bash` call needs approval, which is approval
+**Context.** CONTRACTS Â§7.3 pins `consequence` per tool. A shell tool can do anything, so the honest
+declaration is `Irreversible` â€” which means every `bash` call needs approval, which is approval
 fatigue (HP8) on the most-used tool in a coding agent.
 
 **Decision. The declared level is the ceiling, `bash` declares `Irreversible`, and per-command
 refinement is refused as a convenience change.**
 
 Refining a shell call's consequence means parsing the command to decide whether it is safe. That is
-the Cursor CVE in brief §8.1 exactly: *"an allowlist made the attack easier by auto-approving exactly
+the Cursor CVE in brief Â§8.1 exactly: *"an allowlist made the attack easier by auto-approving exactly
 the commands the attacker needed."* A command classifier is an allowlist with extra steps, and its
 failure mode is silent.
 
 This is not a claim that `bash` must always block. It is a claim about **where** the relief comes
 from: M6's trust ledger, per action class, on observed agreement evidence, with novelty gating and
-hard ceilings — mechanisms that accumulate evidence about a class rather than pattern-matching a
+hard ceilings â€” mechanisms that accumulate evidence about a class rather than pattern-matching a
 string. Until then the honest behaviour is to ask.
 
 **The rest of the column, with reasons, is in `crates/marlowe-tools/src/builtin.rs`.** Two entries are
 worth naming here because they are the ones a reader will question:
 
-- **`web` is `Inert`.** §9's own example: following a link found on a page is how research works. Its
-  containment is three non-kernel mechanisms — the result returns `UntrustedContent`, it returns by
+- **`web` is `Inert`.** Â§9's own example: following a link found on a page is how research works. Its
+  containment is three non-kernel mechanisms â€” the result returns `UntrustedContent`, it returns by
   reference (`inline_threshold_bytes: 0`, never inlined), and egress allowlisting closes the
   exfiltration leg. ADR-002 records that if any one weakens, this is revisited rather than inherited.
 - **`use` is `Reversible` rather than `Inert`, specifically so its target check fires.** Loading a
-  skill chosen by untrusted content is supply-chain steering, and §9 checks `Reversible`.
+  skill chosen by untrusted content is supply-chain steering, and Â§9 checks `Reversible`.
 
 **And one role assignment carries more weight than the rest: `bash.command` is a `Target`.** It is not
-body content a tool happens to carry — it *is* the action. As a `Payload` it would be unchecked by
+body content a tool happens to carry â€” it *is* the action. As a `Payload` it would be unchecked by
 design, and untrusted content composing a shell line would pass.
 
-## ADR-027 · Containment is the handle walk; the string check is the weaker of two walls, and it is named as such
+## ADR-027 Â· Containment is the handle walk; the string check is the weaker of two walls, and it is named as such
 
 **Context.** ADR-024 deferred path scoping until it could ship with its traversal suite and its
 handle discipline. This is what shipped. ADR-002 removed the kernel backstop, so everything below
@@ -2606,13 +2606,13 @@ is the only wall there is.
 
 | Part | Job | Strength |
 |---|---|---|
-| `scope::request` | refuse ambiguous **spellings** before any syscall | weak — it only closes forms where two strings name one file |
-| `scope::glob` | decide whether a well-formed request is inside what the manifest declared | weak — it is a comparison on a string nobody has resolved yet |
+| `scope::request` | refuse ambiguous **spellings** before any syscall | weak â€” it only closes forms where two strings name one file |
+| `scope::glob` | decide whether a well-formed request is inside what the manifest declared | weak â€” it is a comparison on a string nobody has resolved yet |
 | `scope::walk` | open it without ever letting a string be resolved twice | **this is the containment** |
 
 The order is ADR-002's *"canonicalize before the check, never after"*, taken to its strongest
 reading: **the hostile string is never canonicalized at all.** It is validated, matched against the
-declaration, then *walked* — the kernel resolves one component at a time under supervision. There is
+declaration, then *walked* â€” the kernel resolves one component at a time under supervision. There is
 no moment at which a resolved string exists and is trusted, so there is nothing for a check to be
 performed against and then invalidated.
 
@@ -2627,7 +2627,7 @@ the safe wrapper; std exposes no handle-relative open, and without one this walk
 the path is opened with a share mode that **excludes `FILE_SHARE_DELETE`**, and every handle is held
 for the whole walk. A directory cannot be renamed or deleted while such a handle is open, so the
 prefix cannot be swapped underneath the next open. Each component is additionally opened with
-`FILE_FLAG_OPEN_REPARSE_POINT` and refused if it carries `FILE_ATTRIBUTE_REPARSE_POINT` — junctions
+`FILE_FLAG_OPEN_REPARSE_POINT` and refused if it carries `FILE_ATTRIBUTE_REPARSE_POINT` â€” junctions
 and symlinks are caught rather than traversed. The root's identity (volume serial + file index, via
 `same-file`) is compared before and after.
 
@@ -2647,8 +2647,8 @@ than a reviewed dependency, that trade should be made deliberately.
 ### The TOCTOU test races, and it proves it races
 
 The requirement is that a suite must not pass against a check-then-open implementation. So
-`tests/toctou.rs` contains one — `naive_check_then_open`, which canonicalizes, verifies the result
-is under the workspace, and then opens by path — and **asserts that it escapes**, returning the
+`tests/toctou.rs` contains one â€” `naive_check_then_open`, which canonicalizes, verifies the result
+is under the workspace, and then opens by path â€” and **asserts that it escapes**, returning the
 contents of a file outside the workspace.
 
 That is the load-bearing half. Without it, a green suite is equally consistent with a test that never
@@ -2656,21 +2656,21 @@ landed in the window at all, and "the boundary held" would be indistinguishable 
 never ran".
 
 **The interleaving is deterministic, not hopeful.** The walk calls a `WalkObserver` at exactly the
-instant a race must land — after component *k* is open, before *k+1*. In production the observer is
+instant a race must land â€” after component *k* is open, before *k+1*. In production the observer is
 `()`, a zero-sized no-op. A thread racing a resolver and hoping to hit a microsecond window is a test
 that passes for the wrong reason most of the time.
 
 **And the mechanism is asserted, not only the outcome.** On Windows the test asserts the swap fails
-*with a sharing or access violation* — the pinning firing. A swap that failed because `mklink` was
+*with a sharing or access violation* â€” the pinning firing. A swap that failed because `mklink` was
 missing would leave the outcome assertion green while measuring nothing.
 
-### What is verified, and where — measured on both platforms
+### What is verified, and where â€” measured on both platforms
 
 | | Windows 11 (MSVC) | Linux (WSL2 Kali, ext4) |
 |---|---|---|
 | String-level classes | run | run |
 | Junction / directory-link escape | run | run (as symlink) |
-| **Symlink escape** | **cannot run — needs Developer Mode or elevation (os error 1314)** | **run** |
+| **Symlink escape** | **cannot run â€” needs Developer Mode or elevation (os error 1314)** | **run** |
 | TOCTOU race, incl. the naive-escapes control | run | **run** |
 | Windows pinning mechanism assertion | run | n/a |
 | Suite under `MARLOWE_TRAVERSAL_STRICT=1` | **fails** (symlink class unrunnable) | **passes**, 11/11 classes `RAN` |
@@ -2679,7 +2679,7 @@ missing would leave the outcome assertion green while measuring nothing.
 **Both gaps that this ADR originally recorded as open are closed.** The POSIX `openat`/`O_NOFOLLOW`
 walk executed for the first time on WSL2 at the close of Session B, and the symlink class ran there.
 `the_naive_implementation_escapes_which_is_what_makes_this_a_race` passes on Linux as well, so the
-race window is demonstrably real on Linux and `O_NOFOLLOW` demonstrably closes it — the same pair of
+race window is demonstrably real on Linux and `O_NOFOLLOW` demonstrably closes it â€” the same pair of
 assertions the Windows run makes about pinning.
 
 **The command, so it does not need a script:**
@@ -2716,7 +2716,7 @@ present, not whether it is correct.
   comparison rather than to a value used for something else. Homoglyph separators are a different
   problem and *are* refused.
 - **A backslash is a separator on every platform**, so a POSIX filename containing one is split.
-  That fails closed — the request reaches a deeper, narrower path or is refused, never a wider one.
+  That fails closed â€” the request reaches a deeper, narrower path or is refused, never a wider one.
 - **The glob language is two wildcards.** No `?`, no classes, no braces, no negation. Every one is a
   feature whose interaction with the others must be reasoned about, on a comparison that decides
   whether a path is inside a security boundary.
@@ -2727,39 +2727,39 @@ present, not whether it is correct.
 itself is what quietly stopped existing.** CLAUDE.md carries the generalised form.
 
 
-Splitting `scope.rs` into `scope/{mod,request,glob,walk}.rs` made the brief §13 hook's entry name a
-file that no longer existed. **Path scoping was silently unguarded**, and nothing reported it — the
+Splitting `scope.rs` into `scope/{mod,request,glob,walk}.rs` made the brief Â§13 hook's entry name a
+file that no longer existed. **Path scoping was silently unguarded**, and nothing reported it â€” the
 same family as every other unobservable mismatch this project has logged.
 
 Two changes: the entry is now a **directory** prefix, which survives a split; and the hook grew a
 `--self-check` mode that fails when any guarded path does not exist, run by
 `marlowe-permission/tests/boundary_hook.rs` so it fails the build. A negative control confirms the
-check is not decorative — renaming a guarded file makes it fail by name.
+check is not decorative â€” renaming a guarded file makes it fail by name.
 
 ---
 
-## ADR-028 · Supersession detection: the signal is present, the extraction is missing
+## ADR-028 Â· Supersession detection: the signal is present, the extraction is missing
 
-**Status: NOT BUILT. The verdict is about SCOPE, not about the mechanism — supersession is BLOCKED,
+**Status: NOT BUILT. The verdict is about SCOPE, not about the mechanism â€” supersession is BLOCKED,
 not dead.** Measured on the fit split before anything was implemented. Three measurements make the
 argument and separately none of them does: `runs/session-m0c/reach-r6-supersession-ceiling-fit.json`
 (the ceiling), `reach-r7-separability-fit.json` (the similarity floor), `reach-r8-valueconflict-fit.json`
 (the value-conflict probe and its unanchored collapse).
 
-**Context.** §4.3's supersession exclusion is correct, wired and unit-tested (`entry.rs:124`, called
+**Context.** Â§4.3's supersession exclusion is correct, wired and unit-tested (`entry.rs:124`, called
 at `retrieve.rs:328`). It is also blind: the only writer of `superseded_by` is consolidation's
-near-duplicate merge at cosine ≥ 0.98, `ingest.rs:142` hardcodes `None`, §4.6's `IngestRequest` has
+near-duplicate merge at cosine â‰¥ 0.98, `ingest.rs:142` hardcodes `None`, Â§4.6's `IngestRequest` has
 no supersession field and forbids extras, and `store.rs:133` defers the contradiction detector.
-§5.7's entire harm argument assumes a component that has never existed.
+Â§5.7's entire harm argument assumes a component that has never existed.
 
 ### The cost model, registered before any threshold was measured
 
 **A false supersession removes a live memory from injection permanently and silently. A missed
 supersession leaves a stale one injectable, where it surfaces as a wrong answer.** These are not
 symmetric. Merges are reversible via the `supersedes` edge (HP5, ADR-012), so a false supersession
-is recoverable — but it does not announce itself, and a silent permanent removal is worse than a
+is recoverable â€” but it does not announce itself, and a silent permanent removal is worse than a
 visible stale injection. **The threshold is chosen against the false-positive direction, not against
-F1.** Parity — one false supersession per correct one — is the floor, not the target.
+F1.** Parity â€” one false supersession per correct one â€” is the floor, not the target.
 
 ### 1. The ceiling, measured first
 
@@ -2770,77 +2770,77 @@ A perfect oracle marking every stale knowledge-update belief superseded, simulat
 |---|---|---|
 | R@1, current-value only | 0.6900 | **0.7162** (+0.0262) |
 | knowledge-update R@1, current-value only | 0.3056 | **0.4722** (+0.1666) |
-| harm rate | 0.0742 | **0.0218** (−71%) |
+| harm rate | 0.0742 | **0.0218** (âˆ’71%) |
 | precision at the operating point | 0.9130 | 0.9565 |
-| top-1 changed | — | 15 of 229 |
+| top-1 changed | â€” | 15 of 229 |
 
 **This is what is at stake if the blocker is ever removed**, and it is why supersession is recorded
 as blocked rather than closed.
 
 **ADR-014, and it is a stop signal on the statistical claim.** The oracle produces exactly **6
-discordant** — the bare minimum at which α = 0.05 is attainable — and reaches p = 0.0312 *only*
+discordant** â€” the bare minimum at which Î± = 0.05 is attainable â€” and reaches p = 0.0312 *only*
 because all 6 fall one way. A detector at half the ceiling gives 3 discordant, where the smallest
 attainable p is 0.25. One with 6 gains and a single false supersession gives 7 and p = 0.125.
-**Significance would need ≥ 9 discordant, more than a perfect oracle produces.** α is declared
+**Significance would need â‰¥ 9 discordant, more than a perfect oracle produces.** Î± is declared
 unattainable in advance for every real arm; the delta carries the verdict alone.
 
-**ADR-013, stated so it is not inherited.** The oracle's read is one-directional — gained 6, lost 0 —
+**ADR-013, stated so it is not inherited.** The oracle's read is one-directional â€” gained 6, lost 0 â€”
 and that is *structural*: an oracle only removes definitionally-stale turns. A real detector moves
 both ways and its instrument check must be re-run on its own contrast, never on the oracle's.
 
-### 2. Signal 2 — temporal precedence on high similarity — is DEAD, and the cost model is why
+### 2. Signal 2 â€” temporal precedence on high similarity â€” is DEAD, and the cost model is why
 
 Cosine between the 33 true supersession pairs and the 15,789 pool turns they must be separated from:
 
 | threshold | recall | false positives | precision |
 |---|---|---|---|
-| **0.98** — ADR-012's duplicate bar | **0 of 33** | 0 | — |
+| **0.98** â€” ADR-012's duplicate bar | **0 of 33** | 0 | â€” |
 | 0.95 | 0 of 33 | 3 | 0.0000 |
-| **0.85** | 14 of 33 | 174 | **0.0745** — best anywhere on the grid |
+| **0.85** | 14 of 33 | 174 | **0.0745** â€” best anywhere on the grid |
 | 0.75 | 33 of 33 | 1,874 | 0.0173 |
 
 **Best precision anywhere is 0.0745**, which under the registered cost model destroys roughly
 **twelve live memories per correct supersession**. That is not a threshold to tune; it is a signal
-that is absent. The true pairs sit inside the distractor distribution — median true cosine 0.8284
-against a distractor p99 of 0.8526 — and the true partner is the nearest neighbour in **1 of 33**
+that is absent. The true pairs sit inside the distractor distribution â€” median true cosine 0.8284
+against a distractor p99 of 0.8526 â€” and the true partner is the nearest neighbour in **1 of 33**
 cases, median rank 7 of a 479-turn pool.
 
 > **`0 of 33` at cosine 0.98 is the quantitative reason the current merge is blind**, and it is the
-> number to quote. ADR-012 measured ≥ 0.98 pairs at 0.0086% of 30.6M and recorded that LongMemEval
+> number to quote. ADR-012 measured â‰¥ 0.98 pairs at 0.0086% of 30.6M and recorded that LongMemEval
 > distractors are "topically related rather than textually duplicated". This is that finding
 > localised to the pairs supersession actually cares about.
 
-### 3. Signal 1 — entity-relation conflict — is PRESENT, and the missing half is identity
+### 3. Signal 1 â€” entity-relation conflict â€” is PRESENT, and the missing half is identity
 
 Real entity and relation extraction does not exist in this workspace, so what was measured is an
-approximation: context Jaccard × value-token disjointness, over numbers, times, money and
+approximation: context Jaccard Ã— value-token disjointness, over numbers, times, money and
 non-sentence-initial capitalised words. **What it cannot see, stated before the result:** a
-supersession whose value is a common noun (tea → coffee); a turn recapping the old value while
+supersession whose value is a common noun (tea â†’ coffee); a turn recapping the old value while
 stating the new; negation and hedging; and anything requiring the *relation* to be identified. It
 abstains on 7 of 33 true pairs because one side carries no extractable value.
 
 | | anchored on the true stale turn | **unanchored, as a detector runs** |
 |---|---|---|
-| pairs considered, 34 fit cases | 15,789 | **3,941,120** — 241× more |
+| pairs considered, 34 fit cases | 15,789 | **3,941,120** â€” 241Ã— more |
 | true positives at threshold 0.20 | 4 | 4 |
 | false positives | 6 | **~1,539** |
 | **precision** | **0.4000** | **0.0026** |
 
-**Precision collapses 154× when the anchor is removed, and that collapse is the finding.**
+**Precision collapses 154Ã— when the anchor is removed, and that collapse is the finding.**
 
 > **0.4000 was never a detector's number. It is the value-comparison rule's precision *conditional
 > on already knowing which two beliefs are about the same thing*.** The rule was not *detecting*
-> supersession — it was *verifying* it, given a candidate something else had found. Those are two
+> supersession â€” it was *verifying* it, given a candidate something else had found. Those are two
 > components and only one of them was probed. Unanchored, "same context, different value" fires on
 > about fifteen hundred unrelated pairs per 34 cases.
 
 > **Verdict: signal present, extraction missing.** Not "supersession is undetectable on this
-> corpus". Value conflict beats similarity **6×** when anchored (0.4444 against 0.0745), and the
+> corpus". Value conflict beats similarity **6Ã—** when anchored (0.4444 against 0.0745), and the
 > entire gap between anchored and unanchored is the same-thing question. What is missing is the
 > component that narrows 3.9 million pairs to a handful before the value comparison runs.
 
-**Two honest limits on that verdict.** The anchor is *stronger* than entity resolution — it names one
-turn, where identity would yield a candidate set — so 0.4000 is an **upper bound** on what identity
+**Two honest limits on that verdict.** The anchor is *stronger* than entity resolution â€” it names one
+turn, where identity would yield a candidate set â€” so 0.4000 is an **upper bound** on what identity
 buys, not an estimate. And even at 0.4000 the rule sits at 4 true against 6 false, below the parity
 floor. Whether a real (entity, relation, value) comparison clears the bar is **not measured, and
 cannot be** without building the component.
@@ -2851,12 +2851,12 @@ cannot be** without building the component.
 memory entry with confidence and provenance, produced by consolidation and correctable in plain
 speech. Blocking on normalized surface form and channel address; scoring on embedding similarity,
 co-occurrence, temporal contiguity, and handle match."* `Payload::Entity` and `Payload::Edge` exist
-in §3.2. The slot is there; nothing fills it.
+in Â§3.2. The slot is there; nothing fills it.
 
-**Recorded, not scoped — this session does not design it.** Entity resolution is HP2 and needs its
+**Recorded, not scoped â€” this session does not design it.** Entity resolution is HP2 and needs its
 own registration and its own reachability check. What is worth writing down is that it would touch
-the ingest path, mint `Payload::Entity`/`Edge` beliefs in consolidation, and — because consolidation
-mints no new belief today — would be **the first live exercise of trust propagation through a
+the ingest path, mint `Payload::Entity`/`Edge` beliefs in consolidation, and â€” because consolidation
+mints no new belief today â€” would be **the first live exercise of trust propagation through a
 derived belief**, which STATE.md carries as unexercised and which needs its own test.
 
 ### Decision
@@ -2866,45 +2866,45 @@ derived belief**, which STATE.md carries as unexercised and which needs its own 
 3. **Signal 1 is OPEN and BLOCKED on HP2 entity identity**, not on a threshold. Supersession is
    **blocked, not dead**: the ceiling says it is worth +0.1666 on knowledge-update and a 71% cut in
    harmful injections if it is ever unblocked.
-4. **§4.3's exclusion is untouched.** It is correct. It has no edges because nothing produces them.
-5. **The tripwire ships regardless** — `tools/tripwire_head_composition.py`, baselined at
+4. **Â§4.3's exclusion is untouched.** It is correct. It has no edges because nothing produces them.
+5. **The tripwire ships regardless** â€” `tools/tripwire_head_composition.py`, baselined at
    `crates/marlowe-memory/artifacts/head-composition-baseline-v1.json`.
 
 **Closing condition, named now so a later session need not invent one:** supersession detection
 reopens when HP2's `SameAs` edges exist, and closes when a value comparison over (entity, relation)
-triples clears **precision ≥ 0.5 measured UNANCHORED** — parity under the registered asymmetry — at
+triples clears **precision â‰¥ 0.5 measured UNANCHORED** â€” parity under the registered asymmetry â€” at
 a recall that moves the ceiling by more than one case. Anything below parity fails the cost model
 regardless of its recall, and any figure measured anchored is not the number this condition asks for.
 
-### 5. The consequence for §5.7, which is the finding of this whole line of work
+### 5. The consequence for Â§5.7, which is the finding of this whole line of work
 
 With supersession unreachable on this corpus with available components, **harm being zero at the
 operating point is the only protection that exists, and it is accidental.** It holds because the
-head contains ~0% knowledge-update queries against a 15.7% base rate — a category-exclusion side
+head contains ~0% knowledge-update queries against a 15.7% base rate â€” a category-exclusion side
 effect of those queries being low-confidence (median margin 0.2782 against 0.4020), not a harm-aware
 mechanism. Within knowledge-update the margin's relation to harm flips sign between splits.
 
 **It is fragile in two named directions.** Coverage rising pulls lower-confidence queries into the
-injected set. Knowledge-update confidence improving pulls that category into the head — R6 measured
+injected set. Knowledge-update confidence improving pulls that category into the head â€” R6 measured
 exactly this, a perfect oracle taking the fit knowledge-update share of the top decile from **4.3%
 to 13.0%**. Either removes the protection with no component reporting a change.
 
 > **The tripwire is therefore load-bearing rather than diagnostic.** It is the only thing standing
-> between §5.7's guarantee and a silent regression. It TRIPs on any harmful injection at the
+> between Â§5.7's guarantee and a silent regression. It TRIPs on any harmful injection at the
 > operating point against a baseline of zero, and WARNs when the knowledge-update share reaches the
-> base rate — the point at which the harm figure must be re-measured rather than inherited.
+> base rate â€” the point at which the harm figure must be re-measured rather than inherited.
 >
 > And **`0 of 23` is reported with its interval every time.** Its Clopper-Pearson upper bound is
 > **0.1482**. Three configurations agreeing on zero is three configurations agreeing on a number
 > that cannot distinguish zero from one in seven.
 
-## ADR-028 · Marlowe runs against a local Ollama endpoint first; hosted providers register later
+## ADR-028 Â· Marlowe runs against a local Ollama endpoint first; hosted providers register later
 
 **Decision by the human, 2026-08-08, at the start of M2 Session C.**
 
 **Context.** C2 introduces the first real model call. Everything before it runs against a scripted
-stub. The obvious path — a hosted provider client — collides head-on with two constraints:
-ARCHITECTURE §5's *"no configuration file is read on first run"*, and **K6**, which measures time
+stub. The obvious path â€” a hosted provider client â€” collides head-on with two constraints:
+ARCHITECTURE Â§5's *"no configuration file is read on first run"*, and **K6**, which measures time
 from install to first useful output with **zero config**.
 
 Three ways to source a hosted key were available and **all three fail K6 for the same reason**: an
@@ -2914,50 +2914,50 @@ first run. K6 does not measure whether that something is small; it measures whet
 **Decision. The default provider is a local Ollama endpoint. Hosted providers are a later,
 separately-registered capability.**
 
-This **dissolves** the tension rather than trading against it. Install, run, ask, answer — no
-account, no key, no network. It is the strongest available reading of §4's zero-config constraint
-*and* of §15's anti-requirement against a cloud dependency for core function, and it satisfies both
+This **dissolves** the tension rather than trading against it. Install, run, ask, answer â€” no
+account, no key, no network. It is the strongest available reading of Â§4's zero-config constraint
+*and* of Â§15's anti-requirement against a cloud dependency for core function, and it satisfies both
 at once rather than choosing between them.
 
 ### It also separates two things C2 was about to conflate
 
 | | What it is | Ollama needs it? |
 |---|---|---|
-| **Provider adapter** | normalizes what a model speaks across API shapes (§12) | **yes** |
-| **Credential broker** | how a hosted key arrives, is stored, and reaches the transport without entering model context (§2.13, ADR-005) | **no** |
+| **Provider adapter** | normalizes what a model speaks across API shapes (Â§12) | **yes** |
+| **Credential broker** | how a hosted key arrives, is stored, and reaches the transport without entering model context (Â§2.13, ADR-005) | **no** |
 
 **Build the adapter properly and do not build the broker.** The adapter is the seam hosted
 providers plug into later, so its shape has to be right now; the broker is M5's work and has no
 consumer until a hosted provider exists. Building it here would be a component with no user, whose
-first real exercise is months away — which is how a credential path gets written once and reviewed
+first real exercise is months away â€” which is how a credential path gets written once and reviewed
 never.
 
 ### Three requirements, from the same decision
 
 **1. Degrade honestly when Ollama is absent.** Invariant 4: no dependency is fatal, and a degraded
-state is a **declared value on the run object** surfaced in the status band (§B5, amber), not a
-crash and not a log line. The message says what is unavailable and how to fix it — `ollama serve`,
-or the model that is missing — because "no model available" with no remedy is a failure the user
+state is a **declared value on the run object** surfaced in the status band (Â§B5, amber), not a
+crash and not a log line. The message says what is unavailable and how to fix it â€” `ollama serve`,
+or the model that is missing â€” because "no model available" with no remedy is a failure the user
 cannot act on. `DegradedPath` already exists in `TurnEvent`; this adds a variant rather than a
 special case.
 
 **2. Record the capability difference, and keep recording it.** A local 7B model is materially
-weaker than a frontier one, and §12 already requires that difference be disclosed honestly rather
+weaker than a frontier one, and Â§12 already requires that difference be disclosed honestly rather
 than papered over. It bites hardest on **tool-call reliability**, which is precisely where a
 debugging session cannot tell a harness bug from a model that cannot follow a schema. So the model
 in use, its size, and its measured tool-call success rate travel with the run and appear in
-`--dev` — and any benchmark number produced against a local model is labelled with it. A number
+`--dev` â€” and any benchmark number produced against a local model is labelled with it. A number
 quoted without the model that produced it is the same defect as a number quoted without its token
-cost (§5.7).
+cost (Â§5.7).
 
 **3. ADR-008's tiered routing survives the change.** Strong model for orchestration and synthesis,
 cheap models for extraction, classification and consolidation. With Ollama this becomes a routing
-table over **local models** rather than over providers — and the table's shape must be the one
+table over **local models** rather than over providers â€” and the table's shape must be the one
 hosted models slot into unchanged, because a routing design that has to be rewritten when the first
 hosted provider arrives was a routing design that encoded the provider.
 
 `CapabilityProfile::model_route` (`Orchestrator | Worker | Summarizer`) is already the right shape:
-it names a **task role**, never a model and never a provider. The table maps role → model, and it
+it names a **task role**, never a model and never a provider. The table maps role â†’ model, and it
 is the only place a model name appears.
 
 ### Rejected
@@ -2972,15 +2972,15 @@ is the only place a model name appears.
 Out-of-the-box quality is bounded by what the user's machine can run, and the first impression of
 the product is a local model's tool-calling. That is a real cost and it is the reason requirement 2
 exists: the number is disclosed rather than discovered. The mitigation is that hosted providers are
-a registration away, not a rebuild away — which is what makes the adapter's shape the load-bearing
+a registration away, not a rebuild away â€” which is what makes the adapter's shape the load-bearing
 part of C2.
 
 ---
 
-## ADR-029 · The cross-encoder runs on CUDA where a GPU exists, batched; CPU stays the fallback, sequential; and the provider is ANNOUNCED, never silently chosen
+## ADR-029 Â· The cross-encoder runs on CUDA where a GPU exists, batched; CPU stays the fallback, sequential; and the provider is ANNOUNCED, never silently chosen
 
 **Status: adopted 2026-08-08, M0c Session L. On the human's authority as a design decision.**
-Evidence: `runs/session-l/` — `RESULT.md`, `gpu-recovery.json`, `PREREGISTRATION-gpu.json`,
+Evidence: `runs/session-l/` â€” `RESULT.md`, `gpu-recovery.json`, `PREREGISTRATION-gpu.json`,
 `PREREGISTRATION-gpu-amendment.json`. **The spike is cited as evidence, not as authorisation.**
 
 ### The decision
@@ -3006,11 +3006,11 @@ identical on every path**, read by `analyze_cue_overlap.py`, the authority for b
 | provider | sequential | batched | |
 |---|---|---|---|
 | CPU, 1 thread | **185.8 ms** | 195.6 ms | batching **loses**, +8.8 ms |
-| CUDA | 15.2 ms | **3.4 ms** | batching **wins**, −77% |
+| CUDA | 15.2 ms | **3.4 ms** | batching **wins**, âˆ’77% |
 
 Same mechanism in both directions: batching pays through parallelism across the batch dimension and
-amortized per-call overhead. At one CPU thread there is none, so only the cost remains — attention
-is O(seq²) per row either way and ten rows multiply the intermediate tensors. On a GPU that
+amortized per-call overhead. At one CPU thread there is none, so only the cost remains â€” attention
+is O(seqÂ²) per row either way and ten rows multiply the intermediate tensors. On a GPU that
 parallelism is the machine, and ten sequential forwards pay ten kernel launches instead of one.
 
 **A single global default would be wrong for one provider whichever value it took.**
@@ -3020,19 +3020,19 @@ retrieval-profile row so a run cannot claim one configuration and execute anothe
 ### The byte-identity requirement is AMENDED, not waived
 
 **The original gate:** bit-identical logits, cross-provider, any difference disqualifying.
-**Why it is replaced:** bit-identity existed to make *optimization measurements comparable* — so a
+**Why it is replaced:** bit-identity existed to make *optimization measurements comparable* â€” so a
 latency change could be attributed to the change rather than to a moved scorer. **At 10 ms against a
 300 ms budget there is no optimization space left to protect. The instrument outlived its subject.**
 
-**The driver is brief §9:** 800 ms voice-to-voice P50 with retrieval inside it. 213 ms of an 800 ms
-conversational budget — 27%, before a token is generated — was never going to work. 10 ms does.
+**The driver is brief Â§9:** 800 ms voice-to-voice P50 with retrieval inside it. 213 ms of an 800 ms
+conversational budget â€” 27%, before a token is generated â€” was never going to work. 10 ms does.
 
 **The amended acceptance, registered before the measurements that judged it:**
 
 | gate | requirement | result |
 |---|---|---|
-| GPU→GPU byte-identity | bit-identical across repeated runs | **PASSES** — identical at provider defaults, and the two end-to-end Rust dumps are byte-identical |
-| cross-provider | **ranking equivalence**, top-10 order vs CPU | **PASSES** — 0 of 229 slates reordered, 0 top-1 changes, R@1/R@5/R@10 identical |
+| GPUâ†’GPU byte-identity | bit-identical across repeated runs | **PASSES** â€” identical at provider defaults, and the two end-to-end Rust dumps are byte-identical |
+| cross-provider | **ranking equivalence**, top-10 order vs CPU | **PASSES** â€” 0 of 229 slates reordered, 0 top-1 changes, R@1/R@5/R@10 identical |
 | provider | `get_providers()` **and** node placement | **PASSES**, with a limitation below |
 
 Cross-provider logit delta: **median 0.000237**, p95 0.000824, max 0.002182. The original spike
@@ -3042,46 +3042,46 @@ reported only the max and it read as typical; the tail is roughly 10x the median
 
 **1. The first spike's verdict rested partly on an instrument bug.** It reported "repeats not
 bit-identical" while comparing each CUDA repeat against the **CPU** reference rather than against
-the other repeats — cross-provider disagreement, already known, reported as within-provider
+the other repeats â€” cross-provider disagreement, already known, reported as within-provider
 nondeterminism. GPU-to-GPU determinism was never actually broken.
 
 **2. `get_providers()` is itself a proxy**, and the correction came from the person who specified
 it. It names *registered* providers, not where nodes *ran*. Both CUDA cells execute **13.6% of
-nodes on CPU** — 55,680 of 408,320 — which a registered-provider check reports as clean.
+nodes on CPU** â€” 55,680 of 408,320 â€” which a registered-provider check reports as clean.
 
-### OPEN GAP — the shipped binary cannot re-verify node placement
+### OPEN GAP â€” the shipped binary cannot re-verify node placement
 
 `ort` exposes no node enumeration. Placement was verified **once, in Python, on this graph, at ORT
-1.24.2**; `error_on_failure()` covers registration only. The fallback census — `Gather` 1856,
-`Unsqueeze` 1624, `Concat` 1392, `Reshape` 232, `Equal` 232, `Where` 232 — is **all shape and index
+1.24.2**; `error_on_failure()` covers registration only. The fallback census â€” `Gather` 1856,
+`Unsqueeze` 1624, `Concat` 1392, `Reshape` 232, `Equal` 232, `Where` 232 â€” is **all shape and index
 ops, no matmuls**, which is why 13.6% of nodes costs so little time. That is evidence the *current*
 placement is benign, **not that it stays so**.
 
 A graph change, model swap or ORT upgrade could move matmuls onto the fallback and the only symptom
-would be a slower run — which reads as machine drift, and this session measured drift large enough
+would be a slower run â€” which reads as machine drift, and this session measured drift large enough
 to hide it.
 
 **Closing condition:** `ort` exposing node placement, or a Rust-side hook reading ORT's profiling
 output as `tools/session_l_gpu_recovery.py` does. **Interim obligation:** re-run that tool after any
 change to the graph, the model, or the ORT version.
 
-### The provider is ANNOUNCED — a requirement on M2, recorded here
+### The provider is ANNOUNCED â€” a requirement on M2, recorded here
 
 > **An unannounced fallback is indistinguishable from the failure mode it resembles.**
 
-That is the argument, and it is deliberately **not** §4 invariant 4. Invariant 4 governs
+That is the argument, and it is deliberately **not** Â§4 invariant 4. Invariant 4 governs
 *degradation*, and genuinely does not cover two paths that are both correct and produce identical
 rankings. Neither path here is degraded. What differs is *capability*, which is why it needs its own
 statement rather than inheriting the degradation machinery.
 
 A system that quietly selects CPU when CUDA is unavailable is **Session G promoted from a
 measurement bug to a product behaviour**: the user would experience "retrieval feels slow today"
-with nothing to attribute it to — the same shape as `tier=truecolor` printed beside a white screen.
+with nothing to attribute it to â€” the same shape as `tier=truecolor` printed beside a white screen.
 
 #### A distinction worth naming: MEASUREMENT-CORRECT and PRODUCT-WRONG
 
 **`error_on_failure()` is both.** It made the Rust CUDA cell abort in 8 seconds rather than emit CPU
-numbers under a CUDA label — *exactly right for a measurement cell*, where a void result is the
+numbers under a CUDA label â€” *exactly right for a measurement cell*, where a void result is the
 honest outcome and a plausible wrong number is the catastrophe. Shipped, it is unacceptable: a
 CPU-only machine would get a binary that refuses to launch.
 
@@ -3091,17 +3091,17 @@ attribute is worse than no number. A product wants graceful continuation, becaus
 start has lost everything the fallback existed to preserve. **Ask of any gate inherited from a
 measurement: does the shipped path want this to refuse, or to continue and say so?**
 
-#### Requirements on M2's status-band work (§B6 / brief §12) — not implemented here
+#### Requirements on M2's status-band work (Â§B6 / brief Â§12) â€” not implemented here
 
 1. **Explicit provider selection, fallback permitted, announcement mandatory.** The selection is
    never implicit and the fallback is never silent.
 2. **Voice enablement on a CPU-only machine states its budget consumption at enable time**, not as
-   discovered latency — retrieval is ~27% of §9's 800 ms voice-to-voice budget there. §12's
+   discovered latency â€” retrieval is ~27% of Â§9's 800 ms voice-to-voice budget there. Â§12's
    honest-disclosure rule applied to hardware rather than to model capability, the same shape as
    ADR-028's local-model quality disclosure.
 3. **`rerank_provider` on the retrieval-profile row is THE field the status band reads.** It exists
    already, stamped per query, built for measurement. **M2 must not build a second source of the
-   same fact** — two producers of one value is how the two sides silently disagree, which this
+   same fact** â€” two producers of one value is how the two sides silently disagree, which this
    project has now recorded a dozen instances of.
 
 ### Cost accepted
@@ -3109,24 +3109,24 @@ measurement: does the shipped path want this to refuse, or to continue and say s
 **Two numeric paths where one ships and one is measured** is a configuration this project has been
 burned by. It is accepted with eyes open because the alternative is a 213 ms retrieval stage inside
 an 800 ms conversational budget. **The mitigation is that both are measured and the difference is
-published — not that the difference is small.** `SHIPPED_THREADS = 1` on the CPU path is untouched;
+published â€” not that the difference is small.** `SHIPPED_THREADS = 1` on the CPU path is untouched;
 threading remains a +158.9 ms regression and this decision says nothing about it.
 
 ### Consequence for ADR-003, to be re-derived rather than assumed
 
 On CUDA batched the stage shares are **rerank 34.1%, lexical 27.2%, candidates 13.3%, scope 6.3%**.
 `candidates + scope` is **19.6%** where it was 1.78% on CPU. **ADR-003's partition moves back toward
-a latency claim on the GPU path specifically** — the third time that classification has changed on
+a latency claim on the GPU path specifically** â€” the third time that classification has changed on
 measurement. It is recorded here as an observation and is **not** a decision; the partition is still
 not built and building it still needs its own registration.
 
 ---
 
-# Part 3 — ADRs that live in their own files
+# Part 3 â€” ADRs that live in their own files
 
 **From ADR-030 the record is one file per decision**, under `docs/design/adr/`. They are as settled
 as everything above; the split is length, not status. This index exists so that "settled decisions
-are in `DECISIONS.md`" stays true — an ADR nothing links to is a decision the next session will
+are in `DECISIONS.md`" stays true â€” an ADR nothing links to is a decision the next session will
 re-litigate from scratch.
 
 | ADR | Decision |
@@ -3138,21 +3138,26 @@ re-litigate from scratch.
 | [ADR-034](adr/ADR-034-paramspec-requiredness.md) | Requiredness is a separate field from `ArgumentRole`, because they answer different questions |
 | [ADR-035](adr/ADR-035-searxng.md) | General web search is a self-hosted SearXNG instance, and there is no API key anywhere |
 | [ADR-036](adr/ADR-036-source-channels-and-deduplication.md) | Source channels are an extensible keyless registry, and corroboration is counted over independent roots |
-| [ADR-037](adr/ADR-037-deep-research-shape.md) | Four additions to §10, and orchestrator-worker as a consequence of ADR-023 rather than a preference |
+| [ADR-037](adr/ADR-037-deep-research-shape.md) | Four additions to Â§10, and orchestrator-worker as a consequence of ADR-023 rather than a preference |
 | [ADR-038](adr/ADR-038-claim-write-trust-class.md) | A model-authored claim is written at `min(AgentInferred, run_floor)` |
 | [ADR-039](adr/ADR-039-quarantined-read-routing.md) | Untrusted tool results are condensed by a quarantined child before they reach the run that holds tools |
 | [ADR-040](adr/ADR-040-document-extraction.md) | `marlowe-extract`: the extraction module ADR-031 promised, and a fetch path built for corpus scale |
-| [ADR-041](adr/ADR-041-batched-quarantined-reads.md) | One quarantined reader per group, not per page — and three budget limits that were bugs in effect |
+| [ADR-041](adr/ADR-041-batched-quarantined-reads.md) | One quarantined reader per group, not per page â€” and three budget limits that were bugs in effect |
 | [ADR-042](adr/ADR-042-document-store.md) | The document store, and why a reference carrying only counts needs no quarantine |
 | [ADR-043](adr/ADR-043-navigation-is-selection.md) | A research run navigates by SELECTING a link, never by composing a URL |
+<<<<<<< HEAD
 | [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** — GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
 | [ADR-045](adr/ADR-045-rerank-defaults-to-auto.md) | The reranker defaults to `auto`, on the same terms as ADR-044 |
 | [ADR-046](adr/ADR-046-openrouter.md) | OpenRouter: a hosted provider, opt-in, in its own crate so ADR-031 §2.3 survives verbatim |
 | [ADR-047](adr/ADR-047-markdown-and-latex-in-the-conversation.md) | Markdown and inline LaTeX in the conversation pane — attributes not colours, and the harness's glyphs are reserved from model prose |
 | [ADR-048](adr/ADR-048-the-persona-may-use-markdown.md) | The persona may use Markdown, because the interface now renders it — formatting is earned, never decorative |
 | [ADR-049](adr/ADR-049-the-quarantined-reader-request-shape.md) | Layer 1's empty tool set rendered as `tools: []` and the child's pages as a reply to no call — both refused by the wire, so every quarantined read on the hosted path returned nothing. Five refusals told apart; `web`'s status reaches the model; `bash` is `cmd /C` and says so |
+=======
+| [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** â€” GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
+| [**ADR-046**](adr/ADR-046-cascade-wired.md) | **The GPU cascade ships** -- depth 30 narrowed by the shipped graph, fused with a digest-pinned second opinion; held-out R@1 0.6987 / R@3 0.8865, verified exact on the wired binary. `auto` keys on the RESOLVED provider; CPU-pinned numbers do not move |
+| [**ADR-050**](adr/ADR-050-cascade-wired.md) | **The GPU cascade ships** -- depth 30 narrowed by the shipped graph, fused with a digest-pinned second opinion; held-out R@1 0.6987 / R@3 0.8865, verified exact on the wired binary. ``auto`` keys on the RESOLVED provider; CPU-pinned numbers do not move |
 
 **ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
 published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA
-and that the flip is licensed by ranking equivalence measured with a control — not by a widened
+and that the flip is licensed by ranking equivalence measured with a control â€” not by a widened
 constant. `MAX_ABS_DIFF` is unchanged and `embedding-reference.json` is not regenerated.

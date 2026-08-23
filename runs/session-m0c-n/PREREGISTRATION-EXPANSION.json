@@ -1,0 +1,23 @@
+{
+  "_what": "Probe 4 -- NEIGHBOUR EXPANSION FOR SHORT CANDIDATES. A stage-5 forensic case (1568498a) has a SIX-WORD gold turn ('28. Kg3 would be my move.') whose entire topical context lives in adjacent same-session turns. Score such candidates WITH their neighbours.",
+  "_written_before_any_number": true,
+  "_why_not_closed_by_prior_neighbour_work": "Session M tested neighbour signals as FEATURES/tie-breaks over ALL candidates on the old head and they lost everywhere. Input expansion for SHORT candidates is a different act: a 33-word turn is diluted by neighbours, a 6-word notation fragment can only gain. The gate is length, declared here, not swept.",
+
+  "arms": {
+    "expansion_pair": "candidates <= 16 words are scored by L-2 and L-6 against prev+turn+next (same derived session); others unchanged; shipped pair fusion",
+    "expansion_reader_w05": "same expansion, plus the half-weight answerability opinion (our measured-best pending config)"
+    },
+  "declared_constants": {"short_threshold_words": 16, "expansion": "prev + turn + next, same session, both sides present else whichever exist"},
+
+  "instrument_gate": "baseline reconstruction (no expansion) reproduces the binary's fusion order 229/229 on fit",
+
+  "registered_predictions": {
+    "fit_base": {"R@1": 180, "R@3": 213},
+    "expectation_stated_honestly": "only ONE of the 16 stage-5 golds is <=16 words, so DIRECT stage-5 yield is small (+1 to +2). The open question is whether expansion recovers cases UPSTREAM (slate/narrowing losses) or harms via dilution elsewhere. Bands cover the uncertainty:",
+    "R@3_band": [212, 217],
+    "R@1_band": [176, 184],
+    "kill_if": "fit R@3 <= 211"
+  },
+  "earn_rule": "fit R@3 >= 215 AND R@1 >= 179 earns the held-out read (bands registered then, before it)",
+  "_also_reported": "per-stage recovery census: which slate-lost / narrowing-lost golds become reachable under expansion"
+}

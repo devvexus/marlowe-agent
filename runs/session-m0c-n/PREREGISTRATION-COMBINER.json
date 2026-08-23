@@ -1,0 +1,33 @@
+{
+  "_what": "M0c Session N Probe 2 -- THE COMBINER. The union-oracle says gold sits in some graph's top-3 for 97.78% of fit queries; the best measured combiner extracts 95.1%. Can a training-free vote close part of that gap?",
+  "_written_before_any_arm_was_evaluated": true,
+  "_prior_reads_already_spent_on_this_question": {
+    "six_way_RRF": "HELD-OUT ALREADY READ in runs/session-m0c-m/l4-heldout-read.json: R@3 0.8908 (+1 case over the shipped pair) but R@1 0.6769 (-5 cases). NOT re-probed here; treated as a recorded configuration.",
+    "T3B_trained_combiner": "fit-only artifact exists (six+T3B fit R@3 0.9432, cond@3 0.96); TRAINED ON FIT and never read. This probe does NOT re-run or extend it -- reading a trained arm is the collapse shape this project has paid for four times."
+  },
+  "arms": {
+    "PRIMARY_six_vote_top3": {
+      "definition": "on the CURRENT narrowed ten: each of the six pinned graphs ranks the ten; a candidate's score = HOW MANY graphs place it in their own top-3; ties broken by the six-way RRF score (k=60). Admit top-3.",
+      "why_primary": "structurally matched to the oracle (the oracle IS the union of per-graph top-3s) yet completely training-free and knob-free."
+    },
+    "SECONDARY_six_zsum": {
+      "definition": "per-query z-normalised logit sum across the six graphs over the narrowed ten (the m0c-m prereg's declared secondary family, extended from two graphs to the full membership). Admit top-3.",
+      "why_registered": "uses logit MAGNITUDES rather than ranks; the honest rival that needs no threshold."
+    }
+  },
+  "instrument_gate": "reconstructing the shipped PAIR cascade (L-2 narrow + L2xL-6 RRF) from freshly scored logits must reproduce the binary's fusion_rank order on 229/229 fit queries, exactly as Probe 1's gate did.",
+  "registered_predictions": {
+    "primary_six_vote_fit": {
+      "R@3": "213 to 217 (base 213). The oracle bound allows up to ~218; I expect the vote to capture roughly a third to half of the oracle-to-pair gap because agreement is a weaker signal than truth.",
+      "R@1": "176 to 184 (base 180) -- vote optimises set membership, not the head; direction at R@1 unknown.",
+      "kill": "fit R@3 <= 212"
+    },
+    "secondary_zsum_fit": {
+      "R@3": "212 to 216",
+      "kill": "fit R@3 <= 211"
+    }
+  },
+  "earn_a_read_rule": "an arm with fit R@3 >= 215 AND parameter-free earns ONE held-out read. If neither reaches 215, the probe closes with its numbers and the combiner gap is reported as captured-or-not. The trained T3B remains unread regardless -- its prior is four collapses.",
+  "latency_note": "+4 batched forwards on CUDA (~+12 ms/query against a 29 ms P95); CPU deployments never run the cascade; the six-way latency objection was a CPU figure (the inversion error CLAUDE.md names).",
+  "what_will_not_be_done": ["no re-scoring or extension of T3B", "no weighting, no learned combiner", "no change to slate, narrowing, k, or admit"]
+}

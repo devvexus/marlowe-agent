@@ -1,0 +1,18 @@
+{
+  "_what": "AMENDMENT UNDER DISCLOSURE -- the held-out read for Probe 3's PRIMARY (reader_fusion) is spent AGAINST the original earn-a-read rule, exactly as runs/session-m0c-m/PREREGISTRATION-L4-HELDOUT.json disclosed the same act.",
+  "_the_rule_and_the_violation": "PREREGISTRATION-PICK.json required fit R@1 >= 180 to guard against the six-zsum failure mode (held-out R@1 collapse). reader_fusion reads fit R@1 176 (-4) against fit R@3 219 (+7, -1 lost). It clears every other clause. Reading it anyway because (a) the human directed this workstream toward R@3 specifically, (b) -4 fit R@1 against +7/-1 fit R@3 is a different trade than the ensemble's phantom gains: the mechanism carries a NEW information source, not a recombination of shared opinions, which is precisely what failed to transfer before.",
+  "_prediction_registered_before_heldout_was_touched": true,
+
+  "heldout_base": {"R@1": [160, 229], "R@3": [203, 229]},
+  "REGISTERED_PREDICTION": {
+    "R@3": "205 to 212 of 229 (base 203; the fit gain is +7/-1 and I expect roughly half of it to survive the split gap, per every prior transfer)",
+    "R@1": "152 to 163 of 229 (base 160; the fit cost is -4 net and I expect it to persist or worsen slightly)"
+  },
+  "FALSIFIED_IF": "R@3 <= 203 AND R@1 <= 158 (no R@3 gain AND an R@1 loss)",
+
+  "SHIP_DECISION_PREWRITTEN": {
+    "adopt_as_gpu_default_if": "held-out R@3 >= 208 AND R@1 >= 157",
+    "otherwise": "report, keep pair-cascade shipped"
+  },
+  "_honest_note": "if adopted, R@1 loses ground on the same trade that buys R@3 -- the product metric is ADMIT_TOP_K=3, but R@1 is the headline everyone quotes, and this file exists so nobody later mistakes the adoption for an unconditional win."
+}

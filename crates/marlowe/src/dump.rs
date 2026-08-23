@@ -102,6 +102,18 @@ impl FeatureDump {
                         None => serde_json::Value::Null,
                     },
                 );
+                // **The cascade's fusion rank, `null` when absent** — same named-absence rule as
+                // `rerank_score` directly above. Without this column a driver cannot reproduce
+                // the cascade's final ordering from the dump (the fusion is defined over RANKS),
+                // and reconstructing it in Python would put a second implementation of the
+                // ranking beside the real one with nothing comparing them.
+                row.insert(
+                    "fusion_rank".into(),
+                    match candidate.fusion_rank {
+                        Some(v) => serde_json::json!(v),
+                        None => serde_json::Value::Null,
+                    },
+                );
             }
             writeln!(self.out, "{}", serde_json::Value::Object(row))?;
         }

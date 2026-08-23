@@ -1,0 +1,14 @@
+{
+  "_what": "WIRING VERIFICATION for the adopted half-weight reader. The configuration and its held-out numbers were pre-registered in PREREGISTRATION-PICK-HALFWEIGHT.json and PREREGISTRATION-PICK.json; the adoption was decided by the human. What is under test here is THE RUST WIRING.",
+  "_registered_before_the_verification_runs": true,
+  "expected_from_offline_authority": {
+    "fit": {"R@1": [179, 229], "R@3": [216, 229]},
+    "heldout": {"R@1": [163, 229], "R@3": [205, 229]}
+  },
+  "tolerance": "+/-1 case per metric per split (Rust-vs-Python logit differences are bounded by fixture agreement at 2e-3; a case flip is possible but none is predicted)",
+  "falsified_if": "any metric differs by more than 1 case -> halt, investigate the tokenization or fusion algebra, do NOT rationalise",
+  "controls": {
+    "shipped_path_untouched": "CPU-pinned plan=shipped runs still reproduce 0.7555 fit / 0.6725 held-out exactly",
+    "latency": "end-to-end P95 on CUDA <= 150 ms (sequential reader measured ~14 ms/slate-equivalent batched; sequential-in-Rust projected under 30 ms added)"
+  }
+}

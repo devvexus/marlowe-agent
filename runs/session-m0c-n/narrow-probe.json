@@ -1,0 +1,34 @@
+{
+  "_what": "Probe 1 evaluation",
+  "prereg": "PREREGISTRATION-NARROWING.json",
+  "instrument_gate_mismatches": 0,
+  "arms": [
+    {
+      "name": "BASELINE (binary)",
+      "R@1": 180,
+      "R@3": 213,
+      "post_narrow": 224,
+      "gained3": 0,
+      "lost3": 0,
+      "mean_set": 10.0
+    },
+    {
+      "name": "PRIMARY union narrow",
+      "R@1": 180,
+      "R@3": 213,
+      "post_narrow": 225,
+      "gained3": 0,
+      "lost3": 0,
+      "mean_set": 15.030567685589519
+    },
+    {
+      "name": "SECONDARY rrf narrow",
+      "R@1": 181,
+      "R@3": 213,
+      "post_narrow": 223,
+      "gained3": 0,
+      "lost3": 0,
+      "mean_set": 10.0
+    }
+  ]
+}

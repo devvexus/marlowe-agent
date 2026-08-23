@@ -1,0 +1,30 @@
+{
+  "_what": "M0c Session N Probe 3 -- THE PICK. Stage 5 holds 16 held-out cases: gold survives narrowing yet lands outside the fused top-3. Can a DIFFERENT KIND of opinion -- answerability, not relevance -- improve the pick as a third fused ranking, with no thresholds?",
+  "_written_before_any_arm_was_evaluated": true,
+  "_why_a_reader": "The cross-encoders measure match-to-question; the corpus's own failure signature is a distractor that matches better than the answering turn. A SQuAD-v2 reader answers the missing question directly: how much better is this turn's best answer span than declaring no answer. Prior session evidence: discriminative against topical distractors, replicated across three models; +6/-0 gated to the near-tie band on the OLD base at rank-1/rank-2. Never tested under the cascade head, whose population is easier (gold-in-hand 97.8% vs 90.4%).",
+  "_design_rule": "Both arms add ONE third ranking to the existing two-graph RRF (k=60 unchanged). No thresholds anywhere: the fusion weighs opinions, it does not gate them.",
+
+  "arms": {
+    "PRIMARY_reader_fusion": {
+      "definition": "third ranking = mobilebert-uncased-squad-v2 answerability score(question, turn text) over the narrowed ten; fuse L-2 ranks x L-6 ranks x reader ranks, RRF k=60; admit top-3.",
+      "declared_choices": ["ONE reader (mobilebert: cheapest; prior session showed all three replicate)", "answerability difference score, NOT raw span"]
+    },
+    "SECONDARY_delta_fusion": {
+      "definition": "focused second pass through the SHIPPED graph: q' = question minus a fixed 20-word stoplist; delta_i = s_L2(q', d_i) - s_L2(q, d_i); third ranking = delta ranks; same three-way fusion.",
+      "rationale": "tests the user's sharpen-the-query hypothesis in its parameter-free form: the DELTA is new information, the replaced score would not be."
+    }
+  },
+
+  "stoplist_declared_before_use": "i me my we our you your he she it they them the a an and or but if then of to in on at for with about as is are was were be been being do does did done have has had what which who whom whose when where why how this that these those there here not no yes so too very can will just should now",
+  "_no_tuning": "the stoplist is a standard closed-class list written before any score existed; it is not swept.",
+
+  "instrument_gate": "pair fusion from fresh logits must reproduce the binary's fusion_rank order on 229/229 fit queries (same gate as probes 1-2).",
+
+  "registered_predictions": {
+    "fit_base": {"R@1": [180, 229], "R@3": [213, 229]},
+    "PRIMARY_reader_fusion": {"R@3_band": [213, 218], "R@1_band": [176, 186], "kill_if": "R@3 <= 211"},
+    "SECONDARY_delta_fusion": {"R@3_band": [212, 217], "R@1_band": [175, 185], "kill_if": "R@3 <= 211"}
+  },
+  "earn_a_read_rule": "fit R@3 >= 216 AND fit R@1 >= 180 AND gained >= lost+2 earns THE one held-out read for that arm alone.",
+  "what_will_not_be_done": ["no reader sweep (one reader, declared)", "no threshold or band gating", "no fourth opinion", "no change to slate/narrow/admit/k"]
+}

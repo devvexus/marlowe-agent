@@ -105,6 +105,10 @@ impl RetrievalProfile {
         row.insert("rerank_batched".into(), serde_json::json!(rerank.batched));
         row.insert("rerank_threads".into(), serde_json::json!(rerank.threads));
         row.insert("rerank_provider".into(), serde_json::json!(rerank.provider.name()));
+        // **Which SHAPE ran, on every row.** The two shapes have different published numbers
+        // (`RerankPlan::label`); a profile whose rows cannot say which one produced them is a
+        // latency table about an unnamed system.
+        row.insert("rerank_plan".into(), serde_json::json!(rerank.plan.label()));
         row.insert("considered".into(), serde_json::json!(selection.considered));
         row.insert("scoped".into(), serde_json::json!(selection.scoped));
         row.insert("survived_pruning".into(), serde_json::json!(selection.survived_pruning));
