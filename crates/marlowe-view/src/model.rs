@@ -130,6 +130,18 @@ pub struct ControlStrip {
     /// asking, it carries state colour, and it is **never a value the agent can change**
     /// (Addendum A §A8: self-granted promotion is structurally impossible).
     pub autonomy: Picker,
+    /// Which provider serves the model — `ollama` or `openrouter`. ADR-046 made this a
+    /// launch-time choice; ADR-049 §7 makes it selectable from the session.
+    ///
+    /// **It is a control and it is deliberately NOT on the strip**, which is why it sits after
+    /// `autonomy` rather than among the five. The strip is `[Rect; 5]` and §B13's layout rows are
+    /// measured against that width at five sizes; widening it to six is a real interface change
+    /// with a real argument, and it is not one to make as a side effect of adding a command.
+    /// `ControlId::ALL` therefore still has five entries and this one is reachable by `/provider`.
+    ///
+    /// The value is not hidden by that: `StatusBand` already announces the provider (ADR-029 —
+    /// announced, never inferred), so the state is on screen and only the *control* is by command.
+    pub provider: Picker,
 }
 
 /// A control-strip value with its in-place selection list. Drawn by Marlowe, never an OS widget.

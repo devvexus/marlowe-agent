@@ -91,6 +91,7 @@ impl Session {
                         0,
                     ),
                     autonomy: Picker::new(&["observe", "suggest", "draft", "confirm", "act"], 2),
+                    provider: Picker::new(&["ollama", "openrouter"], 0),
                 },
                 status: StatusBand {
                     state: StatusState::Listening,
@@ -457,6 +458,7 @@ impl marlowe_view::Produce for Session {
                     ControlId::Session => &mut self.view.control.session,
                     ControlId::Workspace => &mut self.view.control.workspace,
                     ControlId::Autonomy => &mut self.view.control.autonomy,
+                    ControlId::Provider => &mut self.view.control.provider,
                 };
                 // An out-of-range option is a named refusal, not a clamp. A clamp would silently
                 // select a neighbour and report success, which is the shape of every default this

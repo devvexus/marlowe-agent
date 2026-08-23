@@ -254,6 +254,22 @@ impl Produce for LiveSession {
                 let reason = reason.map(|e| e.0).filter(|r| !r.trim().is_empty());
                 // The window closes on the answer, not on the keypress that opened the editor.
                 self.view.pending_approval = None;
+                // **And the BAND closes with it.** `project::apply_events` has exactly two writers
+                // for `status.state` -- `Event::Approval` sets `waiting`, `Event::Done` sets
+                // `idle` -- so nothing between them moved it. Answering therefore left the band
+                // reading "approval needed" for the whole remainder of the turn, while the tool
+                // ran, while the model composed, with nobody waiting on anything.
+                //
+                // **It was invisible until layer 1 started working.** With the quarantined reader
+                // dying on an HTTP 400 in ~400 ms the false window was too short to see; once the
+                // reader actually ran it was 37 seconds of a band saying the user was being waited
+                // on. A bug whose visibility depended on an unrelated fix.
+                //
+                // Back to `Thinking` and not to `Idle`: the turn is still in flight, and `Idle`
+                // would claim it had finished. This is the same pair `start_turn` sets, which is
+                // deliberate -- the band returns to the state the prompt interrupted.
+                self.view.status.state = marlowe_view::StatusState::Thinking;
+                self.view.status.detail = "working on it — esc to interrupt".into();
                 // A failed send means the turn thread has gone; the daemon has already given up
                 // waiting, so there is nothing left to answer.
                 let _ = tx.send((granted, reason));
@@ -289,10 +305,35 @@ impl Produce for LiveSession {
                 // `Status` and the client re-projects it, so what the strip shows is what the
                 // daemon accepted. A local mutation here would be the surface inventing state, and
                 // it would show the wrong model for the whole turn if the daemon refused.
-                if control == marlowe_view::ControlId::Model {
-                    match self.client.send(&crate::protocol::Request::SetModel {
-                        model: chosen.clone(),
-                    }) {
+                // **Two controls the daemon can answer for now.** `Provider` joins `Model` on
+                // exactly the same terms -- the daemon validates, refuses by name, and answers
+                // with a fresh `Status` that the client re-projects. The request differs and
+                // nothing else does, which is why they share this arm rather than growing a
+                // second copy of the refusal handling.
+                //
+                // Order matters on the way back: switching provider REPLACES the model list, so
+                // the reprojection below is what repopulates the model picker. A client that
+                // patched the provider locally and left the old list up would offer Ollama tags
+                // on a hosted daemon.
+                let request = match control {
+                    marlowe_view::ControlId::Model => {
+                        Some(crate::protocol::Request::SetModel { model: chosen.clone() })
+                    }
+                    marlowe_view::ControlId::Provider => {
+                        Some(crate::protocol::Request::SetProvider { provider: chosen.clone() })
+                    }
+                    // **Named, not defaulted.** `vocabulary.rs` fails the build on a catch-all
+                    // in a `Produce::apply`, and it is right to: ADR-030 §6 is that an unhandled
+                    // variant must be a build error, and a `_` arm here would have silently
+                    // dropped the next `ControlId` somebody adds. These four have no producer
+                    // yet, and saying so by name is what makes that visible.
+                    marlowe_view::ControlId::Profile
+                    | marlowe_view::ControlId::Session
+                    | marlowe_view::ControlId::Workspace
+                    | marlowe_view::ControlId::Autonomy => None,
+                };
+                if let Some(request) = request {
+                    match self.client.send(&request) {
                         Ok(events) => {
                             // Extracted rather than inlined: `vocabulary.rs` scans this function's
                             // text for a catch-all arm, and a `find_map` closure reads the same to
@@ -381,6 +422,61 @@ mod tests {
             s.view().status.detail.contains("marlowe --serve"),
             "a degraded state the user cannot act on is a crash with better manners: {}",
             s.view().status.detail
+        );
+    }
+
+    /// **Answering an approval takes the band out of `waiting`.**
+    ///
+    /// The bug, reported from a live session and reproduced twice: approve the fetch, watch `web`
+    /// and `read` both complete in the journal, and the band still reads *"waiting · approval
+    /// needed"*. The user waited on a turn that was working, sent a follow-up to see if it was
+    /// alive, and the original answer arrived correctly some time later. **Nothing was broken; the
+    /// band was lying**, and it lied for the whole remainder of the turn because
+    /// `project::apply_events` has only two writers for `status.state` and neither of them is
+    /// "the answer was given".
+    ///
+    /// It became visible only when layer 1 started working: the quarantined reader used to die on
+    /// an HTTP 400 in ~400 ms, and once it actually ran the false window was 37 seconds.
+    ///
+    /// Asserted through `apply(Intent::Approve)` -- the path the surface actually takes -- rather
+    /// than by setting the field, which would assert nothing about the code that clears it.
+    #[test]
+    fn answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted() {
+        let mut s = LiveSession::connect_on_port("t", 1);
+
+        // The premise: a turn is in flight and a prompt is up. Both are set the way the producer
+        // sets them, so the test starts from a state the product can actually be in.
+        let (tx, _rx) = mpsc::sync_channel::<(bool, Option<String>)>(1);
+        s.answer = Some(tx);
+        s.view.status.state = marlowe_view::StatusState::Waiting;
+        s.view.status.detail = "approval needed".into();
+        s.view.pending_approval = Some(PendingApproval {
+            decision: 1,
+            verb: "web".into(),
+            scope: "https://arxiv.org/abs/1706.03762".into(),
+            reversible: true,
+            novelty: None,
+        });
+
+        s.apply(Intent::Approve { granted: true, reason: None }).expect("a turn is waiting");
+
+        assert!(s.view().pending_approval.is_none(), "the window must close on the answer");
+        assert_eq!(
+            s.view().status.state,
+            marlowe_view::StatusState::Thinking,
+            "the band still says an answer is owed after one was given: {:?}",
+            s.view().status.detail
+        );
+        assert_ne!(
+            s.view().status.detail, "approval needed",
+            "the detail line outlived the prompt it described"
+        );
+        // **Not `Idle`.** The turn is still running; claiming it had finished would be a second
+        // false statement in place of the first.
+        assert_ne!(
+            s.view().status.state,
+            marlowe_view::StatusState::Idle,
+            "answering an approval does not end the turn"
         );
     }
 

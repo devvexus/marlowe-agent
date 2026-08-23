@@ -1757,6 +1757,42 @@ impl<S: PathScope> Engine<S> {
             }),
         );
 
+        // ── THE READER IS A SUBAGENT AND THE USER SHOULD SEE ONE WORKING ────────────────────
+        //
+        // §B5: *motion means Marlowe is working.* The `read` line goes `Ok` in **0.0 ms** -- the
+        // document is already in the store, so the tool itself does nothing measurable -- and then
+        // the quarantined reader spends 36 to 83 seconds on a hosted provider with the screen
+        // showing a completed tool and nothing after it. Measured from the journal, not estimated.
+        //
+        // **This was invisible until layer 1 started working.** With the child dying on an HTTP
+        // 400 in ~400 ms there was no silence to notice; ADR-049 made the reader run, and the
+        // silence came with it.
+        //
+        // **Every character of this line is the harness's own, and that is the whole design.**
+        // The verb is a constant, the target is a count and a constant, and the closing summary is
+        // metrics -- `Metric::Count` and `Metric::State`, both of which the harness measured or
+        // authored. **No byte the child produced crosses**: `QuarantinedSink` still drops
+        // `TextDelta`, `ReasoningDelta` and `SpeechRetracted`, and audit finding E4's test still
+        // asserts it. The *fact* of the read is harness-authored; the *content* is not, and only
+        // the fact is on screen.
+        //
+        // Called `subagent` deliberately. M3 makes the multi-agent structure explicit in the
+        // interface -- an agent reading on the user's behalf, visible as one -- and this is the
+        // first place that vocabulary appears rather than a private word for it.
+        let reader_line_id = self.next_call_id;
+        self.next_call_id += 1;
+        let reader_target = if fresh.len() == 1 {
+            "reading 1 source under quarantine".to_string()
+        } else {
+            format!("reading {} sources under quarantine", fresh.len())
+        };
+        ports.sink.emit(TurnEvent::ToolLine {
+            id: reader_line_id,
+            verb: "subagent".to_string(),
+            target: reader_target.clone(),
+            state: ToolLineState::Running { elapsed_ms: 0 },
+        });
+
         let mut child_state = SessionState::new(child_run.session, state.identity.clone());
         for c in &state.governance {
             child_state.assert_governance(c.clone());
@@ -1882,6 +1918,27 @@ impl<S: PathScope> Engine<S> {
                 );
             }
         }
+
+        // **The line closes on what actually happened**, in metrics only. A refusal closes it
+        // `Failed` -- §B6 auto-expands those -- carrying the same `QuarantineRefusal` tag the
+        // journal records, so the screen and the log name the cause with one string.
+        let read_ok = per_source.iter().any(Option::is_some);
+        ports.sink.emit(TurnEvent::ToolLine {
+            id: reader_line_id,
+            verb: "subagent".to_string(),
+            target: reader_target,
+            state: if read_ok {
+                ToolLineState::Ok(marlowe_tools::ResultSummary::new(vec![
+                    marlowe_tools::Metric::State("read"),
+                    marlowe_tools::Metric::Count { n: fresh.len() as u64, unit: "sources" },
+                ]))
+            } else {
+                ToolLineState::Failed(marlowe_tools::ResultSummary::new(vec![
+                    marlowe_tools::Metric::State(refusal.tag()),
+                    marlowe_tools::Metric::Count { n: fresh.len() as u64, unit: "sources" },
+                ]))
+            },
+        });
 
         // ── the cache is written ONLY for a chunk the reader saw alone ─────────────────────────
         //

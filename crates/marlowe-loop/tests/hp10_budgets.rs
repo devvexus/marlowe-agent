@@ -100,8 +100,9 @@ fn the_registry_can_hold_more_than_it_exposes() {
 // 2. User-facing nouns ≤ 7
 // ─────────────────────────────────────────────────────────────────────────────────────────
 
-/// ADR-007. Adding an eighth requires deleting one, and the PR template asks which.
-const NOUNS: [&str; 7] = ["session", "memory", "skill", "tool", "run", "trigger", "profile"];
+/// ADR-007, amended 2026-08-22 to eight. Adding a ninth requires deleting one.
+const NOUNS: [&str; 8] =
+    ["session", "memory", "skill", "tool", "run", "trigger", "profile", "provider"];
 
 /// Every user-facing command, and the noun it is a view over.
 ///
@@ -117,6 +118,10 @@ const COMMAND_NOUNS: &[(&str, &str)] = &[
     ("status", "session"),
     ("state", "session"),
     ("model", "profile"),
+    // ADR-049 §7. The EIGHTH noun, and it owns itself: which company serves the weights is not
+    // a property of how this profile is configured. Reusing `profile` would have held the count
+    // at seven by making one of the seven mean two things.
+    ("provider", "provider"),
     ("profile", "profile"),
     ("session", "session"),
     ("workspace", "profile"),
@@ -134,7 +139,7 @@ fn every_user_facing_command_is_a_view_over_one_of_seven_nouns() {
     for (command, noun) in COMMAND_NOUNS {
         assert!(
             NOUNS.contains(noun),
-            "`/{command}` claims the noun `{noun}`, which is not one of the seven (ADR-007). \
+            "`/{command}` claims the noun `{noun}`, which is not a declared noun (ADR-007). \
              Every new user-facing concept must delete one — which?"
         );
     }

@@ -38,6 +38,13 @@ use crate::protocol::{Event, StatusReport};
 /// **`rerank_provider` is read, never derived.** ADR-029: the active provider is announced, and
 /// STATE.md's inherited note is explicit that the profile row's field is *the* source — building a
 /// second one here would be the two-sides-silently-disagree shape with a fresh coat of paint.
+/// The providers a build can be switched between, and **the single definition of that set**.
+///
+/// The picker is built from this and `Daemon::set_provider` validates against it, so an option a
+/// user can see is an option the daemon accepts. Two lists would be the second-source shape: one
+/// of them would gain an entry and the other would refuse it.
+pub const PROVIDERS: &[&str] = &["ollama", "openrouter"];
+
 pub fn view_from_status(report: &StatusReport) -> SessionView {
     let degraded = report.degraded.as_deref().map(classify_degradation);
     SessionView {
@@ -58,6 +65,22 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
                 } else {
                     Picker::new(&options, selected)
                 }
+            },
+            // **The provider the daemon says it is on, selected in a list of the ones it can be
+            // on.** Same rule as `model` directly above: built from the report, never a literal
+            // with a guess at which is current. `PROVIDERS` is the single definition of the set
+            // and the daemon validates against the same one, so a name that appears here is a
+            // name `set_provider` accepts.
+            provider: {
+                let selected = PROVIDERS
+                    .iter()
+                    .position(|p| *p == report.model_provider.as_str())
+                    // A daemon reporting a provider this build does not know is a mismatch worth
+                    // showing rather than silently rendering as the first option -- but a picker
+                    // cannot say that, so it selects nothing and the band's own announcement is
+                    // what the user reads. `unwrap_or(0)` here would claim `ollama` was active.
+                    .unwrap_or(0);
+                Picker::new(PROVIDERS, selected)
             },
             profile: Picker::new(&["default"], 0),
             session: Picker::new(&["cli"], 0),
@@ -221,12 +244,23 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             Event::Degraded { what, remedy } => {
                 view.status.degraded = Some(classify_degradation(&format!("{what} {remedy}")));
             }
-            Event::Approval { .. } => {
+            Event::Approval { decision, .. } => {
                 // §B9's overlay needs a `BlastRadius`, and CONTRACTS §9's shape and the rendered
                 // one are reconciled in Session E per STATE.md. Rather than build half of it here,
                 // the band says an answer is owed -- which is true, and is what `waiting` means.
-                view.status.state = StatusState::Waiting;
-                view.status.detail = "approval needed".into();
+                //
+                // **`decision: 0` is owed nothing.** It is the loop's render-only announcement that
+                // it is *about to* ask; `client.rs` explicitly does not answer it, and `live.rs`
+                // guards on the same id before raising the window. This arm did not, so **every
+                // adjudication put the band in `waiting` whether or not a human was ever asked** --
+                // and since only `Event::Done` moves it back, an auto-approved tool left the band
+                // reading "approval needed" for the rest of the turn with no overlay in sight.
+                //
+                // Two readers of one event, one checking the id and one not. ADR-049 §6.
+                if *decision != 0 {
+                    view.status.state = StatusState::Waiting;
+                    view.status.detail = "approval needed".into();
+                }
             }
             Event::Done { outcome, detail, spend_micros_usd, elapsed_ms } => {
                 if !detail.is_empty() {
@@ -373,6 +407,42 @@ mod tests {
         r.degraded = Some("ollama is not running — start it with `ollama serve`".into());
         let v = view_from_status(&r);
         assert_eq!(v.status.degraded, Some(DegradedPath::ProviderFailedOver));
+    }
+
+    /// **The band says an answer is owed only when one is.**
+    ///
+    /// `decision: 0` is the loop's render-only announcement that it is *about to* ask.
+    /// `client.rs` does not answer it and `live.rs` does not raise a window for it, so a band that
+    /// moved on it claimed the user was being waited on when nobody was asking. Every adjudication
+    /// emits one, including the auto-approved ones -- and since `Event::Done` is the only thing
+    /// that moves the band back, that claim then stood for the rest of the turn.
+    #[test]
+    fn the_render_only_approval_announcement_does_not_claim_an_answer_is_owed() {
+        let announcement = |decision: u64| Event::Approval {
+            decision,
+            verb: "web".into(),
+            scope: "https://arxiv.org/abs/1706.03762".into(),
+            reversible: true,
+            novelty: None,
+        };
+
+        let mut v = view_from_status(&report());
+        v.status.state = StatusState::Thinking;
+        apply_events(&mut v, &[announcement(0)]);
+        assert_eq!(
+            v.status.state,
+            StatusState::Thinking,
+            "id 0 is owed no answer, so the band must not say one is needed: {:?}",
+            v.status.detail
+        );
+
+        // The control, and it is the half that matters: a REAL prompt must still move the band, or
+        // the fix above would be "the band never asks", which is worse than asking too often.
+        let mut v = view_from_status(&report());
+        v.status.state = StatusState::Thinking;
+        apply_events(&mut v, &[announcement(1)]);
+        assert_eq!(v.status.state, StatusState::Waiting);
+        assert_eq!(v.status.detail, "approval needed");
     }
 
     #[test]

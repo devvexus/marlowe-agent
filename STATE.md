@@ -2,10 +2,110 @@
 
 ## 2026-08-22 (later) — LAYER 1 RENDERED ONTO THE WIRE AND THE WIRE REFUSED IT. ADR-049.
 
-**`cargo test --workspace --jobs 4 --no-fail-fast`: 1093 passed, 0 failed, 2 ignored**, tallied
-from `runs/session-condense/suite.txt` (97 `test result` lines), with `MARLOWE_CUDA_LIB_DIR` set.
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1097 passed, 0 failed, 2 ignored**, tallied
+from `runs/session-condense/suite3.txt` (97 `test result` lines), with `MARLOWE_CUDA_LIB_DIR` set.
 Merged to master at `632de66` (fast-forward) and rebuilt there, so the Windows Terminal profile
 launches it. **C3 was not started.**
+
+### TWO SURFACE DEFECTS THE FIX EXPOSED, BOTH FIXED — ADR-049 §6
+
+Neither is new code going wrong. Both were latent, and **both were invisible while the quarantined
+reader was dying on an HTTP 400 in ~400 ms.** Once the reader actually ran — measured from the
+journal at **36.1 s, 46.1 s and 82.9 s** on three real turns — they became the whole experience.
+
+**1. The status band said "waiting · approval needed" through work nobody was waiting on.**
+
+Reported from a live session and reproduced twice: approve the fetch, watch `web` and `read` both
+complete, and the band still says an answer is owed. The user waited on a turn that was working,
+sent a follow-up to check it was alive, and **the original answer arrived correctly some time
+later**. Nothing was broken; the band was lying.
+
+`project::apply_events` has exactly **two** writers for `status.state` — `Event::Approval` sets
+`waiting`, `Event::Done` sets `idle` — and neither of them is *"the answer was given"*. So the
+claim stood for the entire remainder of the turn.
+
+Second defect in the same three lines: the arm matched `Event::Approval { .. }` including
+**`decision: 0`**, which is the loop's render-only *"about to ask"* announcement that `client.rs`
+deliberately does not answer. `live.rs:337` reads the same event and guards on the id; `project.rs`
+did not — so **every adjudication put the band in `waiting`, auto-approved ones included**, with no
+overlay ever shown. Two readers of one event, one checking the id and one not.
+
+**2. A running quarantined reader was invisible.**
+
+The `read` tool line closes in **0.0 ms** — the document is already in the store — and then the
+reader runs for most of a minute with a completed tool on screen and nothing after it. §B5's
+*motion means Marlowe is working* was unsatisfied on the longest single step in the turn.
+
+`condense_batch` now opens a §B6 line on the **parent's** sink before spawning — `subagent ·
+reading N sources under quarantine` — and closes it on the outcome, `Failed` carrying the same
+`QuarantineRefusal` tag the journal records.
+
+**Every character of that line is the harness's own**, and the control asserts it:
+`the_subagent_line_carries_no_word_the_reader_or_the_page_wrote`. A §B6 line is a **different
+channel** from `TextDelta`, invisible to the existing `sink_text` assertions, so it would have been
+an unexamined second route to the same screen. `QuarantinedSink` still drops `TextDelta`,
+`ReasoningDelta` and `SpeechRetracted`; audit finding E4 is untouched.
+
+### WHERE THE DELAY ACTUALLY COMES FROM, measured rather than assumed
+
+Not the harness. `read` costs **0.0 s**, `recall` **0.0 s**, `web` **1.1–1.4 s** of real network.
+Every `model_step` on `stealth/ox-alpha` costs **7–83 s**, at only 4,300–6,800 tokens, so it is not
+context size. One turn, end to end:
+
+```
+18:11:21   1.3s   web fetch
+18:11:30   8.1s   model decides to call read
+18:11:30   0.0s   read
+18:11:30  36.1s   THE QUARANTINED READER          <- the single largest step
+18:12:07  13.8s   parent composes
+18:12:20  19.3s   parent composes                 == ~69 s, of which ~68 s is the provider
+```
+
+**A `read` of a fetched document costs a whole extra model call**, and on a slow provider it
+dominates the turn. That is ADR-041 working as designed — one child per group, no page bytes to the
+parent — but the containment is not free and this is the first time its cost has been visible.
+
+**Do not carry these latencies forward.** ADR-046 §9.3 recorded 5,861 ms for a plain answer on the
+*same* model; today's readings are 6–15× that. A free stealth endpoint with unknown queueing,
+n = 1 per cell, same caveat as the ADR's own — pointing the other way.
+
+### M3 DESIGN DIRECTION, RECORDED NOT BUILT: an agent gets a window
+
+**The user's framing, and it should shape M3's interface work rather than be rediscovered:**
+
+> Anything where an LLM agent is running will be a new special window for that agent. In our case
+> the quarantined reader would be a read-only terminal window that just shows what the reader is
+> doing (thinking / outputting summary to main model), and closes when done.
+
+The multi-agent structure becomes **explicit in the interface**: the user sees that Marlowe has an
+agent working for it, watches that agent, and the window closes when the agent does. The `subagent`
+verb shipped above is the first appearance of that vocabulary and is deliberately not a private
+word for it.
+
+**AND IT COLLIDES HEAD-ON WITH AUDIT FINDING E4. Read this before building it.**
+
+*"Shows what the reader is doing (thinking)"* is precisely what `QuarantinedSink` exists to
+prevent. E4: prose composed inside a window holding attacker-controlled pages must not stream to a
+terminal. `nothing_the_quarantined_reader_says_reaches_the_surface` is the standing test, and this
+design would make it fail — correctly, because it is a real change of position, not a bug.
+
+**The argument is available and it is genuinely arguable**, which is why it must be argued rather
+than assumed:
+
+* **For:** ADR-047 put a sanitiser on the model path, so E4's original justification — *"ahead of
+  the character check"* — is weaker than when it was written. And a user who can watch the reader
+  can *catch* an injected instruction, which is a defence the current design forgoes.
+* **Against:** the objection that survives the sanitiser is **attribution**, not characters —
+  attacker-derived prose rendered in Marlowe's own reasoning voice, aimed at the human rather than
+  the machine. Brief §8.1 is *"filtering does not work. Containment works."* Making the
+  quarantine's defining property conditional on a character filter is exactly what that sentence
+  refuses.
+
+**A middle position exists and is probably the right one:** the window shows the agent's
+**activity** — running, elapsed, sources, tokens, the validated fields it returned — without its
+**prose**. That is what shipped today at §B6 scale, and it generalises to a window without
+reopening E4 at all. If the prose itself is wanted, it needs a `DECISIONS.md` entry that says so
+explicitly and moves the E4 test rather than deleting it.
 
 ### The report, and what it actually was
 

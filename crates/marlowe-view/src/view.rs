@@ -267,9 +267,16 @@ pub enum ControlId {
     Session,
     Workspace,
     Autonomy,
+    /// `ollama` or `openrouter`. **Reachable by `/provider`, and not on the strip** — see
+    /// [`crate::model::ControlStrip::provider`] for why, and note that it is therefore absent from
+    /// [`ControlId::ALL`] on purpose rather than by omission.
+    Provider,
 }
 
 impl ControlId {
+    /// **The strip, and only the strip.** `Provider` is a `ControlId` that is not in here, so
+    /// anything iterating `ALL` to lay out or draw controls keeps the five §B13 measures.
+    /// Anything that needs *every* control — the command registry — names them itself.
     pub const ALL: [ControlId; 5] = [
         ControlId::Model,
         ControlId::Profile,
@@ -285,6 +292,7 @@ impl ControlId {
             ControlId::Session => "session",
             ControlId::Workspace => "workspace",
             ControlId::Autonomy => "autonomy",
+            ControlId::Provider => "provider",
         }
     }
 }
@@ -299,6 +307,7 @@ impl SessionView {
             ControlId::Session => &self.control.session,
             ControlId::Workspace => &self.control.workspace,
             ControlId::Autonomy => &self.control.autonomy,
+            ControlId::Provider => &self.control.provider,
         }
     }
 }
@@ -317,6 +326,7 @@ mod tests {
                 session: Picker::new(&["a"], 0),
                 workspace: Picker::new(&["a"], 0),
                 autonomy: Picker::new(&["observe"], 0),
+                provider: Picker::new(&["ollama"], 0),
             },
             status: StatusBand {
                 state: crate::model::StatusState::Idle,

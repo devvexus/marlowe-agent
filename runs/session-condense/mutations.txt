@@ -36,3 +36,33 @@ test a_successful_read_still_produces_a_condensed_note_and_no_refusal ... ok
 test a_contract_failure_is_classified_as_a_contract_failure ... FAILED
 test a_reader_that_could_not_satisfy_the_contract_is_not_reported_as_a_harness_fault ... FAILED
 test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+===== MUTATION: band_decision_zero =====
+test project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed ... FAILED
+test live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted ... ok
+---- project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed stdout ----
+thread 'project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed' (67180) panicked at crates\marlowe-daemon\src\project.rs:407:9:
+    project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed
+test result: FAILED. 36 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+===== MUTATION: band_not_returned =====
+test project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed ... ok
+test live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted ... FAILED
+---- live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted stdout ----
+thread 'live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted' (61488) panicked at crates\marlowe-daemon\src\live.rs:438:9:
+    live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted
+test result: FAILED. 36 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+===== MUTATION: provider_list_ignored =====
+test the_provider_picker_is_built_from_the_daemons_own_report ... ok
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... FAILED
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+===== MUTATION: provider_picker_hardcoded =====
+test the_provider_picker_is_built_from_the_daemons_own_report ... FAILED
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... ok
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s

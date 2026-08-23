@@ -166,6 +166,66 @@ MUTATIONS = {
 """,
         "",
     ),
+    # -- ADR-049 s6: the status band's approval state --------------------------------------
+    # Let the render-only announcement (id 0) put the band in `waiting` again, so every
+    # adjudication claims an answer is owed whether or not a human was ever asked.
+    "band_decision_zero": (
+        "crates/marlowe-daemon/src/project.rs",
+        """if *decision != 0 {
+                    view.status.state = StatusState::Waiting;
+                    view.status.detail = "approval needed".into();
+                }""",
+        """view.status.state = StatusState::Waiting;
+                view.status.detail = "approval needed".into();""",
+    ),
+    # Stop the answer from returning the band, so `waiting - approval needed` stands for the
+    # rest of the turn while the tool runs and the model composes.
+    "band_not_returned": (
+        "crates/marlowe-daemon/src/live.rs",
+        """self.view.status.state = marlowe_view::StatusState::Thinking;
+                self.view.status.detail = "working on it — esc to interrupt".into();""",
+        """""",
+    ),
+    # Stop the reader opening a section B6 line, so the surface shows a completed `read` and
+    # then 36-83 seconds of nothing.
+    "reader_line_open": (
+        "crates/marlowe-loop/src/engine.rs",
+        """        ports.sink.emit(TurnEvent::ToolLine {
+            id: reader_line_id,
+            verb: "subagent".to_string(),
+            target: reader_target.clone(),
+            state: ToolLineState::Running { elapsed_ms: 0 },
+        });
+""",
+        "",
+    ),
+    # -- ADR-049 s7: /provider ------------------------------------------------------------
+    # Ignore the hosted catalogue in status(), so switching provider no longer changes what the
+    # model picker is built from -- which is the whole feature.
+    "provider_list_ignored": (
+        "crates/marlowe-daemon/src/daemon.rs",
+        """models: if self.config.openrouter_models.is_empty() {
+                    vec![model]
+                } else {
+                    let mut m = self.config.openrouter_models.clone();
+                    if !m.iter().any(|x| *x == model) {
+                        m.push(model);
+                        m.sort();
+                    }
+                    m
+                },""",
+        """models: vec![model],""",
+    ),
+    # Hardcode the provider picker's selection, so it shows `ollama` on a hosted daemon.
+    "provider_picker_hardcoded": (
+        "crates/marlowe-daemon/src/project.rs",
+        """let selected = PROVIDERS
+                    .iter()
+                    .position(|p| *p == report.model_provider.as_str())""",
+        """let selected = PROVIDERS
+                    .iter()
+                    .position(|_p| false)""",
+    ),
     # html: the block buffer bound -- the HTML memory peak.
     "html_blocks": (
         "crates/marlowe-extract/src/html.rs",

@@ -35,6 +35,7 @@ pub const REGISTRY: &[Command] = &[
     Command { name: "status",   args: "",         description: "model, context, spend, connections, degradation" },
     Command { name: "state",    args: "<name>",   description: "drive the status band to a state (listening…idle)" },
     Command { name: "model",    args: "[name]",   description: "show or switch the routed model" },
+    Command { name: "provider", args: "[name]",   description: "show or switch the model provider — ollama / openrouter; changes the model list" },
     Command { name: "profile",  args: "[name]",   description: "show or switch profile — work / personal" },
     Command { name: "session",  args: "[name]",   description: "show or switch session" },
     Command { name: "workspace", args: "[path]",  description: "show or switch the working directory" },
@@ -128,6 +129,11 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
         },
 
         "model" => picker(view, ControlId::Model, args),
+        // **ADR-049 §7, and it goes through `picker` like every other control.** The provider is
+        // a `ControlId` that is not on the strip (see `ControlStrip::provider`), so this command is
+        // the only way to reach it -- and routing it through the same helper is what keeps the
+        // listing, the refusal and the parity test identical to the five that are.
+        "provider" => picker(view, ControlId::Provider, args),
         "profile" => picker(view, ControlId::Profile, args),
         "session" => picker(view, ControlId::Session, args),
         "workspace" => picker(view, ControlId::Workspace, args),

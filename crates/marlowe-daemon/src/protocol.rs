@@ -54,6 +54,13 @@ pub enum Request {
     /// changes with it, which is the point — `capability_for` reports NOT MEASURED for anything but
     /// the one model that has been.
     SetModel { model: String },
+    /// ADR-049 §7. `ollama` or `openrouter`.
+    ///
+    /// **Separate from `SetModel` because the model list is a consequence of it**, not a peer:
+    /// switching provider replaces the set of models that can be chosen at all, so a client that
+    /// sent both would be racing its own picker against a list that had not arrived yet. The
+    /// daemon answers with a fresh `Status`, and the new list is in it.
+    SetProvider { provider: String },
     /// Stop the daemon.
     ///
     /// **Invariant 6 says a run survives the client that started it, not that the daemon is

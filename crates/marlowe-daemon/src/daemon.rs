@@ -117,6 +117,16 @@ pub struct DaemonConfig {
     /// able to talk at all, which is K6. What must never happen is retrieval silently not running,
     /// and that is what the announcement closes.
     pub reranking: Option<PathBuf>,
+    /// Every model `openrouter.ai` serves, fetched **once when the provider is switched** and
+    /// cached here. Empty until then.
+    ///
+    /// **Never fetched on the status path.** `status()` is called on essentially every tick of the
+    /// surface, and a network round trip inside a repaint loop is a freeze with a plausible
+    /// explanation. See `marlowe_openrouter::catalogue`.
+    pub openrouter_models: Vec<String>,
+    /// The hosted slug to go back to. Set when leaving OpenRouter, read when returning, so a
+    /// round trip through `ollama` does not make the user retype it.
+    pub last_openrouter_model: Option<String>,
 }
 
 impl DaemonConfig {
@@ -146,6 +156,8 @@ impl DaemonConfig {
             thinking: true,
             context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,
             reranking: None,
+            openrouter_models: Vec::new(),
+            last_openrouter_model: None,
         }
     }
 }
@@ -559,11 +571,28 @@ impl Daemon {
                 rerank_provider: self.config.rerank_provider.clone(),
                 model_provider: self.config.model_provider().name().to_string(),
                 live_runs: self.live_runs(),
-                // **Empty, and that is the truthful reading.** This list is what a model PICKER
-                // is built from, and it is the machine's Ollama inventory. OpenRouter's catalogue
-                // is hundreds of models behind a network call; presenting the one configured slug
-                // as though it were a list would be a control that offers one choice.
-                models: vec![model],
+                // **The catalogue when we have it, the configured slug when we do not.**
+                //
+                // This paragraph used to say the opposite -- *"OpenRouter's catalogue is hundreds
+                // of models behind a network call; presenting the one configured slug as though it
+                // were a list would be a control that offers one choice"* -- and it was right about
+                // the problem and wrong about the only way out. The network call is real and must
+                // not happen here, on a path the surface hits every tick. It happens **once, on
+                // the switch**, and this reads the cache. ADR-049 §7.
+                //
+                // The fallback is the configured slug rather than an empty list, for the reason
+                // the Ollama branch below keeps the configured model selectable: a picker that
+                // omits the value it is currently reporting is internally inconsistent.
+                models: if self.config.openrouter_models.is_empty() {
+                    vec![model]
+                } else {
+                    let mut m = self.config.openrouter_models.clone();
+                    if !m.iter().any(|x| *x == model) {
+                        m.push(model);
+                        m.sort();
+                    }
+                    m
+                },
             };
         }
         let endpoint = LocalEndpoint::default_ollama();
@@ -621,15 +650,26 @@ impl Daemon {
     /// A silent accept would leave the picker showing a model that every subsequent turn fails
     /// against, and the failure would present as a broken model rather than as a bad choice.
     pub fn set_model(&mut self, model: &str) -> Result<(), String> {
-        if let ModelProviderChoice::OpenRouter { .. } = self.config.model_provider() {
-            // **Refused by name rather than silently ignored.** The picker is built from the
-            // machine's Ollama inventory, so accepting a name here would switch a hosted daemon
-            // onto a local slug that OpenRouter has never heard of — and the failure would arrive
-            // as a 404 on the next turn, reading like a provider fault.
-            return Err(format!(
-                "this daemon routes to openrouter.ai, so `{model}` cannot be selected from the \
-                 local model list. Restart with `--openrouter-model <slug>`"
-            ));
+        if let ModelProviderChoice::OpenRouter { model: current } = self.config.model_provider() {
+            // **This used to refuse outright**, and the refusal was right while the picker could
+            // only ever hold the machine's Ollama inventory: accepting a name would have put a
+            // hosted daemon on a local slug and the 404 would have read like a provider fault.
+            //
+            // With `/provider` the picker holds openrouter.ai's own catalogue, so the name is a
+            // hosted slug and setting it is the whole point. What survives from the old refusal is
+            // its reason: a name that is **not** in the catalogue is still refused by name.
+            if model == current {
+                return Ok(());
+            }
+            let known = &self.config.openrouter_models;
+            if !known.is_empty() && !known.iter().any(|m| m == model) {
+                return Err(format!(
+                    "`{model}` is not a model openrouter.ai lists. Pick one from `/model`, or see \
+                     https://openrouter.ai/models"
+                ));
+            }
+            self.config.model_provider = ModelProviderChoice::OpenRouter { model: model.to_string() };
+            return Ok(());
         }
         if model == self.config.model {
             return Ok(());
@@ -642,6 +682,95 @@ impl Daemon {
                 Ok(())
             }
             other => Err(other.remedy()),
+        }
+    }
+
+    /// Switch the provider this daemon routes to. **ADR-049 §7.**
+    ///
+    /// ADR-046 made the provider a launch-time choice, and it stayed one everywhere: `--tui`
+    /// accepted `--provider` and threw it away, the Windows Terminal profile ignored it, and the
+    /// only way to change your mind was to restart. This is the session-level answer.
+    ///
+    /// # Three things it refuses, each by name
+    ///
+    /// **An unknown provider**, against `project::PROVIDERS` -- the same list the picker is built
+    /// from, so an option a user can see is an option this accepts.
+    ///
+    /// **OpenRouter with no key.** `Availability::check` is the existing reader of that, and it
+    /// already names the remedy. Switching first and failing on the next turn would present a
+    /// missing credential as a broken model.
+    ///
+    /// **OpenRouter with nothing to route to.** A slug is remembered from launch or from a
+    /// previous switch; failing that, the catalogue's fetch supplies one; failing both, the switch
+    /// is refused rather than leaving a hosted daemon with no model.
+    ///
+    /// # The catalogue is fetched HERE and nowhere else
+    ///
+    /// One round trip, at the moment a person asked for it. A failure does not fail the switch --
+    /// the picker falls back to the configured slug, which is a usable daemon with a thin list
+    /// rather than an unusable one with an excuse.
+    /// The config, mutably. **For tests that need to place the daemon in a state a live switch
+    /// would reach through a network round trip** — a hosted provider with a catalogue already
+    /// fetched. Nothing in the product mutates the config through this; the product path is
+    /// [`Self::set_provider`] and [`Self::set_model`], which validate.
+    pub fn config_mut(&mut self) -> &mut DaemonConfig {
+        &mut self.config
+    }
+
+    pub fn set_provider(&mut self, provider: &str) -> Result<(), String> {
+        if !crate::project::PROVIDERS.contains(&provider) {
+            return Err(format!(
+                "`{provider}` is not a provider this build has. Options: {}",
+                crate::project::PROVIDERS.join(", ")
+            ));
+        }
+        if provider == self.config.model_provider().name() {
+            return Ok(());
+        }
+        match provider {
+            "ollama" => {
+                // **The slug is not thrown away.** Switching back to openrouter should not make
+                // the user retype it, and `last_openrouter_model` is the field that would be, so
+                // it is kept on the config rather than in the choice that is about to be replaced.
+                if let ModelProviderChoice::OpenRouter { model } = self.config.model_provider() {
+                    self.config.last_openrouter_model = Some(model);
+                }
+                self.config.model_provider = ModelProviderChoice::Ollama;
+                Ok(())
+            }
+            "openrouter" => {
+                let key = marlowe_openrouter::ApiKey::from_environment();
+                // The catalogue first: it is also how a daemon with no remembered slug gets one.
+                match marlowe_openrouter::catalogue::fetch_models() {
+                    Ok(models) => self.config.openrouter_models = models,
+                    // Not fatal. A thin picker beats a refused switch, and the user asked for
+                    // this provider rather than for a list.
+                    Err(_) => {}
+                }
+                let Some(model) = self
+                    .config
+                    .last_openrouter_model
+                    .clone()
+                    .or_else(|| self.config.openrouter_models.first().cloned())
+                else {
+                    return Err(
+                        "no OpenRouter model is set and its catalogue could not be read. Restart \
+                         with `--openrouter-model <slug>`, or see https://openrouter.ai/models"
+                            .to_string(),
+                    );
+                };
+                // **Checked before the switch, not on the next turn.** A missing credential that
+                // surfaces as a failed turn reads as a broken model.
+                let availability = marlowe_openrouter::Availability::check(&model, &key);
+                if !availability.is_ready() {
+                    return Err(availability.remedy());
+                }
+                self.config.model_provider = ModelProviderChoice::OpenRouter { model };
+                Ok(())
+            }
+            // Unreachable while `PROVIDERS` and this match agree, and a wrong answer here is a
+            // silent no-op, so it is stated rather than left to a catch-all.
+            other => Err(format!("`{other}` is listed as a provider and has no implementation")),
         }
     }
 
@@ -1295,6 +1424,15 @@ impl Daemon {
                 // then re-projects the daemon's own report — including the new disclosure — rather
                 // than patching its view with what it hoped had happened.
                 match self.set_model(&model) {
+                    Ok(()) => on_event(Event::Status(self.status())),
+                    Err(detail) => on_event(Event::Error { detail }),
+                }
+            }
+            Request::SetProvider { provider } => {
+                // Answered with a fresh `Status` for the same reason `SetModel` is: the model list
+                // is a consequence of this, and the client re-projects the daemon's report rather
+                // than guessing what the new list holds.
+                match self.set_provider(&provider) {
                     Ok(()) => on_event(Event::Status(self.status())),
                     Err(detail) => on_event(Event::Error { detail }),
                 }

@@ -52,6 +52,7 @@
 #![forbid(unsafe_code)]
 
 pub mod attribution;
+pub mod catalogue;
 pub mod availability;
 pub mod driver;
 pub mod retry;

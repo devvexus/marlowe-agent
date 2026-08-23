@@ -43,7 +43,7 @@ pub mod protocol;
 pub use client::{Client, ClientError};
 pub use daemon::{Daemon, DaemonConfig, DaemonError, ModelProviderChoice, governance_prompt};
 pub use live::LiveSession;
-pub use project::{apply_events, view_from_status};
+pub use project::{apply_events, view_from_status, PROVIDERS};
 pub use protocol::{Event, Request, StatusReport};
 
 /// The loopback port the daemon listens on.

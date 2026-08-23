@@ -1,0 +1,100 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-loop\src\driver.rs:18:18
+   |
+18 | use crate::run::{CondensedResult, OrphanPolicy, OutputContract};
+   |                  ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `BudgetShare`
+   --> crates\marlowe-loop\src\engine.rs:121:29
+    |
+121 | use crate::budget::{Budget, BudgetShare};
+    |                             ^^^^^^^^^^^
+
+warning: `marlowe-loop` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-loop` to apply 2 suggestions)
+   Compiling marlowe-view v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-view)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+   Compiling marlowe-openrouter v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-openrouter)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> crates\marlowe-exec\src\lib.rs:427:9
+    |
+427 |         drop(cwd);
+    |         ^^^^^---^
+    |              |
+    |              argument has type `Option<&ScopedPath>`
+    |
+    = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+    |
+427 -         drop(cwd);
+427 +         let _ = cwd;
+    |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: method `name` is never used
+  --> crates\marlowe-embed-spike\src\main.rs:43:8
+   |
+42 | trait Engine {
+   |       ------ method in this trait
+43 |     fn name(&self) -> &'static str;
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-embed-spike` (bin "marlowe-embed-spike") generated 1 warning
+   Compiling marlowe-stub v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-stub)
+   Compiling marlowe-surface v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-surface)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1001:21
+     |
+1001 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: unused import: `JournalRecorder`
+  --> crates\marlowe-daemon\src\daemon.rs:16:5
+   |
+16 |     JournalRecorder, LoopOutcome, MemoryRecorder, NoControl, OutputContract, Ports, Provenance,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-daemon\src\daemon.rs:791:9
+    |
+791 |         mut on_event: impl FnMut(Event),
+    |         ----^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 3 suggestions)
+   Compiling marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+    Finished `release` profile [optimized + debuginfo] target(s) in 15.73s

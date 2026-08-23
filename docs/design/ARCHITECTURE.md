@@ -497,12 +497,15 @@ invariant hold whether or not the model cooperates.
 
 The budget is a hard constraint. Here is the accounting.
 
-### Seven user-facing nouns
+### Eight user-facing nouns
 
-`session · memory · skill · tool · run · trigger · profile`
+`session · memory · skill · tool · run · trigger · profile · provider`
 
-Every concept in the brief and both addenda maps onto one of them. Nothing in the secretary
-layer earns an eighth noun:
+**Seven until 2026-08-22.** `provider` is the eighth, added with `/provider` (ADR-049 §7) by an
+explicit decision rather than by a command quietly claiming a neighbouring noun — the first
+attempt mapped it onto **profile**, which `model` and `workspace` already claim, and that would
+have held the count at seven by making one of the seven mean two things. Every other concept in
+the brief and both addenda still maps onto one of them, and nothing earns a ninth:
 
 | Concept | Noun | How |
 |---|---|---|
@@ -512,6 +515,7 @@ layer earns an eighth noun:
 | Noticing, daily brief | **trigger** → **run** | The salience process is a scheduled trigger firing a run. Not a subsystem. |
 | Subagent, deep research, consolidation | **run** | Capability profiles, not new kinds of thing. |
 | Compaction lineage | **session** | A chain of sessions. |
+| Which company serves the weights, and its catalogue | **provider** | The eighth. A profile *points at* a provider; it does not contain one, and the model list is a consequence of which one is active. |
 
 ### One loop
 

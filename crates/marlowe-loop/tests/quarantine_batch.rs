@@ -98,6 +98,10 @@ struct Harness {
     /// escape tests assert on `rendered` — the context view — so neither ever looked here, and the
     /// child's stream to the terminal was invisible to the whole suite.
     sink_text: String,
+    /// Everything the sink received, prose and structure alike. `sink_text` keeps only
+    /// `TextDelta`, so a §B6 line is invisible to it — and the reader's progress line is exactly
+    /// a §B6 line.
+    sink_events: Vec<marlowe_loop::TurnEvent>,
 }
 
 /// Drive one turn containing `n` `web` calls, with a first step that emits them all as one batch.
@@ -171,6 +175,7 @@ fn drive_with(n: usize, identical: bool, replies: Vec<String>) -> Harness {
     let _ = engine.run(&mut run, &mut state, &mut prov, &mut ports);
 
     let sink_text = sink.text();
+    let sink_events = sink.events.clone();
 
     Harness {
         views,
@@ -179,6 +184,7 @@ fn drive_with(n: usize, identical: bool, replies: Vec<String>) -> Harness {
         rendered: engine.assembler().assemble(&state).rendered(),
         floor: run.trust_floor(),
         sink_text,
+        sink_events,
     }
 }
 
@@ -479,5 +485,102 @@ fn nothing_the_quarantined_reader_says_reaches_the_surface() {
         "the parent's own answer must still reach the surface:
 {}",
         h.sink_text
+    );
+}
+
+// ─── the reader is visible as a subagent, and only as one ────────────────────────────────────
+
+/// **§B5: motion means Marlowe is working — and for 36 to 83 seconds it was not.**
+///
+/// The `read` tool line closes in 0.0 ms because the document is already in the store, and the
+/// quarantined reader then runs for most of a minute on a hosted provider with a completed tool on
+/// screen and nothing after it. Measured from the journal on a real run, not estimated.
+///
+/// It was invisible until layer 1 started working: with the child dying on an HTTP 400 in ~400 ms
+/// there was no silence to notice. ADR-049 made the reader run, and the silence arrived with it.
+#[test]
+fn a_running_quarantined_reader_is_visible_as_a_subagent_on_the_surface() {
+    use marlowe_loop::{ToolLineState, TurnEvent};
+
+    let h = drive(2, false, "both sources describe widgets");
+
+    let lines: Vec<&TurnEvent> = h
+        .sink_events
+        .iter()
+        .filter(|e| matches!(e, TurnEvent::ToolLine { verb, .. } if verb == "subagent"))
+        .collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "the reader must open a §B6 line and close it; got {lines:?}"
+    );
+
+    let TurnEvent::ToolLine { id: open_id, target, state, .. } = lines[0] else {
+        unreachable!("filtered above")
+    };
+    assert!(
+        matches!(state, ToolLineState::Running { .. }),
+        "the line must OPEN as running — a line that only appears once the reader has finished is          the silence this exists to remove"
+    );
+    assert!(
+        target.contains("under quarantine"),
+        "the line must say what kind of work it is: {target}"
+    );
+
+    let TurnEvent::ToolLine { id: close_id, state: closed, .. } = lines[1] else {
+        unreachable!("filtered above")
+    };
+    assert_eq!(open_id, close_id, "the close must replace the open line, not add a second one");
+    assert!(
+        matches!(closed, ToolLineState::Ok(_)),
+        "a read that succeeded must close Ok, or §B6 auto-expands a failure that did not happen"
+    );
+}
+
+/// **The line carries the FACT of the read and no byte of its content.**
+///
+/// This is the control that keeps the line above from becoming a hole in layer 1. Audit finding
+/// E4 is that prose composed inside a window holding attacker-controlled pages must not stream to
+/// a terminal; `nothing_the_quarantined_reader_says_reaches_the_surface` asserts that for
+/// `TextDelta`. A §B6 line is a **different channel**, invisible to `sink_text`, and it would have
+/// been an unexamined second route to the same screen.
+#[test]
+fn the_subagent_line_carries_no_word_the_reader_or_the_page_wrote() {
+    use marlowe_loop::TurnEvent;
+
+    const CHILD_SAYS: &str = "CHILD-PROSE-THAT-MUST-NOT-REACH-A-TERMINAL";
+    let mut replies = vec![CHILD_SAYS.to_string()];
+    replies.extend(std::iter::repeat("PARENT-ANSWER".to_string()).take(11));
+    let h = drive_with(2, false, replies);
+
+    // Control: the reader really did speak, and really did see the page. Without this the
+    // assertions below hold on a run where nothing happened at all.
+    assert!(
+        h.rendered.contains(CHILD_SAYS),
+        "premise: the reader spoke and was condensed into the parent's context"
+    );
+
+    let rendered_lines: String = h
+        .sink_events
+        .iter()
+        .filter_map(|e| match e {
+            TurnEvent::ToolLine { verb, target, state, .. } if verb == "subagent" => {
+                Some(format!("{target} {state:?}"))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("
+");
+    assert!(!rendered_lines.is_empty(), "premise: a subagent line was emitted");
+    assert!(
+        !rendered_lines.contains(CHILD_SAYS),
+        "the reader's own prose reached the surface through the §B6 line:
+{rendered_lines}"
+    );
+    assert!(
+        !rendered_lines.contains(MARKER),
+        "page bytes reached the surface through the §B6 line:
+{rendered_lines}"
     );
 }
