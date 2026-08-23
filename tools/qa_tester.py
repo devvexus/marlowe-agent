@@ -40,8 +40,15 @@ MODEL = "stealth/ox-alpha"
 
 ANSWER_SYSTEM = (
     "You answer questions about the user's life using ONLY the provided memories from past "
-    "conversations. If the memories contain the needed information, give a short, direct "
-    "answer. If they do not contain it, reply exactly: NOT_ENOUGH_INFORMATION. Do not guess."
+    "conversations.\n"
+    "Method:\n"
+    "1. Identify what the question asks (a fact, a count, a duration, a preference).\n"
+    "2. Gather EVERY memory that bears on it. For counts: list each matching event and count. "
+    "For 'how long ago / how many days': find the relevant dates in the memories, note them "
+    "explicitly, and compute the difference step by step.\n"
+    "3. Then give a short final answer on its own line, formatted: FINAL ANSWER: <answer>\n"
+    "If the memories truly lack the needed information, reply exactly: NOT_ENOUGH_INFORMATION. "
+    "Never invent specifics."
 )
 
 JUDGE_SYSTEM = (
