@@ -204,6 +204,17 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         // file that actually issues requests, including one that DID reach a result, and it would
         // do it silently because the fence would already be green.
         "marlowe-net/src/age.rs",
+        // ADR-052. An MCP server is a child process, and a child that never answers would block
+        // the turn forever with no output and no indication why -- the failure Addendum B §B5
+        // exists to prevent, and one that counting iterations cannot solve, because a blocking
+        // `read_line` on a silent pipe does not iterate.
+        //
+        // A FILE, not the crate, and for `clock.rs`'s stated reason: `marlowe-mcp/src/lib.rs` is
+        // four hundred lines of protocol handling and is exactly the file that should keep failing
+        // this guard if a second clock read appears in it. `deadline.rs` holds one type with one
+        // method returning `bool` -- no `Duration`, no accessor, nothing a decay path could key
+        // off -- and asserts that property about itself.
+        "marlowe-mcp/src/deadline.rs",
     ];
 
     /// The engine spike — a **temporary** measurement crate, exempt with an expiry.

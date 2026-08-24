@@ -1,0 +1,4 @@
+usage: read_journal.py [-h] [--profile-root PROFILE_ROOT] [--kinds KINDS]
+                       [--since-seq SINCE_SEQ] [--limit LIMIT] [--run RUN]
+                       [--session SESSION] [--json] [--verbose] [--list-kinds]
+read_journal.py: error: unrecognized arguments: --all

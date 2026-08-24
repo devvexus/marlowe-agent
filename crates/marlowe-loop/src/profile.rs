@@ -188,13 +188,22 @@ impl CapabilityProfile {
         // any path. §5.5: *"recall recovered by making the agent's explicit memory search tool
         // excellent."*
         //
-        // `use` remains unexposed: still no executor.
-        let tools = ["read", "edit", "find", "bash", "web", "recall", "ask", "remember", "run"]
-            .iter()
-            .map(|t| ToolId::new(*t))
-            .collect();
+        // **`use` joined in M2 C3 (ADR-051)**, by the identical rule a third time. It has an
+        // executor now — `marlowe_daemon::skills::SkillTools`, over the installed skill registry —
+        // so `verify_every_exposed_tool_is_runnable` permits it. It had been
+        // registered-and-unrunnable since Session A, and exposing it is what makes an installed
+        // skill reachable at all: a skills library the model cannot see is a directory.
+        //
+        // Three tools have now been restored by this guard and none by anybody remembering to.
+        // That is the property: the exposed set is DERIVED from what is runnable rather than
+        // maintained beside it.
+        let tools =
+            ["read", "edit", "find", "bash", "web", "recall", "use", "ask", "remember", "run"]
+                .iter()
+                .map(|t| ToolId::new(*t))
+                .collect();
         Self::new(
-            ExposedSet::new(tools).expect("eight fits in twelve"),
+            ExposedSet::new(tools).expect("ten fits in twelve"),
             // **ADR-032 §3.1: nothing reachable by default, each host by human approval.**
             //
             // Not `DenyAll`, which is structural and unwidenable — the quarantined reader holds
@@ -209,6 +218,39 @@ impl CapabilityProfile {
             false,
         )
         .expect("the interactive profile reads nothing untrusted")
+    }
+
+    /// [`Self::interactive`] plus the tools an installed MCP server contributes. ADR-052 §5.
+    ///
+    /// # Why widening exists here and nowhere else
+    ///
+    /// `narrowed` has no counterpart on purpose: a **spawn** may only narrow, because privilege
+    /// must not grow with depth, and `WidenedPastParent` enforces it. This is not that. It is how
+    /// a top-level profile is *built* — the exposed set has always been chosen at construction —
+    /// and it takes no parent, so there is nothing for it to grow past. A child of the profile
+    /// this returns is still narrowed against it, unchanged.
+    ///
+    /// # The budget refuses, and the message says which tool to drop
+    ///
+    /// The interactive set is ten of ARCHITECTURE §5's twelve, so **two MCP tools fit and a third
+    /// does not**. That is a real constraint on a real product and it refuses at load rather than
+    /// silently dropping the overflow: a server whose third tool quietly vanished would look like
+    /// a server with a broken tool. `ExposureError::TooMany` carries the count and the remedy.
+    ///
+    /// A user who needs more MCP tools than that has to give something up, and it should be their
+    /// choice which — so the refusal names the budget rather than this function picking a victim.
+    pub fn interactive_with(extra: Vec<ToolId>) -> Result<Self, ProfileError> {
+        let base = Self::interactive();
+        let mut tools: Vec<ToolId> = base.exposed_tools.iter().cloned().collect();
+        tools.extend(extra);
+        Ok(Self::new(
+            ExposedSet::new(tools)?,
+            base.egress,
+            base.interrupt,
+            base.model_route,
+            base.may_write_memory,
+            base.reads_untrusted,
+        )?)
     }
 
     pub fn exposed_tools(&self) -> &ExposedSet {
@@ -380,21 +422,21 @@ mod tests {
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        // **Nine, not ten.** `use` is registered and unimplemented; exposing it would hand the
-        // model a tool it could call and never execute. `web` rejoined in M2 C2f and `recall` in
-        // M2 Session D, each when it gained an executor — added and removed by the same guard,
-        // without anyone having to remember either time. That is the whole point of
-        // `verify_every_exposed_tool_is_runnable`: the exposed set is derived from what is
-        // runnable rather than maintained beside it.
-        assert_eq!(i.exposed_tools().len(), 9);
+        // **Ten as of M2 C3, and two under the budget.** `web` rejoined in C2f, `recall` in
+        // Session D and `use` in C3 — each at the moment it gained an executor, added and removed
+        // by the same guard without anyone having to remember either time. That is the whole
+        // point of `verify_every_exposed_tool_is_runnable`: the exposed set is derived from what
+        // is runnable rather than maintained beside it.
+        assert_eq!(i.exposed_tools().len(), 10);
         assert!(
             i.exposed_tools().iter().any(|t| t.as_str() == "recall"),
             "recall is what makes a memory written a minute ago reachable at all: auto-injection \
              withholds unmatured beliefs and covers 10% of queries even after they mature"
         );
         assert!(
-            !i.exposed_tools().iter().any(|t| t.as_str() == "use"),
-            "`use` still has no executor"
+            i.exposed_tools().iter().any(|t| t.as_str() == "use"),
+            "`use` is what makes an installed skill reachable: nothing else loads a SKILL.md, \
+             and a skills library the model cannot see is a directory"
         );
         assert_eq!(
             *i.egress(),

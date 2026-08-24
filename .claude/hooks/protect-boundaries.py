@@ -62,6 +62,21 @@ PROTECTED = {
         "the capability profile's load-time invariants (brief §13, the permission layer). "
         "`reads_untrusted && !exposed_tools.is_empty()` is §8.2's structural trifecta break"
     ),
+    # -- landed in M2 Session C3 (ADR-052) --------------------------------------------------
+    "crates/marlowe-daemon/src/mcp.rs": (
+        "where an MCP tool result acquires its trust class (brief 13, memory provenance and "
+        "trust-class propagation). ADR-052 condition 1: the SERVER is trusted because the user "
+        "installed it, the OUTPUT is UntrustedContent unconditionally. This is layer 1's entry "
+        "point for MCP -- `condense_batch` triggers on the trust class, not the tool name, so "
+        "changing this one field is how MCP results would stop being quarantined at all, with "
+        "nothing else in the tree looking different"
+    ),
+    "crates/marlowe-tools/src/pin.rs": (
+        "the description pin (brief 13, the permission and approval layer). ADR-052 section 4: "
+        "ADR-052's whole argument is that the user inspected what they installed, and this is "
+        "what keeps that a TRUE statement rather than a historical one when a live-fetched tool "
+        "list changes under an approved name"
+    ),
     "crates/marlowe-loop/src/provenance.rs": (
         "argument provenance (brief §13, the permission layer). ADR-023: the harness computes "
         "taint from the context window, and a model that could label its own arguments "

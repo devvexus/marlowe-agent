@@ -240,13 +240,18 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     assert_eq!(registry.len(), 10);
 
     let profile = CapabilityProfile::interactive();
-    // **Registered is ten; exposed is nine.** `use` alone is compiled in with no executor, so
-    // exposing it would hand the model a tool it could call and never run. The gap between these
-    // two numbers is the honest statement of what is built — and
-    // `verify_every_exposed_tool_is_runnable` is what keeps it from closing by accident. `web`
-    // crossed that gap in M2 C2f and **`recall` in M2 Session D**, each by gaining an executor,
-    // which is the guard working in the direction nobody tests for.
-    assert_eq!(profile.exposed_tools().len(), 9);
+    // **Registered is ten and exposed is ten: the gap closed in M2 C3.**
+    //
+    // It was nine for as long as `use` was compiled in with no executor — exposing it would have
+    // handed the model a tool it could call and never run. `use` gained one in C3 (ADR-051,
+    // `marlowe_daemon::skills::SkillTools`), so the guard admits it, exactly as it admitted `web`
+    // in C2f and `recall` in Session D. **Three tools have crossed this gap and none because
+    // anybody remembered to**: `verify_every_exposed_tool_is_runnable` derives the exposed set
+    // from what is runnable rather than maintaining it beside the truth.
+    //
+    // The equality is not the property. The property is that the two numbers agree *because* a
+    // guard makes them agree, and the next tool to arrive fails this line until it can run.
+    assert_eq!(profile.exposed_tools().len(), 10);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");

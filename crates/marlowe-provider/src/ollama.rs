@@ -304,10 +304,25 @@ impl OllamaDriver {
                     "type": "function",
                     "function": {
                         "name": reg.id.as_str(),
-                        // A third-party description is untrusted input (§7.2). It is passed
-                        // through verbatim rather than filtered — containment is the trust class
-                        // and the assembler's tier, not a sanitizer — but it is bounded, which
-                        // `Description::new` already did at registration.
+                        // **ADR-052: this text is TRUSTED, and what the tool returns is not.**
+                        //
+                        // The comment here used to read "containment is the trust class and the
+                        // assembler's tier" — naming two defences, neither of which runs on this
+                        // path. A description never enters a `ContextView`, so no tier applies to
+                        // it and no trust floor sees it; it goes into the `tools` array and
+                        // nowhere else. Two mechanisms cited where zero were operating.
+                        //
+                        // What is actually true: the user installed the server, which is the
+                        // authorization decision, and the agent cannot install one. So this prose
+                        // may direct action. Its RESULTS may not — they arrive
+                        // `UntrustedContent` and go through layer 1 like any other untrusted
+                        // result.
+                        //
+                        // `Description::new` has already bounded it and run it through
+                        // `marlowe_contract::text` — not as a filter, which §8.1 says does not
+                        // work, but so the description cannot render as something other than what
+                        // the user read when they installed it. That inspection is now the only
+                        // control in this path, and an invisible character defeats it.
                         "description": reg.description.text(),
                         "parameters": {
                             "type": "object",

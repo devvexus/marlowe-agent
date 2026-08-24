@@ -388,15 +388,75 @@ struct SessionMemory {
 /// is only evidence about the turn if it is handed the same host the turn runs; two construction
 /// sites is two hosts that can drift, and the drift is invisible in the direction that matters —
 /// a runtime host missing an executor the verified one had would pass startup and fail on the call.
+/// The registry the model's tool list is built from: the builtins, plus every tool an installed
+/// MCP server contributed. ADR-052.
+///
+/// **One function, called from all three sites.** `builtin_registry()` used to be called
+/// separately for the `Engine` and for each driver, which was already a duplication hazard and
+/// becomes a real defect the moment the registry has a per-profile component: an `Engine` that
+/// knows a tool and a driver that does not would offer the model nothing and refuse nothing, and
+/// the symptom would be a tool the user installed that the model never mentions.
+fn tool_registry(
+    fleet: &std::sync::Arc<std::sync::Mutex<crate::mcp::McpFleet>>,
+) -> Result<marlowe_tools::ToolRegistry, DaemonError> {
+    let mut registry = builtin_registry().map_err(|e| DaemonError::Profile {
+        root: "<builtins>".into(),
+        detail: e.to_string(),
+    })?;
+    for reg in fleet.lock().expect("the mcp fleet lock was poisoned").registrations() {
+        registry.register(reg.clone()).map_err(|e| DaemonError::Profile {
+            root: "<mcp>".into(),
+            detail: e.to_string(),
+        })?;
+    }
+    Ok(registry)
+}
+
+type DaemonToolHost = crate::mcp::McpTools<
+    crate::skills::SkillTools<crate::recall::RecallTools<FileSystemTools<WorkspaceScope>>>,
+>;
+
 fn build_tool_host(
     workspace: &std::path::Path,
     beliefs: std::sync::Arc<std::sync::Mutex<marlowe_memory::BeliefStore>>,
-) -> Result<crate::recall::RecallTools<FileSystemTools<WorkspaceScope>>, DaemonError> {
+    skills: std::sync::Arc<std::sync::Mutex<marlowe_tools::skill::SkillRegistry>>,
+    fleet: std::sync::Arc<std::sync::Mutex<crate::mcp::McpFleet>>,
+) -> Result<DaemonToolHost, DaemonError> {
     let scope = WorkspaceScope::new().map_err(|e| DaemonError::Scope { detail: e.to_string() })?;
-    Ok(crate::recall::RecallTools::new(
-        FileSystemTools::new(scope, workspace.to_path_buf()),
-        beliefs,
+    // **The wrapper order is not free.** Each layer serves its own tool and delegates the rest,
+    // and each MUST forward `execute_batch` or the innermost host's concurrent fetch stops
+    // running — `RecallTools::execute_batch` documents that trap one layer in, and adding a second
+    // wrapper is exactly the event it warns about. `a_batch_reaches_the_innermost_host_through_
+    // both_wrappers` asserts the whole chain rather than each link: a link that forwards to a link
+    // that does not is as broken as one that does not forward.
+    Ok(crate::mcp::McpTools::new(
+        crate::skills::SkillTools::new(
+            crate::recall::RecallTools::new(
+                FileSystemTools::new(scope, workspace.to_path_buf()),
+                beliefs,
+            ),
+            skills,
+        ),
+        fleet,
     ))
+}
+
+/// Load the profile's installed skills, and say what refused.
+///
+/// **Scanned once, at startup, and that is a decision rather than an omission.** Rescanning per
+/// turn would let a newly dropped `SKILL.md` work without a restart, which is nicer — but a
+/// malformed skill's refusal would then have nowhere to go: produced on the turn path, where
+/// there is nothing to print it to, once per turn, forever. One scan in one place where the
+/// refusals can be seen is worth the restart. ADR-051 §6.
+fn load_skills(
+    profile_root: &std::path::Path,
+) -> (marlowe_tools::skill::SkillRegistry, Vec<marlowe_tools::skill::SkillError>) {
+    // **The timestamp comes from the fence, not from the filesystem.** `skill::scan` used to
+    // read each file's mtime, which `determinism_guard` refused on the first workspace run
+    // after it was written -- correctly: a `UserReviewed { at }` reaches a manifest, and a
+    // stray clock read makes every decay-dependent result irreproducible. See `crate::clock`.
+    let reviewed_at = marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock);
+    marlowe_tools::skill::scan(&profile_root.join("skills"), reviewed_at)
 }
 
 pub struct Daemon {
@@ -410,6 +470,21 @@ pub struct Daemon {
     /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
     sessions: BTreeMap<String, SessionMemory>,
     shutdown: Arc<AtomicBool>,
+    /// The installed skills, scanned once at startup. ADR-051; see [`load_skills`].
+    skills: std::sync::Arc<std::sync::Mutex<marlowe_tools::skill::SkillRegistry>>,
+    /// The connected MCP servers and the tools they contributed. ADR-052.
+    mcp: std::sync::Arc<std::sync::Mutex<crate::mcp::McpFleet>>,
+    /// Servers that failed to connect, and tools whose description changed since install.
+    ///
+    /// **Both are the user's to act on**, so both are kept rather than logged and dropped: a
+    /// server that did not connect and a description that changed under an approved name are the
+    /// two ways an installed tool stops being what the user agreed to.
+    mcp_notices: Vec<String>,
+    /// What refused to load during that scan, kept so the startup surface can say so.
+    ///
+    /// **Held rather than logged and dropped.** A skill the user installed and cannot find is the
+    /// failure this avoids, and "it is in the scrollback somewhere" is not an answer.
+    skill_refusals: Vec<String>,
     /// The socket token. See [`crate::auth`] — loopback is per-machine, not per-user.
     ///
     /// Held on the daemon rather than re-read per connection: a token file replaced under a running
@@ -506,9 +581,56 @@ impl Daemon {
         // the verified one — would pass here and fail on the turn, which is precisely the `done`
         // defect that cost a run 155 seconds. `build_tool_host` is now the only way to construct
         // one, so the two cannot differ.
+        // **The skills are loaded BEFORE the guard below**, because `use` is now in the exposed
+        // set and the guard reads the host it will actually use. An empty registry still satisfies
+        // it — `SkillTools` executes `use` whether or not any skill is installed, and answers
+        // "nothing is installed" rather than failing — which is the right split: having no skills
+        // is a state, and being unable to run `use` is a fault.
+        let (skills, skill_errors) = load_skills(&config.profile_root);
+        let skill_refusals: Vec<String> = skill_errors.iter().map(|e| e.to_string()).collect();
+        let skills = std::sync::Arc::new(std::sync::Mutex::new(skills));
+
+        // ── ADR-052: the MCP servers the user installed ──────────────────────────────────
+        //
+        // **A malformed `mcp.json` refuses to start.** Starting with the servers a broken parse
+        // happened to reach would give the user half their tools and no statement that anything
+        // went wrong -- the shape this file already refuses for the belief store.
+        let specs = crate::mcp::read_config(&config.profile_root)
+            .map_err(|detail| DaemonError::Profile {
+                root: config.profile_root.display().to_string(),
+                detail,
+            })?;
+        let mut pins = crate::mcp::read_pins(&config.profile_root);
+        let (fleet, mcp_errors) = crate::mcp::McpFleet::connect(&specs, &mut pins);
+        crate::mcp::write_pins(&config.profile_root, &pins);
+        let mcp_notices: Vec<String> = mcp_errors
+            .iter()
+            .map(|e| e.to_string())
+            .chain(fleet.reconsent().iter().cloned())
+            .collect();
+
+        // **The profile is WIDENED by what the servers contributed, and the budget can refuse.**
+        // Ten builtins of twelve leaves room for two MCP tools; a third is
+        // `ExposureError::TooMany`, which names the budget and the remedy rather than dropping the
+        // overflow silently. A server whose third tool vanished would look like a broken server.
+        let profile = CapabilityProfile::interactive_with(fleet.tool_ids()).map_err(|e| {
+            DaemonError::Profile {
+                root: config.profile_root.display().to_string(),
+                detail: format!(
+                    "the installed MCP servers do not fit the exposed-tool budget: {e}"
+                ),
+            }
+        })?;
+        let fleet = std::sync::Arc::new(std::sync::Mutex::new(fleet));
+
         marlowe_loop::verify_every_exposed_tool_is_runnable(
-            CapabilityProfile::interactive().exposed_tools(),
-            &build_tool_host(&config.workspace, memory.beliefs())?,
+            profile.exposed_tools(),
+            &build_tool_host(
+                &config.workspace,
+                memory.beliefs(),
+                std::sync::Arc::clone(&skills),
+                std::sync::Arc::clone(&fleet),
+            )?,
         )?;
 
         // **Minted before the listener binds, and a failure here refuses to start.** A daemon that
@@ -528,8 +650,39 @@ impl Daemon {
             runs: BTreeMap::new(),
             sessions: BTreeMap::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
+            skills,
+            skill_refusals,
+            mcp: fleet,
+            mcp_notices,
             token,
         })
+    }
+
+    /// How many skills loaded. Printed at startup, beside the memory state.
+    pub fn skills_installed(&self) -> usize {
+        self.skills.lock().expect("the skill registry lock was poisoned").len()
+    }
+
+    /// What refused to load, in the words of the refusal. Kept rather than logged and dropped: a
+    /// skill the user installed and cannot find is the failure this avoids, and "it is in the
+    /// scrollback somewhere" is not an answer.
+    pub fn skill_refusals(&self) -> &[String] {
+        &self.skill_refusals
+    }
+
+    /// How many tools the installed MCP servers contributed. ADR-052.
+    pub fn mcp_tools(&self) -> usize {
+        self.mcp.lock().expect("the mcp fleet lock was poisoned").registrations().len()
+    }
+
+    /// How many servers answered.
+    pub fn mcp_servers(&self) -> usize {
+        self.mcp.lock().expect("the mcp fleet lock was poisoned").servers()
+    }
+
+    /// Servers that failed to connect, and tools whose description changed since install.
+    pub fn mcp_notices(&self) -> &[String] {
+        &self.mcp_notices
     }
 
     /// What the retrieval half of memory is doing. Printed at startup; see
@@ -893,7 +1046,7 @@ impl Daemon {
             }
         };
 
-        let registry = match builtin_registry() {
+        let registry = match tool_registry(&self.mcp) {
             Ok(r) => r,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
@@ -937,7 +1090,7 @@ impl Daemon {
             let mut driver = OllamaDriver::new(
                 endpoint,
                 routing,
-                builtin_registry().expect("the builtins loaded a moment ago"),
+                tool_registry(&self.mcp).expect("the registry loaded a moment ago"),
             )
             .with_capability(capability_for(&self.config.model))
             .with_context_tokens(self.config.context_tokens)
@@ -1070,7 +1223,7 @@ impl Daemon {
                     Box::new(marlowe_openrouter::TlsTransport::new()),
                     key,
                     &model,
-                    builtin_registry().expect("the builtins loaded a moment ago"),
+                    tool_registry(&self.mcp).expect("the registry loaded a moment ago"),
                 )
                 .with_context_tokens(self.config.context_tokens)
                 // **The attribution sink is wired unconditionally, NOT behind `--dev`.**
@@ -1161,7 +1314,12 @@ impl Daemon {
         // memory was wired — *"the guard firing then is the guard working"*. It fires against a
         // host that can now answer, which is the resolution rather than an exemption.
         let _ = tool_scope;
-        let mut tools = match build_tool_host(&self.config.workspace, self.memory.beliefs()) {
+        let mut tools = match build_tool_host(
+            &self.config.workspace,
+            self.memory.beliefs(),
+            std::sync::Arc::clone(&self.skills),
+            std::sync::Arc::clone(&self.mcp),
+        ) {
             Ok(h) => h,
             Err(e) => {
                 mark(&mut self.runs, "failed", 0);
@@ -1178,7 +1336,13 @@ impl Daemon {
         let mut run = Run::root(
             run_id,
             session_id,
-            CapabilityProfile::interactive(),
+            // **The same widened profile the startup guard verified.** Building
+            // `interactive()` here instead would expose ten tools while the host executes
+            // twelve -- the model would never see the MCP tools, and nothing would report it.
+            CapabilityProfile::interactive_with(
+                self.mcp.lock().expect("the mcp fleet lock was poisoned").tool_ids(),
+            )
+            .expect("the MCP tools fitted the budget at startup"),
             Budget::interactive(),
             OutputContract::answer(),
         );

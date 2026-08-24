@@ -214,6 +214,10 @@ impl OpenRouterDriver {
                     "type": "function",
                     "function": {
                         "name": reg.id.as_str(),
+                        // ADR-052. Trusted prose, because the user installed the server; its
+                        // RESULTS are not, and go through layer 1. Sanitised at registration so
+                        // the description cannot render as something other than what the user
+                        // read. See the Ollama adapter's twin of this comment for the long form.
                         "description": reg.description.text(),
                         "parameters": {
                             "type": "object",

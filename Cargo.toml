@@ -23,6 +23,10 @@ members = [
     # marlowe-provider` still shows no TLS and ADR-031 §2.3 survives verbatim. It depends on
     # `marlowe-provider` rather than living in it.
     "crates/marlowe-openrouter",
+    # ADR-052. MCP over a child process's stdio. Its own crate so that
+    # `cargo tree -p marlowe-mcp` shows no TLS and no socket -- layer 4 (egress) is
+    # approved and NOT shipped, so an HTTP transport needs its own argument first.
+    "crates/marlowe-mcp",
     "crates/marlowe-daemon",
     "crates/marlowe",
     # TEMPORARY: the engine spike. Removed once ADR-004 names a runtime.
@@ -55,6 +59,7 @@ marlowe-net = { path = "crates/marlowe-net" }
 marlowe-extract = { path = "crates/marlowe-extract" }
 marlowe-provider = { path = "crates/marlowe-provider" }
 marlowe-openrouter = { path = "crates/marlowe-openrouter" }
+marlowe-mcp = { path = "crates/marlowe-mcp" }
 marlowe-daemon = { path = "crates/marlowe-daemon" }
 
 # ADR-001 and Addendum B §B15. The widget mapping is close to one-to-one, which is why the

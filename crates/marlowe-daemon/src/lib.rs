@@ -33,9 +33,12 @@ pub mod client;
 pub mod clock;
 pub mod daemon;
 pub mod live;
+pub mod mcp;
 pub mod memory;
 pub mod onboarding;
 pub mod recall;
+/// The `use` tool: skill discovery and progressive disclosure. ADR-051.
+pub mod skills;
 pub mod project;
 mod staleness;
 pub mod protocol;

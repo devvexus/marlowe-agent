@@ -21,8 +21,14 @@
 
 pub mod builtin;
 pub mod exposure;
+/// The strict YAML subset `SKILL.md` front matter is parsed with. ADR-051.
+pub mod frontmatter;
 pub mod manifest;
+/// Installed-tool description pinning. ADR-052 §4.
+pub mod pin;
 pub mod registry;
+/// `SKILL.md` loading and progressive disclosure. ADR-051.
+pub mod skill;
 pub mod summary;
 
 pub use builtin::{builtin_registry, BUILTIN_TOOLS};
