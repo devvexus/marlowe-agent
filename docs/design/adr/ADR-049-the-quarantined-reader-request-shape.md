@@ -153,6 +153,68 @@ egress"*, reporting a security boundary that does not exist.
 cannot disagree about which interpreter runs, and it **names the network** — because the absence of
 any statement was itself read as evidence.
 
+### 5. The status band stopped lying, and the trigger was not what the text said
+
+**Reported from a live session and reproduced twice:** approve a fetch, watch `web` and `read` both
+complete, and the band still reads *"waiting - approval needed"*. The user waited on a turn that was
+working, sent a follow-up to check it was alive, and the original answer arrived correctly some time
+later. Nothing was broken. The band was lying.
+
+Two defects in three lines of `project::apply_events`:
+
+**`status.state` had exactly two writers** -- `Event::Approval` sets `waiting`, `Event::Done` sets
+`idle` -- and **neither of them is "the answer was given"**. So the claim stood for the entire
+remainder of the turn.
+
+**The arm matched `Event::Approval { .. }` including `decision: 0`**, which is the loop's
+render-only *"about to ask"* announcement that `client.rs` deliberately does not answer.
+`live.rs:337` reads the same event and guards on the id; `project.rs` did not. So **every
+adjudication put the band in `waiting`, auto-approved ones included**, with no overlay ever shown.
+
+**Two readers of one event, one checking the id and one not.** That is the shape, and it is the
+fifteenth instance's shape in a second subsystem: the event fired on something adjacent to what the
+text asserted, and the band read identically whether or not there was anything to wait for.
+
+Neither of these was new code going wrong. **Both were invisible while the quarantined reader was
+dying on an HTTP 400 in ~400 ms** -- the fix above is what made them the whole experience.
+
+### 6. A running quarantined reader was invisible, and the fix carries no borrowed word
+
+`read` of a fetched document closes in **0.0 ms** -- the document is already in the store -- and
+then the reader runs for most of a minute with a completed tool on screen and nothing after it.
+Measured from the journal at **36.1 s, 46.1 s and 82.9 s** on three real turns. Addendum B §B5's
+*motion means Marlowe is working* was unsatisfied on the longest single step in the turn.
+
+`condense_batch` now opens a §B6 line on the **parent's** sink before spawning --
+`subagent - reading N sources under quarantine` -- and closes it on the outcome, `Failed` carrying
+the same `QuarantineRefusal` tag the journal records.
+
+**Every character of that line is the harness's own**, and the control asserts it:
+`the_subagent_line_carries_no_word_the_reader_or_the_page_wrote`. This mattered more than it looks:
+a §B6 line is a **different channel** from `TextDelta` and is invisible to every existing
+`sink_text` assertion, so it would have been an unexamined second route to the same screen.
+`QuarantinedSink` still drops `TextDelta`, `ReasoningDelta` and `SpeechRetracted`; audit finding E4
+is untouched.
+
+`subagent` is deliberately not a private word. It is the first appearance of the vocabulary M3's
+per-agent window will use, and that collision with E4 is recorded in `STATE.md` rather than settled
+here.
+
+### 7. `/provider` -- the EIGHTH user-facing noun, and it owns itself
+
+The provider was a launch-time choice everywhere. `/provider` makes it a session choice, **and the
+model list follows it**: which models exist is a consequence of which provider is active, so a
+`/model` list that did not change with the provider would offer models that cannot be reached.
+
+**This is a ninth-noun decision made explicitly rather than absorbed.** ARCHITECTURE §5 budgeted
+seven user-facing nouns and HP10's `every_user_facing_command_is_a_view_over_one_of_seven_nouns`
+fails the build on an eighth. The alternative was to file `/provider` under `profile`, which would
+have held the count at seven **by making one of the seven mean two things** -- a profile *points at*
+a provider; it does not contain one. Adding the noun is the honest bookkeeping and a ninth still
+requires deleting one.
+
+`NOUNS` is now eight and the amendment is dated in `hp10_budgets.rs`.
+
 ## Consequences
 
 **Layer 1 went from containing perfectly and returning nothing, to containing perfectly.** Nothing

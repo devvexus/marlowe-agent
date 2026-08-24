@@ -550,7 +550,7 @@ happen.
 | — | **Tools and parallelism (ADR-040, ADR-041, ADR-042)** — `marlowe-extract`, `marlowe-net` rebuilt, concurrent fetch, batched quarantined reads, the document store | ✅ 2026-08-12 `1d3a428`, **unscheduled** |
 | — | **The security audit** — 108 findings from 8 read-only agents, 20+ fixed, each pinned by a test that fails on revert | ✅ 2026-08-12 `813ae2f`…`5142420`, **unscheduled** |
 | **E** | The TUI against the real loop, first-run onboarding, K6 in a clean container, M1's open accent row | ✅ **2026-08-18**, except the accent row's **by-eye** half, which is a human action and not agent work. Onboarding `ef0afec`; K6 measured; the accent arithmetic asserted `e21cae7` |
-| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | **CURRENT.** The one M2 session never started. Deferred past D by this table's own rule — *a Marlowe that can be talked to beats a skills library that cannot be*. The **vocabulary** exists from Session A (`Transport::{Skill, Mcp}`, third-party descriptions carried as `UntrustedContent`); nothing loads a `SKILL.md`, no `find_skill` exists, and no MCP transport speaks to a server — see below |
+| **C3** | `SKILL.md` + progressive disclosure + `find_skill`, MCP transport | ✅ **2026-08-24.** ADR-051, ADR-052. `use` gained an executor after eight sessions registered-and-unrunnable and is exposed (ten of twelve); skills load with progressive disclosure through a strict-subset front-matter parser that refuses rather than guesses; `marlowe-mcp` speaks JSON-RPC over a child's stdio, with no socket in its dependency graph. **`find_skill` is `use`** — it was already registered with the two parameters the job needs. Two security defects closed at their enforcement sites. **The ranking is lexical, not semantic** — a DECISION, not debt: the memory system's rankers were tuned on conversations and a skill description is a different distribution. ADR-051 §5 carries the reason and a deferred experiment whose precondition is a real skills library |
 | — | **OpenRouter (ADR-046)** — a hosted provider for benchmark runs. New crate `marlowe-openrouter`; `marlowe-net` gained a streaming POST because it was the only crate with TLS. Live-verified including tool calls | ✅ 2026-08-22, **unscheduled** |
 | — | **Markdown and LaTeX in the conversation (ADR-047)** — inside §B13's colour budget: attributes and the weight ladder, no new colours. Reasoning renders when expanded; a streaming equation renders its longest valid prefix | ✅ 2026-08-22, **unscheduled** |
 | — | **The persona may use Markdown (ADR-048)** — the no-markdown rule rested on *"the interface carries the structure"*, which ADR-047 made false. Replaced by *formatting is earned, never decorative* | ✅ 2026-08-22, **unscheduled** |
@@ -641,8 +641,8 @@ below carries the command or the path that decided it, not a recollection.
 | Install → first useful output <5 min, zero config, clean container | **MET 2026-08-12** | K6 restated (see above). Harness cold start **70 ms**; end to end **1.2–1.5 s** with the model resident, against a 300,000 ms budget |
 | First-run onboarding states what Marlowe can reach | **MET 2026-08-17** `ef0afec` | Derived from `builtin_registry()`, so a tool whose consequence changes cannot have its disclosure drift from its behaviour |
 | Path-traversal suite passes **and** access is handle-based | **MET** | Session B, both platforms, `MARLOWE_TRAVERSAL_STRICT=1`, 11/11 classes `RAN`; ADR-027 |
-| **SWE-bench Verified and Terminal-Bench 2.0: competitive** | **UNMET AND UNSCHEDULED** | No occurrence of either name anywhere in the repository — no harness, no adapter, no run, no result |
-| **τ-bench / BFCL: competitive** | **UNMET AND UNSCHEDULED** | As above. Neither name appears in any `.rs`, `.py`, `.toml`, `.json` or `.yaml` outside `target/` |
+| **SWE-bench Verified and Terminal-Bench 2.0: competitive** | **UNMET — DEFERRED TO THE END OF THE PROJECT, 2026-08-24, by the human** | Still no occurrence of either name anywhere in the repository. See the deferral note below: this is now a **made decision with a date**, not an open question |
+| **τ-bench / BFCL: competitive** | **UNMET — DEFERRED TO THE END OF THE PROJECT, 2026-08-24, by the human** | As above. Neither name appears in any `.rs`, `.py`, `.toml`, `.json` or `.yaml` outside `target/` |
 | Compaction preserves governance across the boundary — *tested explicitly* | **MET** | `marlowe-loop/tests/compaction.rs:70` and `:173`. Driven through `Engine::run` with a summarizer that preserves nothing, asserted on the assembled view **and** on the view the driver was handed, with an explicit vacuity guard (`state.compactions >= 1`) |
 | Compaction invalidates cache — *tested explicitly* | **MET** | `compaction.rs:222`. Asserts the epoch moves **and** that the stale entry is gone rather than merely unreachable |
 | Startup fails on an unannotated tool manifest | **MET, structurally — and stronger than the row asks** | `ToolRegistration.manifest` is `CapabilityManifest`, not `Option`, so an unannotated registration is unrepresentable (`registry.rs:108-121`). A missing **role** is a load error (`manifest.rs:434`); a missing **consequence** loads as the *maximum* (`manifest.rs:413`) — fail-closed by default rather than by refusal, which is deliberate and is not what this row's wording describes |
@@ -651,10 +651,25 @@ below carries the command or the path that decided it, not a recollection.
 **Three things this audit turned up that are not scope calls and are recorded here so they are not
 rediscovered.**
 
-**1. Whether the four benchmark rows block M2's closure or are deferred is a scope decision, and it
-is deliberately not made here.** They are flagged, dated and left open. What is *not* open is whether
-they have been done: they have not, and nothing in the repository suggests any of them was ever
-started.
+**1. THE FOUR BENCHMARK ROWS ARE DEFERRED TO THE END OF THE PROJECT. Decided 2026-08-24 by the
+human; recorded here in M2 C3.**
+
+The 2026-08-17 audit flagged this as a scope decision and deliberately left it open. It is now made.
+
+**The reason, so a future session does not reopen it as though it were an oversight:** no harness
+for any of the four exists here. `eval/src/marlowe_eval/suites/` is **memory-only** by construction
+— it is M0a's scoreboard for retrieval, not a general benchmark runner — and integrating four
+external suites, each with its own task format, container assumptions and scoring code, is
+**milestone-sized work rather than a session**. Doing it inside M2 would either produce four
+half-adapters or consume the milestone.
+
+**The rows are kept, not deleted.** A deferred row that stops being written down is a row that
+closed silently, which is the failure this whole block exists to prevent. They stay in the
+acceptance table above, marked deferred and dated, and they are M2's only rows that do not block
+its closure.
+
+**What is still not open** is whether they have been done: they have not, and nothing in the
+repository suggests any of them was ever started.
 
 **2. "Pass in CI" is unachievable for every row in this project, not just this one, because there is
 no CI.** M1's acceptance carries *"§B13 suite run on native Windows Terminal **and** a Linux
@@ -668,6 +683,32 @@ says *"The system does not start"*, describing a runtime refusal that cannot exe
 property is enforced by the type instead. The variant is vestigial rather than broken — the guarantee
 is real and is stronger than the variant claims — but it is instance #16's shape in miniature: a
 declared control with no reader. Left in place, named here.
+
+#### M2 IS CLOSED — 2026-08-24, at the end of Session C3
+
+**Every scheduled session has shipped**, plus seven unscheduled ones. The honest state of the
+acceptance list at closure:
+
+| | Rows | |
+|---|---|---|
+| **Met** | 6 | install/first-output, onboarding disclosure, path traversal + handles, compaction preserves governance, compaction invalidates cache, unannotated manifest refuses |
+| **Deferred by decision** | 2 | the four benchmarks, above — dated and attributed, not silently dropped |
+| **Waiting on a human, one-shot each** | 2 | below |
+
+**The two human actions, and both are one action each.**
+
+**1. CI has existed for five sessions and HAS NEVER EXECUTED. It is one click.**
+`.github/workflows/` is `workflow_dispatch` plus a Monday 04:00 UTC cron, deliberately not on push
+— so nothing this project has done since it landed has fired it. The workspace suite it runs
+includes `hp10_budgets.rs`, which is the "budget tests pass in CI" row. **One click on
+*Run workflow*** turns that row from PARTIALLY MET to met, or produces the first real information
+about it. No agent can do this and no agent should: it is the first time this repository's tests
+run on a machine that is not this one, and the result deserves a person looking at it.
+
+**2. M1's accent row, the by-eye half.** §B13's arithmetic is asserted (`e21cae7`); the row also
+asks for an eye on the rendered result, which is a human action and not agent work.
+
+**Nothing else in M2 is waiting on anything.**
 
 ### Non-goals
 

@@ -1667,16 +1667,19 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             unreachable!("not called")
         }
         fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-            // **`web` joined in M2 C2f and `recall` in M2 Session D; this stub had to follow both
-            // times**, which is the guard working in the direction nobody writes a test for: it
-            // fires when the shipped profile grows a tool the host does not claim, not only when a
-            // host shrinks. Twice now the failure has been a correct refusal rather than a bug.
+            // **`web` joined in M2 C2f, `recall` in M2 Session D and `use` in M2 C3; this stub had
+            // to follow all three times**, which is the guard working in the direction nobody
+            // writes a test for: it fires when the shipped profile grows a tool the host does not
+            // claim, not only when a host shrinks. Three times now the failure has been a correct
+            // refusal rather than a bug.
             //
-            // `recall`'s real executor is `marlowe_daemon::recall::RecallTools`, because it needs
-            // the belief store and `marlowe-exec` must not learn about beliefs. That is why this
-            // crate's stub names it rather than running it — and why the daemon verifies **the host
-            // it will actually use**, a gap that was open until Session D closed it.
-            ["read", "edit", "find", "bash", "web", "recall"]
+            // `recall`'s real executor is `marlowe_daemon::recall::RecallTools` and `use`'s is
+            // `marlowe_daemon::skills::SkillTools`, both in the daemon: one needs the belief store
+            // and the other the skill registry, and `marlowe-exec` must learn about neither. That
+            // is why this crate's stub names them rather than running them — and why the daemon
+            // verifies **the host it will actually use**, a gap that was open until Session D
+            // closed it.
+            ["read", "edit", "find", "bash", "web", "recall", "use"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()

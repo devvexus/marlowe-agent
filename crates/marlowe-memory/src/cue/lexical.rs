@@ -106,6 +106,29 @@ fn for_each_token(text: &str, buffer: &mut String, mut emit: impl FnMut(&str)) {
 /// visited in the given order, so the floating-point accumulation order is fixed. `repro`
 /// compares two runs byte for byte and the injected set is in that hash.
 pub fn score_all(docs: &[&MemoryEntry], query_text: &str) -> Vec<f32> {
+    // **The projection, and nothing else, lives here.** See [`score_texts`]: this function reads
+    // `doc.text` and delegates, so there is exactly one BM25 in the workspace and the scored path
+    // is bit-identical to what it was before the split.
+    let texts: Vec<&str> = docs.iter().map(|d| d.text.as_str()).collect();
+    score_texts(&texts, query_text)
+}
+
+/// [`score_all`] over bare text, for a candidate set that is not a belief.
+///
+/// # Why this exists — ADR-051
+///
+/// `use(query = ...)` ranks installed skills, and a skill is not a `MemoryEntry`. The options were
+/// a second BM25 beside this one, or lifting the one line of this function that knew what a
+/// document was. **A second scorer is the wrong answer** on a project that has logged what happens
+/// when two implementations of one thing drift: the tokenizer is the part most likely to be wrong,
+/// and two of them would disagree silently while both looked right.
+///
+/// The arithmetic below is untouched by the split. `score_all` is now a projection plus a call, so
+/// the accumulation order — which the header above establishes is part of the *result*, not a
+/// presentation choice — is the same sequence of `f64` additions it always was.
+/// `the_belief_path_and_the_text_path_are_the_same_arithmetic` pins that instead of asserting it
+/// in prose.
+pub fn score_texts(docs: &[&str], query_text: &str) -> Vec<f32> {
     let n = docs.len();
     if n == 0 {
         return Vec::new();
@@ -134,7 +157,7 @@ pub fn score_all(docs: &[&MemoryEntry], query_text: &str) -> Vec<f32> {
     let mut buffer = String::new();
     for (i, doc) in docs.iter().enumerate() {
         let mut length = 0usize;
-        for_each_token(&doc.text, &mut buffer, |token| {
+        for_each_token(doc, &mut buffer, |token| {
             // The length is every token, not just the matched ones: it is the BM25 length
             // normalizer's input, so counting only query terms here would silently rescale every
             // score while every test that checks a ranking still passed.
@@ -241,6 +264,40 @@ mod tests {
             supersedes: Vec::new(),
             superseded_by: None,
         }
+    }
+
+    /// **ADR-051's split, pinned bit for bit.** `score_all` became a projection over
+    /// `score_texts`; if the two ever stop being the same arithmetic, the retrieval path has
+    /// silently acquired a second BM25 — which is the specific thing the split exists to prevent.
+    ///
+    /// `assert_eq` on `f32`, not an epsilon: the claim is *identical*, not *close*. `repro`
+    /// compares two runs byte for byte, so "close" is not the property the scored path needs.
+    #[test]
+    fn the_belief_path_and_the_text_path_are_the_same_arithmetic() {
+        let entries = [
+            entry("a", "moved off Postgres in April 2023"),
+            entry("b", "the database migration finished"),
+            entry("c", "nothing to do with any of it"),
+            entry("d", ""),
+        ];
+        let refs: Vec<&MemoryEntry> = entries.iter().collect();
+        let texts: Vec<&str> = entries.iter().map(|e| e.text.as_str()).collect();
+
+        for query in ["postgres migration", "april 2023", "", "unrelated words entirely"] {
+            assert_eq!(
+                score_all(&refs, query),
+                score_texts(&texts, query),
+                "the belief path and the text path diverged on {query:?}"
+            );
+        }
+
+        // The control: without it, two functions that both returned all-zeros would satisfy
+        // every assertion above.
+        let scored = score_all(&refs, "postgres migration");
+        assert!(
+            scored.iter().any(|s| *s > 0.0),
+            "no candidate scored above zero, so the equality above compared nothing"
+        );
     }
 
     #[test]

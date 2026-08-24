@@ -106,7 +106,7 @@ fn registration(
     Ok(ToolRegistration {
         id: ToolId::new(tool),
         manifest: manifest(tool, consequence, paths, hosts, params)?,
-        description: Description::new(description, &transport),
+        description: Description::new(description),
         summary: SummarySpec::new(verb, inline_threshold_bytes),
         transport,
     })

@@ -232,6 +232,63 @@ MUTATIONS = {
         "        if self.block_chars >= crate::MAX_TEXT_CHARS {\n            return;\n        }\n        self.block_chars += text.len();",
         "",
     ),
+    # ── M2 C3 ────────────────────────────────────────────────────────────────────────────────
+    # Defect 1: put back the `Cc`-only predicate in `Description::new`. Reverting this must be
+    # noticed by a test asserting on the ADAPTERS' request bodies, not by one asserting on
+    # `Description::text()` -- which is the whole reason the assertion is placed where it is.
+    "desc_sanitiser": (
+        "crates/marlowe-tools/src/registry.rs",
+        "        let cleaned = text::sanitize(raw, text::Shape::Prose);\n"
+        "        let cleaned = cleaned.trim();",
+        "        let cleaned: String =\n"
+        "            raw.chars().map(|c| if c.is_control() && c != '\\n' { ' ' } else { c }).collect();\n"
+        "        let cleaned = cleaned.trim();",
+    ),
+    # ADR-052 condition 1: an MCP result is untrusted OUTPUT from a trusted server. Trusting the
+    # output is the hole that has nothing to do with trusting the server -- layer 1 stops seeing
+    # MCP results entirely, because `condense_batch` triggers on the trust class.
+    "mcp_trust": (
+        "crates/marlowe-daemon/src/mcp.rs",
+        "                trust: TrustClass::UntrustedContent,",
+        "                trust: TrustClass::AgentObserved,",
+    ),
+    # ADR-051: progressive disclosure. Put the body into the DISCOVERY result, which is what
+    # 7.1 forbids -- "embedding full instruction prose pollutes the vector space".
+    "skill_disclosure": (
+        "crates/marlowe-daemon/src/skills.rs",
+        '            out.push_str(&format!("- {}: {}\\n", skill.id(), skill.description().text()));',
+        '            out.push_str(&format!(\n'
+        '                "- {}: {} {}\\n",\n'
+        '                skill.id(),\n'
+        '                skill.description().text(),\n'
+        '                skill.body().read().unwrap_or_default()\n'
+        '            ));',
+    ),
+    # ADR-052 section 4: a description that changed after install must re-ask. Collapsing
+    # `Changed` into `Unchanged` turns the user's consent into a formality -- they approved text
+    # they will never see again.
+    # ADR-051/052: a wrapper that drops to the serial default kills the concurrent fetch in the
+    # product while every test of the concurrent path stays green. Two wrappers were added over
+    # the one that documents this trap, so the chain is what must be asserted.
+    "skilltools_batch": (
+        "crates/marlowe-daemon/src/skills.rs",
+        "            self.inner.execute_batch(&delegated)",
+        "            delegated.iter().map(|it| self.inner.execute(it.tool, it.args, it.adjudication)).collect()",
+    ),
+    "mcptools_batch": (
+        "crates/marlowe-daemon/src/mcp.rs",
+        "            self.inner.execute_batch(&delegated)",
+        "            delegated.iter().map(|it| self.inner.execute(it.tool, it.args, it.adjudication)).collect()",
+    ),
+    "pin_reconsent": (
+        "crates/marlowe-tools/src/pin.rs",
+        "        if !changed.is_empty() {\n"
+        "            PinVerdict::Changed { tools: changed }\n"
+        "        } else if !new.is_empty() {",
+        "        if false {\n"
+        "            PinVerdict::Changed { tools: changed }\n"
+        "        } else if !new.is_empty() {",
+    ),
 }
 
 

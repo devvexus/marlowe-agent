@@ -1,0 +1,66 @@
+=========== MUTATION: mcp_trust ===========
+reverted bound: mcp_trust (mcp.rs)
+      1 test a_real_server_answers_and_its_result_is_untrusted_content ... FAILED
+      1 test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+      2 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+      1 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+      1 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.34s
+      1 test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.62s
+      1 test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+restored crates\marlowe-daemon\src\mcp.rs
+=========== MUTATION: skill_disclosure ===========
+reverted bound: skill_disclosure (skills.rs)
+      1 test result: FAILED. 42 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+      2 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+      1 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+      1 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.44s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.57s
+      1 test result: ok. 51 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+      1 test skills::tests::discovery_returns_names_and_descriptions_and_not_one_word_of_a_body ... FAILED
+      1 test skills::tests::the_body_crosses_on_disclosure_and_not_on_discovery ... FAILED
+restored crates\marlowe-daemon\src\skills.rs
+=========== MUTATION: pin_reconsent ===========
+reverted bound: pin_reconsent (pin.rs)
+      1 test pin::tests::a_change_outranks_an_addition ... FAILED
+      1 test pin::tests::a_description_that_changed_after_install_re_asks_and_names_the_tool ... FAILED
+      1 test pin::tests::the_pin_is_over_what_the_user_can_see ... FAILED
+      1 test result: FAILED. 48 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+      2 test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+      1 test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+      1 test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+      1 test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+      1 test result: ok. 44 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+      1 test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.58s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+      1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+restored crates\marlowe-tools\src\pin.rs
+=========== MUTATION: skilltools_batch ===========
+reverted bound: skilltools_batch (skills.rs)
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... FAILED
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... FAILED
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-daemon\src\skills.rs
+=========== MUTATION: mcptools_batch ===========
+reverted bound: mcptools_batch (mcp.rs)
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... FAILED
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... FAILED
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-daemon\src\mcp.rs

@@ -1,0 +1,8 @@
+marlowe: context window 32768 tokens (model ceiling 262144)
+marlowe: memory retrieval WRITE-ONLY · no --reranking directory; the rank-1/rank-2 margin the declared operating point reads does not exist without a cross-encoder
+marlowe: skills 1 installed, 1 refused
+marlowe:   ! skill at `C:\Users\matth\AppData\Local\Temp\claude\c--Users-matth-Projects-Marlowe-Harness\6903f5a0-ba04-4032-83bb-79897673a6d4\scratchpad\c3-e2e\marlowe\default-profile\skills\broken\SKILL.md`: line 1: a SKILL.md must open with `---` on its first line, followed by YAML front matter. A file with no front matter has no capability declaration, and a defaulted declaration is one nobody wrote
+marlowe: mcp 2 tool(s) from 1 server(s)
+marlowe: daemon listening on 127.0.0.1:17311
+marlowe: runs are owned here and survive the client that started them
+marlowe: could not listen on 127.0.0.1:17311: Only one usage of each socket address (protocol/network address/port) is normally permitted. (os error 10048)

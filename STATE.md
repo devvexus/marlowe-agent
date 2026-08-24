@@ -1,5 +1,261 @@
 ﻿# State
 
+## 2026-08-24 — M2 SESSION C3: SKILLS AND MCP. **M2 IS CLOSED.** ADR-051, ADR-052.
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1162 passed, 0 failed, 2 ignored**, tallied
+from `runs/session-c3/suite.txt` — 103 `test result` lines, exit 0, `MARLOWE_CUDA_LIB_DIR` set.
+`cd eval && python -m pytest`: 72 passed, unmodified. Branch `m2-c3`, worktree at `../Marlowe_C3`.
+Release binary rebuilt from this tree.
+
+**The shipped binary was verified against `HEAD` by its own strings before any C3 code was
+written**, and the method produced a lesson worth keeping: `grep -ac` on the `.exe` found
+`ms-marco-MiniLM-L-6-v2-ft-session-j` and `marlowe: rerank plan` but **returned 0 for
+`fusion_rank`, which is present**. rustc inlines short string literals as instruction immediates
+(`fusion_r` … `rank`) rather than placing them in `.rodata`. **Pick long strings for a
+binary-string check** — a short one reads as absent on a binary that contains it.
+
+### `find_skill` IS `use`, and it had been registered and unrunnable for eight sessions
+
+ADR-006 registered `use` — *"Find and load a skill or tool"*, `name` as `Target`, `query` as
+`Payload`, `Reversible` **so the target check fires** — in M2 Session A. C3 built the executor. A
+new `find_skill` would have spent §5's one spare exposure slot on something that already had a
+slot. **The interactive profile is now ten of twelve**, and `use` is the *third* tool admitted by
+`verify_every_exposed_tool_is_runnable` at the moment it gained an executor (`web` C2f, `recall`
+Session D). None of the three because anybody remembered to.
+
+### THE RANKING IS LEXICAL, AND THAT IS A DECISION. Not debt, and not open
+
+§7.1 says *"embedded for semantic discovery"*; **what shipped is BM25, and it stays.** Decided by
+the human at the close of this session, and the reason is a **domain** argument rather than a
+capability one:
+
+**the memory system's rankers were tuned on conversations.** `ms-marco-MiniLM-L-6-v2-ft-session-j`
+was fine-tuned in M0c Session J against LongMemEval — conversational turns, and questions about
+them. A `SKILL.md` description is a one-line imperative label for a procedure. Pointing a ranker
+tuned on one distribution at another and expecting its measured quality to transfer is the
+*"a measurement is scoped to the system it was taken on"* family, which this file already lists
+four instances of. It would arrive wearing the cascade's held-out numbers, which say nothing about
+this corpus.
+
+BM25 carries no such claim. `trigger_phrases` exist in §7.1 precisely so a skill author supplies the
+vocabulary a user will reach for — the lexical answer to the problem embedding solves.
+
+**The cost, stated:** a skill whose description uses different words than the user does is not
+returned. *"Turn this into a hand-out"* finds nothing against *"Write release notes for a version"*.
+`Metric::State` reads `lexical` on every discovery result and the no-match message says so in words.
+
+**A correction, because the near-miss is the shape.** An earlier draft justified this with *"the
+daemon holds no embedder"* — true (`Embedder::load_with_provider` has one construction site,
+`main.rs:733`, on `--eval-adapter`) and **not the whole option space**. `DaemonMemory` holds
+`cross_encoder: Option<CrossEncoder>` with `score_batch`, resident whenever `--reranking <DIR>` is
+passed, and a skills corpus is small enough to score with no first stage at all. The draft asked
+*is there an embedder* and answered that correctly, when the question was *is there anything that
+can rank by meaning*. **The decision does not rest on that draft's reasoning** — the domain argument
+is unaffected — but the reasoning was narrower than it read.
+
+**A deferred experiment is recorded in ADR-051 §5 and is DELIBERATELY NOT IN THE OPEN LIST BELOW.**
+Whether the memory ranker beats BM25 at finding a skill is a real question with a hard precondition:
+**a real skills library.** At four installed skills every ranker looks the same and the measurement
+is noise. Do not run it until a wrong pick is a realistic outcome. ADR-051 §5 carries the design so
+nobody has to redesign it, including the control that fails when `--reranking` did not load.
+
+`cue::lexical::score_all` became a projection over a new `score_texts` — its own arithmetic with the
+belief line lifted out — so there is **one** BM25 in the workspace, pinned by
+`the_belief_path_and_the_text_path_are_the_same_arithmetic` with `assert_eq` on `f32`, not an
+epsilon. `SkillTools::rank` stays the single function that decides, so the deferred experiment is
+one edit rather than a search — which is why deferring costs nothing.
+
+### A CONTRADICTION INSIDE THE PINNED CONTRACT, resolved without changing a schema
+
+**§7.1's own example could not load.** It declares `consequence: reversible`; §7.3's `load` refuses
+a `ThirdParty` manifest below `Consequential`; `Transport::manifest_provenance` maps everything
+non-`Builtin` to `ThirdParty`.
+
+`ManifestProvenance::UserReviewed { at }` is §7.3's third variant, pinned since it was written and
+**constructed nowhere in the workspace** — the same declared-shape-with-no-producer family the M2
+audit flagged in `LoadError::MissingManifest`. **Installing a skill IS the review.** It now has a
+producer, §7.1's example loads as written, and CONTRACTS.md is untouched. The same reasoning
+independently produced ADR-052's ruling.
+
+### HUMAN DECISION — ADR-052: MCP SERVERS ARE TRUSTED. THEIR OUTPUT IS NOT
+
+The session proposed the opposite and **was overruled**, recorded because the reasoning matters.
+Installing a server is the user's authorization decision; the agent cannot install one, so no path
+exists by which untrusted content chooses a server. The session's proposal would have made
+**registering one MCP server block every model-composed target for the life of the run** — treating
+the user's own decision as an attack.
+
+**Two conditions survive, and neither is a carve-out:**
+
+**1. A trusted server is not trusted output.** MCP results are `UntrustedContent`, unconditionally,
+with no branch on server, tool, or `isError`. This is the existing rule unchanged — `read` is a
+trusted builtin whose file contents are untrusted — and `marlowe-contract` has listed *"MCP server
+output"* under `UntrustedContent` since it was written. **C3 is the first code to make it true.**
+
+**2. Descriptions are pinned at install and a change re-asks by name.** The tool list is fetched
+live on every connect, so the text reviewed at install is not the text sent on turn forty. Three
+verdicts, not two: `Changed` outranks `New`, because one invalidates a decision already made.
+
+`Description::trust()` and `Transport::description_trust()` are **deleted**, not left with a test
+for their only caller.
+
+### `Description::new` was `Cc`-ONLY, and the fix matters MORE because of the ruling
+
+`char::is_control` is 65 codepoints. U+2028/U+2029, the whole of `Cf` including U+202E, and the tag
+block at U+E0000 walked into a model-visible and user-visible tool list. Now routed through
+`marlowe_contract::text` — the one definition of what may be displayed.
+
+**Trust governs authority, not appearance.** ADR-052 rests a third-party tool's safety entirely on
+the user having inspected what they installed, so a character that makes a description render
+differently than it reads attacks the exact mechanism the decision depends on. Asserted on the
+`request_body` of **both adapters**, never on `Description::text()`.
+
+**`ollama.rs`'s comment named two defences that do not run on that path.** It read *"containment is
+the trust class and the assembler's tier"*; a description never enters a `ContextView`, so no tier
+applies and no floor sees it. Two mechanisms cited where zero were operating.
+
+### THE DETERMINISM GUARD CAUGHT THIS SESSION TWICE, and it was right both times
+
+**1.** `skill::scan` read each file's mtime for `UserReviewed { at }` — a clock read outside §4.5's
+fences. `reviewed_at` is now a parameter from the daemon's fenced clock, and `at` means *when
+Marlowe observed this installed*: a weaker fact, stated rather than approximated.
+
+**2.** `marlowe-mcp`'s request deadline and `mcp.rs`'s `wall_ms`. The `wall_ms` became `0`, matching
+`recall.rs` and `skills.rs`. The deadline is genuinely needed — a child that never answers blocks
+the turn forever, and counting iterations cannot help because a blocking `read_line` on a silent
+pipe does not iterate — so it lives in **`marlowe-mcp/src/deadline.rs`, its own file holding one
+type with one method returning `bool`**, on `clock.rs`'s stated precedent: a file entry, never a
+crate, so `lib.rs` keeps failing the guard if a second clock read appears in it.
+
+**Neither was found by review.** Both were found by a workspace-level guard a per-crate run cannot
+reach — the second half of the `--no-fail-fast` lesson, arriving on schedule.
+
+### AN UNRESOLVED MERGE CONFLICT WAS COMMITTED AT `67b5826`
+
+`docs/design/DECISIONS.md` carried a literal `<<<<<<< HEAD` and `=======` **with no closing
+marker**, so nothing looked malformed enough to notice. The "theirs" side held a row pointing at
+`adr/ADR-046-cascade-wired.md`, **a file that does not exist** — the pre-renumber name from
+`m0c-cues`. Resolved to the HEAD side, with ADR-050's real path restored and 051/052 added.
+
+Found by opening the file to add an index row, not by any check. **Nothing in this repository greps
+for conflict markers**, and one survived a merge, a commit and a session.
+
+### The one real end-to-end run — `runs/session-c3/END-TO-END.md`
+
+Ollama `marlowe-red:9b`, scratch profile, one valid skill, one deliberately broken skill, and
+`tools/probe_mcp_server.py` as an installed server.
+
+* **Startup announces what loaded and what refused.** One bad skill did not take the good one with
+  it and did not vanish either.
+* **`use` loaded a skill's body and answered from it.** The first call used an underscore and
+  failed; the refusal that **names what IS installed** got the model to the right name in one turn.
+  It was written for this and this is the first time it ran.
+* **ADR-052 §4 fired live** on an edited description, naming the tool.
+* **Layer 1 fired on MCP results without being asked.** `subagent · reading 1 source under
+  quarantine` after each call, because `condense_batch` triggers on the trust class and not the
+  tool name (ADR-039). Journal: **`run_spawned` 2, `run_failed` 0.** The parent never saw the probe
+  token or the injected instruction; it answered from a validated summary and refused to act.
+
+**A first reading of the §4 pin check said the notice had not fired. It had** — the
+`grep -E "mcp|skills"` used to read the output did not match the notice line. The measurement
+answered a question adjacent to the one being asked.
+
+### Verification
+
+**Six mutations, one at a time, each failing exactly its own named tests** —
+`runs/session-c3/mutations.txt`:
+
+| Mutation | Fails |
+|---|---|
+| `desc_sanitiser` | the adapter-body test **and** the unit test; nothing else |
+| `mcp_trust` | `a_real_server_answers_and_its_result_is_untrusted_content` |
+| `skill_disclosure` | both progressive-disclosure tests |
+| `pin_reconsent` | three of the pin tests |
+| `skilltools_batch` | both batch-chain tests |
+| `mcptools_batch` | both batch-chain tests |
+
+Every new test is paired with a control that fails when the mechanism is absent — most importantly
+`the_probe_token_reaches_the_parent_when_the_result_is_TRUSTED`, which runs the identical bytes at
+`AgentObserved` and **does** reach the parent. Without it the containment test would pass against an
+MCP host that returned nothing.
+
+### A TESTABILITY AUDIT AT THE CLOSE FOUND TWO CLAIMS WITH NOTHING BEHIND THEM
+
+Asked at the end of the session whether everything was testable, and the honest answer was **no** —
+found by auditing rather than by a failure, which is the only way this family is ever found.
+
+**1. A COMMENT NAMED A TEST THAT DID NOT EXIST — and hid it by wrapping.**
+`build_tool_host` carried *"`a_batch_reaches_the_innermost_host_through_both_wrappers` asserts the
+whole chain"*. No such test existed. Worse, the name was **broken across a line break** in the
+comment, so `grep` for it returned the comment and nothing else: the claim and its own refutation
+looked identical to a search.
+
+This matters because of what it was claiming. `ToolHost::execute_batch` has a **serial default**,
+and `RecallTools::execute_batch` documents at length that a wrapper which fails to override it
+leaves the concurrent fetch *existing, tested, green, and never running*. **C3 added two more
+wrappers on top of that one** — `SkillTools` and `McpTools` — which is precisely the event that
+comment warns about, and the only thing standing behind it was the comment.
+
+Closed by `tests/composition_root.rs`, asserting the **whole chain** from the outermost wrapper the
+daemon builds down to the host that would fetch, with a control that the outcomes really came from
+the innermost host. Two mutations confirm it: dropping either wrapper's override to the serial
+default fails both batch tests and nothing else.
+
+**2. `STATE.md` SAID THE EXPOSURE-BUDGET REFUSAL WAS "unit-tested only". IT WAS NOT TESTED AT ALL.**
+`interactive_with` appeared in exactly one test, on the happy path where one extra tool fits.
+ADR-052 §5's claim — two MCP tools fit and a third refuses by name — had nothing behind it. Now
+asserted, including that the refusal carries the count the user has to act on, plus that widening a
+top-level profile leaves `WidenedPastParent` untouched for children.
+
+**3. A malformed `mcp.json` refusing to start** (ADR-052 §6) had no test either. Now tested, with a
+well-formed control at the same path so the refusal is about the content and not the reader.
+
+**The generalisation, because this is a new spelling of an old family:** this project's rule is
+*assert where the property is enforced, not where it is declared*. A **comment that names a test**
+is a third thing — neither an assertion nor a declaration, but a **claim about the existence of
+evidence** — and nothing checks those. A grep would have caught it in seconds if the name had been
+on one line. **Write a referenced test name on a single line**, and treat a comment naming a test
+as unverified until the grep returns two hits.
+
+### M2 IS CLOSED — the acceptance list, honestly
+
+**6 rows met. 2 deferred by decision. 2 waiting on a human, one action each.**
+
+**THE FOUR BENCHMARK ROWS ARE DEFERRED TO THE END OF THE PROJECT — decided 2026-08-24 by the
+human.** SWE-bench Verified, Terminal-Bench 2.0, τ-bench, BFCL. **The rows are kept, not deleted**;
+a deferred row that stops being written down is a row that closed silently. The reason: no harness
+for any of them exists here, `eval/src/marlowe_eval/suites/` is memory-only by construction, and
+integrating four external suites is milestone-sized work rather than a session.
+
+**THE TWO HUMAN ACTIONS, both one-shot:**
+
+**1. CI has existed for five sessions and has never executed. It is ONE CLICK.**
+`workflow_dispatch` plus a Monday 04:00 UTC cron, deliberately not on push — so nothing done since
+it landed has fired it. The workspace suite it runs includes `hp10_budgets.rs`, which is the
+"budget tests pass in CI" row. One click on *Run workflow*. No agent can do this and none should:
+it is the first time these tests run on a machine that is not this one.
+
+**2. M1's accent row, the by-eye half.** §B13's arithmetic is asserted (`e21cae7`); the row also
+asks for an eye, which is a human action and not agent work.
+
+### Open, and none of it is closed by this session
+
+- **`socket_auth::a_silent_peer_does_not_wedge_the_daemon` finishes at ~7.5 s against its own ~7 s
+  threshold** and failed once during this session under load, passing in isolation. Timing-sensitive
+  and pre-existing; it will flake again on a busy machine. Not diagnosed.
+- **Nothing greps for merge-conflict markers.** One was committed and survived a session. A
+  workspace test doing what `protect-boundaries.py --self-check` does for guarded paths would be
+  cheap.
+- **The exposure-budget refusal has no LIVE sighting.** It is unit-tested as of the close-of-
+  session audit (`composition_root.rs`) — it was not before, and this line said otherwise. The
+  probe server contributes two tools against ten of twelve, so it fitted exactly and the
+  refusal path has never run in the product.
+- **Skills are scanned once at startup**, so installing one takes effect at the next start. A
+  deliberate trade — ADR-051 §6 — so that refusals have somewhere to go.
+- **`Transport::Connector` remains a variant with no implementation.** M5.
+- **`ingest` is still unwired**, so layer 3's latch is still unreachable in the shipped daemon.
+  Untouched, as instructed. E5 and F1 first.
+
 ## 2026-08-22 (later) — LAYER 1 RENDERED ONTO THE WIRE AND THE WIRE REFUSED IT. ADR-049.
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1097 passed, 0 failed, 2 ignored**, tallied
@@ -426,8 +682,9 @@ that is the test that decides whether it is acceptable, not an argument.
   so there is one jump at the close; and `∇_θJ(θ)` runs together, because LaTeX treats the space
   terminating a command name as syntax and consumes it.
 
-## NEXT SESSION IS M2 SESSION C3 — SKILLS AND MCP. Decided from the ROADMAP, 2026-08-18.
-## M0c SESSION N CLOSED (branch `m0c-cues`). Cascade shipped + first official QA accuracy measured. NOT MERGED -- awaiting the human.
+## ~~NEXT SESSION IS M2 SESSION C3~~ — DONE 2026-08-24. **M2 IS CLOSED; the next milestone is M3.**
+## Read M3's scope in `ROADMAP.md`, and read the E4 collision above before building the per-agent window.
+## M0c SESSION N CLOSED (branch `m0c-cues`). Cascade shipped + first official QA accuracy measured. **MERGED at `67b5826`** (was "NOT MERGED -- awaiting the human"; corrected in M2 C3, 2026-08-24).
 
 **QA, end of session:** FIRST official answer_accuracy **0.5837** held-out (ox-alpha
 answerer+judge via OpenRouter, coverage-full measurement arm disclosed), session recalls

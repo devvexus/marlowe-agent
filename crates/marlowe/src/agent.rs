@@ -147,6 +147,37 @@ pub fn serve(
     // half is not running behaves exactly like one whose store is empty, and those are very
     // different facts to a person wondering why Marlowe does not remember.
     eprintln!("marlowe: memory retrieval {}", daemon.memory_state().headline());
+
+    // **Skills and MCP servers are announced, and so is everything that refused.** ADR-051 §6 and
+    // ADR-052 §4, on ADR-029's rule: a state that is not announced is a state the user meets as a
+    // mystery. A skill they installed and cannot find, a server that did not connect, and a tool
+    // describing itself differently than when they approved it are three ways an installed
+    // capability stops being what they think it is, and none of them raises an error anywhere
+    // else. Scanning once at startup is only defensible because this is where it lands.
+    eprintln!(
+        "marlowe: skills {} installed{}",
+        daemon.skills_installed(),
+        if daemon.skill_refusals().is_empty() {
+            String::new()
+        } else {
+            format!(", {} refused", daemon.skill_refusals().len())
+        }
+    );
+    for refusal in daemon.skill_refusals() {
+        eprintln!("marlowe:   ! {}", marlowe_contract::text::sanitize_line(refusal));
+    }
+    if daemon.mcp_tools() > 0 || !daemon.mcp_notices().is_empty() {
+        eprintln!(
+            "marlowe: mcp {} tool(s) from {} server(s)",
+            daemon.mcp_tools(),
+            daemon.mcp_servers()
+        );
+        // Sanitised: a notice quotes a tool name the server chose.
+        for notice in daemon.mcp_notices() {
+            eprintln!("marlowe:   ! {}", marlowe_contract::text::sanitize_line(notice));
+        }
+    }
+
     eprintln!("marlowe: daemon listening on 127.0.0.1:{port}");
     eprintln!("marlowe: runs are owned here and survive the client that started them");
     daemon.serve().map_err(|e| e.to_string())
