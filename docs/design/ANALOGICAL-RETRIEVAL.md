@@ -158,7 +158,125 @@ operator retrieval plus synthesis in a loaded context recovers most of what para
 gives, on the domains that matter here. That is defensible. It is not proven, and §4.3 is what would
 prove it.
 
-## 7. Open
+## 7. THE TOURNAMENT — fourteen approaches, because one attempt proves nothing
+
+**This is the section that matters.** If one implementation of analogical retrieval underperforms,
+that is not evidence the idea is wrong — it is evidence *that implementation* is wrong. The failure
+mode to avoid is building arm A, measuring it at 0.31 transfer@10, and concluding the thesis is dead
+while arm F would have read 0.68.
+
+**So: run many, score on one board, and let the winner be measured rather than argued.** M3's control
+plane is a fan-out engine — use it on this.
+
+### 7.1 Index-side — change what is stored
+
+| | Approach | Mechanism | Cost | Fails when |
+|---|---|---|---|---|
+| **A** | **Structure extraction** | index assumption / transformation / invariant / argument-form (§3) | high — re-ingest | the extractor's schema does not fit a domain |
+| **B** | **Abstraction ladder** | store each item three ways: concrete, domain-stripped paraphrase, bare formal skeleton; retrieve at the abstract rung, return the concrete | medium | stripping domain nouns destroys the discriminating detail |
+| **C** | **Operator library** | a separate store of *named methods* — change of variables, conservation argument, fixed point — each with worked instances attached | high, and needs a seed taxonomy | the taxonomy is a human artifact and will have gaps |
+| **D** | **Symbolic normalisation** | canonicalise equations — rename variables, order terms, normalise units — so isomorphic forms literally collide | low **where it applies** | only works on formal content; useless on prose reasoning |
+| **E** | **Multi-vector** | several embeddings per item — topical, structural, methodological — retrieved against separately | medium | needs a training signal per view, which is arm J's problem |
+
+### 7.2 Query-side — change what is asked
+
+| | Approach | Mechanism | Cost | Fails when |
+|---|---|---|---|---|
+| **F** | **Query abstraction** | before retrieving, generate an abstracted/formalised restatement of the problem and retrieve with that | **very low — no re-index** | the abstraction drifts and retrieves a different problem |
+| **G** | **Multi-query fan-out** | generate K framings of the problem, retrieve for each, union and rerank | low, K× retrieval | K framings that are all the same framing |
+| **H** | **Hypothetical solution sketch** | generate a plausible *solution shape* and retrieve against that rather than the question | low | the model's guess anchors retrieval to what it already knows |
+
+**F, G and H need no ingest changes and can be measured in a day.** See §7.6.
+
+### 7.3 Scoring-side — change what ranks
+
+| | Approach | Mechanism | Cost | Fails when |
+|---|---|---|---|---|
+| **I** | **Cross-encoder re-objective** | keep surface recall wide; retrain the reranker to score *structural correspondence* instead of topical relevance. **Uses the shipped cascade as-is** | medium — needs pairs | the true match never enters the depth-30 slate |
+| **J** | **Contrastive bi-encoder fine-tune** | train the embedding space itself on structural pairs so distance means structure | **high** — and re-opens every pinned retrieval number | catastrophic forgetting of ordinary relevance |
+| **K** | **LLM structural judge** | a wide cheap slate, then a model asked directly *"is this the same underlying structure?"* | high per query | latency; §5.7's 300 ms budget |
+
+### 7.4 Orthogonal signals — evidence that is not text at all
+
+| | Approach | Mechanism | Cost | Fails when |
+|---|---|---|---|---|
+| **L** | **Citation / co-citation graph** | papers citing across fields are a *human-labelled* transfer signal | low where metadata exists | absent outside academic corpora |
+| **M** | **Co-retrieval statistics** | items retrieved together during *successful* tasks are probably related | free, accumulates | cold start; needs traffic before it says anything |
+
+### 7.5 THEY ARE NOT ALL COMPETITORS — most of them stack
+
+**This is the point that a naive bake-off would miss.** Query-side and index-side are orthogonal: F
+composes with A, with B, with I. The tournament is therefore **staged and factorial, not
+winner-take-all**:
+
+1. Establish the **ceiling** (§7.7) and the **floor** (baseline, §4.4).
+2. Run the **cheap query-side arms** alone — F, G, H — against the unchanged index.
+3. Run the **scoring arm I** alone, since it reuses the shipped cascade.
+4. Take the best of each layer and **compose**, then measure the composite. Report the interaction:
+   if F+I is worse than I alone, that is a finding.
+5. Only then commit to an expensive index-side arm — A, C or J — because those are the ones that
+   cost a re-ingest or re-open pinned numbers.
+
+**Report every arm, including the ones that lost.** A dropped arm with no number is how a future
+session re-runs the same experiment.
+
+### 7.6 Sequencing — cheap feasibility probe FIRST
+
+**Arm F is one day of work and needs no re-index.** Run it before anything else, not because it will
+win, but because it is a **feasibility probe on the whole thesis**: if abstracting the query moves
+transfer@k at all, structure is recoverable from this corpus and the expensive arms are worth
+funding. If F, G and H all read flat against baseline, that is a strong early signal that the
+information is not in the text and arms A/C are unlikely to conjure it.
+
+**One day, before anyone builds an extraction pipeline.**
+
+### 7.7 THE CEILING CONTROL — the most important experiment on this page
+
+**Hand the transfer set to a strong model with the correct operator already supplied, and ask it to
+solve the problem.**
+
+That number is the ceiling. It separates two failures that look identical from the outside:
+
+- **Ceiling high, retrieval low** → retrieval is the bottleneck. The tournament is the right work.
+- **Ceiling low** → **the model cannot apply the analogy even when handed it.** Retrieval was never
+  the bottleneck, no arm above will help, and the honest conclusion is that transfer needs capability
+  rather than context.
+
+Run this **before** the tournament. It costs almost nothing and it decides whether the tournament is
+worth running at all — which is precisely the question a session that only builds arm A can never ask.
+
+### 7.8 If every arm fails
+
+Three distinguishable causes, and they need telling apart rather than despairing over:
+
+1. **The test set is wrong** — the pairs are not actually isomorphic, or they are so obscure that no
+   corpus contains both sides. *Check: does a human expert score well on the same set?*
+2. **The corpus lacks the reasoning** — abstracts and conclusions were ingested, derivations were not.
+   *Check: is the argument present in the stored text at all? A grep, not an inference.*
+3. **The thesis is narrower than hoped** — transfer works within a family and not across fields.
+   *Check: score by pair distance. A monotone decline with distance is a real, publishable, useful
+   result and bounds the product honestly.*
+
+**Cause 2 is the most likely and the least discussed.** If the fan-in extractor (`SCOPED-MEMORY.md`
+§7.2) writes summaries carrying *conclusions*, the derivation was discarded at ingest and every arm
+above is retrieving from a corpus that no longer contains the thing it needs. **That question is
+settled in the memory pipeline, before this tournament starts.**
+
+## 8. Constraints that hold across every arm
+
+1. **`[1, 256]` and batch-1 invariance are per-graph properties and are never inherited.** Any arm
+   that re-quantises or re-pins re-opens ADR-015 on a graph nobody has measured.
+2. **`ORT_ENABLE_BASIC` on both sides.** A Python-side measurement at a different optimisation level
+   is a different scorer — 0.0699 logits apart, measured.
+3. **Every arm reports tokens and wall-clock**, per M3's acceptance. An arm that wins on transfer and
+   costs 4× is a different product decision, not a winner.
+4. **§5.7's retrieval budget is 300 ms P95.** Arm K is the one most likely to breach it; measure
+   before preferring it.
+5. **Pre-register bands per arm before any fit.** A tournament with fourteen entrants and no
+   pre-registration is fourteen chances to find noise.
+6. **Held-out only for the published number.** Fit-set wins are how ADR-017 got withdrawn.
+
+## 9. Open
 
 1. **Who extracts the structure** — the quarantined reader that saw raw bytes and whose fidelity
    ADR-041 explicitly does not guarantee, or the fan-in pass over validated summaries that can only
