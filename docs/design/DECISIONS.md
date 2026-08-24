@@ -3145,12 +3145,16 @@ re-litigate from scratch.
 | [ADR-041](adr/ADR-041-batched-quarantined-reads.md) | One quarantined reader per group, not per page â€” and three budget limits that were bugs in effect |
 | [ADR-042](adr/ADR-042-document-store.md) | The document store, and why a reference carrying only counts needs no quarantine |
 | [ADR-043](adr/ADR-043-navigation-is-selection.md) | A research run navigates by SELECTING a link, never by composing a URL |
+<<<<<<< HEAD
 | [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** — GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
 | [ADR-045](adr/ADR-045-rerank-defaults-to-auto.md) | The reranker defaults to `auto`, on the same terms as ADR-044 |
 | [ADR-046](adr/ADR-046-openrouter.md) | OpenRouter: a hosted provider, opt-in, in its own crate so ADR-031 §2.3 survives verbatim |
 | [ADR-047](adr/ADR-047-markdown-and-latex-in-the-conversation.md) | Markdown and inline LaTeX in the conversation pane — attributes not colours, and the harness's glyphs are reserved from model prose |
 | [ADR-048](adr/ADR-048-the-persona-may-use-markdown.md) | The persona may use Markdown, because the interface now renders it — formatting is earned, never decorative |
 | [ADR-049](adr/ADR-049-the-quarantined-reader-request-shape.md) | Layer 1's empty tool set rendered as `tools: []` and the child's pages as a reply to no call — both refused by the wire, so every quarantined read on the hosted path returned nothing. Five refusals told apart; `web`'s status reaches the model; `bash` is `cmd /C` and says so |
+=======
+| [**ADR-044**](adr/ADR-044-embedder-defaults-to-auto.md) | **The embedder defaults to `auto`** â€” GPU where one constructs and fits, CPU otherwise, and the resolved provider is ANNOUNCED. Amends ADR-013's deferral and answers it with a measurement; leaves ADR-015 intact |
+| [**ADR-046**](adr/ADR-046-cascade-wired.md) | **The GPU cascade ships** -- depth 30 narrowed by the shipped graph, fused with a digest-pinned second opinion; held-out R@1 0.6987 / R@3 0.8865, verified exact on the wired binary. `auto` keys on the RESOLVED provider; CPU-pinned numbers do not move |
 | [**ADR-050**](adr/ADR-050-cascade-wired.md) | **The GPU cascade ships** -- depth 30 narrowed by the shipped graph, fused with a digest-pinned second opinion; held-out R@1 0.6987 / R@3 0.8865, verified exact on the wired binary. ``auto`` keys on the RESOLVED provider; CPU-pinned numbers do not move |
 
 **ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
