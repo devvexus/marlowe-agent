@@ -97,32 +97,90 @@ neighbours. **Its needles are assembled at runtime**, because spelled as literal
 file being scanned and the test failed against itself on its first run — a source-scanning guard has
 to stay out of its own haystack.
 
-## 5. THE RANKING IS LEXICAL, NOT SEMANTIC. This is named debt, not a claim
+## 5. The ranking is LEXICAL, and that is a DECISION rather than debt
 
 §7.1 says *"embedded for semantic discovery"* and the ROADMAP row says "semantic". **What shipped is
-BM25.**
+BM25, and it stays.** Decided by the human, 2026-08-24, at the close of this session.
 
-**The shipped interactive daemon holds no embedder.** `Embedder::load_with_provider` has exactly one
-caller in the workspace — `crates/marlowe/src/main.rs`, on the `--eval-adapter` path — and the
-daemon's memory is a `BeliefStore::derive` with no dense cue behind it. `recall`, the tool `use` sits
-beside, ranks with `cue::lexical` for the same reason.
+### The reason, which is a domain argument and not a capability one
 
-The choice was: rank lexically and say so, or wire an ONNX session into the daemon as a side effect
-of a skills session. **Claiming "semantic discovery ships" over a BM25 would be this repository's
-most-repeated defect** — a property asserted where it is declared rather than where it is enforced.
-The `Metric::State` on every discovery result reads `lexical`, and the no-match message tells the
-model in words that *"this search is lexical, so a skill whose description uses different words will
-not be found by meaning alone."*
+**The memory system's rankers were tuned on conversations.** The shipped cross-encoder is
+`ms-marco-MiniLM-L-6-v2-ft-session-j` — fine-tuned in M0c Session J against LongMemEval, whose
+documents are conversational turns and whose queries are questions about them. A `SKILL.md`
+description is a different distribution entirely: a one-line imperative statement of a procedure,
+written to be a label rather than to be recalled.
 
-**Debt, stated so a future session does not rediscover it:** when an embedder reaches the daemon,
-`SkillTools::rank` is the one function that changes and `Skill::discovery_text` already defines
-exactly what may be embedded.
+Pointing a ranker tuned on one distribution at another and expecting its measured quality to
+transfer is the failure family this project logs at length — *"a measurement is scoped to the
+system it was taken on; carrying it forward requires re-measuring, not citing."* Four instances are
+listed in CLAUDE.md. Applying the conversational cascade to skill descriptions would be a fifth,
+and it would arrive wearing the cascade's held-out numbers, which say nothing about this corpus.
 
-**There is no second ranker.** `cue::lexical::score_all` became a projection over a new
-`score_texts`, which is its own arithmetic with the belief-specific line lifted out. A second BM25
-would have put the tokenizer — the part most likely to be wrong — in two places that could disagree
-silently. `the_belief_path_and_the_text_path_are_the_same_arithmetic` asserts `assert_eq` on `f32`,
-not an epsilon: the claim is *identical*, because `repro` compares runs byte for byte.
+BM25 has no such claim attached to it. It is a word-overlap score with no training distribution to
+mismatch, and over a corpus of tens of hand-written labels, word overlap is a defensible primary
+signal. `trigger_phrases` exist in §7.1 precisely so a skill author can supply the vocabulary a
+user is likely to reach for, which is the lexical answer to the same problem embedding solves.
+
+### What it costs, stated plainly
+
+A skill whose description uses different words than the user does is **not returned**. "Turn this
+into a hand-out" finds nothing against *"Write release notes for a version"*, because they share no
+term. That is the real cost and it is why the no-match message tells the model in words that
+*"this search is lexical, so a skill whose description uses different words will not be found by
+meaning alone."* `Metric::State` on every discovery result reads `lexical`.
+
+**Claiming "semantic discovery ships" over a BM25 would be this repository's most-repeated defect**
+— a property asserted where it is declared rather than where it is enforced. It is not claimed.
+
+### A correction to an earlier draft of this section
+
+An earlier draft justified the choice with *"the shipped interactive daemon holds no embedder"*.
+That is true — `Embedder::load_with_provider` has exactly one construction site,
+`crates/marlowe/src/main.rs:733`, on the `--eval-adapter` path — and it is **not the whole option
+space**, which the draft implied.
+
+`DaemonMemory` holds `cross_encoder: Option<CrossEncoder>` with `score_batch(query, &documents)`, a
+semantic pair scorer that **is resident in the daemon** whenever `--reranking <DIR>` is passed. A
+skills corpus is small enough to score with no first-stage retrieval at all. So a semantic option
+existed and the draft's reasoning did not reach it: it asked *is there an embedder* and answered
+that correctly, when the question was *is there anything that can rank by meaning*.
+
+The decision above does not rest on that draft's reasoning. It rests on the domain argument, which
+is unaffected — and it is recorded here because the near-miss is the shape, not because the answer
+changed.
+
+### DEFERRED EXPERIMENT — do not run this yet
+
+**The question:** does the memory system's ranker beat BM25 at finding the right skill?
+
+**The precondition, and it is the whole reason this is deferred: a real skills library.** With four
+installed skills every ranker looks the same and the measurement is noise — a corpus that small
+cannot separate them, and a favourable reading off it would be exactly the kind of number this
+project refuses to act on. **Do not run this until there are enough skills that a wrong pick is a
+realistic outcome**, and pick that threshold from the corpus rather than from this paragraph.
+
+**What to measure, so nobody has to redesign it:**
+
+- Held-out queries phrased the way a *user* would, not the way the description is. The cases where
+  BM25 already wins are the ones both rankers get, and they carry no information.
+- Both arms over exactly `Skill::discovery_text()` — description plus trigger phrases, never the
+  body. §7.1 is not up for renegotiation by an experiment.
+- The cross-encoder arm needs a control that fails when it did not load: `--reranking` is optional
+  on the interactive path, so an arm measuring `None` would report the lexical arm twice.
+- Report the cost as well as the quality. A model forward pass lands on the `use` path, which is
+  interactive.
+
+**Where the change would go if it wins:** `SkillTools::rank` is deliberately the one function that
+decides, and `Skill::discovery_text` already defines exactly what may be scored. It is one edit,
+not a search — which is why deferring costs nothing.
+
+### There is no second ranker
+
+`cue::lexical::score_all` became a projection over a new `score_texts`, which is its own arithmetic
+with the belief-specific line lifted out. A second BM25 would have put the tokenizer — the part most
+likely to be wrong — in two places that could disagree silently.
+`the_belief_path_and_the_text_path_are_the_same_arithmetic` asserts `assert_eq` on `f32`, not an
+epsilon: the claim is *identical*, because `repro` compares runs byte for byte.
 
 ## 6. Skills are scanned ONCE, at startup, and the refusals are announced
 

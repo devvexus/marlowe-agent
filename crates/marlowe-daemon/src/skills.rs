@@ -13,25 +13,29 @@
 //! | `use(query = "...")` | discovery — rank installed skills, return names and descriptions |
 //! | `use(name = "...")` | disclosure — load that skill's instructions |
 //!
-//! # THE RANKING IS LEXICAL, NOT SEMANTIC, AND SAYING SO IS THE POINT
+//! # THE RANKING IS LEXICAL, AND THAT IS A DECISION — ADR-051 §5
 //!
-//! §7.1 says trigger phrases and descriptions are *"embedded for semantic discovery"*, and the
-//! ROADMAP row says "semantic". **This implementation is BM25.** The reason is not a shortcut and
-//! it is not a preference:
+//! §7.1 says trigger phrases and descriptions are *"embedded for semantic discovery"* and the
+//! ROADMAP row says "semantic". **This is BM25, and it stays.** Decided by the human, 2026-08-24.
 //!
-//! **The shipped interactive daemon holds no embedder.** `Embedder::load_with_provider` has one
-//! caller in the workspace — `crates/marlowe/src/main.rs`, on the `--eval-adapter` path — and the
-//! daemon's memory is a `BeliefStore::derive` with no dense cue behind it. `recall`, the tool this
-//! one sits beside, ranks with `cue::lexical` for the same reason.
+//! **The reason is a domain argument, not a capability one.** The memory system's rankers were
+//! tuned on *conversations* — `ms-marco-MiniLM-L-6-v2-ft-session-j` was fine-tuned against
+//! LongMemEval, whose documents are conversational turns. A `SKILL.md` description is a one-line
+//! imperative label for a procedure: a different distribution. Pointing a ranker tuned on one at
+//! the other and expecting its measured quality to carry is the *"a measurement is scoped to the
+//! system it was taken on"* family, and it would arrive wearing the cascade's held-out numbers,
+//! which say nothing about this corpus.
 //!
-//! So the choice was: rank lexically and say so, or wire an ONNX session into the daemon as a side
-//! effect of a skills session. **Claiming "semantic discovery ships" over a BM25 would be this
-//! repository's most-repeated defect** — a property asserted where it is declared rather than
-//! where it is enforced. It is recorded as named debt in ADR-051 §5 and in `STATE.md`, and the
-//! rename in `Metric` output says `lexical` so nothing downstream can read it as the other thing.
+//! **The cost is real and is stated rather than hidden:** a skill whose description uses different
+//! words than the user does is not returned. `Metric::State` reads `lexical` on every result and
+//! the no-match message says so in words, because **claiming "semantic discovery ships" over a
+//! BM25 would be this repository's most-repeated defect** — a property asserted where it is
+//! declared rather than where it is enforced.
 //!
-//! `use` is nonetheless the right seam: when an embedder does reach the daemon, `rank` is the one
-//! function that changes, and `Skill::discovery_text` already defines exactly what may be embedded.
+//! **A deferred experiment lives in ADR-051 §5**, gated on a precondition that is not met: a real
+//! skills library. At four installed skills every ranker looks the same and the measurement is
+//! noise. `rank` is deliberately the single function that decides, so running it later is one edit
+//! rather than a search.
 //!
 //! # There is no second ranker
 //!

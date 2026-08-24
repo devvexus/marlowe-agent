@@ -23,23 +23,47 @@ slot. **The interactive profile is now ten of twelve**, and `use` is the *third*
 `verify_every_exposed_tool_is_runnable` at the moment it gained an executor (`web` C2f, `recall`
 Session D). None of the three because anybody remembered to.
 
-### THE RANKING IS LEXICAL, NOT SEMANTIC. Named debt, not a claim
+### THE RANKING IS LEXICAL, AND THAT IS A DECISION. Not debt, and not open
 
-§7.1 says *"embedded for semantic discovery"*; **what shipped is BM25**. The reason is measured,
-not preferred: **the shipped interactive daemon holds no embedder.**
-`Embedder::load_with_provider` has exactly one caller in the workspace —
-`crates/marlowe/src/main.rs`, on `--eval-adapter` — and the daemon's memory is a
-`BeliefStore::derive` with no dense cue behind it. `recall` ranks lexically for the same reason.
+§7.1 says *"embedded for semantic discovery"*; **what shipped is BM25, and it stays.** Decided by
+the human at the close of this session, and the reason is a **domain** argument rather than a
+capability one:
 
-Claiming "semantic discovery ships" over a BM25 would be the most-repeated defect in this file. The
-`Metric::State` on every discovery result reads `lexical`; the no-match message says so in words.
-**When an embedder reaches the daemon, `SkillTools::rank` is the one function that changes**, and
-`Skill::discovery_text` already defines exactly what may be embedded.
+**the memory system's rankers were tuned on conversations.** `ms-marco-MiniLM-L-6-v2-ft-session-j`
+was fine-tuned in M0c Session J against LongMemEval — conversational turns, and questions about
+them. A `SKILL.md` description is a one-line imperative label for a procedure. Pointing a ranker
+tuned on one distribution at another and expecting its measured quality to transfer is the
+*"a measurement is scoped to the system it was taken on"* family, which this file already lists
+four instances of. It would arrive wearing the cascade's held-out numbers, which say nothing about
+this corpus.
+
+BM25 carries no such claim. `trigger_phrases` exist in §7.1 precisely so a skill author supplies the
+vocabulary a user will reach for — the lexical answer to the problem embedding solves.
+
+**The cost, stated:** a skill whose description uses different words than the user does is not
+returned. *"Turn this into a hand-out"* finds nothing against *"Write release notes for a version"*.
+`Metric::State` reads `lexical` on every discovery result and the no-match message says so in words.
+
+**A correction, because the near-miss is the shape.** An earlier draft justified this with *"the
+daemon holds no embedder"* — true (`Embedder::load_with_provider` has one construction site,
+`main.rs:733`, on `--eval-adapter`) and **not the whole option space**. `DaemonMemory` holds
+`cross_encoder: Option<CrossEncoder>` with `score_batch`, resident whenever `--reranking <DIR>` is
+passed, and a skills corpus is small enough to score with no first stage at all. The draft asked
+*is there an embedder* and answered that correctly, when the question was *is there anything that
+can rank by meaning*. **The decision does not rest on that draft's reasoning** — the domain argument
+is unaffected — but the reasoning was narrower than it read.
+
+**A deferred experiment is recorded in ADR-051 §5 and is DELIBERATELY NOT IN THE OPEN LIST BELOW.**
+Whether the memory ranker beats BM25 at finding a skill is a real question with a hard precondition:
+**a real skills library.** At four installed skills every ranker looks the same and the measurement
+is noise. Do not run it until a wrong pick is a realistic outcome. ADR-051 §5 carries the design so
+nobody has to redesign it, including the control that fails when `--reranking` did not load.
 
 `cue::lexical::score_all` became a projection over a new `score_texts` — its own arithmetic with the
 belief line lifted out — so there is **one** BM25 in the workspace, pinned by
 `the_belief_path_and_the_text_path_are_the_same_arithmetic` with `assert_eq` on `f32`, not an
-epsilon.
+epsilon. `SkillTools::rank` stays the single function that decides, so the deferred experiment is
+one edit rather than a search — which is why deferring costs nothing.
 
 ### A CONTRADICTION INSIDE THE PINNED CONTRACT, resolved without changing a schema
 
