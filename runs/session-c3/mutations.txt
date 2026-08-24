@@ -52,3 +52,15 @@ reverted bound: pin_reconsent (pin.rs)
       1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
       1 test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
 restored crates\marlowe-tools\src\pin.rs
+=========== MUTATION: skilltools_batch ===========
+reverted bound: skilltools_batch (skills.rs)
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... FAILED
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... FAILED
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-daemon\src\skills.rs
+=========== MUTATION: mcptools_batch ===========
+reverted bound: mcptools_batch (mcp.rs)
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... FAILED
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... FAILED
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+restored crates\marlowe-daemon\src\mcp.rs

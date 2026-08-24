@@ -426,9 +426,14 @@ fn build_tool_host(
     // **The wrapper order is not free.** Each layer serves its own tool and delegates the rest,
     // and each MUST forward `execute_batch` or the innermost host's concurrent fetch stops
     // running — `RecallTools::execute_batch` documents that trap one layer in, and adding a second
-    // wrapper is exactly the event it warns about. `a_batch_reaches_the_innermost_host_through_
-    // both_wrappers` asserts the whole chain rather than each link: a link that forwards to a link
-    // that does not is as broken as one that does not forward.
+    // wrapper is exactly the event it warns about. A link that forwards to a link that does not is
+    // as broken as one that does not forward, so the assertion is on the whole chain:
+    // `tests/composition_root.rs::a_batch_reaches_the_innermost_host_through_both_wrappers`.
+    //
+    // **That name is on one line deliberately.** This comment named the test before the test
+    // existed, AND it wrapped the name across a line break — so a grep for the name found this
+    // comment and nothing else, and a claim about a test survived having no test behind it. Both
+    // mutations (`skilltools_batch`, `mcptools_batch`) now fail it.
     Ok(crate::mcp::McpTools::new(
         crate::skills::SkillTools::new(
             crate::recall::RecallTools::new(

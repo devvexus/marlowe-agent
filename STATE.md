@@ -162,7 +162,7 @@ answered a question adjacent to the one being asked.
 
 ### Verification
 
-**Four mutations, one at a time, each failing exactly its own named tests** —
+**Six mutations, one at a time, each failing exactly its own named tests** —
 `runs/session-c3/mutations.txt`:
 
 | Mutation | Fails |
@@ -171,11 +171,51 @@ answered a question adjacent to the one being asked.
 | `mcp_trust` | `a_real_server_answers_and_its_result_is_untrusted_content` |
 | `skill_disclosure` | both progressive-disclosure tests |
 | `pin_reconsent` | three of the pin tests |
+| `skilltools_batch` | both batch-chain tests |
+| `mcptools_batch` | both batch-chain tests |
 
 Every new test is paired with a control that fails when the mechanism is absent — most importantly
 `the_probe_token_reaches_the_parent_when_the_result_is_TRUSTED`, which runs the identical bytes at
 `AgentObserved` and **does** reach the parent. Without it the containment test would pass against an
 MCP host that returned nothing.
+
+### A TESTABILITY AUDIT AT THE CLOSE FOUND TWO CLAIMS WITH NOTHING BEHIND THEM
+
+Asked at the end of the session whether everything was testable, and the honest answer was **no** —
+found by auditing rather than by a failure, which is the only way this family is ever found.
+
+**1. A COMMENT NAMED A TEST THAT DID NOT EXIST — and hid it by wrapping.**
+`build_tool_host` carried *"`a_batch_reaches_the_innermost_host_through_both_wrappers` asserts the
+whole chain"*. No such test existed. Worse, the name was **broken across a line break** in the
+comment, so `grep` for it returned the comment and nothing else: the claim and its own refutation
+looked identical to a search.
+
+This matters because of what it was claiming. `ToolHost::execute_batch` has a **serial default**,
+and `RecallTools::execute_batch` documents at length that a wrapper which fails to override it
+leaves the concurrent fetch *existing, tested, green, and never running*. **C3 added two more
+wrappers on top of that one** — `SkillTools` and `McpTools` — which is precisely the event that
+comment warns about, and the only thing standing behind it was the comment.
+
+Closed by `tests/composition_root.rs`, asserting the **whole chain** from the outermost wrapper the
+daemon builds down to the host that would fetch, with a control that the outcomes really came from
+the innermost host. Two mutations confirm it: dropping either wrapper's override to the serial
+default fails both batch tests and nothing else.
+
+**2. `STATE.md` SAID THE EXPOSURE-BUDGET REFUSAL WAS "unit-tested only". IT WAS NOT TESTED AT ALL.**
+`interactive_with` appeared in exactly one test, on the happy path where one extra tool fits.
+ADR-052 §5's claim — two MCP tools fit and a third refuses by name — had nothing behind it. Now
+asserted, including that the refusal carries the count the user has to act on, plus that widening a
+top-level profile leaves `WidenedPastParent` untouched for children.
+
+**3. A malformed `mcp.json` refusing to start** (ADR-052 §6) had no test either. Now tested, with a
+well-formed control at the same path so the refusal is about the content and not the reader.
+
+**The generalisation, because this is a new spelling of an old family:** this project's rule is
+*assert where the property is enforced, not where it is declared*. A **comment that names a test**
+is a third thing — neither an assertion nor a declaration, but a **claim about the existence of
+evidence** — and nothing checks those. A grep would have caught it in seconds if the name had been
+on one line. **Write a referenced test name on a single line**, and treat a comment naming a test
+as unverified until the grep returns two hits.
 
 ### M2 IS CLOSED — the acceptance list, honestly
 
@@ -206,8 +246,10 @@ asks for an eye, which is a human action and not agent work.
 - **Nothing greps for merge-conflict markers.** One was committed and survived a session. A
   workspace test doing what `protect-boundaries.py --self-check` does for guarded paths would be
   cheap.
-- **The exposure-budget refusal has no live sighting.** The probe server contributes two tools and
-  the interactive set is ten of twelve, so it fitted exactly. Unit-tested only.
+- **The exposure-budget refusal has no LIVE sighting.** It is unit-tested as of the close-of-
+  session audit (`composition_root.rs`) — it was not before, and this line said otherwise. The
+  probe server contributes two tools against ten of twelve, so it fitted exactly and the
+  refusal path has never run in the product.
 - **Skills are scanned once at startup**, so installing one takes effect at the next start. A
   deliberate trade — ADR-051 §6 — so that refusals have somewhere to go.
 - **`Transport::Connector` remains a variant with no implementation.** M5.

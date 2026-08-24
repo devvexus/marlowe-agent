@@ -267,6 +267,19 @@ MUTATIONS = {
     # ADR-052 section 4: a description that changed after install must re-ask. Collapsing
     # `Changed` into `Unchanged` turns the user's consent into a formality -- they approved text
     # they will never see again.
+    # ADR-051/052: a wrapper that drops to the serial default kills the concurrent fetch in the
+    # product while every test of the concurrent path stays green. Two wrappers were added over
+    # the one that documents this trap, so the chain is what must be asserted.
+    "skilltools_batch": (
+        "crates/marlowe-daemon/src/skills.rs",
+        "            self.inner.execute_batch(&delegated)",
+        "            delegated.iter().map(|it| self.inner.execute(it.tool, it.args, it.adjudication)).collect()",
+    ),
+    "mcptools_batch": (
+        "crates/marlowe-daemon/src/mcp.rs",
+        "            self.inner.execute_batch(&delegated)",
+        "            delegated.iter().map(|it| self.inner.execute(it.tool, it.args, it.adjudication)).collect()",
+    ),
     "pin_reconsent": (
         "crates/marlowe-tools/src/pin.rs",
         "        if !changed.is_empty() {\n"

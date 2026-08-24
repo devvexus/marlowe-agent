@@ -200,6 +200,9 @@ Asserted where the bytes go — the `request_body` of **both** adapters — and 
 | A changed description re-asks | `pin.rs` tests; mutation `pin_reconsent` fails three of them; **seen live**, END-TO-END §2 |
 | No socket in the transport | `no_socket_reaches_this_crate`, read from the manifest |
 | Invisible characters do not reach the wire | `a_description_cannot_forge_its_own_rendering.rs`, both adapters; mutation `desc_sanitiser` |
+| Two MCP tools fit the budget and a third refuses by name | `composition_root.rs`. **Added at the close-of-session audit** — §5's claim had no test, and `STATE.md` said it did |
+| A malformed `mcp.json` refuses | `composition_root.rs`, with a well-formed control at the same path |
+| A batch survives all three wrappers | `composition_root.rs`; mutations `skilltools_batch` and `mcptools_batch` |
 
 **And once in the product.** `runs/session-c3/END-TO-END.md` §4: the model called two MCP tools on a
 real server; the journal records **2 `run_spawned`, 0 `run_failed`** — one quarantined reader per
