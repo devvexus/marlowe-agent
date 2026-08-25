@@ -3162,3 +3162,31 @@ re-litigate from scratch.
 published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA
 and that the flip is licensed by ranking equivalence measured with a control â€” not by a widened
 constant. `MAX_ABS_DIFF` is unchanged and `embedding-reference.json` is not regenerated.
+
+---
+
+## 2026-08-25 — A §13 change: `ScopeError::Unopenable` names the remedy
+
+**Path scoping is a brief §13 boundary, so this arrives with an entry rather than as a quiet edit.**
+The change is to one error *message* — no logic, no control flow, no relaxation of any check. The
+wall is untouched; what changed is what it says when it is not the thing refusing.
+
+**Why.** An agent asked for four paths that do not exist, read
+*"could not be opened: The system cannot find the file specified"* as a permission or path-parsing
+failure, and wrote `docs/handoff.md` diagnosing it with MSVC-versus-bash path resolution and
+sandbox limits — then recommended a human open the files in an editor. **Every one was simply
+absent.**
+
+**The conflation was available and that is the point.** `ScopeError::Undeclared` says *"Undeclared
+access is denied"*, so "denied" is a word this enum genuinely uses. A reader who has met that once
+will map an unfamiliar open failure onto it, and a model gets nothing but the text. So `Unopenable`
+now states what it is **not**, and names the check: *"This is NOT a scoping refusal and NOT a
+permission denial … confirm with `find` before concluding that access was blocked."*
+
+This is §B5's rule for degraded states applied to a tool result — *names the remedy, because a
+degraded state a user cannot act on is a crash with better manners.*
+
+**Verified by** `a_missing_file_says_it_is_not_a_refusal_and_names_the_check` and
+`a_refusal_and_a_missing_file_do_not_read_alike` — the second being the control, since the whole
+change is that the two must not read alike. Mutating the sentence out fails the first and nothing
+else.

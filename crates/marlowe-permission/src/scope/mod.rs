@@ -107,7 +107,26 @@ pub enum ScopeError {
     )]
     OutsideScope { requested: String },
 
-    #[error("`{requested}` could not be opened: {detail}")]
+    /// **The message names the remedy, because the old one was mistaken for a refusal.**
+    ///
+    /// On 2026-08-25 an agent asked for four paths that do not exist, read
+    /// *"could not be opened: The system cannot find the file specified"* as a permission or
+    /// path-parsing problem, and wrote a handoff document explaining it with MSVC-versus-bash
+    /// path resolution and sandbox limits. **Every one of those files was simply absent.** It then
+    /// recommended that a human open them in an editor.
+    ///
+    /// The conflation was available: `Undeclared` above says *"Undeclared access is denied"*, so
+    /// "denied" is a word this enum genuinely uses — and a reader who has seen it once will map an
+    /// unfamiliar open failure onto it. So this arm now says what it is NOT, and names the check.
+    ///
+    /// §B5's rule for degraded states, applied to a tool result: *"names the remedy, because a
+    /// degraded state a user cannot act on is a crash with better manners."*
+    #[error(
+        "`{requested}` could not be opened: {detail}. \
+         This is NOT a scoping refusal and NOT a permission denial — an undeclared path says so in \
+         those words. If the detail above says the file does not exist, then it does not exist: \
+         confirm with `find` before concluding that access was blocked"
+    )]
     Unopenable { requested: String, detail: String },
 
     #[error(
@@ -268,6 +287,45 @@ impl PathScope for WorkspaceScope {
 
 #[cfg(test)]
 mod tests {
+    /// **A missing file must not read as a refusal.**
+    ///
+    /// The regression for 2026-08-25: an agent read `could not be opened: ... cannot find the
+    /// file` as a permission or path-parsing failure and wrote a handoff document diagnosing
+    /// MSVC-versus-bash path resolution. The files were absent. The message now says what it is
+    /// not, and names the check.
+    #[test]
+    fn a_missing_file_says_it_is_not_a_refusal_and_names_the_check() {
+        let e = ScopeError::Unopenable {
+            requested: "docs/memory.md".into(),
+            detail: "The system cannot find the file specified. (os error 2)".into(),
+        };
+        let m = e.to_string();
+        assert!(m.contains("NOT a scoping refusal"), "{m}");
+        assert!(m.contains("NOT a permission denial"), "{m}");
+        assert!(m.contains("`find`"), "the remedy must be named, not implied: {m}");
+        assert!(m.contains("docs/memory.md"), "the path must survive: {m}");
+        assert!(m.contains("cannot find the file"), "the OS detail must survive: {m}");
+    }
+
+    /// **The vacuity control, and it is the whole point of the change.** The two errors have to be
+    /// distinguishable by their text, because that text is all a model gets. A refusal still says
+    /// "denied"; a missing file now says it is not one.
+    #[test]
+    fn a_refusal_and_a_missing_file_do_not_read_alike() {
+        let refused = ScopeError::Undeclared { requested: "/etc/passwd".into() }.to_string();
+        let missing = ScopeError::Unopenable {
+            requested: "docs/memory.md".into(),
+            detail: "The system cannot find the file specified. (os error 2)".into(),
+        }
+        .to_string();
+
+        assert!(refused.contains("denied"), "a refusal must still say so: {refused}");
+        assert!(
+            !missing.contains("Undeclared access is denied"),
+            "a missing file must not carry the refusal's own sentence: {missing}"
+        );
+    }
+
     use super::*;
 
     #[test]
