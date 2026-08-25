@@ -1,5 +1,111 @@
 ﻿# State
 
+## 2026-08-25 — M3 SESSION F: RUN WINDOWS. **PAUSED MID-SESSION, NOT FINISHED.**
+
+**Branch `m3-windows`, worktree `../Marlowe_F`, branched from master `3a06621`. Nothing committed
+yet.** Paused by the user partway through; this entry exists so the next session does not re-derive
+any of it.
+
+### The suite has NOT been run to completion, and no count is claimed
+
+`cargo test --workspace --jobs 4 --no-fail-fast > runs/session-f/suite.txt` was started and
+**stopped while still compiling**. That file is therefore a compile log with **zero** `test result`
+lines in it, and it must not be tallied. Per-crate runs were green as work proceeded —
+`marlowe-view` 24+3, `marlowe-surface` 22 binaries all ok, `marlowe-daemon` 67 lib + every
+integration binary, `marlowe-loop`'s new `steer_admission` 4 and `steer_has_one_door` 1, the
+boundary hook 2 — **and per-crate green is exactly the thing CLAUDE.md records two sessions
+reporting wrongly.** The next session's first act is the workspace run, once, to that file.
+
+### Built and green per-crate
+
+| | |
+|---|---|
+| `docs/design/adr/ADR-053-run-output-streams-to-a-window.md` | E4. Written **before** the first output line rendered, which is the only order in which it means anything |
+| `docs/design/adr/ADR-054-a-steer-is-a-write-and-has-one-door.md` | the steer door |
+| `crates/marlowe-loop/src/steer.rs` | `admit` — the ONE constructor of a `SteerMessage`. Added to the §13 hook |
+| `crates/marlowe-view/src/run.rs` | `RunView` and friends. Pure shapes; the crate still has zero dependencies |
+| `crates/marlowe-surface/src/window.rs` | the window: layout, draw, keys, `prepared` |
+| `crates/marlowe-daemon/src/watch.rs` | the control plane and its listener |
+| `crates/marlowe-daemon/src/watch_client.rs` | `ControlClient` + `RunProjection` |
+| `crates/marlowe/src/watch.rs` | `--watch` / `--runs` / `--steer` |
+| `crates/marlowe/src/launcher.rs` | `open_window` — best-effort, always with a command |
+
+Tests added: `window_render` 13, `window_flicker` 6, `window_sanitiser` 7, `window_b13` 5,
+`window_steer` 11, `steer_admission` 4, `steer_has_one_door` 1, plus three rows appended to
+`b13_region_contract`.
+
+### THE THREE THINGS THE DESIGN DID NOT ANTICIPATE
+
+**1. The daemon is serial, and that decides the transport.** One connection is held for the whole
+of a turn, so a window served on the conversation port goes blank exactly while there is something
+to watch. The control plane is a **second listener on its own port**, published to `control.port`
+in the profile root beside `daemon.token`. The turn path is not restructured.
+
+**`port + 1` was the first design and it took ANOTHER PROCESS'S PORT.** Ephemeral ports are handed
+out consecutively and the test daemons take ephemeral ports, so one daemon's control listener held
+the next daemon's conversation port. Three tests failed — as `ConnectionRefused` and as a hang,
+neither of which points at the cause. Binding `:0` and publishing is ADR-029's rule applied to a
+port: announced, never inferred.
+
+**2. "A steer field is a write" understates it.** A steer is the **only** channel that writes new
+strings into `UserAsserted` in a run whose floor has already latched, because
+`Provenance::taint_for` reads the attribution map *before* it reaches for the floor:
+
+```rust
+ArgValue::Text(s) => self.attributed.get(s.as_str()).copied().unwrap_or(floor),
+```
+
+That is correct — ADR-023 blocks targets *composed by untrusted content*, and a target a person
+typed is not model-composed — but it means the question is not *how trusted is this text*. In a
+latched run everything is at the bottom and the floor has no discriminating power left. It is the
+saturation question: **who asserted it.** `steer_admission.rs` asserts both halves as a pair, and
+the pair is the point: guidance in a latched run leaves a composed target refused, and a target the
+person named in the same latched run still runs.
+
+**3. §6.1 said the window takes "the same adjudication `/steer` does". `/steer` did not exist.**
+The surface's steer field was a `Notice::NotBuilt` stub and `Daemon::ask` passed `NoControl`, so
+nothing could steer the daemon's own turn at all. ADR-054 is what that adjudication looks like:
+authority by channel, sanitise-then-cap **before** the text is attributed, one door, greppable.
+
+### Defects found by building, not by reading
+
+* **`scroll_by` could not scroll up.** `scroll: None` means pinned; `unwrap_or(u16::MAX)` then
+  `saturating_sub(1)` still clamps to the bottom, so `Up` in a window did nothing, silently, on
+  every run with more output than fits. The driver now supplies `scroll_max` — it holds the
+  terminal size — rather than a `Cell` written during a draw and read by the next, which would make
+  the flicker check measure convergence instead of purity.
+* **`web`'s `inline_threshold_bytes` family, avoided rather than repeated.** `window::prepared` is
+  asserted on the rendered `Buffer`, and `window_sanitiser.rs` carries the control that names the
+  layer doing the defending: the shared renderer *does* pass the tag block through, so the window's
+  pass is what stops it.
+
+### WHAT IS LEFT — in order
+
+1. **Run the workspace suite ONCE to `runs/session-f/suite.txt`** and tally the file.
+2. **One real end-to-end run.** Nothing here has been exercised against a live daemon yet — this is
+  the budgeted end-to-end verification, and M1 produced three bugs that only using it found.
+  `marlowe-red:9b` is on this machine's Ollama and is the model to use. The shape: `--serve` on a
+  scratch profile root, `--ask` in the background, then `--runs`, `--watch`, `--steer` from a second
+  process, checking the steer reaches the *running* loop rather than the next turn.
+3. `cd eval && python -m pytest` — 72, unmodified, as a control.
+4. Commit. **Never `git add -A`** — Session A is in the shared checkout.
+
+### Known gaps, stated rather than left to be discovered
+
+* **`--watch` has not been run in a real terminal.** Every assertion about it is on a headless
+  `Buffer`, which is the right instrument for a frame and says nothing about crossterm, raw mode, or
+  the OSC 0 title.
+* **`Request::ResumeRun` sets a flag nothing reads yet.** `ControlPlane::take_resume` exists and no
+  run path calls it, because durable resume is Session A's. The window renders
+  `RunControl::resume`'s answer verbatim, so it says `NotDurable` today and says a checkpoint when A
+  lands — but the button currently queues a request that expires unread, and that is the one place
+  this session ships something whose other half is somebody else's.
+* **`tool_call` in `watch_client.rs` duplicates `project.rs`'s verb whitelist.** Noted in the code.
+  The honest fix is for `project.rs` to export it, which would have edited the main pane's render
+  path from a window session.
+
+---
+
 ## 2026-08-24 (POST-MERGE) — PROGRESSIVE DISCLOSURE HAD NO FRONT HALF, AND M3 IS DESIGNED
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1173 passed, 0 failed, 2 ignored**, tallied from

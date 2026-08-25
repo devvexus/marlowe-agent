@@ -291,6 +291,14 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             Event::Error { detail } => {
                 view.status.degraded = Some(classify_degradation(detail));
             }
+            // **The control plane's frames are not this conversation's**, and folding them in here
+            // would be the main pane doing what `M3-DESIGN.md` §6.6 forbids: *"`/watch` opens a
+            // window; it does not stream into the conversation pane. Filling the main pane with
+            // agent output halts the conversation visually, which is what M3 exists to stop."*
+            //
+            // They are listed rather than swept into a `_`, so the next `Event` variant somebody
+            // adds is a compile error here rather than a frame that silently does nothing.
+            Event::RunDetail { .. } | Event::RunOutput { .. } | Event::Accepted { .. } => {}
         }
     }
 }

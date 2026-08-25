@@ -33,6 +33,32 @@
 use crate::view::ControlId;
 use crate::model::Tab;
 
+/// A command line the harness computed, quoted verbatim and never reworded.
+///
+/// # Why this is a third newtype and not an `Echo`
+///
+/// [`Echo`] means *text the user typed*, and this is not that — it is a path plus flags the harness
+/// assembled. It is not prose either: it is a **datum the reader is meant to copy**, which is
+/// exactly what `PathLabel` is for a resolved path, and it is a newtype for the same reason both of
+/// those are — so ADR-030 §5's test can tell "we are quoting a fact" apart from "we composed a
+/// sentence".
+///
+/// The one thing that must never happen to it is being reworded, and the type says so.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandLine(pub String);
+
+impl CommandLine {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+}
+
+impl std::fmt::Display for CommandLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
 /// Text the **user** typed, echoed back verbatim.
 ///
 /// The one legitimate runtime `String` in this module, and it is a newtype precisely so the
@@ -73,6 +99,34 @@ pub enum Notice {
     ApprovalResolved { disposition: Disposition },
     /// What a producer actually removed, which the surface cannot know.
     Undone { turns: u32 },
+    /// A window opened on a run. `M3-DESIGN.md` §6.
+    ///
+    /// **The command is stated whether or not a window opened**, which is §6.7's whole shape: a
+    /// terminal Marlowe could not open degrades to a copy-paste rather than to a broken button. So
+    /// there is one variant with a `terminal` that may be absent, rather than a success variant and
+    /// a failure variant that could drift into saying different things about the same event.
+    WindowOpened { run: Echo, terminal: Option<Terminal>, command: CommandLine },
+    /// A steer reached a run. `M3-DESIGN.md` §6.1 — a steer field is a **write**.
+    ///
+    /// It says *sent*, never *applied*: steering lands at the next iteration boundary, and a
+    /// message claiming the run had already changed course would be a claim the surface cannot
+    /// support.
+    SteerSent { run: Echo },
+}
+
+/// Which terminal opened a window. A closed set, because the harness only knows how to drive the
+/// ones it names — see `launcher::open_window`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Terminal {
+    WindowsTerminal,
+}
+
+impl Terminal {
+    pub fn name(self) -> &'static str {
+        match self {
+            Terminal::WindowsTerminal => "Windows Terminal",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,6 +272,22 @@ impl Notice {
                 "Undone: {turns} turn{}.",
                 if *turns == 1 { "" } else { "s" }
             )],
+            // §C1: the first sentence carries the answer, including when the answer is "not here".
+            // The command is on its own line both ways, because a line the reader has to copy is
+            // easier to copy when nothing else is on it.
+            Notice::WindowOpened { run, terminal, command } => match terminal {
+                Some(t) => vec![
+                    format!("Watching {run} in {}.", t.name()),
+                    format!("  {command}"),
+                ],
+                None => vec![
+                    format!("I can't open a window here. Run this to watch {run}:"),
+                    format!("  {command}"),
+                ],
+            },
+            Notice::SteerSent { run } => {
+                vec![format!("Sent to {run}. It applies at the run's next step.")]
+            }
         }
     }
 }

@@ -135,6 +135,15 @@ pub struct App {
     pub focus: RegionId,
     pub input: String,
     pub steer: String,
+    /// **What the DRIVER must act on**, drained by it each pass. `M3-DESIGN.md` §6.
+    ///
+    /// Opening a window is a process spawn and steering is a socket write, and a surface holds
+    /// neither — `marlowe-surface` depends on `marlowe-view` and `ratatui` and nothing that could
+    /// do either (see this crate's header, and the `Cargo.toml` note that makes it structural).
+    ///
+    /// The same shape as `drain_intents`: the surface says what was asked for, something else does
+    /// it, and the confirmation is a line the driver adds when it knows the answer.
+    window_asks: Vec<crate::commands::Outcome>,
     /// Transcript scroll offset in lines from the top. `None` means pinned to the bottom, which is
     /// what a live conversation wants and is not the same as "offset happens to be the maximum".
     pub scroll: Option<u16>,
@@ -276,6 +285,7 @@ impl App {
             focus: RegionId::Conversation,
             input: String::new(),
             steer: String::new(),
+            window_asks: Vec::new(),
             scroll: None,
             inspector_scroll: 0,
             keys,
@@ -826,6 +836,19 @@ Action::Redraw
             }
             RegionId::Item(_, _) => Action::Redraw,
             RegionId::Message => Action::None,
+            // **A run window's regions, listed rather than swept into a `_`.** `RegionTree::build`
+            // never yields one, so the main pane's focus cannot land here — but a catch-all would
+            // also swallow the next region somebody adds to the conversation, which is the
+            // "defaults that make a mismatch unobservable" family. Naming them keeps that arm a
+            // compile error.
+            RegionId::RunIdentity
+            | RegionId::RunCheckpoint
+            | RegionId::RunOutput
+            | RegionId::RunSteer
+            | RegionId::RunSubagents
+            | RegionId::RunBudget
+            | RegionId::RunScopeMemory
+            | RegionId::RunMeetings => Action::None,
         }
     }
 
@@ -1066,8 +1089,28 @@ Action::Redraw
                 );
             }
             Outcome::Quit => {}
+            // **The driver acts on these, not the App.** `marlowe-surface` has no process API and
+            // no socket, and giving it one would be the surface holding the control plane. They are
+            // returned to the caller, which is the TUI's event loop; a `_` arm here would swallow
+            // the next `Outcome` somebody adds instead.
+            Outcome::Watch(_) | Outcome::Steer(_, _) => self.window_asks.push(outcome.clone()),
         }
         outcome
+    }
+
+    /// Take what the driver has to act on. See [`App::window_asks`].
+    pub fn drain_window_asks(&mut self) -> Vec<crate::commands::Outcome> {
+        std::mem::take(&mut self.window_asks)
+    }
+
+    /// A line the **driver** produced, once it knows what happened.
+    ///
+    /// Public because the driver is the half that can open a window and reach a socket, and the
+    /// answer to `/watch` is not knowable until it has tried. It takes a [`Notice`] and not a
+    /// `String`, so the closed vocabulary still holds: a driver cannot compose prose here any more
+    /// than a command can.
+    pub fn note(&mut self, notice: Notice, tone: Tone) {
+        self.client_note(notice, tone);
     }
 
     /// Emit a line **the client produced**. Not Marlowe speaking, and not transcript.

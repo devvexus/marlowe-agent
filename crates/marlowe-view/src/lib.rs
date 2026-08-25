@@ -31,6 +31,7 @@ pub mod meter;
 pub mod notice;
 pub mod model;
 pub mod produce;
+pub mod run;
 pub mod turn;
 pub mod view;
 
@@ -43,9 +44,12 @@ pub use approval::{
 pub use model::{
     Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tab, Tone, ToolCall,
 };
-pub use notice::{
+pub use notice::{CommandLine, Terminal,
     Capability, Disposition, Echo, Listing, Milestone, Notice, PaneSummary, Refusal, RenderContext,
     Speech,
+};
+pub use run::{
+    CheckpointView, OrphanPolicyLabel, ResumeState, RunState, RunView,
 };
 pub use turn::{DegradedPath, Metric, ResultSummary, ToolLineState, TurnEvent};
 pub use view::{

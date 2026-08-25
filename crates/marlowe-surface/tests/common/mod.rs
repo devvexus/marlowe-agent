@@ -148,3 +148,66 @@ pub fn buffer_text(buf: &Buffer) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+// ─── run windows (`M3-DESIGN.md` §6) ──────────────────────────────────────────────────────────
+
+use marlowe_surface::window::{self, WindowApp};
+use marlowe_view::run::{CheckpointView, OrphanPolicyLabel, ResumeState, RunState, RunView};
+
+/// §6.4 borrows §B13's flicker rows, and a window is a different size class from the main frame:
+/// its floor is 80x24, not 120x30. The high end is the same 4K-ish terminal.
+pub const WINDOW_SIZES: [(u16, u16); 5] = [(80, 24), (100, 30), (120, 30), (160, 45), (200, 50)];
+
+/// A run that is running, with a ceiling and no children. **No `Default` anywhere near this** —
+/// [`RunView`] deliberately has none, so every test states the run it is talking about.
+pub fn run_view() -> RunView {
+    RunView {
+        id: "a1b2c3d4".into(),
+        state: RunState::Running,
+        started_ms: 0,
+        finished_ms: None,
+        spend_micros_usd: 120_000,
+        ceiling_micros_usd: 3_000_000,
+        checkpoint: CheckpointView { last_completed: Some(41), resume: ResumeState::From { seq: 41 } },
+        orphan_policy: OrphanPolicyLabel::Detach,
+        output: Vec::new(),
+        subagents: Vec::new(),
+        budget: Vec::new(),
+        scope_memory: Vec::new(),
+        meetings: Vec::new(),
+    }
+}
+
+pub fn window() -> WindowApp {
+    WindowApp::new(run_view())
+}
+
+pub fn window_frame(app: &WindowApp, w: u16, h: u16) -> Buffer {
+    let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+    term.draw(|f| window::draw(app, &theme(), f.area(), f.buffer_mut()))
+        .unwrap();
+    term.backend().buffer().clone()
+}
+
+pub fn draw_window_into(term: &mut Terminal<TestBackend>, app: &WindowApp) -> Buffer {
+    term.draw(|f| window::draw(app, &theme(), f.area(), f.buffer_mut()))
+        .unwrap();
+    term.backend().buffer().clone()
+}
+
+/// The text inside one region's rect, and **only** that region.
+///
+/// **Search the region, not the whole buffer.** Two tests in M2 matched chrome instead of prose and
+/// went green on a frame that did not contain what they were named for; a window has eight bordered
+/// panels and a footer, so a whole-buffer `contains` here would be worth even less.
+pub fn region_text(buf: &Buffer, r: ratatui::layout::Rect) -> String {
+    (r.y..r.bottom())
+        .map(|y| {
+            (r.x..r.right())
+                .map(|x| buf.cell((x, y)).map(|c| c.symbol()).unwrap_or(" ").to_string())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("
+")
+}

@@ -520,6 +520,11 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 }
             }
             Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
+            // **The control plane's frames, and the classic CLI does not render them here.**
+            // `--ask` is a conversation; `--watch` and `--runs` are where a run's own state is
+            // shown, and `watch.rs` formats them. Listing the variants rather than sweeping them
+            // into a `_` keeps the next `Event` somebody adds a compile error at this site.
+            Event::RunDetail { .. } | Event::RunOutput { .. } | Event::Accepted { .. } => {}
         }
     }
     Ok(())

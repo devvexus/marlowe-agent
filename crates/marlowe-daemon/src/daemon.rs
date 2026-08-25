@@ -242,6 +242,52 @@ impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
     }
 }
 
+/// One wire event as a run window's frame, or `None` if it is not a run's own output.
+///
+/// # This is where ADR-053's scope is enforced, and the `None`s are the enforcement
+///
+/// ADR-053 §7 permits a window to stream `TextDelta` and `ReasoningDelta` — **model prose** — plus
+/// the harness's own §B6 line. It explicitly does not permit raw tool results, and it does not
+/// permit the window to become a second copy of the conversation.
+///
+/// So `Status`, `Approval`, `Done`, `Run`, `Error` and the control-plane frames return `None`. Each
+/// is either about the daemon rather than the run, or is already carried by
+/// [`crate::protocol::Event::RunDetail`] — and a frame that arrived twice by two routes would be a
+/// window that disagreed with its own identity panel.
+///
+/// **Exhaustive, with no `_` arm.** The next `Event` variant somebody adds has to decide whether it
+/// belongs in a window, at the site where ADR-053's scope is written down.
+fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
+    use crate::protocol::RunFrame;
+    Some(match e {
+        Event::Text { delta } => RunFrame::Text { delta: delta.clone() },
+        Event::Reasoning { delta } => RunFrame::Reasoning { delta: delta.clone() },
+        Event::SpeechRetracted => RunFrame::SpeechRetracted,
+        Event::Tool { id, verb, target, state, summary } => RunFrame::Tool {
+            id: *id,
+            verb: verb.clone(),
+            target: target.clone(),
+            state: state.clone(),
+            summary: summary.clone(),
+        },
+        Event::Compacted { turns } => RunFrame::Compacted { turns: *turns },
+        // A degraded path is a fact about the run and it is worth seeing in a window — but it is
+        // harness speech, and the window's transcript vocabulary has no variant for it that is not
+        // model prose. It reaches a window through the daemon's `Degraded` handling on the
+        // conversation port instead, and is deliberately not duplicated here.
+        Event::Degraded { .. }
+        | Event::User { .. }
+        | Event::Status(_)
+        | Event::Approval { .. }
+        | Event::Done { .. }
+        | Event::Run { .. }
+        | Event::Error { .. }
+        | Event::RunDetail { .. }
+        | Event::RunOutput { .. }
+        | Event::Accepted { .. } => return None,
+    })
+}
+
 /// M2's approval gate: **deny by default**.
 ///
 /// A daemon with no interactive surface attached cannot ask, and a gate that auto-approved
@@ -472,6 +518,12 @@ pub struct Daemon {
     /// there was no single-claim write path to wire, not merely that it was unwired.
     memory: crate::memory::DaemonMemory,
     runs: BTreeMap<String, RunSummary>,
+    /// **What a run window reads.** `M3-DESIGN.md` §6, `watch.rs`.
+    ///
+    /// Behind an `Arc<Mutex<_>>` because the control listener is a second thread: this connection
+    /// is held for the whole of a turn, and a window answered only between turns would go blank
+    /// exactly while there was something to watch.
+    plane: std::sync::Arc<std::sync::Mutex<crate::watch::ControlPlane>>,
     /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
     sessions: BTreeMap<String, SessionMemory>,
     shutdown: Arc<AtomicBool>,
@@ -653,6 +705,7 @@ impl Daemon {
             journal,
             memory,
             runs: BTreeMap::new(),
+            plane: std::sync::Arc::new(std::sync::Mutex::new(crate::watch::ControlPlane::new())),
             sessions: BTreeMap::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
             skills,
@@ -980,6 +1033,35 @@ impl Daemon {
                 attribution: None,
             },
         );
+        // **A window can open on this run from the moment the daemon accepted the work**, for the
+        // same reason the `RunSummary` above is recorded first: a turn that degraded is still a
+        // turn that happened, and a window opened on one must not be told it does not exist.
+        //
+        // The ceiling is the interactive budget's, which is the number the run will actually be
+        // measured against — not a figure chosen here for the display.
+        {
+            let started_ms = SystemClock.now_ms().max(0) as u64;
+            let mut plane = self.plane.lock().expect("the control plane lock was poisoned");
+            plane.open(
+                &run_id.to_string(),
+                crate::watch::RunDetail {
+                    status: "running".into(),
+                    detail: String::new(),
+                    started_ms,
+                    finished_ms: 0,
+                    spend_micros_usd: 0,
+                    ceiling_micros_usd: marlowe_loop::Budget::interactive().micros_usd,
+                    last_checkpoint: None,
+                    // **The refusal is the control plane's own**, taken from `RunControl::resume`
+                    // rather than written here — a second sentence saying the same thing is a
+                    // second sentence to keep true. See `ResumeError::NotDurable`.
+                    resume_from: None,
+                    resume_refused: marlowe_loop::ResumeError::NotDurable { run: run_id }.to_string(),
+                    orphan_policy: "detach".into(),
+                },
+            );
+        }
+
         let mark = |runs: &mut BTreeMap<String, RunSummary>, status: &str, tokens: u64| {
             if let Some(s) = runs.get_mut(&run_id.to_string()) {
                 s.status = status.to_string();
@@ -1333,8 +1415,33 @@ impl Daemon {
             }
         };
         let mut summarizer = PassthroughSummarizer;
+        // **Every frame goes to both places, and neither is derived from the other.** The
+        // conversation's client gets what it always got; the plane gets a copy a window polls for.
+        // Deriving one from the other would mean a window showing a *different* run of the same
+        // turn, which is the "two definitions" shape applied to a stream.
+        //
+        // `to_run_frame` returns `None` for everything that is not a run's own output — ADR-053
+        // §7: what streams is model prose and the harness's §B6 line, and a raw tool result reaches
+        // a window only after `condense_batch`, exactly as it reaches the main pane.
+        let plane_for_sink = std::sync::Arc::clone(&self.plane);
+        let run_key = run_id.to_string();
+        let key_for_sink = run_key.clone();
+        let mut on_event = move |e: Event| {
+            if let Some(frame) = to_run_frame(&e) {
+                if let Ok(mut p) = plane_for_sink.lock() {
+                    p.push(&key_for_sink, frame);
+                }
+            }
+            on_event(e);
+        };
         let mut sink = CallbackSink { on_event: &mut on_event };
-        let mut control = NoControl;
+        // **A window's steer reaches a RUNNING loop**, at its next iteration boundary — §10.1's
+        // *"mid-flight, no restart"*. `NoControl` was here, so nothing could steer the daemon's own
+        // turn at all; the surface's steer field said "not built" and was telling the truth.
+        let mut control = crate::watch::PlaneControl::new(
+            std::sync::Arc::clone(&self.plane),
+            run_key.clone(),
+        );
         let mut clock = SystemClock;
 
         let session_id = SessionId::from_name(session);
@@ -1510,6 +1617,25 @@ impl Daemon {
             }
         }
 
+        // **The window's identity panel closes with the run.** Without this, elapsed would keep
+        // counting on a finished run — the surface inventing a fact, and the kind that looks right
+        // because the number is moving.
+        {
+            let finished_ms = SystemClock.now_ms().max(0) as u64;
+            let mut plane = self.plane.lock().expect("the control plane lock was poisoned");
+            let spent = run.spent.micros_usd;
+            let checkpoint = run.last_checkpoint;
+            let outcome = status.to_string();
+            let why = detail.clone();
+            plane.set_detail(&run_key, move |d| {
+                d.status = outcome;
+                d.detail = why;
+                d.finished_ms = finished_ms;
+                d.spend_micros_usd = spent;
+                d.last_checkpoint = checkpoint;
+            });
+        }
+
         // The loop's own Done was filtered at emission (`to_wire`), so this is the only one.
         on_event(Event::Done {
             outcome: status.into(),
@@ -1664,6 +1790,17 @@ impl Daemon {
             // that turn finishes, by which time the decision it answers has already been denied.
             // The live path answers on the connection the prompt arrived on — see
             // `SocketApprovals`. This arm stays so the wire shape is total, and it says why.
+            // **Served on the control port, not here.** `watch.rs` explains why: this connection
+            // is held for the whole of a turn, so a window answered here would go blank exactly
+            // while there was something to watch. The arm exists so the wire shape is total and so
+            // a client pointed at the wrong port is told which one it wants.
+            Request::Watch { .. }
+            | Request::Steer { .. }
+            | Request::CancelRun { .. }
+            | Request::ResumeRun { .. } => on_event(Event::Error {
+                detail: "that is a control-plane request and this is the conversation port.                      The control plane publishes its port in `control.port` in the profile root —                      see `marlowe --watch`"
+                    .to_string(),
+            }),
             Request::Approve { .. } => on_event(Event::Error {
                 detail: "an approval must be answered on the connection that asked for it. This                          daemon serves one connection at a time, so a decision sent on a second                          connection is read only after the turn it answers has already been                          denied. Concurrency is M3."
                     .into(),
@@ -1680,6 +1817,30 @@ impl Daemon {
             detail: e.to_string(),
         })?;
         let shutdown = Arc::clone(&self.shutdown);
+
+        // ── the control plane, on its own port and its own thread ───────────────────────────
+        //
+        // `watch.rs` has the argument in full. In one line: this loop holds one connection for the
+        // whole of a turn, and a run window is only worth anything *during* a turn.
+        //
+        // **A failure to bind is degraded, never fatal.** The conversation is the product; a
+        // control port that is already in use — a second daemon, something else on `port + 1` —
+        // must not stop Marlowe from answering. It says so on stderr, which is where the `--watch`
+        // client's own refusal will send the reader anyway.
+        {
+            let profile_root = self.config.profile_root.clone();
+            let token = self.token.clone();
+            let plane = Arc::clone(&self.plane);
+            let stop = Arc::clone(&self.shutdown);
+            std::thread::spawn(move || {
+                if let Err(e) = crate::watch::serve(profile_root, token, plane, stop) {
+                    eprintln!(
+                        "marlowe: the control plane could not start ({e}). Runs and the                          conversation are unaffected; `marlowe --watch` will not work until it can."
+                    );
+                }
+            });
+        }
+
         let state = Mutex::new(&mut self);
 
         for incoming in listener.incoming() {

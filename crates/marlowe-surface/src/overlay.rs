@@ -193,3 +193,97 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
         .wrap(ratatui::widgets::Wrap { trim: false })
         .render(text, buf);
 }
+
+/// **Cancelling a run, with the orphan policy stated plainly.** `M3-DESIGN.md` §6.2.
+///
+/// # Why this is modal at all, when a window has a `^x` in its footer
+///
+/// §6.5 says closing a window **detaches** and never cancels; `^x` is the one key in a run window
+/// that stops work. A key that ends a run and a key that closes a window sitting one row apart with
+/// no confirmation between them is a mis-key that costs somebody an hour, so this is the wall.
+///
+/// # Three facts, and each one is here because the alternative is a confirmation nobody read
+///
+/// 1. **What happens to the children**, in a sentence rather than a variant name.
+///    `OrphanPolicyLabel::plainly` is the single definition; "Detach" is not plain, and a policy
+///    the user did not understand is a policy they clicked through.
+/// 2. **The cost, from the harness's own record** — how long it has run, and what it has spent.
+///    §3.5 makes the same argument about TERMINATE: those are facts the harness holds and they are
+///    exactly what a compromised agent would lie about. Nothing here is asked of the run.
+/// 3. **What cancelling does not undo.** Killing a run is clean; files it wrote and mail it sent
+///    are not. Saying so is the difference between an honest confirmation and a reassuring one.
+///
+/// **No byte of it comes from the run**, except the id — which is a hex short form the daemon
+/// assigns. There is no arm here that interpolates model text, which is the property §3.4 asks for
+/// where it matters most.
+pub fn draw_window_cancel(
+    app: &crate::window::WindowApp,
+    theme: &Theme,
+    area: Rect,
+    buf: &mut Buffer,
+) {
+    use marlowe_view::run::{elapsed, micros_usd};
+
+    let v = app.view();
+
+    for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+            if let Some(cell) = buf.cell_mut((x, y)) {
+                let s = cell.style();
+                cell.set_style(
+                    s.remove_modifier(Modifier::BOLD)
+                        .add_modifier(Modifier::DIM)
+                        .fg(ratatui::style::Color::DarkGray),
+                );
+            }
+        }
+    }
+
+    let lines: Vec<Line> = vec![
+        Line::from(Span::styled(format!("cancel run {}?", v.id), theme.bright())),
+        Line::from(""),
+        Line::from(Span::styled(v.orphan_policy.plainly(), theme.normal())),
+        Line::from(Span::styled(
+            format!(
+                "it has run for {} and spent {}",
+                elapsed(v.elapsed_ms(app.now_ms)),
+                micros_usd(v.spend_micros_usd)
+            ),
+            theme.dim(),
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            "anything it already wrote, sent or pushed stays written, sent and pushed.",
+            theme.dim(),
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(format!("{} ", crate::chrome::KEYCAP_ENTER), theme.bright()),
+            Span::styled("cancel it    ", theme.normal()),
+            Span::styled("esc ", theme.bright()),
+            Span::styled("leave it running", theme.normal()),
+        ]),
+    ];
+
+    let w = 68.min(area.width.saturating_sub(4));
+    let h = lines.len() as u16 + 2;
+    let overlay = Rect {
+        x: area.x + (area.width.saturating_sub(w)) / 2,
+        y: area.y + (area.height.saturating_sub(h)) / 2,
+        width: w,
+        height: h.min(area.height),
+    };
+    Clear.render(overlay, buf);
+    // Red: ending a run is irreversible in the sense §B9 means it — the work already done is not
+    // coming back. Amber would be a question; this is a consequence.
+    let border = Style::default().fg(theme.tone(marlowe_view::Tone::Red));
+    let block = Block::bordered()
+        .border_type(BorderType::Double)
+        .border_style(border)
+        .title(Span::styled("cancel", border));
+    let text = inner(overlay);
+    block.render(overlay, buf);
+    Paragraph::new(lines)
+        .wrap(ratatui::widgets::Wrap { trim: false })
+        .render(text, buf);
+}

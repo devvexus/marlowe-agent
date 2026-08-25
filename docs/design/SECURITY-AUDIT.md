@@ -29,7 +29,8 @@ with no such test is a claim, and this project has logged seventeen of those.
 | C3, E2 | the reply was broadcast into every field | parsed into the slots the child labelled; unfilled slots say so | `quarantine_batch::an_unattributed_reply_does_not_appear_under_any_sources_label` |
 | C4, C5 | sliced budget dimensions read as already-exhausted | every dimension floors at 1 while the parent has any | `budget` unit tests |
 | E3 | the cache stored a chunk-wide claim under one document's hash — **a write primitive** | only single-source chunks are cached | — *see the note below* |
-| E4 | the quarantined child streamed to the terminal | `QuarantinedSink` drops prose; structure still passes | `quarantine_batch::nothing_the_quarantined_reader_says_reaches_the_surface` |
+| E4 **(a)** | the quarantined child streamed to the terminal | `QuarantinedSink` drops prose; structure still passes | `quarantine_batch::nothing_the_quarantined_reader_says_reaches_the_surface` |
+| E4 **(b)** | *"move the character check to the sink boundary"* — **filed, never built** until M3 F | `window::prepared` runs the display predicate and the chrome reservation on every byte a run window renders (ADR-053 §4) | `marlowe-surface/tests/window_sanitiser.rs` |
 | E7 | child labels indexed over `fresh`, parent over `chunk` | render under the label the child was given | — *see the note below* |
 | E8 | an unsatisfiable contract burned the parent's budget | aggregate derived from the per-field caps; retry bounded at 2 | `condense_integrity::a_structured_contract_can_be_satisfied_by_filling_it` |
 | E10 | children consumed the parent's steering | the child gets `NoControl`, as its own doc always claimed | — |
@@ -702,6 +703,14 @@ attacker's text with **zero model calls and no reader** — the quarantine never
 safety argument (*"no probing oracle"*) is about **reads**; the write is the primitive.
 *Fix:* don't populate the cache until a genuine per-source output exists; or key on the whole chunk
 composition.
+
+> **AMENDED 2026-08-25 (M3 Session F).** E4's fix has **two clauses** and only the first was built.
+> The table above used to carry one row claiming the finding closed. The second clause —
+> *"move the character check to the sink boundary"* — had no implementation and therefore no test,
+> and nothing noticed, because after the suppression there was no path anyone was looking at.
+> ADR-053 permits a run window to stream a run's own prose **on the condition that clause (b)
+> exists**, and it now does. The reader's suppression is unchanged; see ADR-053 §2 for why those
+> are different cases and §5 for where each half's test lives.
 
 **E4 · The quarantined child shares the parent's `TurnSink`, streaming unvalidated reader output to
 the terminal — HIGH.** `condense_chunk` passes the parent's `ports` straight through. `TextDelta` is

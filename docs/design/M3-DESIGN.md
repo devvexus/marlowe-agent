@@ -304,6 +304,28 @@ makes it an arm.
 
 ## §6. Windows — SHIPPED EARLY, AND FULLY FUNCTIONAL
 
+> **BUILT 2026-08-25 (M3 Session F).** `marlowe-surface/src/window.rs`,
+> `marlowe-daemon/src/{watch,watch_client}.rs`, `marlowe/src/watch.rs`. ADR-053 (E4) and ADR-054
+> (the steer door) are the two entries §6.7 and §6.1 asked for, and both were written **before** the
+> code they permit.
+>
+> **Three things this section did not anticipate, recorded here rather than only in `STATE.md`:**
+>
+> 1. **The daemon is serial, and that is what decides the transport.** One connection is held for
+>    the whole of a turn, so a window served on the conversation port would go blank exactly while
+>    there was something to watch. The control plane is a **second listener on its own port**,
+>    published to `control.port` in the profile root. Deriving it as `port + 1` was the first design
+>    and it took *another process's* port — three tests failed on it.
+> 2. **The steer field is not merely "a write".** It is the only channel that writes new strings
+>    into `UserAsserted` in a run whose floor has already latched, because `Provenance::taint_for`
+>    consults the attribution map before it reaches for the floor. §6.1 said *"the same adjudication
+>    `/steer` does"*; the honest reading is that `/steer` had no adjudication to share, and ADR-054
+>    is what one looks like.
+> 3. **The `resume` half of §6.2 is Session A's and the window cannot fake it.** What renders is
+>    whatever `RunControl::resume` answers, verbatim — `ResumeError::NotDurable` today, a checkpoint
+>    sequence when A lands. That seam is the point: a window that invented a resumable step would be
+>    the debugging instrument lying about the thing it exists to debug.
+
 **Multiple real TUI windows**, not tabs. One main window for Marlowe. A window attaches to a **run**;
 a top-agent scope is a run with children, so one surface serves both and the window is not waiting on
 the agent tree to exist.

@@ -69,6 +69,61 @@ pub enum Request {
     /// against a stale binary. It refuses while a run is live, so the invariant still holds where
     /// it means something.
     Shutdown,
+
+    // ── the control plane a run window speaks to (`M3-DESIGN.md` §6) ────────────────────────
+    //
+    // **These are served on the CONTROL port, not this one.** See `watch.rs`: the conversation
+    // socket is held for the whole of a turn, and a window that could only be answered between
+    // turns would be a window that goes blank exactly while there is something to watch.
+    /// Everything a window draws for one run, plus the output frames after `since`.
+    ///
+    /// **A poll, not a subscription**, and that is what makes §6.6's *"one state, two renderings"*
+    /// literal: the window asks the daemon what is true and re-projects the answer. It holds no
+    /// run fact between polls that the daemon does not have.
+    ///
+    /// `since` is the last frame sequence the client has, so a reconnecting window catches up
+    /// rather than replaying from the beginning — the same reason `Replay` exists for a session.
+    Watch { run: String, since: u64 },
+    /// **A write.** `M3-DESIGN.md` §6.1: a steer field is a write, and it takes the same
+    /// adjudication `/steer` does — because it *is* `/steer`. Both reach
+    /// `marlowe_loop::steer::admit`, which is the only constructor of a `SteerMessage` in the
+    /// workspace (ADR-054).
+    ///
+    /// The text crosses **unvalidated**, deliberately: a cap and a sanitiser on the client would be
+    /// a second copy of the door's, and two copies agree until the day they do not.
+    Steer { run: String, text: String },
+    /// Stop a run. The orphan policy it declared at spawn decides what happens to its children;
+    /// the surface states that policy plainly before it asks.
+    CancelRun { run: String },
+    /// Resume from the last checkpoint. Refuses **by name** where durable runs are not built —
+    /// `ResumeError::NotDurable` says why, and a window renders that verbatim rather than
+    /// rewording it into "cannot resume".
+    ResumeRun { run: String },
+}
+
+/// One frame of a run's output. `M3-DESIGN.md` §6.2, ADR-053.
+///
+/// # Why this is not `Event` reused
+///
+/// [`Event::Text`] and friends are **this conversation's** stream — the thing the main pane draws.
+/// A run's output is a different subject with a different governing decision (ADR-053 permits it;
+/// nothing permits raw tool results), and conflating them would mean a change to one silently
+/// changing the other. They look alike because they describe the same kinds of thing, not because
+/// they are the same channel.
+///
+/// **There is no `ToolResult` variant and there must not be one.** What crosses is model prose and
+/// the harness's own §B6 summary line. A fetched page reaches a window only after
+/// `condense_batch`, exactly as it reaches the main pane.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "frame", rename_all = "snake_case")]
+pub enum RunFrame {
+    Text { delta: String },
+    Reasoning { delta: String },
+    /// The speech streamed so far this turn was reasoning after all. The window moves it, so no
+    /// text that belonged inside a think block is left in the response colour.
+    SpeechRetracted,
+    Tool { id: u64, verb: String, target: String, state: String, summary: String },
+    Compacted { turns: u32 },
 }
 
 /// Daemon → client. Render-only, mirroring `TurnEvent` plus the frames a client needs to know
@@ -125,6 +180,40 @@ pub enum Event {
         attribution: Option<String>,
     },
     Error { detail: String },
+
+    // ── answers to the control-plane requests above ─────────────────────────────────────────
+    /// Everything a run window's panels draw. **A projection, not the `Run`.**
+    ///
+    /// The header's rule still holds: *"There is no request that hands the client a `Run`, a
+    /// `Checkpoint`, or a `ContextView`, and there must not be one."* `last_checkpoint` here is a
+    /// **sequence number**, which is what §6.2 asks a window to show; the `Checkpoint` itself — the
+    /// state a resume would restore — never crosses.
+    RunDetail {
+        id: String,
+        status: String,
+        /// The control plane's own words when the status carries them: a pause reason, a failure.
+        /// Empty otherwise. Rendered verbatim.
+        detail: String,
+        started_ms: u64,
+        /// `0` while the run is still going. Elapsed freezes at this when it is not.
+        finished_ms: u64,
+        spend_micros_usd: u64,
+        ceiling_micros_usd: u64,
+        last_checkpoint: Option<u64>,
+        /// What a resume would do, as the control plane answers it. `Ok(seq)` or the refusal text.
+        resume_from: Option<u64>,
+        resume_refused: String,
+        /// `adopt:<id>` / `detach` / `terminate`. Declared at spawn, never inferred.
+        orphan_policy: String,
+        /// The highest frame sequence the daemon holds, so a window knows whether it is caught up.
+        latest_seq: u64,
+    },
+    /// One frame of a watched run's output, in order.
+    RunOutput { seq: u64, frame: RunFrame },
+    /// A control-plane write was accepted. **Named rather than silent**: a steer that vanished with
+    /// no acknowledgement is indistinguishable from one the daemon dropped, which is the failure
+    /// E10 produced for real.
+    Accepted { what: String },
 }
 
 /// What `Status` answers. Everything §B5's band and the first-run disclosure need, in one frame.
