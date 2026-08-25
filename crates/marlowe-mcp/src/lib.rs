@@ -125,24 +125,47 @@ pub struct McpClient {
     consequence: Option<ConsequenceLevel>,
 }
 
+/// Windows creates a console for a console subsystem child unless told not to. An MCP server is
+/// a **stdio pipe peer**, not something anyone looks at, so a window per server is one blank
+/// console per installed server sitting in the user's taskbar — and one the user can close,
+/// killing the server underneath a running session.
+///
+/// `marlowe/src/tui.rs` already does this for the daemon spawn; this is the same decision one
+/// crate over. `stderr` stays `inherit` for the deadlock reason in [`McpClient::connect`] — with
+/// no console attached it simply goes nowhere, which is not a pipe and cannot fill.
+#[cfg(windows)]
+fn detach_console(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    /// `CREATE_NO_WINDOW`, from `winbase.h`. Not pulled from a crate — it is one constant and
+    /// `marlowe-mcp` has no other reason to depend on the Windows API surface.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+/// No-op off Windows: every other platform this targets spawns without a console by default.
+#[cfg(not(windows))]
+fn detach_console(_cmd: &mut Command) {}
+
 impl McpClient {
     /// Spawn the server and complete the MCP handshake.
     ///
     /// `stderr` is inherited rather than piped. A server that logs to stderr and fills a pipe
     /// nobody drains **deadlocks**, and it deadlocks only under load, which is the worst possible
     /// time to discover it.
+    ///
+    /// On Windows the child is spawned with no console — see [`detach_console`].
     pub fn connect(spec: &ServerSpec) -> Result<Self, McpError> {
-        let mut child = Command::new(&spec.command)
-            .args(&spec.args)
+        let mut cmd = Command::new(&spec.command);
+        cmd.args(&spec.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(|e| McpError::Spawn {
-                id: spec.id.clone(),
-                command: spec.command.clone(),
-                detail: e.to_string(),
-            })?;
+            .stderr(Stdio::inherit());
+        detach_console(&mut cmd);
+        let mut child = cmd.spawn().map_err(|e| McpError::Spawn {
+            id: spec.id.clone(),
+            command: spec.command.clone(),
+            detail: e.to_string(),
+        })?;
 
         let stdin = child.stdin.take().expect("stdin was piped");
         let stdout = BufReader::new(child.stdout.take().expect("stdout was piped"));
@@ -418,6 +441,42 @@ fn param_type(json_type: Option<&str>) -> ParamType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **A REGRESSION GUARD, AND NOT A PROOF — the distinction is the point.**
+    ///
+    /// The enforcement of "no console window" is the Windows loader's, not this crate's. `Command`
+    /// exposes no getter for `creation_flags`, so nothing in-process can read back what was set,
+    /// and no test in this repository can observe whether a window appeared. **Asserting that the
+    /// constant equals `0x0800_0000` would assert the declaration, which is the family this
+    /// project logs at #16.**
+    ///
+    /// So this asserts the one thing that IS checkable and that would actually regress: the spawn
+    /// path still routes through `detach_console`. A refactor of `connect` that drops the call —
+    /// the realistic failure — fails here by name.
+    ///
+    /// **The real verification was a human looking at the taskbar** after `mcp.json` loaded two
+    /// tools and no blank `python.exe` console appeared. Live, not piped.
+    #[test]
+    fn the_spawn_path_still_detaches_the_console() {
+        let src = include_str!("lib.rs");
+        let connect = src
+            .split_once("pub fn connect(")
+            .expect("connect() was renamed; this guard names it")
+            .1;
+        let body = &connect[..connect.find("let stdin =").unwrap_or(connect.len())];
+
+        assert!(
+            body.contains("detach_console(&mut cmd)"),
+            "the MCP spawn path no longer calls detach_console, so every stdio server on Windows \
+             opens a blank console the user can close -- killing the server under a live session. \
+             See the fn's own doc comment for why stderr stays inherited.\n{body}"
+        );
+        assert!(
+            body.contains(".spawn()"),
+            "the vacuity control: this guard is about the ORDER of two calls, so if the spawn is \
+             gone the assertion above is about nothing"
+        );
+    }
 
     /// **The dependency claim in the module header, checked rather than asserted in prose.**
     ///
