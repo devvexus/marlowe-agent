@@ -216,9 +216,57 @@ impl Reserve<'_> {
     }
 }
 
+/// How long an external probe may take before it is killed. ~5 s at 25 ms per poll.
+///
+/// **A COUNT, NOT A DEADLINE, AND THAT IS DELIBERATE.** A real deadline needs `Instant::now()`, and
+/// this file is not on `the_only_real_clock_read_is_the_latency_fence`'s allowlist. Widening a
+/// determinism guard to buy a timeout would trade a permanent hole for a temporary convenience. A
+/// fixed poll count gives the only property that matters here — **a ceiling** — without reading a
+/// clock at all. Sleep drift makes the real bound approximate; nothing depends on it being exact.
+const PROBE_POLLS: u32 = 200;
+const PROBE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25);
+
+/// Run an external command with a hard ceiling. `None` on failure **or** on timeout.
+///
+/// # Why this exists
+///
+/// Both commands this module runs — `ollama` and `nvidia-smi` — are outside this project's control
+/// and can block indefinitely: a busy GPU, a driver in an uninterruptible state, a server mid-load.
+/// They were called through a bare `Command::output()`, which waits forever.
+///
+/// **On 2026-08-25 that wedged the entire workspace suite for 12+ minutes**, with no ceiling
+/// anywhere: three `rerank_provider` tests sat in `Reserve::read()` and every later crate went
+/// unrun. The suite looked alive and produced nothing.
+///
+/// Every caller already returns `Option` and degrades to "no reserve, and here is why", so a
+/// timeout costs a *reading*, never the process. That asymmetry is the whole argument: a missing
+/// reserve is a named degradation, and a hang is an unbounded outage.
+fn bounded_output(program: &str, args: &[&str]) -> Option<std::process::Output> {
+    let mut child = Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    for _ in 0..PROBE_POLLS {
+        // LOOP-EXEMPT: bounded polling of a child process, not a driving loop.
+        match child.try_wait() {
+            Ok(Some(_)) => return child.wait_with_output().ok(),
+            Ok(None) => std::thread::sleep(PROBE_INTERVAL),
+            Err(_) => return None,
+        }
+    }
+    // It outlived its ceiling. Kill it and reap it — an unreaped child is the next hang.
+    let _ = child.kill();
+    let _ = child.wait();
+    None
+}
+
 /// `ollama <args>` split into non-header, non-empty lines, or `None` if it could not run.
 fn ollama_lines(args: &[&str]) -> Option<Vec<String>> {
-    let out = Command::new("ollama").args(args).output().ok()?;
+    let out = bounded_output("ollama", args)?;
     if !out.status.success() {
         return None;
     }
@@ -266,10 +314,10 @@ fn parse_size(line: &str) -> Option<u64> {
 /// on a multi-GPU host it is deliberately pessimistic, because nothing here knows which device ORT
 /// will bind to and guessing wrong is the failure this module exists to prevent.
 pub fn free_bytes() -> Option<u64> {
-    let out = Command::new("nvidia-smi")
-        .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
-        .output()
-        .ok()?;
+    let out = bounded_output(
+        "nvidia-smi",
+        &["--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+    )?;
     if !out.status.success() {
         return None;
     }
@@ -288,6 +336,36 @@ pub fn free_bytes() -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    /// **THE GUARD FOR THE OUTAGE, AND IT IS A SOURCE CHECK ON PURPOSE.**
+    ///
+    /// The enforcement is the OS killing a child; nothing in-process can observe "a command that
+    /// would have hung didn't". Asserting `PROBE_POLLS == 200` would assert the declaration, which
+    /// is the family this project logs at #16. So this asserts the thing that would actually
+    /// regress: that no external command in this module is run through a bare `Command::output()`
+    /// again.
+    ///
+    /// On 2026-08-25 a bare `.output()` here wedged the whole workspace suite for 12+ minutes.
+    #[test]
+    fn no_external_command_in_this_module_waits_forever() {
+        let src = include_str!("vram.rs");
+        let body = src.split("mod tests").next().expect("there is code before the tests");
+
+        assert!(
+            !body.contains(".output()"),
+            "a bare `Command::output()` is back in vram.rs. It waits with NO ceiling, and both              commands this module runs are outside our control -- a busy GPU, a driver in an              uninterruptible state, a server mid-load. Route it through `bounded_output`."
+        );
+        // The vacuity control: the assertion above is about ABSENCE, so it passes on an empty
+        // file, on a renamed module, and on a build where the probes were deleted entirely.
+        assert!(
+            body.contains("fn bounded_output"),
+            "the vacuity control: `bounded_output` is gone, so the check above proves nothing"
+        );
+        assert!(
+            body.matches("bounded_output(").count() >= 3,
+            "expected the definition plus both call sites (ollama, nvidia-smi)"
+        );
+    }
+
     use super::*;
 
     #[test]
