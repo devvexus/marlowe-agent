@@ -244,9 +244,9 @@ impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
 
 /// One wire event as a run window's frame, or `None` if it is not a run's own output.
 ///
-/// # This is where ADR-053's scope is enforced, and the `None`s are the enforcement
+/// # This is where ADR-055's scope is enforced, and the `None`s are the enforcement
 ///
-/// ADR-053 §7 permits a window to stream `TextDelta` and `ReasoningDelta` — **model prose** — plus
+/// ADR-055 §7 permits a window to stream `TextDelta` and `ReasoningDelta` — **model prose** — plus
 /// the harness's own §B6 line. It explicitly does not permit raw tool results, and it does not
 /// permit the window to become a second copy of the conversation.
 ///
@@ -256,7 +256,7 @@ impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
 /// window that disagreed with its own identity panel.
 ///
 /// **Exhaustive, with no `_` arm.** The next `Event` variant somebody adds has to decide whether it
-/// belongs in a window, at the site where ADR-053's scope is written down.
+/// belongs in a window, at the site where ADR-055's scope is written down.
 fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
     use crate::protocol::RunFrame;
     Some(match e {
@@ -1420,7 +1420,7 @@ impl Daemon {
         // Deriving one from the other would mean a window showing a *different* run of the same
         // turn, which is the "two definitions" shape applied to a stream.
         //
-        // `to_run_frame` returns `None` for everything that is not a run's own output — ADR-053
+        // `to_run_frame` returns `None` for everything that is not a run's own output — ADR-055
         // §7: what streams is model prose and the harness's §B6 line, and a raw tool result reaches
         // a window only after `condense_batch`, exactly as it reaches the main pane.
         let plane_for_sink = std::sync::Arc::clone(&self.plane);

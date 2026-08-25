@@ -53,7 +53,7 @@ pub enum RegionId {
     RunIdentity,
     /// Last completed step, and what a resume would resume from.
     RunCheckpoint,
-    /// The run's streaming output. ADR-053.
+    /// The run's streaming output. ADR-055.
     RunOutput,
     /// The steer field. **A write** — ADR-054.
     RunSteer,

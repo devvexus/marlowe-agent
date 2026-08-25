@@ -101,12 +101,12 @@ pub enum Request {
     ResumeRun { run: String },
 }
 
-/// One frame of a run's output. `M3-DESIGN.md` §6.2, ADR-053.
+/// One frame of a run's output. `M3-DESIGN.md` §6.2, ADR-055.
 ///
 /// # Why this is not `Event` reused
 ///
 /// [`Event::Text`] and friends are **this conversation's** stream — the thing the main pane draws.
-/// A run's output is a different subject with a different governing decision (ADR-053 permits it;
+/// A run's output is a different subject with a different governing decision (ADR-055 permits it;
 /// nothing permits raw tool results), and conflating them would mean a change to one silently
 /// changing the other. They look alike because they describe the same kinds of thing, not because
 /// they are the same channel.

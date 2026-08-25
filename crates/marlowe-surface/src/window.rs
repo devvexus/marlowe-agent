@@ -42,10 +42,10 @@
 //! N+1 is a cross-frame dependency, and the flicker check would be measuring convergence rather than
 //! purity.
 //!
-//! # ADR-053 is the reason there is an output panel at all
+//! # ADR-055 is the reason there is an output panel at all
 //!
 //! Audit finding E4's generalised form — *"prose composed inside a window holding attacker-controlled
-//! pages must not stream to a terminal"* — forbids this panel as written. ADR-053 crosses it
+//! pages must not stream to a terminal"* — forbids this panel as written. ADR-055 crosses it
 //! deliberately, **on the condition that E4's own unbuilt second clause is built**: the character
 //! check at the boundary where bytes reach a screen. [`prepared`] is that clause, and
 //! `tests/window_sanitiser.rs` asserts it on the rendered `Buffer` rather than on the function that
@@ -448,7 +448,7 @@ fn inner(r: Rect) -> Rect {
     }
 }
 
-/// **ADR-053's condition, and the only place it is applied.**
+/// **ADR-055's condition, and the only place it is applied.**
 ///
 /// E4's second clause, which was filed as *"move the character check to the sink boundary"* and was
 /// never built: every string a run's output carries goes through
@@ -669,7 +669,7 @@ fn draw_checkpoint(
 
 /// How many lines the output currently occupies at this width. A pure function of the view.
 fn output_lines<'a>(app: &WindowApp, theme: &Theme, width: u16) -> Vec<Line<'a>> {
-    // ADR-053's condition, applied once, before anything can render a byte of it.
+    // ADR-055's condition, applied once, before anything can render a byte of it.
     let entries = prepared(&app.view().output);
     crate::render::entry_lines(
         &entries,

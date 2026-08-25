@@ -305,7 +305,7 @@ makes it an arm.
 ## §6. Windows — SHIPPED EARLY, AND FULLY FUNCTIONAL
 
 > **BUILT 2026-08-25 (M3 Session F).** `marlowe-surface/src/window.rs`,
-> `marlowe-daemon/src/{watch,watch_client}.rs`, `marlowe/src/watch.rs`. ADR-053 (E4) and ADR-054
+> `marlowe-daemon/src/{watch,watch_client}.rs`, `marlowe/src/watch.rs`. ADR-055 (E4) and ADR-054
 > (the steer door) are the two entries §6.7 and §6.1 asked for, and both were written **before** the
 > code they permit.
 >

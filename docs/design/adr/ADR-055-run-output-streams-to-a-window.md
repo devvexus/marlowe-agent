@@ -1,4 +1,4 @@
-# ADR-053 — A run's own prose streams to its window; the quarantined reader's still does not
+# ADR-055 — A run's own prose streams to its window; the quarantined reader's still does not
 
 **Status:** ACCEPTED. Written **before** the first output line was rendered, which is the only order
 in which this entry means anything — an entry written afterwards is a rationalisation of a shipped

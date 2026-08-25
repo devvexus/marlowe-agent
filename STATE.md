@@ -20,7 +20,7 @@ reporting wrongly.** The next session's first act is the workspace run, once, to
 
 | | |
 |---|---|
-| `docs/design/adr/ADR-053-run-output-streams-to-a-window.md` | E4. Written **before** the first output line rendered, which is the only order in which it means anything |
+| `docs/design/adr/ADR-055-run-output-streams-to-a-window.md` | E4. Written **before** the first output line rendered, which is the only order in which it means anything |
 | `docs/design/adr/ADR-054-a-steer-is-a-write-and-has-one-door.md` | the steer door |
 | `crates/marlowe-loop/src/steer.rs` | `admit` — the ONE constructor of a `SteerMessage`. Added to the §13 hook |
 | `crates/marlowe-view/src/run.rs` | `RunView` and friends. Pure shapes; the crate still has zero dependencies |

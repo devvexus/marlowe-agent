@@ -171,7 +171,7 @@ pub struct RunView {
     pub checkpoint: CheckpointView,
     pub orphan_policy: OrphanPolicyLabel,
     /// The run's own output, in the same [`Entry`] vocabulary the conversation pane uses. One
-    /// definition of what a transcript is; ADR-053 governs what may be in it.
+    /// definition of what a transcript is; ADR-055 governs what may be in it.
     pub output: Vec<Entry>,
     pub subagents: Vec<Item>,
     pub budget: Vec<Item>,

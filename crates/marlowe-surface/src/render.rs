@@ -523,7 +523,7 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
 /// **This does not sanitise `Entry::User`, deliberately.** That path is the main pane's
 /// characterisation of what ratatui filters — see `tests/display_sanitiser.rs`, whose header records
 /// that a probe has to use a path where the dependency is the only thing in the way. The run window
-/// meets ADR-053's condition by preparing its entries *before* they arrive here; putting a sanitiser
+/// meets ADR-055's condition by preparing its entries *before* they arrive here; putting a sanitiser
 /// in this arm would make that file vacuous about its own subject a second time.
 #[allow(clippy::too_many_arguments)]
 pub fn entry_lines<'a>(

@@ -13,7 +13,7 @@
 //! implementation and therefore no test, and nothing noticed, because after the suppression there
 //! was no path anyone was looking at.
 //!
-//! ADR-053 permits a run window to stream a run's own prose **on the condition that the second
+//! ADR-055 permits a run window to stream a run's own prose **on the condition that the second
 //! clause exists**. This file is that clause's test. It is not a copy of the loop-level one and it
 //! does not replace it; the two halves of E4 now live one in each place:
 //!
@@ -60,7 +60,7 @@ fn window_with(output: Vec<Entry>) -> WindowApp {
     WindowApp::new(v)
 }
 
-/// The run's **prose**. ADR-053's subject: what streams to the window.
+/// The run's **prose**. ADR-055's subject: what streams to the window.
 #[test]
 fn no_hostile_character_in_a_runs_prose_reaches_a_cell() {
     for (c, why) in HOSTILE {
