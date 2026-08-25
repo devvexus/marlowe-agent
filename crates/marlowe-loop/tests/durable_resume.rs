@@ -24,7 +24,7 @@ use marlowe_contract::{Clock, TrustClass};
 use marlowe_journal::{EventKind, Journal, Profile};
 use marlowe_loop::{
     settle_orphan, Block, Budget, BudgetShare, CapabilityProfile, Checkpoint, CheckpointStore,
-    Control, DurableControl, Engine, JournalCheckpoints, LoopOutcome, MemoryCheckpoints,
+    ContextView, DurableControl, Engine, JournalCheckpoints, LoopOutcome, MemoryCheckpoints, ModelDriver,
     MemoryRecorder, ModelStep, OrphanOutcome, OrphanPolicy, OutputContract, Ports, Provenance,
     ResumeError, Run, RunControl, RunId, RunStatus, SessionId, SessionState, SourceKind,
     SteerMessage, Urgency,
@@ -71,32 +71,41 @@ fn tmp(name: &str) -> PathBuf {
     dir
 }
 
-/// **The kill.** A daemon that is stopped does not get to write a terminal status: the last thing
-/// in the journal is a checkpoint that says `Running`, and the process is gone.
+/// **The kill, and the first version of it was the wrong instrument.**
 ///
-/// This reproduces that shape rather than approximating it. The loop checks `cancelled` at the
-/// **top** of an iteration, before that iteration's checkpoint is written — so when this fires at
-/// step `n + 1`, the newest checkpoint is step `n`'s, stamped `Running`, exactly as a `kill -9`
-/// would leave it.
+/// A daemon that is `taskkill /F`-ed does not get to write anything: the newest thing in the
+/// journal is the last per-iteration checkpoint, stamped `Running`, and the process is gone.
 ///
-/// `Cell` because `Control::cancelled` takes `&self`, and a counter is the only way to express
-/// *"die after n steps"* rather than *"was never alive"*.
+/// The first version used a `Control` that reported `cancelled` after N steps. That was a
+/// **cancel**, not a crash — and once the loop started writing a final checkpoint carrying the
+/// terminal status (which it must, or every completed run looks resumable forever), a cancelled
+/// run correctly refused to resume and this test correctly failed. The instrument had been
+/// modelling a different event all along; nothing showed it until the other half was right.
+///
+/// A panic inside the driver is the faithful model. `drive` never returns, so no final checkpoint
+/// is written, and what survives is exactly what survives a `kill -9`.
 struct DiesAfter {
-    steps: Cell<u32>,
+    calls: Cell<u32>,
     at: u32,
 }
 
-impl DiesAfter {
-    fn new(at: u32) -> Self {
-        Self { steps: Cell::new(0), at }
+impl ModelDriver for DiesAfter {
+    fn call(
+        &mut self,
+        _view: &ContextView,
+        _tools: &marlowe_tools::ExposedSet,
+        _limits: marlowe_loop::CallLimits,
+    ) -> Result<marlowe_loop::ModelCall, marlowe_loop::ProviderError> {
+        let n = self.calls.get() + 1;
+        self.calls.set(n);
+        if n > self.at {
+            panic!("MODELLED KILL: the daemon died during model call {n}");
+        }
+        Ok(step(a_read(&format!("f{n}.md")), 100))
     }
-}
 
-impl Control for DiesAfter {
-    fn cancelled(&self, _run: RunId) -> bool {
-        let n = self.steps.get() + 1;
-        self.steps.set(n);
-        n > self.at
+    fn failover(&mut self, _e: &marlowe_loop::ProviderError) -> bool {
+        false
     }
 }
 
@@ -129,16 +138,13 @@ fn a_run_that_died_mid_flight_resumes_from_its_last_completed_step() {
     // The clock every write in this test stamps with; see `a_clock`.
     let trace = uuid::Uuid::nil();
 
-    // ── phase one: the daemon is alive, and is killed after two steps ──────────────────
-    let run_id = {
+    // ── phase one: the daemon is alive, and dies during its third model call ──────────
+    let run_id = RunId::from_name("phase-one");
+    {
         let mut e = engine();
-        let mut driver = ScriptDriver::new(vec![
-            step(a_read("notes.md"), 100),
-            step(a_read("more.md"), 100),
-            say("THE ANSWER IS 42", 100),
-        ]);
+        let mut driver = DiesAfter { calls: Cell::new(0), at: 2 };
         let mut sink = CollectingSink::default();
-        let mut control = DiesAfter::new(2);
+        let mut control = marlowe_loop::NoControl;
         let mut clk = FrozenClock(1_780_000_000_000);
         let mut recorder =
             marlowe_loop::record::SharedJournalRecorder::new(std::sync::Arc::clone(&journal), trace);
@@ -162,27 +168,13 @@ fn a_run_that_died_mid_flight_resumes_from_its_last_completed_step() {
             TrustClass::UserAsserted,
         ));
 
-        let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
-
-        // ── THE CONTROL. Without these three the test below proves nothing: a run that
-        //    never stopped "resuming" is just a run.
-        assert!(
-            matches!(outcome, LoopOutcome::Cancelled),
-            "phase one must actually stop; it returned {outcome:?}"
-        );
-        assert_eq!(
-            driver.limits_seen.len(),
-            2,
-            "the model was asked twice and must never have been asked for the third step -- the \
-             one that produces the answer"
-        );
-        let rendered = e.assembler().assemble(&state).rendered();
-        assert!(
-            !rendered.contains("THE ANSWER IS 42"),
-            "the answer must not exist yet, or there is nothing to resume for"
-        );
-        run.id
-    };
+        // ── THE CONTROL. Without it the test below proves nothing: a run that never stopped
+        //    "resuming" is just a run.
+        let died = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            e.run(&mut run, &mut state, &mut prov, &mut ports)
+        }));
+        assert!(died.is_err(), "phase one must actually die; it returned {died:?}");
+    }
     // The engine, the run, the session state and the provenance are all dropped here. Nothing
     // survives but the journal on disk -- which is the whole claim.
 
@@ -197,6 +189,7 @@ fn a_run_that_died_mid_flight_resumes_from_its_last_completed_step() {
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![say("THE ANSWER IS 42", 100)]);
     let mut sink = CollectingSink::default();
+    let mut control = control; // the durable control is the resumed run's control plane too
     let mut clk = FrozenClock(1_780_000_100_000);
     let mut recorder = MemoryRecorder::default();
     let mut tools = ScriptedTools::default();
@@ -426,6 +419,34 @@ fn a_checkpoint_is_bounded_by_the_window_not_by_the_run() {
     assert!(at_10 < 64 * 1024, "one checkpoint is {at_10} B");
 }
 
+/// **A run that survived and cannot be FOUND has not survived**, and this is the read that makes
+/// it findable. The daemon's run table is in memory; after a restart it is empty, so without
+/// `latest_per_run` a resumable run has no id anybody could produce.
+#[test]
+fn every_resumable_run_is_enumerable_and_the_finished_ones_are_distinguishable() {
+    let mut store = MemoryCheckpoints::new();
+
+    let live = root("enum-live", Budget::interactive());
+    store.write(&Checkpoint::capture(&live, &SessionState::default(), 3, 0), a_clock()).unwrap();
+    // A later checkpoint for the SAME run: the enumeration must collapse to one row per run,
+    // or a long run would appear hundreds of times.
+    store.write(&Checkpoint::capture(&live, &SessionState::default(), 4, 0), a_clock()).unwrap();
+
+    let mut done = root("enum-done", Budget::interactive());
+    done.status = RunStatus::Completed;
+    store.write(&Checkpoint::capture(&done, &SessionState::default(), 9, 0), a_clock()).unwrap();
+
+    let all = store.latest_per_run();
+    assert_eq!(all.len(), 2, "one row per run, not one per checkpoint: {all:?}");
+    let live_row = all.iter().find(|c| c.run == live.id).expect("the live run is listed");
+    assert_eq!(live_row.step, 4, "the LATEST checkpoint wins");
+
+    // The two are distinguishable, which is what lets the daemon seed only the resumable ones —
+    // offering a resume that `RunControl::resume` refuses would be a control with one outcome.
+    assert!(!live_row.is_terminal());
+    assert!(all.iter().find(|c| c.run == done.id).unwrap().is_terminal());
+}
+
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // 4. Orphan policy — asserted on the CHILD's fate, never on the policy's value
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -524,6 +545,12 @@ fn a_parent_completing_settles_its_children_through_the_loop() {
     // The other half: the policy is read by the ENGINE at the moment a parent ends, not only by a
     // function a test can call. Without `settle_children` this whole file would assert on
     // machinery nothing invokes -- the `SourceKind::Skills` failure applied to orphan policy.
+    //
+    // **The child must NOT finish, and the first version of this test did not know that.** It
+    // spawned a child that completed, and passed -- because at the time a completed run's last
+    // checkpoint still said `Running`, so settlement fired on a run that had nothing to settle.
+    // The test was green *because of* the defect it should have been indifferent to. A tiny grant
+    // makes the child pause after one step, which is a child that genuinely outlives its parent.
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
         step(
@@ -532,13 +559,14 @@ fn a_parent_completing_settles_its_children_through_the_loop() {
                 contract: OutputContract::new("findings", &["findings"]),
                 orphan: OrphanPolicy::Detach,
                 share: BudgetShare::Standard,
-                grant_tokens: None,
+                // Enough for one call (`MIN_CALL_TOKENS` is 512) and not two.
+                grant_tokens: Some(600),
                 tools: vec![],
                 reads_untrusted: false,
             }),
             100,
         ),
-        say("findings: nothing", 100),
+        step(a_read("child-step.md"), 100),
         say("parent done", 100),
     ]);
     let mut sink = CollectingSink::default();
@@ -555,9 +583,46 @@ fn a_parent_completing_settles_its_children_through_the_loop() {
 
     let fates: Vec<&serde_json::Value> = recorder.payloads(EventKind::RunCompleted);
     assert!(
-        fates.iter().any(|p| p.get("fate").is_some()),
-        "the parent ended and nothing recorded any child's fate: {fates:?}"
+        fates.iter().any(|p| p.get("fate").and_then(|f| f.as_str()) == Some("detached")),
+        "the parent ended and nothing recorded the child's declared fate: {fates:?}"
     );
+}
+
+/// **The control for the final checkpoint**, and it is what the live demo found the hard way.
+///
+/// The per-iteration checkpoint is written at the END of an iteration, while the run is still
+/// `Running`; the terminal status is set after the loop. Without a final checkpoint the last
+/// durable record of a run that finished perfectly says it was still going — so every consumer
+/// reads it as resumable. The demo listed **three completed turns as interrupted** and resumed
+/// one, re-running finished work and producing a second, different answer.
+#[test]
+fn a_run_that_completed_leaves_a_terminal_checkpoint_and_refuses_to_resume() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![say("done", 100)]);
+    let mut sink = CollectingSink::default();
+    let mut control = DurableControl::new(MemoryCheckpoints::new());
+    let mut clk = FrozenClock(1_780_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut tools = ScriptedTools::default();
+
+    let mut run = root("finished", Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    {
+        let mut ports =
+            ports!(&mut driver, &mut sink, &mut control, &mut recorder, &mut tools, &mut clk);
+        let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
+        assert!(matches!(outcome, LoopOutcome::Completed(_)), "setup: {outcome:?}");
+    }
+
+    let cp = e.last_checkpoint_of(run.id).expect("a finished run still checkpoints");
+    assert_eq!(cp.status, RunStatus::Completed, "the LAST checkpoint carries the terminal status");
+    assert!(cp.is_terminal(), "so nothing downstream offers to resume it");
+
+    // ...and the control plane refuses by name rather than re-running finished work.
+    control.checkpoint(cp, a_clock()).unwrap();
+    let e2 = control.resume(run.id).unwrap_err();
+    assert_eq!(e2, ResumeError::AlreadyFinished { run: run.id, status: "completed".into() });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────

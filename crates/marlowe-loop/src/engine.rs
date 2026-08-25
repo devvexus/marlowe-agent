@@ -561,6 +561,44 @@ impl<S: PathScope> Engine<S> {
             resumed_steps,
             resumed_contract_retries,
         );
+
+        // ── the FINAL checkpoint, carrying the terminal status ───────────────────────────
+        //
+        // **Found by running it, and it is the shape this project logs most.** The per-iteration
+        // checkpoint is written at the END of an iteration, when the run is still `Running`. The
+        // status becomes `Completed`, `Failed`, `Cancelled` or `Paused` *after* the loop — so
+        // without this line the last durable record of a run that finished perfectly says it was
+        // still going.
+        //
+        // Every consumer then reads it as resumable. The live demo listed **three completed turns
+        // as interrupted** and cheerfully resumed one, which re-ran a finished run and produced a
+        // second, different answer.
+        //
+        // The test that should have caught it did not, and why is the useful part:
+        // `a_child_that_already_finished_is_not_settled` sets `status = Completed` **by hand** and
+        // asserts `settle_orphan` declines. That is true, and it says nothing about whether
+        // anything ever puts a terminal status into a checkpoint. Asserting on the value where it
+        // is declared rather than where it is produced — instance sixteen, in new clothes.
+        // The counters come from the run's own last checkpoint rather than being threaded out of
+        // the loop: that record IS how far it got, and reading it here keeps `drive_inner`'s
+        // eight return points from each having to carry two numbers correctly.
+        let (steps, retries) = self
+            .last_checkpoints
+            .get(&run.id)
+            .map(|c| (c.step, c.contract_retries))
+            .unwrap_or((resumed_steps, resumed_contract_retries));
+        let cp = Checkpoint::capture(run, state, steps, retries);
+        let seq = self.record(
+            ports,
+            EventKind::Checkpointed,
+            run,
+            state,
+            serde_json::to_value(&cp)
+                .unwrap_or_else(|e| json!({ "encode_failed": e.to_string() })),
+        );
+        self.last_checkpoints.insert(run.id, cp);
+        run.last_checkpoint = seq;
+
         self.settle_children(run, state, ports);
         outcome
     }

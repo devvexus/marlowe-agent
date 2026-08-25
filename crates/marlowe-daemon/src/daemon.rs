@@ -687,13 +687,26 @@ impl Daemon {
             }
         })?;
 
+        // **Seeded from the journal, or a run that survived a restart is unfindable.** The run
+        // table is in memory; after a restart it is empty, so `/runs` would list nothing and
+        // `--resume` would need an id nobody could produce. See `seed_from_journal` for why they
+        // are seeded as `interrupted` rather than `running`.
+        let plane = crate::control_plane::ControlPlane::new(marlowe_loop::DurableControl::new(
+            // The journal is the substrate: a checkpoint is an `EventKind::Checkpointed` event in
+            // the one append-only log, and `JournalCheckpoints` is the read.
+            marlowe_loop::JournalCheckpoints::new(std::sync::Arc::clone(&journal)),
+        ));
+        let resumable = plane.lock().expect("fresh").seed_from_journal();
+        if resumable > 0 {
+            eprintln!(
+                "marlowe: {resumable} interrupted run(s) can be resumed — `marlowe --runs` lists \
+                 them, `marlowe --resume <id>` continues one"
+            );
+        }
+
         Ok(Self {
             config,
-            plane: crate::control_plane::ControlPlane::new(marlowe_loop::DurableControl::new(
-                // The journal is the substrate: a checkpoint is an `EventKind::Checkpointed`
-                // event in the one append-only log, and `JournalCheckpoints` is the read.
-                marlowe_loop::JournalCheckpoints::new(std::sync::Arc::clone(&journal)),
-            )),
+            plane,
             journal,
             memory,
             sessions: BTreeMap::new(),

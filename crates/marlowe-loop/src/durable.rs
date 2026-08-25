@@ -197,6 +197,19 @@ pub trait CheckpointStore {
     fn write(&mut self, cp: &Checkpoint, clock: marlowe_contract::Clock) -> Result<Seq, String>;
     /// The most recent checkpoint for this run, if any.
     fn latest(&self, run: RunId) -> Option<Checkpoint>;
+
+    /// The most recent checkpoint of **every** run the store knows.
+    ///
+    /// # Why a resume feature needs this, and why leaving it out is a half-shipped one
+    ///
+    /// The daemon's run table is in memory. After a restart it is empty, so a run that survived —
+    /// the whole claim — is **unfindable**: `/runs` lists nothing and `--resume` needs an id
+    /// nobody can produce. The work would have survived and the user could not reach it, which is
+    /// indistinguishable from it not having survived.
+    ///
+    /// So the table is seeded from here at startup. Ordered by run id, because the caller renders
+    /// it and a listing whose order changes between two identical restarts is not reproducible.
+    fn latest_per_run(&self) -> Vec<Checkpoint>;
 }
 
 /// The real one: checkpoints are `EventKind::Checkpointed` events in the one append-only log.
@@ -212,6 +225,26 @@ pub struct JournalCheckpoints {
 impl JournalCheckpoints {
     pub fn new(journal: std::sync::Arc<std::sync::Mutex<Journal>>) -> Self {
         Self { journal }
+    }
+}
+
+impl JournalCheckpoints {
+    /// Every decodable checkpoint in the log, in `seq` order.
+    ///
+    /// **Undecodable payloads are skipped rather than fatal**, and that is one rule with one
+    /// implementation: the live journal holds 895 pre-M3 `{"step": n}` events, and a build that
+    /// refused to start on them would make this change a migration. Both readers go through here
+    /// so the skip cannot be right in one and forgotten in the other.
+    fn decode_all(&self) -> Vec<Checkpoint> {
+        let cap = OperatorCapability::for_operator_or_audit();
+        self.journal
+            .lock()
+            .expect("the journal lock was poisoned")
+            .replay(&cap, Some(EventKind::Checkpointed))
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|(_, _, payload)| serde_json::from_value::<Checkpoint>(payload).ok())
+            .collect()
     }
 }
 
@@ -237,6 +270,15 @@ impl CheckpointStore for JournalCheckpoints {
             )
             .map(|e| e.seq)
             .map_err(|e| e.to_string())
+    }
+
+    fn latest_per_run(&self) -> Vec<Checkpoint> {
+        let mut by_run: std::collections::BTreeMap<RunId, Checkpoint> =
+            std::collections::BTreeMap::new();
+        for cp in self.decode_all() {
+            by_run.insert(cp.run, cp);
+        }
+        by_run.into_values().collect()
     }
 
     fn latest(&self, run: RunId) -> Option<Checkpoint> {
@@ -279,6 +321,15 @@ impl CheckpointStore for MemoryCheckpoints {
 
     fn latest(&self, run: RunId) -> Option<Checkpoint> {
         self.written.iter().rev().find(|c| c.run == run).cloned()
+    }
+
+    fn latest_per_run(&self) -> Vec<Checkpoint> {
+        let mut by_run: std::collections::BTreeMap<RunId, Checkpoint> =
+            std::collections::BTreeMap::new();
+        for cp in &self.written {
+            by_run.insert(cp.run, cp.clone());
+        }
+        by_run.into_values().collect()
     }
 }
 

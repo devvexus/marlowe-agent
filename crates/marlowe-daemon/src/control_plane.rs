@@ -86,6 +86,38 @@ impl ControlPlane {
         Arc::new(Mutex::new(Self { runs: BTreeMap::new(), control }))
     }
 
+    /// Fill the run table from the journal, so a run that survived a restart can be **found**.
+    ///
+    /// **Not "running".** These runs stopped when the process did, and calling them running would
+    /// be the surface asserting a state nothing holds — `live_runs` feeds `--status`'s count and
+    /// `Shutdown`'s refusal, and both would then be wrong forever. `interrupted` is the honest
+    /// word: it says the work stopped and did not finish, which is exactly what a resume is for.
+    ///
+    /// A run whose last checkpoint is terminal is **not** seeded. It completed, failed or was
+    /// cancelled; listing it as pending would offer a resume that `RunControl::resume` refuses.
+    pub fn seed_from_journal(&mut self) -> usize {
+        let seeded: Vec<_> = self
+            .control
+            .store()
+            .latest_per_run()
+            .into_iter()
+            .filter(|cp| !cp.is_terminal())
+            .collect();
+        let n = seeded.len();
+        for cp in seeded {
+            let id = cp.run.to_string();
+            self.runs.entry(id.clone()).or_insert_with(|| RunSummary {
+                status: "interrupted".into(),
+                tokens: cp.spent.tokens,
+                depth: cp.budget.depth,
+                spend_micros_usd: cp.spent.micros_usd,
+                elapsed_ms: cp.spent.wall_ms,
+                ..RunSummary::accepted(id)
+            });
+        }
+        n
+    }
+
     pub fn live_runs(&self) -> usize {
         self.runs.values().filter(|r| r.status == "running").count()
     }
