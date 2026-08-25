@@ -359,6 +359,34 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
                 //
                 // `admit` performs the sanitise, the cap and the emptiness check in that order,
                 // and the refusal it returns names both numbers. Nothing is duplicated here.
+                // ── A STEER FOR A RUN THAT HAS STOPPED IS REFUSED, NOT QUEUED ──────────────
+                //
+                // **Found by using it.** `--steer` against a completed run answered
+                // `steers 2 queued` — which reads as success, and is a claim about a mechanism
+                // that will never run. Nothing consumes a terminal run's queue, so the guidance
+                // sits there forever.
+                //
+                // That is audit finding **E10's exact shape**: *"the user's correction vanished
+                // with no error."* E10 was about a child eating a parent's steer; this is the same
+                // failure reached from the other end, and the fix is the same one — say so.
+                //
+                // **`interrupted` is deliberately NOT terminal.** A run that stopped because the
+                // daemon did is exactly what resume exists for, and guidance queued for it applies
+                // when it resumes. Refusing that would remove a real capability to close a
+                // different hole.
+                let status = plane.runs.get(&id.to_string()).map(|r| r.status.clone());
+                if let Some(status) = status.filter(|s| {
+                    matches!(s.as_str(), "completed" | "failed" | "cancelled")
+                }) {
+                    on_event(Event::Error {
+                        detail: format!(
+                            "run {id} is {status}; a steer would queue behind a run that has stopped \
+                             and would never be read. Nothing was queued"
+                        ),
+                    });
+                    return;
+                }
+
                 let message = match marlowe_loop::steer::admit(
                     marlowe_loop::steer::SteerOrigin::Human,
                     &text,

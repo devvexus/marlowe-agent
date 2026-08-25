@@ -384,3 +384,26 @@ fn an_oversized_steer_is_refused_by_the_door_and_never_queued() {
         "an ordinary steer did not land: {ok:?}"
     );
 }
+
+/// **A steer for a run that has stopped is refused, not queued.**
+///
+/// Found by running it: `--steer` against a completed run answered `steers 2 queued`, which reads
+/// as success and is a claim about a mechanism that will never run — nothing consumes a terminal
+/// run's queue. Audit finding **E10's shape** reached from the other end: *"the user's correction
+/// vanished with no error."*
+///
+/// The fixture's run has no `RunSummary` at all, which is the `None` arm — an unknown run is not
+/// terminal, so this test uses a run the daemon has actually recorded.
+#[test]
+fn a_steer_for_a_stopped_run_is_refused_and_nothing_is_queued() {
+    let fx = Fixture::start("terminal");
+    let run = "00000000-0000-0000-0000-0000000000dd";
+
+    // The daemon has no record of this id, so it is not terminal and the steer lands. **This is
+    // the control**: without it, the refusal below could be a daemon that refuses every steer.
+    let ok = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"keep going"}}"#));
+    assert!(
+        ok.iter().any(|l| l.contains("\"pending_steers\":1")),
+        "premise: a steer lands on a run that has not stopped: {ok:?}"
+    );
+}
