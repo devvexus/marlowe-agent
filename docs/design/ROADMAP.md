@@ -760,14 +760,21 @@ the order below, and the order is load-bearing rather than a preference.
 | Session | Scope | Status |
 |---|---|---|
 | **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **CURRENT** |
-| **F** | **Windows — starts as soon as A's run object exists, and runs in parallel with everything after.** A window attaches to a **run**; a top-agent scope is a run with children, so the same surface serves both. **Moved up because it is a DEBUGGING instrument before it is a feature** — watching a WAL resume actually happen is how A gets verified. Crosses audit finding **E4** and needs a `DECISIONS.md` entry | not started |
+| **F** | **Windows — FULLY FUNCTIONAL EARLY, in parallel with A.** Talkable (a steer field in the window), streaming output, checkpoint state, and finished-looking, with sized empty panels for what lands in C–E. A window attaches to a **run**; a top-agent scope is a run with children, so one surface serves both. **A debugging instrument before it is a feature** — watching a WAL resume happen is how A gets verified. **A steer field is a WRITE**, so it takes `/steer`'s adjudication, never a side door. Needs the **E4** `DECISIONS.md` entry *before the first output line renders*. See [`M3-DESIGN.md`](M3-DESIGN.md) §6 | not started |
 | **B** | The compaction stamp and the trim marker — **both, before any upward channel is wired.** CLAUDE.md names them and M3-DESIGN §8 explains why they go live together with layer 3 | not started |
 | **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone | not started |
 | **D** | Scoped memory and instillation — [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md). **Workers gain `MemoryWrite` only here**; until then everything returns as artifacts and typed returns | not started |
 | **E** | Meetings — largest surface, most speculative, needs the tree underneath. Crosses §10.1's *"workers do not talk to each other"* and needs a `DECISIONS.md` entry; `set_speaker` is the argument | not started |
 
-**Letters are labels, not a strict sequence. F is deliberately out of order** — it reads the
-control plane and writes nothing, so it blocks on nothing but A's run object.
+**A AND F ARE BUILT IN PARALLEL, AND STEP ONE OF A IS A CONTRACT.** The window needs the run
+object; the run object is A's to define. So **A pins the run object's shape in
+[`CONTRACTS.md`](CONTRACTS.md) before either session builds against it**, and both then work in
+separate worktrees against the pinned contract. That is what pinning is for, and it is how two
+sessions here avoid discovering at merge that they disagreed about a field.
+
+**Letters are labels, not a strict sequence. F is deliberately out of order** — it blocks on
+nothing but A's run object. It is **not** read-only: its steer field is a write and takes `/steer`'s
+adjudication rather than a side door into the control plane.
 
 **Three interface rules that bind F, and the first two are consequences of M3's own premise:**
 

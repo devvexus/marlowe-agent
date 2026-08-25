@@ -302,36 +302,108 @@ makes it an arm.
 
 ---
 
-## §6. Windows
+## §6. Windows — SHIPPED EARLY, AND FULLY FUNCTIONAL
 
-**Multiple real TUI windows**, not tabs. One main window for Marlowe. Each top-agent scope opens its
-own, visually distinct and much simpler.
+**Multiple real TUI windows**, not tabs. One main window for Marlowe. A window attaches to a **run**;
+a top-agent scope is a run with children, so one surface serves both and the window is not waiting on
+the agent tree to exist.
 
-Contents: who the boss is talking to, todos, progress, budget and spend with colour-coded notes, the
-roster of running agents in that scope, and their reasoning openable. Messages render **truncated
-unless expanded**, both sides, so *"what is the boss doing"* reads at a glance.
+**This is not a later polish item.** The human's position, 2026-08-24: it must be **fully working
+early, talkable, and it must look finished**, because it is the instrument that makes the control
+plane debuggable. Verifying §10's step 1 means watching a run die and resume from its checkpoint, and
+*seeing* that beats reading a journal about it afterwards.
 
-**Chat is available with the top-agent only.** Not with anyone below — mirroring Marlowe's own reach,
-and enforced as a capability rather than a missing button.
+### 6.1 CORRECTION: it does not "write nothing"
 
-Closing a window **detaches**; it never cancels. The main TUI keeps a roster with quick status and
-reopens on demand.
+An earlier draft justified running this in parallel on the grounds that the window *"reads the
+control plane and writes nothing."* **A steer field is a write.** So the window is a second write
+path into the control plane and takes the **same adjudication as `/steer`** — never a side door that
+skips it. The parallelism argument survives on the real reason: it depends only on the run object,
+not on the agent tree.
 
-> **Two things to plan for rather than discover.**
+### 6.2 What it holds at step-1 time, when runs exist and the tree does not
+
+Everything here is available the moment a run is a first-class object, and
+`03-addendum-terminal.md`'s **Runs** tab already specifies most of the fields — the window is the
+expanded rendering of a row that is already pinned.
+
+| | |
+|---|---|
+| **Identity and state** | id, status, elapsed, spend against ceiling |
+| **Checkpoint state** | last completed step, and what a resume would resume from — **the field that makes this a debugging instrument** |
+| **Output** | streaming, rendered through ADR-047 |
+| **Steer** | an input field. Talkable, in the window, adjudicated as `/steer` is |
+| **Cancel** | with the orphan policy the run declared at spawn stated plainly |
+
+### 6.3 Placeholders — one rule, and it prevents both churn and a lie
+
+Panels for what lands later — the agent roster and budget-allocation tree (§10 step 3), scope memory
+(step 4), meetings (step 5) — **exist from day one, sized and empty**, so the layout does not move
+when they fill.
+
+> **A PLACEHOLDER STATES A FACT, NEVER A ROADMAP.**
 >
-> **Portability.** §B13's acceptance requires the suite to pass on native Windows Terminal **and** a
-> Linux emulator. Spawning a terminal window is per-platform — `wt.exe`, `open -a Terminal`, a guess
-> on Linux. Make it best-effort with a printed attach command as fallback, and it degrades to a
-> copy-paste rather than a broken button. §10.1 already says runs are *"addressable, inspectable,
-> steerable and cancellable **from outside**"*, so the second process is the control plane's own CLI
-> face.
+> `Subagents — none` is **true** at step 1, stays true for a childless run afterwards, and the same
+> panel simply fills when the tree exists. *"Coming in Session C"* leaks the roadmap into the product
+> and becomes a lie the moment C lands.
 >
-> **Audit finding E4.** *"Prose composed inside a window holding attacker-controlled pages must not
-> stream to a terminal"* — and `nothing_the_quarantined_reader_says_reaches_the_surface` is the
-> standing test. Showing agent messages and reasoning crosses it deliberately. **One
-> `DECISIONS.md` entry covering both this and §3's window**, with sanitisation as the condition, and
-> it **moves the E4 test rather than deleting it.** ADR-047 rendering rules apply: reasoning parses
-> only when expanded, because it is the highest-volume text in the product.
+> And it must **never show fake data to preview a layout** — that is the same family as a green test
+> over a mechanism that never ran.
+
+### 6.4 "Looks finished" is mostly INHERITED, and it is constrained
+
+**Do not reimplement the look.** The window uses `chrome.rs` — the single definition of what harness
+furniture is — and ADR-047's markdown/LaTeX renderer, so it reads as the same product rather than a
+debug panel that grew. Two definitions of a border is the two-sides-silently-disagree shape applied
+to pixels.
+
+Two hard constraints, both already enforced by tests:
+
+* **§B13's colour budget: one accent, three state colours, three foreground weights**, and **state
+  colours encode state, never category.** Structure is carried by attributes and the weight ladder.
+  This is what stops "looks nice" becoming a syntax-highlighted dashboard.
+* **`a_second_render_of_the_same_state_changes_not_one_cell`.** The flicker rows diff frames cell by
+  cell at five sizes and they apply here too. Anything that moves must be a pure function of
+  `(state, now_ms)`.
+
+### 6.5 Reach, and what closing means
+
+**Chat is available with the top-agent only** — never with anyone below, mirroring Marlowe's own
+reach and enforced as a capability rather than a missing button.
+
+Closing a window **detaches**; it never cancels. The main TUI keeps the roster — that is the **Runs**
+tab — and reopens on demand.
+
+### 6.6 Three interface rules
+
+* **`/watch` opens a window; it does not stream into the conversation pane.** Filling the main pane
+  with agent output halts the conversation *visually*, which is what this milestone exists to stop.
+* **`/runs` and `/steer` survive.** §10.1 requires steering *"from outside"* — another terminal, no
+  TUI, a script. If steering only works in the window, closing one removes a capability.
+* **One state, two renderings.** The window renders the same control-plane state the **Runs** tab
+  reports and never keeps its own.
+
+### 6.7 Two things to plan for rather than discover
+
+**Portability.** §B13's acceptance requires the suite to pass on native Windows Terminal **and** a
+Linux emulator. Spawning a terminal window is per-platform — `wt.exe`, `open -a Terminal`, a guess on
+Linux. Best-effort, with a printed attach command as the fallback, so it degrades to a copy-paste
+rather than a broken button.
+
+**Audit finding E4, and the entry is needed BEFORE the first output line renders.** *"Prose composed
+inside a window holding attacker-controlled pages must not stream to a terminal"*, pinned by
+`nothing_the_quarantined_reader_says_reaches_the_surface`. Showing run output crosses it
+deliberately. **One `DECISIONS.md` entry covering this and §3's escalation window**, with
+sanitisation as the condition, **moving the E4 test rather than deleting it**. ADR-047's rule
+applies: reasoning parses only when expanded, because it is the highest-volume text in the product.
+
+### 6.8 How this is built in parallel without the two halves disagreeing
+
+The window needs the run object; the run object is step 1's to define. So:
+
+**Step 1 pins the run object in `CONTRACTS.md` FIRST.** Both sessions then build against the pinned
+contract in separate worktrees. That is what pinning is for, and it is how two sessions here avoid
+discovering at merge that they disagreed about a field.
 
 ---
 
@@ -416,8 +488,9 @@ invisibility, layer 1 routing, and the empty tool set are not A/B tested.** They
    channels after means shipping the laundering path alone.
 4. **Scoped memory and instillation.** `SCOPED-MEMORY.md`. Workers gain `MemoryWrite` only here.
 5. **Meetings.** Largest surface, most speculative, needs the tree working underneath.
-6. **Windows** — **not last, and not optional.** It reads the control plane and writes nothing, so
-   it blocks on nothing but step 1's run object, and it should start there. A window attaches to a
+6. **Windows** — **not last, and not optional. Built in parallel with step 1.** It blocks on
+   nothing but step 1's run object, which step 1 pins in `CONTRACTS.md` first. It is **not**
+   read-only: a steer field is a write and takes `/steer`'s adjudication (§6.1). A window attaches to a
    **run**; a top-agent scope is a run with children, so one surface serves both.
 
    **It is a debugging instrument before it is a feature.** Verifying step 1 means watching a run
