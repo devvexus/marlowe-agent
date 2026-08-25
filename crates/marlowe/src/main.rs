@@ -259,7 +259,11 @@ fn main() {
     // `marlowe` becomes the thin client at M2, and guessing one now would mean changing what an
     // existing command does later.
     let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch",
-                            "--serve", "--ask", "--status", "--shutdown", "--models"]
+                            "--serve", "--ask", "--status", "--shutdown", "--models",
+                            // M3 Session A. The **from-outside** control path §10.1 requires:
+                            // another terminal, no TUI, a script. `/runs`, `/steer` and `/watch`
+                            // in the TUI reach the same daemon state through the same requests.
+                            "--runs", "--steer", "--watch", "--resume", "--cancel"]
         .into_iter()
         .filter(|m| args.iter().any(|a| a == m))
         .collect();
@@ -336,7 +340,18 @@ fn main() {
         }
     }
 
-    if matches!(modes[0], "--serve" | "--ask" | "--status" | "--shutdown") {
+    if matches!(
+        modes[0],
+        "--serve"
+            | "--ask"
+            | "--status"
+            | "--shutdown"
+            | "--runs"
+            | "--steer"
+            | "--watch"
+            | "--resume"
+            | "--cancel"
+    ) {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
             .or_else(|| std::env::current_dir().ok())
@@ -363,7 +378,42 @@ fn main() {
                 flag_value(&args, "--model").map(str::to_string),
                 model_provider.clone(),
             ),
-            "--status" => agent::status(workspace, profile_root, model_provider.clone()),
+            // **The port is threaded in, and its absence was the bug.** `--status --daemon-port N`
+            // built the client on the DEFAULT port, found nothing, constructed a throwaway daemon
+            // and printed its own defaults -- so it reported `qwen3.5:9b / ollama` while the daemon
+            // it was describing ran something else. `--shutdown` two arms below always passed the
+            // port; `--status` never did. The `get_providers()` family, one line wide.
+            "--status" => agent::status(
+                workspace,
+                profile_root,
+                model_provider.clone(),
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--runs" => agent::runs(
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--watch" => agent::watch(
+                flag_value(&args, "--watch"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--cancel" => agent::cancel(
+                flag_value(&args, "--cancel"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--resume" => agent::resume(
+                flag_value(&args, "--resume"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--steer" => agent::steer(
+                flag_value(&args, "--steer"),
+                flag_value(&args, "--guidance"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
             "--shutdown" => agent::shutdown(
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
                 // The profile root decides which token is offered, so `--shutdown` needs it for

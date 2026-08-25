@@ -118,7 +118,7 @@ struct PreparedCall {
     call_ref: String,
 }
 
-use crate::budget::{Budget, BudgetShare};
+use crate::budget::Budget;
 use crate::context::{
     Assembler, Block, PrefixCache, SessionState, SourceKind, COMPACTION_TRIGGER,
 };
@@ -126,6 +126,7 @@ use crate::driver::{
     ApprovalGate, ClockSource, Control, MemoryHost, ModelDriver, ModelStep, SpawnRequest,
     Summarizer, ToolBody, ToolHost, TurnSink,
 };
+use crate::durable::Checkpoint;
 use crate::profile::{CapabilityProfile, InterruptPolicy, ModelRoute};
 use crate::provenance::Provenance;
 use crate::record::Recorder;
@@ -380,6 +381,15 @@ pub struct Engine<S: PathScope> {
     /// harness-validated output that has already passed `OutputContract::validate`, so a hit
     /// cannot reintroduce anything the contract would have refused.
     condensed: std::collections::BTreeMap<String, String>,
+    /// Every child this engine spawned, with the policy its parent declared. **Keyed by parent**,
+    /// because settlement is a question asked once per parent, at the moment it ends.
+    ///
+    /// CONTRACTS §5's `OrphanPolicy` has been journalled at every spawn since M2 Session A and
+    /// nothing read it. This map is the read.
+    children: std::collections::BTreeMap<RunId, Vec<(RunId, OrphanPolicy)>>,
+    /// The last checkpoint taken of each run this engine drove. **Not a cache** — it is what
+    /// orphan settlement amends, and the only in-process record of a child that did not finish.
+    last_checkpoints: std::collections::BTreeMap<RunId, Checkpoint>,
 }
 
 
@@ -469,6 +479,8 @@ impl<S: PathScope> Engine<S> {
             tier,
             next_call_id: 1,
             condensed: std::collections::BTreeMap::new(),
+            children: std::collections::BTreeMap::new(),
+            last_checkpoints: std::collections::BTreeMap::new(),
         }
     }
 
@@ -480,7 +492,7 @@ impl<S: PathScope> Engine<S> {
         &self.cache
     }
 
-    /// The loop.
+    /// The loop. Starts at step 1.
     pub fn run(
         &mut self,
         run: &mut Run,
@@ -488,15 +500,92 @@ impl<S: PathScope> Engine<S> {
         provenance: &mut Provenance,
         ports: &mut Ports<'_>,
     ) -> LoopOutcome {
+        self.drive(run, state, provenance, ports, 0, 0)
+    }
+
+    /// Continue a run from a durable checkpoint. **The other end of `RunControl::resume`.**
+    ///
+    /// The two counters are the reason this is not `run` with a pre-filled `Run`: `steps` and
+    /// `contract_retries` are loop-locals whose entire purpose is to bound a run that will not
+    /// stop, and a resume that reset them would make `MAX_STEPS` and audit finding E8's cap fire
+    /// *per restart* rather than per run — a bounded loop turned unbounded by the mechanism meant
+    /// to make it survivable.
+    ///
+    /// Returns the reconstructed [`Run`] alongside the outcome, because the caller needs its spend
+    /// and its status and did not have a `Run` to pass in.
+    pub fn resume_from(
+        &mut self,
+        checkpoint: Checkpoint,
+        ports: &mut Ports<'_>,
+    ) -> (Run, SessionState, LoopOutcome) {
+        let crate::durable::Restored { mut run, mut state, mut provenance, steps, contract_retries } =
+            checkpoint.restore();
+        let outcome = self.drive(&mut run, &mut state, &mut provenance, ports, steps, contract_retries);
+        (run, state, outcome)
+    }
+
+    /// The loop body, from a given step. **Settlement of this run's children happens here**, on
+    /// every exit path, because CONTRACTS §5's *"parent completion does not kill a child"* is a
+    /// claim about what happens when a parent ends — and a parent ends five different ways.
+    ///
+    /// Public as `continue_from` for the daemon, which restores the run itself: it needs the
+    /// profile it builds from the live MCP fleet and the governance its session store holds, so it
+    /// assembles the parts and hands them here rather than letting [`Self::resume_from`] build a
+    /// `Run` the daemon would then have to correct.
+    pub fn continue_from(
+        &mut self,
+        run: &mut Run,
+        state: &mut SessionState,
+        provenance: &mut Provenance,
+        ports: &mut Ports<'_>,
+        resumed_steps: u32,
+        resumed_contract_retries: u32,
+    ) -> LoopOutcome {
+        self.drive(run, state, provenance, ports, resumed_steps, resumed_contract_retries)
+    }
+
+    fn drive(
+        &mut self,
+        run: &mut Run,
+        state: &mut SessionState,
+        provenance: &mut Provenance,
+        ports: &mut Ports<'_>,
+        resumed_steps: u32,
+        resumed_contract_retries: u32,
+    ) -> LoopOutcome {
+        let outcome = self.drive_inner(
+            run,
+            state,
+            provenance,
+            ports,
+            resumed_steps,
+            resumed_contract_retries,
+        );
+        self.settle_children(run, state, ports);
+        outcome
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn drive_inner(
+        &mut self,
+        run: &mut Run,
+        state: &mut SessionState,
+        provenance: &mut Provenance,
+        ports: &mut Ports<'_>,
+        resumed_steps: u32,
+        resumed_contract_retries: u32,
+    ) -> LoopOutcome {
         run.status = RunStatus::Running;
-        let mut steps: u32 = 0;
+        let mut steps: u32 = resumed_steps;
 
         // Loop-scoped steering. **None of it reaches history** — see the nudge note below.
         let mut pending_nudge = String::new();
         let mut auto_continue: u32 = 0;
         // Audit finding E8. Per-run, not per-turn: the point is to bound the total cost of a
         // contract this model cannot satisfy, and resetting it per turn would restore the loop.
-        let mut contract_retries: u32 = 0;
+        // **Per run means ACROSS RESUMES**, which is why it arrives as a parameter — see
+        // `resume_from`.
+        let mut contract_retries: u32 = resumed_contract_retries;
         let mut tool_calls_this_turn: u32 = 0;
         let mut last_reasoning = String::new();
 
@@ -515,14 +604,14 @@ impl<S: PathScope> Engine<S> {
             if steps > MAX_STEPS {
                 return self.pause(run, state, ports, "steps");
             }
-            if ports.control.cancelled() {
+            if ports.control.cancelled(run.id) {
                 self.record(ports, EventKind::RunCancelled, run, state, json!({}));
                 run.status = RunStatus::Cancelled;
                 return LoopOutcome::Cancelled;
             }
 
             // ── mid-flight steering, no restart (§10.1) ──────────────────────────────
-            if let Some(steer) = ports.control.take_steer() {
+            if let Some(steer) = ports.control.take_steer(run.id) {
                 self.record(
                     ports,
                     EventKind::SteerReceived,
@@ -1075,7 +1164,26 @@ impl<S: PathScope> Engine<S> {
             }
 
             // ── checkpoint every iteration: resume at the last completed step ────────
-            let seq = self.record(ports, EventKind::Checkpointed, run, state, json!({ "step": steps }));
+            //
+            // **It used to be `{"step": steps}`, and the live journal holds 895 of those.** A step
+            // number is an honest record that a step completed and it is not a resumable state:
+            // three of the fields it omitted are security properties, and each defaults to its
+            // permissive value. See `crate::durable` — the trust floor is the one that matters,
+            // because a resume through `Run::root` would restart at `UserAsserted` and **a daemon
+            // restart would have become the trim ADR-023's latch was written to close.**
+            //
+            // Written through `Recorder`, which is the loop's single journal write path
+            // (`record.rs`), and encoded by `Checkpoint`'s own serde so the loop's bytes and
+            // `JournalCheckpoints::write`'s bytes have one definition rather than two.
+            let cp = Checkpoint::capture(run, state, steps, contract_retries);
+            let seq = self.record(
+                ports,
+                EventKind::Checkpointed,
+                run,
+                state,
+                serde_json::to_value(&cp).unwrap_or_else(|e| json!({ "encode_failed": e.to_string() })),
+            );
+            self.last_checkpoints.insert(run.id, cp);
             run.last_checkpoint = seq;
         }
     }
@@ -2010,6 +2118,76 @@ impl<S: PathScope> Engine<S> {
     }
 
     /// §10.1's ad-hoc spawn. **The parent blocks; the child returns findings.**
+    /// CONTRACTS §5: *"Children outlive parents. Parent completion does not kill a child."*
+    ///
+    /// # The policy was DECLARED for a milestone and nothing read it
+    ///
+    /// `OrphanPolicy` has been in the `RunSpawned` payload since M2 Session A. This is the read,
+    /// and it runs on **every** exit path from `drive` — completed, paused, failed, cancelled,
+    /// escalated — because a parent ends five ways and only one of them is success.
+    ///
+    /// **The fate is asserted on the CHILD, never on the policy.** Each variant writes a new
+    /// checkpoint for the child, which is the only durable record a run has:
+    ///
+    /// | Policy | Child's checkpoint after | What `resume(child)` then does |
+    /// |---|---|---|
+    /// | `Terminate` | status `Cancelled` | refuses — `ResumeError::Terminated` |
+    /// | `Detach` | `parent: None` | resumes, parentless |
+    /// | `Adopt { by }` | `parent: Some(by)` | resumes, under the new parent |
+    ///
+    /// A child that already finished is **not** settled. Marking a completed run cancelled
+    /// because its parent later ended would rewrite history, and `settle_orphan` returns `None`
+    /// for it rather than leaving that to each caller.
+    fn settle_children(&mut self, run: &mut Run, state: &mut SessionState, ports: &mut Ports<'_>) {
+        let Some(kids) = self.children.remove(&run.id) else {
+            return;
+        };
+        for (child, policy) in kids {
+            let Some(cp) = self.last_checkpoints.get(&child) else {
+                // No checkpoint means the child never completed a step. There is nothing durable
+                // to settle and nothing to resume; saying so in the journal beats silence.
+                self.record(
+                    ports,
+                    EventKind::RunCompleted,
+                    run,
+                    state,
+                    json!({ "child": child.to_string(), "fate": "no_checkpoint" }),
+                );
+                continue;
+            };
+            let Some((amended, outcome)) = crate::durable::settle_orphan(cp, policy) else {
+                continue;
+            };
+            // The amendment goes into the log the same way every other checkpoint does.
+            self.record(
+                ports,
+                EventKind::Checkpointed,
+                run,
+                state,
+                serde_json::to_value(&amended)
+                    .unwrap_or_else(|e| json!({ "encode_failed": e.to_string() })),
+            );
+            self.record(
+                ports,
+                EventKind::RunCompleted,
+                run,
+                state,
+                json!({
+                    "child": child.to_string(),
+                    "fate": outcome.verb(),
+                    "orphan_policy": policy,
+                }),
+            );
+            self.last_checkpoints.insert(child, amended);
+        }
+    }
+
+    /// The last checkpoint this engine took of a run. For the caller that has to decide whether a
+    /// child is resumable, and for tests asserting on a child's fate rather than on a policy.
+    pub fn last_checkpoint_of(&self, run: RunId) -> Option<&Checkpoint> {
+        self.last_checkpoints.get(&run)
+    }
+
     fn spawn(
         &mut self,
         run: &mut Run,
@@ -2018,9 +2196,18 @@ impl<S: PathScope> Engine<S> {
         req: SpawnRequest,
     ) {
         // Depth and subagent count are declared caps, checked before anything is created.
-        let Some(child_budget) = run.budget.slice_for(&run.spent, req.share) else {
-            self.tool_error(state, &ToolId::new("run"), "depth budget exhausted", CONTROL_CALL_ID);
-            return;
+        //
+        // **Granted, never sliced (M3 Session A).** `slice_for` took its share of what REMAINED,
+        // which decays geometrically and put the eighth quarantined reader on ~0.3% of the budget
+        // at depth one. This tree is depth four. `grant` takes its share of the ORIGINAL, clamped
+        // by what is left, and refuses **with the numbers** rather than handing out a slice too
+        // small to use — a model told only "refused" retries the same request.
+        let child_budget = match run.budget.grant(&run.spent, req.share, req.grant_tokens) {
+            Ok(b) => b,
+            Err(e) => {
+                self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
+                return;
+            }
         };
         if run.spent.subagents >= run.budget.subagents {
             self.tool_error(state, &ToolId::new("run"), "subagent budget exhausted", CONTROL_CALL_ID);
@@ -2087,6 +2274,10 @@ impl<S: PathScope> Engine<S> {
                 "reads_untrusted": req.reads_untrusted,
             }),
         );
+
+        // **The declared policy, recorded where something reads it.** `settle_children` is that
+        // reader; before M3 Session A the value went into the journal and nowhere else.
+        self.children.entry(run.id).or_default().push((child_id, req.orphan));
 
         // A fresh context window and a self-contained brief. The child does not know its
         // siblings exist, because nothing about them is in here.

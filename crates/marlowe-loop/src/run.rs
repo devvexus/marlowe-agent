@@ -110,7 +110,7 @@ pub enum PauseReason {
     AwaitingAnswer,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunStatus {
     Queued,
@@ -596,6 +596,65 @@ impl Run {
     /// The budget dimension that has run out, if any.
     pub fn exhausted(&self) -> Option<Dimension> {
         self.budget.exhausted(&self.spent)
+    }
+
+    /// Rebuild a run from a durable checkpoint. **The only way `trust_floor` is ever set from
+    /// outside this module, and it is the reason this constructor exists at all.**
+    ///
+    /// # The hole this closes, stated before the mechanism
+    ///
+    /// ADR-023's floor is *"monotonic and latched per run"*, and the latch was introduced because
+    /// the floor used to be **derived** from the current window — so trimming the untrusted block
+    /// restored privileges the run was supposed to have lost. A resume that reconstructed a `Run`
+    /// through [`Run::root`] would reopen exactly that, by a different route: `root` starts at
+    /// `UserAsserted`, so a run that had latched to `UntrustedContent`, checkpointed, and come
+    /// back after a daemon restart would compose targets again. **A restart would have become the
+    /// trim.** The floor is therefore a checkpointed field and this is the constructor that
+    /// restores it.
+    ///
+    /// `#[allow(clippy::too_many_arguments)]` for the same reason [`Run::child`] carries it: every
+    /// one of these is a field that must be *carried*, and bundling them into a struct here would
+    /// only move the list.
+    #[allow(clippy::too_many_arguments)]
+    pub fn restored(
+        id: RunId,
+        parent: Option<RunId>,
+        session: SessionId,
+        trace_id: Uuid,
+        status: RunStatus,
+        profile: CapabilityProfile,
+        budget: Budget,
+        spent: Budget,
+        orphan_policy: OrphanPolicy,
+        output_contract: OutputContract,
+        last_checkpoint: Option<u64>,
+        trust_floor: TrustClass,
+    ) -> Self {
+        Self {
+            id,
+            parent,
+            session,
+            trace_id,
+            status,
+            profile,
+            budget,
+            spent,
+            orphan_policy,
+            output_contract,
+            last_checkpoint,
+            trust_floor,
+        }
+    }
+
+    /// Reparent, for [`OrphanPolicy::Adopt`]. Not a setter on the field: adoption is the only
+    /// thing that may change a parent, and naming the operation is what keeps it that way.
+    pub fn adopted_by(&mut self, new_parent: RunId) {
+        self.parent = Some(new_parent);
+    }
+
+    /// Cut the parent link, for [`OrphanPolicy::Detach`].
+    pub fn detached(&mut self) {
+        self.parent = None;
     }
 }
 

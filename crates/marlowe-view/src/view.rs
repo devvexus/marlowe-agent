@@ -182,6 +182,22 @@ pub enum Intent {
     /// [`IntentError::NotADemo`] is what it answers — a named refusal rather than a silent no-op,
     /// because a control that appears to work and does nothing is worse than one that says no.
     ForceState(crate::model::StatusState),
+    /// `/steer <run> <words>` — guidance for a run that is already going.
+    ///
+    /// **A steer is a WRITE**, and M3-DESIGN §6.1 is a correction of an earlier draft that called
+    /// the run window read-only. So it is an `Intent` like every other write: the surface asks,
+    /// the producer decides. A steer field in a window that reached the daemon directly would be
+    /// a second write path skipping the one adjudication.
+    ///
+    /// The text is an [`crate::notice::Echo`] for `Approve`'s reason: it is what the user typed,
+    /// carried quoted and never reworded (ADR-030).
+    Steer { run: String, text: crate::notice::Echo },
+    /// `/watch <run>` — open a window on a run.
+    ///
+    /// §6.6: *"`/watch` opens a window; it does not stream into the conversation pane."* Filling
+    /// the main pane with agent output halts the conversation visually, which is what this
+    /// milestone exists to stop.
+    Watch { run: String },
 }
 
 /// Why a producer refused an [`Intent`].
@@ -203,6 +219,10 @@ pub enum IntentError {
     /// **Typed, not a `String`** — for the same reason `Notice` is (ADR-030 §5), and so a refusal
     /// can be rendered through the one persona renderer rather than formatted at a call site.
     NotBuilt { capability: crate::notice::Capability, arrives: crate::notice::Milestone },
+    /// The producer asked the daemon and it refused. **The reason goes on the band**, never here:
+    /// ADR-030 §5 keeps `String`s out of the notice vocabulary, and the daemon's own words already
+    /// have a channel. See `Refusal::TheDaemonDeclined`.
+    DaemonRefused { intent: &'static str },
 }
 
 impl IntentError {
@@ -230,6 +250,9 @@ impl IntentError {
                     given: crate::notice::Echo::new(given.clone()),
                 })
             }
+            IntentError::DaemonRefused { intent } => {
+                Notice::Refused(crate::notice::Refusal::TheDaemonDeclined { command: intent })
+            }
         }
     }
 }
@@ -249,6 +272,9 @@ impl std::fmt::Display for IntentError {
                 "{} cannot use {given:?} right now; the band says why",
                 control.name()
             ),
+            IntentError::DaemonRefused { intent } => {
+                write!(f, "the daemon declined /{intent}; the band carries its reason")
+            }
             IntentError::NotBuilt { capability, arrives } => write!(
                 f,
                 "{} is not built. It lands in {}.",

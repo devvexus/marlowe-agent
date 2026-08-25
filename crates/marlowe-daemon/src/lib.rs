@@ -30,6 +30,7 @@
 
 pub mod auth;
 pub mod client;
+pub mod control_plane;
 pub mod clock;
 pub mod daemon;
 pub mod live;

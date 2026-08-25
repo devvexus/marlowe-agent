@@ -16,7 +16,7 @@
 //! | Tool executors, skills, MCP | M2 C | [`driver::ToolHost`] has no production implementation |
 //! | Memory | M2 D | [`driver::MemoryHost`] is `None`; `remember` reports that it is not wired |
 //! | A provider client | M2 C | [`driver::ModelDriver`] has no production implementation |
-//! | Durable runs | M3 | [`control::EphemeralControl::resume`] refuses by name |
+//! | ~~Durable runs~~ | ~~M3~~ | **Shipped, M3 Session A** — [`control::DurableControl`]; the ephemeral control still refuses by name and that test still runs |
 //!
 //! Every one of those is a **named refusal** rather than a permissive default. That is the
 //! standing rule in `CLAUDE.md` — prefer a load-time error to a sensible default — and it is
@@ -28,6 +28,7 @@ pub mod budget;
 pub mod context;
 pub mod control;
 pub mod driver;
+pub mod durable;
 pub mod engine;
 pub mod profile;
 pub mod provenance;
@@ -39,7 +40,11 @@ pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS};
 pub use context::{
     estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
     SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, MEMORY_TOKEN_BUDGET, WireTurn, WireToolCall};
-pub use control::{EphemeralControl, ResumeError, RunControl};
+pub use control::{DurableControl, EphemeralControl, ResumeError, RunControl};
+pub use durable::{
+    settle_orphan, settle_orphan_in, Checkpoint, CheckpointStore, JournalCheckpoints, MemoryCheckpoints,
+    OrphanOutcome, Restored, CHECKPOINT_VERSION,
+};
 pub use driver::{BatchItem, ToolInvocation,
     ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,

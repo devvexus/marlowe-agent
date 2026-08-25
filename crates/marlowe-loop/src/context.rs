@@ -31,13 +31,13 @@
 use std::collections::BTreeMap;
 
 use marlowe_contract::TrustClass;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::run::SessionId;
 
 /// Brief §6's prompt tiering. Cache-friendliness is the reason the order is fixed: a stable
 /// prefix that reorders between turns is a prefix that never hits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Tier {
     Stable,
@@ -47,7 +47,7 @@ pub enum Tier {
 
 /// Where a block came from. The per-source budget is keyed by this, per §6: *"explicit token
 /// budget per source… re-measure whenever a tool or source is added."*
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceKind {
     Identity,
@@ -130,7 +130,7 @@ pub fn estimate_tokens(text: &str) -> u32 {
 /// `/api/chat` carries these on the **assistant** message. Sending a `tool` result with no
 /// assistant turn declaring the call leaves the model unable to see that it called anything —
 /// see [`WireTurn`].
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WireToolCall {
     /// Harness-assigned. Matches the `tool_call_id` on the result block this call produced.
     pub id: String,
@@ -165,7 +165,8 @@ pub struct WireToolCall {
 ///    then *imitated*: the first reported leak contained `[your reasoning continues]`, a string
 ///    that appears nowhere in this repository. It came from the model copying our own prefix.
 ///    Reasoning belongs in the `thinking` field the endpoint documents.
-#[derive(Debug, Clone, PartialEq, Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Default, Deserialize)]
+#[serde(default)]
 pub struct WireTurn {
     /// The model's reasoning for this turn. Assistant blocks only.
     pub thinking: Option<String>,
@@ -274,6 +275,42 @@ impl Block {
     }
 }
 
+/// **`Deserialize` recomputes `tokens` rather than reading it.** M3 Session A.
+///
+/// A checkpoint is the first thing that ever deserialized a `Block`, and a field-wise derive
+/// would take the stored `tokens` at its word. `estimate_tokens` is what every budget decision
+/// in the assembler reads, so a checkpoint whose `tokens` disagreed with its `text` — a hand-
+/// written one, a truncated one, a schema change that altered the estimator — would resume a run
+/// whose window arithmetic was wrong in a direction nothing reports. The stored number is
+/// redundant with the text; the text is the fact.
+///
+/// This is `CLAUDE.md`'s *"a validating constructor must be the only way in, and `serde` is a way
+/// in"* applied to the one derived field this type carries.
+impl<'de> Deserialize<'de> for Block {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Wire {
+            source: SourceKind,
+            text: String,
+            trust: TrustClass,
+            /// Read and discarded. Named so the field is accepted rather than rejected as
+            /// unknown, and so a reader of this struct sees that it is deliberately dropped.
+            #[serde(default, rename = "tokens")]
+            _tokens: u32,
+            #[serde(default)]
+            wire: Option<WireTurn>,
+        }
+        let w = Wire::deserialize(d)?;
+        Ok(Self {
+            tokens: estimate_tokens(&w.text),
+            source: w.source,
+            text: w.text,
+            trust: w.trust,
+            wire: w.wire,
+        })
+    }
+}
+
 /// A user-asserted or harness-asserted constraint. Constructed by the harness only.
 ///
 /// There is deliberately no `From<Block>` and no way to build one from model output: the stable
@@ -295,8 +332,24 @@ impl GovernanceConstraint {
     }
 }
 
+/// Through [`GovernanceConstraint::asserted`], never field-wise.
+///
+/// The doc comment above says there is *"no way to build one from model output"*. `serde` is a
+/// way in, and a checkpoint is the first caller. Routing it through the constructor keeps the
+/// single construction site single — which is the entire point of the private field.
+impl<'de> Deserialize<'de> for GovernanceConstraint {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct Wire {
+            text: String,
+        }
+        Ok(Self::asserted(Wire::deserialize(d)?.text))
+    }
+}
+
 /// Everything the assembler reads. The loop owns one of these per run.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SessionState {
     pub session: SessionId,
     /// The persona and the run's identity. Harness-authored.
