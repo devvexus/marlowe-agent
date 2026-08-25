@@ -1,5 +1,165 @@
 ﻿# State
 
+## 2026-08-25 — M3 SESSION F: THE AGENT WINDOW. ADR-054, ADR-055. Merged with A, green
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1285 passed, 0 failed, 4 ignored**, tallied from
+`runs/session-f/suite.txt` — 113 `test result` lines, exit 0, `MARLOWE_CUDA_LIB_DIR` set. Branch
+`m3-windows`, worktree `../Marlowe_F`, **7 commits ahead of `bc892e0`, 0 behind, merge known clean.
+Not merged to master — that is the human's call.**
+
+*(The count is quoted from the file, not from memory. Earlier tonight a headline number in this file
+was wrong against the file it named, and the fix is to re-tally every time it is restated.)*
+
+### What shipped
+
+A real terminal window per run: `marlowe --watch <run>`. Identity (status, elapsed, spend against
+ceiling), the checkpoint panel, streaming output through ADR-047's renderer, a steer field, cancel
+with the orphan policy stated plainly, and §6.3's four placeholder panels sized and empty. `/watch`
+in the TUI spawns one; closing **detaches** and never cancels. Best-effort spawn on Windows Terminal
+with a printed attach command as the fallback, so it degrades to a copy-paste rather than a broken
+button.
+
+**`--watch` changed hands, and the print did not disappear.** Session A shipped `--watch` as a
+one-shot print of a run's detail. §6.6 says *"`/watch` opens a window"*, so the flag became the
+window and the per-run print moved to `marlowe --runs <id>` — where a per-run listing belongs, and
+where a script reads it without a terminal.
+
+Two decisions, both written **before** the code they permit:
+
+* **ADR-055** — a run's own prose streams to its window; the quarantined reader's still does not.
+  Audit finding E4 had a **two-clause** fix and only the first was ever built; the second — *"move
+  the character check to the sink boundary"* — had no implementation and therefore no test, and
+  nothing noticed because after the suppression there was no path anyone was looking at. It exists
+  now (`window::prepared`) and is asserted on the rendered `Buffer`. The E4 test was **moved, not
+  deleted**: the loop-level half is untouched in `quarantine_batch.rs`, the boundary half is
+  `window_sanitiser.rs`, and `SECURITY-AUDIT.md`'s E4 row is now two rows.
+* **ADR-054** — a steer is a write, it has one door, and the door is where authority is checked.
+
+### THE ROSTER PANEL CAN NEVER FILL, AND THAT IS NOT THIS SESSION'S BUG
+
+`subagents — none` is honest today and stays honest **until someone wires spawn**, which is not
+scheduled. Verified in the code rather than taken on trust:
+
+* `crates/marlowe-tools/src/builtin.rs:348` — the description the model reads says *"This build
+  cannot spawn one yet, so the call is refused — do the work in this run instead."*
+* `ollama.rs` routes a model's `run` call to `ModelStep::ToolCall`, deliberately, so the model gets
+  a refusal it can act on. Its own comment says why: §5 requires a spawn's profile, budget and
+  orphan policy to be *declared, never inferred*, and the model supplies only a task.
+* **`ModelStep::Spawn` is constructed nowhere in production.** Every construction site is a test —
+  `spawn_and_budget.rs` and `durable_resume.rs`. `engine.rs:1199` is the match arm that consumes it.
+
+So the window is correct and **its multi-agent half is untestable against a real run**. Every
+child-run property in the workspace — orphan policy, budget grants at depth, the roster this panel
+exists for — is verified only against hand-constructed `ModelStep::Spawn` values. That is the
+strongest available argument for scheduling spawn next, and it comes from a surface rather than from
+an argument: the panel is built, honest, and has nothing to show.
+
+### Two defects, both found by USING it
+
+**`db2e0bf` — a steer over the wire skipped ADR-054's cap and `SteerOrigin`.** `control_plane.rs`'s
+`Steer` arm built a `SteerMessage` inline. It sanitised and refused an empty one, both right; it
+applied no length cap and carried no origin. That matters because a steer is the only channel that
+writes new `UserAsserted` strings into a run whose floor has already latched —
+`attribute_user_message` inserts *every* whitespace-separated token and `taint_for` reads that map
+**before** it reaches for the floor — so an unbounded steer was an unbounded budget of laundered
+targets.
+
+**It was caught by `steer_has_one_door.rs`, a grep guard written in this session, firing on code
+merged from Session A, in a session that was not auditing it.** That is the evidence the guard earns
+its place: a workspace grep for `SteerMessage {` outside `steer.rs` found a second construction site
+nobody was looking for. Mutation run on both halves — reverting the handler fails the wire test on
+its first assertion and fails the grep by naming the line.
+
+**`c11e29d` — steering a finished run reported `2 queued`.** Nothing consumes a terminal run's
+queue, so the guidance sat there forever while the user read success. Audit finding **E10's shape
+reached from the other end** — E10 was a child eating a parent's steer, *"the user's correction
+vanished with no error"*. `interrupted` is deliberately **not** terminal: that is what resume exists
+for, and guidance queued for it applies when it resumes.
+
+### THE PINNED CONTRACT PREVENTED DRIFT AND DID NOT PREVENT DUPLICATION
+
+**The lesson of this session, and it is new.** A and F were told to build against the same pinned
+`CONTRACTS.md` §5, in separate worktrees, and both did — faithfully. §5 is unchanged, nothing
+disagreed about a field, and the merge had five conflicts rather than the twelve predicted.
+
+**And a large part of F's daemon-side work was a duplicate.** Both sessions independently built a
+control plane: a second listener, a published port, per-run steering. Both even hit the same
+`port + 1` collision and both replaced it with an advertised port. F's `watch.rs` was deleted whole
+and the window re-plumbed onto A's, which is the better one — it is journal-backed, seeds from the
+checkpoint store, and owns the run table.
+
+Pinning a contract fixes the *types at a boundary*. It says nothing about **who owns the file**, and
+two sessions with adjacent scopes will both build the part in the middle. The next parallel pair
+needs an ownership boundary, not only a type one: *A owns `marlowe-daemon/src/`, F owns
+`marlowe-surface/src/` and consumes what A exports.* That sentence would have saved most of a
+session.
+
+**The merge also produced a collision the contract could not see: two different ADR-053s.** A's
+checkpoint ADR shipped to master; F's E4 entry renumbered to **ADR-055** before merging, while every
+reference to it was still unambiguously F's. Renumbering after the merge would have meant
+disambiguating twenty-three references by hand.
+
+### A RUNNING PROCESS LOCKS THE BINARY IT WAS BUILT FROM, AND KILLING `cargo` DOES NOT KILL IT
+
+**Three times tonight, and the third nearly put a false verification in the record.** A fix to the
+steer path was "verified" against a **stale binary**: `cargo build --release` had failed with
+`Access is denied (os error 5)` because a daemon started minutes earlier still held
+`target/release/marlowe.exe`, and the old binary happily queued the steer. Caught by **reading the
+build output instead of assuming it succeeded** — the tail said `Access is denied`, not `Finished`.
+Killing the daemons and rebuilding produced the refusal.
+
+The same shape appeared twice more as `LNK1104` from orphaned test binaries that outlived a killed
+`cargo`. **Killing `cargo` does not kill the processes it spawned.** So: if a build fails to link or
+to write, look for a live process holding the file **before** anything else — and re-read the build
+output before believing any live verification.
+
+This is CLAUDE.md's stale-deployment family (`persona_emission.rs` green while the daemon served a
+pre-persona binary), with a new and more mundane cause.
+
+### Found by the merge: a declared control with no reader, in this session's own code
+
+`WindowApp::now_ms` and `window::pulse` went in when elapsed was `now_ms - started_ms` computed in
+the surface. A's `ControlPlane::detail` resolves elapsed on the daemon — which is the thing that
+holds a clock — so the last reason for a clock in the window went away. **`pulse` was already the
+sixteenth instance's shape**: a helper with a green test asserting it is a pure function of time and
+**no caller anywhere in the draw path**. Both deleted.
+
+The property got *stronger*: a window frame is now a pure function of state alone, and
+`two_windows_on_one_runs_state_are_the_same_frame` asserts it unconditionally rather than "at the
+same instant". The window process reads no clock either — `event::poll`'s bounded wait is the
+pacing, which `determinism_guard.rs` is what forced.
+
+### Verified end to end, on a live daemon
+
+Daemon on a scratch profile, `marlowe-red:9b`, real turn. The control plane **answered `--runs`
+while the turn was in flight**, which is the entire reason it is a second listener. Frames stream
+and coalesce as designed — a twenty-line answer arrived as **one** `run_output` frame, not hundreds
+of token frames:
+
+```
+frames by kind: {'run_detail': 1, 'run_output': 2}
+  seq 1  reasoning  'The user wants me to count from one to twenty...'
+  seq 2  text       '1 (one)\n2 (two)\n3 (three)...'
+```
+
+### Known gaps, stated rather than left to be found
+
+* **The window has never been driven in a real terminal by this session.** Every assertion about it
+  is on a headless `Buffer`, which is the right instrument for a frame and says nothing about
+  crossterm, raw mode, or the OSC 0 title. M1 produced three bugs that only *using* the TUI caught.
+* **`spend $0 of $0` for the first seconds of a run.** The ceiling is read from the checkpoint store
+  and there is no checkpoint until the first step, so a brand-new run briefly renders a zero
+  denominator. `spend_fraction` treats `0` as *absent* rather than *reached*, so nothing is wrong
+  underneath; the panel is what reads oddly.
+* **`tool_call` in `watch_client.rs` duplicates `project.rs`'s verb whitelist.** Noted in the code.
+  The honest fix is for `project.rs` to export it, which would have edited the main pane's render
+  path from a window session.
+* **`models/` is a junction into the main checkout**, because it is gitignored and a worktree does
+  not get one. Without it `cuda_libs_wiring` fails — correctly, refusing to be vacuous when neither
+  model is present. Any new worktree needs the junction before its suite means anything.
+
+---
+
 ## 2026-08-25 — M3 SESSION A: RUNS ARE DURABLE. ADR-053. `CONTRACTS.md` §5 UNCHANGED
 
 **THE WORKSPACE COUNT IS NOT FILE-BACKED, AND THAT IS THE FIRST THING TO FIX NEXT SESSION.**
