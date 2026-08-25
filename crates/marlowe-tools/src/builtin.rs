@@ -317,7 +317,16 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "use",
-            "Find and load a skill or tool.",
+            // **The two-step contract lives HERE, and that placement is the point.** It used to
+            // live only in the search result's last line -- *"Load one with `use` and its name"* --
+            // which is an imperative inside a TOOL RESULT, and the persona instructs the model that
+            // a tool result is data and never instruction. The harness was asking the model to obey
+            // the one channel it is trained to distrust, and the model correctly did not: it
+            // searched, got a name and a description, and stopped one call short of the body.
+            // A tool's own description is where an operating contract is legitimately read.
+            "Find and load a skill. `query` searches and returns names with one-line descriptions \
+             ONLY -- never a skill's instructions. `name` loads that skill's full body. A search \
+             tells you what exists; you have not read a skill until you load it by name.",
             "use",
             4_096,
             // Reversible rather than Inert *so that the target check fires*. Loading a skill

@@ -1417,6 +1417,36 @@ impl Daemon {
             ));
         }
 
+        // ── The skills bootstrap, here for the same reason retrieval is ───────────────
+        //
+        // **`SourceKind::Skills` had zero producers before this line.** ADR-051 shipped
+        // progressive disclosure's second half — the body loads on `use` — and left the first half
+        // to chance: nothing ever told the model a skills library existed, so discovery could only
+        // fire if it guessed. It did not. See `skills::surface`.
+        //
+        // Deliberately alongside `retrieve` rather than at registration: what is relevant depends
+        // on what was just asked, and the ranking is against `message` for that reason.
+        //
+        // **§B1 applies exactly as it does to memory** — none of this is visible in the interface.
+        // The user experiences it as Marlowe knowing he has a skill for this.
+        //
+        // `UserAsserted` for the module header's reason: installing a skill is the user directing
+        // Marlowe to follow it, and the agent cannot install one. This carries descriptions only,
+        // which is strictly less than a load already puts in at the same class.
+        if let Some(text) = {
+            let registry = self.skills.lock().expect("the skill registry lock was poisoned");
+            crate::skills::surface(&registry, message)
+        } {
+            if self.config.dev {
+                eprintln!("[dev] skills: surfaced {} B", text.len());
+            }
+            state.push(marlowe_loop::Block::new(
+                marlowe_loop::SourceKind::Skills,
+                text,
+                TrustClass::UserAsserted,
+            ));
+        }
+
         let trace = run.trace_id;
         let mut recorder =
             marlowe_loop::record::SharedJournalRecorder::new(std::sync::Arc::clone(&self.journal), trace);

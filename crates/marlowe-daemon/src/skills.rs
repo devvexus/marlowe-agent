@@ -93,31 +93,6 @@ impl<H: ToolHost> SkillTools<H> {
         Self { inner, skills }
     }
 
-    /// Rank installed skills against a query. **One function**, so the discovery path and any
-    /// test of it cannot disagree about what is scored — and so replacing BM25 with an embedder
-    /// later is one edit rather than a search.
-    ///
-    /// Scores exactly [`Skill::discovery_text`]: the description and the trigger phrases, never
-    /// the body. §7.1.
-    fn rank<'a>(skills: &'a [&'a Skill], query: &str) -> Vec<(&'a Skill, f32)> {
-        let texts: Vec<String> = skills.iter().map(|s| s.discovery_text()).collect();
-        let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-        let scores = lexical::score_texts(&refs, query);
-
-        let mut order: Vec<usize> = (0..skills.len()).collect();
-        // Score descending, then id ascending. The tiebreak is not decoration: two equal scores
-        // ordered by whatever the collection did would make one run's discovery differ from the
-        // next, and `repro` compares runs byte for byte.
-        order.sort_by(|a, b| {
-            scores[*b].total_cmp(&scores[*a]).then_with(|| skills[*a].id().cmp(skills[*b].id()))
-        });
-        // A zero score means the query shares no vocabulary with the skill. Returning those would
-        // pad the answer with skills the model then has to argue its way out of.
-        order.retain(|i| scores[*i] > 0.0);
-        order.truncate(DISCOVERY_LIMIT);
-        order.into_iter().map(|i| (skills[i], scores[i])).collect()
-    }
-
     fn discover(&self, query: &str) -> ToolOutcome {
         let skills = self.skills.lock().expect("the skill registry lock was poisoned");
         let all: Vec<&Skill> = skills.iter().collect();
@@ -130,7 +105,7 @@ impl<H: ToolHost> SkillTools<H> {
             );
         }
 
-        let hits = Self::rank(&all, query);
+        let hits = rank(&all, query);
         if hits.is_empty() {
             return harness_says(
                 &format!(
@@ -151,9 +126,18 @@ impl<H: ToolHost> SkillTools<H> {
             // The score is deliberately NOT printed. It is a BM25 magnitude with no calibrated
             // meaning, and a number beside a name invites the model to reason about the gap
             // between two of them as though it were a probability.
-            out.push_str(&format!("- {}: {}\n", skill.id(), skill.description().text()));
+            // **State, not instruction.** The byte count is here so that "there is more, and you
+            // have not read it" is a FACT ABOUT THE DATA the model can reason over, rather than an
+            // imperative in a tool result -- which the persona tells it to treat as data and never
+            // as instruction. The size is the body's, and the body is what a load returns.
+            out.push_str(&format!(
+                "- {} [body {} B, not loaded]: {}\n",
+                skill.id(),
+                skill.body().bytes(),
+                skill.description().text()
+            ));
         }
-        out.push_str("\nLoad one with `use` and its name.");
+        out.push_str("\nDescriptions only. No skill body above has been read.");
 
         ToolOutcome {
             summary: ResultSummary::new(vec![
@@ -222,6 +206,84 @@ impl<H: ToolHost> SkillTools<H> {
             ),
         }
     }
+}
+
+/// Rank installed skills against a query. **One function**, so the `use` discovery path, the
+/// per-turn surfacing in [`surface`] and any test of either cannot disagree about what is scored —
+/// and so replacing BM25 with an embedder later is one edit rather than a search.
+///
+/// Scores exactly [`Skill::discovery_text`]: the description and the trigger phrases, never the
+/// body. §7.1.
+///
+/// **Lifted out of `impl SkillTools` when surfacing landed.** A second ranker beside this one would
+/// be two answers to *"which skill is relevant"*, which is the two-sides-silently-disagree shape.
+fn rank<'a>(skills: &'a [&'a Skill], query: &str) -> Vec<(&'a Skill, f32)> {
+    let texts: Vec<String> = skills.iter().map(|s| s.discovery_text()).collect();
+    let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let scores = lexical::score_texts(&refs, query);
+
+    let mut order: Vec<usize> = (0..skills.len()).collect();
+    // Score descending, then id ascending. The tiebreak is not decoration: two equal scores
+    // ordered by whatever the collection did would make one run's discovery differ from the
+    // next, and `repro` compares runs byte for byte.
+    order.sort_by(|a, b| {
+        scores[*b].total_cmp(&scores[*a]).then_with(|| skills[*a].id().cmp(skills[*b].id()))
+    });
+    // A zero score means the query shares no vocabulary with the skill. Returning those would
+    // pad the answer with skills the model then has to argue its way out of.
+    order.retain(|i| scores[*i] > 0.0);
+    order.truncate(DISCOVERY_LIMIT);
+    order.into_iter().map(|i| (skills[i], scores[i])).collect()
+}
+
+/// **THE DISCOVERY BOOTSTRAP. ADR-051 amendment, 2026-08-24.**
+///
+/// Progressive disclosure shipped with a hole at the front of it: the body-loads-on-`use` half
+/// worked, and the *discovery* half assumed something had told the model a library existed. Nothing
+/// did. `SourceKind::Skills` had **zero producers** — a declared block kind nobody constructed — so
+/// the only route to a skill was the model spontaneously deciding to call `use(query = ...)` with no
+/// reason to suspect there was anything to find. Asked *"do you have anything that helps?"* it
+/// searched the filesystem and reached for `bash`, which is the correct move on the information it
+/// had.
+///
+/// Two lines, and they answer two different questions:
+///
+/// * **the count** — *"a skills library exists"*. Without it the category is invisible and the
+///   model cannot ask about something it does not know is there. Costs ~12 tokens a turn.
+/// * **the hits** — *"and this one matches what you were just asked"*. Ranked by [`rank`] against
+///   the user's own message, so the cost is zero when nothing matches.
+///
+/// **This is a context block, not a tool result, and that is what makes the closing instruction
+/// legitimate.** The same sentence inside a `use` result is an imperative in data the persona tells
+/// the model to distrust — which is exactly why the old *"Load one with `use` and its name"* was
+/// ignored. Here it is harness-authored context, the channel an operating instruction belongs in.
+///
+/// Returns `None` when no skills are installed, so a profile without a `skills/` directory pays
+/// nothing and the block never appears.
+pub(crate) fn surface(skills: &SkillRegistry, message: &str) -> Option<String> {
+    let all: Vec<&Skill> = skills.iter().collect();
+    if all.is_empty() {
+        return None;
+    }
+
+    let mut out = format!(
+        "{} skill(s) installed in this profile. Search them with `use`.\n",
+        all.len()
+    );
+
+    let hits = rank(&all, message);
+    if !hits.is_empty() {
+        out.push_str("Possibly relevant here:\n");
+        for (skill, _) in &hits {
+            // Description only. The body is what `use(name = ...)` returns, and putting it here
+            // would make every turn pay for instructions the model may never need -- which is the
+            // whole point of progressive disclosure.
+            out.push_str(&format!("- {}: {}\n", skill.id(), skill.description().text()));
+        }
+        out.push_str("Load one with `use` and its name to read its instructions.\n");
+    }
+
+    Some(out)
 }
 
 fn harness_says(detail: &str, metrics: Vec<Metric>) -> ToolOutcome {
@@ -391,6 +453,97 @@ mod tests {
         let (registry, errors) = marlowe_tools::skill::scan(root, 0);
         assert!(errors.is_empty(), "the fixture skills must all load: {errors:?}");
         SkillTools::new(Nothing, Arc::new(Mutex::new(registry)))
+    }
+
+    fn registry(root: &std::path::Path) -> SkillRegistry {
+        let (registry, errors) = marlowe_tools::skill::scan(root, 0);
+        assert!(errors.is_empty(), "the fixture skills must all load: {errors:?}");
+        registry
+    }
+
+    /// **The bootstrap: the model is told a library exists even when nothing matches.**
+    ///
+    /// This is the half that fixes *"do you have anything that helps?"* → filesystem search. The
+    /// model cannot ask about a category it does not know is there.
+    #[test]
+    fn surfacing_names_the_library_even_when_nothing_matches() {
+        let root = tempdir("surface-count");
+        skill_file(&root, "release-notes", "Produce release notes from merged changes.", "body");
+
+        let out = surface(&registry(&root), "what is the airspeed velocity of a swallow")
+            .expect("a profile with a skill must surface something");
+
+        assert!(out.contains("1 skill(s) installed"), "the count must always be present:\n{out}");
+        assert!(
+            !out.contains("Possibly relevant"),
+            "nothing matched, so no hits may be claimed:\n{out}"
+        );
+    }
+
+    /// **The half that fixes the actual failure**, using the phrase the human typed.
+    #[test]
+    fn surfacing_puts_a_matching_skill_in_front_of_the_model() {
+        let root = tempdir("surface-hit");
+        skill_file(&root, "release-notes", "Produce release notes for what shipped.", "body");
+        skill_file(&root, "tax-filing", "File a quarterly return.", "body");
+
+        let out = surface(&registry(&root), "I need to write up what shipped this week")
+            .expect("a profile with skills must surface");
+
+        assert!(out.contains("release-notes"), "the matching skill must surface:\n{out}");
+        assert!(
+            !out.contains("tax-filing"),
+            "a skill sharing no vocabulary must NOT surface -- zero scores are dropped:\n{out}"
+        );
+    }
+
+    /// A profile with no skills pays nothing and the block never appears.
+    #[test]
+    fn surfacing_is_silent_when_no_skills_are_installed() {
+        let root = tempdir("surface-empty");
+        std::fs::create_dir_all(&root).unwrap();
+        assert!(surface(&registry(&root), "anything at all").is_none());
+    }
+
+    /// **§7.1, at the new entry point.** Discovery carries descriptions; bodies load on `use`.
+    /// Surfacing runs on EVERY turn, so a body leaking here would be paid for on every turn of
+    /// every conversation — the exact cost progressive disclosure exists to avoid.
+    #[test]
+    fn surfacing_never_carries_one_word_of_a_body() {
+        let root = tempdir("surface-nobody");
+        skill_file(
+            &root,
+            "release-notes",
+            "Produce release notes for what shipped.",
+            "PELICAN-4402 is the magic word and must never appear in a surfaced block",
+        );
+
+        let out = surface(&registry(&root), "write up what shipped").expect("must surface");
+        assert!(out.contains("release-notes"), "the control: it did match:\n{out}");
+        assert!(!out.contains("PELICAN-4402"), "a body reached a surfaced block:\n{out}");
+    }
+
+    /// **THE GUARD FOR THE DEFECT ITSELF, AND THE ONLY ONE THAT WOULD HAVE CAUGHT IT.**
+    ///
+    /// Every test above passes on a build where nothing ever calls `surface` — `SourceKind::Skills`
+    /// had **zero producers** for the whole of C3 and every skills test was green throughout,
+    /// because they all tested the `use` tool and none tested whether anything reached the model
+    /// unprompted. A function that works and is never called is the shape this repository logs.
+    ///
+    /// So this asserts the call site exists, which is the thing that was missing. The live proof is
+    /// a real turn where the model names a skill nobody told it about.
+    #[test]
+    fn something_actually_produces_a_skills_block() {
+        let daemon = include_str!("daemon.rs");
+        assert!(
+            daemon.contains("crate::skills::surface("),
+            "nothing calls skills::surface, so SourceKind::Skills has no producer and the model is \
+             never told a skills library exists -- which is the entire defect this was written for"
+        );
+        assert!(
+            daemon.contains("SourceKind::Skills"),
+            "the vacuity control: the call above is only meaningful if its result becomes a block"
+        );
     }
 
     #[test]
