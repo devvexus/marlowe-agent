@@ -497,9 +497,46 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
 /// Wrapping happens here rather than in `Paragraph` because the scrollbar needs the true line
 /// count. A scrollbar sized from unwrapped lines lies by exactly the amount of prose on screen.
 pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a>> {
+    entry_lines(
+        &app.view().transcript,
+        theme,
+        width,
+        app.reasoning_expanded,
+        &|call| app.is_expanded(call),
+        &|n| crate::commands::render_notice(app.view(), n),
+    )
+}
+
+/// **The one definition of what a transcript looks like**, over the entries alone.
+///
+/// The conversation pane and a run window (`M3-DESIGN.md` §6) both draw the same
+/// [`marlowe_view::Entry`] vocabulary, and §6.4 is explicit that the window must not reimplement the
+/// look: *"Two definitions of a border is the two-sides-silently-disagree shape applied to pixels."*
+/// So the three pieces of **looking-at** state this needs arrive as parameters rather than as an
+/// `App`, and there is exactly one body.
+///
+/// `notice` is a closure because rendering a harness [`marlowe_view::Notice`] needs the command and
+/// key registries, which a run window does not have — it has no command palette, and saying it has
+/// one would be the surface inventing a capability. Each caller supplies the context it actually
+/// holds.
+///
+/// **This does not sanitise `Entry::User`, deliberately.** That path is the main pane's
+/// characterisation of what ratatui filters — see `tests/display_sanitiser.rs`, whose header records
+/// that a probe has to use a path where the dependency is the only thing in the way. The run window
+/// meets ADR-055's condition by preparing its entries *before* they arrive here; putting a sanitiser
+/// in this arm would make that file vacuous about its own subject a second time.
+#[allow(clippy::too_many_arguments)]
+pub fn entry_lines<'a>(
+    entries: &[marlowe_view::Entry],
+    theme: &Theme,
+    width: u16,
+    reasoning_expanded: bool,
+    is_expanded: &dyn Fn(&marlowe_view::ToolCall) -> bool,
+    notice: &dyn Fn(&marlowe_view::Notice) -> Vec<String>,
+) -> Vec<Line<'a>> {
     let mut out: Vec<Line> = Vec::new();
     let w = width.max(20) as usize;
-    for entry in &app.view().transcript {
+    for entry in entries {
         match entry {
             // **Weight 1 — the terminal's own foreground.** What the user typed is not chrome and
             // not the machine's own noise; it is the other half of the conversation.
@@ -542,7 +579,7 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
                     // authored. They also skip the chrome reservation, because the harness is
                     // allowed to draw chrome and the model is not.
                     marlowe_view::Speech::Harness(n) => {
-                        for raw in crate::commands::render_notice(app.view(), n) {
+                        for raw in notice(n) {
                             for l in wrap(&raw, w) {
                                 out.push(Line::from(Span::styled(l, base)));
                             }
@@ -558,7 +595,7 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
             // while the machine is working. §B5's rule is that motion means Marlowe is working —
             // this is the part of the work that was invisible.
             Entry::Reasoning { text, done } => {
-                let expanded = app.reasoning_expanded;
+                let expanded = reasoning_expanded;
                 // The glyphs come from `crate::chrome`, which is also the set model prose may not
                 // contain. One definition: a marker that is drawn is a marker that is reserved,
                 // and there is nowhere else to get one from.
@@ -616,7 +653,7 @@ pub fn transcript_lines<'a>(app: &App, theme: &Theme, width: u16) -> Vec<Line<'a
             Entry::Tools(calls) => {
                 for call in calls {
                     out.push(tool_line(call, theme, w));
-                    if app.is_expanded(call) {
+                    if is_expanded(call) {
                         out.extend(expansion(call, theme, w));
                     }
                 }

@@ -309,7 +309,7 @@ impl Produce for LiveSession {
             // **The window is Session F's; the state it renders is this.** So this fetches the
             // daemon's `RunDetail` and folds it into the Runs pane, which is the same state the
             // window will render — one state, two renderings, and F replaces the second one.
-            Intent::Watch { run } => match self.client.watch(&run) {
+            Intent::Watch { run } => match self.client.watch(&run, 0) {
                 Ok(events) => {
                     crate::project::apply_events(&mut self.view, &events);
                     Ok(())

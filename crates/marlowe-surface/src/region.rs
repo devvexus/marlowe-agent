@@ -38,6 +38,30 @@ pub enum RegionId {
     /// An inspector item, addressed by the tab it lives on and its index in that pane.
     Item(TabId, usize),
     Message,
+
+    // ── a run window (`M3-DESIGN.md` §6) ────────────────────────────────────────────────────
+    //
+    // A window is a **different surface over the same region contract**, not a second contract.
+    // These live in this enum rather than in one of their own precisely so `Region` — the only
+    // constructor of a bordered `Block` in this crate — is what draws them, and so
+    // `b13_region_contract.rs`'s grep keeps covering them.
+    //
+    // They never appear in a `RegionTree::build` tree and the window's regions never appear in a
+    // main-pane tree, so the two key sets are independent: `RunSteer` may share `i` with
+    // [`RegionId::Message`] because no frame ever shows both, and both mean "type here".
+    /// Id, status, elapsed, spend against ceiling.
+    RunIdentity,
+    /// Last completed step, and what a resume would resume from.
+    RunCheckpoint,
+    /// The run's streaming output. ADR-055.
+    RunOutput,
+    /// The steer field. **A write** — ADR-054.
+    RunSteer,
+    /// §6.3's placeholders. Empty is a fact, never a roadmap.
+    RunSubagents,
+    RunBudget,
+    RunScopeMemory,
+    RunMeetings,
 }
 
 /// The inspector's six panes. Mirrors `marlowe_view::Tab`; kept separate so the surface's region
@@ -243,6 +267,28 @@ impl RegionTree {
         // rather than the focus vanishing — a Tab press that does nothing is indistinguishable
         // from a dropped keystroke, and §B13 counts those.
         self.regions.iter().position(|r| r.id == id).unwrap_or(0)
+    }
+
+    /// A run window's regions, in reading order. `M3-DESIGN.md` §6.2 and §6.3.
+    ///
+    /// **Every panel exists from the first frame, including the four that have no producer yet.**
+    /// §6.3: a placeholder states a fact, so `Subagents` is present and empty rather than absent —
+    /// which is what stops the layout moving when the roster lands. The tree does not depend on the
+    /// [`marlowe_view::RunView`] at all, for the same reason: a region that appeared only once it
+    /// had content would move every other region on the day it arrived.
+    pub fn for_window() -> Self {
+        Self {
+            regions: vec![
+                Region::new(RegionId::RunIdentity, "Run", 'r'),
+                Region::new(RegionId::RunCheckpoint, "Checkpoint", 'k'),
+                Region::new(RegionId::RunOutput, "Output", 'o'),
+                Region::new(RegionId::RunSubagents, "Subagents", 'g'),
+                Region::new(RegionId::RunBudget, "Budget", 'b'),
+                Region::new(RegionId::RunScopeMemory, "Scope memory", 'y'),
+                Region::new(RegionId::RunMeetings, "Meetings", 'e'),
+                Region::new(RegionId::RunSteer, "Steer", 'i'),
+            ],
+        }
     }
 
     pub fn first(&self) -> RegionId {

@@ -448,26 +448,30 @@ fn a_run_id(value: Option<&str>, flag: &str) -> Result<String, String> {
 }
 
 /// `marlowe --runs` -- **every run the daemon owns**, read from the daemon.
-pub fn runs(profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
-    let events = live_client(profile_root, port)?.runs().map_err(|e| e.to_string())?;
+/// `marlowe --runs <id>` -- that one run in full, including what a resume would resume from.
+///
+/// # The per-run form used to be `--watch`
+///
+/// `--watch` now opens a window (§6.6: *"`/watch` opens a window; it does not stream into the
+/// conversation pane"*), so the printing form moved here — which is where a per-run listing belongs
+/// anyway. **Nothing was lost**: this is the classic surface, it has no window, and it prints the
+/// same state the window renders. One state, two renderings, and this is the second one.
+pub fn runs(run: Option<&str>, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+    let client = live_client(profile_root, port)?;
+    if let Some(run) = run.filter(|r| !r.trim().is_empty()) {
+        // `since: 0` -- everything. A printed listing is a snapshot and has no earlier poll to
+        // continue from.
+        let events = client.watch(run.trim(), 0).map_err(|e| e.to_string())?;
+        render(&events);
+        return Ok(());
+    }
+    let events = client.runs().map_err(|e| e.to_string())?;
     if events.is_empty() {
         // A fact, not a layout filler (§6.3). "No runs" is true; printing nothing would read as
         // a failure to ask.
         println!("no runs");
         return Ok(());
     }
-    render(&events);
-    Ok(())
-}
-
-/// `marlowe --watch <run>` -- one run in full, including what a resume would resume from.
-///
-/// §6.6: *"`/watch` opens a window; it does not stream into the conversation pane."* This is the
-/// classic surface, which has no window, so it prints the same state the window renders -- one
-/// state, two renderings, and this is the second one.
-pub fn watch(run: Option<&str>, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
-    let run = a_run_id(run, "--watch")?;
-    let events = live_client(profile_root, port)?.watch(&run).map_err(|e| e.to_string())?;
     render(&events);
     Ok(())
 }
@@ -662,6 +666,11 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 writeln!(out, "  steers      {pending_steers} queued")?;
             }
             Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
+            // **The control plane's frames, and the classic CLI does not render them here.**
+            // `--ask` is a conversation; `--watch` and `--runs` are where a run's own state is
+            // shown, and `watch.rs` formats them. Listing the variants rather than sweeping them
+            // into a `_` keeps the next `Event` somebody adds a compile error at this site.
+            Event::RunDetail { .. } | Event::RunOutput { .. } => {}
         }
     }
     Ok(())

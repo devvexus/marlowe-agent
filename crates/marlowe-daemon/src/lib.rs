@@ -53,12 +53,15 @@ pub mod skills;
 pub mod project;
 mod staleness;
 pub mod protocol;
+/// The client half of the control plane, and the projection a run window renders.
+pub mod watch_client;
 
 pub use client::{Client, ClientError};
 pub use daemon::{Daemon, DaemonConfig, DaemonError, ModelProviderChoice, governance_prompt};
 pub use live::LiveSession;
 pub use project::{apply_events, view_from_status, PROVIDERS};
-pub use protocol::{Event, Request, StatusReport};
+pub use protocol::{Event, Request, RunFrame, StatusReport};
+pub use watch_client::RunProjection;
 
 /// The loopback port the daemon listens on.
 ///

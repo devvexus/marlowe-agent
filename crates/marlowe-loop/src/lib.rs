@@ -34,6 +34,7 @@ pub mod profile;
 pub mod provenance;
 pub mod record;
 pub mod run;
+pub mod steer;
 pub mod turn;
 
 pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS};
@@ -56,6 +57,7 @@ pub use engine::{
 };
 pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
 pub use provenance::Provenance;
+pub use steer::{MAX_STEER_CHARS, SteerOrigin, SteerRefused, admit as admit_steer};
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};
 pub use run::{
     is_renderable, CondensedResult, ContractViolation, FieldSpec, FieldType, OrphanPolicy,

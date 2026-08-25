@@ -144,3 +144,63 @@ fn the_conversation_never_drops_below_55_percent_of_the_split() {
         );
     }
 }
+
+// ─── a run window is a second surface over the same contract (`M3-DESIGN.md` §6) ──────────────
+
+/// §B2 applies to every bordered thing in the product, not to the main frame's regions only.
+///
+/// **Re-asserted rather than inherited.** The main pane's green says nothing about a file that
+/// builds its own panels — that is the *"a measurement is scoped to the system it was taken on"*
+/// family, and §6.4's whole point is that the window borrows the contract instead of writing a
+/// second one.
+#[test]
+fn every_region_in_a_run_window_has_a_label_and_a_hotkey() {
+    let tree = RegionTree::for_window();
+    assert!(!tree.regions().is_empty(), "premise: a window has regions at all");
+    for r in tree.regions() {
+        assert!(!r.label().trim().is_empty(), "{:?} has no label", r.id());
+        assert!(
+            !r.hotkey().is_control() && !r.hotkey().is_whitespace(),
+            "{:?} has no reachable hotkey",
+            r.id()
+        );
+    }
+    println!(
+        "run window: {} bordered regions with a label and a hotkey (100%)",
+        tree.regions().len()
+    );
+}
+
+/// A window shows every one of its regions at once — there is no tab — so **every** key in it must
+/// be distinct. This is a stronger requirement than the main frame's, where two panes are never
+/// visible together.
+#[test]
+fn no_two_regions_in_a_run_window_claim_the_same_key() {
+    let mut seen: BTreeMap<char, String> = BTreeMap::new();
+    for r in RegionTree::for_window().regions() {
+        if let Some(prev) = seen.insert(r.hotkey(), r.label().to_string()) {
+            panic!(
+                "in a run window '{}' is claimed by both {prev:?} and {:?}, and both are on \
+                 screen at once",
+                r.hotkey(),
+                r.label()
+            );
+        }
+    }
+}
+
+/// §6.3: the placeholders **exist from day one**, so the tree does not depend on the run at all.
+/// A region that appeared only once it had content would move every other region on the day it
+/// arrived — which is the churn the placeholder rule exists to prevent.
+#[test]
+fn a_windows_region_tree_does_not_depend_on_what_the_run_holds() {
+    let ids: Vec<_> = RegionTree::for_window().regions().iter().map(|r| r.id()).collect();
+    for want in [
+        marlowe_surface::region::RegionId::RunSubagents,
+        marlowe_surface::region::RegionId::RunBudget,
+        marlowe_surface::region::RegionId::RunScopeMemory,
+        marlowe_surface::region::RegionId::RunMeetings,
+    ] {
+        assert!(ids.contains(&want), "{want:?} is missing from a fresh window's tree");
+    }
+}

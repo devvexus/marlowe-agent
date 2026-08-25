@@ -744,8 +744,53 @@ fn advance(session: &mut impl Produce, app: &mut App, now_ms: u64) {
             app.refused(&e);
         }
     }
+    serve_window_asks(app);
     session.tick(now_ms);
     app.update(session.view().clone());
+}
+
+/// `/watch` and `/steer`, which the **driver** performs. `M3-DESIGN.md` §6.6.
+///
+/// # Why these are not `Intent`s
+///
+/// An `Intent` is something the *producer* — the session — applies. Neither of these is: opening a
+/// window is a process spawn, and steering reaches the control plane of a run this session may not
+/// even have started. Routing them through the producer would put a socket and a `Command` behind
+/// `Produce`, which is a trait `marlowe-stub` also implements with neither.
+///
+/// **`/watch` never streams into the conversation pane**, which is §6.6's first rule: filling the
+/// main pane with agent output halts the conversation *visually*, and that is what this milestone
+/// exists to stop. What lands here is one client line saying where the window went — or, when a
+/// window could not be opened, the command that attaches from anywhere.
+fn serve_window_asks(app: &mut App) {
+    use marlowe_surface::commands::Outcome;
+    use marlowe_view::{CommandLine, Echo, Notice, Terminal, Tone};
+
+    for ask in app.drain_window_asks() {
+        match ask {
+            Outcome::Watch(run) => {
+                let out = crate::launcher::open_window(&run);
+                if let Some(why) = &out.degraded {
+                    // The reason is the launcher's own — a missing `wt.exe`, an unsupported
+                    // platform — and it is shown before the command rather than instead of it.
+                    app.set_status_detail(why.clone());
+                }
+                app.note(
+                    Notice::WindowOpened {
+                        run: Echo::new(run),
+                        // A closed set: the harness only names terminals it knows how to drive.
+                        terminal: out
+                            .terminal
+                            .as_deref()
+                            .and_then(|t| (t == "Windows Terminal").then_some(Terminal::WindowsTerminal)),
+                        command: CommandLine::new(out.command),
+                    },
+                    Tone::Normal,
+                );
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Which inspector tab a pointer is over. Geometry from `render::tab_rects`, never recomputed.

@@ -27,9 +27,12 @@ fn read(name: &str) -> String {
 
 /// ADR-030 §5, mechanically: **a variant carries typed facts, never prose.**
 ///
-/// The exemptions are two newtypes, and they are newtypes precisely so this test can tell them
+/// The exemptions are three newtypes, and they are newtypes precisely so this test can tell them
 /// apart from a `String` field: [`marlowe_view::Echo`] is text the *user* typed, quoted back
-/// verbatim, and `PathLabel` is a path the permission layer resolved. Neither is composed.
+/// verbatim; `PathLabel` is a path the permission layer resolved; and `CommandLine` is a command the
+/// harness assembled for the reader to copy (`M3-DESIGN.md` §6.7). **None of the three is composed
+/// prose**, which is the property §5 is actually about — the count is not the rule, and a fourth
+/// would be fine on the same terms.
 #[test]
 fn no_notice_field_is_a_free_text_string() {
     let src = read("notice.rs");

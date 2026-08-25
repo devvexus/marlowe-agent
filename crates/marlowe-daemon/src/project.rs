@@ -332,6 +332,19 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             Event::Error { detail } => {
                 view.status.degraded = Some(classify_degradation(detail));
             }
+            // **A run's OUTPUT does not enter the conversation.** §6.6's first interface rule:
+            // *"`/watch` opens a window; it does not stream into the conversation pane. Filling the
+            // main pane with agent output halts the conversation visually, which is what M3 exists
+            // to stop."* A window renders these; this pane does not.
+            //
+            // `RunDetail` is deliberately **not** here — it is handled above, into the Runs pane,
+            // which is Session A's and is right: a run's *state* belongs in the roster, and only
+            // its *prose* is what §6.6 keeps out. Listing it here as well made this arm
+            // unreachable, and the compiler said so.
+            //
+            // Listed rather than swept into a `_`, so the next `Event` variant somebody adds is a
+            // compile error here rather than a frame that silently does nothing.
+            Event::RunOutput { .. } => {}
         }
     }
 }

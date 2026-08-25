@@ -180,7 +180,16 @@ pub struct RunSummary {
     /// What the run has cost, and how long it has been going. **M3 Session A**: §6.2's window
     /// renders *"elapsed, spend against ceiling"* and there was nowhere to read either from.
     pub spend_micros_usd: u64,
+    /// The run's final wall time, set when the turn ends. **`0` while it is still going** — see
+    /// `started_ms`, and `ControlPlane::detail`, which is where the two become one number.
     pub elapsed_ms: u64,
+    /// When the daemon accepted the work, on the wall clock. **Session F.**
+    ///
+    /// `elapsed_ms` alone could not drive a window: it is written once, at the end, so a run that
+    /// had been going for a minute reported `0` for the whole minute. A window whose elapsed reads
+    /// zero while the thing is visibly working is the surface contradicting itself in the one panel
+    /// whose job is saying what is happening.
+    pub started_ms: u64,
 }
 
 impl RunSummary {
@@ -195,6 +204,11 @@ impl RunSummary {
             attribution: None,
             spend_micros_usd: 0,
             elapsed_ms: 0,
+            // **Through the fence.** §4.5 forbids a system clock on the contract paths and names
+            // the legitimate case in the same paragraph — in production the harness supplies the
+            // real clock. `SystemClock` is that harness's one clock, and `determinism_guard.rs`
+            // fences the file it lives in rather than this one.
+            started_ms: ClockSource::now_ms(&mut crate::clock::SystemClock).max(0) as u64,
         }
     }
 
@@ -273,6 +287,51 @@ impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
             (self.on_event)(e);
         }
     }
+}
+
+/// One wire event as a run window's frame, or `None` if it is not a run's own output.
+///
+/// # This is where ADR-055's scope is enforced, and the `None`s are the enforcement
+///
+/// ADR-055 §7 permits a window to stream `TextDelta` and `ReasoningDelta` — **model prose** — plus
+/// the harness's own §B6 line. It explicitly does not permit raw tool results, and it does not
+/// permit the window to become a second copy of the conversation.
+///
+/// So `Status`, `Approval`, `Done`, `Run`, `Error` and the control-plane frames return `None`. Each
+/// is either about the daemon rather than the run, or is already carried by
+/// [`crate::protocol::Event::RunDetail`] — and a frame that arrived twice by two routes would be a
+/// window that disagreed with its own identity panel.
+///
+/// **Exhaustive, with no `_` arm.** The next `Event` variant somebody adds has to decide whether it
+/// belongs in a window, at the site where ADR-055's scope is written down.
+fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
+    use crate::protocol::RunFrame;
+    Some(match e {
+        Event::Text { delta } => RunFrame::Text { delta: delta.clone() },
+        Event::Reasoning { delta } => RunFrame::Reasoning { delta: delta.clone() },
+        Event::SpeechRetracted => RunFrame::SpeechRetracted,
+        Event::Tool { id, verb, target, state, summary } => RunFrame::Tool {
+            id: *id,
+            verb: verb.clone(),
+            target: target.clone(),
+            state: state.clone(),
+            summary: summary.clone(),
+        },
+        Event::Compacted { turns } => RunFrame::Compacted { turns: *turns },
+        // A degraded path is a fact about the run and it is worth seeing in a window — but it is
+        // harness speech, and the window's transcript vocabulary has no variant for it that is not
+        // model prose. It reaches a window through the daemon's `Degraded` handling on the
+        // conversation port instead, and is deliberately not duplicated here.
+        Event::Degraded { .. }
+        | Event::User { .. }
+        | Event::Status(_)
+        | Event::Approval { .. }
+        | Event::Done { .. }
+        | Event::Run { .. }
+        | Event::Error { .. }
+        | Event::RunDetail { .. }
+        | Event::RunOutput { .. } => return None,
+    })
 }
 
 /// M2's approval gate: **deny by default**.
@@ -1446,6 +1505,25 @@ impl Daemon {
             }
         };
         let mut summarizer = PassthroughSummarizer;
+        // **Every frame goes to both places, and neither is derived from the other.** The
+        // conversation's client gets what it always got; the plane gets a copy a window polls for.
+        // Deriving one from the other would mean a window showing a *different* run of the same
+        // turn, which is the "two definitions" shape applied to a stream.
+        //
+        // `to_run_frame` returns `None` for everything that is not a run's own output — ADR-055
+        // §7: what streams is model prose and the harness's §B6 line, and a raw tool result reaches
+        // a window only after `condense_batch`, exactly as it reaches the main pane.
+        let plane_for_sink = std::sync::Arc::clone(&self.plane);
+        let run_key = run_id.to_string();
+        let key_for_sink = run_key.clone();
+        let mut on_event = move |e: Event| {
+            if let Some(frame) = to_run_frame(&e) {
+                if let Ok(mut p) = plane_for_sink.lock() {
+                    p.push(&key_for_sink, frame);
+                }
+            }
+            on_event(e);
+        };
         let mut sink = CallbackSink { on_event: &mut on_event };
         // **The shared control plane, not `NoControl`.** This is what makes `/steer` reach a run
         // that is already going: the control listener writes into the same `DurableControl` this
@@ -1864,6 +1942,7 @@ impl Daemon {
             Err(detail) => eprintln!("marlowe: DEGRADED · {detail}"),
         }
         let shutdown = Arc::clone(&self.shutdown);
+
         let state = Mutex::new(&mut self);
 
         for incoming in listener.incoming() {

@@ -368,8 +368,8 @@ impl Client {
     }
 
     /// One run in full: state, checkpoint, spend against ceiling, orphan policy on cancel.
-    pub fn watch(&self, run: &str) -> Result<Vec<Event>, ClientError> {
-        self.control_or_main(&Request::Watch { run: run.to_string() })
+    pub fn watch(&self, run: &str, since: u64) -> Result<Vec<Event>, ClientError> {
+        self.control_or_main(&Request::Watch { run: run.to_string(), since })
     }
 
     /// Guidance for a run that is already going. Delivered at its next iteration boundary — never

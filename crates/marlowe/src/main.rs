@@ -11,6 +11,8 @@ mod elapsed;
 mod launcher;
 mod profile;
 mod tui;
+/// A real terminal window per run. `M3-DESIGN.md` §6.
+mod watch;
 
 use std::io::{self, BufReader};
 use std::path::PathBuf;
@@ -272,7 +274,7 @@ fn main() {
         0 => {
             eprintln!("{USAGE}");
             eprintln!(
-                "error: no mode selected. One of --serve, --ask, --status, --shutdown, --launch, --tui, --classic, --doctor, --eval-adapter."
+                "error: no mode selected. One of --serve, --ask, --status, --shutdown, --launch, --tui, --watch, --runs, --steer, --classic, --doctor, --eval-adapter."
             );
             std::process::exit(2);
         }
@@ -389,15 +391,32 @@ fn main() {
                 model_provider.clone(),
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
             ),
+            // `--runs` alone lists every run; `--runs <id>` prints that one in full.
+            //
+            // **The per-run print used to be `--watch`.** It moved here when `--watch` became the
+            // window (§6.6: *"`/watch` opens a window"*), and this is where it belongs anyway: a
+            // per-run listing is a listing. Nothing was lost — a script that wants a run's state
+            // without a terminal reads `--runs <id>`.
             "--runs" => agent::runs(
+                flag_value(&args, "--runs"),
                 profile_root,
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
             ),
-            "--watch" => agent::watch(
-                flag_value(&args, "--watch"),
-                profile_root,
-                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
-            ),
+            // **`--watch` opens a WINDOW.** `M3-DESIGN.md` §6, and the one mode here that takes
+            // over the terminal rather than printing to it.
+            "--watch" => match flag_value(&args, "--watch") {
+                Some(run) => watch::run(watch::Options {
+                    run: run.to_string(),
+                    profile_root,
+                    port: flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+                    color_depth: flag_value(&args, "--color-depth").map(str::to_string),
+                })
+                .map_err(|e| e.to_string()),
+                None => Err(
+                    "--watch requires a run id. `marlowe --runs` lists them, and `--runs <id>`                      prints one without opening a window"
+                        .to_string(),
+                ),
+            },
             "--cancel" => agent::cancel(
                 flag_value(&args, "--cancel"),
                 profile_root,

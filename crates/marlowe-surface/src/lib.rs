@@ -44,6 +44,8 @@ pub mod overlay;
 pub mod region;
 pub mod render;
 pub mod theme;
+/// A real terminal window per run. `M3-DESIGN.md` §6.
+pub mod window;
 
 pub use app::{Action, App, Key, MIN_COLS, MIN_ROWS};
 pub use region::{FocusLevel, Region, RegionId, RegionTree, TabId};

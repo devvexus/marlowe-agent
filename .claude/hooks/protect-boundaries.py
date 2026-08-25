@@ -77,6 +77,12 @@ PROTECTED = {
         "what keeps that a TRUE statement rather than a historical one when a live-fetched tool "
         "list changes under an approved name"
     ),
+    "crates/marlowe-loop/src/steer.rs": (
+        "the one door a steer comes through (ADR-054). A steer is the ONLY channel that writes "
+        "new strings into `UserAsserted` in a run whose floor has already latched, so whoever can "
+        "widen this can hand a poisoned run a target it would otherwise refuse. The cap and the "
+        "sanitiser here are the whole of that check"
+    ),
     "crates/marlowe-loop/src/provenance.rs": (
         "argument provenance (brief §13, the permission layer). ADR-023: the harness computes "
         "taint from the context window, and a model that could label its own arguments "

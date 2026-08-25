@@ -518,3 +518,142 @@ mod profile_commandline_tests {
         assert!(c.ends_with("\"a b\""), "{c}");
     }
 }
+
+// ─── a window per run (`M3-DESIGN.md` §6.7) ───────────────────────────────────────────────────
+
+/// What happened when Marlowe tried to open a window on a run.
+///
+/// **`command` is always populated, whether or not the spawn worked**, and that is the whole shape
+/// of §6.7: *"Best-effort, with a printed attach command as the fallback, so it degrades to a
+/// copy-paste rather than a broken button."* A caller that only reported success would leave a user
+/// on an unsupported platform with a button that does nothing and no way forward.
+pub struct WindowOutcome {
+    /// The terminal that opened one, or `None` if none could be.
+    pub terminal: Option<String>,
+    /// The command that attaches to this run from any terminal, anywhere.
+    pub command: String,
+    /// Why the spawn did not happen, in the user's words.
+    pub degraded: Option<String>,
+}
+
+/// Open a terminal window attached to `run`. Best-effort.
+///
+/// # Why best-effort is the right contract here and not a cop-out
+///
+/// Spawning a terminal is per-platform and per-terminal: `wt.exe`, `open -a Terminal`, and on Linux
+/// a guess between a dozen emulators. Getting that wrong is not a small failure — it is a window
+/// that does not appear, or one that appears in the wrong emulator with the wrong font.
+///
+/// What makes the degraded path acceptable is §10.1's *"addressable from outside"*: `marlowe --watch
+/// <run>` is an ordinary command that works in a terminal the user already has open, over SSH, from
+/// a script. So the fallback is not a lesser version of the feature — it is the feature, without
+/// the convenience of something else typing it.
+pub fn open_window(run: &str) -> WindowOutcome {
+    let exe = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "marlowe".to_string());
+    // Quoted, because a Windows install path has spaces in it more often than not.
+    let command = if exe.contains(' ') {
+        format!("\"{exe}\" --watch {run}")
+    } else {
+        format!("{exe} --watch {run}")
+    };
+
+    #[cfg(windows)]
+    {
+        let Some(wt) = which_wt() else {
+            return WindowOutcome {
+                terminal: None,
+                command,
+                degraded: Some(
+                    "Windows Terminal (wt.exe) was not found, so Marlowe cannot open a window for \
+                     you. Run this in a terminal you have open:"
+                        .to_string(),
+                ),
+            };
+        };
+        // **`wt -w -1` opens a NEW window rather than a tab in the current one.** A tab would put
+        // the run beside the conversation in one frame, which is precisely what §6.6's first
+        // interface rule exists to prevent.
+        let spawned = Command::new(&wt)
+            .args(["-w", "-1", "--title", "marlowe run", "--"])
+            .arg(&exe)
+            .arg("--watch")
+            .arg(run)
+            .spawn();
+        match spawned {
+            Ok(_) => WindowOutcome {
+                terminal: Some("Windows Terminal".to_string()),
+                command,
+                degraded: None,
+            },
+            Err(e) => WindowOutcome {
+                terminal: None,
+                command,
+                degraded: Some(format!(
+                    "Windows Terminal would not start ({e}). Run this in a terminal you have open:"
+                )),
+            },
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // `open -a Terminal <path>` runs a file, not a command line, so the command goes through a
+        // one-line script. Recorded rather than attempted blind: this is unverified on the platform
+        // and §6.7 says to plan for that rather than discover it.
+        WindowOutcome {
+            terminal: None,
+            command,
+            degraded: Some(
+                "opening a window is implemented for Windows Terminal only, and this is macOS. \
+                 Run this in a terminal you have open:"
+                    .to_string(),
+            ),
+        }
+    }
+
+    #[cfg(all(not(windows), not(target_os = "macos")))]
+    {
+        // **No guessing between emulators.** `x-terminal-emulator`, `gnome-terminal`, `konsole`,
+        // `alacritty` and `kitty` all take different arguments, and one that half-works — a window
+        // that opens and immediately closes because the argument form was wrong — is worse than a
+        // command the user can paste and see fail with a real message.
+        WindowOutcome {
+            terminal: None,
+            command,
+            degraded: Some(
+                "opening a window is implemented for Windows Terminal only. Run this in a \
+                 terminal you have open:"
+                    .to_string(),
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::*;
+
+    /// §6.7's contract, and the property that makes the whole thing degrade rather than break:
+    /// **there is always a command**, whatever the platform did.
+    #[test]
+    fn a_command_is_always_offered_whether_or_not_a_window_opened() {
+        let out = open_window("a1b2c3d4");
+        assert!(out.command.contains("--watch a1b2c3d4"), "{}", out.command);
+        assert!(
+            out.terminal.is_some() || out.degraded.is_some(),
+            "a spawn that neither opened a window nor said why is a button that does nothing"
+        );
+    }
+
+    /// A path with a space in it is quoted. A Windows install is under `Program Files` more often
+    /// than not, and an unquoted command that the user pastes and watches fail is worse than none.
+    #[test]
+    fn the_fallback_command_survives_a_path_with_spaces() {
+        let out = open_window("r");
+        if out.command.starts_with('"') {
+            assert!(out.command.contains("\" --watch r"), "{}", out.command);
+        }
+    }
+}

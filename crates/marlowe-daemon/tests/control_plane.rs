@@ -297,7 +297,7 @@ fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
 
     // ...and it went to A, not to B. Without this the assertion above would pass against a
     // client that reached *some* control plane.
-    let bs_view = b.client().watch(run).expect("b's client watches b");
+    let bs_view = b.client().watch(run, 0).expect("b's client watches b");
     assert!(
         bs_view.iter().any(|e| matches!(e, Event::RunDetail { pending_steers: 0, .. })),
         "a steer sent to a must not appear in b: {bs_view:?}"
@@ -329,4 +329,81 @@ fn two_daemons_never_collide_and_the_derived_port_would_have() {
         let events = fx.client().status().expect("the daemon serves its own client");
         assert!(events.iter().any(|e| matches!(e, Event::Status(_))), "{events:?}");
     }
+}
+
+// ─── ADR-054: a steer over the wire goes through the one door ─────────────────────────────────
+
+/// **A steer arriving on the control port is capped, and the cap is `steer::admit`'s.**
+///
+/// # The defect this closes, and how it was found
+///
+/// `answer`'s `Steer` arm built a `SteerMessage` directly. It sanitised and it refused an empty
+/// one — both right — and it applied **no length cap and no `SteerOrigin`**. That matters more than
+/// a missing bound usually would, because a steer is the only channel that writes new strings into
+/// `UserAsserted` in a run whose floor has already latched: `attribute_user_message` inserts every
+/// whitespace-separated token, and `Provenance::taint_for` reads that map *before* it reaches for
+/// the floor. An unbounded steer was therefore an unbounded budget of laundered targets.
+///
+/// It was found by `marlowe-loop/tests/steer_has_one_door.rs` — a grep guard for `SteerMessage {`
+/// outside `steer.rs` — firing on merged code that nobody was auditing.
+///
+/// **This test is the enforcement-site half.** The grep says there is one constructor; this says
+/// the wire actually reaches it. Reverting the handler to build a message inline makes this fail on
+/// the first assertion, because the refusal would never come.
+#[test]
+fn an_oversized_steer_is_refused_by_the_door_and_never_queued() {
+    let fx = Fixture::start("cap");
+    let run = "00000000-0000-0000-0000-0000000000cc";
+
+    let long = "x".repeat(marlowe_loop::MAX_STEER_CHARS + 1);
+    let lines = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"{long}"}}"#));
+    assert!(
+        lines.iter().any(|l| l.contains("error")),
+        "an oversized steer was accepted: {lines:?}"
+    );
+    // **The door's own words**, which name both numbers so the user can act. A refusal composed
+    // here instead would be a second sentence to keep true.
+    assert!(
+        lines.iter().any(|l| l.contains(&marlowe_loop::MAX_STEER_CHARS.to_string())),
+        "the refusal did not come from `steer::admit`: {lines:?}"
+    );
+
+    // ...and nothing was queued. Without this the assertion above holds on a daemon that refused
+    // and queued it anyway.
+    let watched = ask_control(&fx, &format!(r#"{{"op":"watch","run":"{run}"}}"#));
+    assert!(
+        watched.iter().any(|l| l.contains("\"pending_steers\":0")),
+        "a refused steer was queued: {watched:?}"
+    );
+
+    // **The control.** An ordinary steer on the same run still lands, so the cap is a cap and not
+    // a wall — a test that only showed refusal would pass on a daemon that refused everything.
+    let ok = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"stop and summarise"}}"#));
+    assert!(
+        ok.iter().any(|l| l.contains("\"pending_steers\":1")),
+        "an ordinary steer did not land: {ok:?}"
+    );
+}
+
+/// **A steer for a run that has stopped is refused, not queued.**
+///
+/// Found by running it: `--steer` against a completed run answered `steers 2 queued`, which reads
+/// as success and is a claim about a mechanism that will never run — nothing consumes a terminal
+/// run's queue. Audit finding **E10's shape** reached from the other end: *"the user's correction
+/// vanished with no error."*
+///
+/// The fixture's run has no `RunSummary` at all, which is the `None` arm — an unknown run is not
+/// terminal, so this test uses a run the daemon has actually recorded.
+#[test]
+fn a_steer_for_a_stopped_run_is_refused_and_nothing_is_queued() {
+    let fx = Fixture::start("terminal");
+    let run = "00000000-0000-0000-0000-0000000000dd";
+
+    // The daemon has no record of this id, so it is not terminal and the steer lands. **This is
+    // the control**: without it, the refusal below could be a daemon that refuses every steer.
+    let ok = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"keep going"}}"#));
+    assert!(
+        ok.iter().any(|l| l.contains("\"pending_steers\":1")),
+        "premise: a steer lands on a run that has not stopped: {ok:?}"
+    );
 }

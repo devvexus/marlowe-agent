@@ -66,7 +66,7 @@ use marlowe_loop::{
 };
 
 use crate::daemon::RunSummary;
-use crate::protocol::{write_line, Event, Request};
+use crate::protocol::{write_line, Event, Request, RunFrame};
 
 /// Everything a control request may reach. Deliberately small — see the module header.
 pub struct ControlPlane {
@@ -77,13 +77,40 @@ pub struct ControlPlane {
     /// the same question about a different noun, so it reads this and there is no second copy.
     pub runs: BTreeMap<String, RunSummary>,
     pub control: DurableControl<JournalCheckpoints>,
+    /// What each run has **said**, for a window to render. Session F; ADR-055.
+    ///
+    /// # This is a third thing, and the module header says there are two
+    ///
+    /// That header's claim is that the concurrency here is *"bounded by a struct a reader can hold
+    /// in their head"*, and the claim is worth keeping true rather than quietly outgrowing. So this
+    /// field is bounded twice over: [`MAX_FRAMES`] entries per run, and **frames coalesce** — a run
+    /// of `TextDelta`s appends to one frame instead of adding thousands, so the count is
+    /// proportional to turns rather than to tokens.
+    ///
+    /// It lives here rather than behind the daemon's own lock for the reason everything else here
+    /// does: the turn writes it while the control connection reads it, and a copy on each side
+    /// would be two answers to one question.
+    frames: BTreeMap<String, Frames>,
 }
+
+/// One run's output frames, and where the sequence is up to.
+#[derive(Debug, Default)]
+struct Frames {
+    seq: Vec<(u64, RunFrame)>,
+    next: u64,
+    /// The oldest sequence still held. Moves when the ring drops one, so a window that has fallen
+    /// behind can be **told** rather than shown a gap it cannot see.
+    first: u64,
+}
+
+/// How many frames one run keeps. Frames coalesce, so this is turns-worth, not tokens-worth.
+pub const MAX_FRAMES: usize = 2_000;
 
 pub type Shared = Arc<Mutex<ControlPlane>>;
 
 impl ControlPlane {
     pub fn new(control: DurableControl<JournalCheckpoints>) -> Shared {
-        Arc::new(Mutex::new(Self { runs: BTreeMap::new(), control }))
+        Arc::new(Mutex::new(Self { runs: BTreeMap::new(), control, frames: BTreeMap::new() }))
     }
 
     /// Fill the run table from the journal, so a run that survived a restart can be **found**.
@@ -118,6 +145,71 @@ impl ControlPlane {
         n
     }
 
+    /// Append one frame of a run's output, coalescing consecutive prose of the same kind.
+    ///
+    /// **Coalescing is what bounds the memory.** A frame per token is unbounded growth in a process
+    /// that must not die; a run of `TextDelta`s becomes one frame that grows, so the count tracks
+    /// turns. The client re-reads the growing tail — see [`ControlPlane::frames_since`].
+    pub fn push(&mut self, run: &str, frame: RunFrame) {
+        let f = self.frames.entry(run.to_string()).or_insert_with(|| Frames {
+            seq: Vec::new(),
+            next: 1,
+            first: 1,
+        });
+
+        let coalesced = match (&frame, f.seq.last_mut()) {
+            (RunFrame::Text { delta }, Some((_, RunFrame::Text { delta: tail })))
+            | (RunFrame::Reasoning { delta }, Some((_, RunFrame::Reasoning { delta: tail }))) => {
+                tail.push_str(delta);
+                true
+            }
+            // **A tool line REPLACES its own earlier frame rather than adding one.** §B6: the close
+            // must replace the open line, not scroll a second one in beneath it — the same property
+            // `quarantine_batch.rs` asserts for the quarantined reader's line.
+            (RunFrame::Tool { id, .. }, _) => {
+                let id = *id;
+                match f.seq.iter_mut().find(|(_, x)| {
+                    matches!(x, RunFrame::Tool { id: other, .. } if *other == id)
+                }) {
+                    Some((_, slot)) => {
+                        *slot = frame.clone();
+                        true
+                    }
+                    None => false,
+                }
+            }
+            _ => false,
+        };
+        if coalesced {
+            return;
+        }
+
+        let seq = f.next;
+        f.next += 1;
+        f.seq.push((seq, frame));
+        while f.seq.len() > MAX_FRAMES {
+            f.seq.remove(0);
+            f.first += 1;
+        }
+    }
+
+    /// Frames from `since` onward, and whether anything older was dropped.
+    ///
+    /// **`seq >= since`, not `>`.** The tail frame is still growing, so a client asks from the
+    /// highest sequence it holds and overwrites it. With `>` a live run's last paragraph would
+    /// freeze at whatever it held on the poll that first saw it.
+    pub fn frames_since(&self, run: &str, since: u64) -> (Vec<Event>, u64) {
+        let Some(f) = self.frames.get(run) else { return (Vec::new(), 0) };
+        let dropped = if since > 0 && since < f.first { f.first - since } else { 0 };
+        let out = f
+            .seq
+            .iter()
+            .filter(|(seq, _)| *seq >= since)
+            .map(|(seq, frame)| Event::RunOutput { seq: *seq, frame: frame.clone() })
+            .collect();
+        (out, dropped)
+    }
+
     pub fn live_runs(&self) -> usize {
         self.runs.values().filter(|r| r.status == "running").count()
     }
@@ -142,7 +234,20 @@ impl ControlPlane {
                 |s| s.status.clone(),
             ),
             parent: cp.as_ref().and_then(|c| c.parent).map(|p| p.to_string()),
-            elapsed_ms: summary.map_or(0, |s| s.elapsed_ms),
+            // **Final when there is one, live otherwise.** `RunSummary::elapsed_ms` is written
+            // once, when the turn ends; until then it is `0` and a window would report a run that
+            // had been going for a minute as having taken no time at all. The daemon owns the
+            // clock, so the daemon is what resolves the two — not the surface, which reads none.
+            elapsed_ms: summary.map_or(0, |s| {
+                if s.elapsed_ms > 0 {
+                    s.elapsed_ms
+                } else {
+                    // Through the fence — see `clock.rs`, which is the one file the determinism
+                    // guard exempts for exactly this.
+                    (marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock).max(0) as u64)
+                        .saturating_sub(s.started_ms)
+                }
+            }),
             spend_micros_usd: summary.map_or(0, |s| s.spend_micros_usd),
             ceiling_micros_usd: cp.as_ref().map_or(0, |c| c.budget.micros_usd),
             spent_tokens: cp.as_ref().map_or(0, |c| c.spent.tokens),
@@ -208,32 +313,95 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
                 on_event(e);
             }
         }
-        Request::Watch { run } => match run.parse::<uuid::Uuid>() {
-            Ok(id) => on_event(plane.detail(RunId(id))),
+        // **The detail first, then the frames it belongs with.** One lock, one answer: a window
+        // that asked twice could be told a run had finished and then handed frames from before it
+        // did, which is the two-answers-to-one-question shape this plane exists to avoid.
+        Request::Watch { run, since } => match run.parse::<uuid::Uuid>() {
+            Ok(id) => {
+                on_event(plane.detail(RunId(id)));
+                let (frames, dropped) = plane.frames_since(&id.to_string(), since);
+                // **Dropping is reported.** A gap a reader cannot see is worse than a short
+                // history — the journal is the record, this is a window.
+                if dropped > 0 {
+                    on_event(Event::Degraded {
+                        what: format!("{dropped} earlier frames are no longer held"),
+                        remedy: "the journal has the whole run; a window keeps the recent tail"
+                            .into(),
+                    });
+                }
+                for e in frames {
+                    on_event(e);
+                }
+            }
             Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
         },
         Request::Steer { run, text } => match run.parse::<uuid::Uuid>() {
             Ok(id) => {
                 let id = RunId(id);
-                // **Sanitised here, at the boundary it crosses.** A steer is user text on its way
-                // into a model's window and, through `/runs`, onto a terminal.
-                // `marlowe_contract::text` is the one definition of what may be displayed; a steer
-                // carrying `ESC` would otherwise write escape sequences through the daemon and
-                // onto a screen.
-                let text = marlowe_contract::text::sanitize_line(&text).into_owned();
-                if text.trim().is_empty() {
+                // ── THE ONE DOOR (ADR-054) ──────────────────────────────────────────────────
+                //
+                // **This used to build a `SteerMessage` here.** It sanitised — `sanitize_line`,
+                // then a non-empty check — and that half was right and is unchanged in effect.
+                // What it skipped is the rest of admission, and the omission mattered:
+                //
+                // * **No length cap.** `Provenance::attribute_user_message` inserts the whole
+                //   message *and every whitespace-separated token* at `UserAsserted`, and
+                //   `taint_for` reads that map **before** it reaches for the run's floor. So an
+                //   unbounded steer is an unbounded budget of laundered targets in a run whose
+                //   floor has already latched — the one channel that can still do that.
+                // * **No `SteerOrigin`.** Authority was carried by nothing at all, so the type
+                //   could not say that only a person may assert at this class.
+                //
+                // Found by `marlowe-loop/tests/steer_has_one_door.rs`, which greps the workspace
+                // for `SteerMessage {` outside `steer.rs` and fails by name. It fired on this
+                // line — a guard written in Session F catching a path merged from Session A, in a
+                // session that was not looking for it.
+                //
+                // `admit` performs the sanitise, the cap and the emptiness check in that order,
+                // and the refusal it returns names both numbers. Nothing is duplicated here.
+                // ── A STEER FOR A RUN THAT HAS STOPPED IS REFUSED, NOT QUEUED ──────────────
+                //
+                // **Found by using it.** `--steer` against a completed run answered
+                // `steers 2 queued` — which reads as success, and is a claim about a mechanism
+                // that will never run. Nothing consumes a terminal run's queue, so the guidance
+                // sits there forever.
+                //
+                // That is audit finding **E10's exact shape**: *"the user's correction vanished
+                // with no error."* E10 was about a child eating a parent's steer; this is the same
+                // failure reached from the other end, and the fix is the same one — say so.
+                //
+                // **`interrupted` is deliberately NOT terminal.** A run that stopped because the
+                // daemon did is exactly what resume exists for, and guidance queued for it applies
+                // when it resumes. Refusing that would remove a real capability to close a
+                // different hole.
+                let status = plane.runs.get(&id.to_string()).map(|r| r.status.clone());
+                if let Some(status) = status.filter(|s| {
+                    matches!(s.as_str(), "completed" | "failed" | "cancelled")
+                }) {
                     on_event(Event::Error {
-                        detail: "a steer with no text would be an empty turn in the run's window"
-                            .into(),
+                        detail: format!(
+                            "run {id} is {status}; a steer would queue behind a run that has stopped \
+                             and would never be read. Nothing was queued"
+                        ),
                     });
                     return;
                 }
-                plane.control.steer(id, SteerMessage { text, urgency: Urgency::Advisory });
-                let pending = plane.control.pending_steers(id);
+
+                let message = match marlowe_loop::steer::admit(
+                    marlowe_loop::steer::SteerOrigin::Human,
+                    &text,
+                    Urgency::Advisory,
+                ) {
+                    Ok(m) => m,
+                    Err(refused) => {
+                        on_event(Event::Error { detail: refused.to_string() });
+                        return;
+                    }
+                };
+                plane.control.steer(id, message);
                 // **The count, not an acknowledgement.** "queued" is a claim about a mechanism;
                 // a number is a fact the next `/watch` can be checked against.
                 on_event(plane.detail(id));
-                let _ = pending;
             }
             Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
         },

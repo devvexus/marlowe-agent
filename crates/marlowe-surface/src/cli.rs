@@ -83,6 +83,20 @@ pub fn run(
                         writeln!(out, "{l}")?;
                     }
                 }
+                // **Parity, honestly.** §B11 is parity of *capabilities*, not of mechanisms: the
+                // classic CLI has no window to open and no daemon connection to steer through, and
+                // pretending otherwise would be worse than saying so. What it can do is hand over
+                // the command that does it, which is §6.7's fallback and is the same thing the
+                // launcher prints when it cannot open a terminal either.
+                Outcome::Watch(run) => say(
+                    &mut out,
+                    session.view(),
+                    &marlowe_view::Notice::WindowOpened {
+                        run: marlowe_view::Echo::new(run.clone()),
+                        terminal: None,
+                        command: marlowe_view::CommandLine::new(crate::window::attach_command(&run)),
+                    },
+                ),
                 Outcome::Rejected(r) => {
                     say(&mut out, session.view(), &marlowe_view::Notice::Refused(r))
                 }

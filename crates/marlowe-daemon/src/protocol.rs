@@ -38,7 +38,18 @@ pub enum Request {
     /// the main pane with agent output halts the conversation *visually*, which is what this
     /// milestone exists to stop. The window is Session F's; this is the state it renders, and
     /// there is only one of it.
-    Watch { run: String },
+    /// `since` is the highest output-frame sequence the client already holds, so a window polls
+    /// incrementally instead of re-reading a whole run every 120 ms. **`0` asks for everything**,
+    /// which is what a window that has just opened wants and what every non-window caller sends.
+    ///
+    /// **Added by Session F, on A's variant rather than beside it.** A second `WatchOutput` request
+    /// would be two questions about one run answered from one lock, and the answers could disagree
+    /// about which frames belong to the detail they arrived with.
+    /// **`#[serde(default)]`, so a client built before this field still parses the frame** — the
+    /// same courtesy `attribution` gets above, and the reason is the same: this field was added to
+    /// an existing request, and a wire that refused the old shape would break every caller that had
+    /// no reason to change. `0` asks for everything, which is what those callers mean.
+    Watch { run: String, #[serde(default)] since: u64 },
     /// Guidance for a running run. **Control port**, and that is the whole point.
     ///
     /// M3-DESIGN §10.1 requires steering *"from outside"* — another terminal, no TUI, a script.
@@ -97,6 +108,34 @@ pub enum Request {
     /// against a stale binary. It refuses while a run is live, so the invariant still holds where
     /// it means something.
     Shutdown,
+
+    // ── the control plane a run window speaks to (`M3-DESIGN.md` §6) ────────────────────────
+    //
+}
+
+/// One frame of a run's output. `M3-DESIGN.md` §6.2, ADR-055.
+///
+/// # Why this is not `Event` reused
+///
+/// [`Event::Text`] and friends are **this conversation's** stream — the thing the main pane draws.
+/// A run's output is a different subject with a different governing decision (ADR-055 permits it;
+/// nothing permits raw tool results), and conflating them would mean a change to one silently
+/// changing the other. They look alike because they describe the same kinds of thing, not because
+/// they are the same channel.
+///
+/// **There is no `ToolResult` variant and there must not be one.** What crosses is model prose and
+/// the harness's own §B6 summary line. A fetched page reaches a window only after
+/// `condense_batch`, exactly as it reaches the main pane.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "frame", rename_all = "snake_case")]
+pub enum RunFrame {
+    Text { delta: String },
+    Reasoning { delta: String },
+    /// The speech streamed so far this turn was reasoning after all. The window moves it, so no
+    /// text that belonged inside a think block is left in the response colour.
+    SpeechRetracted,
+    Tool { id: u64, verb: String, target: String, state: String, summary: String },
+    Compacted { turns: u32 },
 }
 
 /// Daemon → client. Render-only, mirroring `TurnEvent` plus the frames a client needs to know
@@ -179,6 +218,19 @@ pub enum Event {
         pending_steers: usize,
     },
     Error { detail: String },
+
+    /// One frame of a watched run's output, in order. **Session F; ADR-055.**
+    ///
+    /// `RunDetail` above is what a run *is*; this is what it has *said*. They travel together in a
+    /// `Watch` answer and are separate variants because they have different governing decisions:
+    /// the detail is facts the harness computed, and a frame is prose ADR-055 permits to reach a
+    /// terminal on the condition that the display predicate runs at the boundary.
+    ///
+    /// **There is deliberately no acknowledgement variant beside these.** A write is answered with
+    /// a fresh `RunDetail`, which carries `pending_steers` — Session A's rule, and the better one:
+    /// *"the count, not an acknowledgement. 'queued' is a claim about a mechanism; a number is a
+    /// fact the next `/watch` can be checked against."*
+    RunOutput { seq: u64, frame: RunFrame },
 }
 
 /// What `Status` answers. Everything §B5's band and the first-run disclosure need, in one frame.
