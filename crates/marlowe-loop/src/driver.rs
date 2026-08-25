@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::budget::{Budget, BudgetShare, CallLimits};
 use crate::context::ContextView;
-use crate::run::{CondensedResult, OrphanPolicy, OutputContract};
+use crate::run::{OrphanPolicy, OutputContract, RunId};
 use crate::turn::TurnEvent;
 
 /// What one model call cost. Folded into the run's `spent` immediately after the call.
@@ -64,6 +64,13 @@ pub struct SpawnRequest {
     /// Declared, never inferred. Recorded and unused at M2; M3 is what makes it mean something.
     pub orphan: OrphanPolicy,
     pub share: BudgetShare,
+    /// An **explicit token grant**, deducted from the parent's pool. `None` means *decide for me*
+    /// and takes `share` of the parent's original budget.
+    ///
+    /// M3-DESIGN §4: *"A master with 200k spends it or hands it down."* A parent that knows the
+    /// size of the job says so; `Budget::grant` refuses by name, with both numbers, if the amount
+    /// exceeds what remains.
+    pub grant_tokens: Option<u64>,
     /// A **narrowing** of the parent's set. There is no widening path.
     pub tools: Vec<ToolId>,
     /// Sets the quarantined-reader profile, which forces the tool set empty. A spawn asking
@@ -444,13 +451,24 @@ pub enum Urgency {
 }
 
 pub trait Control {
-    fn cancelled(&self) -> bool {
+    /// **Per run, as of M3 Session A.** It used to take no argument and answer for the whole
+    /// stack, which was honest while the only addressable run was the one in front of the user.
+    /// A depth-four tree needs `cancel(child)` not to kill the parent, and CONTRACTS §5's
+    /// *"children outlive parents"* needs it not to kill a sibling either.
+    fn cancelled(&self, run: RunId) -> bool {
+        let _ = run;
         false
     }
-    fn take_steer(&mut self) -> Option<SteerMessage> {
+    /// Guidance addressed to **this** run. See [`Control::cancelled`] for why the id is here:
+    /// a broadcast queue cannot steer a child, because the parent asks first.
+    fn take_steer(&mut self, run: RunId) -> Option<SteerMessage> {
+        let _ = run;
         None
     }
     /// A user cutting in mid-turn.
+    ///
+    /// **Not addressed, and that is deliberate.** An interrupt is the person at the keyboard
+    /// speaking to whatever is in front of them; there is one keyboard.
     fn take_interrupt(&mut self) -> Option<String> {
         None
     }

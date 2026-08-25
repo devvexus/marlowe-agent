@@ -1,0 +1,10 @@
+run 3c30f830-7d75-4523-8526-5c9e6fc58895
+  status      running
+  elapsed     0 ms
+  spend       0 of 2000000 micros_usd
+  tokens      4755 of 200000 granted
+  depth       3
+  checkpoint  step 1
+  resume      from that step
+  on cancel   children terminate
+  steers      1 queued

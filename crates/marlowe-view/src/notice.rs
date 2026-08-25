@@ -99,6 +99,14 @@ pub enum Refusal {
     /// be the second-source shape; this one says *which control and which value*, and the band says
     /// *why*.
     OptionUnavailable { control: ControlId, given: Echo },
+    /// The producer asked the daemon and the daemon said no.
+    ///
+    /// **Carries the command and no reason string**, for `OptionUnavailable`'s reason and it is
+    /// the same reason: ADR-030 §5 forbids a `String` in a `Notice`, and the detail is the
+    /// daemon's rather than this type's. It travels on `StatusReport::degraded`, which the band
+    /// renders. Two channels for one fact is the second-source shape; this one says *which
+    /// command*, and the band says *why*.
+    TheDaemonDeclined { command: &'static str },
 }
 
 /// A capability that exists in the design and not yet in the build.
@@ -281,6 +289,9 @@ impl Refusal {
                 "{} cannot use {given:?} right now. The band says why.",
                 control.name()
             ),
+            Refusal::TheDaemonDeclined { command } => {
+                format!("The daemon declined /{command}. The band says why.")
+            }
         }
     }
 }

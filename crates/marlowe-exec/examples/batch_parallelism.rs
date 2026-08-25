@@ -137,7 +137,7 @@ impl TurnSink for Nothing {
     }
 }
 impl marlowe_loop::Control for Nothing {
-    fn cancelled(&self) -> bool {
+    fn cancelled(&self, _run: marlowe_loop::RunId) -> bool {
         false
     }
 }

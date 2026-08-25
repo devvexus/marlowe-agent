@@ -117,37 +117,74 @@ impl Budget {
 
     /// The child's budget. §10.1: declared at spawn, never inferred.
     ///
-    /// `None` when the parent has no depth left — the caller turns that into a refusal the
-    /// model can read, rather than a child that runs with `depth: 0` and spawns anyway.
-    /// Anthropic's documented deep-research failures were excessive spawning and endless loops;
-    /// this is the structural bound against reproducing them.
-    pub fn slice_for(&self, spent: &Budget, share: BudgetShare) -> Option<Budget> {
+    /// # GRANTED, NEVER SLICED — M3 Session A, and this replaces `slice_for`
+    ///
+    /// `slice_for` took its fraction of what **remained**, which for repeated spawning decays
+    /// geometrically. `CLAUDE.md` records what that produced at depth one: the eighth quarantined
+    /// reader held **~0.3%** of the budget, and nothing reported it — the reader simply returned a
+    /// worse summary of an attacker-controlled page, which is the output nobody can audit.
+    /// `slice_for_quarantined_read` was written to escape exactly that, for one caller.
+    ///
+    /// M3's tree is depth four before tool-spawned agents, so the decay compounds three more
+    /// times and it starves the leaves, which is where all the work happens. So the general case
+    /// now does what the quarantine case already did: **the share is of `self` — the run's
+    /// ORIGINAL budget — and is then clamped by what actually remains.** Every sibling is offered
+    /// the same allocation until the run is genuinely out of budget, at which point this refuses
+    /// with the numbers rather than handing out a slice too small to use.
+    ///
+    /// `explicit` is the *"a master with 200k spends it or hands it down"* half: a parent that
+    /// knows the job may name the amount, and it is refused by name if it exceeds what is left.
+    /// `None` means *"decide for me"*, and takes `share` of the original.
+    ///
+    /// **Depth is still structural.** `Err(GrantRefused::NoDepth)` at `depth == 0`: a master
+    /// cannot conjure depth, and the caller turns the refusal into something the model can read
+    /// rather than running a child at `depth: 0` that spawns anyway.
+    pub fn grant(
+        &self,
+        spent: &Budget,
+        share: BudgetShare,
+        explicit: Option<u64>,
+    ) -> Result<Budget, GrantRefused> {
         if self.depth == 0 {
-            return None;
+            return Err(GrantRefused::NoDepth);
         }
         let left = self.remaining(spent);
-        Some(Budget {
-            // **Every dimension floors at 1 while the parent still has any.** Audit findings C4 and
-            // C5 — the seventeenth instance again, twice, in the function that hands budgets out.
+        if left.tokens == 0 {
+            return Err(GrantRefused::PoolEmpty { dimension: "tokens" });
+        }
+        if let Some(want) = explicit {
+            if want > left.tokens {
+                return Err(GrantRefused::MoreThanRemains { want, left: left.tokens });
+            }
+        }
+        let of_original = |original: u64| share.apply_u64(original);
+        let tokens = explicit.unwrap_or_else(|| of_original(self.tokens)).min(left.tokens);
+        Ok(Budget {
+            // **Every dimension floors at 1 while the parent still has any.** Audit findings C4
+            // and C5 — the seventeenth instance, twice, in the function that hands budgets out.
             //
-            // `Budget::exhausted` compares `spent >= budget`, so a sliced dimension that rounds to
-            // **zero means ALREADY EXHAUSTED, not "may not use"**: the child pauses before its
+            // `Budget::exhausted` compares `spent >= budget`, so a granted dimension that rounds
+            // to **zero means ALREADY EXHAUSTED, not "may not use"**: the child pauses before its
             // first model call and returns nothing, and the caller reports a refusal whose stated
-            // reason is not the real one. `share` is 2/8, so any dimension below 4 rounds to zero —
-            // and `left.subagents.saturating_sub(1)` makes the **eighth** subagent born exhausted
-            // even at a full budget, because it is itself the eighth.
+            // reason is not the real one.
             //
-            // Withholding a capability is done structurally elsewhere — `ExposedSet::empty()` means
-            // there is no tool to call, `depth: 0` means `slice_for` refuses a spawn. A counter set
+            // Withholding a capability is done structurally elsewhere — `ExposedSet::empty()`
+            // means there is no tool to call, `depth: 0` means a spawn is refused. A counter set
             // to zero is not a prohibition, it is a spent budget.
-            tokens: at_least_one_u64(share.apply_u64(left.tokens), left.tokens),
-            wall_ms: at_least_one_u64(share.apply_u64(left.wall_ms), left.wall_ms),
-            tool_calls: at_least_one_u32(share.apply_u32(left.tool_calls), left.tool_calls),
+            tokens: at_least_one_u64(tokens, left.tokens),
+            wall_ms: at_least_one_u64(of_original(self.wall_ms).min(left.wall_ms), left.wall_ms),
+            tool_calls: at_least_one_u32(
+                share.apply_u32(self.tool_calls).min(left.tool_calls),
+                left.tool_calls,
+            ),
             // A child may not spawn more children than its parent had left, and it starts one
             // short because it is itself one of them.
             subagents: at_least_one_u16(left.subagents.saturating_sub(1), left.subagents),
             depth: self.depth - 1,
-            micros_usd: at_least_one_u64(share.apply_u64(left.micros_usd), left.micros_usd),
+            micros_usd: at_least_one_u64(
+                of_original(self.micros_usd).min(left.micros_usd),
+                left.micros_usd,
+            ),
         })
     }
 
@@ -229,8 +266,36 @@ impl Budget {
     }
 }
 
-/// How much of what is left a child gets. §10.2's effort scaling, expressed as a declared
-/// fraction rather than a heuristic the orchestrator applies invisibly.
+/// Why a spawn was refused a budget. **Every variant carries the numbers**, because a refusal a
+/// model cannot act on produces a retry loop rather than a smaller request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum GrantRefused {
+    #[error(
+        "this run is at the bottom of its declared depth and cannot spawn. A master allocates          depth it was given; it cannot conjure more"
+    )]
+    NoDepth,
+    #[error("the {dimension} pool is empty; there is nothing left to grant")]
+    PoolEmpty { dimension: &'static str },
+    #[error(
+        "a grant of {want} tokens was asked for and {left} remain. A grant is deducted from the          parent's pool, so it cannot exceed it"
+    )]
+    MoreThanRemains { want: u64, left: u64 },
+}
+
+/// How much of the run's **original** budget a child is granted. §10.2's effort scaling,
+/// expressed as a declared fraction rather than a heuristic the orchestrator applies invisibly.
+///
+/// # The numerators moved in M3 Session A, and the reason is the acceptance row
+///
+/// They were 1/8, 2/8, 4/8 **of what remained**. M3's acceptance requires the leaf share at
+/// **depth 4** to sit inside a declared band and never fall below 1% of the root. A default of
+/// 2/8 compounded four times is 0.39% — under the line before any sibling decay is counted at
+/// all. `Standard` is now **3/8**, which measures **1.98%** at depth 4 from a 200k root:
+/// `a_leaf_at_depth_four_is_inside_the_declared_band` is the command that prints it.
+///
+/// `Large` is 5/8 rather than 4/8 for the reason the old comment gave and could not enforce:
+/// *never all of it* — a parent that hands over everything cannot synthesise the result it asked
+/// for. 5/8 leaves 3/8.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BudgetShare {
@@ -247,8 +312,8 @@ impl BudgetShare {
     fn numerator(self) -> u64 {
         match self {
             BudgetShare::Small => 1,
-            BudgetShare::Standard => 2,
-            BudgetShare::Large => 4,
+            BudgetShare::Standard => 3,
+            BudgetShare::Large => 5,
         }
     }
 
@@ -262,9 +327,9 @@ impl BudgetShare {
 }
 
 
-/// A sliced dimension is never zero while the parent still has some of it.
+/// A granted dimension is never zero while the parent still has some of it.
 ///
-/// See [`Budget::slice_for`] for why: `exhausted` compares `spent >= budget`, so zero reads as
+/// See [`Budget::grant`] for why: `exhausted` compares `spent >= budget`, so zero reads as
 /// *already spent*, and a child handed a zero pauses before its first call. `remaining == 0` is the
 /// one case where zero is the truth, and it is passed through so the caller's own guard can see it.
 fn at_least_one_u64(sliced: u64, remaining: u64) -> u64 {
@@ -340,13 +405,13 @@ mod tests {
     #[test]
     fn depth_bounds_the_tree_rather_than_accumulating() {
         let root = Budget { depth: 2, ..Budget::interactive() };
-        let child = root.slice_for(&Budget::default(), BudgetShare::Standard).unwrap();
+        let child = root.grant(&Budget::default(), BudgetShare::Standard, None).unwrap();
         assert_eq!(child.depth, 1);
-        let grandchild = child.slice_for(&Budget::default(), BudgetShare::Standard).unwrap();
+        let grandchild = child.grant(&Budget::default(), BudgetShare::Standard, None).unwrap();
         assert_eq!(grandchild.depth, 0);
         assert_eq!(
-            grandchild.slice_for(&Budget::default(), BudgetShare::Standard),
-            None,
+            grandchild.grant(&Budget::default(), BudgetShare::Standard, None),
+            Err(GrantRefused::NoDepth),
             "the tree stops; a great-grandchild is refused rather than run at depth 0"
         );
     }
@@ -355,13 +420,69 @@ mod tests {
     fn a_child_never_receives_the_whole_remaining_budget() {
         let b = Budget::interactive();
         for share in [BudgetShare::Small, BudgetShare::Standard, BudgetShare::Large] {
-            let child = b.slice_for(&Budget::default(), share).unwrap();
+            let child = b.grant(&Budget::default(), share, None).unwrap();
             assert!(
                 child.tokens < b.tokens,
                 "a parent that hands over everything cannot synthesise the answer it asked for"
             );
             assert!(child.subagents < b.subagents);
         }
+    }
+
+    /// **The acceptance row, as a command that prints a number.** M3 §11: *"Leaf budget share at
+    /// depth 4 — within a declared band of the grant; never `< 1%`."*
+    ///
+    /// The band is declared here, in the assertion, rather than in prose: **[1%, 5%] of the
+    /// root**, at the default share, over four levels.
+    #[test]
+    fn a_leaf_at_depth_four_is_inside_the_declared_band() {
+        let root = Budget { depth: 4, ..Budget::interactive() };
+        let mut b = root;
+        for level in 1..=4 {
+            b = b
+                .grant(&Budget::default(), BudgetShare::Standard, None)
+                .unwrap_or_else(|e| panic!("level {level} refused: {e}"));
+        }
+        let share = b.tokens as f64 / root.tokens as f64;
+        println!("leaf at depth 4: {} of {} tokens = {:.2}%", b.tokens, root.tokens, share * 100.0);
+        assert!(share >= 0.01, "leaf starved at {:.3}% -- the band's floor is 1%", share * 100.0);
+        assert!(share <= 0.05, "leaf over-granted at {:.3}%; the band's ceiling is 5%", share * 100.0);
+    }
+
+    /// **The control for the row above.** It fails if `grant` ever goes back to taking its share
+    /// of the *remainder*, which is what starved the eighth reader to 0.3%.
+    ///
+    /// Two spawns from the same parent, with the first one's whole budget already spent: under
+    /// slicing the second sibling gets a fraction of a depleted pool; under granting it is offered
+    /// the same allocation until the pool is genuinely gone.
+    #[test]
+    fn a_second_sibling_is_offered_the_same_allocation_as_the_first() {
+        let b = Budget { depth: 2, ..Budget::interactive() };
+        let first = b.grant(&Budget::default(), BudgetShare::Standard, None).unwrap();
+        let after_first = Budget { tokens: first.tokens, ..Budget::default() };
+        let second = b.grant(&after_first, BudgetShare::Standard, None).unwrap();
+        assert_eq!(
+            first.tokens, second.tokens,
+            "a grant is a share of the ORIGINAL; the second sibling must not be paid out of the              first one's leftovers"
+        );
+    }
+
+    #[test]
+    fn an_explicit_grant_larger_than_the_pool_is_refused_with_both_numbers() {
+        let b = Budget { tokens: 1_000, depth: 2, ..Budget::interactive() };
+        let e = b.grant(&Budget::default(), BudgetShare::Standard, Some(5_000)).unwrap_err();
+        assert_eq!(e, GrantRefused::MoreThanRemains { want: 5_000, left: 1_000 });
+        // A model that is told only "refused" retries the same request. One told the numbers
+        // can ask for less.
+        assert!(e.to_string().contains("5000") && e.to_string().contains("1000"), "{e}");
+    }
+
+    #[test]
+    fn an_explicit_grant_inside_the_pool_is_honoured_exactly() {
+        // "A master with 200k spends it or hands it down." A named amount is not re-derived.
+        let b = Budget { tokens: 200_000, depth: 2, ..Budget::interactive() };
+        let child = b.grant(&Budget::default(), BudgetShare::Small, Some(150_000)).unwrap();
+        assert_eq!(child.tokens, 150_000, "an explicit grant overrides the share, in both directions");
     }
 
     #[test]

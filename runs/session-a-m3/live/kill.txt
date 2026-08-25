@@ -1,0 +1,1 @@
+SUCCESS: The process with PID 79056 has been terminated.

@@ -27,7 +27,35 @@ pub enum Request {
     /// Start a turn. The daemon owns the run; the client gets events.
     Ask { session: String, message: String },
     /// List runs the daemon owns. **Read-only** — the client cannot mutate a run through it.
+    ///
+    /// Answered on **either** port. The control port answers it while a turn is in flight, which
+    /// is the case `/runs` is actually for; the main port keeps answering it so nothing that
+    /// already asked there has to move.
     Runs,
+    /// One run, in the detail §6.2 asks a window to render. **Control port.**
+    ///
+    /// `/watch` opens a window rather than streaming into the conversation pane (§6.6) — filling
+    /// the main pane with agent output halts the conversation *visually*, which is what this
+    /// milestone exists to stop. The window is Session F's; this is the state it renders, and
+    /// there is only one of it.
+    Watch { run: String },
+    /// Guidance for a running run. **Control port**, and that is the whole point.
+    ///
+    /// M3-DESIGN §10.1 requires steering *"from outside"* — another terminal, no TUI, a script.
+    /// On the serial main port a steer is not *read* until the turn it was meant to change has
+    /// ended, so it is served by `crate::control_plane`, which shares only the run table and the
+    /// `DurableControl` with the turn in flight.
+    Steer { run: String, text: String },
+    /// Ask a run to stop at its next iteration boundary. **Control port.**
+    ///
+    /// Never mid-tool-call: a cancel that interrupted a call would leave the call's effect
+    /// unrecorded, and the journal is the thing that has to stay true.
+    Cancel { run: String },
+    /// Continue a run from its last completed checkpoint. **Main port** — it needs the engine.
+    ///
+    /// The control plane could *stage* a resume and deliberately does not: staging without
+    /// driving would report success for a run that never took another step.
+    Resume { run: String },
     /// Approve or decline a pending decision (§B9). The harness enforces; the model never sees
     /// this path.
     /// **`reason` is only meaningful on a decline.** "No, because ..." is a different
@@ -123,6 +151,32 @@ pub enum Event {
         depth: u8,
         #[serde(default)]
         attribution: Option<String>,
+    },
+    /// One run, in full. **The state a window renders, and the state `/watch` prints.**
+    ///
+    /// §6.6: *"One state, two renderings."* The window and the Runs tab read this; neither keeps
+    /// its own. Every field is a fact the daemon holds — `last_checkpoint_step` is `None` when
+    /// there is no checkpoint, because §6.3's rule is that a placeholder states a fact and never
+    /// invents one to fill a layout.
+    ///
+    /// It carries **no** `CapabilityProfile`, no `Budget` object and no `Checkpoint`: numbers read
+    /// off them, which is what `no_request_or_event_hands_the_client_run_state` is about.
+    RunDetail {
+        id: String,
+        status: String,
+        parent: Option<String>,
+        elapsed_ms: u64,
+        spend_micros_usd: u64,
+        ceiling_micros_usd: u64,
+        spent_tokens: u64,
+        granted_tokens: u64,
+        depth: u8,
+        /// `None` means no checkpoint exists — not step zero.
+        last_checkpoint_step: Option<u32>,
+        resumable: bool,
+        /// Stated plainly beside cancel, per §6.2.
+        orphan_policy: String,
+        pending_steers: usize,
     },
     Error { detail: String },
 }

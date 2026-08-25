@@ -1,0 +1,32 @@
+
+=== 1. a turn starts, and it is told to keep going ===
+  run 3c30f830-7d75-4523-8526-5c9e6fc58895  running  0 tokens
+
+=== 2. wait for the first completed step, so the run is genuinely mid-flight ===
+1
+
+=== 3. /steer, from this process, while the turn holds the main port ===
+run 3c30f830-7d75-4523-8526-5c9e6fc58895
+  status      running
+  elapsed     0 ms
+  spend       0 of 2000000 micros_usd
+  tokens      4755 of 200000 granted
+  depth       3
+  checkpoint  step 1
+  resume      from that step
+  on cancel   children terminate
+  steers      1 queued
+
+=== 4. the run's own answer ===
+  ⋯ read  f1.md  0 ms  [running]
+  ⋯ read  f1.md  2 lines · 18 B  [ok]
+# file 1 (done), now # file 2:
+
+  ⋯ read  f2.md  0 ms  [running]
+  ⋯ read  f2.md  2 lines · 18 B  [ok]
+# PINEAPPLE  [completed · 4426 ms]
+ASK EXITED 0
+
+=== 5. the journal records the delivery ===
+steer_received: {'text': 'STOP READING FILES. Answer right now with exactly the word PINEAPPLE and nothing else.'}
+checkpoints: 3

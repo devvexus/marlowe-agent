@@ -224,6 +224,18 @@ impl LiveSession {
     }
 }
 
+impl LiveSession {
+    /// A daemon refusal, with the **reason on the band and the command in the notice**.
+    ///
+    /// Two channels because they answer different questions and ADR-030 §5 keeps `String`s out of
+    /// the notice vocabulary: the notice says *which command*, the band says *why*. Putting the
+    /// detail in both would be one fact with two sources, and the copy is the one that goes stale.
+    fn declined(&mut self, intent: &'static str, e: &crate::client::ClientError) -> IntentError {
+        self.view.status.degraded = Some(crate::project::classify_degradation(&e.to_string()));
+        IntentError::DaemonRefused { intent }
+    }
+}
+
 impl Produce for LiveSession {
     fn view(&self) -> &SessionView {
         &self.view
@@ -276,6 +288,34 @@ impl Produce for LiveSession {
                 Ok(())
             }
             Intent::ForceState(_) => Err(IntentError::NotADemo("/state")),
+            // **A steer is a write, and it takes the same path `--steer` does** (M3-DESIGN §6.1,
+            // correcting an earlier draft that called the run window read-only). One client
+            // method, one request, one adjudication — a window that reached the control plane
+            // directly would be a second write path skipping it.
+            //
+            // It goes out on the **control port**, which is what makes it mid-flight: on the main
+            // port it would wait behind whatever turn it was meant to change.
+            Intent::Steer { run, text } => match self.client.steer(&run, &text.0) {
+                // The daemon answers with the run's state, including the queued count. The view
+                // re-projects that rather than narrating "steered" — a surface reporting an
+                // outcome it does not have is what §2.14 exists to stop.
+                Ok(events) => {
+                    crate::project::apply_events(&mut self.view, &events);
+                    Ok(())
+                }
+                Err(e) => Err(self.declined("steer", &e)),
+            },
+            // §6.6: *"`/watch` opens a window; it does not stream into the conversation pane."*
+            // **The window is Session F's; the state it renders is this.** So this fetches the
+            // daemon's `RunDetail` and folds it into the Runs pane, which is the same state the
+            // window will render — one state, two renderings, and F replaces the second one.
+            Intent::Watch { run } => match self.client.watch(&run) {
+                Ok(events) => {
+                    crate::project::apply_events(&mut self.view, &events);
+                    Ok(())
+                }
+                Err(e) => Err(self.declined("watch", &e)),
+            },
             Intent::Undo(_) => Err(IntentError::NotBuilt {
                 capability: marlowe_view::notice::Capability::Undo,
                 arrives: marlowe_view::notice::Milestone::M2SessionD,

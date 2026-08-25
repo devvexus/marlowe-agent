@@ -28,6 +28,8 @@ pub struct Command {
 /// exist yet. M2 adds commands; both surfaces get them at once because both read this array.
 pub const REGISTRY: &[Command] = &[
     Command { name: "runs",     args: "",         description: "active background work — status, elapsed, spend, depth" },
+    Command { name: "watch",    args: "<run>",    description: "open a window on one run — checkpoint, spend against ceiling, orphan policy" },
+    Command { name: "steer",    args: "<run> <words>", description: "guidance for a run already going. Delivered at its next step, never as a restart" },
     Command { name: "schedule", args: "",         description: "today's events, what Marlowe noticed, commitments due" },
     Command { name: "sessions", args: "",         description: "history, searchable by content" },
     Command { name: "skills",   args: "",         description: "installed skills by domain, and the exposed-tool budget" },
@@ -147,6 +149,35 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
         }
 
         "compact" => Outcome::Ask(Intent::Compact),
+
+        // **`/watch` and `/steer` name a run, and a command that named none used to be a silent
+        // no-op.** Both refuse by usage instead — `Refusal::Usage` is the shape every other
+        // argument-taking command here uses, so the refusal reads the same wherever it comes from.
+        "watch" => match args.first() {
+            Some(run) if !run.trim().is_empty() => {
+                Outcome::Ask(Intent::Watch { run: (*run).to_string() })
+            }
+            _ => Outcome::Rejected(Refusal::Usage { command: "watch", expects: "<run id>" }),
+        },
+        "steer" => {
+            // Everything after the id is the guidance. Joining rather than taking `args[1]` is
+            // the difference between steering with a sentence and steering with a word.
+            let text = args.iter().skip(1).copied().collect::<Vec<_>>().join(" ");
+            match args.first() {
+                Some(run) if !run.trim().is_empty() && !text.trim().is_empty() => {
+                    Outcome::Ask(Intent::Steer {
+                        run: (*run).to_string(),
+                        // Quoted, never reworded: ADR-030. A surface that paraphrased a steer
+                        // would be composing the instruction it claims to be relaying.
+                        text: Echo::new(text),
+                    })
+                }
+                _ => Outcome::Rejected(Refusal::Usage {
+                    command: "steer",
+                    expects: "<run id> <what to tell it>",
+                }),
+            }
+        }
 
         "keys" => Outcome::Say(Notice::Listing(Listing::Keys)),
         // **`/doctor` is diagnostic output, not speech**, and is deliberately outside the
