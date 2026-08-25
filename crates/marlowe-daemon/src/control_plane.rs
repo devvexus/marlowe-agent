@@ -244,7 +244,7 @@ impl ControlPlane {
                 } else {
                     // Through the fence — see `clock.rs`, which is the one file the determinism
                     // guard exempts for exactly this.
-                    (crate::clock::SystemClock.now_ms().max(0) as u64)
+                    (marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock).max(0) as u64)
                         .saturating_sub(s.started_ms)
                 }
             }),

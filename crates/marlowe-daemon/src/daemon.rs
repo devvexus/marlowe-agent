@@ -208,7 +208,7 @@ impl RunSummary {
             // the legitimate case in the same paragraph — in production the harness supplies the
             // real clock. `SystemClock` is that harness's one clock, and `determinism_guard.rs`
             // fences the file it lives in rather than this one.
-            started_ms: crate::clock::SystemClock.now_ms().max(0) as u64,
+            started_ms: ClockSource::now_ms(&mut crate::clock::SystemClock).max(0) as u64,
         }
     }
 
