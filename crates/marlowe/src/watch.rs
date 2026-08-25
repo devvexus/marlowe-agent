@@ -26,12 +26,13 @@
 //! Poll, render, read a key, repeat. [`POLL_MS`] is the pacing and it is deliberately short: this is
 //! a window on a live run, and §B5's rule is that motion means Marlowe is working.
 //!
-//! **There is no clock in the surface, and after this session there is none in the window at all.**
-//! Elapsed is resolved on the daemon — see `ControlPlane::detail` — so a frame is a pure function of
-//! the state this loop last fetched. The only time this file reads is the poll interval.
+//! **There is no clock anywhere in the window path — not in the surface and not in this file.**
+//! Elapsed is resolved on the daemon (see `ControlPlane::detail`), so a frame is a pure function of
+//! the state this loop last fetched; and the pacing is `event::poll`'s own bounded wait, so nothing
+//! here measures time either. `determinism_guard.rs` is what made that true rather than nearly true.
 
 use std::io::{self, Write};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crossterm::event::{self, Event as TermEvent, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::{execute, terminal};
@@ -51,8 +52,6 @@ use marlowe_surface::Theme;
 /// cost is one connection per poll on a socket doing nothing else.
 pub const POLL_MS: u64 = 120;
 
-/// How long a key press waits before the loop goes back to polling.
-const KEY_WAIT_MS: u64 = 30;
 
 pub struct Options {
     pub run: String,
@@ -139,38 +138,30 @@ fn event_loop(
     theme: &Theme,
     mut projection: RunProjection,
 ) -> io::Result<()> {
-    let mut last_poll = Instant::now() - Duration::from_millis(POLL_MS);
-
     loop {
         // LOOP-EXEMPT: a surface's event loop, not an agent loop.
-        if last_poll.elapsed() >= Duration::from_millis(POLL_MS) {
-            last_poll = Instant::now();
-            match client.watch(run_id, projection.since()) {
-                Ok(events) => {
-                    // **A degraded frame is shown, not swallowed.** The plane sends one when a
-                    // window has fallen off the end of the frame ring; a gap the reader cannot see
-                    // is worse than a shorter history.
-                    for e in &events {
-                        if let Event::Degraded { what, remedy } = e {
-                            app.notice = Some(format!("{what} — {remedy}"));
-                        }
-                    }
-                    projection.apply(&events);
-                    if let Some(v) = projection.view() {
-                        app.update(v);
-                    }
-                }
-                // **The daemon going away does not close the window**, it says so. A window that
-                // vanished when a daemon restarted would take the user's steer draft with it.
-                Err(e) => app.notice = Some(format!("the control plane is unreachable: {e}")),
-            }
+        //
+        // **The key wait IS the pacing, and that is why this process reads no clock.**
+        //
+        // It was an `Instant` and an elapsed check. `determinism_guard.rs` flagged it — correctly:
+        // §4.5 fences real time to `clock.rs`, and "it is only a poll interval" is the argument
+        // every stray read comes with. `event::poll` already blocks for a bounded time and already
+        // tells us which happened, so the timeout is a cadence and the return value is the reason.
+        // Nothing measures anything, and there is nothing to fence.
+        //
+        // A key arriving instead of a timeout does not skip the refresh: the handler below polls
+        // again once it has sent whatever the key asked for, so a window under continuous typing
+        // still tracks the run.
+        let key_ready = event::poll(Duration::from_millis(POLL_MS))?;
+        if !key_ready {
+            poll_run(client, run_id, app, &mut projection);
         }
 
         let area = term.size().map(|s| ratatui::layout::Rect::new(0, 0, s.width, s.height))?;
         app.set_scroll_max(window::scroll_max(app, theme, area));
         term.draw(|f| window::draw(app, theme, f.area(), f.buffer_mut()))?;
 
-        if !event::poll(Duration::from_millis(KEY_WAIT_MS))? {
+        if !key_ready {
             continue;
         }
         let TermEvent::Key(k) = event::read()? else { continue };
@@ -190,16 +181,41 @@ fn event_loop(
             }
         }
         // A write is answered with a fresh `RunDetail`, so re-project immediately rather than
-        // waiting up to 120 ms — `pending_steers` moving is the confirmation that a steer landed.
-        if let Ok(events) = client.watch(run_id, projection.since()) {
+        // waiting a whole interval — `pending_steers` moving is the confirmation a steer landed.
+        // This is also what keeps a window under continuous typing current, since a key arriving
+        // means the wait above returned early.
+        poll_run(client, run_id, app, &mut projection);
+        if action == Action::Close {
+            return Ok(());
+        }
+    }
+}
+
+/// Ask the control plane what is true, and re-project it.
+fn poll_run(
+    client: &Client,
+    run_id: &str,
+    app: &mut WindowApp,
+    projection: &mut RunProjection,
+) {
+    match client.watch(run_id, projection.since()) {
+        Ok(events) => {
+            // **A degraded frame is shown, not swallowed.** The plane sends one when a window has
+            // fallen off the end of the frame ring; a gap the reader cannot see is worse than a
+            // shorter history.
+            for e in &events {
+                if let Event::Degraded { what, remedy } = e {
+                    app.notice = Some(format!("{what} — {remedy}"));
+                }
+            }
             projection.apply(&events);
             if let Some(v) = projection.view() {
                 app.update(v);
             }
         }
-        if action == Action::Close {
-            return Ok(());
-        }
+        // **The daemon going away does not close the window**, it says so. A window that vanished
+        // when a daemon restarted would take the user's steer draft with it.
+        Err(e) => app.notice = Some(format!("the control plane is unreachable: {e}")),
     }
 }
 
@@ -256,29 +272,17 @@ fn install_panic_hook() {
     }));
 }
 
-#[cfg(test)]
-mod tests {
-    /// **There is no clock in the window's surface**, asserted at the crate boundary where it would
-    /// show. §6.4's flicker rows rest on a frame being renderable at will; a surface that read a
-    /// clock could not be.
-    ///
-    /// This began as *"the window path has exactly one clock and it is in this file"*. The merge
-    /// with Session A removed the last reason for one anywhere: elapsed is resolved on the daemon,
-    /// so the window has no `now_ms` at all and this file's only remaining time source is the poll
-    /// interval.
-    #[test]
-    fn the_window_surface_reads_no_clock() {
-        let surface = include_str!("../../marlowe-surface/src/window.rs");
-        for forbidden in ["SystemTime", "Instant::now", "now_ms"] {
-            assert!(
-                !surface.contains(forbidden),
-                "`{forbidden}` appeared in marlowe-surface/src/window.rs — a surface that reads a \
-                 clock, or holds a caller-supplied instant, cannot be rendered at will, and §6.4's \
-                 flicker rows rest on exactly that"
-            );
-        }
-        // The control: this file DOES measure time, so the assertion above is about a boundary
-        // rather than about a workspace with no clocks in it.
-        assert!(include_str!("watch.rs").contains("Instant::now"));
-    }
-}
+// **There is no test here asserting the surface reads no clock, and that is deliberate.**
+//
+// There was one: a grep over `marlowe-surface/src/window.rs` for `SystemTime`, `Instant::now` and
+// `now_ms`. It was a **declaration-site** check of a property that already has an
+// **enforcement-site** one — `window_flicker.rs::two_windows_on_one_runs_state_are_the_same_frame`
+// renders two real buffers from one run's state and compares them cell by cell. A frame that
+// depended on the clock would differ there; a grep only says the words are absent.
+//
+// It also broke on its own prose the moment this file explained why the clock had gone, which is
+// the tell that it was matching text rather than behaviour. Family #16 inverted: not a control
+// nothing reads, but a control reading the wrong thing.
+//
+// `marlowe/tests/determinism_guard.rs` is the workspace-wide backstop for a real clock appearing
+// anywhere outside the fences, and it covers this crate too.
