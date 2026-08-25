@@ -741,7 +741,7 @@ verification pass for citations, real file artifacts, progressive delivery.
 
 | Metric | Target |
 |---|---|
-| Runs surviving restart, provider failover, host reboot | 100% resume from last checkpoint |
+| Runs surviving restart, provider failover, host reboot | 100% resume from last checkpoint — **MET for daemon restart** (A, 2026-08-25): the run's window, spend, step count, capability profile and latched trust floor all survive, demonstrated live. Provider failover and host reboot use the same checkpoint and are **not separately measured** |
 | DeepResearch Bench RACE | ≥ expert-reference parity |
 | DeepResearch Bench FACT citation accuracy | ≥95% |
 | GAIA / BrowseComp | competitive on the same model |
@@ -759,7 +759,7 @@ the order below, and the order is load-bearing rather than a preference.
 
 | Session | Scope | Status |
 |---|---|---|
-| **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **CURRENT** |
+| **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **DONE 2026-08-25**, ADR-053. Resume demonstrated live against a `taskkill /F`-ed daemon (`runs/session-a-m3/live/`), with the control showing the turn died. Steering demonstrated live from a second process. **`CONTRACTS.md` §5 is unchanged** — it was implemented, not reshaped |
 | **F** | **Windows — FULLY FUNCTIONAL EARLY, in parallel with A.** Talkable (a steer field in the window), streaming output, checkpoint state, and finished-looking, with sized empty panels for what lands in C–E. A window attaches to a **run**; a top-agent scope is a run with children, so one surface serves both. **A debugging instrument before it is a feature** — watching a WAL resume happen is how A gets verified. **A steer field is a WRITE**, so it takes `/steer`'s adjudication, never a side door. Needs the **E4** `DECISIONS.md` entry *before the first output line renders*. See [`M3-DESIGN.md`](M3-DESIGN.md) §6 | not started |
 | **B** | The compaction stamp and the trim marker — **both, before any upward channel is wired.** CLAUDE.md names them and M3-DESIGN §8 explains why they go live together with layer 3 | not started |
 | **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone | not started |
@@ -771,6 +771,27 @@ object; the run object is A's to define. So **A pins the run object's shape in
 [`CONTRACTS.md`](CONTRACTS.md) before either session builds against it**, and both then work in
 separate worktrees against the pinned contract. That is what pinning is for, and it is how two
 sessions here avoid discovering at merge that they disagreed about a field.
+
+> **A CHANGED NOTHING IN §5, and F should read this before merging.** `Run`, `RunStatus`,
+> `OrphanPolicy`, `Budget`, `CapabilityProfile` and `RunControl` are implemented exactly as pinned.
+> What A **added** is the wire, which §5 does not govern:
+>
+> * `Request::Watch { run }`, `Request::Steer { run, text }`, `Request::Cancel { run }`,
+>   `Request::Resume { run }`.
+> * **`Event::RunDetail`** — every field §6.2 asks a window to render: id, parent, status, elapsed,
+>   spend against ceiling, tokens against grant, depth, `last_checkpoint_step` (`None` means *no
+>   checkpoint*, never step 0), `resumable`, the orphan policy stated plainly for the cancel
+>   control, and `pending_steers`. **This is the state the window renders**, and there is one of it
+>   — `crates/marlowe-daemon/src/project.rs` already folds it into the Runs tab, so F replaces a
+>   rendering rather than adding a source.
+> * `Intent::Watch { run }` and `Intent::Steer { run, text }` in `marlowe-view`, with `/watch` and
+>   `/steer` in the command registry and `LiveSession` driving both through the client. **A window's
+>   steer field should emit `Intent::Steer` and nothing else** — that is §6.1's *"a steer is a
+>   write"* honoured by construction rather than by discipline.
+> * The **control plane**: a second listener on its own port, advertised in the profile root beside
+>   `daemon.token`. It is why a steer reaches a turn that is already running; the main port would
+>   not read it until that turn had ended. `Client::control()` finds it; `Client::steer/watch/
+>   cancel/runs` route there and fall back to the main port when there is none.
 
 **Letters are labels, not a strict sequence. F is deliberately out of order** — it blocks on
 nothing but A's run object. It is **not** read-only: its steer field is a write and takes `/steer`'s

@@ -13,10 +13,20 @@
 //! **What this buys at M2:** a run outlives the *client*. Close the terminal, reconnect, and the
 //! daemon still owns it and still reports it.
 //!
-//! **What it does not buy, stated so it is not read as more:** a run does not yet outlive the
-//! *daemon*. There is no WAL and no checkpoint resume, so a daemon restart loses in-flight runs.
-//! That is **M3 and K5**, and `RunControl::resume` already refuses by name rather than pretending
-//! otherwise. Calling this "durable runs" would be exactly the adjacent-measurement failure this
+//! **AND, AS OF M3 SESSION A, A RUN OUTLIVES THE DAEMON.** Every iteration writes a
+//! `Checkpoint` into the journal, and a new daemon on the same profile seeds its run table from
+//! those, lists the interrupted ones, and resumes one from its last completed step. The paragraph
+//! that used to stand here said the opposite, correctly, for the whole of M2:
+//!
+//! > *a run does not yet outlive the daemon. There is no WAL and no checkpoint resume, so a daemon
+//! > restart loses in-flight runs. That is M3 and K5.*
+//!
+//! **What is still not durable, stated so this is not read as more than it is:** the *conversation*.
+//! `Daemon::sessions` is in memory, so a restart loses the transcript; what resumes is the
+//! interrupted **turn**, with its own window, which the checkpoint carries. And nothing resumes on
+//! its own — `marlowe --resume <id>` is a person deciding. See ADR-053 §10.
+//!
+//! The original paragraph continued: calling this "durable runs" would be exactly the adjacent-measurement failure this
 //! project has logged fifteen times.
 //!
 //! # The first frame does not come from here
