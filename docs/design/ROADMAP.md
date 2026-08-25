@@ -760,11 +760,32 @@ the order below, and the order is load-bearing rather than a preference.
 | Session | Scope | Status |
 |---|---|---|
 | **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **CURRENT** |
+| **F** | **Windows — starts as soon as A's run object exists, and runs in parallel with everything after.** A window attaches to a **run**; a top-agent scope is a run with children, so the same surface serves both. **Moved up because it is a DEBUGGING instrument before it is a feature** — watching a WAL resume actually happen is how A gets verified. Crosses audit finding **E4** and needs a `DECISIONS.md` entry | not started |
 | **B** | The compaction stamp and the trim marker — **both, before any upward channel is wired.** CLAUDE.md names them and M3-DESIGN §8 explains why they go live together with layer 3 | not started |
 | **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone | not started |
 | **D** | Scoped memory and instillation — [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md). **Workers gain `MemoryWrite` only here**; until then everything returns as artifacts and typed returns | not started |
 | **E** | Meetings — largest surface, most speculative, needs the tree underneath. Crosses §10.1's *"workers do not talk to each other"* and needs a `DECISIONS.md` entry; `set_speaker` is the argument | not started |
-| **F** | Agent windows — reads the control plane and writes nothing, so it can run in parallel with C–E. Crosses audit finding **E4** and needs the same entry | not started |
+
+**Letters are labels, not a strict sequence. F is deliberately out of order** — it reads the
+control plane and writes nothing, so it blocks on nothing but A's run object.
+
+**Three interface rules that bind F, and the first two are consequences of M3's own premise:**
+
+* **`/watch` opens a window; it does NOT stream into the conversation pane.** Filling the main pane
+  with agent output halts the conversation *visually*, which is the exact thing this milestone exists
+  to stop. §B's tab layout already avoids it by making **Runs** a pinned tab rather than a stream;
+  the window is the extension of that, not a departure.
+* **`/runs` and `/steer` survive the windows.** §10.1 requires runs be steerable *"from outside"* —
+  another terminal, no TUI running, a script. If steering only works from the window, closing a
+  window removes a capability, and closing a window is specified to detach and never cancel.
+* **One state, two renderings.** The window renders the same control-plane state the **Runs** tab
+  reports — it does not keep its own view. Two surfaces answering *"what is this run doing"* from two
+  sources is the two-sides-silently-disagree shape this project has logged repeatedly.
+
+**The Runs tab is already pinned by `03-addendum-terminal.md`** (tab `1`: status, elapsed, spend
+against ceiling, subagent depth, and *"a Steer field that injects guidance into a running child
+without restarting it"*). The tab is the roster; a window is one scope opened from it. These are one
+design, not two.
 
 **Then, and not inside M3:** the red-team session (§8 — the boundary cannot be *tested* until
 something can taint), followed by [`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md)'s tournament.

@@ -1,4 +1,4 @@
-# M3 — the agent organisation, and what it costs
+﻿# M3 — the agent organisation, and what it costs
 
 **Designed 2026-08-24 with the human. Not built, not decided.** ROADMAP's M3 block specifies the
 **control plane** — runs as first-class objects, WAL and resume, mid-flight steering, orphan policy.
@@ -416,7 +416,18 @@ invisibility, layer 1 routing, and the empty tool set are not A/B tested.** They
    channels after means shipping the laundering path alone.
 4. **Scoped memory and instillation.** `SCOPED-MEMORY.md`. Workers gain `MemoryWrite` only here.
 5. **Meetings.** Largest surface, most speculative, needs the tree working underneath.
-6. **Windows** — can proceed in parallel with 3–5; it reads the control plane and writes nothing.
+6. **Windows** — **not last, and not optional.** It reads the control plane and writes nothing, so
+   it blocks on nothing but step 1's run object, and it should start there. A window attaches to a
+   **run**; a top-agent scope is a run with children, so one surface serves both.
+
+   **It is a debugging instrument before it is a feature.** Verifying step 1 means watching a run
+   die and resume from its checkpoint, and *seeing* that is worth more than reading a journal about
+   it after the fact. The human's reason, 2026-08-24, and it is the right one.
+
+   `/watch` opens a window rather than streaming into the conversation pane — filling the main pane
+   with agent output halts the conversation visually, which is what this milestone exists to stop.
+   `/runs` and `/steer` survive, because §10.1 requires steering *from outside*. And the window
+   renders the same control-plane state the **Runs** tab reports, never its own.
 7. **Post-M3: the red-team session**, then analogical retrieval.
 
 ---
