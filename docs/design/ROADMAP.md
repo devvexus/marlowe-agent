@@ -1,4 +1,4 @@
-# Marlowe — Roadmap
+﻿# Marlowe — Roadmap
 
 Every milestone is **independently shippable and independently useful**. A harness that only
 works when complete is a harness that never works.
@@ -6,8 +6,15 @@ works when complete is a harness that never works.
 **Scope rule:** one milestone at a time. Scope is whatever this file marks current. If a task
 pulls you outside it, note it in `STATE.md` and stop.
 
-**Current milestone: M2.** M0a, M0b and M1 are complete. M1 closed 2026-08-08 at `ed25914`; see §M2
-below for scope, and [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
+**Current milestone: M3.** M0a, M0b, M1 and M2 are complete. M1 closed 2026-08-08 at `ed25914`;
+**M2 closed 2026-08-24 at the end of Session C3** — see §M2 for its acceptance block, including
+the four benchmark rows deferred to the end of the project, and
+[`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
+
+**M3's design is three documents, and the milestone block below is only its scope:**
+[`M3-DESIGN.md`](M3-DESIGN.md) (the agent organisation),
+[`SCOPED-MEMORY.md`](SCOPED-MEMORY.md) (memory topology, and a precondition for step 4),
+[`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md) (post-M3, its own session).
 
 ---
 
@@ -743,6 +750,32 @@ verification pass for citations, real file artifacts, progressive delivery.
 ### Non-goals
 
 No swarm topology. No predeclared DAGs. Both are anti-requirements (§15).
+
+### Sessions
+
+**The scope block above is what M3 SHIPS. The design of what runs on it is
+[`M3-DESIGN.md`](M3-DESIGN.md)**, written 2026-08-24 with the human and not yet built. Its §10 fixes
+the order below, and the order is load-bearing rather than a preference.
+
+| Session | Scope | Status |
+|---|---|---|
+| **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **CURRENT** |
+| **B** | The compaction stamp and the trim marker — **both, before any upward channel is wired.** CLAUDE.md names them and M3-DESIGN §8 explains why they go live together with layer 3 | not started |
+| **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone | not started |
+| **D** | Scoped memory and instillation — [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md). **Workers gain `MemoryWrite` only here**; until then everything returns as artifacts and typed returns | not started |
+| **E** | Meetings — largest surface, most speculative, needs the tree underneath. Crosses §10.1's *"workers do not talk to each other"* and needs a `DECISIONS.md` entry; `set_speaker` is the argument | not started |
+| **F** | Agent windows — reads the control plane and writes nothing, so it can run in parallel with C–E. Crosses audit finding **E4** and needs the same entry | not started |
+
+**Then, and not inside M3:** the red-team session (§8 — the boundary cannot be *tested* until
+something can taint), followed by [`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md)'s tournament.
+
+### What M3 must NOT do
+
+* **Do not wire `ingest` before Session B.** Layer 3's latch is currently unreachable in the shipped
+  daemon — `ingest` has one caller and it is the eval adapter — so **a test asserting the boundary
+  holds passes today with every guard deleted.** Fix the two defects, then wire, then test.
+* **No credential broker** (M5). No swarm. No predeclared DAG.
+* **Do not start the benchmarks** — deferred to the end of the project, 2026-08-24, by the human.
 
 ---
 
