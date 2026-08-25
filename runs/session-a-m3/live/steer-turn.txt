@@ -1,0 +1,8 @@
+  ⋯ read  f1.md  0 ms  [running]
+  ⋯ read  f1.md  2 lines · 18 B  [ok]
+# file 1 (done), now # file 2:
+
+  ⋯ read  f2.md  0 ms  [running]
+  ⋯ read  f2.md  2 lines · 18 B  [ok]
+# PINEAPPLE  [completed · 4426 ms]
+ASK EXITED 0

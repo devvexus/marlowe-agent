@@ -1,5 +1,184 @@
 ﻿# State
 
+## 2026-08-25 — M3 SESSION A: RUNS ARE DURABLE. ADR-053. `CONTRACTS.md` §5 UNCHANGED
+
+**THE WORKSPACE COUNT IS NOT FILE-BACKED, AND THAT IS THE FIRST THING TO FIX NEXT SESSION.**
+A full `cargo test --workspace --jobs 4 --no-fail-fast` ran clean mid-session — **1209 passed, 0
+failed, 2 ignored** over 106 `test result` lines, exit 0, against a baseline of 1173/104 — and its
+file was then **overwritten by a re-run I killed**. This project's rule is that the count comes
+from the file, so that number is stated here as history and **must not be quoted as current**.
+Re-run it once, to a file, before any claim that the tree is green.
+
+**What IS on file:** `runs/session-a-m3/touched.txt` — the seven crates this session changed
+(`marlowe-loop`, `marlowe-daemon`, `marlowe-surface`, `marlowe-view`, `marlowe-stub`,
+`marlowe-permission`, `marlowe`): **565 passed, 1 failed**, 57 result lines,
+`MARLOWE_CUDA_LIB_DIR` set. Scoped deliberately, on the human's instruction, for time.
+
+**The one failure is `a_silent_peer_does_not_wedge_the_daemon`, and it is PRE-EXISTING.**
+Checked out `3a06621` — master, none of this session's code — and it fails there too, identically.
+It asserts a `status` is answered inside 7 s while a silent peer holds the serial main port behind
+a 5 s preamble deadline: a **two-second margin** on a machine that had just run three release
+builds, a 27B model load and a CUDA test binary. It passed twice earlier in this session and fails
+in isolation now, which is a load-dependent timing assertion rather than a property. **Worth
+re-stating as a deadline the test controls rather than a race it hopes to win.**
+
+`cd eval && python -m pytest`: 72 passed, unmodified. Branch `m3-control-plane`, worktree
+`../Marlowe_A`.
+
+**§5 was implemented, not reshaped.** `Run`, `RunStatus`, `OrphanPolicy`, `Budget`,
+`CapabilityProfile` and `RunControl` are exactly as pinned. `Checkpoint` was **named** in §5 and
+never defined; ADR-053 defines it. What is new is on the wire, which §5 does not govern — see
+ROADMAP's M3 note, written for Session F.
+
+### The finding: a restart would have become the trim
+
+ADR-023's floor is *"monotonic and latched per run"*, and the latch exists because the floor used
+to be **derived** from the current window — so trimming the untrusted block restored privileges the
+run was supposed to have lost.
+
+**A resume rebuilt through `Run::root` reopens that by a different route.** `root` starts at
+`UserAsserted`. A run that read a hostile page, latched to `UntrustedContent`, checkpointed, and
+came back after a daemon restart would compose targets again.
+
+And it would have been invisible: **every existing ADR-023 test runs inside one process**, so the
+whole family is structurally incapable of seeing it. `spent`, `step`, `contract_retries` and the
+profile fail the same way — each defaults to its permissive value. All five are checkpointed;
+`Run::restored` is the only constructor that sets the floor from outside `run.rs`.
+
+### THE LIVE RUN FOUND TWO DEFECTS THE TESTS DID NOT, AND THE SECOND IS THE GENERALISABLE ONE
+
+**1. A completed run's last checkpoint said `Running`.** The per-iteration checkpoint is written at
+the *end* of an iteration; the terminal status is set *after* the loop. So the last durable record
+of a run that finished perfectly said it was still going, and every consumer read it as resumable.
+The first demo listed **three completed turns as interrupted** and cheerfully resumed one, re-running
+finished work and producing a second, different answer.
+
+`a_child_that_already_finished_is_not_settled` sets `status = Completed` **by hand** and asserts
+settlement declines. That is true, and it says nothing about whether anything ever *produces* a
+terminal status. **Instance sixteen in new clothes: asserted where the value is declared rather than
+where it is produced.**
+
+**2. Fixing it failed two of my own tests, and both failures were correct.**
+
+* `a_parent_completing_settles_its_children_through_the_loop` was **green because of the defect**.
+  Its child *completed*, and settlement fired only because a completed run still read as live. It
+  now spawns a child whose grant is too small for a second call, so the child genuinely outlives
+  its parent. **A test can be passing on the bug it is adjacent to.**
+* The "kill" in the resume test was a **cancel**, and a cancel now legitimately refuses to resume —
+  so the instrument had been modelling a different event all along, and nothing revealed it until
+  the other half was right. It is a **panic inside the driver** now: `drive` never returns, no final
+  checkpoint is written, and what survives is what a `kill -9` leaves.
+
+### Demonstrated live — `runs/session-a-m3/live/`
+
+`marlowe-red:9b`, scratch profile, `taskkill /F` on the daemon. `DEMO-OUTPUT.txt`:
+
+* `/runs` answered **from a second process while a turn was live** — the control plane.
+* Killed once checkpoint step 1 was durable. **The control holds**: `ASK EXITED 1`, connection
+  forcibly closed, no answer.
+* A new daemon on the same profile: *"1 interrupted run(s) can be resumed"*. `/runs` listed it,
+  `/watch` showed `checkpoint step 1 · resume from that step · on cancel children terminate`.
+* `--resume` finished it.
+
+`STEER-OUTPUT.txt`: a run part-way through reading six files took `--steer` from another process and
+answered **PINEAPPLE**, abandoning f3–f6. Same run, same turn, `steer_received` in the journal, no
+restart.
+
+**The demo's own instrument had to be fixed first, and the lesson is the same family.** It polled
+`marlowe --watch`, which spawns a process per check — ~200 ms against a 9B that finishes a two-step
+turn in under five seconds. The kill kept landing *after* the run completed, so the "control" that
+was supposed to prove the run died proved the opposite. It reads the journal directly now (~10 ms),
+which is also the honest instrument: the journal is what a resume reads.
+
+### Verification
+
+**Nine mutations, one at a time, each failing exactly its own named tests** —
+`runs/session-a-m3/mutations.txt`:
+
+| Mutation | Fails |
+|---|---|
+| `trust_floor` restores `UserAsserted` | `the_trust_floor_survives_a_restart` |
+| `resumed_step` resets the counters | `spend_and_the_step_counter_survive_a_restart` |
+| `checkpoint_payload` back to `{step: n}` | `a_run_that_died_mid_flight_resumes_from_its_last_completed_step` |
+| `no_final_checkpoint` (never terminal) | three, incl. `a_run_that_completed_leaves_a_terminal_checkpoint_and_refuses_to_resume` |
+| `orphan_policy_ignored` | the three fate tests |
+| `steer_broadcast` | `a_steer_addressed_to_a_child_is_not_taken_by_the_parent` |
+| `budget_sliced` | `a_second_sibling_is_offered_the_same_allocation_as_the_first` |
+| `no_control_plane` | all eight control-plane tests |
+| `control_port_derived` | `the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent` |
+
+**A mutation found that `Client::control` had no test at all** — the client method `/steer`,
+`/watch` and `--steer` all go through. Every other test reached the control port through
+`advertised_port` and a raw socket, which is the *daemon's* side. A reader nothing exercised.
+
+**THE MUTATION HARNESS DESTROYED AN HOUR OF UNCOMMITTED WORK, and the tell is worth keeping.** It
+reverted each mutation with `git checkout -- <path>`, which restores the file to **HEAD** — so it
+discarded every uncommitted change in it. The signal was not a wrong answer: **seven mutations that
+had killed cleanly all reported *zero* failures at once.** Numbers going to zero *together* is a
+broken instrument, not a broken property. It snapshots the file in memory now. **Commit before
+mutating.**
+
+### Also fixed
+
+**`--status` never threaded `--daemon-port`.** It built its client on the default port, found
+nothing, constructed a throwaway daemon and printed *its own defaults* — which is why it reported
+`qwen3.5:9b / ollama` while describing a daemon running `stealth/ox-alpha`. It takes the port now,
+**and says which of the two readings you are getting**: the no-daemon branch prints *"what follows
+is the configuration `marlowe --serve` would start with, not a description of anything running."*
+The two outputs used to be indistinguishable, which is the whole `get_providers()` family.
+
+**Budgets are granted, never sliced.** `slice_for` is **deleted**, not left beside `grant` — two
+functions handing out budgets is the shape that drifts. It took its share of what *remained*, which
+put the eighth quarantined reader on ~0.3% at depth one; this tree is depth four. `grant` takes its
+share of the **original** and refuses with **both numbers**. `Standard` moved 2/8 → 3/8 because the
+acceptance row demanded it: four levels of 2/8 is **0.39%**, under M3 §11's 1% line. It now measures
+**1.98%** of a 200k root at depth 4, and the band — **[1%, 5%]** — is declared *in the assertion*.
+
+**The control port is advertised, not derived.** The first version used `port + 1`, which collides
+with a *second* daemon's main port: the default is 11435, so a daemon on 11436 lands on the first
+one's control plane, and a client then offers the wrong profile's token and is refused — an auth
+failure that is not one. `socket_auth` and `split` both hit it within minutes, because `free_port()`
+handed one fixture a port another fixture's control plane had taken. Bound at **0** and written to
+the profile root beside `daemon.token`.
+
+**The run table is seeded from the journal at daemon open.** It is in memory, so after a restart a
+surviving run had **no id anybody could produce** — the work survived and was unreachable, which is
+indistinguishable from it not having survived. Seeded as `interrupted`, never `running`.
+
+**The `/watch` and `/steer` commands were caught by the noun guard on the way in.**
+`every_user_facing_command_is_a_view_over_one_of_seven_nouns` failed until both claimed `run`.
+Neither is an eighth concept; the guard did exactly its job.
+
+### Open, and stated rather than implied
+
+1. **`ingest` is still not wired**, so layer 3's latch remains unreachable in the shipped daemon.
+   `the_trust_floor_survives_a_restart` sets the floor **by hand** — it is a test of the
+   *checkpoint*, not evidence the boundary holds in the product. Session B's order is unchanged:
+   the compaction stamp and the trim marker, then the channel, then the boundary test.
+2. **The conversation is still not durable.** A run is per-turn in the daemon; `Daemon::sessions` is
+   in memory. What resumes is the interrupted **turn**, with its window. Making the session durable
+   has its own compaction-lineage questions.
+3. **Nothing resumes automatically.** `--resume <id>` is a person deciding. An auto-resume sweep at
+   boot needs orphan settlement to run against the journal; `settle_orphan_in` exists for it and
+   nothing calls it.
+4. **Checkpoint volume is unmeasured in the large.** One checkpoint is bounded by the window and the
+   test prints the number, but a long-lived profile's journal growth is a number nobody has yet.
+   ADR-053 §3 names compression, delta-encoding and every-Nth-step and deliberately does none.
+5. **Provider failover and host reboot are not separately measured.** They use the same checkpoint
+   as the daemon restart, and that is an argument rather than a measurement.
+
+### For Session F
+
+**Nothing in §5 moved.** `Event::RunDetail` carries every field §6.2 asks a window to render, and
+`project.rs` already folds it into the Runs tab — so F replaces a *rendering*, not a source. A
+window's steer field should emit `Intent::Steer` and nothing else, which is §6.1's *"a steer is a
+write"* honoured by construction. The full note is in ROADMAP's M3 session block.
+
+**One hazard I created:** I built the release binary three times in a shared checkout. Any timing
+Session F took in that window is suspect — hazard form 6, and it does not announce itself.
+
+---
+
 ## 2026-08-24 (POST-MERGE) — PROGRESSIVE DISCLOSURE HAD NO FRONT HALF, AND M3 IS DESIGNED
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1173 passed, 0 failed, 2 ignored**, tallied from
