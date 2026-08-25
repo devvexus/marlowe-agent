@@ -1,5 +1,35 @@
 ﻿# State
 
+## 2026-08-25 — LOGGED FOR M3 F2: THE WINDOW DOES NOT LOOK LIKE THE PRODUCT
+
+**The human's finding, from using it:** the run window reads as a different application. *"Too many
+colours. It is supposed to look like almost a clone minus the irrelevant parts — same colour scheme,
+same feel, same everything, just different sections. SAME STYLE."*
+
+**It is structural, not taste, and here is the mechanism.**
+
+`crates/marlowe-surface/src/window.rs` uses **`Tone::Green`**. The conversation pane
+(`render.rs`) never does — it uses Red, Dim and Amber. `project.rs:283` paints a running run green
+as well. So the window introduces a hue that exists nowhere else in the product.
+
+**Nothing caught it because there is no shared palette to violate.** `chrome.rs` is the single
+definition of harness furniture, and it defines **glyphs only** — `TOOL_MARKER`, `RULE`,
+`QUOTE_RULE`, `SCROLL_THUMB`. It says nothing about colour. So M3-DESIGN §6.4's *"do not
+reimplement the look — use `chrome.rs`"* was followed to the letter and could not deliver what it
+meant: two surfaces pick tones independently and drift, and every §B13 test still passes because
+each surface is individually inside the budget.
+
+**§B13 is satisfied and the product still looks wrong**, which is the interesting part. One accent,
+three state colours, three foreground weights, state encodes state — green-for-running is a state
+colour and is legal. The budget bounds *how many* colours a surface uses; it does not bound whether
+two surfaces use the *same* ones. That gap is the finding.
+
+**What F2 should do:** extend `chrome.rs` to own the palette as it owns the glyphs, express the
+window in it, and add a test that the window's tone set is a **subset** of the conversation pane's —
+the assertion that would have caught this and that no per-surface budget check can.
+
+Not fixed. Logged before it gets built on.
+
 ## 2026-08-25 — M3 SESSION F: THE AGENT WINDOW. ADR-054, ADR-055. Merged with A, green
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1285 passed, 0 failed, 4 ignored**, tallied from
