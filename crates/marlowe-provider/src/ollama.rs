@@ -941,7 +941,42 @@ pub fn parse_step(message: &serde_json::Value) -> ModelStep {
         return step;
     }
 
-    ModelStep::Say(content.to_string())
+    // ── and defang whatever `recover_leaked_call` DECLINED ──────────────────────────
+    //
+    // The comment above says the failure exactly: unrecovered markup "becomes assistant history,
+    // goes back to Ollama on the next request, and its template fails to parse it". Recovery is
+    // deliberately narrow — it matches `<function=NAME>` and nothing else — so a leak in any other
+    // dialect falls straight through to `Say` and wedges the NEXT request.
+    //
+    // **Observed 2026-08-25 in a live TUI turn:** the model leaked a BARE `<function>` — no `=`,
+    // no inline name — `find("<function=")` declined it, and the turn after failed with
+    // `HTTP 500: XML syntax error on line 2: element <function> closed by </parameter>`. One token
+    // shape outside the parser, and the run died a turn later pointing at the wrong place.
+    //
+    // So this is the layer that does not need to know the dialect. Recovery stays narrow, because
+    // a looser parser inventing calls out of prose is the worse failure. What changes is that
+    // markup nobody could parse is no longer allowed to reach the provider as tags.
+    ModelStep::Say(defang_tool_markup(content))
+}
+
+/// Make tool-call markup unparseable as XML while leaving it readable.
+///
+/// **Not a sanitizer and not a filter.** It rewrites four exact token shapes and nothing else, so
+/// prose survives unchanged and a leak survives *visibly* — the model can still see what it wrote,
+/// which is what lets it notice and retry structurally.
+///
+/// No harness prose is added. Appending "your call did not parse" here would put words in
+/// Marlowe's voice on a `Say`, which ADR-030 forbids and which the comment at `control_step`'s
+/// `run` arm already records as a defect this file paid for once.
+fn defang_tool_markup(content: &str) -> String {
+    if !content.contains("<function") && !content.contains("<parameter") {
+        return content.to_string();
+    }
+    content
+        .replace("</function>", "[/function]")
+        .replace("</parameter>", "[/parameter]")
+        .replace("<function", "[function")
+        .replace("<parameter", "[parameter")
 }
 
 /// Map a control tool onto its `ModelStep`. §12: the adapter normalizes what the model speaks.
@@ -1002,6 +1037,70 @@ fn control_step(name: &str, args: &Args, message: &serde_json::Value) -> ModelSt
 
 #[cfg(test)]
 mod tests {
+    /// **THE REGRESSION FOR THE TURN THAT DIED A TURN LATE.**
+    ///
+    /// A bare `<function>` — no `=`, no inline name — is a dialect `recover_leaked_call` declines
+    /// by design. Before this, it fell through to `Say`, entered assistant history verbatim, and
+    /// the NEXT request came back `HTTP 500: XML syntax error ... element <function> closed by
+    /// </parameter>`. Observed live 2026-08-25.
+    #[test]
+    fn markup_the_recovery_declined_cannot_reach_the_provider_as_tags() {
+        let leaked = "I'll read it.
+<function>read</function>
+<parameter=path>x.rs</parameter>";
+        // The control: recovery genuinely declines this shape, so the defang is what is being
+        // tested rather than a path that never runs.
+        assert!(
+            super::recover_leaked_call(leaked).is_none(),
+            "recovery now handles this dialect -- rewrite this test against one it still declines"
+        );
+
+        // **THROUGH `parse_step`, NOT THROUGH THE HELPER.** An earlier version of this called
+        // `defang_tool_markup` directly and passed on a build where `parse_step` never called it --
+        // the mutation proved it. What matters is the fate of the bytes on the way to the provider,
+        // so the assertion has to start where the provider's message starts.
+        let out = match super::parse_step(&serde_json::json!({ "content": leaked })) {
+            ModelStep::Say(s) => s,
+            other => panic!("a declined leak must become prose, not {other:?}"),
+        };
+        for tag in ["<function", "</function>", "<parameter", "</parameter>"] {
+            assert!(!out.contains(tag), "`{tag}` survived and will wedge the next request:
+{out}");
+        }
+        // Readable, not erased: the model must still be able to see what it wrote.
+        assert!(out.contains("read"), "the call's content was destroyed:
+{out}");
+        assert!(out.contains("x.rs"), "the argument was destroyed:
+{out}");
+        assert!(out.contains("I'll read it."), "surrounding prose was damaged:
+{out}");
+    }
+
+    /// **Prose is untouched.** The defang rewrites four token shapes; anything else must survive
+    /// byte for byte, or ordinary answers start arriving mangled.
+    #[test]
+    fn ordinary_prose_passes_through_the_defang_unchanged() {
+        for s in [
+            "The function reads a file.",
+            "Use a < b and c > d in your comparison.",
+            "See `parameter` in the docs.",
+            "",
+        ] {
+            assert_eq!(super::defang_tool_markup(s), s, "prose was rewritten: {s:?}");
+        }
+    }
+
+    /// The defang must not steal from the recovery: a call in the dialect recovery DOES understand
+    /// still becomes a real call, not defanged text.
+    #[test]
+    fn a_recoverable_call_is_still_recovered_and_never_defanged() {
+        let good = "<function=read><parameter=path>notes.md</parameter></function>";
+        assert!(
+            super::recover_leaked_call(good).is_some(),
+            "the narrow recovery stopped working, which the defang would silently paper over"
+        );
+    }
+
     use super::*;
 
     #[test]
