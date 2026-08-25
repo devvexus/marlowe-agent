@@ -1,0 +1,10 @@
+run 0f5f0cab-e9c9-4276-908b-2b2917549797
+  status      interrupted
+  elapsed     7306 ms
+  spend       0 of 2000000 micros_usd
+  tokens      4708 of 200000 granted
+  depth       3
+  checkpoint  step 1
+  resume      from that step
+  on cancel   children terminate
+  steers      0 queued

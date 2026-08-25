@@ -11,9 +11,10 @@ use marlowe_contract::TrustClass;
 use marlowe_exec::FileSystemTools;
 use marlowe_journal::{Journal, Profile};
 use crate::clock::SystemClock;
+use marlowe_loop::RunControl as _;
 use marlowe_loop::{
     ApprovalGate, Budget, CapabilityProfile, ClockSource, Engine, GovernanceConstraint,
-    JournalRecorder, LoopOutcome, MemoryRecorder, NoControl, OutputContract, Ports, Provenance,
+    LoopOutcome, MemoryRecorder, OutputContract, Ports, Provenance,
     Run, RunId, SessionId, SessionState, Summarizer, ToolLineState, TurnEvent, TurnSink,
     MEMORY_TOKEN_BUDGET,
 };
@@ -176,6 +177,52 @@ pub struct RunSummary {
     /// benchmark row somebody can re-run and one nobody can, because OpenRouter may route one
     /// model name to a different upstream between two requests without the name changing.
     pub attribution: Option<String>,
+    /// What the run has cost, and how long it has been going. **M3 Session A**: §6.2's window
+    /// renders *"elapsed, spend against ceiling"* and there was nowhere to read either from.
+    pub spend_micros_usd: u64,
+    /// The run's final wall time, set when the turn ends. **`0` while it is still going** — see
+    /// `started_ms`, and `ControlPlane::detail`, which is where the two become one number.
+    pub elapsed_ms: u64,
+    /// When the daemon accepted the work, on the wall clock. **Session F.**
+    ///
+    /// `elapsed_ms` alone could not drive a window: it is written once, at the end, so a run that
+    /// had been going for a minute reported `0` for the whole minute. A window whose elapsed reads
+    /// zero while the thing is visibly working is the surface contradicting itself in the one panel
+    /// whose job is saying what is happening.
+    pub started_ms: u64,
+}
+
+impl RunSummary {
+    /// A fresh record for an accepted turn. **Recorded before anything can fail**: the daemon took
+    /// the work, so the record is the daemon's from that moment.
+    pub fn accepted(id: String) -> Self {
+        Self {
+            id,
+            status: "running".into(),
+            tokens: 0,
+            depth: 0,
+            attribution: None,
+            spend_micros_usd: 0,
+            elapsed_ms: 0,
+            // **Through the fence.** §4.5 forbids a system clock on the contract paths and names
+            // the legitimate case in the same paragraph — in production the harness supplies the
+            // real clock. `SystemClock` is that harness's one clock, and `determinism_guard.rs`
+            // fences the file it lives in rather than this one.
+            started_ms: crate::clock::SystemClock.now_ms().max(0) as u64,
+        }
+    }
+
+    /// The wire frame. **One definition**, so the main port and the control port cannot report
+    /// the same run differently — which is the `--status` family in miniature.
+    pub fn to_frame(&self) -> Event {
+        Event::Run {
+            id: self.id.clone(),
+            status: self.status.clone(),
+            tokens: self.tokens,
+            depth: self.depth,
+            attribution: self.attribution.clone(),
+        }
+    }
 }
 
 /// Turns a loop event into a wire event. Render-only.
@@ -283,8 +330,7 @@ fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
         | Event::Run { .. }
         | Event::Error { .. }
         | Event::RunDetail { .. }
-        | Event::RunOutput { .. }
-        | Event::Accepted { .. } => return None,
+        | Event::RunOutput { .. } => return None,
     })
 }
 
@@ -517,13 +563,13 @@ pub struct Daemon {
     /// M2 Session D. `memory: None` used to be passed to every turn — which was concealing that
     /// there was no single-claim write path to wire, not merely that it was unwired.
     memory: crate::memory::DaemonMemory,
-    runs: BTreeMap<String, RunSummary>,
-    /// **What a run window reads.** `M3-DESIGN.md` §6, `watch.rs`.
+    /// The run table and the durable control plane, shared with the control listener.
     ///
-    /// Behind an `Arc<Mutex<_>>` because the control listener is a second thread: this connection
-    /// is held for the whole of a turn, and a window answered only between turns would go blank
-    /// exactly while there was something to watch.
-    plane: std::sync::Arc<std::sync::Mutex<crate::watch::ControlPlane>>,
+    /// **The run table moved in here rather than staying a plain field**, and that is the change
+    /// that makes `/steer` mean anything: the turn in flight and the control connection reach the
+    /// same object, so a steer written by one is seen by the other at the next iteration boundary.
+    /// A copy on each side would be two answers to one question — the shape `--status` produced.
+    plane: crate::control_plane::Shared,
     /// Keyed by the client's session name — the same key `SessionId::from_name` derives from.
     sessions: BTreeMap<String, SessionMemory>,
     shutdown: Arc<AtomicBool>,
@@ -700,12 +746,28 @@ impl Daemon {
             }
         })?;
 
+        // **Seeded from the journal, or a run that survived a restart is unfindable.** The run
+        // table is in memory; after a restart it is empty, so `/runs` would list nothing and
+        // `--resume` would need an id nobody could produce. See `seed_from_journal` for why they
+        // are seeded as `interrupted` rather than `running`.
+        let plane = crate::control_plane::ControlPlane::new(marlowe_loop::DurableControl::new(
+            // The journal is the substrate: a checkpoint is an `EventKind::Checkpointed` event in
+            // the one append-only log, and `JournalCheckpoints` is the read.
+            marlowe_loop::JournalCheckpoints::new(std::sync::Arc::clone(&journal)),
+        ));
+        let resumable = plane.lock().expect("fresh").seed_from_journal();
+        if resumable > 0 {
+            eprintln!(
+                "marlowe: {resumable} interrupted run(s) can be resumed — `marlowe --runs` lists \
+                 them, `marlowe --resume <id>` continues one"
+            );
+        }
+
         Ok(Self {
             config,
+            plane,
             journal,
             memory,
-            runs: BTreeMap::new(),
-            plane: std::sync::Arc::new(std::sync::Mutex::new(crate::watch::ControlPlane::new())),
             sessions: BTreeMap::new(),
             shutdown: Arc::new(AtomicBool::new(false)),
             skills,
@@ -754,7 +816,7 @@ impl Daemon {
     }
 
     pub fn live_runs(&self) -> usize {
-        self.runs.values().filter(|r| r.status == "running").count()
+        self.plane.lock().expect("the control plane lock was poisoned").live_runs()
     }
 
     /// What §B5's band and first-run onboarding need, without touching a model.
@@ -1016,54 +1078,82 @@ impl Daemon {
         session: &str,
         message: &str,
         approvals: &mut dyn ApprovalGate,
+        on_event: impl FnMut(Event),
+    ) {
+        self.turn(session, message, None, approvals, on_event)
+    }
+
+    /// Continue a run from its last durable checkpoint. **The other end of `RunControl::resume`.**
+    ///
+    /// It is the same turn path, entered with a run instead of a message. That matters more than
+    /// it reads: a separate resume path would be a second place where the profile, the governance
+    /// tier, the tool host and the trust floor are assembled, and the two would drift. The one
+    /// that drifted would be the one nobody runs interactively.
+    pub fn resume_streaming(
+        &mut self,
+        run: RunId,
+        approvals: &mut dyn ApprovalGate,
+        mut on_event: impl FnMut(Event),
+    ) {
+        let staged = {
+            let mut plane = self.plane.lock().expect("the control plane lock was poisoned");
+            match plane.control.resume(run) {
+                Ok(()) => plane.control.take_resumed(),
+                Err(e) => {
+                    // **Refused by name.** Every variant of `ResumeError` says something different
+                    // and actionable: no checkpoint, a version this build will not read, a run the
+                    // orphan policy cancelled, a run that already finished.
+                    on_event(Event::Error { detail: e.to_string() });
+                    return;
+                }
+            }
+        };
+        let Some(cp) = staged else {
+            on_event(Event::Error {
+                detail: format!("run {run} staged no checkpoint despite resuming cleanly"),
+            });
+            return;
+        };
+        // The session name is the client's key; the checkpoint carries the id it derives from.
+        // There is no reverse map, so the resumed run keeps its own session and the store is
+        // keyed by the id -- which is what the loop reads anyway.
+        let session = cp.session.to_string();
+        self.turn(&session, "", Some(cp), approvals, on_event)
+    }
+
+    fn turn(
+        &mut self,
+        session: &str,
+        message: &str,
+        resumed: Option<marlowe_loop::Checkpoint>,
+        approvals: &mut dyn ApprovalGate,
         mut on_event: impl FnMut(Event),
     ) {
         // The run is recorded FIRST, before anything can fail. The daemon accepted the work, so
         // the record is the daemon's from that moment — a turn that degraded is still a turn
         // that happened, and a client asking `runs` after one must not be told nothing occurred.
         // Recording it only on success made a degraded turn indistinguishable from no turn.
-        let run_id = RunId::new();
-        self.runs.insert(
-            run_id.to_string(),
-            RunSummary {
-                id: run_id.to_string(),
-                status: "running".into(),
-                tokens: 0,
-                depth: 0,
-                attribution: None,
-            },
-        );
-        // **A window can open on this run from the moment the daemon accepted the work**, for the
-        // same reason the `RunSummary` above is recorded first: a turn that degraded is still a
-        // turn that happened, and a window opened on one must not be told it does not exist.
         //
-        // The ceiling is the interactive budget's, which is the number the run will actually be
-        // measured against — not a figure chosen here for the display.
-        {
-            let started_ms = SystemClock.now_ms().max(0) as u64;
-            let mut plane = self.plane.lock().expect("the control plane lock was poisoned");
-            plane.open(
-                &run_id.to_string(),
-                crate::watch::RunDetail {
-                    status: "running".into(),
-                    detail: String::new(),
-                    started_ms,
-                    finished_ms: 0,
-                    spend_micros_usd: 0,
-                    ceiling_micros_usd: marlowe_loop::Budget::interactive().micros_usd,
-                    last_checkpoint: None,
-                    // **The refusal is the control plane's own**, taken from `RunControl::resume`
-                    // rather than written here — a second sentence saying the same thing is a
-                    // second sentence to keep true. See `ResumeError::NotDurable`.
-                    resume_from: None,
-                    resume_refused: marlowe_loop::ResumeError::NotDurable { run: run_id }.to_string(),
-                    orphan_policy: "detach".into(),
-                },
-            );
-        }
-
-        let mark = |runs: &mut BTreeMap<String, RunSummary>, status: &str, tokens: u64| {
-            if let Some(s) = runs.get_mut(&run_id.to_string()) {
+        // **A resumed run keeps its id**, or `/runs` would show the work restarting as something
+        // new and the checkpoint chain would fork.
+        let run_id = resumed.as_ref().map_or_else(RunId::new, |c| c.run);
+        self.plane
+            .lock()
+            .expect("the control plane lock was poisoned")
+            .runs
+            .insert(run_id.to_string(), RunSummary::accepted(run_id.to_string()));
+        // **A closure over the shared plane, taking the lock per call.** It used to take
+        // `&mut self.runs`; the table now lives behind the plane's lock so a `/runs` on the
+        // control port sees the same row this turn is updating. The lock is held for one field
+        // assignment and never across a model call.
+        let plane = std::sync::Arc::clone(&self.plane);
+        let mark = |plane: &crate::control_plane::Shared, status: &str, tokens: u64| {
+            if let Some(s) = plane
+                .lock()
+                .expect("the control plane lock was poisoned")
+                .runs
+                .get_mut(&run_id.to_string())
+            {
                 s.status = status.to_string();
                 s.tokens = tokens;
             }
@@ -1084,14 +1174,14 @@ impl Daemon {
                 let routing = match Routing::uniform(&self.config.model) {
                     Ok(r) => r,
                     Err(e) => {
-                        mark(&mut self.runs, "failed", 0);
+                        mark(&plane, "failed", 0);
                         on_event(Event::Error { detail: e.to_string() });
                         return;
                     }
                 };
                 let availability = Availability::probe(&endpoint, &routing);
                 if !availability.is_ready() {
-                    mark(&mut self.runs, "degraded", 0);
+                    mark(&plane, "degraded", 0);
                     // Invariant 4: a declared, actionable state — not a crash and not a silent stub.
                     on_event(Event::Degraded {
                         what: "no model available".into(),
@@ -1116,7 +1206,7 @@ impl Daemon {
                     &marlowe_openrouter::ApiKey::from_environment(),
                 );
                 if !availability.is_ready() {
-                    mark(&mut self.runs, "degraded", 0);
+                    mark(&plane, "degraded", 0);
                     on_event(Event::Degraded {
                         what: "no model available".into(),
                         remedy: availability.remedy(),
@@ -1136,7 +1226,7 @@ impl Daemon {
         let registry = match tool_registry(&self.mcp) {
             Ok(r) => r,
             Err(e) => {
-                mark(&mut self.runs, "failed", 0);
+                mark(&plane, "failed", 0);
                 on_event(Event::Error { detail: e.to_string() });
                 return;
             }
@@ -1144,7 +1234,7 @@ impl Daemon {
         let scope = match WorkspaceScope::new() {
             Ok(s) => s,
             Err(e) => {
-                mark(&mut self.runs, "failed", 0);
+                mark(&plane, "failed", 0);
                 on_event(Event::Error { detail: e.to_string() });
                 return;
             }
@@ -1299,7 +1389,7 @@ impl Daemon {
                 let key = match marlowe_openrouter::ApiKey::from_environment() {
                     Ok(k) => k,
                     Err(e) => {
-                        mark(&mut self.runs, "failed", 0);
+                        mark(&plane, "failed", 0);
                         on_event(Event::Error { detail: e.to_string() });
                         return;
                     }
@@ -1391,7 +1481,7 @@ impl Daemon {
         let tool_scope = match WorkspaceScope::new() {
             Ok(s) => s,
             Err(e) => {
-                mark(&mut self.runs, "failed", 0);
+                mark(&plane, "failed", 0);
                 on_event(Event::Error { detail: e.to_string() });
                 return;
             }
@@ -1409,7 +1499,7 @@ impl Daemon {
         ) {
             Ok(h) => h,
             Err(e) => {
-                mark(&mut self.runs, "failed", 0);
+                mark(&plane, "failed", 0);
                 on_event(Event::Error { detail: e.to_string() });
                 return;
             }
@@ -1435,16 +1525,14 @@ impl Daemon {
             on_event(e);
         };
         let mut sink = CallbackSink { on_event: &mut on_event };
-        // **A window's steer reaches a RUNNING loop**, at its next iteration boundary — §10.1's
-        // *"mid-flight, no restart"*. `NoControl` was here, so nothing could steer the daemon's own
-        // turn at all; the surface's steer field said "not built" and was telling the truth.
-        let mut control = crate::watch::PlaneControl::new(
-            std::sync::Arc::clone(&self.plane),
-            run_key.clone(),
-        );
+        // **The shared control plane, not `NoControl`.** This is what makes `/steer` reach a run
+        // that is already going: the control listener writes into the same `DurableControl` this
+        // reads, and the loop asks it at every iteration boundary.
+        let mut control = crate::control_plane::SharedControl(std::sync::Arc::clone(&self.plane));
         let mut clock = SystemClock;
 
-        let session_id = SessionId::from_name(session);
+        let session_id =
+            resumed.as_ref().map_or_else(|| SessionId::from_name(session), |c| c.session);
         let mut run = Run::root(
             run_id,
             session_id,
@@ -1481,12 +1569,34 @@ impl Daemon {
             SessionMemory { state, provenance: Provenance::new() }
         });
         let SessionMemory { mut state, mut provenance } = memory;
-        provenance.attribute_user_message(message);
-        state.push(marlowe_loop::Block::new(
-            marlowe_loop::SourceKind::History,
-            message,
-            TrustClass::UserAsserted,
-        ));
+
+        // **A resume replaces the run, the window and the provenance wholesale**, and adds no user
+        // message, retrieves no memories and surfaces no skills — there is no new message to do
+        // any of that against. Doing it anyway would push a turn's worth of retrieval into a
+        // window that was mid-thought, which is not the state the run was in when it stopped.
+        //
+        // `resumed_steps` and `resumed_retries` are the two loop counters whose purpose is to
+        // bound a run that will not stop. Resetting them would make `MAX_STEPS` and audit finding
+        // E8's cap fire per RESTART rather than per run.
+        let (resumed_steps, resumed_retries) = match resumed {
+            Some(cp) => {
+                let r = cp.restore();
+                run = r.run;
+                state = r.state;
+                provenance = r.provenance;
+                (r.steps, r.contract_retries)
+            }
+            None => {
+                provenance.attribute_user_message(message);
+                state.push(marlowe_loop::Block::new(
+                    marlowe_loop::SourceKind::History,
+                    message,
+                    TrustClass::UserAsserted,
+                ));
+                (0, 0)
+            }
+        };
+        let is_resume = resumed_steps > 0;
 
         // ── §4.2 retrieval, before the model speaks ────────────────────────────────────
         //
@@ -1506,7 +1616,11 @@ impl Daemon {
         // `ContextView::trust_floor` is `min` over all blocks including this one — so a recalled
         // web-derived belief correctly drops the run's floor and blocks composed targets.
         let now_for_memory = clock.now_ms();
-        let retrieved = self.memory.retrieve(session, message, now_for_memory, MEMORY_TOKEN_BUDGET);
+        let retrieved = if is_resume {
+            crate::memory::Retrieved::nothing_was_asked()
+        } else {
+            self.memory.retrieve(session, message, now_for_memory, MEMORY_TOKEN_BUDGET)
+        };
         if self.config.dev {
             eprintln!(
                 "[dev] memory: {} · injected {} · margin {:?} · abstained {:?}",
@@ -1542,7 +1656,7 @@ impl Daemon {
         // which is strictly less than a load already puts in at the same class.
         if let Some(text) = {
             let registry = self.skills.lock().expect("the skill registry lock was poisoned");
-            crate::skills::surface(&registry, message)
+            (!is_resume).then(|| crate::skills::surface(&registry, message)).flatten()
         } {
             if self.config.dev {
                 eprintln!("[dev] skills: surfaced {} B", text.len());
@@ -1569,7 +1683,14 @@ impl Daemon {
                 clock: &mut clock,
                 recorder: &mut recorder,
             };
-            engine.run(&mut run, &mut state, &mut provenance, &mut ports)
+            engine.continue_from(
+                &mut run,
+                &mut state,
+                &mut provenance,
+                &mut ports,
+                resumed_steps,
+                resumed_retries,
+            )
         };
         drop(sink);
 
@@ -1594,7 +1715,20 @@ impl Daemon {
             LoopOutcome::Cancelled => ("cancelled", String::new()),
             LoopOutcome::Failed { error } => ("failed", error.clone()),
         };
-        mark(&mut self.runs, status, run.spent.tokens);
+        mark(&plane, status, run.spent.tokens);
+        // **Spend and elapsed, because §6.2's window renders both and neither had a home.** Read
+        // off the run rather than recomputed: `run.spent` is what the budget checks against, so a
+        // second arithmetic here would be a second answer to "what has this cost".
+        if let Some(s) = plane
+            .lock()
+            .expect("the control plane lock was poisoned")
+            .runs
+            .get_mut(&run_id.to_string())
+        {
+            s.spend_micros_usd = run.spent.micros_usd;
+            s.elapsed_ms = run.spent.wall_ms;
+            s.depth = run.budget.depth;
+        }
 
         // ── ADR-046 §3: WHICH MODEL ANSWERED, AND WHICH UPSTREAM SERVED IT ──────────────
         //
@@ -1612,28 +1746,14 @@ impl Daemon {
         if !attribution.calls.is_empty() {
             let line = attribution.disclosure();
             eprintln!("marlowe: openrouter · {line}");
-            if let Some(s) = self.runs.get_mut(&run_id.to_string()) {
+            if let Some(s) = plane
+                .lock()
+                .expect("the control plane lock was poisoned")
+                .runs
+                .get_mut(&run_id.to_string())
+            {
                 s.attribution = Some(line);
             }
-        }
-
-        // **The window's identity panel closes with the run.** Without this, elapsed would keep
-        // counting on a finished run — the surface inventing a fact, and the kind that looks right
-        // because the number is moving.
-        {
-            let finished_ms = SystemClock.now_ms().max(0) as u64;
-            let mut plane = self.plane.lock().expect("the control plane lock was poisoned");
-            let spent = run.spent.micros_usd;
-            let checkpoint = run.last_checkpoint;
-            let outcome = status.to_string();
-            let why = detail.clone();
-            plane.set_detail(&run_key, move |d| {
-                d.status = outcome;
-                d.detail = why;
-                d.finished_ms = finished_ms;
-                d.spend_micros_usd = spent;
-                d.last_checkpoint = checkpoint;
-            });
         }
 
         // The loop's own Done was filtered at emission (`to_wire`), so this is the only one.
@@ -1646,16 +1766,10 @@ impl Daemon {
     }
 
     pub fn runs(&self) -> Vec<Event> {
-        self.runs
-            .values()
-            .map(|r| Event::Run {
-                id: r.id.clone(),
-                status: r.status.clone(),
-                tokens: r.tokens,
-                depth: r.depth,
-                attribution: r.attribution.clone(),
-            })
-            .collect()
+        // **One definition of a run frame** (`RunSummary::to_frame`), shared with the control
+        // port. Two renderings of one row is how the main port and the control port would start
+        // reporting the same run differently.
+        self.plane.lock().expect("the control plane lock was poisoned").run_frames()
     }
 
     /// Answer a request, emitting each event **as it is produced**.
@@ -1671,11 +1785,6 @@ impl Daemon {
             Request::Status => on_event(Event::Status(self.status())),
             Request::Ask { session, message } => {
                 self.ask_streaming_with(&session, &message, approvals, on_event)
-            }
-            Request::Runs => {
-                for e in self.runs() {
-                    on_event(e);
-                }
             }
             // The gate is not wired to a surface yet; refusing is the honest answer rather than
             // recording an approval nobody gave.
@@ -1762,11 +1871,25 @@ impl Daemon {
                     Err(detail) => on_event(Event::Error { detail }),
                 }
             }
+            // **Delegated to the one implementation**, which the control listener also calls.
+            // Answering them here too is not redundancy: a single-terminal user with an idle
+            // daemon reaches the main port, and refusing there would be a control that works only
+            // when a second terminal is open.
+            Request::Runs | Request::Watch { .. } | Request::Steer { .. } | Request::Cancel { .. } => {
+                crate::control_plane::answer(&std::sync::Arc::clone(&self.plane), request, &mut on_event)
+            }
+            // **Needs the engine, so it is the main port's**, and it drives rather than staging.
+            Request::Resume { run } => match run.parse::<uuid::Uuid>() {
+                Ok(id) => self.resume_streaming(RunId(id), approvals, on_event),
+                Err(_) => on_event(Event::Error {
+                    detail: format!("`{run}` is not a run id; `/runs` lists them"),
+                }),
+            },
             Request::Shutdown => {
                 // **Refused while a run is live.** That is exactly what invariant 6 protects: the
                 // work outlives the window. An idle daemon protects nothing and is only in the
                 // way.
-                let live = self.runs.values().filter(|r| r.status == "running").count();
+                let live = self.live_runs();
                 if live > 0 {
                     on_event(Event::Error {
                         detail: format!(
@@ -1790,17 +1913,6 @@ impl Daemon {
             // that turn finishes, by which time the decision it answers has already been denied.
             // The live path answers on the connection the prompt arrived on — see
             // `SocketApprovals`. This arm stays so the wire shape is total, and it says why.
-            // **Served on the control port, not here.** `watch.rs` explains why: this connection
-            // is held for the whole of a turn, so a window answered here would go blank exactly
-            // while there was something to watch. The arm exists so the wire shape is total and so
-            // a client pointed at the wrong port is told which one it wants.
-            Request::Watch { .. }
-            | Request::Steer { .. }
-            | Request::CancelRun { .. }
-            | Request::ResumeRun { .. } => on_event(Event::Error {
-                detail: "that is a control-plane request and this is the conversation port.                      The control plane publishes its port in `control.port` in the profile root —                      see `marlowe --watch`"
-                    .to_string(),
-            }),
             Request::Approve { .. } => on_event(Event::Error {
                 detail: "an approval must be answered on the connection that asked for it. This                          daemon serves one connection at a time, so a decision sent on a second                          connection is read only after the turn it answers has already been                          denied. Concurrency is M3."
                     .into(),
@@ -1816,30 +1928,20 @@ impl Daemon {
             port: self.config.port,
             detail: e.to_string(),
         })?;
-        let shutdown = Arc::clone(&self.shutdown);
-
-        // ── the control plane, on its own port and its own thread ───────────────────────────
-        //
-        // `watch.rs` has the argument in full. In one line: this loop holds one connection for the
-        // whole of a turn, and a run window is only worth anything *during* a turn.
-        //
-        // **A failure to bind is degraded, never fatal.** The conversation is the product; a
-        // control port that is already in use — a second daemon, something else on `port + 1` —
-        // must not stop Marlowe from answering. It says so on stderr, which is where the `--watch`
-        // client's own refusal will send the reader anyway.
-        {
-            let profile_root = self.config.profile_root.clone();
-            let token = self.token.clone();
-            let plane = Arc::clone(&self.plane);
-            let stop = Arc::clone(&self.shutdown);
-            std::thread::spawn(move || {
-                if let Err(e) = crate::watch::serve(profile_root, token, plane, stop) {
-                    eprintln!(
-                        "marlowe: the control plane could not start ({e}). Runs and the                          conversation are unaffected; `marlowe --watch` will not work until it can."
-                    );
-                }
-            });
+        // **The control plane comes up beside the main port**, so `/steer`, `/watch` and `/runs`
+        // are answerable while a turn is holding this one. A bind failure degrades visibly and
+        // names the remedy (invariant 4) rather than refusing to start the daemon: a secondary
+        // port being busy must not cost the user their assistant.
+        match crate::control_plane::spawn(
+            std::sync::Arc::clone(&self.plane),
+            &self.config.profile_root.clone(),
+            self.token.clone(),
+            Arc::clone(&self.shutdown),
+        ) {
+            Ok(port) => eprintln!("marlowe: control plane on 127.0.0.1:{port}"),
+            Err(detail) => eprintln!("marlowe: DEGRADED · {detail}"),
         }
+        let shutdown = Arc::clone(&self.shutdown);
 
         let state = Mutex::new(&mut self);
 

@@ -13,10 +13,20 @@
 //! **What this buys at M2:** a run outlives the *client*. Close the terminal, reconnect, and the
 //! daemon still owns it and still reports it.
 //!
-//! **What it does not buy, stated so it is not read as more:** a run does not yet outlive the
-//! *daemon*. There is no WAL and no checkpoint resume, so a daemon restart loses in-flight runs.
-//! That is **M3 and K5**, and `RunControl::resume` already refuses by name rather than pretending
-//! otherwise. Calling this "durable runs" would be exactly the adjacent-measurement failure this
+//! **AND, AS OF M3 SESSION A, A RUN OUTLIVES THE DAEMON.** Every iteration writes a
+//! `Checkpoint` into the journal, and a new daemon on the same profile seeds its run table from
+//! those, lists the interrupted ones, and resumes one from its last completed step. The paragraph
+//! that used to stand here said the opposite, correctly, for the whole of M2:
+//!
+//! > *a run does not yet outlive the daemon. There is no WAL and no checkpoint resume, so a daemon
+//! > restart loses in-flight runs. That is M3 and K5.*
+//!
+//! **What is still not durable, stated so this is not read as more than it is:** the *conversation*.
+//! `Daemon::sessions` is in memory, so a restart loses the transcript; what resumes is the
+//! interrupted **turn**, with its own window, which the checkpoint carries. And nothing resumes on
+//! its own — `marlowe --resume <id>` is a person deciding. See ADR-053 §10.
+//!
+//! The original paragraph continued: calling this "durable runs" would be exactly the adjacent-measurement failure this
 //! project has logged fifteen times.
 //!
 //! # The first frame does not come from here
@@ -30,6 +40,7 @@
 
 pub mod auth;
 pub mod client;
+pub mod control_plane;
 pub mod clock;
 pub mod daemon;
 pub mod live;
@@ -42,8 +53,6 @@ pub mod skills;
 pub mod project;
 mod staleness;
 pub mod protocol;
-/// The control plane a run window speaks to. `M3-DESIGN.md` §6.
-pub mod watch;
 /// The client half of the control plane, and the projection a run window renders.
 pub mod watch_client;
 
@@ -52,8 +61,7 @@ pub use daemon::{Daemon, DaemonConfig, DaemonError, ModelProviderChoice, governa
 pub use live::LiveSession;
 pub use project::{apply_events, view_from_status, PROVIDERS};
 pub use protocol::{Event, Request, RunFrame, StatusReport};
-pub use watch::{ControlPlane, PlaneControl, RunDetail};
-pub use watch_client::{ControlClient, RunProjection, WatchError};
+pub use watch_client::RunProjection;
 
 /// The loopback port the daemon listens on.
 ///

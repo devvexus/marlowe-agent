@@ -24,9 +24,6 @@ marlowe --serve [--workspace <DIR>] [--daemon-port <N>] [--dev] [--context <TOKE
 marlowe --status
 marlowe --shutdown [--daemon-port <N>]
 marlowe --launch
-marlowe --watch <RUN> [--profile-root <DIR>] [--color-depth <truecolor|256|16>]
-marlowe --runs [--profile-root <DIR>]
-marlowe --steer <RUN> <TEXT> [--profile-root <DIR>]
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
         [--ground] [--provider <ollama|openrouter>] [--openrouter-model <SLUG>]
 marlowe --classic
@@ -48,19 +45,6 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
   --serve                       Run the daemon. It owns the journal, the engine and the runs.
                                 Runs survive the client that started them (invariant 6); they do
                                 NOT yet survive the daemon itself — that is M3 and K5.
-
-  --watch <RUN>                 Open a window on one run: status, elapsed, spend against its
-                                ceiling, the checkpoint a resume would restart from, its streaming
-                                output, and a field to steer it. Closing it DETACHES — it never
-                                cancels. Takes a run id or any unique prefix; an ambiguous prefix
-                                is an error naming the candidates.
-
-  --runs                        Every run the daemon holds, one line each, with the `--watch`
-                                command for it. This is the fallback when Marlowe cannot open a
-                                terminal window for you.
-
-  --steer <RUN> <TEXT>          Steer a running run from outside — another terminal, no TUI, a
-                                script. The same door the window's steer field goes through.
 
   --status                      What the daemon is, what model it routes to with that model's
                                 MEASURED tool-call reliability, which rerank provider is active
@@ -270,27 +254,6 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 that did. Requires --dump-gate-features.
 ";
 
-/// `--steer <RUN> <TEXT...>` — the run, then everything after it that is not a flag.
-///
-/// **Everything after it**, because a steer is a sentence. Taking one argument would mean the user
-/// quoting it, and an unquoted steer would then silently send its first word — a correction the
-/// model receives a fragment of, which ADR-054 §5 argues is worse than a refusal.
-fn steer_args(args: &[String]) -> Option<(String, String)> {
-    let i = args.iter().position(|a| a == "--steer")?;
-    let rest: Vec<&String> = args[i + 1..]
-        .iter()
-        .take_while(|a| !a.starts_with("--"))
-        .collect();
-    let (run, text) = rest.split_first()?;
-    if text.is_empty() {
-        return None;
-    }
-    Some((
-        (*run).clone(),
-        text.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" "),
-    ))
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -299,7 +262,10 @@ fn main() {
     // existing command does later.
     let modes: Vec<&str> = ["--tui", "--classic", "--doctor", "--eval-adapter", "--launch",
                             "--serve", "--ask", "--status", "--shutdown", "--models",
-                            "--watch", "--runs", "--steer"]
+                            // M3 Session A. The **from-outside** control path §10.1 requires:
+                            // another terminal, no TUI, a script. `/runs`, `/steer` and `/watch`
+                            // in the TUI reach the same daemon state through the same requests.
+                            "--runs", "--steer", "--watch", "--resume", "--cancel"]
         .into_iter()
         .filter(|m| args.iter().any(|a| a == m))
         .collect();
@@ -376,54 +342,18 @@ fn main() {
         }
     }
 
-    // ── §6: a window on a run, and the two commands that survive without one ────────────────
-    //
-    // **These reach the CONTROL plane, not the conversation port.** `marlowe_daemon::watch`
-    // explains why: the conversation socket is held for the whole of a turn, and a window is only
-    // worth anything during one.
-    if matches!(modes[0], "--watch" | "--runs" | "--steer") {
-        let profile_root = flag_value(&args, "--profile-root")
-            .map(PathBuf::from)
-            .unwrap_or_else(agent::default_profile_root);
-
-        let result = match modes[0] {
-            "--runs" => watch::list(&profile_root),
-            "--watch" => match flag_value(&args, "--watch") {
-                Some(run) => watch::run(watch::Options {
-                    run: run.to_string(),
-                    profile_root,
-                    color_depth: flag_value(&args, "--color-depth").map(str::to_string),
-                }),
-                None => {
-                    eprintln!(
-                        "error: --watch requires a run id or a unique prefix. `marlowe --runs`                          lists them, with the command for each."
-                    );
-                    std::process::exit(2);
-                }
-            },
-            // **The text is every remaining word, not one argument.** A steer is a sentence, and
-            // requiring the user to quote it is the kind of friction that gets a capability
-            // described as broken.
-            _ => match steer_args(&args) {
-                Some((run, text)) => watch::steer(&profile_root, &run, &text),
-                None => {
-                    eprintln!(
-                        "error: --steer requires a run and something to say, e.g.                          `marlowe --steer a1b2 stop and summarise what you have`."
-                    );
-                    std::process::exit(2);
-                }
-            },
-        };
-        match result {
-            Ok(()) => return,
-            Err(e) => {
-                eprintln!("marlowe: {e}");
-                std::process::exit(1);
-            }
-        }
-    }
-
-    if matches!(modes[0], "--serve" | "--ask" | "--status" | "--shutdown") {
+    if matches!(
+        modes[0],
+        "--serve"
+            | "--ask"
+            | "--status"
+            | "--shutdown"
+            | "--runs"
+            | "--steer"
+            | "--watch"
+            | "--resume"
+            | "--cancel"
+    ) {
         let workspace = flag_value(&args, "--workspace")
             .map(PathBuf::from)
             .or_else(|| std::env::current_dir().ok())
@@ -450,7 +380,59 @@ fn main() {
                 flag_value(&args, "--model").map(str::to_string),
                 model_provider.clone(),
             ),
-            "--status" => agent::status(workspace, profile_root, model_provider.clone()),
+            // **The port is threaded in, and its absence was the bug.** `--status --daemon-port N`
+            // built the client on the DEFAULT port, found nothing, constructed a throwaway daemon
+            // and printed its own defaults -- so it reported `qwen3.5:9b / ollama` while the daemon
+            // it was describing ran something else. `--shutdown` two arms below always passed the
+            // port; `--status` never did. The `get_providers()` family, one line wide.
+            "--status" => agent::status(
+                workspace,
+                profile_root,
+                model_provider.clone(),
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            // `--runs` alone lists every run; `--runs <id>` prints that one in full.
+            //
+            // **The per-run print used to be `--watch`.** It moved here when `--watch` became the
+            // window (§6.6: *"`/watch` opens a window"*), and this is where it belongs anyway: a
+            // per-run listing is a listing. Nothing was lost — a script that wants a run's state
+            // without a terminal reads `--runs <id>`.
+            "--runs" => agent::runs(
+                flag_value(&args, "--runs"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            // **`--watch` opens a WINDOW.** `M3-DESIGN.md` §6, and the one mode here that takes
+            // over the terminal rather than printing to it.
+            "--watch" => match flag_value(&args, "--watch") {
+                Some(run) => watch::run(watch::Options {
+                    run: run.to_string(),
+                    profile_root,
+                    port: flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+                    color_depth: flag_value(&args, "--color-depth").map(str::to_string),
+                })
+                .map_err(|e| e.to_string()),
+                None => Err(
+                    "--watch requires a run id. `marlowe --runs` lists them, and `--runs <id>`                      prints one without opening a window"
+                        .to_string(),
+                ),
+            },
+            "--cancel" => agent::cancel(
+                flag_value(&args, "--cancel"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--resume" => agent::resume(
+                flag_value(&args, "--resume"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
+            "--steer" => agent::steer(
+                flag_value(&args, "--steer"),
+                flag_value(&args, "--guidance"),
+                profile_root,
+                flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
+            ),
             "--shutdown" => agent::shutdown(
                 flag_value(&args, "--daemon-port").and_then(|v| v.parse().ok()),
                 // The profile root decides which token is offered, so `--shutdown` needs it for

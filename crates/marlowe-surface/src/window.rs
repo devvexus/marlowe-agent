@@ -30,12 +30,23 @@
 //! and everything about **looking at** it — the steer draft, the scroll offset, whether a reasoning
 //! block is open, what time it is. It computes no run fact, and there is no setter that could.
 //!
-//! # Nothing moves except as a function of `(state, now_ms)`
+//! # A frame is a pure function of state, and there is no clock here at all
 //!
-//! §6.4 borrows §B13's flicker rows. There is no `WindowApp::tick`: elapsed is
-//! `now_ms - started_ms` computed at draw, and `now_ms` is a field the driver sets. A second draw at
-//! the same `now_ms` therefore changes **not one cell**, which `window_flicker.rs` diffs at five
-//! sizes.
+//! §6.4 borrows §B13's flicker rows and asks that anything moving be a pure function of
+//! `(state, now_ms)`. **This ended up stronger than asked for: there is no `now_ms`.**
+//!
+//! It was `elapsed = now_ms - started_ms`, computed here, with `now_ms` a field the driver stamped.
+//! Session A's `ControlPlane::detail` resolves elapsed on the daemon — the final wall time when a
+//! run has one, the live figure otherwise — because the daemon is the thing that holds a clock. So
+//! the last reason for a clock in this file went away, and the field went with it.
+//!
+//! **It went with it rather than being left harmless.** A `now_ms` nothing read would be a declared
+//! control with no reader, and `pulse()` beside it was already exactly that: a helper with a green
+//! test asserting it is a pure function of time, and no caller anywhere in the draw path. That is
+//! family #16, found here by the merge that removed its last purpose.
+//!
+//! A second draw of one state therefore changes **not one cell**, which `window_flicker.rs` diffs
+//! at five sizes — and two windows on one run are the same frame whenever the daemon last spoke.
 //!
 //! The scroll offset is computed inside [`draw`] from the line count and the viewport, rather than
 //! cached in a `Cell` and read back on the next frame — a value written by frame N and read by frame
@@ -59,7 +70,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
-use marlowe_view::run::{elapsed, micros_usd, ResumeState, RunView};
+use marlowe_view::run::{elapsed, micros_usd, RunView};
 use marlowe_view::{Entry, Item, Tone};
 
 use crate::region::{FocusLevel, RegionId, RegionTree};
@@ -127,9 +138,6 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub struct WindowApp {
     view: RunView,
-    /// Set by the driver before each draw. **The surface reads no clock** — §4.5's discipline, which
-    /// is also what makes a headless frame at a chosen `now_ms` possible.
-    pub now_ms: u64,
     /// The steer draft. A `String` and not a `SteerMessage`: see [`WindowRequest::Steer`].
     pub steer: String,
     pub focus: RegionId,
@@ -171,7 +179,6 @@ impl WindowApp {
     pub fn new(view: RunView) -> Self {
         Self {
             view,
-            now_ms: 0,
             steer: String::new(),
             // Opens on the output, because the first thing anyone does with a run window is read
             // it. Focus starts somewhere a keystroke is safe.
@@ -599,7 +606,7 @@ fn draw_identity(
     let status = Line::from(vec![
         Span::styled(v.state.name().to_string(), theme.style(v.state.tone())),
         Span::styled("   elapsed ", theme.dim()),
-        Span::styled(elapsed(v.elapsed_ms(app.now_ms)), theme.normal()),
+        Span::styled(elapsed(v.elapsed_ms), theme.normal()),
         Span::styled("   spend ", theme.dim()),
         Span::styled(spend, spend_style),
     ]);
@@ -642,26 +649,33 @@ fn draw_checkpoint(
     // Two facts, two lines, never collapsed into one. "What did it finish" and "what would a
     // resume do" are different questions, and the second is the one being debugged.
     let last = match v.checkpoint.last_completed {
-        Some(seq) => Line::from(vec![
+        Some(step) => Line::from(vec![
             Span::styled("last completed step · ", theme.dim()),
-            Span::styled(format!("seq {seq}"), theme.normal()),
+            Span::styled(format!("step {step}"), theme.normal()),
         ]),
+        // **`None` means no checkpoint exists — not step zero.** Session A's words, and the
+        // renderer says them rather than inventing a step the run never reached.
         None => Line::from(Span::styled("no checkpoint yet", theme.dim())),
     };
-    let resume = match &v.checkpoint.resume {
-        ResumeState::From { seq } => Line::from(vec![
+    // **What a resume would do, as the control plane answered it.**
+    //
+    // `resumable` is a fact `ControlPlane::detail` read off the checkpoint store, not a guess this
+    // window made. When it is false the window says the run cannot be resumed **and invents no
+    // reason**, because it has none: a run that completed, failed or was cancelled is not
+    // resumable, and which of those it was is already on the identity panel above.
+    let resume = match (v.checkpoint.resumable, v.checkpoint.last_completed) {
+        (true, Some(step)) => Line::from(vec![
             Span::styled("resume · ", theme.dim()),
-            Span::styled(format!("from seq {seq}"), theme.style(Tone::Green)),
+            Span::styled(format!("from step {step}"), theme.style(Tone::Green)),
         ]),
-        // **Verbatim, and in the attention colour rather than the failure colour.** A run that
-        // cannot be resumed is not a broken run; it is a fact about the build, and the control
-        // plane's own words are the diagnostic.
-        ResumeState::Refused(why) => Line::from(vec![
+        // Resumable with no checkpoint yet is a real state — a run accepted and not yet stepped.
+        (true, None) => Line::from(vec![
             Span::styled("resume · ", theme.dim()),
-            Span::styled(
-                marlowe_contract::text::sanitize_line(why).into_owned(),
-                theme.style(Tone::Amber),
-            ),
+            Span::styled("from the beginning", theme.style(Tone::Green)),
+        ]),
+        (false, _) => Line::from(vec![
+            Span::styled("resume · ", theme.dim()),
+            Span::styled("not from here", theme.dim()),
         ]),
     };
     Paragraph::new(vec![last, resume]).render(body, buf);
@@ -865,19 +879,6 @@ fn quoted_exe() -> String {
     }
 }
 
-/// Trailing dots that make a live panel visibly live without a clock.
-///
-/// **A pure function of `now_ms`**, so a second render at the same instant is identical — §6.4's
-/// flicker constraint, and the reason there is no `tick`.
-pub fn pulse(now_ms: u64) -> &'static str {
-    match (now_ms / 500) % 4 {
-        0 => "",
-        1 => ".",
-        2 => "..",
-        _ => "...",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -894,13 +895,6 @@ mod tests {
     }
 
     #[test]
-    fn the_pulse_is_a_pure_function_of_now_and_repeats() {
-        assert_eq!(pulse(0), pulse(4 * 500));
-        assert_eq!(pulse(1_234), pulse(1_234));
-        assert_ne!(pulse(0), pulse(500));
-    }
-
-    #[test]
     fn the_window_title_cannot_carry_a_byte_the_run_chose_except_its_id() {
         // The terminal's own title bar is outside every sanitiser this crate owns — it is written
         // with OSC 0, which the emulator interprets. So the title is built from a short id and a
@@ -913,15 +907,19 @@ mod tests {
         RunView {
             id: "a1b2c3d4".into(),
             state: marlowe_view::RunState::Running,
-            started_ms: 0,
-            finished_ms: None,
+            parent: None,
+            elapsed_ms: 0,
             spend_micros_usd: 0,
             ceiling_micros_usd: 3_000_000,
+            spent_tokens: 0,
+            granted_tokens: 50_000,
+            depth: 0,
             checkpoint: marlowe_view::CheckpointView {
                 last_completed: None,
-                resume: ResumeState::From { seq: 0 },
+                resumable: true,
             },
             orphan_policy: marlowe_view::OrphanPolicyLabel::Detach,
+            pending_steers: 0,
             output: Vec::new(),
             subagents: Vec::new(),
             budget: Vec::new(),

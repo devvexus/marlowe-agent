@@ -121,14 +121,32 @@ fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
         return;
     };
     let text = String::from_utf8_lossy(&out.stdout).to_string();
-    let Some(first) = text
+
+    // **NAMED, NOT WHATEVER SORTED FIRST.** This used to take row 1 of `ollama list`, which makes
+    // the test do different work on every machine — and on the development box row 1 is
+    // `marlowe-dusk:27b`, 18 GB on a 16 GB card. That is the over-subscribed path, and on
+    // 2026-08-25 it wedged the entire workspace suite: `Reserve::read()` shelled out through an
+    // unbounded `Command::output()` and never came back, so every crate after this one went unrun.
+    //
+    // `vram.rs`'s own header already states the rule this test was breaking — *"ONLY 9B MODELS ARE
+    // LOADED ON THIS MACHINE. 20B AND LARGER ARE OFF LIMITS"*, with `marlowe-red:9b` named as the
+    // constant every coexistence figure here is measured against. A documented constraint that the
+    // test ignored is a declared control with no reader.
+    //
+    // So: ask for the model the project actually measures against, and **skip by name** rather than
+    // silently measuring a different one.
+    const TIER1: &str = "marlowe-red:9b";
+    let installed_names: Vec<&str> = text
         .lines()
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with("NAME"))
         .filter_map(|l| l.split_whitespace().next())
-        .next()
-    else {
-        eprintln!("SKIP: `ollama list` is empty; no tier-1 model is installed");
+        .collect();
+    let Some(first) = installed_names.iter().copied().find(|n| *n == TIER1) else {
+        eprintln!(
+            "SKIP: {TIER1} is not installed, and this test will not substitute another model -- \
+             picking one by list order is what made it machine-dependent. Installed: {installed_names:?}"
+        );
         return;
     };
 

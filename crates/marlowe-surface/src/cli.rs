@@ -97,15 +97,6 @@ pub fn run(
                         command: marlowe_view::CommandLine::new(crate::window::attach_command(&run)),
                     },
                 ),
-                Outcome::Steer(run, _) => say(
-                    &mut out,
-                    session.view(),
-                    &marlowe_view::Notice::WindowOpened {
-                        run: marlowe_view::Echo::new(run.clone()),
-                        terminal: None,
-                        command: marlowe_view::CommandLine::new(crate::window::steer_command(&run)),
-                    },
-                ),
                 Outcome::Rejected(r) => {
                     say(&mut out, session.view(), &marlowe_view::Notice::Refused(r))
                 }

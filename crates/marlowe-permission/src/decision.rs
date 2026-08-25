@@ -1,7 +1,7 @@
 //! CONTRACTS.md §9 — the permission decision and what the user is shown.
 
 use marlowe_tools::{ConsequenceLevel, ToolId};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::taint::TaintSet;
 
@@ -9,7 +9,7 @@ use crate::taint::TaintSet;
 /// events, and a run replayed at a fixed clock and seed must reproduce bit-identically
 /// (M0a's acceptance, and the standing `repro --runs 2` check). A random id would put
 /// per-process entropy into the log.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct DecisionId(pub u64);
 

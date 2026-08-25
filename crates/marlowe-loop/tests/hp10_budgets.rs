@@ -111,6 +111,11 @@ const NOUNS: [&str; 8] =
 /// maintenance burden is one line per command, paid by whoever adds the command.
 const COMMAND_NOUNS: &[(&str, &str)] = &[
     ("runs", "run"),
+    // M3 Session A. **Both are views over `run` and neither is an eighth concept** -- `/watch`
+    // is one run rendered in full, `/steer` is a write to one run. The guard caught them the
+    // moment they were added to the registry, which is what it is for.
+    ("watch", "run"),
+    ("steer", "run"),
     ("schedule", "trigger"),
     ("sessions", "session"),
     ("skills", "skill"),

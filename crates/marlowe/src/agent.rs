@@ -390,16 +390,120 @@ pub fn status(
     workspace: PathBuf,
     profile_root: PathBuf,
     provider: ModelProviderChoice,
+    port: Option<u16>,
 ) -> Result<(), String> {
-    let client = Client::new("cli").with_profile_root(profile_root.clone());
+    // **The port, and its absence WAS the bug.** `--status --daemon-port N` probed the default
+    // port, found nothing, and fell through to the throwaway daemon below -- which reported the
+    // CLI's own defaults while describing a daemon that was running something else entirely.
+    // `shutdown` in this file has always threaded it; `status` never did.
+    let mut client = Client::new("cli").with_profile_root(profile_root.clone());
+    if let Some(p) = port {
+        client = client.with_port(p);
+    }
     let events = if client.daemon_is_up() {
         client.status().map_err(|e| e.to_string())?
     } else {
+        // **Say which reading this is.** The two cases printed identical output, so a person could
+        // not tell a description of a live daemon from a description of one that does not exist.
+        // That is the whole `get_providers()` family: the measurement was of the client's own
+        // configuration and it read as a report about the daemon.
+        println!(
+            "no daemon on 127.0.0.1:{}. What follows is the configuration `marlowe --serve` would \
+             start with, not a description of anything running.",
+            client.port()
+        );
         let mut config = DaemonConfig::new(profile_root, workspace);
         config.model_provider = provider;
         let daemon = Daemon::open(config).map_err(|e| e.to_string())?;
         vec![Event::Status(daemon.status())]
     };
+    render(&events);
+    Ok(())
+}
+
+/// A client aimed at a running daemon, or a refusal that says there is none.
+///
+/// **Never a throwaway daemon.** `--status` can honestly describe a configuration when nothing is
+/// running; `--runs` and `--steer` cannot, because a daemon that does not exist owns no runs. A
+/// fresh process answering them would be reporting its own emptiness as the daemon's.
+fn live_client(profile_root: PathBuf, port: Option<u16>) -> Result<Client, String> {
+    let mut client = Client::new("cli").with_profile_root(profile_root);
+    if let Some(p) = port {
+        client = client.with_port(p);
+    }
+    if !client.daemon_is_up() {
+        return Err(format!(
+            "no daemon on 127.0.0.1:{}. Runs are the daemon's; start one with `marlowe --serve`",
+            client.port()
+        ));
+    }
+    Ok(client)
+}
+
+fn a_run_id(value: Option<&str>, flag: &str) -> Result<String, String> {
+    match value {
+        Some(v) if !v.trim().is_empty() => Ok(v.trim().to_string()),
+        _ => Err(format!("{flag} requires a run id. `marlowe --runs` lists them")),
+    }
+}
+
+/// `marlowe --runs` -- **every run the daemon owns**, read from the daemon.
+/// `marlowe --runs <id>` -- that one run in full, including what a resume would resume from.
+///
+/// # The per-run form used to be `--watch`
+///
+/// `--watch` now opens a window (§6.6: *"`/watch` opens a window; it does not stream into the
+/// conversation pane"*), so the printing form moved here — which is where a per-run listing belongs
+/// anyway. **Nothing was lost**: this is the classic surface, it has no window, and it prints the
+/// same state the window renders. One state, two renderings, and this is the second one.
+pub fn runs(run: Option<&str>, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+    let client = live_client(profile_root, port)?;
+    if let Some(run) = run.filter(|r| !r.trim().is_empty()) {
+        // `since: 0` -- everything. A printed listing is a snapshot and has no earlier poll to
+        // continue from.
+        let events = client.watch(run.trim(), 0).map_err(|e| e.to_string())?;
+        render(&events);
+        return Ok(());
+    }
+    let events = client.runs().map_err(|e| e.to_string())?;
+    if events.is_empty() {
+        // A fact, not a layout filler (§6.3). "No runs" is true; printing nothing would read as
+        // a failure to ask.
+        println!("no runs");
+        return Ok(());
+    }
+    render(&events);
+    Ok(())
+}
+
+/// `marlowe --steer <run> --guidance "..."` -- §10.1's steering **from outside**.
+pub fn steer(
+    run: Option<&str>,
+    guidance: Option<&str>,
+    profile_root: PathBuf,
+    port: Option<u16>,
+) -> Result<(), String> {
+    let run = a_run_id(run, "--steer")?;
+    let Some(text) = guidance.filter(|g| !g.trim().is_empty()) else {
+        return Err("--steer requires --guidance, the words to give the run".to_string());
+    };
+    let events = live_client(profile_root, port)?.steer(&run, text).map_err(|e| e.to_string())?;
+    render(&events);
+    Ok(())
+}
+
+/// `marlowe --cancel <run>` -- stop at the next iteration boundary, never mid-tool-call.
+pub fn cancel(run: Option<&str>, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+    let run = a_run_id(run, "--cancel")?;
+    let events = live_client(profile_root, port)?.cancel(&run).map_err(|e| e.to_string())?;
+    render(&events);
+    Ok(())
+}
+
+/// `marlowe --resume <run>` -- continue from the last completed checkpoint.
+pub fn resume(run: Option<&str>, profile_root: PathBuf, port: Option<u16>) -> Result<(), String> {
+    let run = a_run_id(run, "--resume")?;
+    let events = live_client(profile_root, port)?.resume(&run).map_err(|e| e.to_string())?;
     render(&events);
     Ok(())
 }
@@ -519,12 +623,54 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                     writeln!(out, "      {}", sanitize_line(a))?;
                 }
             }
+            // §6.2's field list, rendered linearly. **Every line is a fact the daemon holds**;
+            // `last_checkpoint_step: None` prints as "none", never as step 0.
+            Event::RunDetail {
+                id,
+                status,
+                parent,
+                elapsed_ms,
+                spend_micros_usd,
+                ceiling_micros_usd,
+                spent_tokens,
+                granted_tokens,
+                depth,
+                last_checkpoint_step,
+                resumable,
+                orphan_policy,
+                pending_steers,
+            } => {
+                writeln!(out, "run {}", sanitize_line(id))?;
+                writeln!(out, "  status      {}", sanitize_line(status))?;
+                if let Some(p) = parent {
+                    writeln!(out, "  parent      {}", sanitize_line(p))?;
+                }
+                writeln!(out, "  elapsed     {elapsed_ms} ms")?;
+                writeln!(
+                    out,
+                    "  spend       {spend_micros_usd} of {ceiling_micros_usd} micros_usd"
+                )?;
+                writeln!(out, "  tokens      {spent_tokens} of {granted_tokens} granted")?;
+                writeln!(out, "  depth       {depth}")?;
+                match last_checkpoint_step {
+                    Some(step) => writeln!(out, "  checkpoint  step {step}")?,
+                    None => writeln!(out, "  checkpoint  none")?,
+                }
+                writeln!(
+                    out,
+                    "  resume      {}",
+                    if *resumable { "from that step" } else { "not resumable" }
+                )?;
+                // §6.2: cancel, with the orphan policy the run declared, stated plainly.
+                writeln!(out, "  on cancel   children {}", sanitize_line(orphan_policy))?;
+                writeln!(out, "  steers      {pending_steers} queued")?;
+            }
             Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
             // **The control plane's frames, and the classic CLI does not render them here.**
             // `--ask` is a conversation; `--watch` and `--runs` are where a run's own state is
             // shown, and `watch.rs` formats them. Listing the variants rather than sweeping them
             // into a `_` keeps the next `Event` somebody adds a compile error at this site.
-            Event::RunDetail { .. } | Event::RunOutput { .. } | Event::Accepted { .. } => {}
+            Event::RunDetail { .. } | Event::RunOutput { .. } => {}
         }
     }
     Ok(())

@@ -28,6 +28,8 @@ pub struct Command {
 /// exist yet. M2 adds commands; both surfaces get them at once because both read this array.
 pub const REGISTRY: &[Command] = &[
     Command { name: "runs",     args: "",         description: "active background work — status, elapsed, spend, depth" },
+    Command { name: "watch",    args: "<run>",    description: "open a window on one run — streaming output, checkpoint, spend against ceiling, and a field to steer it" },
+    Command { name: "steer",    args: "<run> <words>", description: "guidance for a run already going. Delivered at its next step, never as a restart" },
     Command { name: "schedule", args: "",         description: "today's events, what Marlowe noticed, commitments due" },
     Command { name: "sessions", args: "",         description: "history, searchable by content" },
     Command { name: "skills",   args: "",         description: "installed skills by domain, and the exposed-tool budget" },
@@ -42,8 +44,6 @@ pub const REGISTRY: &[Command] = &[
     Command { name: "autonomy", args: "[tier]",   description: "observe / suggest / draft / confirm / act" },
     Command { name: "undo",     args: "[n]",      description: "soft-delete the last n turns" },
     Command { name: "compact",  args: "",         description: "compact the session — announces inline, does not interrupt" },
-    Command { name: "watch",    args: "<run>",    description: "open a window on a run — its output, its checkpoint, and a field to steer it" },
-    Command { name: "steer",    args: "<run> <text>", description: "correct a running run mid-flight. Works from outside a window too" },
     Command { name: "keys",     args: "",         description: "every key binding, and the region each one reaches" },
     Command { name: "doctor",   args: "",         description: "terminal capability check, including the braille glyph row" },
     Command { name: "help",     args: "",         description: "this list" },
@@ -85,15 +85,13 @@ pub enum Outcome {
     /// `/watch <run>` — open a window on a run. `M3-DESIGN.md` §6.
     ///
     /// **The driver spawns it, not the surface.** `marlowe-surface` has no process API and must not
-    /// grow one; what it can do is say which run was asked for. The argument crosses verbatim
-    /// because it may be a prefix, and resolving a prefix means asking the daemon which runs exist —
-    /// which is a fact the surface does not hold.
-    Watch(String),
-    /// `/steer <run> <text>` — **a write** (§6.1), through the control plane's one door.
+    /// grow one; what it can do is say which run was asked for.
     ///
-    /// The text crosses unvalidated for ADR-054's reason: a cap and a sanitiser here would be a
-    /// second copy of `admit`'s, and two copies agree until the day they do not.
-    Steer(String, String),
+    /// There is deliberately **no `Outcome::Steer` beside this**. Steering is a socket write, and
+    /// `Intent::Steer` already reaches the daemon through the producer — the path Session A wired
+    /// and the one `/steer` from a script uses. A second route for the same write is the shape
+    /// ADR-054 exists to prevent; a window is one, and one is enough.
+    Watch(String),
 }
 
 /// Resolve a name to its registry entry.
@@ -134,29 +132,6 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
         "trust" => not_built_tab(Tab::Trust, Milestone::M6),
         "status" => not_built_tab(Tab::Status, Milestone::M2SessionD),
 
-        // §6.6: **`/watch` opens a window; it does not stream into the conversation pane.** Filling
-        // the main pane with agent output halts the conversation visually, which is what M3 exists
-        // to stop — so this returns an `Outcome` the driver acts on and never an `Entry`.
-        "watch" => match args.first() {
-            Some(run) => Outcome::Watch((*run).to_string()),
-            None => Outcome::Rejected(Refusal::Usage {
-                command: "watch",
-                expects: "a run id or a unique prefix — /runs lists them",
-            }),
-        },
-        // §6.6: **`/steer` survives.** §10.1 requires steering from outside — another terminal, no
-        // TUI, a script — so this exists whether or not a window is open, and closing one never
-        // removes the capability.
-        "steer" => match args.split_first() {
-            Some((run, rest)) if !rest.is_empty() => {
-                Outcome::Steer((*run).to_string(), rest.join(" "))
-            }
-            _ => Outcome::Rejected(Refusal::Usage {
-                command: "steer",
-                expects: "a run and something to say — /steer a1b2 stop and summarise",
-            }),
-        },
-
         "state" => match args.first().map(|s| parse_state(s)) {
             Some(Some(state)) => Outcome::Ask(Intent::ForceState(state)),
             _ => Outcome::Rejected(Refusal::Usage {
@@ -184,6 +159,41 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
         }
 
         "compact" => Outcome::Ask(Intent::Compact),
+
+        // **`/watch` and `/steer` name a run, and a command that named none used to be a silent
+        // no-op.** Both refuse by usage instead — `Refusal::Usage` is the shape every other
+        // argument-taking command here uses, so the refusal reads the same wherever it comes from.
+        // §6.6: **`/watch` opens a window; it does not stream into the conversation pane.**
+        // Filling the main pane with agent output halts the conversation *visually*, which is what
+        // M3 exists to stop — so this is an [`Outcome`] the **driver** acts on, not an `Intent` the
+        // producer applies. Opening a window is a process spawn and a surface holds no such thing.
+        //
+        // **This replaced an `Intent::Watch` that printed the run's detail as a notice.** That
+        // behaviour did not go away — it is `marlowe --runs <run>`, where a per-run listing
+        // belongs, and where a script can read it without a terminal.
+        "watch" => match args.first() {
+            Some(run) if !run.trim().is_empty() => Outcome::Watch((*run).to_string()),
+            _ => Outcome::Rejected(Refusal::Usage { command: "watch", expects: "<run id>" }),
+        },
+        "steer" => {
+            // Everything after the id is the guidance. Joining rather than taking `args[1]` is
+            // the difference between steering with a sentence and steering with a word.
+            let text = args.iter().skip(1).copied().collect::<Vec<_>>().join(" ");
+            match args.first() {
+                Some(run) if !run.trim().is_empty() && !text.trim().is_empty() => {
+                    Outcome::Ask(Intent::Steer {
+                        run: (*run).to_string(),
+                        // Quoted, never reworded: ADR-030. A surface that paraphrased a steer
+                        // would be composing the instruction it claims to be relaying.
+                        text: Echo::new(text),
+                    })
+                }
+                _ => Outcome::Rejected(Refusal::Usage {
+                    command: "steer",
+                    expects: "<run id> <what to tell it>",
+                }),
+            }
+        }
 
         "keys" => Outcome::Say(Notice::Listing(Listing::Keys)),
         // **`/doctor` is diagnostic output, not speech**, and is deliberately outside the

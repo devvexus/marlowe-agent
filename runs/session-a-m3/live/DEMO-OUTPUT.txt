@@ -1,0 +1,38 @@
+
+=== 1. a turn starts ===
+
+=== 2. /runs, from another process, while the turn is live ===
+  run 0f5f0cab-e9c9-4276-908b-2b2917549797  running  0 tokens
+
+=== 3. wait for the first completed step, then kill -9 the daemon ===
+checkpoint step 1 is durable; killing now
+killing daemon pid 79056
+SUCCESS: The process with PID 79056 has been terminated.
+
+=== 4. THE CONTROL: the turn did not finish ===
+marlowe: the daemon closed the connection: An existing connection was forcibly closed by the remote host. (os error 10054)
+ASK EXITED 1
+
+=== 5. the daemon is gone ===
+marlowe: no daemon on 127.0.0.1:11455. Runs are the daemon's; start one with `marlowe --serve`
+
+=== 6. a NEW daemon, same profile ===
+marlowe: 1 interrupted run(s) can be resumed — `marlowe --runs` lists them, `marlowe --resume <id>` continues one
+
+=== 7. /runs finds the interrupted run, and /watch says what a resume would resume from ===
+  run 0f5f0cab-e9c9-4276-908b-2b2917549797  interrupted  4708 tokens
+run 0f5f0cab-e9c9-4276-908b-2b2917549797
+  status      interrupted
+  elapsed     7306 ms
+  spend       0 of 2000000 micros_usd
+  tokens      4708 of 200000 granted
+  depth       3
+  checkpoint  step 1
+  resume      from that step
+  on cancel   children terminate
+  steers      0 queued
+
+=== 8. resume ===
+f1.md says: # file 1 - fact 1  [completed · 9767 ms]
+
+=== done ===

@@ -118,27 +118,22 @@ impl OrphanPolicyLabel {
 /// **The field that makes this window a debugging instrument** (§6.2).
 ///
 /// Two facts, and they are separate because they answer different questions: *what did this run
-/// finish* and *what would happen if I resumed it*. A window that showed only the first would
-/// invite the reader to infer the second, and inferring it is exactly what goes wrong when durable
-/// resume is half-built.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// finish* and *could it be resumed*. A window that showed only the first would invite the reader
+/// to infer the second, and inferring it is exactly what goes wrong around a half-built resume.
+///
+/// **Both come from the checkpoint store, not from the run table.** Session A's `ControlPlane::
+/// detail` puts it exactly right: the table is what the daemon remembers and the store is what
+/// survived, and a resume is about what survived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckpointView {
-    /// The last completed step's journal sequence. `None` before the first checkpoint.
-    pub last_completed: Option<u64>,
-    pub resume: ResumeState,
-}
-
-/// What a resume would do, **as the control plane answers it** — never as the window guesses.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ResumeState {
-    /// Resume would restart from this step.
-    From { seq: u64 },
-    /// The control plane refused, in its own words.
+    /// The last completed step. **`None` means no checkpoint exists — not step zero.**
+    pub last_completed: Option<u32>,
+    /// Whether `RunControl::resume` would take this run further.
     ///
-    /// **Rendered verbatim.** `ResumeError::NotDurable` is a named refusal that says why; a window
-    /// that reworded it into "cannot resume" would delete the only diagnostic in the frame, and one
-    /// that invented a reason would be authoring a fact about a subsystem it does not own.
-    Refused(String),
+    /// **A fact the control plane computed, never a guess.** `false` for a run that completed,
+    /// failed or was cancelled; the window then says the run cannot be resumed *from here* and
+    /// invents no reason of its own, because it has none.
+    pub resumable: bool,
 }
 
 /// Everything a run window draws, and nothing about looking at it.
@@ -157,19 +152,29 @@ pub struct RunView {
     /// Short form, as the window title and every listing print it.
     pub id: String,
     pub state: RunState,
-    /// When the run started, on the daemon's clock. Elapsed is `now_ms - started_ms`, computed at
-    /// draw — **the surface reads no clock**, so `now_ms` arrives as a parameter and a second render
-    /// at the same `now_ms` produces an identical frame.
-    pub started_ms: u64,
-    /// Set the moment the run stops, so elapsed freezes at the truth rather than at whenever the
-    /// window was last looked at.
-    pub finished_ms: Option<u64>,
+    /// The run that spawned this one, if any. Short form.
+    pub parent: Option<String>,
+    /// **Resolved by the daemon, which is the thing with a clock.**
+    ///
+    /// It was `started_ms` + `finished_ms` with the arithmetic done here, which meant the surface
+    /// needed a `now_ms` to render a number. `ControlPlane::detail` reports the final wall time
+    /// when the run has one and the live figure otherwise, so a frame is a pure function of state
+    /// alone — which is a stronger flicker property than the one §6.4 asks for, not a weaker one.
+    pub elapsed_ms: u64,
     pub spend_micros_usd: u64,
-    /// The run's declared ceiling. `Budget::micros_usd` — spend is always shown *against* it,
-    /// because a number with no denominator is the thing ADR-028 requirement 2 exists to forbid.
+    /// The run's declared ceiling. Spend is always shown *against* it, because a number with no
+    /// denominator is what ADR-028 requirement 2 exists to forbid.
     pub ceiling_micros_usd: u64,
+    pub spent_tokens: u64,
+    pub granted_tokens: u64,
+    pub depth: u8,
     pub checkpoint: CheckpointView,
     pub orphan_policy: OrphanPolicyLabel,
+    /// Steers waiting for this run's next iteration boundary.
+    ///
+    /// **A count, not an acknowledgement** — Session A's rule, and the better one: *"queued" is a
+    /// claim about a mechanism; a number is a fact the next `/watch` can be checked against.*
+    pub pending_steers: usize,
     /// The run's own output, in the same [`Entry`] vocabulary the conversation pane uses. One
     /// definition of what a transcript is; ADR-055 governs what may be in it.
     pub output: Vec<Entry>,
@@ -180,20 +185,11 @@ pub struct RunView {
 }
 
 impl RunView {
-    /// Milliseconds this run has been going, frozen once it stops.
-    ///
-    /// **`saturating_sub`, and it is not defensive tidiness.** The daemon stamps `started_ms` and
-    /// the window is handed `now_ms`; a clock that went backwards between them — a client that
-    /// reconnected, a replayed frame — would underflow into 584 million years of elapsed time.
-    pub fn elapsed_ms(&self, now_ms: u64) -> u64 {
-        match self.finished_ms {
-            Some(end) => end.saturating_sub(self.started_ms),
-            None => now_ms.saturating_sub(self.started_ms),
-        }
-    }
-
     /// Spend as a fraction of the ceiling, `0.0..=1.0`. `0.0` when no ceiling was declared, which
     /// renders as "no ceiling" rather than as a full bar.
+    ///
+    /// **`0` as a denominator is the seventeenth instance's question asked of a meter**: a missing
+    /// ceiling must read as absent, not as reached.
     pub fn spend_fraction(&self) -> f64 {
         if self.ceiling_micros_usd == 0 {
             return 0.0;
@@ -239,27 +235,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn elapsed_freezes_when_the_run_stops() {
-        // A finished run whose elapsed kept counting would be the surface inventing a fact, and it
-        // is the kind that looks right: the number moves, so the window looks alive.
-        let mut v = view();
-        v.state = RunState::Completed;
-        v.finished_ms = Some(5_000);
-        // Started at 1_000, finished at 5_000. The control is the `now_ms` argument: it is
-        // absurdly far in the future and must change nothing.
-        assert_eq!(v.elapsed_ms(9_999_999), 4_000, "elapsed must stop when the run does");
-        assert_eq!(v.elapsed_ms(5_001), 4_000, "and must not depend on when it was looked at");
-        v.finished_ms = None;
-        assert_eq!(v.elapsed_ms(9_000), 8_000, "control: a live run does follow the clock");
-    }
-
-    #[test]
-    fn a_clock_that_went_backwards_does_not_render_584_million_years() {
-        let v = view();
-        assert_eq!(v.elapsed_ms(0), 0, "started_ms is 1_000; now_ms of 0 must not underflow");
-    }
-
-    #[test]
     fn a_tenth_of_a_cent_does_not_render_as_zero_beside_a_three_dollar_ceiling() {
         // The failure this formatter exists for: `$0.00 of $3.00` on a run that has spent
         // something, which reads as "free" and is how a spend ceiling stops being watched.
@@ -284,6 +259,12 @@ mod tests {
         v.spend_micros_usd = 10_000;
         assert_eq!(v.spend_fraction(), 0.0);
         assert!(!v.at_ceiling());
+
+        // The control, or the assertion above would hold on a struct whose fraction is always 0.
+        let mut w = view();
+        w.spend_micros_usd = w.ceiling_micros_usd;
+        assert_eq!(w.spend_fraction(), 1.0);
+        assert!(w.at_ceiling());
     }
 
     #[test]
@@ -315,12 +296,16 @@ mod tests {
         RunView {
             id: "a1b2c3d4".into(),
             state: RunState::Running,
-            started_ms: 1_000,
-            finished_ms: None,
-            spend_micros_usd: 0,
+            parent: None,
+            elapsed_ms: 93_000,
+            spend_micros_usd: 120_000,
             ceiling_micros_usd: 3_000_000,
-            checkpoint: CheckpointView { last_completed: None, resume: ResumeState::From { seq: 0 } },
+            spent_tokens: 400,
+            granted_tokens: 50_000,
+            depth: 0,
+            checkpoint: CheckpointView { last_completed: Some(41), resumable: true },
             orphan_policy: OrphanPolicyLabel::Detach,
+            pending_steers: 0,
             output: Vec::new(),
             subagents: Vec::new(),
             budget: Vec::new(),

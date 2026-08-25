@@ -1093,7 +1093,16 @@ Action::Redraw
             // no socket, and giving it one would be the surface holding the control plane. They are
             // returned to the caller, which is the TUI's event loop; a `_` arm here would swallow
             // the next `Outcome` somebody adds instead.
-            Outcome::Watch(_) | Outcome::Steer(_, _) => self.window_asks.push(outcome.clone()),
+            // **Two effects, and both are Session A's design read literally.** A's
+            // `Intent::Watch` refreshes the Runs pane for this run; A's own note says *"the window
+            // is Session F's; the state it renders is this — one state, two renderings"*. So the
+            // pane refresh goes to the producer exactly as A wired it, and the **spawn** goes to
+            // the driver, because a producer cannot start a process (`marlowe-stub` implements
+            // `Produce` too, and must not grow the ability).
+            Outcome::Watch(run) => {
+                self.window_asks.push(outcome.clone());
+                self.ask(Intent::Watch { run: run.clone() });
+            }
         }
         outcome
     }

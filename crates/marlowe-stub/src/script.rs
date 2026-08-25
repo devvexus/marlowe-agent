@@ -426,6 +426,14 @@ impl marlowe_view::Produce for Session {
             Intent::Interrupt => self.interrupt(now_ms),
             Intent::Approve { granted, .. } => self.resolve_approval(granted, now_ms),
             Intent::ForceState(state) => self.force_state(state, now_ms),
+            // **Refused by name, not dropped.** The stub has no daemon, and a run is the
+            // daemon's. A scripted `/steer` that appeared to work would be a demo of a control
+            // that does nothing — the exact shape `IntentError` exists to prevent.
+            Intent::Steer { .. } | Intent::Watch { .. } => {
+                return Err(marlowe_view::IntentError::NotADemo(
+                    "a run belongs to a daemon, and the stub has none",
+                ))
+            }
             Intent::Compact => {
                 let turns = self.view.pager.turn.max(1);
                 self.view.transcript.push(Entry::Compacted { turns });

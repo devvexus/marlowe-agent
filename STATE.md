@@ -1,108 +1,181 @@
 ﻿# State
 
-## 2026-08-25 — M3 SESSION F: RUN WINDOWS. **PAUSED MID-SESSION, NOT FINISHED.**
+## 2026-08-25 — M3 SESSION A: RUNS ARE DURABLE. ADR-053. `CONTRACTS.md` §5 UNCHANGED
 
-**Branch `m3-windows`, worktree `../Marlowe_F`, branched from master `3a06621`. Nothing committed
-yet.** Paused by the user partway through; this entry exists so the next session does not re-derive
-any of it.
+**THE WORKSPACE COUNT IS NOT FILE-BACKED, AND THAT IS THE FIRST THING TO FIX NEXT SESSION.**
+A full `cargo test --workspace --jobs 4 --no-fail-fast` ran clean mid-session — **1209 passed, 0
+failed, 2 ignored** over 106 `test result` lines, exit 0, against a baseline of 1173/104 — and its
+file was then **overwritten by a re-run I killed**. This project's rule is that the count comes
+from the file, so that number is stated here as history and **must not be quoted as current**.
+Re-run it once, to a file, before any claim that the tree is green.
 
-### The suite has NOT been run to completion, and no count is claimed
+**What IS on file:** `runs/session-a-m3/touched.txt` — the seven crates this session changed
+(`marlowe-loop`, `marlowe-daemon`, `marlowe-surface`, `marlowe-view`, `marlowe-stub`,
+`marlowe-permission`, `marlowe`): **565 passed, 1 failed**, 57 result lines,
+`MARLOWE_CUDA_LIB_DIR` set. Scoped deliberately, on the human's instruction, for time.
 
-`cargo test --workspace --jobs 4 --no-fail-fast > runs/session-f/suite.txt` was started and
-**stopped while still compiling**. That file is therefore a compile log with **zero** `test result`
-lines in it, and it must not be tallied. Per-crate runs were green as work proceeded —
-`marlowe-view` 24+3, `marlowe-surface` 22 binaries all ok, `marlowe-daemon` 67 lib + every
-integration binary, `marlowe-loop`'s new `steer_admission` 4 and `steer_has_one_door` 1, the
-boundary hook 2 — **and per-crate green is exactly the thing CLAUDE.md records two sessions
-reporting wrongly.** The next session's first act is the workspace run, once, to that file.
+**The one failure is `a_silent_peer_does_not_wedge_the_daemon`, and it is PRE-EXISTING.**
+Checked out `3a06621` — master, none of this session's code — and it fails there too, identically.
+It asserts a `status` is answered inside 7 s while a silent peer holds the serial main port behind
+a 5 s preamble deadline: a **two-second margin** on a machine that had just run three release
+builds, a 27B model load and a CUDA test binary. It passed twice earlier in this session and fails
+in isolation now, which is a load-dependent timing assertion rather than a property. **Worth
+re-stating as a deadline the test controls rather than a race it hopes to win.**
 
-### Built and green per-crate
+`cd eval && python -m pytest`: 72 passed, unmodified. Branch `m3-control-plane`, worktree
+`../Marlowe_A`.
 
-| | |
+**§5 was implemented, not reshaped.** `Run`, `RunStatus`, `OrphanPolicy`, `Budget`,
+`CapabilityProfile` and `RunControl` are exactly as pinned. `Checkpoint` was **named** in §5 and
+never defined; ADR-053 defines it. What is new is on the wire, which §5 does not govern — see
+ROADMAP's M3 note, written for Session F.
+
+### The finding: a restart would have become the trim
+
+ADR-023's floor is *"monotonic and latched per run"*, and the latch exists because the floor used
+to be **derived** from the current window — so trimming the untrusted block restored privileges the
+run was supposed to have lost.
+
+**A resume rebuilt through `Run::root` reopens that by a different route.** `root` starts at
+`UserAsserted`. A run that read a hostile page, latched to `UntrustedContent`, checkpointed, and
+came back after a daemon restart would compose targets again.
+
+And it would have been invisible: **every existing ADR-023 test runs inside one process**, so the
+whole family is structurally incapable of seeing it. `spent`, `step`, `contract_retries` and the
+profile fail the same way — each defaults to its permissive value. All five are checkpointed;
+`Run::restored` is the only constructor that sets the floor from outside `run.rs`.
+
+### THE LIVE RUN FOUND TWO DEFECTS THE TESTS DID NOT, AND THE SECOND IS THE GENERALISABLE ONE
+
+**1. A completed run's last checkpoint said `Running`.** The per-iteration checkpoint is written at
+the *end* of an iteration; the terminal status is set *after* the loop. So the last durable record
+of a run that finished perfectly said it was still going, and every consumer read it as resumable.
+The first demo listed **three completed turns as interrupted** and cheerfully resumed one, re-running
+finished work and producing a second, different answer.
+
+`a_child_that_already_finished_is_not_settled` sets `status = Completed` **by hand** and asserts
+settlement declines. That is true, and it says nothing about whether anything ever *produces* a
+terminal status. **Instance sixteen in new clothes: asserted where the value is declared rather than
+where it is produced.**
+
+**2. Fixing it failed two of my own tests, and both failures were correct.**
+
+* `a_parent_completing_settles_its_children_through_the_loop` was **green because of the defect**.
+  Its child *completed*, and settlement fired only because a completed run still read as live. It
+  now spawns a child whose grant is too small for a second call, so the child genuinely outlives
+  its parent. **A test can be passing on the bug it is adjacent to.**
+* The "kill" in the resume test was a **cancel**, and a cancel now legitimately refuses to resume —
+  so the instrument had been modelling a different event all along, and nothing revealed it until
+  the other half was right. It is a **panic inside the driver** now: `drive` never returns, no final
+  checkpoint is written, and what survives is what a `kill -9` leaves.
+
+### Demonstrated live — `runs/session-a-m3/live/`
+
+`marlowe-red:9b`, scratch profile, `taskkill /F` on the daemon. `DEMO-OUTPUT.txt`:
+
+* `/runs` answered **from a second process while a turn was live** — the control plane.
+* Killed once checkpoint step 1 was durable. **The control holds**: `ASK EXITED 1`, connection
+  forcibly closed, no answer.
+* A new daemon on the same profile: *"1 interrupted run(s) can be resumed"*. `/runs` listed it,
+  `/watch` showed `checkpoint step 1 · resume from that step · on cancel children terminate`.
+* `--resume` finished it.
+
+`STEER-OUTPUT.txt`: a run part-way through reading six files took `--steer` from another process and
+answered **PINEAPPLE**, abandoning f3–f6. Same run, same turn, `steer_received` in the journal, no
+restart.
+
+**The demo's own instrument had to be fixed first, and the lesson is the same family.** It polled
+`marlowe --watch`, which spawns a process per check — ~200 ms against a 9B that finishes a two-step
+turn in under five seconds. The kill kept landing *after* the run completed, so the "control" that
+was supposed to prove the run died proved the opposite. It reads the journal directly now (~10 ms),
+which is also the honest instrument: the journal is what a resume reads.
+
+### Verification
+
+**Nine mutations, one at a time, each failing exactly its own named tests** —
+`runs/session-a-m3/mutations.txt`:
+
+| Mutation | Fails |
 |---|---|
-| `docs/design/adr/ADR-055-run-output-streams-to-a-window.md` | E4. Written **before** the first output line rendered, which is the only order in which it means anything |
-| `docs/design/adr/ADR-054-a-steer-is-a-write-and-has-one-door.md` | the steer door |
-| `crates/marlowe-loop/src/steer.rs` | `admit` — the ONE constructor of a `SteerMessage`. Added to the §13 hook |
-| `crates/marlowe-view/src/run.rs` | `RunView` and friends. Pure shapes; the crate still has zero dependencies |
-| `crates/marlowe-surface/src/window.rs` | the window: layout, draw, keys, `prepared` |
-| `crates/marlowe-daemon/src/watch.rs` | the control plane and its listener |
-| `crates/marlowe-daemon/src/watch_client.rs` | `ControlClient` + `RunProjection` |
-| `crates/marlowe/src/watch.rs` | `--watch` / `--runs` / `--steer` |
-| `crates/marlowe/src/launcher.rs` | `open_window` — best-effort, always with a command |
+| `trust_floor` restores `UserAsserted` | `the_trust_floor_survives_a_restart` |
+| `resumed_step` resets the counters | `spend_and_the_step_counter_survive_a_restart` |
+| `checkpoint_payload` back to `{step: n}` | `a_run_that_died_mid_flight_resumes_from_its_last_completed_step` |
+| `no_final_checkpoint` (never terminal) | three, incl. `a_run_that_completed_leaves_a_terminal_checkpoint_and_refuses_to_resume` |
+| `orphan_policy_ignored` | the three fate tests |
+| `steer_broadcast` | `a_steer_addressed_to_a_child_is_not_taken_by_the_parent` |
+| `budget_sliced` | `a_second_sibling_is_offered_the_same_allocation_as_the_first` |
+| `no_control_plane` | all eight control-plane tests |
+| `control_port_derived` | `the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent` |
 
-Tests added: `window_render` 13, `window_flicker` 6, `window_sanitiser` 7, `window_b13` 5,
-`window_steer` 11, `steer_admission` 4, `steer_has_one_door` 1, plus three rows appended to
-`b13_region_contract`.
+**A mutation found that `Client::control` had no test at all** — the client method `/steer`,
+`/watch` and `--steer` all go through. Every other test reached the control port through
+`advertised_port` and a raw socket, which is the *daemon's* side. A reader nothing exercised.
 
-### THE THREE THINGS THE DESIGN DID NOT ANTICIPATE
+**THE MUTATION HARNESS DESTROYED AN HOUR OF UNCOMMITTED WORK, and the tell is worth keeping.** It
+reverted each mutation with `git checkout -- <path>`, which restores the file to **HEAD** — so it
+discarded every uncommitted change in it. The signal was not a wrong answer: **seven mutations that
+had killed cleanly all reported *zero* failures at once.** Numbers going to zero *together* is a
+broken instrument, not a broken property. It snapshots the file in memory now. **Commit before
+mutating.**
 
-**1. The daemon is serial, and that decides the transport.** One connection is held for the whole
-of a turn, so a window served on the conversation port goes blank exactly while there is something
-to watch. The control plane is a **second listener on its own port**, published to `control.port`
-in the profile root beside `daemon.token`. The turn path is not restructured.
+### Also fixed
 
-**`port + 1` was the first design and it took ANOTHER PROCESS'S PORT.** Ephemeral ports are handed
-out consecutively and the test daemons take ephemeral ports, so one daemon's control listener held
-the next daemon's conversation port. Three tests failed — as `ConnectionRefused` and as a hang,
-neither of which points at the cause. Binding `:0` and publishing is ADR-029's rule applied to a
-port: announced, never inferred.
+**`--status` never threaded `--daemon-port`.** It built its client on the default port, found
+nothing, constructed a throwaway daemon and printed *its own defaults* — which is why it reported
+`qwen3.5:9b / ollama` while describing a daemon running `stealth/ox-alpha`. It takes the port now,
+**and says which of the two readings you are getting**: the no-daemon branch prints *"what follows
+is the configuration `marlowe --serve` would start with, not a description of anything running."*
+The two outputs used to be indistinguishable, which is the whole `get_providers()` family.
 
-**2. "A steer field is a write" understates it.** A steer is the **only** channel that writes new
-strings into `UserAsserted` in a run whose floor has already latched, because
-`Provenance::taint_for` reads the attribution map *before* it reaches for the floor:
+**Budgets are granted, never sliced.** `slice_for` is **deleted**, not left beside `grant` — two
+functions handing out budgets is the shape that drifts. It took its share of what *remained*, which
+put the eighth quarantined reader on ~0.3% at depth one; this tree is depth four. `grant` takes its
+share of the **original** and refuses with **both numbers**. `Standard` moved 2/8 → 3/8 because the
+acceptance row demanded it: four levels of 2/8 is **0.39%**, under M3 §11's 1% line. It now measures
+**1.98%** of a 200k root at depth 4, and the band — **[1%, 5%]** — is declared *in the assertion*.
 
-```rust
-ArgValue::Text(s) => self.attributed.get(s.as_str()).copied().unwrap_or(floor),
-```
+**The control port is advertised, not derived.** The first version used `port + 1`, which collides
+with a *second* daemon's main port: the default is 11435, so a daemon on 11436 lands on the first
+one's control plane, and a client then offers the wrong profile's token and is refused — an auth
+failure that is not one. `socket_auth` and `split` both hit it within minutes, because `free_port()`
+handed one fixture a port another fixture's control plane had taken. Bound at **0** and written to
+the profile root beside `daemon.token`.
 
-That is correct — ADR-023 blocks targets *composed by untrusted content*, and a target a person
-typed is not model-composed — but it means the question is not *how trusted is this text*. In a
-latched run everything is at the bottom and the floor has no discriminating power left. It is the
-saturation question: **who asserted it.** `steer_admission.rs` asserts both halves as a pair, and
-the pair is the point: guidance in a latched run leaves a composed target refused, and a target the
-person named in the same latched run still runs.
+**The run table is seeded from the journal at daemon open.** It is in memory, so after a restart a
+surviving run had **no id anybody could produce** — the work survived and was unreachable, which is
+indistinguishable from it not having survived. Seeded as `interrupted`, never `running`.
 
-**3. §6.1 said the window takes "the same adjudication `/steer` does". `/steer` did not exist.**
-The surface's steer field was a `Notice::NotBuilt` stub and `Daemon::ask` passed `NoControl`, so
-nothing could steer the daemon's own turn at all. ADR-054 is what that adjudication looks like:
-authority by channel, sanitise-then-cap **before** the text is attributed, one door, greppable.
+**The `/watch` and `/steer` commands were caught by the noun guard on the way in.**
+`every_user_facing_command_is_a_view_over_one_of_seven_nouns` failed until both claimed `run`.
+Neither is an eighth concept; the guard did exactly its job.
 
-### Defects found by building, not by reading
+### Open, and stated rather than implied
 
-* **`scroll_by` could not scroll up.** `scroll: None` means pinned; `unwrap_or(u16::MAX)` then
-  `saturating_sub(1)` still clamps to the bottom, so `Up` in a window did nothing, silently, on
-  every run with more output than fits. The driver now supplies `scroll_max` — it holds the
-  terminal size — rather than a `Cell` written during a draw and read by the next, which would make
-  the flicker check measure convergence instead of purity.
-* **`web`'s `inline_threshold_bytes` family, avoided rather than repeated.** `window::prepared` is
-  asserted on the rendered `Buffer`, and `window_sanitiser.rs` carries the control that names the
-  layer doing the defending: the shared renderer *does* pass the tag block through, so the window's
-  pass is what stops it.
+1. **`ingest` is still not wired**, so layer 3's latch remains unreachable in the shipped daemon.
+   `the_trust_floor_survives_a_restart` sets the floor **by hand** — it is a test of the
+   *checkpoint*, not evidence the boundary holds in the product. Session B's order is unchanged:
+   the compaction stamp and the trim marker, then the channel, then the boundary test.
+2. **The conversation is still not durable.** A run is per-turn in the daemon; `Daemon::sessions` is
+   in memory. What resumes is the interrupted **turn**, with its window. Making the session durable
+   has its own compaction-lineage questions.
+3. **Nothing resumes automatically.** `--resume <id>` is a person deciding. An auto-resume sweep at
+   boot needs orphan settlement to run against the journal; `settle_orphan_in` exists for it and
+   nothing calls it.
+4. **Checkpoint volume is unmeasured in the large.** One checkpoint is bounded by the window and the
+   test prints the number, but a long-lived profile's journal growth is a number nobody has yet.
+   ADR-053 §3 names compression, delta-encoding and every-Nth-step and deliberately does none.
+5. **Provider failover and host reboot are not separately measured.** They use the same checkpoint
+   as the daemon restart, and that is an argument rather than a measurement.
 
-### WHAT IS LEFT — in order
+### For Session F
 
-1. **Run the workspace suite ONCE to `runs/session-f/suite.txt`** and tally the file.
-2. **One real end-to-end run.** Nothing here has been exercised against a live daemon yet — this is
-  the budgeted end-to-end verification, and M1 produced three bugs that only using it found.
-  `marlowe-red:9b` is on this machine's Ollama and is the model to use. The shape: `--serve` on a
-  scratch profile root, `--ask` in the background, then `--runs`, `--watch`, `--steer` from a second
-  process, checking the steer reaches the *running* loop rather than the next turn.
-3. `cd eval && python -m pytest` — 72, unmodified, as a control.
-4. Commit. **Never `git add -A`** — Session A is in the shared checkout.
+**Nothing in §5 moved.** `Event::RunDetail` carries every field §6.2 asks a window to render, and
+`project.rs` already folds it into the Runs tab — so F replaces a *rendering*, not a source. A
+window's steer field should emit `Intent::Steer` and nothing else, which is §6.1's *"a steer is a
+write"* honoured by construction. The full note is in ROADMAP's M3 session block.
 
-### Known gaps, stated rather than left to be discovered
-
-* **`--watch` has not been run in a real terminal.** Every assertion about it is on a headless
-  `Buffer`, which is the right instrument for a frame and says nothing about crossterm, raw mode, or
-  the OSC 0 title.
-* **`Request::ResumeRun` sets a flag nothing reads yet.** `ControlPlane::take_resume` exists and no
-  run path calls it, because durable resume is Session A's. The window renders
-  `RunControl::resume`'s answer verbatim, so it says `NotDurable` today and says a checkpoint when A
-  lands — but the button currently queues a request that expires unread, and that is the one place
-  this session ships something whose other half is somebody else's.
-* **`tool_call` in `watch_client.rs` duplicates `project.rs`'s verb whitelist.** Noted in the code.
-  The honest fix is for `project.rs` to export it, which would have edited the main pane's render
-  path from a window session.
+**One hazard I created:** I built the release binary three times in a shared checkout. Any timing
+Session F took in that window is suspect — hazard form 6, and it does not announce itself.
 
 ---
 

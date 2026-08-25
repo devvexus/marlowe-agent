@@ -125,7 +125,7 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
 /// visibly; a projection that returned `None` for an unrecognised remedy would turn a degraded
 /// daemon into a healthy-looking band, which is the failure the invariant exists to prevent. So
 /// the fallback is the *most* general declared path rather than an absence.
-fn classify_degradation(remedy: &str) -> DegradedPath {
+pub(crate) fn classify_degradation(remedy: &str) -> DegradedPath {
     let r = remedy.to_lowercase();
     if r.contains("ollama") || r.contains("model") || r.contains("provider") {
         DegradedPath::ProviderFailedOver
@@ -288,6 +288,47 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     ],
                 ));
             }
+            // **One state, two renderings** (§6.6). The Runs tab shows the row; the window shows
+            // this. Both come from the daemon, and this fold never composes a fact of its own —
+            // `last_checkpoint_step: None` prints as "no checkpoint", never as step 0, because
+            // §6.3's rule is that a placeholder states a fact and never invents one.
+            Event::RunDetail {
+                id,
+                status,
+                last_checkpoint_step,
+                resumable,
+                orphan_policy,
+                spent_tokens,
+                granted_tokens,
+                pending_steers,
+                ..
+            } => {
+                let checkpoint = match last_checkpoint_step {
+                    Some(step) => format!("checkpoint step {step}"),
+                    None => "no checkpoint".to_string(),
+                };
+                view.runs.push(Item::new(
+                    id,
+                    pane_key(view.runs.len()),
+                    if status == "running" { Tone::Green } else { Tone::Dim },
+                    &[
+                        (status.as_str(), Tone::Normal),
+                        (&checkpoint, Tone::Dim),
+                        (
+                            &format!(
+                                "{spent_tokens}/{granted_tokens} tokens · on cancel: {orphan_policy}                                 {}{}",
+                                if *resumable { " · resumable" } else { "" },
+                                if *pending_steers > 0 {
+                                    format!(" · {pending_steers} steer(s) queued")
+                                } else {
+                                    String::new()
+                                }
+                            ),
+                            Tone::Dim,
+                        ),
+                    ],
+                ));
+            }
             Event::Error { detail } => {
                 view.status.degraded = Some(classify_degradation(detail));
             }
@@ -298,7 +339,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             //
             // They are listed rather than swept into a `_`, so the next `Event` variant somebody
             // adds is a compile error here rather than a frame that silently does nothing.
-            Event::RunDetail { .. } | Event::RunOutput { .. } | Event::Accepted { .. } => {}
+            Event::RunDetail { .. } | Event::RunOutput { .. } => {}
         }
     }
 }

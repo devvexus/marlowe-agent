@@ -22,7 +22,6 @@ use marlowe_view::Entry;
 fn a_second_render_of_the_same_state_changes_not_one_cell() {
     for (w, h) in common::WINDOW_SIZES {
         let mut app = common::window();
-        app.now_ms = 42_000;
         // Real content, not an empty run: a blank window is the case that passes for free.
         app.update(with_output(vec![
             Entry::Said(Speech::Model("## Findings\n\nThree of the four sources agree.".into())),
@@ -44,18 +43,25 @@ fn a_second_render_of_the_same_state_changes_not_one_cell() {
 
 /// **The control.** If the diff instrument could not see a change, the test above would be
 /// measuring nothing — and this is the shape that has gone wrong in this project more than once.
+///
+/// It used to move the clock. **That control is gone because the thing it moved is gone**: elapsed
+/// is resolved on the daemon now, so no cell in a window is a function of time and a window holds
+/// no `now_ms` to advance. What still changes a frame is state, which is what this moves instead.
 #[test]
-fn the_diff_does_see_a_change_when_the_clock_moves() {
+fn the_diff_does_see_a_change_when_the_run_advances() {
     let mut app = common::window();
-    app.now_ms = 1_000;
     let mut term = common::terminal(120, 30);
     let a = common::draw_window_into(&mut term, &app);
-    app.now_ms = 121_000;
+
+    let mut v = common::run_view();
+    v.elapsed_ms = 121_000;
+    v.spend_micros_usd = 900_000;
+    app.update(v);
     let b = common::draw_window_into(&mut term, &app);
     assert!(
         !common::diff_cells(&a, &b).is_empty(),
-        "the elapsed readout did not move across two minutes, so the purity check above is \
-         asserting nothing"
+        "the identity panel did not repaint when elapsed and spend changed, so the purity check \
+         above is asserting nothing"
     );
 }
 
@@ -64,7 +70,6 @@ fn the_diff_does_see_a_change_when_the_clock_moves() {
 #[test]
 fn the_diff_does_see_a_change_when_output_arrives() {
     let mut app = common::window();
-    app.now_ms = 1_000;
     let mut term = common::terminal(120, 30);
     let a = common::draw_window_into(&mut term, &app);
     app.update(with_output(vec![Entry::Said(Speech::Model("a new line arrived".into()))]));
@@ -78,7 +83,6 @@ fn the_diff_does_see_a_change_when_output_arrives() {
 #[test]
 fn moving_focus_repaints_borders_and_not_the_inside_of_a_region() {
     let mut app = common::window();
-    app.now_ms = 1_000;
     app.update(with_output(vec![Entry::Said(Speech::Model(
         "a paragraph of ordinary output that fills several cells inside the region".into(),
     ))]));
@@ -112,7 +116,6 @@ fn moving_focus_repaints_borders_and_not_the_inside_of_a_region() {
 #[test]
 fn scrolling_moves_only_the_scroll_area() {
     let mut app = common::window();
-    app.now_ms = 1_000;
     let many: Vec<Entry> = (0..80)
         .map(|i| Entry::Said(Speech::Model(format!("line {i}"))))
         .collect();
@@ -154,8 +157,6 @@ fn with_output(output: Vec<Entry>) -> marlowe_view::RunView {
 fn two_windows_at_the_same_instant_are_the_same_frame() {
     let mut a = WindowApp::new(common::run_view());
     let mut b = WindowApp::new(common::run_view());
-    a.now_ms = 777_000;
-    b.now_ms = 777_000;
     assert_eq!(
         common::buffer_text(&common::window_frame(&a, 120, 30)),
         common::buffer_text(&common::window_frame(&b, 120, 30)),

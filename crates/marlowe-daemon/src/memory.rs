@@ -55,6 +55,19 @@ impl Retrieved {
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
+
+    /// Nothing retrieved, because nothing was asked. **Not the same as an abstention**, which is a
+    /// retrieval that ran and declined; `abstention: None` here says the question was never put.
+    /// A resumed run has no new message to retrieve against.
+    pub fn nothing_was_asked() -> Self {
+        Self {
+            text: String::new(),
+            count: 0,
+            floor: TrustClass::UserAsserted,
+            margin: None,
+            abstention: None,
+        }
+    }
 }
 
 /// What the retrieval half of memory is doing, in words the status surface can print.

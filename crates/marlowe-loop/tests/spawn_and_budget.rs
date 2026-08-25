@@ -56,6 +56,7 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
                 contract: OutputContract::new("findings", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Standard,
+                grant_tokens: None,
                 // The violation is the **non-empty set**, not which tool is in it. It was `web`
                 // until `interactive()` stopped exposing tools with no executor, at which point
                 // the spawn was refused by the narrowing rule first and this test stopped
@@ -138,6 +139,7 @@ fn a_quarantined_child_runs_and_returns_findings() {
                 contract: OutputContract::new("findings", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Small,
+                grant_tokens: None,
                 tools: vec![], // empty: the quarantined shape
                 reads_untrusted: true,
             }),
@@ -358,6 +360,7 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
                 contract: OutputContract::new("what you found", &["findings"]),
                 orphan: OrphanPolicy::Detach,
                 share: BudgetShare::Standard,
+                grant_tokens: None,
                 // The child needs a tool in order to HAVE working to isolate.
                 tools: vec![ToolId::new("read")],
                 reads_untrusted: false,
@@ -483,6 +486,7 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
                 contract: OutputContract::new("f", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Small,
+                grant_tokens: None,
                 tools: vec![ToolId::new("remember")],
                 reads_untrusted: false,
             }),
@@ -565,6 +569,7 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
                 contract: OutputContract::new("f", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Small,
+                grant_tokens: None,
                 tools: vec![ToolId::new("bash")], // the parent does not have it
                 reads_untrusted: false,
             }),
@@ -618,6 +623,7 @@ fn the_spawn_tree_is_bounded_by_depth() {
                 contract: OutputContract::new("f", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Standard,
+                grant_tokens: None,
                 tools: vec![],
                 reads_untrusted: false,
             }),
@@ -672,6 +678,7 @@ fn a_childs_spend_counts_against_its_parent() {
                 contract: OutputContract::new("f", &["findings"]),
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Standard,
+                grant_tokens: None,
                 tools: vec![],
                 reads_untrusted: false,
             }),

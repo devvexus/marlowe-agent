@@ -8,7 +8,7 @@
 mod common;
 
 use marlowe_surface::window::{self, Confirm, WindowApp};
-use marlowe_view::run::{OrphanPolicyLabel, ResumeState, RunState};
+use marlowe_view::run::{OrphanPolicyLabel, RunState};
 
 fn rects(w: u16, h: u16) -> window::Chrome {
     window::layout(ratatui::layout::Rect::new(0, 0, w, h))
@@ -39,28 +39,37 @@ fn the_checkpoint_panel_carries_both_the_last_step_and_what_a_resume_would_do() 
     let buf = common::window_frame(&app, 120, 30);
     let text = common::region_text(&buf, rects(120, 30).checkpoint);
 
-    assert!(text.contains("seq 41"), "the last completed step is not on screen:\n{text}");
+    assert!(text.contains("step 41"), "the last completed step is not on screen:\n{text}");
     assert!(text.contains("resume"), "what a resume would do is not on screen:\n{text}");
     // The control: both facts are present *and distinguishable*. A panel printing `seq 41` once
     // would satisfy a naive `contains` for either line.
     assert_eq!(text.matches("41").count(), 2, "both facts must be stated, not one:\n{text}");
 }
 
-/// **A refusal is rendered verbatim.** `ResumeError::NotDurable` names why it refused; a window that
-/// reworded it into "cannot resume" would delete the only diagnostic in the frame.
+/// **A run that cannot be resumed says so and invents no reason.**
+///
+/// `resumable` is a fact `ControlPlane::detail` read off the checkpoint store. The window has no
+/// reason of its own for a `false`, and making one up — "the build is ephemeral", "no WAL" — would
+/// be the surface authoring a claim about a subsystem it does not own. Which of completed, failed
+/// or cancelled it was is already stated on the identity panel above.
 #[test]
-fn a_refused_resume_is_shown_in_the_control_planes_own_words() {
-    const REFUSAL: &str = "no durable checkpoint: this build spawns ephemerally";
+fn a_run_that_cannot_be_resumed_says_so_without_inventing_a_reason() {
     let mut v = common::run_view();
-    v.checkpoint.resume = ResumeState::Refused(REFUSAL.into());
+    v.state = RunState::Completed;
+    v.checkpoint.resumable = false;
     let app = WindowApp::new(v);
 
-    let buf = common::window_frame(&app, 160, 45);
-    let text = common::region_text(&buf, rects(160, 45).checkpoint);
-    assert!(
-        text.contains("no durable checkpoint"),
-        "the refusal was not rendered verbatim:\n{text}"
+    let text = common::region_text(&common::window_frame(&app, 160, 45), rects(160, 45).checkpoint);
+    assert!(text.contains("not from here"), "{text}");
+
+    // The control: a resumable run reads differently in the same panel, so the line above is a
+    // rendering of the flag rather than a constant that would pass either way.
+    let ok = common::region_text(
+        &common::window_frame(&common::window(), 160, 45),
+        rects(160, 45).checkpoint,
     );
+    assert!(ok.contains("from step 41"), "{ok}");
+    assert!(!ok.contains("not from here"), "{ok}");
 }
 
 /// The negative control for the pair above: a window on a run that has never checkpointed says so,
@@ -72,7 +81,7 @@ fn a_run_with_no_checkpoint_says_so_rather_than_printing_step_zero() {
     let app = WindowApp::new(v);
     let text = common::region_text(&common::window_frame(&app, 120, 30), rects(120, 30).checkpoint);
     assert!(text.contains("no checkpoint yet"), "{text}");
-    assert!(!text.contains("seq 0"), "an absent checkpoint rendered as step zero:\n{text}");
+    assert!(!text.contains("step 0"), "an absent checkpoint rendered as step zero:\n{text}");
 }
 
 // ─── identity: status, elapsed, spend ─────────────────────────────────────────────────────────
@@ -81,7 +90,6 @@ fn a_run_with_no_checkpoint_says_so_rather_than_printing_step_zero() {
 #[test]
 fn status_elapsed_and_spend_against_the_ceiling_all_render() {
     let mut app = common::window();
-    app.now_ms = 93_000;
     let buf = common::window_frame(&app, 120, 30);
     let text = common::region_text(&buf, rects(120, 30).identity);
 
@@ -94,28 +102,35 @@ fn status_elapsed_and_spend_against_the_ceiling_all_render() {
     assert!(text.contains("$3.00"), "the ceiling must be beside it:\n{text}");
 }
 
-/// Elapsed **updates**, and it updates as a pure function of `now_ms`. Without this the panel could
-/// be a static string and every other test here would still pass.
+/// **Elapsed is the daemon's figure, rendered — never the surface's arithmetic.**
+///
+/// It was `now_ms - started_ms`, computed here, which made a frame depend on when it was looked at.
+/// `ControlPlane::detail` now resolves it — the final wall time when the run has one, the live
+/// figure otherwise — because the daemon is the thing that holds a clock. So this asserts the
+/// rendering *and* that it tracks the field rather than being a constant.
 #[test]
-fn elapsed_moves_when_now_moves_and_freezes_when_the_run_stops() {
-    let mut app = common::window();
-    app.now_ms = 1_000;
+fn elapsed_renders_what_the_daemon_reported_and_tracks_it() {
+    let app = common::window();
     let a = common::region_text(&common::window_frame(&app, 120, 30), rects(120, 30).identity);
-    app.now_ms = 61_000;
-    let b = common::region_text(&common::window_frame(&app, 120, 30), rects(120, 30).identity);
-    assert_ne!(a, b, "elapsed did not move with the clock");
+    assert!(a.contains("1m 33s"), "the fixture's 93_000 ms did not render:\n{a}");
 
-    // And the control that matters: a finished run's elapsed is a fact about the run, not about
-    // when somebody looked at it.
     let mut v = common::run_view();
-    v.state = RunState::Completed;
-    v.finished_ms = Some(5_000);
-    let mut done = WindowApp::new(v);
-    done.now_ms = 6_000;
-    let c = common::region_text(&common::window_frame(&done, 120, 30), rects(120, 30).identity);
-    done.now_ms = 9_000_000;
-    let d = common::region_text(&common::window_frame(&done, 120, 30), rects(120, 30).identity);
-    assert_eq!(c, d, "a finished run's elapsed followed the clock:\n{c}\n---\n{d}");
+    v.elapsed_ms = 5_000;
+    let b = common::region_text(
+        &common::window_frame(&WindowApp::new(v), 120, 30),
+        rects(120, 30).identity,
+    );
+    assert!(b.contains("5.0s"), "elapsed did not track the field:\n{b}");
+
+    // **The property that replaced the old one, and it is the stronger of the two.** A frame is now
+    // a pure function of state alone: two windows at wildly different `now_ms` produce identical
+    // identity panels, because nothing in one is computed from a clock the surface reads.
+    let mut c1 = common::window();
+    let mut c2 = common::window();
+    assert_eq!(
+        common::region_text(&common::window_frame(&c1, 120, 30), rects(120, 30).identity),
+        common::region_text(&common::window_frame(&c2, 120, 30), rects(120, 30).identity),
+    );
 }
 
 /// §B2: state colours encode **state**. Spend at the ceiling is a state; spend below it is not.
@@ -273,7 +288,6 @@ fn the_cancel_confirmation_states_the_orphan_policy_in_words() {
 #[test]
 fn the_cancel_confirmation_states_the_cost_and_what_it_cannot_undo() {
     let mut app = common::window();
-    app.now_ms = 93_000;
     app.confirm = Some(Confirm::Cancel);
     let text = common::buffer_text(&common::window_frame(&app, 120, 30));
 

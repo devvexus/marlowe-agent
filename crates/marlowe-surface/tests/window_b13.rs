@@ -19,7 +19,6 @@ fn scenarios() -> Vec<(&'static str, WindowApp)> {
     let mut out = Vec::new();
 
     let mut running = common::window();
-    running.now_ms = 61_000;
     running.update({
         let mut v = common::run_view();
         v.output = vec![
@@ -43,7 +42,7 @@ fn scenarios() -> Vec<(&'static str, WindowApp)> {
     failed.update({
         let mut v = common::run_view();
         v.state = marlowe_view::RunState::Failed { error: "the provider rejected the request".into() };
-        v.finished_ms = Some(30_000);
+        v.elapsed_ms = 30_000;
         v
     });
     out.push(("failed", failed));

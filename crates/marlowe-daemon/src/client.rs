@@ -319,6 +319,76 @@ impl Client {
         self.send(&Request::Status)
     }
 
+    /// The same client aimed at the **control port**, if this profile's daemon advertised one.
+    ///
+    /// # Why the control commands do not use the main port
+    ///
+    /// The daemon serves the main port one connection at a time, so a `/steer` sent while a turn
+    /// is running is not *read* until that turn has ended — and a steer delivered after the turn
+    /// it was meant to change is not steering, it is a note. `crate::control_plane` listens on
+    /// `port + 1` and shares only the run table and the `DurableControl` with the turn in flight,
+    /// which is what makes M3-DESIGN §10.1's *"from outside"* true rather than declared.
+    ///
+    /// **The fall-back is the main port, and it is a fall-back rather than a preference.** An
+    /// older daemon, or one whose `port + 1` was taken, still answers these four requests on the
+    /// main port — behind whatever turn is running. `control_or_main` is where that is decided, in
+    /// one place, so a caller cannot get it right for `/runs` and wrong for `/steer`.
+    pub fn control(&self) -> Option<Self> {
+        // **Read, never derived.** The port is whatever the OS gave the daemon; deriving it as
+        // `port + 1` collided with a second daemon's main port, which presents as an
+        // unexplainable auth refusal. See `control_plane`'s module header.
+        let port = crate::control_plane::advertised_port(&self.profile_root)?;
+        Some(Self { port, ..self.clone() })
+    }
+
+    /// The control port when there is one, the main port otherwise.
+    ///
+    /// **The fall-back is a fall-back, not a preference.** On the main port these requests wait
+    /// behind whatever turn is running, which for `/steer` means arriving after the turn it was
+    /// meant to change. It is still the right answer when there is no control plane: a slow
+    /// correct reply beats a refusal.
+    fn control_or_main(&self, request: &Request) -> Result<Vec<Event>, ClientError> {
+        let Some(control) = self.control() else {
+            return self.send(request);
+        };
+        match control.send(request) {
+            Ok(events) => Ok(events),
+            // Only a missing listener falls back — a stale `control.port` file from a daemon that
+            // died. A refusal is a token mismatch and means the same thing on both ports; retrying
+            // would turn one clear error into two.
+            Err(ClientError::NoDaemon { .. }) => self.send(request),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Every run the **daemon** owns. Not a client-side list — see `--status`, which reported a
+    /// fresh process's own defaults while describing a daemon running something else.
+    pub fn runs(&self) -> Result<Vec<Event>, ClientError> {
+        self.control_or_main(&Request::Runs)
+    }
+
+    /// One run in full: state, checkpoint, spend against ceiling, orphan policy on cancel.
+    pub fn watch(&self, run: &str, since: u64) -> Result<Vec<Event>, ClientError> {
+        self.control_or_main(&Request::Watch { run: run.to_string(), since })
+    }
+
+    /// Guidance for a run that is already going. Delivered at its next iteration boundary — never
+    /// mid-tool-call, and never as a restart.
+    pub fn steer(&self, run: &str, text: &str) -> Result<Vec<Event>, ClientError> {
+        self.control_or_main(&Request::Steer { run: run.to_string(), text: text.to_string() })
+    }
+
+    /// Ask a run to stop at its next iteration boundary.
+    pub fn cancel(&self, run: &str) -> Result<Vec<Event>, ClientError> {
+        self.control_or_main(&Request::Cancel { run: run.to_string() })
+    }
+
+    /// Continue a run from its last completed checkpoint. **Main port** — it needs the engine, and
+    /// a resume that staged without driving would report success for a run that never moved.
+    pub fn resume(&self, run: &str) -> Result<Vec<Event>, ClientError> {
+        self.send(&Request::Resume { run: run.to_string() })
+    }
+
     /// Re-fetch this session's turns, so a reconnecting client shows what the model can see.
     pub fn replay(&self) -> Result<Vec<Event>, ClientError> {
         self.send(&Request::Replay { session: self.session.clone() })

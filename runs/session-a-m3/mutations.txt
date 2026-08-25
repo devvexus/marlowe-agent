@@ -1,0 +1,68 @@
+## trust_floor
+the checkpoint restores the floor at UserAsserted instead of the latched value
+
+fails (1):
+  - the_trust_floor_survives_a_restart
+
+## resumed_step
+a resume restarts the step counter and the contract-retry cap at zero
+
+fails (1):
+  - spend_and_the_step_counter_survive_a_restart
+
+## checkpoint_payload
+the loop writes the old {step: n} payload instead of the checkpoint
+
+fails (1):
+  - a_run_that_died_mid_flight_resumes_from_its_last_completed_step
+
+## orphan_policy_ignored
+settle_orphan detaches whatever the policy says
+
+fails (3):
+  - adopt_leaves_a_child_that_resumes_under_the_named_run
+  - terminate_leaves_a_child_that_refuses_to_resume
+  - the_three_policies_are_distinguishable_from_the_child_alone
+
+## steer_broadcast
+DurableControl hands any run the next steer in any queue
+
+fails (1):
+  - control::tests::a_steer_addressed_to_a_child_is_not_taken_by_the_parent
+
+## budget_sliced
+grant takes its share of what REMAINS, as slice_for did
+
+fails (1):
+  - budget::tests::a_second_sibling_is_offered_the_same_allocation_as_the_first
+
+## no_control_plane
+the daemon does not start the second listener
+
+fails (8):
+  - a_steer_cannot_carry_an_escape_sequence_onto_a_terminal
+  - a_steer_sent_on_one_connection_is_visible_on_another
+  - an_empty_steer_is_refused_rather_than_queued
+  - the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent
+  - the_control_port_answers_while_the_main_port_is_wedged
+  - the_control_port_refuses_a_wrong_token
+  - the_control_port_refuses_what_needs_the_model_and_says_where_it_lives
+  - two_daemons_never_collide_and_the_derived_port_would_have
+
+## control_port_derived
+the client derives the control port as port + 1 instead of reading it
+
+fails (1):
+  - the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent
+## no_final_checkpoint
+the loop stops writing a final checkpoint, so a finished run's last record says Running
+
+fails (0):
+
+## no_final_checkpoint
+a checkpoint never carries a terminal status, so a finished run reads as still running
+
+fails (3):
+  - a_run_that_completed_leaves_a_terminal_checkpoint_and_refuses_to_resume
+  - control::tests::a_cancelled_run_refuses_to_resume_and_says_the_policy_did_it
+  - every_resumable_run_is_enumerable_and_the_finished_ones_are_distinguishable

@@ -27,7 +27,46 @@ pub enum Request {
     /// Start a turn. The daemon owns the run; the client gets events.
     Ask { session: String, message: String },
     /// List runs the daemon owns. **Read-only** — the client cannot mutate a run through it.
+    ///
+    /// Answered on **either** port. The control port answers it while a turn is in flight, which
+    /// is the case `/runs` is actually for; the main port keeps answering it so nothing that
+    /// already asked there has to move.
     Runs,
+    /// One run, in the detail §6.2 asks a window to render. **Control port.**
+    ///
+    /// `/watch` opens a window rather than streaming into the conversation pane (§6.6) — filling
+    /// the main pane with agent output halts the conversation *visually*, which is what this
+    /// milestone exists to stop. The window is Session F's; this is the state it renders, and
+    /// there is only one of it.
+    /// `since` is the highest output-frame sequence the client already holds, so a window polls
+    /// incrementally instead of re-reading a whole run every 120 ms. **`0` asks for everything**,
+    /// which is what a window that has just opened wants and what every non-window caller sends.
+    ///
+    /// **Added by Session F, on A's variant rather than beside it.** A second `WatchOutput` request
+    /// would be two questions about one run answered from one lock, and the answers could disagree
+    /// about which frames belong to the detail they arrived with.
+    /// **`#[serde(default)]`, so a client built before this field still parses the frame** — the
+    /// same courtesy `attribution` gets above, and the reason is the same: this field was added to
+    /// an existing request, and a wire that refused the old shape would break every caller that had
+    /// no reason to change. `0` asks for everything, which is what those callers mean.
+    Watch { run: String, #[serde(default)] since: u64 },
+    /// Guidance for a running run. **Control port**, and that is the whole point.
+    ///
+    /// M3-DESIGN §10.1 requires steering *"from outside"* — another terminal, no TUI, a script.
+    /// On the serial main port a steer is not *read* until the turn it was meant to change has
+    /// ended, so it is served by `crate::control_plane`, which shares only the run table and the
+    /// `DurableControl` with the turn in flight.
+    Steer { run: String, text: String },
+    /// Ask a run to stop at its next iteration boundary. **Control port.**
+    ///
+    /// Never mid-tool-call: a cancel that interrupted a call would leave the call's effect
+    /// unrecorded, and the journal is the thing that has to stay true.
+    Cancel { run: String },
+    /// Continue a run from its last completed checkpoint. **Main port** — it needs the engine.
+    ///
+    /// The control plane could *stage* a resume and deliberately does not: staging without
+    /// driving would report success for a run that never took another step.
+    Resume { run: String },
     /// Approve or decline a pending decision (§B9). The harness enforces; the model never sees
     /// this path.
     /// **`reason` is only meaningful on a decline.** "No, because ..." is a different
@@ -72,33 +111,6 @@ pub enum Request {
 
     // ── the control plane a run window speaks to (`M3-DESIGN.md` §6) ────────────────────────
     //
-    // **These are served on the CONTROL port, not this one.** See `watch.rs`: the conversation
-    // socket is held for the whole of a turn, and a window that could only be answered between
-    // turns would be a window that goes blank exactly while there is something to watch.
-    /// Everything a window draws for one run, plus the output frames after `since`.
-    ///
-    /// **A poll, not a subscription**, and that is what makes §6.6's *"one state, two renderings"*
-    /// literal: the window asks the daemon what is true and re-projects the answer. It holds no
-    /// run fact between polls that the daemon does not have.
-    ///
-    /// `since` is the last frame sequence the client has, so a reconnecting window catches up
-    /// rather than replaying from the beginning — the same reason `Replay` exists for a session.
-    Watch { run: String, since: u64 },
-    /// **A write.** `M3-DESIGN.md` §6.1: a steer field is a write, and it takes the same
-    /// adjudication `/steer` does — because it *is* `/steer`. Both reach
-    /// `marlowe_loop::steer::admit`, which is the only constructor of a `SteerMessage` in the
-    /// workspace (ADR-054).
-    ///
-    /// The text crosses **unvalidated**, deliberately: a cap and a sanitiser on the client would be
-    /// a second copy of the door's, and two copies agree until the day they do not.
-    Steer { run: String, text: String },
-    /// Stop a run. The orphan policy it declared at spawn decides what happens to its children;
-    /// the surface states that policy plainly before it asks.
-    CancelRun { run: String },
-    /// Resume from the last checkpoint. Refuses **by name** where durable runs are not built —
-    /// `ResumeError::NotDurable` says why, and a window renders that verbatim rather than
-    /// rewording it into "cannot resume".
-    ResumeRun { run: String },
 }
 
 /// One frame of a run's output. `M3-DESIGN.md` §6.2, ADR-055.
@@ -179,41 +191,46 @@ pub enum Event {
         #[serde(default)]
         attribution: Option<String>,
     },
-    Error { detail: String },
-
-    // ── answers to the control-plane requests above ─────────────────────────────────────────
-    /// Everything a run window's panels draw. **A projection, not the `Run`.**
+    /// One run, in full. **The state a window renders, and the state `/watch` prints.**
     ///
-    /// The header's rule still holds: *"There is no request that hands the client a `Run`, a
-    /// `Checkpoint`, or a `ContextView`, and there must not be one."* `last_checkpoint` here is a
-    /// **sequence number**, which is what §6.2 asks a window to show; the `Checkpoint` itself — the
-    /// state a resume would restore — never crosses.
+    /// §6.6: *"One state, two renderings."* The window and the Runs tab read this; neither keeps
+    /// its own. Every field is a fact the daemon holds — `last_checkpoint_step` is `None` when
+    /// there is no checkpoint, because §6.3's rule is that a placeholder states a fact and never
+    /// invents one to fill a layout.
+    ///
+    /// It carries **no** `CapabilityProfile`, no `Budget` object and no `Checkpoint`: numbers read
+    /// off them, which is what `no_request_or_event_hands_the_client_run_state` is about.
     RunDetail {
         id: String,
         status: String,
-        /// The control plane's own words when the status carries them: a pause reason, a failure.
-        /// Empty otherwise. Rendered verbatim.
-        detail: String,
-        started_ms: u64,
-        /// `0` while the run is still going. Elapsed freezes at this when it is not.
-        finished_ms: u64,
+        parent: Option<String>,
+        elapsed_ms: u64,
         spend_micros_usd: u64,
         ceiling_micros_usd: u64,
-        last_checkpoint: Option<u64>,
-        /// What a resume would do, as the control plane answers it. `Ok(seq)` or the refusal text.
-        resume_from: Option<u64>,
-        resume_refused: String,
-        /// `adopt:<id>` / `detach` / `terminate`. Declared at spawn, never inferred.
+        spent_tokens: u64,
+        granted_tokens: u64,
+        depth: u8,
+        /// `None` means no checkpoint exists — not step zero.
+        last_checkpoint_step: Option<u32>,
+        resumable: bool,
+        /// Stated plainly beside cancel, per §6.2.
         orphan_policy: String,
-        /// The highest frame sequence the daemon holds, so a window knows whether it is caught up.
-        latest_seq: u64,
+        pending_steers: usize,
     },
-    /// One frame of a watched run's output, in order.
+    Error { detail: String },
+
+    /// One frame of a watched run's output, in order. **Session F; ADR-055.**
+    ///
+    /// `RunDetail` above is what a run *is*; this is what it has *said*. They travel together in a
+    /// `Watch` answer and are separate variants because they have different governing decisions:
+    /// the detail is facts the harness computed, and a frame is prose ADR-055 permits to reach a
+    /// terminal on the condition that the display predicate runs at the boundary.
+    ///
+    /// **There is deliberately no acknowledgement variant beside these.** A write is answered with
+    /// a fresh `RunDetail`, which carries `pending_steers` — Session A's rule, and the better one:
+    /// *"the count, not an acknowledgement. 'queued' is a claim about a mechanism; a number is a
+    /// fact the next `/watch` can be checked against."*
     RunOutput { seq: u64, frame: RunFrame },
-    /// A control-plane write was accepted. **Named rather than silent**: a steer that vanished with
-    /// no acknowledgement is indistinguishable from one the daemon dropped, which is the failure
-    /// E10 produced for real.
-    Accepted { what: String },
 }
 
 /// What `Status` answers. Everything §B5's band and the first-run disclosure need, in one frame.

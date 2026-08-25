@@ -43,7 +43,10 @@ fn engine() -> Engine<Unavailable> {
 struct OneSteer(Option<marlowe_loop::driver::SteerMessage>);
 
 impl marlowe_loop::driver::Control for OneSteer {
-    fn take_steer(&mut self) -> Option<marlowe_loop::driver::SteerMessage> {
+    // **Per-run since Session A**, because the control plane serves many runs from one object. This
+    // harness holds one message for whichever run asks, which is what makes it a harness rather
+    // than a second control plane.
+    fn take_steer(&mut self, _run: RunId) -> Option<marlowe_loop::driver::SteerMessage> {
         self.0.take()
     }
 }

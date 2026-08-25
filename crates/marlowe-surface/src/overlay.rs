@@ -246,7 +246,7 @@ pub fn draw_window_cancel(
         Line::from(Span::styled(
             format!(
                 "it has run for {} and spent {}",
-                elapsed(v.elapsed_ms(app.now_ms)),
+                elapsed(v.elapsed_ms),
                 micros_usd(v.spend_micros_usd)
             ),
             theme.dim(),

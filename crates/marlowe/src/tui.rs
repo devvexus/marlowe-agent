@@ -788,19 +788,6 @@ fn serve_window_asks(app: &mut App) {
                     Tone::Normal,
                 );
             }
-            // **The same door the window's field goes through** (ADR-054). This is a client that
-            // happens to be the TUI; it gets no shortcut the standalone `--steer` does not have.
-            Outcome::Steer(run, text) => {
-                let profile_root = crate::agent::default_profile_root();
-                match marlowe_daemon::watch_client::ControlClient::connect(&profile_root)
-                    .and_then(|c| c.steer(&run, &text).map(|()| ()))
-                {
-                    Ok(()) => app.note(Notice::SteerSent { run: Echo::new(run) }, Tone::Normal),
-                    // The control plane's own words, in the band: a refusal reworded here would
-                    // lose the two numbers `SteerRefused::TooLong` carries.
-                    Err(e) => app.set_status_detail(e.to_string()),
-                }
-            }
             _ => {}
         }
     }

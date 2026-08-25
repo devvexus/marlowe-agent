@@ -152,7 +152,7 @@ pub fn buffer_text(buf: &Buffer) -> String {
 // ─── run windows (`M3-DESIGN.md` §6) ──────────────────────────────────────────────────────────
 
 use marlowe_surface::window::{self, WindowApp};
-use marlowe_view::run::{CheckpointView, OrphanPolicyLabel, ResumeState, RunState, RunView};
+use marlowe_view::run::{CheckpointView, OrphanPolicyLabel, RunState, RunView};
 
 /// §6.4 borrows §B13's flicker rows, and a window is a different size class from the main frame:
 /// its floor is 80x24, not 120x30. The high end is the same 4K-ish terminal.
@@ -164,12 +164,17 @@ pub fn run_view() -> RunView {
     RunView {
         id: "a1b2c3d4".into(),
         state: RunState::Running,
-        started_ms: 0,
-        finished_ms: None,
+        parent: None,
+        // 1m 33s, so an elapsed assertion is about a formatted figure rather than about zero.
+        elapsed_ms: 93_000,
         spend_micros_usd: 120_000,
         ceiling_micros_usd: 3_000_000,
-        checkpoint: CheckpointView { last_completed: Some(41), resume: ResumeState::From { seq: 41 } },
+        spent_tokens: 400,
+        granted_tokens: 50_000,
+        depth: 0,
+        checkpoint: CheckpointView { last_completed: Some(41), resumable: true },
         orphan_policy: OrphanPolicyLabel::Detach,
+        pending_steers: 0,
         output: Vec::new(),
         subagents: Vec::new(),
         budget: Vec::new(),

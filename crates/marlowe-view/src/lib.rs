@@ -49,7 +49,7 @@ pub use notice::{CommandLine, Terminal,
     Speech,
 };
 pub use run::{
-    CheckpointView, OrphanPolicyLabel, ResumeState, RunState, RunView,
+    CheckpointView, OrphanPolicyLabel, RunState, RunView,
 };
 pub use turn::{DegradedPath, Metric, ResultSummary, ToolLineState, TurnEvent};
 pub use view::{
