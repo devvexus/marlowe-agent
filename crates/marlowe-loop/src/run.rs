@@ -47,7 +47,79 @@ impl RunId {
     pub fn from_name(name: &str) -> Self {
         Self(Uuid::new_v5(&Uuid::NAMESPACE_OID, name.as_bytes()))
     }
+
+    /// A short, sayable name for this run — `brave-storm`, `distant-tango`.
+    ///
+    /// # Why this is DERIVED and never stored
+    ///
+    /// The `Uuid` remains the identity: it is the journal's key, it is what `CONTRACTS.md` §5
+    /// pins, and it is what makes a run unique across all time. **This is a rendering of that
+    /// identity, not a second one.** Storing a name beside the id would be two answers to *"which
+    /// run is this"*, which is the two-sides-silently-disagree shape this project logs — and it
+    /// would need a migration, a uniqueness table, and a decision about what happens when the
+    /// table and the journal disagree. Deriving needs none of that.
+    ///
+    /// Three properties fall out of deriving it, and all three matter here:
+    ///
+    /// * **No RNG and no clock.** A name generator reaching for entropy would land on
+    ///   `the_only_real_clock_read_is_the_latency_fence` or on the determinism guard. A pure
+    ///   function of the id reads neither.
+    /// * **Stable across processes and restarts.** The daemon, the window and a second terminal
+    ///   all compute the same name from the same id without coordinating. A resumed run keeps its
+    ///   name, which is the whole point of naming it.
+    /// * **`repro`'s bit-identity claim is untouched**, because nothing new enters the journal.
+    ///
+    /// # The trade, stated
+    ///
+    /// 64 × 64 = **4096** names, so two live runs can collide. That is deliberate: the alternative
+    /// is a uniqueness registry, which is state, which is the thing being avoided. Collisions are
+    /// resolved the way an ambiguous git prefix is — **the resolver refuses and lists the
+    /// candidates**, and the full id always works. A name is an affordance for typing, never a
+    /// guarantee of identity.
+    pub fn mnemonic(&self) -> String {
+        let b = self.0.as_bytes();
+        // Fold across the whole id rather than taking two bytes: a v5 id derived from a short
+        // name has low entropy in its leading bytes, and `from_name` is what every test uses.
+        let mut a: u16 = 0;
+        let mut n: u16 = 0;
+        for (i, byte) in b.iter().enumerate() {
+            if i % 2 == 0 {
+                a = a.rotate_left(3) ^ u16::from(*byte);
+            } else {
+                n = n.rotate_left(3) ^ u16::from(*byte);
+            }
+        }
+        format!(
+            "{}-{}",
+            ADJECTIVES[usize::from(a) % ADJECTIVES.len()],
+            NOUNS[usize::from(n) % NOUNS.len()]
+        )
+    }
 }
+
+/// 64 adjectives. Short, sayable over a phone, no near-homophones, nothing whose tone would read
+/// as a judgement about the run — `failed-heron` naming a healthy run would be a small lie told
+/// every time it is displayed.
+const ADJECTIVES: [&str; 64] = [
+    "amber", "ancient", "arctic", "autumn", "brave", "brisk", "bronze", "calm", "clever", "copper",
+    "coral", "crimson", "curious", "daring", "dawn", "deep", "distant", "dusty", "eager", "early",
+    "east", "fading", "fleet", "gentle", "gilded", "golden", "hidden", "hollow", "humble", "ivory",
+    "jade", "keen", "late", "lively", "lucid", "lunar", "mellow", "misty", "modest", "narrow",
+    "noble", "north", "olive", "patient", "polar", "prime", "quiet", "rapid", "restless", "rising",
+    "rugged", "silent", "silver", "solar", "south", "steady", "stormy", "sudden", "tidal", "upper",
+    "velvet", "vivid", "west", "winter",
+];
+
+/// 64 nouns. Concrete things, so a name is easy to hold in mind and to repeat back.
+const NOUNS: [&str; 64] = [
+    "anchor", "arbor", "arrow", "basin", "beacon", "bramble", "canyon", "cedar", "cinder", "cobalt",
+    "comet", "compass", "delta", "dune", "ember", "falcon", "fathom", "ferry", "fjord", "forge",
+    "gale", "granite", "harbor", "hazel", "heron", "hollow", "iris", "juniper", "kestrel", "lagoon",
+    "lantern", "ledger", "loom", "marble", "meadow", "meridian", "mesa", "orchid", "otter", "pillar",
+    "pioneer", "quarry", "quill", "raven", "reef", "ridge", "rookery", "sable", "sextant", "signal",
+    "slate", "sparrow", "spire", "storm", "summit", "tango", "thicket", "tundra", "vessel", "vista",
+    "walnut", "willow", "yarrow", "zephyr",
+];
 
 impl Default for RunId {
     fn default() -> Self {
@@ -660,6 +732,54 @@ impl Run {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// **Stable across processes, because it is a pure function of the id.** The daemon, the
+    /// window and a second terminal all compute this without coordinating, and a resumed run keeps
+    /// its name -- which is the only reason naming it is worth anything.
+    #[test]
+    fn a_mnemonic_is_the_same_every_time_for_the_same_id() {
+        let id = RunId::from_name("a-fixed-run");
+        assert_eq!(id.mnemonic(), id.mnemonic());
+        assert_eq!(RunId::from_name("a-fixed-run").mnemonic(), id.mnemonic());
+    }
+
+    /// **The vacuity control for the test above.** A `mnemonic()` returning a constant would pass
+    /// it and be useless, so different ids must differ. Not all of them can -- 4096 names, and the
+    /// doc comment says so -- but a handful of distinct ids collapsing to one name would mean the
+    /// fold is discarding the id rather than mixing it.
+    #[test]
+    fn different_ids_get_different_names() {
+        let names: std::collections::BTreeSet<String> =
+            (0..64).map(|i| RunId::from_name(&format!("run-{i}")).mnemonic()).collect();
+        assert!(names.len() > 55, "64 ids collapsed to {} names: {names:?}", names.len());
+    }
+
+    /// **Typeable is the entire point**, so this asserts the shape a user has to reproduce: two
+    /// lowercase words, one hyphen, no digits, short enough to say out loud.
+    #[test]
+    fn a_mnemonic_is_typeable_without_looking_twice() {
+        for i in 0..200 {
+            let m = RunId::from_name(&format!("shape-{i}")).mnemonic();
+            let (a, n) = m.split_once('-').expect("exactly one hyphen: {m}");
+            assert!(!a.is_empty() && !n.is_empty(), "{m}");
+            assert!(m.len() <= 20, "too long to type: {m}");
+            assert!(
+                m.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
+                "lowercase ascii and one hyphen only, or it is not typeable: {m}"
+            );
+        }
+    }
+
+    /// **The id remains the identity.** This is a rendering, and nothing about the `Uuid` moved --
+    /// if it had, `CONTRACTS.md` §5 and every journal key would have moved with it.
+    #[test]
+    fn naming_a_run_did_not_change_what_a_run_id_is() {
+        let id = RunId::from_name("unchanged");
+        assert_eq!(id.to_string(), id.0.to_string());
+        assert_ne!(id.to_string(), id.mnemonic());
+    }
+
     use super::*;
 
     #[test]
