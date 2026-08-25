@@ -271,6 +271,39 @@ fn the_control_port_refuses_what_needs_the_model_and_says_where_it_lives() {
     );
 }
 
+/// **The `Client` half, and it was a real gap until a mutation found it.**
+///
+/// Every other test in this file reaches the control port through `advertised_port` and a raw
+/// socket, which is the daemon's side of the contract. Mutating `Client::control` back to
+/// `port + 1` killed **nothing** — the client method that `/steer`, `/watch` and `--steer` all go
+/// through had no test at all. That is `CLAUDE.md`'s *"a declared control that nothing reads"*
+/// with the sign flipped: a reader nothing exercised.
+///
+/// Two adjacent daemons, driven through the `Client`. Under the derivation, `a`'s client aims at
+/// `a.port + 1`, which is `b`'s **main** port, and offers `a`'s token — so it is refused, and the
+/// refusal is not a `NoDaemon`, so `control_or_main` correctly does not paper over it.
+#[test]
+fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
+    let a = Fixture::start("client-a");
+    let b = Fixture::start_on("client-b", a.port + 1);
+    assert_eq!(b.port, a.port + 1, "the control: they really are adjacent");
+
+    let run = "00000000-0000-0000-0000-0000000000dd";
+    let steered = a.client().steer(run, "only the 2024 filings").expect("a's client steers a");
+    assert!(
+        steered.iter().any(|e| matches!(e, Event::RunDetail { pending_steers: 1, .. })),
+        "the steer must reach a's own plane: {steered:?}"
+    );
+
+    // ...and it went to A, not to B. Without this the assertion above would pass against a
+    // client that reached *some* control plane.
+    let bs_view = b.client().watch(run).expect("b's client watches b");
+    assert!(
+        bs_view.iter().any(|e| matches!(e, Event::RunDetail { pending_steers: 0, .. })),
+        "a steer sent to a must not appear in b: {bs_view:?}"
+    );
+}
+
 #[test]
 fn two_daemons_never_collide_and_the_derived_port_would_have() {
     // **The bug that made this an advertised port rather than `port + 1`.** Deriving it put one
