@@ -330,3 +330,57 @@ fn two_daemons_never_collide_and_the_derived_port_would_have() {
         assert!(events.iter().any(|e| matches!(e, Event::Status(_))), "{events:?}");
     }
 }
+
+// ─── ADR-054: a steer over the wire goes through the one door ─────────────────────────────────
+
+/// **A steer arriving on the control port is capped, and the cap is `steer::admit`'s.**
+///
+/// # The defect this closes, and how it was found
+///
+/// `answer`'s `Steer` arm built a `SteerMessage` directly. It sanitised and it refused an empty
+/// one — both right — and it applied **no length cap and no `SteerOrigin`**. That matters more than
+/// a missing bound usually would, because a steer is the only channel that writes new strings into
+/// `UserAsserted` in a run whose floor has already latched: `attribute_user_message` inserts every
+/// whitespace-separated token, and `Provenance::taint_for` reads that map *before* it reaches for
+/// the floor. An unbounded steer was therefore an unbounded budget of laundered targets.
+///
+/// It was found by `marlowe-loop/tests/steer_has_one_door.rs` — a grep guard for `SteerMessage {`
+/// outside `steer.rs` — firing on merged code that nobody was auditing.
+///
+/// **This test is the enforcement-site half.** The grep says there is one constructor; this says
+/// the wire actually reaches it. Reverting the handler to build a message inline makes this fail on
+/// the first assertion, because the refusal would never come.
+#[test]
+fn an_oversized_steer_is_refused_by_the_door_and_never_queued() {
+    let fx = Fixture::start("cap");
+    let run = "00000000-0000-0000-0000-0000000000cc";
+
+    let long = "x".repeat(marlowe_loop::MAX_STEER_CHARS + 1);
+    let lines = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"{long}"}}"#));
+    assert!(
+        lines.iter().any(|l| l.contains("error")),
+        "an oversized steer was accepted: {lines:?}"
+    );
+    // **The door's own words**, which name both numbers so the user can act. A refusal composed
+    // here instead would be a second sentence to keep true.
+    assert!(
+        lines.iter().any(|l| l.contains(&marlowe_loop::MAX_STEER_CHARS.to_string())),
+        "the refusal did not come from `steer::admit`: {lines:?}"
+    );
+
+    // ...and nothing was queued. Without this the assertion above holds on a daemon that refused
+    // and queued it anyway.
+    let watched = ask_control(&fx, &format!(r#"{{"op":"watch","run":"{run}"}}"#));
+    assert!(
+        watched.iter().any(|l| l.contains("\"pending_steers\":0")),
+        "a refused steer was queued: {watched:?}"
+    );
+
+    // **The control.** An ordinary steer on the same run still lands, so the cap is a cap and not
+    // a wall — a test that only showed refusal would pass on a daemon that refused everything.
+    let ok = ask_control(&fx, &format!(r#"{{"op":"steer","run":"{run}","text":"stop and summarise"}}"#));
+    assert!(
+        ok.iter().any(|l| l.contains("\"pending_steers\":1")),
+        "an ordinary steer did not land: {ok:?}"
+    );
+}

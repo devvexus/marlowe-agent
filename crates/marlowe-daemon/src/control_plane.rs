@@ -338,25 +338,42 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
         Request::Steer { run, text } => match run.parse::<uuid::Uuid>() {
             Ok(id) => {
                 let id = RunId(id);
-                // **Sanitised here, at the boundary it crosses.** A steer is user text on its way
-                // into a model's window and, through `/runs`, onto a terminal.
-                // `marlowe_contract::text` is the one definition of what may be displayed; a steer
-                // carrying `ESC` would otherwise write escape sequences through the daemon and
-                // onto a screen.
-                let text = marlowe_contract::text::sanitize_line(&text).into_owned();
-                if text.trim().is_empty() {
-                    on_event(Event::Error {
-                        detail: "a steer with no text would be an empty turn in the run's window"
-                            .into(),
-                    });
-                    return;
-                }
-                plane.control.steer(id, SteerMessage { text, urgency: Urgency::Advisory });
-                let pending = plane.control.pending_steers(id);
+                // ── THE ONE DOOR (ADR-054) ──────────────────────────────────────────────────
+                //
+                // **This used to build a `SteerMessage` here.** It sanitised — `sanitize_line`,
+                // then a non-empty check — and that half was right and is unchanged in effect.
+                // What it skipped is the rest of admission, and the omission mattered:
+                //
+                // * **No length cap.** `Provenance::attribute_user_message` inserts the whole
+                //   message *and every whitespace-separated token* at `UserAsserted`, and
+                //   `taint_for` reads that map **before** it reaches for the run's floor. So an
+                //   unbounded steer is an unbounded budget of laundered targets in a run whose
+                //   floor has already latched — the one channel that can still do that.
+                // * **No `SteerOrigin`.** Authority was carried by nothing at all, so the type
+                //   could not say that only a person may assert at this class.
+                //
+                // Found by `marlowe-loop/tests/steer_has_one_door.rs`, which greps the workspace
+                // for `SteerMessage {` outside `steer.rs` and fails by name. It fired on this
+                // line — a guard written in Session F catching a path merged from Session A, in a
+                // session that was not looking for it.
+                //
+                // `admit` performs the sanitise, the cap and the emptiness check in that order,
+                // and the refusal it returns names both numbers. Nothing is duplicated here.
+                let message = match marlowe_loop::steer::admit(
+                    marlowe_loop::steer::SteerOrigin::Human,
+                    &text,
+                    Urgency::Advisory,
+                ) {
+                    Ok(m) => m,
+                    Err(refused) => {
+                        on_event(Event::Error { detail: refused.to_string() });
+                        return;
+                    }
+                };
+                plane.control.steer(id, message);
                 // **The count, not an acknowledgement.** "queued" is a claim about a mechanism;
                 // a number is a fact the next `/watch` can be checked against.
                 on_event(plane.detail(id));
-                let _ = pending;
             }
             Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
         },
