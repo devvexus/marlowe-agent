@@ -198,6 +198,21 @@ pub enum Intent {
     /// the main pane with agent output halts the conversation visually, which is what this
     /// milestone exists to stop.
     Watch { run: String },
+    /// `/runs` — **ask the daemon what runs there are**, rather than re-reading what it said once.
+    ///
+    /// # This is here because the Runs tab had never shown a live run to anyone
+    ///
+    /// `/runs` was an `Outcome::Tab` and nothing else: it switched tab and re-summarised the
+    /// client's cached view, which was last filled from `Event::Run` at daemon boot by
+    /// `seed_from_journal`. So the pane showed a snapshot of daemon startup — the seeded
+    /// *interrupted* runs — for the whole life of the session, and a run started afterwards never
+    /// appeared. The daemon side was correct throughout; `turn()` registers every run.
+    ///
+    /// **The same family as `--status` reporting the client's own provider instead of the
+    /// daemon's**, which M3 Session A fixed: a surface answering from local state instead of
+    /// asking the thing that knows. `Intent::Watch` was already doing it correctly one match-arm
+    /// over.
+    Runs,
 }
 
 /// Why a producer refused an [`Intent`].

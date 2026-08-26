@@ -151,6 +151,16 @@ pub struct CheckpointView {
 pub struct RunView {
     /// Short form, as the window title and every listing print it.
     pub id: String,
+    /// The run's mnemonic — `daring-storm` — **derived by the daemon and rendered here**.
+    ///
+    /// This crate has no dependencies at all and cannot compute it: the derivation folds over a
+    /// UUID's bytes and lives beside `RunId`, which is where the identity lives. The same
+    /// arrangement as `elapsed_ms` — the thing that holds the value resolves it, and the surface
+    /// renders what it is handed rather than growing a second copy of the rule.
+    ///
+    /// It is a **rendering of the id, never a second identity**: 4096 names collide, so anything
+    /// resolving a typed name back to a run refuses an ambiguous one by listing the candidates.
+    pub name: String,
     pub state: RunState,
     /// The run that spawned this one, if any. Short form.
     pub parent: Option<String>,
@@ -295,6 +305,7 @@ mod tests {
     fn view() -> RunView {
         RunView {
             id: "a1b2c3d4".into(),
+            name: "daring-storm".into(),
             state: RunState::Running,
             parent: None,
             elapsed_ms: 93_000,

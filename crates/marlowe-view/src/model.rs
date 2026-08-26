@@ -353,6 +353,13 @@ impl Tab {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub label: String,
+    /// What this item **is**, when the label is a rendering of something rather than the thing.
+    ///
+    /// A run's label is its mnemonic — `daring-storm` — and its identity is the UUID the journal
+    /// keys on. They are deliberately two fields: 4096 names means two live runs can share one,
+    /// so folding an updated run onto its row by name could merge two runs into one. `None` for
+    /// every item whose label is all there is.
+    pub id: Option<String>,
     /// The key on this item's bottom border. Registered in the surface's key registry, which
     /// **errors at startup** on a collision rather than silently letting one key shadow another.
     pub key: char,
@@ -370,6 +377,7 @@ impl Item {
     pub fn new(label: &str, key: char, tone: Tone, lines: &[(&str, Tone)]) -> Self {
         Self {
             label: label.to_string(),
+            id: None,
             key,
             lines: lines.iter().map(|(s, t)| ((*s).to_string(), *t)).collect(),
             tone,
@@ -377,9 +385,16 @@ impl Item {
         }
     }
 
+    /// Name what this item is, when its label is a rendering of that rather than the thing itself.
+    pub fn identified(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
     pub fn editable(label: &str, key: char, placeholder: &str) -> Self {
         Self {
             label: label.to_string(),
+            id: None,
             key,
             lines: vec![(placeholder.to_string(), Tone::Dim)],
             tone: Tone::Normal,

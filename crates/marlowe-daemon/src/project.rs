@@ -273,14 +273,9 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 view.status.detail = outcome.clone();
             }
             Event::Run { id, status, tokens, depth, .. } => {
-                view.runs.push(Item::new(
+                upsert_run(
+                    view,
                     id,
-                    // **From the safe pool, never a digit.** The first version numbered runs by
-                    // position, which produced '1'..'9' — the inspector tab digits (§B7). It would
-                    // have refused to start the moment a run existed, and only because
-                    // `KeyRegistry::build` errors on a collision rather than letting one key
-                    // silently shadow another.
-                    pane_key(view.runs.len()),
                     // **Running is the ORDINARY case and carries no state colour** (M3 F2).
                     // This was `Tone::Green`, and `RunState::tone` — the one table that decides
                     // what a run's status looks like — has always answered `Normal` for a running
@@ -292,9 +287,10 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
+                        (id.as_str(), Tone::Dim),
                         (&format!("{tokens} tokens · depth {depth}"), Tone::Dim),
                     ],
-                ));
+                );
             }
             // **One state, two renderings** (§6.6). The Runs tab shows the row; the window shows
             // this. Both come from the daemon, and this fold never composes a fact of its own —
@@ -315,13 +311,14 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     Some(step) => format!("checkpoint step {step}"),
                     None => "no checkpoint".to_string(),
                 };
-                view.runs.push(Item::new(
+                upsert_run(
+                    view,
                     id,
-                    pane_key(view.runs.len()),
                     // Same table, same reason. See the `Event::Run` arm above.
                     if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
+                        (id.as_str(), Tone::Dim),
                         (&checkpoint, Tone::Dim),
                         (
                             &format!(
@@ -336,7 +333,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                             Tone::Dim,
                         ),
                     ],
-                ));
+                );
             }
             Event::Error { detail } => {
                 view.status.degraded = Some(classify_degradation(detail));
@@ -404,6 +401,41 @@ const PANE_KEYS: &[char] = &[
 
 /// The nth pane key. **Refuses to wrap** — wrapping would hand two items the same key, which is
 /// the silent shadowing `KeyRegistry` exists to prevent, reintroduced one layer up.
+/// A run's row, **replaced in place when it is already there**.
+///
+/// # Two bugs closed by one function
+///
+/// It was `view.runs.push(..)` in both arms. `Request::Runs` answers with the *whole* table, and
+/// `Request::Watch` answers with one run's detail, so a second `/runs` doubled every row and a
+/// second `/watch` on the same run added a duplicate beside the first. Nothing noticed, because
+/// nothing asked twice: the TUI never called `client.runs()` at all, and `/watch` had been a
+/// one-shot. Making the Runs pane live is what made asking twice ordinary.
+///
+/// **The key is kept across the update, and that is not a detail.** §B7 puts a hotkey on each
+/// item's border; `pane_key` assigns it by position, so re-deriving it on every refresh would
+/// shuffle the letters under the user's fingers whenever a run appeared or finished.
+///
+/// The **label is the mnemonic and the id is the UUID** — see [`Item::id`]. Matching on the id is
+/// what makes this safe: 4096 mnemonics means two live runs can share one, and folding by name
+/// would merge them into a single row.
+fn upsert_run(view: &mut SessionView, id: &str, tone: Tone, lines: &[(&str, Tone)]) {
+    let label = marlowe_loop::run::sayable(id);
+    match view.runs.iter().position(|i| i.id.as_deref() == Some(id)) {
+        Some(at) => {
+            let key = view.runs[at].key;
+            view.runs[at] = Item::new(&label, key, tone, lines).identified(id);
+        }
+        None => {
+            // **From the safe pool, never a digit.** The first version numbered runs by position,
+            // which produced '1'..'9' — the inspector tab digits (§B7). It would have refused to
+            // start the moment a run existed, and only because `KeyRegistry::build` errors on a
+            // collision rather than letting one key silently shadow another.
+            let key = pane_key(view.runs.len());
+            view.runs.push(Item::new(&label, key, tone, lines).identified(id));
+        }
+    }
+}
+
 fn pane_key(n: usize) -> char {
     PANE_KEYS[n.min(PANE_KEYS.len() - 1)]
 }

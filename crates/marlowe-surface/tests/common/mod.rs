@@ -163,6 +163,8 @@ pub const WINDOW_SIZES: [(u16, u16); 5] = [(80, 24), (100, 30), (120, 30), (160,
 pub fn run_view() -> RunView {
     RunView {
         id: "a1b2c3d4".into(),
+        // The name the daemon derives from the FULL id; `sayable` on this fixture's uuid.
+        name: "daring-storm".into(),
         state: RunState::Running,
         parent: None,
         // 1m 33s, so an elapsed assertion is about a formatted figure rather than about zero.

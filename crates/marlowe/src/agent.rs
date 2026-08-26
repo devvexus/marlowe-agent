@@ -611,13 +611,19 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 }
                 writeln!(out, "  [{} · {elapsed_ms} ms]", sanitize_line(outcome))?;
             }
+            // **The name first, the id under it.** A UUID is unsayable and untypeable, and this
+            // listing is where a person goes to find the run they are about to steer or watch.
+            // The id stays on its own line rather than being replaced: it is what the journal
+            // keys on, a script may be reading this, and a mnemonic is an affordance for typing
+            // and never a guarantee of identity — 4096 names collide.
             Event::Run { id, status, tokens, attribution, .. } => {
                 writeln!(
                     out,
                     "  run {}  {}  {tokens} tokens",
-                    sanitize_line(id),
+                    marlowe_loop::run::sayable(&sanitize_line(id)),
                     sanitize_line(status)
                 )?;
+                writeln!(out, "      {}", sanitize_line(id))?;
                 // ADR-046 §3. Absent on the local path, where the question does not arise.
                 if let Some(a) = attribution {
                     writeln!(out, "      {}", sanitize_line(a))?;
@@ -640,7 +646,8 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 orphan_policy,
                 pending_steers,
             } => {
-                writeln!(out, "run {}", sanitize_line(id))?;
+                writeln!(out, "run {}", marlowe_loop::run::sayable(&sanitize_line(id)))?;
+                writeln!(out, "  id          {}", sanitize_line(id))?;
                 writeln!(out, "  status      {}", sanitize_line(status))?;
                 if let Some(p) = parent {
                     writeln!(out, "  parent      {}", sanitize_line(p))?;

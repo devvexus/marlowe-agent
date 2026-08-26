@@ -429,6 +429,11 @@ impl marlowe_view::Produce for Session {
             // **Refused by name, not dropped.** The stub has no daemon, and a run is the
             // daemon's. A scripted `/steer` that appeared to work would be a demo of a control
             // that does nothing — the exact shape `IntentError` exists to prevent.
+            // **The stub IS its own daemon**, so there is nothing to ask and nothing to refuse:
+            // its `runs` are already the whole truth it has. Refusing here would print a refusal
+            // on every `/runs` in the demo, which is a broken-looking surface reporting a working
+            // one.
+            Intent::Runs => {}
             Intent::Steer { .. } | Intent::Watch { .. } => {
                 return Err(marlowe_view::IntentError::NotADemo(
                     "a run belongs to a daemon, and the stub has none",
