@@ -39,7 +39,9 @@ use crate::region::{RegionId, RegionTree, TabId};
 /// §B8's footer: **one line of global keys, always the same, never context-dependent.** Region
 /// hotkeys live on their own borders; the footer is for actions.
 pub const FOOTER_KEYS: &[(&str, &str)] = &[
-    ("^v", "Voice"),
+    // ADR-056: `Ctrl-V` is paste. Written `alt-v` rather than `⌥v`, which is a Mac glyph on a
+    // platform whose key is labelled Alt.
+    ("alt-v", "Voice"),
     ("^n", "New"),
     ("^r", "Runs"),
     ("^l", "Lineage"),
@@ -47,6 +49,9 @@ pub const FOOTER_KEYS: &[(&str, &str)] = &[
     ("^u", "Undo"),
     ("esc", "Interrupt"),
     ("^k", "palette"),
+    // **Advertised, at last.** It has quit the application since M1 and appeared on no footer and
+    // in no test. A key that ends the session is the last one that should be folklore.
+    ("^c", "copy / quit"),
 ];
 
 /// A key, decoupled from crossterm so the whole dispatch table is testable without a terminal.
@@ -54,11 +59,32 @@ pub const FOOTER_KEYS: &[(&str, &str)] = &[
 pub enum Key {
     Char(char),
     Ctrl(char),
+    /// The footer's **second** modifier namespace, introduced by ADR-056 so `Ctrl-V` could be
+    /// given to paste.
+    ///
+    /// It holds exactly one binding — `Alt-V`, §B5's state cycle — and is deliberately not open
+    /// season: §B10's footer is still `Ctrl`-first. See the ADR for why `Alt` rather than a worse
+    /// `Ctrl` letter, and for the reliability cost that is spent on a demo affordance precisely
+    /// because no capability depends on it.
+    Alt(char),
     Enter,
     ShiftEnter,
     Tab,
     BackTab,
     Backspace,
+    /// **Delete the previous word.** Its own variant rather than `Ctrl('\u{8}')`, because three
+    /// different physical chords produce it and they must not each grow a handler:
+    ///
+    /// | chord | who sends it |
+    /// |---|---|
+    /// | `Ctrl-Backspace` | Windows consoles, where crossterm reads the modifier from the console API |
+    /// | `Ctrl-W` | every readline shell, and the one muscle memory can be relied on |
+    /// | `Ctrl-H` | what many Unix terminals actually emit for `Ctrl-Backspace` |
+    ///
+    /// Collapsing them at [`crate::app::Key`] rather than at the handler also keeps them out of
+    /// `on_global_ctrl`, where `Ctrl-W` would otherwise have to be reserved against a future
+    /// footer key.
+    CtrlBackspace,
     Up,
     Down,
     Left,
@@ -96,6 +122,55 @@ pub struct App {
     pub diagnostic_lines: Vec<String>,
     /// Requests waiting for the driver to hand to a producer. Drained by [`App::drain_intents`].
     outbox: Vec<Intent>,
+    /// Blocks pasted into the composer, in the order they were pasted. The composer holds a chip
+    /// for each; [`App::expand_pastes`] puts the text back when the message is sent. See
+    /// [`crate::commands::paste_marker`].
+    pastes: Vec<String>,
+    /// Whether `Ctrl-A` has selected the whole composer.
+    ///
+    /// **A flag and not a range**, because there is no caret to anchor a range to: this composer
+    /// appends and deletes at the end, so "all of it" is the only selection that means anything
+    /// yet. The next printable key replaces the buffer, `Backspace` empties it, and `Esc` lets go.
+    ///
+    /// **It renders as a colour, never a fill.** §B2's *"never a background fill"* is asserted by
+    /// `no_background_fill.rs` over every cell, so the usual reverse-video selection is not
+    /// available. Selected text takes the accent, which is inside the palette and inside the
+    /// budget.
+    select_all: bool,
+    /// How far the composer is scrolled **back from its end**, in wrapped rows.
+    ///
+    /// `0` is pinned to the last line, which is where typing belongs. Anything else is a position
+    /// the user chose with `Up`, and typing puts it back — a composer that stayed scrolled back
+    /// while characters landed off-screen would be worse than one that never moved.
+    ///
+    /// **Distance from the bottom, not an absolute offset**, so nothing here needs the wrapped
+    /// line count: [`crate::render::draw`] clamps against the height it is actually given. The run
+    /// window needs a `scroll_max_hint` because a key handler reads that value; this one is read
+    /// only by the draw, so it carries no cross-frame dependency.
+    composer_scroll: u16,
+    /// Whether one `Ctrl-C` has already been pressed with nothing to copy.
+    ///
+    /// # Why quitting needs two presses now
+    ///
+    /// `Ctrl-C` was `Action::Quit`: immediate, and it discarded whatever was in the composer. It
+    /// was also **not in [`FOOTER_KEYS`]** and **asserted by no test** — a quit path that was
+    /// neither advertised nor covered.
+    ///
+    /// What made it urgent is that `Ctrl-A` arrived in the same session. The keystroke everyone
+    /// reaches for immediately after select-all is `Ctrl-C`, so adding one made the other's worst
+    /// case far more likely: a person selecting their draft in order to copy it, and losing it
+    /// instead.
+    ///
+    /// **Disarmed by any other key**, so the two presses have to be consecutive. An arming flag
+    /// that survived a keystroke would turn a `Ctrl-C` from five minutes ago into half of a quit.
+    quit_armed: bool,
+    /// A pane that was opened with [`crate::commands::Outcome::TabLive`] and is waiting for the
+    /// producer's answer before it says how many of anything it holds.
+    ///
+    /// **The summary is a count, and a count composed before the answer is the stale reading
+    /// `/runs` shipped with.** `advance` applies intents and republishes in one crank, so this is
+    /// held for exactly one [`App::update`].
+    pending_pane_summary: Option<marlowe_view::Tab>,
     /// `Some` while the user is typing a reason for declining. **Only reachable from the live
     /// approval window**, and leaving it does not answer — `Esc` returns to the three keys rather
     /// than dismissing the question, because a dismissed question is a hung turn.
@@ -264,6 +339,11 @@ impl App {
             client_lines: Vec::new(),
             diagnostic_lines: Vec::new(),
             outbox: Vec::new(),
+            pastes: Vec::new(),
+            select_all: false,
+            composer_scroll: 0,
+            quit_armed: false,
+            pending_pane_summary: None,
             picker_open: None,
             picker_cursor: 0,
             reasoning_expanded: false,
@@ -327,6 +407,12 @@ impl App {
             self.last_meter = f;
         }
         self.view = view;
+        // **Said here, not at dispatch.** The pane's summary counts what the pane holds, so it is
+        // composed once the producer's answer is in the view rather than from what was there when
+        // the key was pressed.
+        if let Some(tab) = self.pending_pane_summary.take() {
+            self.client_note(crate::commands::pane_summary(&self.view, tab), Tone::Normal);
+        }
     }
 
     /// The meter frame to draw. `MeterSource::None` holds the last reported one.
@@ -338,6 +424,85 @@ impl App {
     /// default (§B6 auto-expands failures).
     pub fn is_expanded(&self, call: &marlowe_view::ToolCall) -> bool {
         *self.expanded.get(&call.id).unwrap_or(&call.expanded)
+    }
+
+    /// Consume the selection, reporting whether there was one.
+    ///
+    /// **Taking rather than reading** — a selection that survived the keystroke that acted on it
+    /// would make the next character replace the buffer a second time.
+    fn take_selection(&mut self) -> bool {
+        std::mem::take(&mut self.select_all)
+    }
+
+    /// Whether the composer is showing a selection, for the renderer.
+    pub fn composer_selected(&self) -> bool {
+        self.select_all
+    }
+
+    /// How far back from the end the composer is scrolled, for the renderer.
+    pub fn composer_scroll(&self) -> u16 {
+        self.composer_scroll
+    }
+
+    /// Move the composer's view. **`Up` goes back through what was typed or pasted.**
+    ///
+    /// The field grows to [`crate::render::INPUT_ROWS_MAX`] and then pins to its last line, so
+    /// before this there was no key that could reach line 1 of a forty-line paste. The text was in
+    /// the buffer and unreachable on screen — which is the same defect the growth was added to fix,
+    /// one size up: **giving a composer a cap without giving it a scroll just moves the cliff.**
+    fn scroll_composer(&mut self, back: i32) -> Action {
+        self.composer_scroll = if back > 0 {
+            self.composer_scroll.saturating_add(back as u16)
+        } else {
+            self.composer_scroll.saturating_sub((-back) as u16)
+        };
+        // No clamp here: `draw` clamps against the height it actually has, so an over-scroll
+        // cannot render out of range and this needs nothing from the previous frame.
+        Action::Redraw
+    }
+
+    /// A block arriving from the terminal's bracketed paste.
+    ///
+    /// Short pastes go in literally — collapsing two words would be a chip where the text is
+    /// shorter than the chip. Anything big enough to bury the composer becomes one.
+    pub fn paste(&mut self, text: String) {
+        // A paste is an edit, and the composer is where edits go — so it takes the focus too,
+        // rather than the text landing in a field the user is not looking at.
+        self.focus = RegionId::Message;
+        let lines = text.lines().count();
+        if lines < crate::commands::PASTE_MIN_LINES
+            && text.chars().count() < crate::commands::PASTE_MIN_CHARS
+        {
+            self.input.push_str(&text);
+            return;
+        }
+        self.input
+            .push_str(&crate::commands::paste_marker(self.pastes.len(), &text));
+        self.pastes.push(text);
+    }
+
+    /// Put every minted chip back, so what is sent is what was pasted.
+    ///
+    /// **The transcript gets the full text, not the chip.** A conversation is a record of what was
+    /// said; a composer affordance that survived into the record would make the transcript
+    /// disagree with what the model received, and this project has spent enough sessions on two
+    /// answers to one question.
+    fn expand_pastes(&self, s: &str) -> String {
+        let mut out = s.to_string();
+        for (i, body) in self.pastes.iter().enumerate() {
+            out = out.replace(&crate::commands::paste_marker(i, body), body);
+        }
+        out
+    }
+
+    /// Whether the composer ends in a chip, and which. Backspace deletes the whole thing: half a
+    /// chip is a marker that no longer matches, which would send the literal text `[Pasted #1 +4`
+    /// and silently drop the paste.
+    fn trailing_paste(&self) -> Option<(usize, String)> {
+        self.pastes.iter().enumerate().rev().find_map(|(i, b)| {
+            let m = crate::commands::paste_marker(i, b);
+            self.input.ends_with(&m).then_some((i, m))
+        })
     }
 
     /// Take the requests built up since the last drain. The driver applies them to a producer.
@@ -636,10 +801,44 @@ impl App {
             return self.on_approval_key(key);
         }
 
-        // 2. Ctrl-modified footer keys never suspend, in any focus. That is what makes "reachable
-        //    by keyboard alone" true even from inside a text field.
+        // 1a. **Anything that is not `^c` disarms the quit.** A confirmation is a pair of
+        //     consecutive presses; one that survived an intervening keystroke would turn a
+        //     `Ctrl-C` from five minutes ago into half of a quit.
+        if !matches!(key, Key::Ctrl('c')) {
+            self.quit_armed = false;
+        }
+
+
+        // 1b. **Two chords belong to a focused text field before they belong to the footer**, and
+        //     both were doing the wrong thing inside one.
+        //
+        //     `Ctrl-A` was unbound inside a text field, so select-all did nothing at all.
+        //
+        //     **`Ctrl-V` is deliberately NOT intercepted here, and that is a live conflict rather
+        //     than a decision.** It is `^v Voice` in the footer, and §B10 requires every
+        //     Ctrl-modified footer key to work *from inside a text field* — `b13_keyboard.rs`
+        //     asserts `^v` reaches all seven §B5 states while typing. Making it paste-aware failed
+        //     that test, which is the acceptance suite doing its job: the chord is spoken for.
+        //
+        //     Paste still works, because on the primary platform `Ctrl-V` never reaches this
+        //     function: Windows Terminal binds it and delivers `Event::Paste`. Giving the chord to
+        //     paste outright means rebinding Voice, which is a §B8 footer change and needs a
+        //     `DECISIONS.md` entry rather than a quiet edit here.
+        if self.focus_is_text() {
+            if key == Key::Ctrl('a') {
+                self.select_all = !self.input.is_empty();
+                return Action::Redraw;
+            }
+        }
+
+        // 2. Ctrl- and Alt-modified footer keys never suspend, in any focus. That is what makes
+        //    "reachable by keyboard alone" true even from inside a text field, and ADR-056's
+        //    `Alt` namespace inherits the same guarantee rather than being a lesser one.
         if let Key::Ctrl(c) = key {
             return self.on_global_ctrl(c);
+        }
+        if let Key::Alt(c) = key {
+            return self.on_global_alt(c);
         }
 
         // 3. An open dropdown owns the arrows and Enter.
@@ -657,6 +856,12 @@ impl App {
             }
             Key::BackTab => {
                 self.focus = self.tree().prev(self.focus);
+                Action::Redraw
+            }
+            // Esc lets go of a selection before it does anything else — the same "back out one
+            // level" §B10 gives it everywhere, applied to the newest level.
+            Key::Esc if self.select_all => {
+                self.select_all = false;
                 Action::Redraw
             }
             Key::Esc => self.on_escape(),
@@ -680,11 +885,20 @@ impl App {
     }
 
     fn on_global_ctrl(&mut self, c: char) -> Action {
+        // Consecutive, or it is not a confirmation. Taken before the match so `'c'` sees the value
+        // the PREVIOUS press left and every other chord clears it.
+        let armed = std::mem::take(&mut self.quit_armed);
+        self.quit_armed = armed && c == 'c';
         match c {
+            // **`Ctrl-V` is paste (ADR-056), and reaching this function means the terminal did
+            // NOT paste.** Windows Terminal binds the chord and delivers `Event::Paste`, so this
+            // arm fires only where that did not happen — and there is no portable way to read a
+            // system clipboard from a TUI, so the honest answer names the fallback rather than
+            // doing nothing or inventing a capability.
             'v' => {
-                // §B5's seven states, on demand. Required by M1's scope: every state must be
-                // reachable without waiting for a script to arrive at it.
-                self.ask(Intent::ForceState(self.next_state()));
+                self.notice = Some(
+                    "this terminal did not send a paste — try Shift-Insert, or right-click".into(),
+                );
                 Action::Redraw
             }
             'n' => {
@@ -734,7 +948,54 @@ Action::Redraw
                 );
 Action::Redraw
             }
-            'c' => Action::Quit,
+            // **Copy first, quit second, and never quit on one press.**
+            //
+            // `y` and `Y` remain §B10's copy keys and are unchanged; this is the chord the hand
+            // reaches for, wired to the same OSC 52 path so there is no second clipboard.
+            'c' => {
+                if self.take_selection() {
+                    let text = std::mem::take(&mut self.input);
+                    let text = self.expand_pastes(&text);
+                    self.pastes.clear();
+                    // **The expanded text, not the chips.** Copying `[Pasted #1 +340 lines]` into
+                    // someone's clipboard would hand them a label instead of their data.
+                    self.notice =
+                        Some(format!("copied the message — {} characters", text.chars().count()));
+                    self.input = text.clone();
+                    self.pending_copy = Some(text);
+                    return Action::Redraw;
+                }
+                if !self.input.is_empty() {
+                    // A draft with no selection: copy it whole rather than quitting on top of it.
+                    let text = self.expand_pastes(&self.input.clone());
+                    self.notice =
+                        Some(format!("copied the message — {} characters", text.chars().count()));
+                    self.pending_copy = Some(text);
+                    return Action::Redraw;
+                }
+                if self.quit_armed {
+                    return Action::Quit;
+                }
+                self.quit_armed = true;
+                self.notice = Some("press ^c again to quit — runs keep going without you".into());
+                Action::Redraw
+            }
+            _ => Action::None,
+        }
+    }
+
+    /// ADR-056's `Alt` namespace. One binding, and the ADR is explicit that it stays that way
+    /// until another footer key has to move.
+    fn on_global_alt(&mut self, c: char) -> Action {
+        // An Alt chord is still a footer key, so it disarms a pending quit like every other.
+        self.quit_armed = false;
+        match c {
+            // §B5's seven states, on demand. Required by M1's scope: every state must be reachable
+            // without waiting for a script to arrive at it. It was `^v` until ADR-056.
+            'v' => {
+                self.ask(Intent::ForceState(self.next_state()));
+                Action::Redraw
+            }
             _ => Action::None,
         }
     }
@@ -942,17 +1203,69 @@ Action::Redraw
                 if steering {
                     self.steer.push(c);
                 } else {
+                    // Typing over a selection replaces it, which is the whole reason `Ctrl-A` is
+                    // worth having: select all, type, and the old message is gone.
+                    if self.take_selection() {
+                        self.input.clear();
+                        self.pastes.clear();
+                    }
                     self.input.push(c);
+                    // Typing always shows what is being typed.
+                    self.composer_scroll = 0;
                     // The list just changed underneath the index.
                     self.completion = 0;
                 }
                 Action::Redraw
             }
+            // The composer's own scroll. The steer *item* is one row and has nothing to scroll,
+            // so this is the message field's alone.
+            Key::Up if !steering => self.scroll_composer(1),
+            Key::Down if !steering => self.scroll_composer(-1),
+            Key::CtrlBackspace => {
+                if steering {
+                    delete_word_back(&mut self.steer);
+                } else if self.take_selection() {
+                    self.input.clear();
+                    self.pastes.clear();
+                } else if let Some((i, marker)) = self.trailing_paste() {
+                    // A chip is one word to the eye, so a word-delete takes all of it.
+                    self.input.truncate(self.input.len() - marker.len());
+                    if i + 1 == self.pastes.len() {
+                        self.pastes.pop();
+                    }
+                } else {
+                    delete_word_back(&mut self.input);
+                }
+                self.composer_scroll = 0;
+                self.completion = 0;
+                Action::Redraw
+            }
             Key::Backspace => {
                 if steering {
                     self.steer.pop();
+                } else if self.take_selection() {
+                    self.input.clear();
+                    self.pastes.clear();
+                    self.completion = 0;
                 } else {
-                    self.input.pop();
+                    // **A chip deletes whole.** Popping one character leaves a marker that no
+                    // longer matches, so the paste it stood for would be silently dropped and the
+                    // literal wreckage sent instead.
+                    match self.trailing_paste() {
+                        Some((i, marker)) => {
+                            self.input.truncate(self.input.len() - marker.len());
+                            // **Popped, never `remove`d.** A `remove` in the middle reindexes
+                            // every later paste, so the chips still in the composer would expand
+                            // to the wrong text. Only a trailing chip can be the last index; any
+                            // other is left in place, unreferenced and harmless.
+                            if i + 1 == self.pastes.len() {
+                                self.pastes.pop();
+                            }
+                        }
+                        None => {
+                            self.input.pop();
+                        }
+                    }
                     self.completion = 0;
                 }
                 Action::Redraw
@@ -1004,8 +1317,10 @@ Action::Redraw
     /// emits an `Intent` and the producer stamps its own time — which is the correct owner, since
     /// the producer is the thing with a journal.
     pub fn submit(&mut self) -> Action {
-        let text = std::mem::take(&mut self.input);
-        let text = text.trim().to_string();
+        let raw = std::mem::take(&mut self.input);
+        let text = self.expand_pastes(raw.trim());
+        self.pastes.clear();
+        self.composer_scroll = 0;
         if text.is_empty() {
             return Action::None;
         }
@@ -1059,6 +1374,14 @@ Action::Redraw
             // eye (§B2).
             Outcome::Diagnostic(lines) => {
                 self.diagnostic_lines = lines.clone();
+            }
+            // **Switch now, count later.** The tab is the user's keystroke and is instant; the
+            // summary waits for the daemon, because the daemon is what knows.
+            Outcome::TabLive(tab, intent) => {
+                self.tab = *tab;
+                self.inspector_scroll = 0;
+                self.pending_pane_summary = Some(*tab);
+                self.ask(intent.clone());
             }
             Outcome::Tab(tab, said) => {
                 // §B7's rule, and the whole argument for a TUI over a chat log: the inspector
@@ -1267,5 +1590,18 @@ Action::Redraw
             // be the rubber-stamping failure with extra steps.
             _ => Action::None,
         }
+    }
+}
+
+/// Delete back to the start of the previous word.
+///
+/// **Trailing whitespace first, then the word**, which is what every editor does and what the hand
+/// expects: `Ctrl-Backspace` after `hello world ` leaves `hello `, not `hello world`.
+pub(crate) fn delete_word_back(s: &mut String) {
+    while s.ends_with(char::is_whitespace) {
+        s.pop();
+    }
+    while !s.is_empty() && !s.ends_with(char::is_whitespace) {
+        s.pop();
     }
 }

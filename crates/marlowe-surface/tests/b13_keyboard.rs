@@ -254,7 +254,11 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
         if r.app.view().approval.is_some() {
             r.key(Key::Esc, now); // deny, and back out of the modal level
         } else {
-            r.key(Key::Ctrl('v'), now);
+            // **ADR-056: the chord moved because the footer moved.** `Ctrl-V` is paste now;
+            // Windows Terminal was eating it anyway, which this test could never have seen —
+            // it dispatches into `App` directly and never crosses a terminal. The PROPERTY is
+            // unchanged: a footer key must reach every §B5 state from inside a text field.
+            r.key(Key::Alt('v'), now);
         }
     }
     let mut distinct: Vec<&str> = seen.iter().map(|s| s.name()).collect();
@@ -263,7 +267,7 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
     assert_eq!(
         distinct.len(),
         7,
-        "^v must reach every state, not cycle a subset; saw {distinct:?}"
+        "alt-v must reach every state, not cycle a subset; saw {distinct:?}"
     );
     println!("status states reachable on demand: 7/7 (waiting via its overlay, as it should be)");
 }

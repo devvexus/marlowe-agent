@@ -304,6 +304,10 @@ fn run_with(
         EnableMouseCapture,
         // Focus reporting is what lets hover clear when the pointer leaves the terminal entirely.
         event::EnableFocusChange,
+        // **The terminal tells us it was a paste.** Without it a pasted block arrives as N key
+        // events and the composer would have to guess from typing speed — a guess that fires on a
+        // fast typist and is invisible to every test.
+        event::EnableBracketedPaste,
         crossterm::cursor::Hide
     )?;
 
@@ -362,6 +366,7 @@ fn run_with(
         crossterm::cursor::Show,
         DisableMouseCapture,
         event::DisableFocusChange,
+        event::DisableBracketedPaste,
         terminal::LeaveAlternateScreen
     )?;
     terminal::disable_raw_mode()?;
@@ -445,6 +450,7 @@ fn install_panic_hook() {
             crossterm::cursor::Show,
             DisableMouseCapture,
             event::DisableFocusChange,
+            event::DisableBracketedPaste,
             terminal::LeaveAlternateScreen
         );
         let _ = terminal::disable_raw_mode();
@@ -596,10 +602,22 @@ fn event_loop(
 
         if event::poll(std::time::Duration::from_millis(timeout))? {
             match event::read()? {
+                // **A burst of queued key events is a paste**, on the platform whose terminal
+                // will not say so. Pasting three paragraphs here SENT THREE MESSAGES, because
+                // each embedded newline arrived as `Enter`. See `keyburst`; `Event::Paste`
+                // below still serves the platforms that do deliver it.
                 Event::Key(k) if k.kind == KeyEventKind::Press => {
-                    if let Some(key) = translate(k.code, k.modifiers) {
-                        if app.on_key(key) == Action::Quit {
-                            return Ok(None);
+                    match crate::keyburst::read_burst(k)? {
+                        crate::keyburst::Burst::Paste(text) => app.paste(text),
+                        crate::keyburst::Burst::Keys(keys) => {
+                            // Every key, in order. A burst that was not a paste loses nothing.
+                            for k in keys {
+                                if let Some(key) = translate(k.code, k.modifiers) {
+                                    if app.on_key(key) == Action::Quit {
+                                        return Ok(None);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -610,7 +628,10 @@ fn event_loop(
                 // asserted.
                 Event::Mouse(m) => {
                     app.mouse_seen += 1;
-                    let chrome = render::layout(term.size()?.into());
+                    // **The same derivation the draw uses.** `render::layout` is the resting
+                    // height; with a grown composer the click targets would sit where the borders
+                    // used to be.
+                    let chrome = render::chrome_for(app, term.size()?.into());
                     let hit = region_at(&chrome, m.column, m.row);
                     // Every motion event updates hover, including the ones that leave a region for
                     // dead chrome — that is the half that makes a hover clear rather than stick.
@@ -697,6 +718,11 @@ fn event_loop(
                 // The pointer leaving the window delivers no motion event, so without this the
                 // highlight would stay lit under a pointer that is now in another application.
                 // A stuck hover is worse than no hover.
+                // One event for the whole block. §B10's composer, and the reason a paragraph is
+                // pasteable at all — see `App::paste`.
+                Event::Paste(text) => {
+                    app.paste(text);
+                }
                 Event::FocusLost => {
                     app.set_hover(None);
                 }
@@ -863,9 +889,17 @@ fn region_at(chrome: &render::Chrome, col: u16, row: u16) -> Option<marlowe_surf
 /// keyboard property §B13 asks for is testable without a terminal.
 fn translate(code: KeyCode, mods: KeyModifiers) -> Option<Key> {
     let ctrl = mods.contains(KeyModifiers::CONTROL);
+    let alt = mods.contains(KeyModifiers::ALT);
     let shift = mods.contains(KeyModifiers::SHIFT);
     Some(match code {
+        // **Three chords, one meaning** — see `Key::CtrlBackspace`. Collapsed here so no handler
+        // has to know which terminal the user is on.
+        KeyCode::Backspace if ctrl => Key::CtrlBackspace,
+        KeyCode::Char('w') if ctrl => Key::CtrlBackspace,
+        KeyCode::Char('h') if ctrl => Key::CtrlBackspace,
         KeyCode::Char(c) if ctrl => Key::Ctrl(c),
+        // ADR-056's second namespace. After the Ctrl arms, so a Ctrl-Alt chord stays Ctrl's.
+        KeyCode::Char(c) if alt => Key::Alt(c),
         KeyCode::Char(c) => Key::Char(c),
         // §B10: multiline by default — Shift-Enter is a newline, Enter sends. Terminals that do
         // not distinguish them send plain Enter, which sends; that is a terminal limitation and

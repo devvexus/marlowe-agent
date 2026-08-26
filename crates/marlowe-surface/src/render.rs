@@ -53,6 +53,24 @@ const TITLEBAR_H: u16 = 1;
 const CONTROL_H: u16 = 3;
 const STATUS_H: u16 = 4;
 const MESSAGE_H: u16 = 3;
+
+/// The composer's content rows when it is empty — one, as it has always been.
+pub const INPUT_ROWS_MIN: u16 = 1;
+
+/// **How far the composer may grow before it scrolls inside itself instead.**
+///
+/// # Why there is a cap at all, and why it is a design decision rather than a constant
+///
+/// Every agent TUI worth copying grows its composer and then stops: an unbounded one lets a long
+/// message eat the transcript it is about to be sent into. What differs here is where the rows
+/// come from. Those tools anchor the composer at the bottom of a *scrolling* transcript, so growth
+/// just pushes history up and costs nothing structural. This is §B3's fixed grid — twelve rows of
+/// chrome and a bordered conversation — so every row the composer takes is a row of conversation,
+/// and `Constraint::Min(3)` is the floor that stops it eating the pane entirely.
+///
+/// Six is chosen against §B11's 30-row minimum: at the smallest supported terminal a fully grown
+/// composer still leaves the conversation more rows than the composer has.
+pub const INPUT_ROWS_MAX: u16 = 6;
 const FOOTER_H: u16 = 1;
 
 /// §B3: *"the conversation holds no less than 55% of the horizontal split. The inspector is the
@@ -60,7 +78,46 @@ const FOOTER_H: u16 = 1;
 /// suite asserts the floor rather than the value, so a later tweak cannot cross it unnoticed.
 const CONVERSATION_PCT: u16 = 58;
 
+/// The chrome at the composer's resting height.
+///
+/// **Kept as the one-argument function it has always been**, because sixteen call sites read it —
+/// most of them tests asserting where a region sits — and every one of them is asking about a
+/// frame whose composer is empty. Growth is a property of what has been typed, so it belongs to
+/// the caller that holds the typing.
 pub fn layout(area: Rect) -> Chrome {
+    layout_with_input(area, INPUT_ROWS_MIN)
+}
+
+/// How many rows the composer wants in order to show `text` at `width`.
+///
+/// **Clamped at both ends.** Below `INPUT_ROWS_MIN` the field would have nowhere to draw; above
+/// `INPUT_ROWS_MAX` it scrolls instead of growing, which is the trade every composer in this class
+/// makes.
+pub fn input_rows_for(text: &str, width: u16) -> u16 {
+    if text.is_empty() {
+        return INPUT_ROWS_MIN;
+    }
+    // Two columns for the `\u{203A} ` prompt, which the hanging indent keeps on every line.
+    let w = width.saturating_sub(2).max(1) as usize;
+    (wrap(text, w).len() as u16).clamp(INPUT_ROWS_MIN, INPUT_ROWS_MAX)
+}
+
+/// The chrome for what is currently typed.
+///
+/// **One derivation, read by the draw AND by the driver's hit-testing.** `tui.rs` computes the
+/// chrome independently to decide which region a click landed in; if it used the resting layout
+/// while the draw used a grown one, every click below the composer's top edge would land on the
+/// wrong region — the borders on screen and the click targets behind them would disagree, which is
+/// the two-sides-silently-disagree shape with a pointer in it.
+pub fn chrome_for(app: &App, area: Rect) -> Chrome {
+    // Width does not depend on the composer's height, so one probe at the resting height gives the
+    // width the wrap needs. Nothing circular happens here.
+    let w = inner(layout(area).message).width;
+    layout_with_input(area, input_rows_for(&app.input, w))
+}
+
+pub fn layout_with_input(area: Rect, input_rows: u16) -> Chrome {
+    let message_h = input_rows.clamp(INPUT_ROWS_MIN, INPUT_ROWS_MAX) + (MESSAGE_H - INPUT_ROWS_MIN);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -68,7 +125,7 @@ pub fn layout(area: Rect) -> Chrome {
             Constraint::Length(CONTROL_H),
             Constraint::Length(STATUS_H),
             Constraint::Min(3),
-            Constraint::Length(MESSAGE_H),
+            Constraint::Length(message_h),
             Constraint::Length(FOOTER_H),
         ])
         .split(area);
@@ -150,7 +207,7 @@ pub fn draw(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
         draw_refusal(area, buf, theme);
         return;
     }
-    let c = layout(area);
+    let c = chrome_for(app, area);
     let tree = app.tree();
 
     draw_titlebar(app, theme, c.titlebar, buf);
@@ -742,7 +799,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
     out
 }
 
-fn wrap(text: &str, w: usize) -> Vec<String> {
+pub(crate) fn wrap(text: &str, w: usize) -> Vec<String> {
     let mut out = Vec::new();
     for para in text.split('\n') {
         let mut line = String::new();
@@ -751,10 +808,27 @@ fn wrap(text: &str, w: usize) -> Vec<String> {
             if line.chars().count() + extra + word.chars().count() > w && !line.is_empty() {
                 out.push(std::mem::take(&mut line));
             }
+            // **A word longer than the pane is broken rather than left to overflow.**
+            //
+            // Without this a single long token — a URL, an absolute path, a base64 blob — produced
+            // one `Line` wider than the region and ratatui clipped the tail. That is the composer's
+            // own defect one layer down: the text is in the string and on no cell of the screen.
+            //
+            // Found by a composer test typing 600 unbroken characters, which is what pasting a URL
+            // looks like. It had been true of the transcript the whole time.
+            let mut rest = word;
+            while w > 0 && rest.chars().count() > w {
+                let cut = rest.char_indices().nth(w).map_or(rest.len(), |(i, _)| i);
+                if !line.is_empty() {
+                    out.push(std::mem::take(&mut line));
+                }
+                out.push(rest[..cut].to_string());
+                rest = &rest[cut..];
+            }
             if !line.is_empty() {
                 line.push(' ');
             }
-            line.push_str(word);
+            line.push_str(rest);
         }
         out.push(line);
     }
@@ -924,19 +998,50 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
 
     // The placeholder tracks the status band (§B8) — that is how barge-in is made visible without
     // a second indicator.
-    let (body, style) = if app.input.is_empty() {
+    //
+    // **This wrapped onto nothing until M3 F2.** It rendered one `Line` holding the whole input,
+    // with `\n` shown inline as `⏎`, into a region one row tall — so anything past the width was
+    // clipped and anything past the first line was invisible. A composer you cannot read back is a
+    // composer nobody writes a paragraph in, and §B10's *"multiline by default"* had no rendering
+    // behind it.
+    let (lines, style) = if app.input.is_empty() {
         (
-            app.view().status.state.placeholder().to_string(),
+            vec![app.view().status.state.placeholder().to_string()],
             Ink::Dim.style(theme),
         )
     } else {
-        (app.input.replace('\n', " ⏎ "), theme.normal())
+        (
+            wrap(&app.input, text.width.saturating_sub(2).max(1) as usize),
+            // §B2 forbids a background fill, so a selection is a colour. The accent is inside the
+            // palette and inside §B13's budget; reverse video is not available here.
+            if app.composer_selected() {
+                Ink::Accent.style(theme)
+            } else {
+                theme.normal()
+            },
+        )
     };
-    Paragraph::new(Line::from(vec![
-        Span::styled("› ", Ink::Accent.style(theme)),
-        Span::styled(body, style),
-    ]))
-    .render(text, buf);
+    // The prompt on the first row, a two-column hanging indent under it, so a wrapped message
+    // reads as one block rather than as several messages.
+    let body: Vec<Line> = lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, l)| {
+            Line::from(vec![
+                Span::styled(if i == 0 { "› " } else { "  " }, Ink::Accent.style(theme)),
+                Span::styled(l, style),
+            ])
+        })
+        .collect();
+    // **Pinned to the end by default, and movable from there.** Past the cap the field scrolls,
+    // and the row being typed on is the one that has to stay visible — but `Up` walks back through
+    // a long paste, which is the only way to read one before sending it.
+    //
+    // Clamped here rather than in the key handler, so an over-scroll can never render out of range
+    // and `App` needs no hint from the previous frame.
+    let max = (body.len() as u16).saturating_sub(text.height);
+    let offset = max.saturating_sub(app.composer_scroll().min(max));
+    Paragraph::new(body).scroll((offset, 0)).render(text, buf);
 
     // A copy confirmation takes the ambient slot until the next keystroke. OSC 52 cannot be
     // acknowledged, so this line is the only evidence the user gets that anything happened; it

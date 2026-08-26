@@ -74,6 +74,18 @@ pub fn run(
                     }
                     drain(session, &mut out, &mut shown, clock)?;
                 }
+                // Ask, then say — the same order the TUI uses, for the same reason: the summary
+                // is a count of what the pane holds, and it does not hold it until the producer
+                // has answered.
+                Outcome::TabLive(tab, intent) => {
+                    if let Err(e) = session.apply(intent) {
+                        say(&mut out, session.view(), &e.as_notice());
+                    }
+                    say(&mut out, session.view(), &commands::pane_summary(session.view(), tab));
+                    for l in commands::render_pane_linear(session.view(), tab) {
+                        writeln!(out, "{l}")?;
+                    }
+                }
                 Outcome::Tab(tab, said) => {
                     // The same rule as the TUI (§B7): the region carries the data, the transcript
                     // carries the judgment. Without a grid they arrive one after the other rather

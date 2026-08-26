@@ -47,7 +47,8 @@ fn the_frame_renders_and_can_be_read() {
     let text = common::buffer_text(&common::frame(&common::app(), 120, 30));
     for want in [
         "Model", "Profile", "Session", "Workspace", "Autonomy", "Status", "Conversation",
-        "Message", "(m)", "(v)", "(c)", "(i)", "^v", "turn 12", "Schedule",
+                // ADR-056: the footer's Voice chord moved to `alt-v` so `Ctrl-V` could be paste.
+        "Message", "(m)", "(v)", "(c)", "(i)", "alt-v", "turn 12", "Schedule",
     ] {
         assert!(text.contains(want), "the frame is missing {want:?}");
     }
