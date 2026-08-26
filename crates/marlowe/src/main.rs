@@ -12,6 +12,7 @@ mod launcher;
 mod profile;
 mod tui;
 /// A real terminal window per run. `M3-DESIGN.md` §6.
+mod keyburst;
 mod watch;
 
 use std::io::{self, BufReader};
@@ -513,6 +514,14 @@ fn main() {
             }
         }
         return;
+    }
+
+    // **A flag, not an environment variable, and the reason is a measurement that failed.**
+    // `wt.exe -w -1` opens the tab from the ALREADY-RUNNING Windows Terminal process, so the new
+    // pane inherits that process's environment and never sees one exported alongside the launch.
+    // A diagnostic that cannot be turned on where the defect lives is not a diagnostic.
+    if let Some(path) = flag_value(&args, "--input-trace") {
+        std::env::set_var("MARLOWE_INPUT_TRACE", path);
     }
 
     if modes[0] == "--tui" {

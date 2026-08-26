@@ -1879,12 +1879,20 @@ impl Daemon {
                 crate::control_plane::answer(&std::sync::Arc::clone(&self.plane), request, &mut on_event)
             }
             // **Needs the engine, so it is the main port's**, and it drives rather than staging.
-            Request::Resume { run } => match run.parse::<uuid::Uuid>() {
-                Ok(id) => self.resume_streaming(RunId(id), approvals, on_event),
-                Err(_) => on_event(Event::Error {
-                    detail: format!("`{run}` is not a run id; `/runs` lists them"),
-                }),
-            },
+            // **Resolved the same way every other run-addressed request is.** A `--resume
+            // daring-storm` that failed while `--watch daring-storm` worked would be two answers
+            // to the question of what a run is called.
+            Request::Resume { run } => {
+                let resolved = self
+                    .plane
+                    .lock()
+                    .expect("the control plane lock was poisoned")
+                    .resolve(&run);
+                match resolved {
+                    Ok(id) => self.resume_streaming(id, approvals, on_event),
+                    Err(detail) => on_event(Event::Error { detail }),
+                }
+            }
             Request::Shutdown => {
                 // **Refused while a run is live.** That is exactly what invariant 6 protects: the
                 // work outlives the window. An idle daemon protects nothing and is only in the

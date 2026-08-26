@@ -77,6 +77,13 @@ pub enum Outcome {
     Unknown(String),
     /// A diagnostic report. **Outside the Notice vocabulary by design** — see the `/doctor` arm.
     Diagnostic(Vec<String>),
+    /// A tab whose contents the **daemon** owns: switch to it, and ask for them.
+    ///
+    /// **It carries no [`Notice`], and that is the difference from [`Outcome::Tab`].** A summary
+    /// composed here would be composed from the view as it stands *before* the answer arrives —
+    /// which is exactly the stale reading `/runs` used to show. The driver says the summary once
+    /// the producer has answered; see `App::update`.
+    TabLive(Tab, Intent),
     /// The command asks the producer to do something.
     ///
     /// **No lines travel with it.** A request that narrated itself was a surface reporting a
@@ -92,6 +99,54 @@ pub enum Outcome {
     /// and the one `/steer` from a script uses. A second route for the same write is the shape
     /// ADR-054 exists to prevent; a window is one, and one is enough.
     Watch(String),
+}
+
+
+/// A pasted block is **represented rather than expanded**, and this is the half that makes
+/// "entire paragraphs" tractable.
+///
+/// # Why a placeholder and not just a taller box
+///
+/// The composer grows to [`crate::render::INPUT_ROWS_MAX`] and then scrolls, so a 340-line paste
+/// is technically survivable — you simply cannot see any of it. Every agent TUI that handles this
+/// well does the same two things rather than one: **grow** for the few lines somebody types, and
+/// **collapse** the wall somebody pastes. They are different problems and a taller box only solves
+/// the first.
+///
+/// # Bracketed paste, not a heuristic
+///
+/// The terminal tells us. `EnableBracketedPaste` makes crossterm deliver `Event::Paste` as one
+/// event, so this never has to guess from typing speed — which is the sort of guess that fires on
+/// a fast typist and is invisible in a test.
+///
+/// # The forgeable claim, named rather than absorbed
+///
+/// The marker is ordinary text in an ordinary `String`, so a user who types
+/// `[Pasted #1 +9 lines]` by hand gets their own earlier paste substituted for it. Expansion only
+/// matches markers **this session minted**, which bounds it to text the same person pasted a moment
+/// ago; the worst case is their words replaced by their own words, visibly, in a field they can
+/// edit. That is the safe direction, and it is the same trade `marlowe_contract::text`'s refusal
+/// marker records: the forgeable half is the harmless half.
+pub const PASTE_MIN_LINES: usize = 3;
+pub const PASTE_MIN_CHARS: usize = 240;
+
+/// The chip shown in the composer for paste `i` (zero-based).
+///
+/// **It measures the paste in whatever unit the paste actually has.** A single long line — a URL,
+/// a log line, a JSON blob — rendered as `+1 lines`, which is both wrong grammar and a useless
+/// number: it told the reader nothing about what they were about to send. One line is measured in
+/// characters, several in lines.
+///
+/// Derived from the body rather than passed a count, so the marker the composer draws and the
+/// marker the expansion searches for cannot come apart — the two-sides-silently-disagree shape
+/// applied to a string that has to match itself exactly.
+pub fn paste_marker(i: usize, body: &str) -> String {
+    let lines = body.lines().count();
+    if lines > 1 {
+        format!("[Pasted #{} +{lines} lines]", i + 1)
+    } else {
+        format!("[Pasted #{} +{} chars]", i + 1, body.chars().count())
+    }
 }
 
 /// Resolve a name to its registry entry.
@@ -119,10 +174,10 @@ pub fn dispatch(view: &SessionView, name: &str, args: &[&str]) -> Outcome {
     match name {
         // The pane summaries are FACTS the producer composed, read off the view. M1 hard-coded
         // the sentences here, in the surface, which is the violation one layer over from `say`.
-        "runs" => Outcome::Tab(Tab::Runs, Notice::PaneOpened {
-            tab: Tab::Runs,
-            summary: runs_summary(view),
-        }),
+        // **Ask, then say.** `/runs` used to switch tab and re-summarise the cached view, so the
+        // pane held whatever the daemon said at boot and never a live run. The daemon owns this
+        // noun; the surface asks it.
+        "runs" => Outcome::TabLive(Tab::Runs, Intent::Runs),
         "schedule" => Outcome::Tab(Tab::Schedule, Notice::PaneOpened {
             tab: Tab::Schedule,
             summary: schedule_summary(view),
@@ -217,6 +272,21 @@ fn not_built_tab(tab: Tab, arrives: Milestone) -> Outcome {
     Outcome::Tab(tab, Notice::PaneOpened { tab, summary: PaneSummary::NotBuilt { arrives } })
 }
 
+/// What a pane says about itself, once its contents are in the view.
+///
+/// **Public because it is said after the answer, not with the request.** [`Outcome::TabLive`]
+/// carries no notice for exactly that reason, so the driver needs a way to compose one at the
+/// moment the pane is actually filled.
+pub fn pane_summary(view: &SessionView, tab: Tab) -> Notice {
+    let summary = match tab {
+        Tab::Runs => runs_summary(view),
+        Tab::Schedule => schedule_summary(view),
+        // No other tab is live yet. `Milestone::M3` is what the `not_built_tab` arms already say.
+        _ => PaneSummary::NotBuilt { arrives: Milestone::M3 },
+    };
+    Notice::PaneOpened { tab, summary }
+}
+
 /// Read the Runs pane's facts off the view. **Counted, never narrated.**
 fn runs_summary(view: &SessionView) -> PaneSummary {
     let running = view
@@ -278,7 +348,11 @@ fn parse_state(s: &str) -> Option<StatusState> {
 pub fn render_pane_linear(view: &SessionView, tab: Tab) -> Vec<String> {
     let mut out = Vec::new();
     for item in crate::inspector::items_for(view, tab) {
-        out.push(format!("  {} ({})", item.label, item.key));
+        // An item past its pane's letter pool has no accelerator to print. See `Item::key`.
+        out.push(match item.key {
+            Some(k) => format!("  {} ({k})", item.label),
+            None => format!("  {}", item.label),
+        });
         for (line, tone) in &item.lines {
             let mark = match tone {
                 Tone::Red => "!",

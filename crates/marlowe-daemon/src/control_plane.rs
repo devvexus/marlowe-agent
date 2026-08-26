@@ -214,6 +214,30 @@ impl ControlPlane {
         self.runs.values().filter(|r| r.status == "running").count()
     }
 
+    /// What a person typed, resolved to a run: a **mnemonic**, a **UUID prefix**, or a full UUID.
+    ///
+    /// # Why a name needs a resolver at all
+    ///
+    /// `RunId::mnemonic` gives `daring-storm` and is derived, never stored — the argument is in its
+    /// own header. That makes it free to display and useless to type, because until something
+    /// resolves it back nothing accepts it. A name nobody can use is a longer id.
+    ///
+    /// # Ambiguity is REFUSED and the candidates are listed, git-style
+    ///
+    /// 4096 names means two live runs can share one, and a prefix can match several. The wrong
+    /// answers here are both silent: picking the first match steers the wrong run, and reporting
+    /// "not a run id" for a name the user can see on their own screen reads as a broken product.
+    /// So an ambiguous token is refused **by name, with what it matched**, and the full id always
+    /// works.
+    ///
+    /// **A full UUID resolves whether or not the table holds it.** The table is what this daemon
+    /// remembers; the journal is what survived, and `Watch` on an id from a previous daemon is a
+    /// real thing to want. Only the shorthands need a table to resolve against, because a
+    /// shorthand is a search.
+    pub fn resolve(&self, typed: &str) -> Result<RunId, String> {
+        resolve_among(self.runs.keys().map(String::as_str), typed)
+    }
+
     /// Every run, as wire frames. One definition, read by the main port and the control port.
     pub fn run_frames(&self) -> Vec<Event> {
         self.runs.values().map(RunSummary::to_frame).collect()
@@ -316,10 +340,12 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
         // **The detail first, then the frames it belongs with.** One lock, one answer: a window
         // that asked twice could be told a run had finished and then handed frames from before it
         // did, which is the two-answers-to-one-question shape this plane exists to avoid.
-        Request::Watch { run, since } => match run.parse::<uuid::Uuid>() {
+        // **`daring-storm` works here, and so does `a1b2`.** See `ControlPlane::resolve`; the
+        // refusal for an ambiguous one lists what it matched rather than picking.
+        Request::Watch { run, since } => match plane.resolve(&run) {
             Ok(id) => {
-                on_event(plane.detail(RunId(id)));
-                let (frames, dropped) = plane.frames_since(&id.to_string(), since);
+                on_event(plane.detail(id));
+                let (frames, dropped) = plane.frames_since(&id.0.to_string(), since);
                 // **Dropping is reported.** A gap a reader cannot see is worse than a short
                 // history — the journal is the record, this is a window.
                 if dropped > 0 {
@@ -333,11 +359,10 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
                     on_event(e);
                 }
             }
-            Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
+            Err(detail) => on_event(Event::Error { detail }),
         },
-        Request::Steer { run, text } => match run.parse::<uuid::Uuid>() {
+        Request::Steer { run, text } => match plane.resolve(&run) {
             Ok(id) => {
-                let id = RunId(id);
                 // ── THE ONE DOOR (ADR-054) ──────────────────────────────────────────────────
                 //
                 // **This used to build a `SteerMessage` here.** It sanitised — `sanitize_line`,
@@ -403,11 +428,10 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
                 // a number is a fact the next `/watch` can be checked against.
                 on_event(plane.detail(id));
             }
-            Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
+            Err(detail) => on_event(Event::Error { detail }),
         },
-        Request::Cancel { run } => match run.parse::<uuid::Uuid>() {
+        Request::Cancel { run } => match plane.resolve(&run) {
             Ok(id) => {
-                let id = RunId(id);
                 plane.control.cancel(id);
                 if let Some(s) = plane.runs.get_mut(&id.to_string()) {
                     // Not "cancelled" — the run has been *asked* to stop and stops at its next
@@ -417,7 +441,7 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
                 }
                 on_event(plane.detail(id));
             }
-            Err(_) => on_event(Event::Error { detail: unknown_run(&run) }),
+            Err(detail) => on_event(Event::Error { detail }),
         },
         other => on_event(Event::Error {
             detail: format!(
@@ -429,11 +453,69 @@ pub(crate) fn answer(plane: &Shared, request: Request, on_event: &mut dyn FnMut(
     }
 }
 
+/// The resolution itself, over a bare list of ids.
+///
+/// **Separated from [`ControlPlane`] so it can be tested at all.** A `ControlPlane` owns a
+/// `DurableControl<JournalCheckpoints>`, so exercising this through the struct means standing up a
+/// journal on disk — and a rule this session proved four times over is that a function which needs
+/// a daemon to test is a function nobody tests. The same move as `keyburst::classify` and
+/// `watch::age_notice`: the decision is pure, the plumbing is thin, and the decision is what has
+/// the behaviour worth pinning.
+pub(crate) fn resolve_among<'a>(
+    ids: impl Iterator<Item = &'a str>,
+    typed: &str,
+) -> Result<RunId, String> {
+    let typed = typed.trim();
+    if let Ok(u) = typed.parse::<uuid::Uuid>() {
+        return Ok(RunId(u));
+    }
+    let want = typed.to_ascii_lowercase();
+    // **Four characters before a prefix is a prefix.** Below that, `a` matches a sixteenth of every
+    // id in the table and the "candidates" listing is the whole table — which is not an answer.
+    let long_enough = want.len() >= 4;
+    let mut hits: Vec<String> = ids
+        .filter(|id| {
+            let lower = id.to_ascii_lowercase();
+            (long_enough && lower.starts_with(&want))
+                || marlowe_loop::run::sayable(id).eq_ignore_ascii_case(&want)
+        })
+        .map(str::to_string)
+        .collect();
+    hits.sort();
+    hits.dedup();
+    match hits.len() {
+        1 => hits[0]
+            .parse::<uuid::Uuid>()
+            .map(RunId)
+            .map_err(|_| unknown_run(typed)),
+        0 => Err(unknown_run(typed)),
+        _ => Err(ambiguous_run(typed, &hits)),
+    }
+}
+
 fn unknown_run(run: &str) -> String {
     format!(
-        "`{}` is not a run id. `/runs` lists them; an id is a UUID",
+        "`{}` names no run here. `/runs` lists them; a run is addressed by its name \
+         (`daring-storm`), by the start of its id, or by the whole id",
         marlowe_contract::text::sanitize_line(run)
     )
+}
+
+/// **The refusal that lists what it matched.** A resolver that guessed would steer, cancel or
+/// watch the wrong run and say nothing about it; one that only said "ambiguous" would leave the
+/// user with no way to be more specific except by finding the ids themselves.
+fn ambiguous_run(run: &str, hits: &[String]) -> String {
+    let mut out = format!(
+        "`{}` matches {} runs:",
+        marlowe_contract::text::sanitize_line(run),
+        hits.len()
+    );
+    for id in hits {
+        out.push_str(&format!("\n  {}  {}", marlowe_loop::run::sayable(id), id));
+    }
+    out.push_str("\nName one of them by its id. Names are derived from the id and 4096 of them \
+                  exist, so two runs can share one");
+    out
 }
 
 fn request_name(r: &Request) -> &'static str {
@@ -567,4 +649,91 @@ fn serve_one(plane: &Shared, token: &str, stream: TcpStream) -> std::io::Result<
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::*;
+
+    /// Two ids whose mnemonics collide, found by walking `from_name` — the collision is the point
+    /// of the ambiguity arm and inventing one by hand would not prove it can happen.
+    fn colliding_pair() -> (String, String, String) {
+        let mut seen: BTreeMap<String, String> = BTreeMap::new();
+        for i in 0..20_000 {
+            let id = marlowe_loop::RunId::from_name(&format!("run-{i}"));
+            let name = id.mnemonic();
+            if let Some(first) = seen.insert(name.clone(), id.0.to_string()) {
+                return (first, id.0.to_string(), name);
+            }
+        }
+        panic!("no collision in 20000 ids, which contradicts 4096 names");
+    }
+
+    fn id_of(name: &str) -> String {
+        marlowe_loop::RunId::from_name(name).0.to_string()
+    }
+
+    #[test]
+    fn a_full_uuid_resolves_even_when_this_daemon_has_never_heard_of_it() {
+        // The table is what this daemon remembers; the journal is what survived. `--watch` on an id
+        // from a previous daemon is a real thing to want, so only the SHORTHANDS need a table.
+        let id = id_of("a-run-nobody-listed");
+        let got = resolve_among(std::iter::empty(), &id).expect("a full id must always resolve");
+        assert_eq!(got.0.to_string(), id);
+    }
+
+    #[test]
+    fn a_mnemonic_resolves_to_its_run() {
+        let id = id_of("some-run");
+        let name = marlowe_loop::RunId::from_name("some-run").mnemonic();
+        assert_eq!(
+            resolve_among([id.as_str()].into_iter(), &name).unwrap().0.to_string(),
+            id
+        );
+        // ...and case does not matter, because a name is for saying out loud.
+        assert!(resolve_among([id.as_str()].into_iter(), &name.to_uppercase()).is_ok());
+    }
+
+    #[test]
+    fn an_id_prefix_resolves_from_four_characters_and_not_from_three() {
+        let id = id_of("prefix-run");
+        assert!(resolve_among([id.as_str()].into_iter(), &id[..4]).is_ok());
+
+        // **The floor is the whole reason there is one.** Three hex characters match a sixteenth of
+        // every id there could be, so the "candidates" would be the table and the answer would be
+        // no answer.
+        let err = resolve_among([id.as_str()].into_iter(), &id[..3]).unwrap_err();
+        assert!(err.contains("names no run"), "{err}");
+    }
+
+    #[test]
+    fn an_ambiguous_name_is_refused_by_name_and_lists_what_it_matched() {
+        // **The arm that exists because 4096 names collide.** The two wrong answers are both
+        // silent: picking the first match steers the wrong run, and reporting "not a run id" for a
+        // name the user can see on their own screen reads as a broken product.
+        let (a, b, name) = colliding_pair();
+        let err = resolve_among([a.as_str(), b.as_str()].into_iter(), &name).unwrap_err();
+
+        assert!(err.contains(&name), "the refusal does not name what was typed: {err}");
+        assert!(err.contains(&a) && err.contains(&b), "both candidates must be listed: {err}");
+        assert!(err.contains("by its id"), "a refusal that names no way forward: {err}");
+
+        // The control: with only one of them present the same token resolves, so the refusal is
+        // about ambiguity rather than about the name being unusable.
+        assert!(resolve_among([a.as_str()].into_iter(), &name).is_ok());
+    }
+
+    #[test]
+    fn an_unknown_token_says_how_a_run_is_addressed() {
+        let err = resolve_among(std::iter::empty(), "not-a-run").unwrap_err();
+        assert!(err.contains("names no run"), "{err}");
+        assert!(err.contains("daring-storm"), "the refusal must show the shape of a name: {err}");
+    }
+
+    #[test]
+    fn a_typed_token_cannot_carry_an_escape_sequence_into_the_refusal() {
+        // The refusal echoes what was typed, and it is printed to a terminal.
+        let err = resolve_among(std::iter::empty(), "\u{1b}[2Jwiped").unwrap_err();
+        assert!(!err.contains('\u{1b}'), "an escape reached a refusal: {err:?}");
+    }
 }

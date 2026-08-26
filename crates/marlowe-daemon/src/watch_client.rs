@@ -75,6 +75,20 @@ impl RunProjection {
     /// is a claim about a run rather than an absence of one.
     pub fn view(&self) -> Option<RunView> {
         let Some(Event::RunDetail {
+            // **The RESOLVED id, and binding it is the whole fix.** This destructure ended in `..`
+            // and the window rendered `short_id(&self.id)` — `self.id` being the string the person
+            // typed on the command line. That was invisible while a run could only be addressed by
+            // its UUID, because the typed token and the resolved id were the same characters.
+            //
+            // The moment `--watch daring-storm` became legal, the identity line read
+            // `run daring-storm  daring-s`: a mnemonic truncated to eight characters, presented as
+            // the id. **Found in a screenshot, not by a test** — every window fixture in the
+            // workspace hand-builds a `RunView`, so they assert the shape of this struct and never
+            // the plumbing that fills it.
+            //
+            // Same family as `--status` reporting the client's own provider instead of the
+            // daemon's: a surface answering from local state instead of from the thing that knows.
+            id: resolved,
             status,
             parent,
             elapsed_ms,
@@ -94,7 +108,11 @@ impl RunProjection {
         };
 
         Some(RunView {
-            id: short_id(&self.id),
+            id: short_id(resolved),
+            // **From the FULL id, before it is shortened.** A mnemonic derived from eight hex
+            // characters would be a different name from the one `/runs` prints, and a name that
+            // depends on where it was computed is worse than no name at all.
+            name: marlowe_loop::run::sayable(resolved),
             state: state_of(status),
             parent: parent.as_deref().map(short_id),
             elapsed_ms: *elapsed_ms,

@@ -97,6 +97,22 @@ impl RunId {
     }
 }
 
+/// A run id **that arrived as a string**, rendered as something a person can say and type.
+///
+/// Every surface that prints a run goes through this rather than calling [`RunId::mnemonic`] after
+/// its own parse — a second place deciding what an unparseable id looks like is a second answer to
+/// the same question.
+///
+/// **An id that is not a UUID is printed verbatim.** Naming it anyway would replace one
+/// unrecognisable string with a different one and lose the only thing the reader could have
+/// matched against.
+pub fn sayable(id: &str) -> String {
+    match id.parse::<Uuid>() {
+        Ok(u) => RunId(u).mnemonic(),
+        Err(_) => id.to_string(),
+    }
+}
+
 /// 64 adjectives. Short, sayable over a phone, no near-homophones, nothing whose tone would read
 /// as a judgement about the run — `failed-heron` naming a healthy run would be a small lie told
 /// every time it is displayed.

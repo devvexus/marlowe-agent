@@ -26,6 +26,7 @@ use ratatui::widgets::{
 
 use crate::app::{App, FOOTER_KEYS, MIN_COLS, MIN_ROWS};
 use crate::region::{FocusLevel, Region, RegionId, RegionTree};
+use crate::chrome::Ink;
 use crate::theme::Theme;
 
 /// Where everything sits, including the scroll areas the pinned-chrome test needs.
@@ -52,6 +53,24 @@ const TITLEBAR_H: u16 = 1;
 const CONTROL_H: u16 = 3;
 const STATUS_H: u16 = 4;
 const MESSAGE_H: u16 = 3;
+
+/// The composer's content rows when it is empty — one, as it has always been.
+pub const INPUT_ROWS_MIN: u16 = 1;
+
+/// **How far the composer may grow before it scrolls inside itself instead.**
+///
+/// # Why there is a cap at all, and why it is a design decision rather than a constant
+///
+/// Every agent TUI worth copying grows its composer and then stops: an unbounded one lets a long
+/// message eat the transcript it is about to be sent into. What differs here is where the rows
+/// come from. Those tools anchor the composer at the bottom of a *scrolling* transcript, so growth
+/// just pushes history up and costs nothing structural. This is §B3's fixed grid — twelve rows of
+/// chrome and a bordered conversation — so every row the composer takes is a row of conversation,
+/// and `Constraint::Min(3)` is the floor that stops it eating the pane entirely.
+///
+/// Six is chosen against §B11's 30-row minimum: at the smallest supported terminal a fully grown
+/// composer still leaves the conversation more rows than the composer has.
+pub const INPUT_ROWS_MAX: u16 = 6;
 const FOOTER_H: u16 = 1;
 
 /// §B3: *"the conversation holds no less than 55% of the horizontal split. The inspector is the
@@ -59,7 +78,46 @@ const FOOTER_H: u16 = 1;
 /// suite asserts the floor rather than the value, so a later tweak cannot cross it unnoticed.
 const CONVERSATION_PCT: u16 = 58;
 
+/// The chrome at the composer's resting height.
+///
+/// **Kept as the one-argument function it has always been**, because sixteen call sites read it —
+/// most of them tests asserting where a region sits — and every one of them is asking about a
+/// frame whose composer is empty. Growth is a property of what has been typed, so it belongs to
+/// the caller that holds the typing.
 pub fn layout(area: Rect) -> Chrome {
+    layout_with_input(area, INPUT_ROWS_MIN)
+}
+
+/// How many rows the composer wants in order to show `text` at `width`.
+///
+/// **Clamped at both ends.** Below `INPUT_ROWS_MIN` the field would have nowhere to draw; above
+/// `INPUT_ROWS_MAX` it scrolls instead of growing, which is the trade every composer in this class
+/// makes.
+pub fn input_rows_for(text: &str, width: u16) -> u16 {
+    if text.is_empty() {
+        return INPUT_ROWS_MIN;
+    }
+    // Two columns for the `\u{203A} ` prompt, which the hanging indent keeps on every line.
+    let w = width.saturating_sub(2).max(1) as usize;
+    (wrap(text, w).len() as u16).clamp(INPUT_ROWS_MIN, INPUT_ROWS_MAX)
+}
+
+/// The chrome for what is currently typed.
+///
+/// **One derivation, read by the draw AND by the driver's hit-testing.** `tui.rs` computes the
+/// chrome independently to decide which region a click landed in; if it used the resting layout
+/// while the draw used a grown one, every click below the composer's top edge would land on the
+/// wrong region — the borders on screen and the click targets behind them would disagree, which is
+/// the two-sides-silently-disagree shape with a pointer in it.
+pub fn chrome_for(app: &App, area: Rect) -> Chrome {
+    // Width does not depend on the composer's height, so one probe at the resting height gives the
+    // width the wrap needs. Nothing circular happens here.
+    let w = inner(layout(area).message).width;
+    layout_with_input(area, input_rows_for(&app.input, w))
+}
+
+pub fn layout_with_input(area: Rect, input_rows: u16) -> Chrome {
+    let message_h = input_rows.clamp(INPUT_ROWS_MIN, INPUT_ROWS_MAX) + (MESSAGE_H - INPUT_ROWS_MIN);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -67,7 +125,7 @@ pub fn layout(area: Rect) -> Chrome {
             Constraint::Length(CONTROL_H),
             Constraint::Length(STATUS_H),
             Constraint::Min(3),
-            Constraint::Length(MESSAGE_H),
+            Constraint::Length(message_h),
             Constraint::Length(FOOTER_H),
         ])
         .split(area);
@@ -149,7 +207,7 @@ pub fn draw(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
         draw_refusal(area, buf, theme);
         return;
     }
-    let c = layout(area);
+    let c = chrome_for(app, area);
     let tree = app.tree();
 
     draw_titlebar(app, theme, c.titlebar, buf);
@@ -213,7 +271,7 @@ fn draw_refusal(area: Rect, buf: &mut Buffer, theme: &Theme) {
 fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let session = app.view().control.session.value();
     let left = Line::from(vec![
-        Span::styled("* ", Style::default().fg(theme.accent())),
+        Span::styled("* ", Ink::Accent.style(theme)),
         Span::styled(format!("marlowe — {session}"), theme.normal()),
     ]);
     // One definition, shared with the OS window title — see `App::run_counts`.
@@ -233,11 +291,11 @@ fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
                 app.focus,
                 app.view().status.state.name(),
             ),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         )),
         None => Line::from(Span::styled(
             format!("{running} runs · {due} due today"),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )),
     };
     Paragraph::new(right)
@@ -292,7 +350,7 @@ fn draw_control(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &m
         Paragraph::new(value).render(text, buf);
         Paragraph::new(Line::from(Span::styled(
             crate::chrome::DISCLOSURE_OPEN.to_string(),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )))
             .alignment(Alignment::Right)
             .render(text, buf);
@@ -342,11 +400,11 @@ fn draw_dropdown(
         // marker and the full accent, hover only lifts the text. **Still no background fill** —
         // §B2, and a fill would repaint the row on every pixel of mouse travel.
         let (marker, style) = if i == picker.selected {
-            ("›", Style::default().fg(theme.accent()))
+            ("›", Ink::Accent.style(theme))
         } else if hovered == Some(i) {
-            (" ", Style::default().fg(theme.hover_color()))
+            (" ", Ink::Hover.style(theme))
         } else {
-            (" ", theme.dim())
+            (" ", Ink::Dim.style(theme))
         };
         buf.set_stringn(
             list.x,
@@ -378,7 +436,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
         &app.meter_frame(),
         meter_area,
         buf,
-        Style::default().fg(theme.tone(band.state.tone())),
+        Style::default().fg(Ink::of_tone(band.state.tone()).color(theme)),
     );
 
     // One column of padding on the right, so a right-aligned figure never runs flush into the
@@ -393,14 +451,14 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
 
     // Degradation lives here, not in the corner of the input line (§B5).
     let (detail, detail_style) = match band.degraded {
-        Some(path) => (path.headline().to_string(), theme.style(Tone::Amber)),
-        None => (band.detail.clone(), theme.dim()),
+        Some(path) => (path.headline().to_string(), Ink::Amber.style(theme)),
+        None => (band.detail.clone(), Ink::Dim.style(theme)),
     };
     let left = vec![
         Line::from(Span::styled(
             band.state.name(),
             Style::default()
-                .fg(theme.tone(band.state.tone()))
+                .fg(Ink::of_tone(band.state.tone()).color(theme))
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(detail, detail_style)),
@@ -410,7 +468,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
     let figures: Vec<Line> = band
         .figures
         .iter()
-        .map(|f| Line::from(Span::styled(f.clone(), theme.dim())))
+        .map(|f| Line::from(Span::styled(f.clone(), Ink::Dim.style(theme))))
         .collect();
     Paragraph::new(figures)
         .alignment(Alignment::Right)
@@ -469,10 +527,10 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
                 // U+2588 FULL BLOCK, which tiles edge to edge. A partial block or a box-drawing
                 // glyph leaves gaps between rows and the thumb reads as segmented.
                 .thumb_symbol(&thumb)
-                .track_style(Style::default().fg(theme.structure()))
+                .track_style(Ink::Structure.style(theme))
                 // The scroll position is not a state, so it is not amber. It is structure, and
                 // structure is the accent's role (§B2).
-                .thumb_style(Style::default().fg(theme.accent())),
+                .thumb_style(Ink::Accent.style(theme)),
             c.conversation_scroll,
             buf,
             &mut state,
@@ -486,7 +544,7 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
             "turn {} · {} compacted · lineage {} deep",
             p.turn, p.compacted, p.lineage
         ),
-        theme.dim(),
+        Ink::Dim.style(theme),
     )))
     .alignment(Alignment::Right)
     .render(c.pager, buf);
@@ -541,7 +599,7 @@ pub fn entry_lines<'a>(
             // **Weight 1 — the terminal's own foreground.** What the user typed is not chrome and
             // not the machine's own noise; it is the other half of the conversation.
             //
-            // This rendered at `theme.dim()`, weight 2, which is the same weight the reasoning
+            // This rendered at `Ink::Dim.style(theme)`, weight 2, which is the same weight the reasoning
             // block uses — so a question the user asked and a chain of thought they did not write
             // were the same colour. Reported live as *"user messages are indistinguishable from
             // thinking"*, and the theme had already said otherwise: `speech`'s own doc comment
@@ -563,7 +621,7 @@ pub fn entry_lines<'a>(
                 //
                 // The one place colour marks WHO is speaking rather than state. White prose read
                 // as terminal output rather than as somebody talking.
-                let base = Style::default().fg(theme.speech());
+                let base = Ink::Speech.style(theme);
                 match speech {
                     // **Model prose is markdown (ADR-047).** It always was; until ADR-047 it was
                     // drawn flat, so a reply built out of headings, lists and code arrived as one
@@ -611,7 +669,7 @@ pub fn entry_lines<'a>(
                     // Live: the count moves, so the line itself reports progress.
                     format!("{marker} thinking… {} characters   {key}", text.len())
                 };
-                out.push(Line::from(Span::styled(head, theme.dim())));
+                out.push(Line::from(Span::styled(head, Ink::Dim.style(theme))));
                 if expanded {
                     // **Markdown here too, and only when EXPANDED.**
                     //
@@ -631,9 +689,9 @@ pub fn entry_lines<'a>(
                         text,
                         w.saturating_sub(2),
                         theme,
-                        theme.dim(),
+                        Ink::Dim.style(theme),
                     ) {
-                        let mut spans = vec![Span::styled("  ".to_string(), theme.dim())];
+                        let mut spans = vec![Span::styled("  ".to_string(), Ink::Dim.style(theme))];
                         spans.extend(line.spans);
                         out.push(Line::from(spans));
                     }
@@ -646,7 +704,7 @@ pub fn entry_lines<'a>(
                 let pad = w.saturating_sub(text.chars().count()) / 2;
                 out.push(Line::from(Span::styled(
                     format!("{}{}", " ".repeat(pad), text),
-                    Style::default().fg(theme.accent()).add_modifier(Modifier::DIM),
+                    Ink::Accent.style(theme).add_modifier(Modifier::DIM),
                 )));
                 out.push(Line::from(""));
             }
@@ -698,16 +756,16 @@ fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line
         // Live lines animate in place with elapsed time. Never scrolled in and then cleared.
         ToolLineState::Running { elapsed_ms } => (
             format!("{}.{}s", elapsed_ms / 1000, (elapsed_ms % 1000) / 100),
-            Style::default().fg(theme.tone(Tone::Amber)),
+            Style::default().fg(Ink::Amber.color(theme)),
         ),
-        ToolLineState::Ok(s) => (s.render(), theme.dim()),
-        ToolLineState::Failed(s) => (s.render(), Style::default().fg(theme.tone(Tone::Red))),
+        ToolLineState::Ok(s) => (s.render(), Ink::Dim.style(theme)),
+        ToolLineState::Failed(s) => (s.render(), Style::default().fg(Ink::Red.color(theme))),
     };
     let gap = w
         .saturating_sub(left.chars().count())
         .saturating_sub(right.chars().count());
     Line::from(vec![
-        Span::styled(left, theme.dim()),
+        Span::styled(left, Ink::Dim.style(theme)),
         Span::raw(" ".repeat(gap)),
         Span::styled(right, right_style),
     ])
@@ -723,7 +781,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
     for t in &call.collapsed {
         // Same reason as `tool_line`: these are the targets it collapsed away.
         let t = marlowe_contract::text::sanitize_line(t);
-        out.push(Line::from(Span::styled(format!("      {t}"), theme.dim())));
+        out.push(Line::from(Span::styled(format!("      {t}"), Ink::Dim.style(theme))));
     }
     if let Some(d) = detail {
         // A failure detail is genuinely multi-line — it is a stack trace or a compiler error — so
@@ -733,7 +791,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
             for l in wrap(raw, w.saturating_sub(6)) {
                 out.push(Line::from(Span::styled(
                     format!("      {l}"),
-                    theme.style(Tone::Red),
+                    Ink::Red.style(theme),
                 )));
             }
         }
@@ -741,7 +799,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
     out
 }
 
-fn wrap(text: &str, w: usize) -> Vec<String> {
+pub(crate) fn wrap(text: &str, w: usize) -> Vec<String> {
     let mut out = Vec::new();
     for para in text.split('\n') {
         let mut line = String::new();
@@ -750,10 +808,27 @@ fn wrap(text: &str, w: usize) -> Vec<String> {
             if line.chars().count() + extra + word.chars().count() > w && !line.is_empty() {
                 out.push(std::mem::take(&mut line));
             }
+            // **A word longer than the pane is broken rather than left to overflow.**
+            //
+            // Without this a single long token — a URL, an absolute path, a base64 blob — produced
+            // one `Line` wider than the region and ratatui clipped the tail. That is the composer's
+            // own defect one layer down: the text is in the string and on no cell of the screen.
+            //
+            // Found by a composer test typing 600 unbroken characters, which is what pasting a URL
+            // looks like. It had been true of the transcript the whole time.
+            let mut rest = word;
+            while w > 0 && rest.chars().count() > w {
+                let cut = rest.char_indices().nth(w).map_or(rest.len(), |(i, _)| i);
+                if !line.is_empty() {
+                    out.push(std::mem::take(&mut line));
+                }
+                out.push(rest[..cut].to_string());
+                rest = &rest[cut..];
+            }
             if !line.is_empty() {
                 line.push(' ');
             }
-            line.push_str(word);
+            line.push_str(rest);
         }
         out.push(line);
     }
@@ -791,6 +866,71 @@ pub fn tab_rects(tab_bar: Rect) -> Vec<(Tab, Rect)> {
     out
 }
 
+/// Where each inspector item sits, for the rows that are actually on screen.
+///
+/// **One geometry, read by the draw AND by the driver's hit-testing.** `tab_rects` exists for the
+/// same reason and `chrome_for` for the same reason again: the alternative is the driver deriving
+/// row positions a second way, which puts the click targets somewhere other than the borders — the
+/// two-sides-silently-disagree shape with a pointer in it.
+///
+/// Rows are variable height (§B2 gives the focused one a keycap row), scrolled by whole items, and
+/// clipped at the fold — so this cannot be arithmetic on a fixed row height, and that is exactly
+/// why it has to be shared rather than reproduced.
+pub fn item_rects(app: &App, c: &Chrome) -> Vec<(usize, Rect)> {
+    let items = crate::inspector::items(app.view(), app.tab);
+    let mut out = Vec::new();
+    let mut y = c.inspector_scroll.y;
+    for (i, item) in items.iter().enumerate().skip(inspector_offset(app, c)) {
+        let h = row_height(item, item.id.is_some() && app.focus == RegionId::Item(app.tab(), i));
+        if y + h > c.inspector_scroll.bottom() {
+            break;
+        }
+        out.push((
+            i,
+            Rect { x: c.inspector_scroll.x, y, width: c.inspector_scroll.width, height: h },
+        ));
+        y += h + 1;
+    }
+    out
+}
+
+/// How far the pane is scrolled, clamped to what its content allows.
+///
+/// **The clamp lives here rather than in the key handler**, so an over-scroll can never draw out of
+/// range and `App` needs nothing from the previous frame.
+fn inspector_offset(app: &App, c: &Chrome) -> usize {
+    let items = crate::inspector::items(app.view(), app.tab);
+    let view = c.inspector_scroll.height;
+    // How many items fit if the LAST one is flush with the bottom; everything before that is how
+    // far it can scroll.
+    let (mut acc, mut fit) = (0u16, 0usize);
+    for (i, item) in items.iter().enumerate().rev() {
+        let h = row_height(item, app.focus == RegionId::Item(app.tab(), i));
+        if acc + h > view {
+            break;
+        }
+        acc += h;
+        fit += 1;
+    }
+    let max_off = items.len().saturating_sub(fit);
+    app.inspector_scroll_max.set(max_off as u16);
+    (app.inspector_scroll as usize).min(max_off)
+}
+
+/// How tall one inspector row is.
+///
+/// **One definition, read by the draw AND by the scroll extent.** They compute the same number for
+/// the same row, and two arithmetics for one height is the shape that puts a pane's scrollbar and
+/// its content in different places.
+///
+/// The focused row is one taller when it can be acted on: §B2 puts the enter keycap where Enter
+/// acts, and a run listed with no visible way to open it leaves the affordance the pane exists to
+/// provide as folklore. Only the focused row carries it — every row would be eight copies of one
+/// sentence, which is the density §B2 spends its dimming to avoid.
+fn row_height(item: &marlowe_view::Item, shows_keycap: bool) -> u16 {
+    item.lines.len() as u16 + 2 + u16::from(shows_keycap)
+}
+
 fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &mut Buffer) {
     // The inspector has no single hotkey — each tab has one — so under §B2 it has no border.
     let mut spans: Vec<Span> = Vec::new();
@@ -800,7 +940,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
         let target = if i < 3 { &mut spans } else { &mut line1 };
         target.push(Span::styled(
             format!("{} ", tab.digit()),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ));
         target.push(Span::styled(
             format!("{}  ", tab.title()),
@@ -809,9 +949,9 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
             } else if app.hover_tab == Some(*tab) {
                 // Hover sits below selection here exactly as it does on regions: the active tab
                 // keeps its brightened label, and the pointer only lifts the others.
-                Style::default().fg(theme.hover_color())
+                Ink::Hover.style(theme)
             } else {
-                theme.dim()
+                Ink::Dim.style(theme)
             },
         ));
     }
@@ -825,39 +965,19 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
     //
     // Whole items rather than rows, because an item is a bordered region (§B2) and half a border
     // with its label scrolled off is not a region any more — it is a rendering fault.
-    let view = c.inspector_scroll.height;
-    let max_off = {
-        // How many items fit if the LAST one is flush with the bottom; everything before that is
-        // how far it can scroll.
-        let (mut acc, mut fit) = (0u16, 0usize);
-        for item in items.iter().rev() {
-            let h = item.lines.len() as u16 + 2;
-            if acc + h > view {
-                break;
-            }
-            acc += h;
-            fit += 1;
-        }
-        items.len().saturating_sub(fit)
-    };
-    app.inspector_scroll_max.set(max_off as u16);
-    let off = (app.inspector_scroll as usize).min(max_off);
-
-    let mut y = c.inspector_scroll.y;
-    let mut last_drawn = off;
-    for (i, item) in items.iter().enumerate().skip(off) {
+    let rects = item_rects(app, c);
+    let mut last_drawn = inspector_offset(app, c);
+    for (i, area) in rects {
+        let item = &items[i];
         let id = RegionId::Item(app.tab(), i);
         let Some(region) = tree.get(id) else { continue };
-        let h = item.lines.len() as u16 + 2;
-        if y + h > c.inspector_scroll.bottom() {
-            break;
-        }
+        let opens = item.id.is_some() && app.focus == id;
         last_drawn = i;
         let area = Rect {
-            x: c.inspector_scroll.x,
-            y,
-            width: c.inspector_scroll.width,
-            height: h,
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height,
         };
         let focus = if app.focus == id {
             FocusLevel::Focused
@@ -885,7 +1005,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
                 app.steer.clone()
             };
             let style = if app.steer.is_empty() {
-                theme.dim()
+                Ink::Dim.style(theme)
             } else {
                 theme.normal()
             };
@@ -898,16 +1018,22 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
                     // THIRD weight, not the second (§B2, §B7). Using one dim for both is how a
                     // dense screen stops telling the eye where to look.
                     let style = if focus == FocusLevel::Inactive && *tone == Tone::Dim {
-                        theme.dimmer()
+                        Ink::Dimmer.style(theme)
                     } else {
-                        theme.style(*tone)
+                        Ink::of_tone(*tone).style(theme)
                     };
                     Line::from(Span::styled(l.clone(), style))
                 })
                 .collect()
         };
+        let mut body = body;
+        if opens {
+            body.push(Line::from(Span::styled(
+                format!("{} watch", crate::chrome::KEYCAP_ENTER),
+                Ink::Dim.style(theme),
+            )));
+        }
         Paragraph::new(body).render(text, buf);
-        y += h + 1;
     }
     app.inspector_last_visible.set(last_drawn as u16);
 }
@@ -923,19 +1049,50 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
 
     // The placeholder tracks the status band (§B8) — that is how barge-in is made visible without
     // a second indicator.
-    let (body, style) = if app.input.is_empty() {
+    //
+    // **This wrapped onto nothing until M3 F2.** It rendered one `Line` holding the whole input,
+    // with `\n` shown inline as `⏎`, into a region one row tall — so anything past the width was
+    // clipped and anything past the first line was invisible. A composer you cannot read back is a
+    // composer nobody writes a paragraph in, and §B10's *"multiline by default"* had no rendering
+    // behind it.
+    let (lines, style) = if app.input.is_empty() {
         (
-            app.view().status.state.placeholder().to_string(),
-            theme.dim(),
+            vec![app.view().status.state.placeholder().to_string()],
+            Ink::Dim.style(theme),
         )
     } else {
-        (app.input.replace('\n', " ⏎ "), theme.normal())
+        (
+            wrap(&app.input, text.width.saturating_sub(2).max(1) as usize),
+            // §B2 forbids a background fill, so a selection is a colour. The accent is inside the
+            // palette and inside §B13's budget; reverse video is not available here.
+            if app.composer_selected() {
+                Ink::Accent.style(theme)
+            } else {
+                theme.normal()
+            },
+        )
     };
-    Paragraph::new(Line::from(vec![
-        Span::styled("› ", Style::default().fg(theme.accent())),
-        Span::styled(body, style),
-    ]))
-    .render(text, buf);
+    // The prompt on the first row, a two-column hanging indent under it, so a wrapped message
+    // reads as one block rather than as several messages.
+    let body: Vec<Line> = lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, l)| {
+            Line::from(vec![
+                Span::styled(if i == 0 { "› " } else { "  " }, Ink::Accent.style(theme)),
+                Span::styled(l, style),
+            ])
+        })
+        .collect();
+    // **Pinned to the end by default, and movable from there.** Past the cap the field scrolls,
+    // and the row being typed on is the one that has to stay visible — but `Up` walks back through
+    // a long paste, which is the only way to read one before sending it.
+    //
+    // Clamped here rather than in the key handler, so an over-scroll can never render out of range
+    // and `App` needs no hint from the previous frame.
+    let max = (body.len() as u16).saturating_sub(text.height);
+    let offset = max.saturating_sub(app.composer_scroll().min(max));
+    Paragraph::new(body).scroll((offset, 0)).render(text, buf);
 
     // A copy confirmation takes the ambient slot until the next keystroke. OSC 52 cannot be
     // acknowledged, so this line is the only evidence the user gets that anything happened; it
@@ -944,20 +1101,20 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
     let ambient = if let Some(notice) = &app.notice {
         Line::from(Span::styled(
             notice.clone(),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ))
     } else {
         Line::from(vec![
             // Context pressure is a colour, not a bar (§B8).
             Span::styled(
                 format!("{}%  ", a.fill_pct),
-                theme.style(a.context_tone()),
+                Ink::of_tone(a.context_tone()).style(theme),
             ),
             Span::styled(
                 format!("${}.{:02}  ", a.spend_cents / 100, a.spend_cents % 100),
-                theme.dim(),
+                Ink::Dim.style(theme),
             ),
-            Span::styled(format!("{}m", a.elapsed_min), theme.dim()),
+            Span::styled(format!("{}m", a.elapsed_min), Ink::Dim.style(theme)),
         ])
     };
     Paragraph::new(ambient)
@@ -993,9 +1150,9 @@ fn draw_autocomplete(theme: &Theme, prefix: &str, selected: usize, anchor: Rect,
             line,
             area.width as usize,
             if i == selected {
-                Style::default().fg(theme.accent())
+                Ink::Accent.style(theme)
             } else {
-                theme.dim()
+                Ink::Dim.style(theme)
             },
         );
     }
@@ -1008,15 +1165,15 @@ fn draw_footer(theme: &Theme, area: Rect, buf: &mut Buffer) {
     for (key, what) in FOOTER_KEYS.iter().take(FOOTER_KEYS.len() - 1) {
         spans.push(Span::styled(
             format!("{key} "),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ));
-        spans.push(Span::styled(format!("{what}   "), theme.dim()));
+        spans.push(Span::styled(format!("{what}   "), Ink::Dim.style(theme)));
     }
     Paragraph::new(Line::from(spans)).render(area, buf);
     let (key, what) = FOOTER_KEYS[FOOTER_KEYS.len() - 1];
     Paragraph::new(Line::from(vec![
-        Span::styled(format!("{key} "), Style::default().fg(theme.accent())),
-        Span::styled(what, theme.dim()),
+        Span::styled(format!("{key} "), Ink::Accent.style(theme)),
+        Span::styled(what, Ink::Dim.style(theme)),
     ]))
     .alignment(Alignment::Right)
     .render(area, buf);

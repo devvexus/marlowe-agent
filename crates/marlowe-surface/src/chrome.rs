@@ -63,6 +63,11 @@
 
 use std::borrow::Cow;
 
+use marlowe_view::Tone;
+use ratatui::style::{Color, Style};
+
+use crate::theme::Theme;
+
 /// §B6's tool line marker: `  ⋯ read      Dockerfile                       48 lines`.
 pub const TOOL_MARKER: char = '⋯';
 
@@ -181,6 +186,182 @@ pub fn prepare_model_text(s: &str) -> Cow<'_, str> {
     }
 }
 
+
+// -----------------------------------------------------------------------------------------------
+// THE PALETTE
+// -----------------------------------------------------------------------------------------------
+
+/// Every colour the harness paints with, named by role.
+///
+/// # Why this is in `chrome` and not in `theme`
+///
+/// [`Theme`] owns the **values** — what violet is, what happens at 256 colours, how the structural
+/// tones are derived from the accent. This owns the **vocabulary**: which of those a given surface
+/// is allowed to reach for. They are different questions, and the second one had no home at all
+/// until M3 F2, which is the whole of the finding this type exists to close.
+///
+/// `window.rs` reached for `Tone::Green`. `render.rs` never does. Nothing caught it, because
+/// M3-DESIGN §6.4's *"do not reimplement the look — use `chrome.rs`"* was followed to the letter
+/// and this module defined **glyphs only**. Each surface was individually inside §B13's budget —
+/// one accent, three state colours, three weights — and the budget bounds how many colours *one*
+/// surface uses, never whether two surfaces use the *same* ones. So the window grew a hue that
+/// exists nowhere near it and every per-surface test stayed green.
+///
+/// This is the glyph construction applied to colour, and deliberately the same shape: [`MARKERS`]
+/// is the set the drawing reads *and* the set the guard refuses; [`CONVERSATION`] and
+/// [`RUN_WINDOW`] are the sets the drawing reads *and* the sets `tests/palette_subset.rs` checks a
+/// rendered `Buffer` against. A colour that is not here cannot be drawn, because there is nowhere
+/// else to get one from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Ink {
+    /// Foreground weight 1: the terminal's own. Body text, and the user's own words.
+    Body,
+    /// Foreground weight 2.
+    Dim,
+    /// Foreground weight 3: near-invisible, for what needs nothing from the reader.
+    Dimmer,
+    /// §B2's one accent. Focus, hotkeys, labels.
+    Accent,
+    /// The accent at low luminance: an unfocused border, the scrollbar track.
+    Structure,
+    /// The accent lower still: an inactive border.
+    StructureDim,
+    /// The accent under the pointer.
+    Hover,
+    /// **Marlowe's own prose** — the accent tinted toward white. The one place colour marks who is
+    /// speaking rather than state.
+    Speech,
+    /// State: needs attention, approaching a limit, degraded.
+    Amber,
+    /// State: conflict, failure, irreversible.
+    Red,
+    /// State: healthy, live, running normally.
+    ///
+    /// **In the vocabulary and out of the run window**, which is the distinction F2 turns on. §B2
+    /// lists green as a legal state colour and §B5's voice band spends it — so removing it from the
+    /// product would be answering a complaint about *this window* by deleting something else's
+    /// colour. What was wrong was a second surface reaching for a hue its neighbour never uses.
+    Green,
+}
+
+impl Ink {
+    /// Every role, for a test that has to name them all.
+    pub const ALL: [Ink; 11] = [
+        Ink::Body,
+        Ink::Dim,
+        Ink::Dimmer,
+        Ink::Accent,
+        Ink::Structure,
+        Ink::StructureDim,
+        Ink::Hover,
+        Ink::Speech,
+        Ink::Amber,
+        Ink::Red,
+        Ink::Green,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Ink::Body => "body",
+            Ink::Dim => "dim",
+            Ink::Dimmer => "dimmer",
+            Ink::Accent => "accent",
+            Ink::Structure => "structure",
+            Ink::StructureDim => "structure-dim",
+            Ink::Hover => "hover",
+            Ink::Speech => "speech",
+            Ink::Amber => "amber",
+            Ink::Red => "red",
+            Ink::Green => "green",
+        }
+    }
+
+    /// The colour, **from the theme**. This type does not know what violet is and must not learn:
+    /// a second definition of a border colour is the two-sides-silently-disagree shape applied to
+    /// pixels, which is the thing §6.4 was already trying to prevent.
+    pub fn color(self, theme: &Theme) -> Color {
+        match self {
+            Ink::Body => Color::Reset,
+            Ink::Dim => theme.dim_color(),
+            Ink::Dimmer => theme.dimmer_color(),
+            Ink::Accent => theme.accent(),
+            Ink::Structure => theme.structure(),
+            Ink::StructureDim => theme.structure_dim(),
+            Ink::Hover => theme.hover_color(),
+            Ink::Speech => theme.speech(),
+            Ink::Amber => theme.tone(Tone::Amber),
+            Ink::Red => theme.tone(Tone::Red),
+            Ink::Green => theme.tone(Tone::Green),
+        }
+    }
+
+    /// The colour as a `Style`. No background, ever — see [`Theme`]'s header.
+    pub fn style(self, theme: &Theme) -> Style {
+        Style::default().fg(self.color(theme))
+    }
+
+    /// The ink a producer-supplied [`Tone`] paints in.
+    ///
+    /// **The one crossing between the data vocabulary and the drawing vocabulary.** `Tone` is what
+    /// a view model carries — a run's state, an item's border — and it is deliberately narrower
+    /// than `Ink`: a producer chooses *state*, and the structural roles are the surface's own.
+    pub fn of_tone(tone: Tone) -> Ink {
+        match tone {
+            Tone::Normal => Ink::Body,
+            Tone::Dim => Ink::Dim,
+            Tone::Accent => Ink::Accent,
+            Tone::Amber => Ink::Amber,
+            Tone::Red => Ink::Red,
+            Tone::Green => Ink::Green,
+        }
+    }
+
+    /// Which role a colour on a rendered cell came from, if any.
+    ///
+    /// **This is what makes the palette checkable where it renders rather than where it is
+    /// declared.** Asserting that `RUN_WINDOW` does not contain `Green` is asserting the value of a
+    /// constant — family #16, a control with no reader. Walking a drawn `Buffer` back through this
+    /// asserts the fate of a cell.
+    pub fn of_color(theme: &Theme, c: Color) -> Option<Ink> {
+        Ink::ALL.into_iter().find(|i| i.color(theme) == c)
+    }
+}
+
+/// Every ink the conversation surface draws with.
+///
+/// All eleven: it carries §B5's voice band (green), the inspector's hover, and the inactive item
+/// borders that nothing else in the product has.
+pub const CONVERSATION: &[Ink] = &Ink::ALL;
+
+/// Every ink a **run window** draws with — a strict subset of [`CONVERSATION`].
+///
+/// §6's window is *"the same product with different sections"*, so the sections it does not have
+/// are the colours it does not spend:
+///
+/// | absent | why the window has no use for it |
+/// |---|---|
+/// | `Green` | nothing here is a *voice* state, and a resume step is a fact, not a health report |
+/// | `Hover` | a window is keyboard-driven; there is no pointer target in it |
+/// | `StructureDim` | its regions are focused or unfocused, never inactive — every panel is live |
+///
+/// **The subset is the property, and it is asserted across the two surfaces** — no per-surface
+/// budget check can see it, which is exactly how the window drifted.
+pub const RUN_WINDOW: &[Ink] = &[
+    Ink::Body,
+    Ink::Dim,
+    Ink::Dimmer,
+    Ink::Accent,
+    Ink::Structure,
+    Ink::Speech,
+    Ink::Amber,
+    Ink::Red,
+];
+
+/// Whether a surface's vocabulary admits an ink.
+pub fn permits(surface: &[Ink], ink: Ink) -> bool {
+    surface.contains(&ink)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,6 +415,56 @@ mod tests {
             let input = format!("a{c}b");
             let out = prepare_model_text(&input);
             assert!(!out.contains(c), "{why}: survived `prepare_model_text`");
+        }
+    }
+
+    #[test]
+    fn the_window_vocabulary_is_a_subset_of_the_conversation_one() {
+        // The declaration half. `tests/palette_subset.rs` is the half that reads a drawn buffer;
+        // this one is here so a future edit to `RUN_WINDOW` fails in the module it edits.
+        for ink in RUN_WINDOW {
+            assert!(
+                permits(CONVERSATION, *ink),
+                "{} is in the run window's palette and not in the conversation's; the window \
+                 would then be introducing a hue that exists nowhere near it, which is the \
+                 finding this constant exists to close",
+                ink.name()
+            );
+        }
+        assert!(
+            RUN_WINDOW.len() < CONVERSATION.len(),
+            "a window vocabulary equal to the conversation's asserts nothing"
+        );
+    }
+
+    #[test]
+    fn every_role_has_a_distinct_colour_so_a_drawn_cell_maps_back_to_one() {
+        // `Ink::of_color` is how the cross-surface test reads a buffer. Two roles sharing a value
+        // would make it answer the wrong question silently -- and at the 16-colour floor they DO
+        // collapse, which is why the palette tests pin truecolor.
+        let t = Theme::default_truecolor();
+        let mut seen = std::collections::BTreeMap::new();
+        for ink in Ink::ALL {
+            if let Some(other) = seen.insert(format!("{:?}", ink.color(&t)), ink) {
+                panic!("{} and {} render the same colour", other.name(), ink.name());
+            }
+        }
+        for ink in Ink::ALL {
+            assert_eq!(Ink::of_color(&t, ink.color(&t)), Some(ink));
+        }
+    }
+
+    #[test]
+    fn every_tone_a_producer_can_send_has_an_ink() {
+        // The crossing point. A `Tone` with no ink would have to be handled somewhere else, and
+        // "somewhere else" is the second palette this module exists to prevent.
+        let t = Theme::default_truecolor();
+        for tone in [Tone::Normal, Tone::Dim, Tone::Accent, Tone::Amber, Tone::Red, Tone::Green] {
+            assert_eq!(
+                Ink::of_tone(tone).color(&t),
+                t.tone(tone),
+                "{tone:?} paints a different colour through the palette than through the theme"
+            );
         }
     }
 }

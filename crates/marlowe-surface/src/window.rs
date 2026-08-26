@@ -24,7 +24,17 @@
 //! | every glyph | [`crate::chrome`] — the set model prose may not contain |
 //! | the transcript | [`crate::render::entry_lines`] — one body, shared with the conversation pane |
 //! | markdown and maths | ADR-047's renderer, by way of `entry_lines` |
-//! | colour | [`crate::theme`], which has no eighth colour to reach for |
+//! | colour | [`crate::chrome::RUN_WINDOW`] — a **subset** of the conversation pane's palette |
+//!
+//! **The palette row is the one that changed after this file first shipped, and the reason is
+//! worth keeping here.** It used to read *"colour — `crate::theme`, which has no eighth colour to
+//! reach for"*, which was true and insufficient: the theme bounds how many colours **exist**, not
+//! which of them a surface may **spend**. This window spent `Tone::Green` on the resume line and
+//! the conversation pane spends green nowhere at all, so the two surfaces read as two
+//! applications while every §B13 per-surface budget test stayed green — the budget counts colours
+//! within one surface and cannot see across two. [`crate::chrome::RUN_WINDOW`] is the vocabulary
+//! this file draws from, `tests/palette_subset.rs` reads it back off a rendered `Buffer`, and the
+//! assertion is **across the two surfaces**, because no check inside either one can see the drift.
 //!
 //! **State.** §6.6: *"One state, two renderings."* [`WindowApp`] holds a [`RunView`] it was handed
 //! and everything about **looking at** it — the steer draft, the scroll offset, whether a reasoning
@@ -66,14 +76,14 @@ use std::collections::BTreeMap;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
 use marlowe_view::run::{elapsed, micros_usd, RunView};
-use marlowe_view::{Entry, Item, Tone};
+use marlowe_view::{Entry, Item};
 
 use crate::region::{FocusLevel, RegionId, RegionTree};
+use crate::chrome::Ink;
 use crate::theme::Theme;
 
 /// §B11's honest refusal, at a run window's scale.
@@ -95,6 +105,15 @@ const TITLEBAR_H: u16 = 1;
 const IDENTITY_H: u16 = 4;
 const CHECKPOINT_H: u16 = 4;
 const STEER_H: u16 = 3;
+
+/// The steer field's content rows when it is empty.
+pub const STEER_ROWS_MIN: u16 = 1;
+
+/// How far the steer field grows before it scrolls inside itself. The conversation pane's cap and
+/// its reasoning, applied to the other composer in the product — see
+/// [`crate::render::INPUT_ROWS_MAX`]. The rows come out of the output panel, which is the only
+/// region here that can give them up.
+pub const STEER_ROWS_MAX: u16 = 6;
 const FOOTER_H: u16 = 1;
 
 /// What the window asks the control plane to do. **Drained by the driver; never applied here.**
@@ -172,6 +191,20 @@ pub struct WindowApp {
     /// position computed `u16::MAX - 1`, which still clamped to the bottom — so scrolling up in a
     /// window did nothing at all, silently, on every run with more output than fits.
     scroll_max_hint: u16,
+    /// Blocks pasted into the steer field. Same mechanism as the conversation composer's — see
+    /// [`crate::commands::paste_marker`]. A steer is the one channel that writes new
+    /// `UserAsserted` text into a latched run (ADR-054), so what is *sent* is always the expanded
+    /// text and never the chip: `steer::admit` must see the real bytes it is capping.
+    pastes: Vec<String>,
+    /// Whether `Ctrl-A` has selected the whole steer draft. See [`crate::app::App`]'s field of the
+    /// same name for why it is a flag and why it renders as a colour rather than a fill.
+    select_all: bool,
+    /// Text the driver should put on the system clipboard, as the conversation surface does it —
+    /// OSC 52, written straight to stdout rather than through ratatui's buffer, because it is not
+    /// a cell and queueing it would tie a clipboard write to a repaint.
+    pub pending_copy: Option<String>,
+    /// One `^c` with nothing to copy. See [`crate::app::App`]'s field of the same name.
+    quit_armed: bool,
     requests: Vec<WindowRequest>,
 }
 
@@ -189,12 +222,60 @@ impl WindowApp {
             confirm: None,
             notice: None,
             scroll_max_hint: 0,
+            pastes: Vec::new(),
+            select_all: false,
+            pending_copy: None,
+            quit_armed: false,
             requests: Vec::new(),
         }
     }
 
     pub fn view(&self) -> &RunView {
         &self.view
+    }
+
+    /// A block arriving from the terminal's bracketed paste. See [`crate::app::App::paste`].
+    pub fn paste(&mut self, text: String) {
+        // **A paste FOCUSES the composer rather than being ignored or hidden.** The two wrong
+        // answers are dropping it — the user watches nothing happen — and appending it to a draft
+        // that is not focused, where it lands in a field they are not looking at. A paste is an
+        // edit, this window has exactly one editable field, so the edit goes there and the focus
+        // follows it.
+        self.focus = RegionId::RunSteer;
+        let lines = text.lines().count();
+        if lines < crate::commands::PASTE_MIN_LINES
+            && text.chars().count() < crate::commands::PASTE_MIN_CHARS
+        {
+            self.steer.push_str(&text);
+            return;
+        }
+        self.steer
+            .push_str(&crate::commands::paste_marker(self.pastes.len(), &text));
+        self.pastes.push(text);
+    }
+
+    /// Whether the steer field is showing a selection, for the renderer.
+    pub fn steer_selected(&self) -> bool {
+        self.select_all
+    }
+
+    fn take_selection(&mut self) -> bool {
+        std::mem::take(&mut self.select_all)
+    }
+
+    fn expand_pastes(&self, s: &str) -> String {
+        let mut out = s.to_string();
+        for (i, body) in self.pastes.iter().enumerate() {
+            out = out.replace(&crate::commands::paste_marker(i, body), body);
+        }
+        out
+    }
+
+    fn trailing_paste(&self) -> Option<(usize, String)> {
+        self.pastes.iter().enumerate().rev().find_map(|(i, b)| {
+            let m = crate::commands::paste_marker(i, b);
+            self.steer.ends_with(&m).then_some((i, m))
+        })
     }
 
     /// Publish a fresh projection of the run. **Replaces; never merges.**
@@ -238,6 +319,11 @@ impl WindowApp {
     pub fn on_key(&mut self, key: crate::app::Key) -> Action {
         use crate::app::Key;
 
+        // Consecutive, or it is not a confirmation.
+        if !matches!(key, Key::Ctrl('c')) {
+            self.quit_armed = false;
+        }
+
         // ── the modal first, and it consumes everything ──────────────────────────────────────
         //
         // §B9's shape: while something is up, the keys underneath do not fire. A cancel
@@ -260,6 +346,31 @@ impl WindowApp {
 
         match key {
             // ── footer keys, always live ─────────────────────────────────────────────────────
+            // **`^c` did nothing at all here while it terminated the conversation pane.** Same
+            // chord, two surfaces, opposite behaviour — the drift this whole session has been
+            // about, in the one place where the consequence is losing work.
+            //
+            // Detach rather than quit is not a softening: §6.5 is explicit that closing a window
+            // **detaches and never cancels**, so the run keeps going either way. The second press
+            // is still required, because a person pressing `^c` to copy should not have the window
+            // vanish underneath them.
+            Key::Ctrl('c') => {
+                let armed = std::mem::take(&mut self.quit_armed);
+                if self.take_selection() || !self.steer.is_empty() {
+                    let text = self.expand_pastes(&self.steer.clone());
+                    self.notice =
+                        Some(format!("copied the draft — {} characters", text.chars().count()));
+                    self.pending_copy = Some(text);
+                    return Action::Redraw;
+                }
+                if armed {
+                    self.ask(WindowRequest::Detach);
+                    return Action::Close;
+                }
+                self.quit_armed = true;
+                self.notice = Some("press ^c again to detach — the run keeps going".into());
+                Action::Redraw
+            }
             Key::Ctrl('x') => {
                 self.confirm = Some(Confirm::Cancel);
                 Action::Redraw
@@ -285,7 +396,7 @@ impl WindowApp {
             _ if self.focus_is_text() => self.on_text_key(key),
             // ── region hotkeys, §B10: a letter jumps focus ───────────────────────────────────
             Key::Char(c) => {
-                if let Some(r) = self.tree().regions().iter().find(|r| r.hotkey() == c) {
+                if let Some(r) = self.tree().regions().iter().find(|r| r.hotkey() == Some(c)) {
                     self.focus = r.id();
                     return Action::Redraw;
                 }
@@ -304,13 +415,76 @@ impl WindowApp {
 
     fn on_text_key(&mut self, key: crate::app::Key) -> Action {
         use crate::app::Key;
+        // **The notice dies on the next keystroke, and until it did this field was a dead end.**
+        //
+        // `draw_steer` shows the notice INSTEAD of the draft — at one row there is no beside — and
+        // nothing cleared it except `Esc` or a send. So after "steer sent — it applies at the
+        // run's next step", every character typed went into `self.steer` and **nothing appeared on
+        // screen**. The steer was still being composed and would still have sent, which is the
+        // worst version of this: the field looked broken while working, so nobody would press
+        // Enter to find out.
+        //
+        // `App::client_note`'s rule, applied here: a transient notice is cleared by the next
+        // keystroke; a refusal is persistent and lands in the conversation. A window has no
+        // conversation to land one in, so it clears on the next key too — the user has moved on,
+        // which is the event the notice was waiting for.
+        if !matches!(key, Key::Esc) {
+            self.notice = None;
+        }
         match key {
             Key::Char(c) => {
+                if self.take_selection() {
+                    self.steer.clear();
+                    self.pastes.clear();
+                }
                 self.steer.push(c);
                 Action::Redraw
             }
+            // `Ctrl-A` selects the draft; `Ctrl-V` reaching here at all means the terminal did not
+            // paste. Both are the conversation composer's arms, for the same reasons.
+            Key::Ctrl('a') => {
+                self.select_all = !self.steer.is_empty();
+                Action::Redraw
+            }
+            Key::Ctrl('v') => {
+                self.notice = Some(
+                    "this terminal did not send a paste — try Shift-Insert, or right-click".into(),
+                );
+                Action::Redraw
+            }
+            Key::CtrlBackspace => {
+                if self.take_selection() {
+                    self.steer.clear();
+                    self.pastes.clear();
+                } else if let Some((i, marker)) = self.trailing_paste() {
+                    self.steer.truncate(self.steer.len() - marker.len());
+                    if i + 1 == self.pastes.len() {
+                        self.pastes.pop();
+                    }
+                } else {
+                    crate::app::delete_word_back(&mut self.steer);
+                }
+                Action::Redraw
+            }
             Key::Backspace => {
-                self.steer.pop();
+                if self.take_selection() {
+                    self.steer.clear();
+                    self.pastes.clear();
+                    return Action::Redraw;
+                }
+                // A chip deletes whole — see `App::on_key`'s arm for why half a marker is worse
+                // than none.
+                match self.trailing_paste() {
+                    Some((i, marker)) => {
+                        self.steer.truncate(self.steer.len() - marker.len());
+                        if i + 1 == self.pastes.len() {
+                            self.pastes.pop();
+                        }
+                    }
+                    None => {
+                        self.steer.pop();
+                    }
+                }
                 Action::Redraw
             }
             // §B10: multiline by default — Shift-Enter for a newline, Enter to send.
@@ -319,7 +493,9 @@ impl WindowApp {
                 Action::Redraw
             }
             Key::Enter => {
-                let text = std::mem::take(&mut self.steer);
+                let raw = std::mem::take(&mut self.steer);
+                let text = self.expand_pastes(raw.trim());
+                self.pastes.clear();
                 if text.trim().is_empty() {
                     // Not a request. `admit` would refuse it, and a round trip to be told the
                     // obvious is worse than nothing happening.
@@ -391,7 +567,57 @@ pub struct Chrome {
     pub footer: Rect,
 }
 
+/// Which region a point is inside, if any. **Geometry, and it lives beside the layout that
+/// produced it** — the same reason [`crate::render::tab_rects`] does rather than being recomputed
+/// in the driver.
+///
+/// §B10: *"Click focuses a region and the wheel scrolls one — both by routing into the same
+/// dispatch the arrow keys use."* So this answers *where*, and the driver turns that into the same
+/// focus change a `Tab` would have made. There is no click that does something no key can do.
+///
+/// **Hit-testing deliberately stops at the region.** §B10 again: item-level hit-testing is *"the
+/// first place the mouse grows a path of its own"*.
+pub fn region_at(c: &Chrome, col: u16, row: u16) -> Option<RegionId> {
+    let inside = |r: Rect| col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height;
+    [
+        (c.identity, RegionId::RunIdentity),
+        (c.checkpoint, RegionId::RunCheckpoint),
+        (c.output, RegionId::RunOutput),
+        (c.steer, RegionId::RunSteer),
+        (c.subagents, RegionId::RunSubagents),
+        (c.budget, RegionId::RunBudget),
+        (c.scope_memory, RegionId::RunScopeMemory),
+        (c.meetings, RegionId::RunMeetings),
+    ]
+    .into_iter()
+    .find(|(r, _)| inside(*r))
+    .map(|(_, id)| id)
+}
+
+/// The chrome at the steer field's resting height. See [`crate::render::layout`] for why this
+/// keeps its one-argument shape.
 pub fn layout(area: Rect) -> Chrome {
+    layout_with_steer(area, STEER_ROWS_MIN)
+}
+
+/// How many rows the steer field wants for `text` at `width`.
+pub fn steer_rows_for(text: &str, width: u16) -> u16 {
+    if text.is_empty() {
+        return STEER_ROWS_MIN;
+    }
+    let w = width.saturating_sub(2).max(1) as usize;
+    (crate::render::wrap(text, w).len() as u16).clamp(STEER_ROWS_MIN, STEER_ROWS_MAX)
+}
+
+/// The chrome for what is currently in the steer draft. **One derivation, read by [`draw`], by
+/// [`scroll_max`] and by the driver's hit-testing** — see [`crate::render::chrome_for`].
+pub fn chrome_for(app: &WindowApp, area: Rect) -> Chrome {
+    let w = inner(layout(area).steer).width;
+    layout_with_steer(area, steer_rows_for(&app.steer, w))
+}
+
+pub fn layout_with_steer(area: Rect, steer_rows: u16) -> Chrome {
+    let steer_h = steer_rows.clamp(STEER_ROWS_MIN, STEER_ROWS_MAX) + (STEER_H - STEER_ROWS_MIN);
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -413,7 +639,7 @@ pub fn layout(area: Rect) -> Chrome {
             Constraint::Length(IDENTITY_H),
             Constraint::Length(CHECKPOINT_H),
             Constraint::Min(3),
-            Constraint::Length(STEER_H),
+            Constraint::Length(steer_h),
         ])
         .split(body[0]);
 
@@ -532,7 +758,7 @@ pub fn draw(app: &WindowApp, theme: &Theme, area: Rect, buf: &mut Buffer) {
         draw_refusal(area, buf, theme);
         return;
     }
-    let c = layout(area);
+    let c = chrome_for(app, area);
     let tree = app.tree();
 
     draw_titlebar(app, theme, c.titlebar, buf);
@@ -563,10 +789,14 @@ fn draw_refusal(area: Rect, buf: &mut Buffer, theme: &Theme) {
 /// The titlebar has no hotkey, so under §B2 it has no border.
 fn draw_titlebar(app: &WindowApp, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let v = app.view();
+    // **The name, then the id.** A window is opened by a person who typed something; showing them
+    // back the UUID they had to copy is showing them the thing the name exists to replace. The id
+    // stays, at weight 3, because it is the identity and the name is a rendering of it.
     let left = Line::from(vec![
-        Span::styled("marlowe", Style::default().fg(theme.accent())),
-        Span::styled("  run ", theme.dim()),
-        Span::styled(v.id.clone(), theme.normal()),
+        Span::styled("marlowe", Ink::Accent.style(theme)),
+        Span::styled("  run ", Ink::Dim.style(theme)),
+        Span::styled(v.name.clone(), theme.normal()),
+        Span::styled(format!("  {}", v.id), Ink::Dimmer.style(theme)),
     ]);
     Paragraph::new(left).render(area, buf);
 }
@@ -599,15 +829,15 @@ fn draw_identity(
 
     let spend = format!("{} of {}", micros_usd(v.spend_micros_usd), micros_usd(v.ceiling_micros_usd));
     let spend_style = if v.at_ceiling() {
-        theme.style(Tone::Red)
+        Ink::Red.style(theme)
     } else {
-        theme.dim()
+        Ink::Dim.style(theme)
     };
     let status = Line::from(vec![
-        Span::styled(v.state.name().to_string(), theme.style(v.state.tone())),
-        Span::styled("   elapsed ", theme.dim()),
+        Span::styled(v.state.name().to_string(), Ink::of_tone(v.state.tone()).style(theme)),
+        Span::styled("   elapsed ", Ink::Dim.style(theme)),
         Span::styled(elapsed(v.elapsed_ms), theme.normal()),
-        Span::styled("   spend ", theme.dim()),
+        Span::styled("   spend ", Ink::Dim.style(theme)),
         Span::styled(spend, spend_style),
     ]);
 
@@ -616,16 +846,35 @@ fn draw_identity(
     // deciding.
     let policy = Line::from(Span::styled(
         format!("on cancel · {}", v.orphan_policy.plainly()),
-        theme.dimmer(),
+        Ink::Dimmer.style(theme),
     ));
 
     let mut lines = vec![status, policy];
     // A failure's reason belongs where the failure is named, not two panels away.
-    if let marlowe_view::RunState::Failed { error } = &v.state {
-        lines.push(Line::from(Span::styled(
+    //
+    // **And so does a pause's, which had no reader at all.** `state_of` maps every status word the
+    // window does not know — `interrupted`, `cancelling`, anything the daemon adds later — onto
+    // `Paused { reason }`, and that field was constructed and never rendered. So a run `/runs`
+    // called `interrupted` appeared here as the bare word `paused`, with the honest half of the
+    // answer sitting in a `String` nothing read: the sixteenth family, a declared value with no
+    // reader, and two answers to what one run is doing.
+    //
+    // Found in a screenshot of a real window. No test could have caught it: every fixture builds
+    // `RunState::Paused` with a reason and then asserts on the panel's *other* lines.
+    match &v.state {
+        marlowe_view::RunState::Failed { error } => lines.push(Line::from(Span::styled(
             marlowe_contract::text::sanitize_line(error).into_owned(),
-            theme.style(Tone::Red),
-        )));
+            Ink::Red.style(theme),
+        ))),
+        // Dim, not amber: the border already carries the state, and saying it twice at full
+        // strength spends attention on a run that is merely stopped.
+        marlowe_view::RunState::Paused { reason } if !reason.is_empty() => {
+            lines.push(Line::from(Span::styled(
+                marlowe_contract::text::sanitize_line(reason).into_owned(),
+                Ink::Dim.style(theme),
+            )))
+        }
+        _ => {}
     }
     Paragraph::new(lines).render(body, buf);
 }
@@ -650,12 +899,12 @@ fn draw_checkpoint(
     // resume do" are different questions, and the second is the one being debugged.
     let last = match v.checkpoint.last_completed {
         Some(step) => Line::from(vec![
-            Span::styled("last completed step · ", theme.dim()),
+            Span::styled("last completed step · ", Ink::Dim.style(theme)),
             Span::styled(format!("step {step}"), theme.normal()),
         ]),
         // **`None` means no checkpoint exists — not step zero.** Session A's words, and the
         // renderer says them rather than inventing a step the run never reached.
-        None => Line::from(Span::styled("no checkpoint yet", theme.dim())),
+        None => Line::from(Span::styled("no checkpoint yet", Ink::Dim.style(theme))),
     };
     // **What a resume would do, as the control plane answered it.**
     //
@@ -663,19 +912,25 @@ fn draw_checkpoint(
     // window made. When it is false the window says the run cannot be resumed **and invents no
     // reason**, because it has none: a run that completed, failed or was cancelled is not
     // resumable, and which of those it was is already on the identity panel above.
+    //
+    // **The answer is a FACT, drawn in the same two weights as the line above it** — dim label,
+    // body value. It rendered in green until M3 F2, which is the whole of that session's finding:
+    // green is a legal §B2 state colour, so no per-surface budget check could object, and the
+    // conversation pane spends it nowhere near here. `resumable` is not a health report; it is
+    // the same register as `last completed step`, and it now reads as one.
     let resume = match (v.checkpoint.resumable, v.checkpoint.last_completed) {
         (true, Some(step)) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled(format!("from step {step}"), theme.style(Tone::Green)),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled(format!("from step {step}"), theme.normal()),
         ]),
         // Resumable with no checkpoint yet is a real state — a run accepted and not yet stepped.
         (true, None) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled("from the beginning", theme.style(Tone::Green)),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled("from the beginning", theme.normal()),
         ]),
         (false, _) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled("not from here", theme.dim()),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled("not from here", Ink::Dim.style(theme)),
         ]),
     };
     Paragraph::new(vec![last, resume]).render(body, buf);
@@ -763,7 +1018,7 @@ fn panel_lines<'a>(label: &str, items: &[Item], theme: &Theme) -> Vec<Line<'a>> 
     if items.is_empty() {
         return vec![Line::from(Span::styled(
             format!("{} — none", label.to_lowercase()),
-            theme.dimmer(),
+            Ink::Dimmer.style(theme),
         ))];
     }
     items
@@ -786,23 +1041,48 @@ fn draw_steer(app: &WindowApp, theme: &Theme, tree: &RegionTree, area: Rect, buf
     if let Some(notice) = &app.notice {
         Paragraph::new(Line::from(Span::styled(
             marlowe_contract::text::sanitize_line(notice).into_owned(),
-            theme.style(Tone::Amber),
+            Ink::Amber.style(theme),
         )))
         .render(body, buf);
         return;
     }
 
-    let line = if app.steer.is_empty() && app.focus != RegionId::RunSteer {
+    // **The conversation pane's message field, exactly.** §6.4's rule is "do not reimplement the
+    // look", and this line was reimplementing it: an accent `\u{2588}` block drawn as a caret when
+    // the field held focus. `render::draw_message` has never drawn a caret at all — focus is
+    // signalled by §B2's three style swaps on the region, and a block that blinks in and out with
+    // the frame is a second, louder focus signal that the rest of the product does not use.
+    //
+    // So: the accent `\u{203A} ` prompt, the draft at body weight, the placeholder at weight 2 when
+    // there is none. Same three spans, same order, same register as the field this window is
+    // supposed to be a sibling of.
+    // Wrapped and grown, exactly as `render::draw_message` does it — §B10's "multiline by default"
+    // is a property of both composers or of neither.
+    let (lines, style) = if app.steer.is_empty() {
         // §B2's placeholder register: what the field is for, dim, never an instruction.
-        Line::from(Span::styled("steer this run", theme.dimmer()))
+        (vec!["steer this run".to_string()], Ink::Dim.style(theme))
     } else {
-        let cursor = if app.focus == RegionId::RunSteer { "\u{2588}" } else { "" };
-        Line::from(vec![
-            Span::styled(app.steer.replace('\n', " "), theme.normal()),
-            Span::styled(cursor.to_string(), Style::default().fg(theme.accent())),
-        ])
+        (
+            crate::render::wrap(&app.steer, body.width.saturating_sub(2).max(1) as usize),
+            if app.steer_selected() {
+                Ink::Accent.style(theme)
+            } else {
+                theme.normal()
+            },
+        )
     };
-    Paragraph::new(line).render(body, buf);
+    let rendered: Vec<Line> = lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, l)| {
+            Line::from(vec![
+                Span::styled(if i == 0 { "\u{203A} " } else { "  " }, Ink::Accent.style(theme)),
+                Span::styled(l, style),
+            ])
+        })
+        .collect();
+    let offset = (rendered.len() as u16).saturating_sub(body.height);
+    Paragraph::new(rendered).scroll((offset, 0)).render(body, buf);
 }
 
 /// The keys a run window answers to. §B8's namespace: Ctrl-modified keys are the footer's.
@@ -810,6 +1090,7 @@ pub const FOOTER_KEYS: &[(&str, &str)] = &[
     ("^r", "resume"),
     ("^x", "cancel"),
     ("^d", "detach"),
+    ("^c", "copy"),
     ("tab", "region"),
 ];
 
@@ -817,10 +1098,10 @@ fn draw_footer(theme: &Theme, area: Rect, buf: &mut Buffer) {
     let mut spans = Vec::new();
     for (i, (key, what)) in FOOTER_KEYS.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::styled("   ", theme.dimmer()));
+            spans.push(Span::styled("   ", Ink::Dimmer.style(theme)));
         }
-        spans.push(Span::styled((*key).to_string(), Style::default().fg(theme.accent())));
-        spans.push(Span::styled(format!(" {what}"), theme.dim()));
+        spans.push(Span::styled((*key).to_string(), Ink::Accent.style(theme)));
+        spans.push(Span::styled(format!(" {what}"), Ink::Dim.style(theme)));
     }
     Paragraph::new(Line::from(spans)).render(area, buf);
 }
@@ -828,7 +1109,10 @@ fn draw_footer(theme: &Theme, area: Rect, buf: &mut Buffer) {
 /// The scrollback height a window would need to show everything, for a driver deciding whether a
 /// scroll key does anything. Pure over `(view, width, height)`.
 pub fn scroll_max(app: &WindowApp, theme: &Theme, area: Rect) -> u16 {
-    let c = layout(area);
+    // **The grown chrome, or the hint disagrees with the viewport it is about.** A steer draft that
+    // pushed the output panel three rows shorter would otherwise leave the driver clamping scroll
+    // against a height that is no longer on screen.
+    let c = chrome_for(app, area);
     let lines = output_lines(app, theme, c.output_scroll.width);
     (lines.len() as u16).saturating_sub(c.output_scroll.height)
 }
@@ -845,7 +1129,10 @@ pub fn typing(app: &WindowApp) -> bool {
 /// comes from [`marlowe_view::RunState::name`], which is `&'static str` per variant — so a run
 /// cannot write its own window title, which is a surface the sanitiser does not cover.
 pub fn title(view: &RunView) -> String {
-    format!("marlowe · run {} · {}", view.id, view.state.name())
+    // The **name**, because a title is read at a glance across a taskbar and eight hex characters
+    // are not read at all. It is harness-derived from the id — see `RunView::name` — so the
+    // property this doc-comment turns on is unchanged: a run cannot write its own window title.
+    format!("marlowe · run {} · {}", view.name, view.state.name())
 }
 
 /// **The one definition of the command that attaches to a run.** `M3-DESIGN.md` §6.7.
@@ -897,15 +1184,21 @@ mod tests {
     #[test]
     fn the_window_title_cannot_carry_a_byte_the_run_chose_except_its_id() {
         // The terminal's own title bar is outside every sanitiser this crate owns — it is written
-        // with OSC 0, which the emulator interprets. So the title is built from a short id and a
-        // `&'static str` per state, and there is no arm that interpolates model text.
+        // with OSC 0, which the emulator interprets. So the title is built from a harness-derived
+        // name and a `&'static str` per state, and there is no arm that interpolates model text.
+        //
+        // **The name is as harness-authored as the id was.** `RunId::mnemonic` selects two entries
+        // from a closed 64x64 word list by folding the UUID's bytes, so the only reachable titles
+        // are 4096 pairs this repository spells out — a narrower alphabet than the hex it replaced,
+        // not a wider one.
         let v = view();
-        assert_eq!(title(&v), "marlowe · run a1b2c3d4 · running");
+        assert_eq!(title(&v), "marlowe · run daring-storm · running");
     }
 
     fn view() -> RunView {
         RunView {
             id: "a1b2c3d4".into(),
+            name: "daring-storm".into(),
             state: marlowe_view::RunState::Running,
             parent: None,
             elapsed_ms: 0,

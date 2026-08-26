@@ -39,7 +39,7 @@ fn every_region_is_reachable_from_the_default_focus() {
             );
 
             // The hotkey the border advertises, and nothing else. No Esc, no Tab, no warm-up.
-            app.on_key(Key::Char(target.hotkey()));
+            app.on_key(Key::Char(target.hotkey().expect("a frame region with no hotkey")));
 
             if app.focus == target.id() {
                 reached += 1;
@@ -254,7 +254,11 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
         if r.app.view().approval.is_some() {
             r.key(Key::Esc, now); // deny, and back out of the modal level
         } else {
-            r.key(Key::Ctrl('v'), now);
+            // **ADR-056: the chord moved because the footer moved.** `Ctrl-V` is paste now;
+            // Windows Terminal was eating it anyway, which this test could never have seen —
+            // it dispatches into `App` directly and never crosses a terminal. The PROPERTY is
+            // unchanged: a footer key must reach every §B5 state from inside a text field.
+            r.key(Key::Alt('v'), now);
         }
     }
     let mut distinct: Vec<&str> = seen.iter().map(|s| s.name()).collect();
@@ -263,7 +267,7 @@ fn ctrl_keys_work_even_from_inside_a_text_field() {
     assert_eq!(
         distinct.len(),
         7,
-        "^v must reach every state, not cycle a subset; saw {distinct:?}"
+        "alt-v must reach every state, not cycle a subset; saw {distinct:?}"
     );
     println!("status states reachable on demand: 7/7 (waiting via its overlay, as it should be)");
 }
@@ -282,4 +286,75 @@ fn ctrl_v_does_not_walk_past_a_pending_approval() {
         "a global shortcut escaped §B9's overlay; the overlay is the one modal element and \
          answering it is the only way out"
     );
+}
+
+// ─── M3 F2's composer keys, on the acceptance suite's terms ───────────────────────────────────
+
+/// §B10: *"the mouse adds no capability the keyboard lacks."* M3 F2 added editing chords and a
+/// composer that grows and scrolls, and this file did not know any of it existed — so the
+/// acceptance suite was asserting a keyboard the product no longer had.
+///
+/// Each of these is the §B10 property, not a duplicate of `composer.rs`: every one is reached
+/// **from the default focus**, by the advertised route, with no extra key that no border mentions.
+#[test]
+fn the_composers_editing_chords_are_reachable_from_the_default_focus() {
+    let mut r = common::rig();
+
+    // The documented way into the field: the hotkey printed on its own border.
+    r.key(Key::Char('i'), 0);
+    for c in "hello world".chars() {
+        r.key(Key::Char(c), 0);
+    }
+
+    r.key(Key::CtrlBackspace, 0);
+    assert_eq!(r.app.input, "hello ", "ctrl-backspace did not delete a word: {:?}", r.app.input);
+
+    r.key(Key::Ctrl('a'), 0);
+    r.key(Key::Char('x'), 0);
+    assert_eq!(r.app.input, "x", "ctrl-a did not select the draft: {:?}", r.app.input);
+}
+
+/// **`^c` must not end the session on one press**, and the footer must say it exists. It quit
+/// immediately for two milestones while appearing on no footer and in no test.
+#[test]
+fn ctrl_c_is_advertised_and_needs_two_presses() {
+    let mut r = common::rig();
+    assert!(
+        marlowe_surface::app::FOOTER_KEYS.iter().any(|(k, _)| *k == "^c"),
+        "a key that ends the session is not on the footer"
+    );
+    assert_ne!(r.app.on_key(Key::Ctrl('c')), marlowe_surface::app::Action::None, "^c did nothing at all");
+    assert_ne!(r.app.on_key(Key::Tab), marlowe_surface::app::Action::Quit);
+    // Tab disarmed it, so the next one is a first press again.
+    assert_ne!(r.app.on_key(Key::Ctrl('c')), marlowe_surface::app::Action::Quit);
+}
+
+/// ADR-056 moved the state cycle off `Ctrl-V`. The footer must advertise the chord that works.
+#[test]
+fn the_footer_advertises_alt_v_because_the_terminal_eats_ctrl_v() {
+    let footer: Vec<&str> = marlowe_surface::app::FOOTER_KEYS.iter().map(|(k, _)| *k).collect();
+    assert!(footer.contains(&"alt-v"), "{footer:?}");
+    assert!(!footer.contains(&"^v"), "the footer still claims a chord the terminal takes: {footer:?}");
+}
+
+/// §B10's *"multiline by default"* had a binding and no rendering. A newline must be reachable by
+/// key, and the field must be readable back — the second half is what was missing.
+#[test]
+fn a_multiline_message_is_composable_and_scrollable_by_key_alone() {
+    let mut r = common::rig();
+    r.key(Key::Char('i'), 0);
+    for _ in 0..3 {
+        for c in "a line of text ".chars() {
+            r.key(Key::Char(c), 0);
+        }
+        r.key(Key::ShiftEnter, 0);
+    }
+    assert!(r.app.input.contains('\n'), "shift-enter did not insert a newline");
+
+    // And the view moves by key, which is the only way to read back a message taller than the cap.
+    let before = r.app.composer_scroll();
+    r.key(Key::Up, 0);
+    assert_ne!(r.app.composer_scroll(), before, "Up did not move the composer");
+    r.key(Key::Down, 0);
+    assert_eq!(r.app.composer_scroll(), before, "Down did not return it");
 }

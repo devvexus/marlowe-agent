@@ -353,9 +353,30 @@ impl Tab {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Item {
     pub label: String,
-    /// The key on this item's bottom border. Registered in the surface's key registry, which
-    /// **errors at startup** on a collision rather than silently letting one key shadow another.
-    pub key: char,
+    /// What this item **is**, when the label is a rendering of something rather than the thing.
+    ///
+    /// A run's label is its mnemonic — `daring-storm` — and its identity is the UUID the journal
+    /// keys on. They are deliberately two fields: 4096 names means two live runs can share one,
+    /// so folding an updated run onto its row by name could merge two runs into one. `None` for
+    /// every item whose label is all there is.
+    pub id: Option<String>,
+    /// The key on this item's bottom border, when there is one.
+    ///
+    /// # `None` is a pane that ran out of letters, and it is better than the alternative
+    ///
+    /// Registered in the surface's key registry, which **errors on a collision** rather than
+    /// silently letting one key shadow another. The pane's pool is seventeen letters — every other
+    /// lowercase key is already spoken for by the region keys, the copy keys and the tab digits —
+    /// and `pane_key` used to CLAMP past the end, handing every later item the same `z`.
+    ///
+    /// That was invisible while nothing rebuilt the registry. Once `/runs` went live it became far
+    /// worse than "the eighteenth run has no key": the rebuild hit the collision, refused, and the
+    /// surface kept the previous registry — so **no run key worked at all** past seventeen runs.
+    ///
+    /// An item with no key is still a region: it has a border, it takes focus, and the arrows, the
+    /// wheel and the pointer all reach it. What it does not have is an accelerator, which is the
+    /// honest thing to render when there is no letter left to give.
+    pub key: Option<char>,
     /// Lines inside the region, each with its tone. Dimming is how a dense screen tells the eye
     /// where to look, so this is data, not styling.
     pub lines: Vec<(String, Tone)>,
@@ -370,17 +391,31 @@ impl Item {
     pub fn new(label: &str, key: char, tone: Tone, lines: &[(&str, Tone)]) -> Self {
         Self {
             label: label.to_string(),
-            key,
+            id: None,
+            key: Some(key),
             lines: lines.iter().map(|(s, t)| ((*s).to_string(), *t)).collect(),
             tone,
             editable: false,
         }
     }
 
+    /// An item with no accelerator. See [`Item::key`] for when that happens and why it beats
+    /// handing two items the same letter.
+    pub fn unkeyed(label: &str, tone: Tone, lines: &[(&str, Tone)]) -> Self {
+        Self { key: None, ..Self::new(label, 'a', tone, lines) }
+    }
+
+    /// Name what this item is, when its label is a rendering of that rather than the thing itself.
+    pub fn identified(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
     pub fn editable(label: &str, key: char, placeholder: &str) -> Self {
         Self {
             label: label.to_string(),
-            key,
+            id: None,
+            key: Some(key),
             lines: vec![(placeholder.to_string(), Tone::Dim)],
             tone: Tone::Normal,
             editable: true,

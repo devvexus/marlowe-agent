@@ -1,5 +1,251 @@
 ﻿# State
 
+## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1368 passed, 3 failed, 4 ignored**, tallied
+from `runs/session-f2/suite-selection.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
+worktree `../Marlowe_F2`, 8 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
+
+**The one failure is a test refusing to be vacuous**, and it says so itself:
+`cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` —
+*"neither model is present, so neither call site was exercised. This test cannot distinguish a wired
+loader from an unwired one here."* `models/` is gitignored and not vendored, so a fresh worktree
+cannot run it. Working exactly as designed.
+
+**`marlowe-daemon/tests/control_plane.rs` CANNOT BE RUN RELIABLY INSIDE A FULL WORKSPACE RUN ON
+THIS MACHINE, and raising its timeout twice was chasing the wrong number.** That is the finding;
+the two failures are the symptom.
+
+Each `Fixture::start` builds a **whole daemon in-process** — `Daemon::open` stands up the memory
+subsystem, embedder included, before `serve` is even reached — and the file starts ten of them.
+Run with `--jobs 4` alongside fifteen other test binaries, that binary took **413 seconds** and
+still timed out waiting for a control plane to advertise its port. Alone it passes in **3.4 s**.
+
+Four hundred seconds of wall time is not a logic error and not a bound that needs another twenty
+percent: it is a machine thrashing. The timeout went 4 s → 12 s → 30 s across this session and
+failed at every one of them under load, which is the tell that **the number was never the
+problem**. The honest fix is for this fixture to stop starting real daemons, or for the binary to
+run on its own; both are more than a patch and neither is F2's.
+
+**So the headline count above is from a run in which those two could not succeed**, and it is
+quoted that way rather than re-run until it looked better. `cuda_libs_wiring` is the third failure
+and is a test refusing to be vacuous: *"neither model is present, so neither call site was
+exercised"* — `models/` is gitignored and a fresh worktree cannot run it. Working as designed.
+
+The reason to believe the control-plane pair is starvation and not breakage is not that they pass
+alone, which is the weaker claim this project keeps warning about, but that
+`socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way: it failed
+reproducibly on its own *and at the base commit*, and passed inside every workspace run. Timing
+verdicts in this crate track machine load in both directions, and nothing in F2 touched the
+listener or `advertised_port`.
+
+### What F2 was for, and what it turned into
+
+The logged finding was **colour**: the window used `Tone::Green` and the conversation pane never
+does. That is fixed in one commit. The other three commits are what a real terminal produced once
+the window was actually driven, and that ratio is the finding worth keeping.
+
+**`chrome.rs` owns the palette as it owns the glyphs** (`bdbf514`). `chrome::Ink` is the
+vocabulary; `Theme` keeps the values. `RUN_WINDOW` is a strict subset of `CONVERSATION` — no green
+(no voice), no hover (no pointer), no structure-dim (no inactive panel). `render.rs`, `window.rs`
+and `overlay.rs` all draw through it.
+
+Two things fell out of routing the third surface. `overlay.rs` scrimmed every cell to a hard-coded
+`Color::DarkGray` in all three overlays — a colour chosen outside the palette, deaf to
+`MARLOWE_ACCENT` and invisible to any check that reads it. And `project.rs` painted a running run
+green, a second table disagreeing with `RunState::tone`, which has always answered `Normal`.
+
+**`tests/palette_subset.rs` is the cross-surface assertion no per-surface budget check can make**,
+and every assertion walks a drawn `Buffer`. `chrome.rs`'s own unit test that `RUN_WINDOW` is a
+subset is the value of a constant — family #16, green on a build where nothing reads it.
+
+**The comparison excludes §B5's status band, and the exclusion has its own control.** Green is the
+colour of `listening` and `speaking`; the band is a region a run window structurally lacks, so
+including it would let the window paint green for free and the subset would hold while saying
+nothing. `the_status_band_is_the_only_place_the_conversation_spends_green` **measures** that
+confinement rather than assuming it. If green ever leaks outside the band, the subset test is not
+evidence until it is re-derived.
+
+Three mutations run, all bite — including `Green` added to `RUN_WINDOW`, which fails with *"declares
+green and no window frame draws it"* and closes the escape hatch of widening the constant.
+
+### ELEVEN DEFECTS FOUND BY USING IT. TWELVE WINDOW TESTS SAW NONE OF THEM.
+
+This is the session's real output. The suite had twelve window tests and a five-size flicker check,
+all green through every one of these:
+
+| what | why no test could see it |
+|---|---|
+| titlebar showed `daring-s` as the run's id | fixtures hand-build `RunView`; they assert the struct's shape, never the plumbing that fills it |
+| window said `paused` where `/runs` said `interrupted` | `Paused { reason }` was constructed and **read by nothing** |
+| a single keystroke took up to 120 ms to appear | the draw sat before the read; a `Buffer` has no loop ordering |
+| a TCP round trip **per keystroke** | a `Buffer` has no socket |
+| an accent `█` caret the product does not have | asserting cells, not comparing surfaces |
+| the terminal's own cursor left visible | `tui.rs` has hidden it since M1; nothing compared the two |
+| the mouse uncaptured, so the frame drag-selects | §B10 requires capture; no test crosses a terminal |
+| clicking a panel did nothing | same |
+| a steer wedged the field — typing showed nothing | the notice displaced the draft and only `Esc` cleared it |
+| `^c` terminated one surface and did nothing in the other | advertised on no footer, asserted by no test |
+| both composers clipped everything past one row | `app.input` held the whole message, so state tests passed |
+
+**Budget one real run per milestone as verification, not as a demo.** M2 learned this with `done`
+going to the tool host. F2 is the same lesson at eleven times the volume, and the multiplier is
+that a window is *used* rather than *read*.
+
+### The paste, and the measurement that took three attempts
+
+`EnableBracketedPaste` was emitted and `Event::Paste` handled — and on Windows it never arrives,
+because crossterm reads input through the console API rather than parsing the VT stream. Three
+pasted paragraphs **sent three messages**. Every paste test passed: they call `App::paste`
+directly, asserting the handler and never the path.
+
+The first fix drained only what was already queued, written from an argument about what a terminal
+ought to deliver. It did not work. `--input-trace` said why:
+
+```text
+drained  1 event(s): "T"
+drained 48 event(s): "he traced wi"
+drained  1 event(s): "\""
+```
+
+**Windows Terminal writes a paste into the console buffer in CHUNKS and the loop drains faster than
+it writes**, so one paste arrived as dozens of fragments and none was ever the whole thing. After
+bridging that gap with `event::poll`'s own bounded wait: **one paste assembled as 1632 events in a
+single burst, and all 639 typed characters still arrived alone.**
+
+The 10 ms wait is not the timing guess refused twice. That guess — *"characters less than N ms
+apart are a paste"* — is a rule about **human typing speed**, fires on a fast typist, and needs a
+clock. This asks whether the **terminal** has finished writing; the gap is a buffer running dry
+mid-write, and a bounded `event::poll` is what the loop already paces itself with. §6.4 and
+`determinism_guard.rs` are untouched.
+
+**`--input-trace <FILE>` is kept.** A diagnostic that cannot be switched on where the defect lives
+is not a diagnostic — the first attempt used an environment variable and `wt.exe -w -1` opens the
+tab from the already-running terminal process, which inherits that process's environment and never
+sees one exported beside the launch.
+
+### ADR-056 — `Ctrl-V` is paste; `^v Voice` moves to `alt-v`
+
+The chord was **already unreachable on the primary platform**: Windows Terminal binds it and
+delivers a paste, so the application never saw it, and `b13_keyboard.rs` could not notice because it
+dispatches into `App` directly and never crosses a terminal. A test on the dispatch table cannot see
+a binding the terminal ate.
+
+Two acceptance tests moved with the footer. **The property each asserts is unchanged** — a footer
+key must reach every §B5 state from inside a text field, and the frame must render — and the ADR
+records the change so it is not a quiet edit.
+
+### THE RUNS PANE, AND A DEFECT THIS SESSION INTRODUCED
+
+Found by using it, like the other eleven, and one of them is F2's own.
+
+**`KeyRegistry::build` ran once, in `App::new`, and never again.** That was correct for as long as
+the Runs pane held whatever the connect-time snapshot produced: the registry and the view came from
+one view and could not disagree. **Making `/runs` live broke the invariant.** The pane fills with
+runs the registry has never seen, every one draws a hotkey on its border, and `resolve` misses all
+of them — §B10's own words, reached by a different route: *"the borders are then lying."*
+
+It rebuilds when the item keys move, and **a collision keeps the previous registry and says so on
+the status band** rather than panicking a running session or swallowing it.
+
+**`Enter` on a focused run was `Action::Redraw` — literally nothing.** The only route to a window
+was typing `/watch <name>` from memory, which is the affordance the pane exists to replace. It now
+emits the same pair `/watch` does — the spawn to the driver, the refresh to the producer — opens
+the run whose **id** the row carries rather than its label (a mnemonic can be shared), and the
+focused row shows the enter keycap, because an affordance nobody can see is folklore.
+
+**A third, found on the way and deliberately NOT fully fixed.** `pane_key`'s doc said *"Refuses to
+wrap — wrapping would hand two items the same key, which is the silent shadowing `KeyRegistry`
+exists to prevent"*, and the body is `PANE_KEYS[n.min(len - 1)]`, which **clamps**: every run past
+the seventeenth gets `z`. The claim was safe only because nothing rebuilt the registry, so the
+collision was never constructed — the doc and the body had disagreed since M1 and only a live pane
+could ever have exposed it.
+
+The honest fix is an item past the pool carrying **no** key — every lowercase letter is already
+spoken for by the region keys, the copy keys and the digits — which means `Item::key` becoming
+`Option<char>`, and §B13's region contract asserts a hotkey is always present. That is a design
+change with its own argument rather than a patch. The doc now states what the code does, the
+collision is visible at runtime, and **it is listed under "Still open" below.**
+
+### SELECTING AMONG MANY RUNS — AND THE DEFECT THAT WAS WORSE THAN RECORDED
+
+Asked for after the pane went live: *"what if we have multiple runs going? Arrow keys + mouse.
+Scrollable window too in case we have a ton."*
+
+**The arrows already worked and the pointer did not reach an item at all.** `region_at` tested the
+control strip, the status band, the conversation and the message field, and returned `None` over
+the inspector — so a click on a run did nothing. `render::item_rects` is now the geometry, read by
+the draw **and** by the driver's hit-testing, for the reason `tab_rects` and `chrome_for` exist:
+rows are variable height, scrolled by whole items and clipped at the fold, so a second derivation
+in the driver would put the click targets somewhere other than the borders.
+
+**§B10 says hit-testing stops at the region and an inspector item IS one** — `RegionTree::build`
+gives each a `RegionId`, a border and a hotkey, and §B2's focus table styles it like any other.
+That sentence predates items becoming regions. **Its stated reason is honoured rather than its
+letter**: a click does exactly what the letter does, one focus change through one dispatch, so the
+mouse gains no capability the keyboard lacks. With more than seventeen runs the letters run out and
+the pointer is the only way left to reach the eighteenth — the opposite of the thing §B10 guards.
+
+The wheel over the inspector now scrolls the **pane** whether or not it is over an item. Items
+became hit-testable, so `hit.is_none()` stopped being true exactly where scrolling matters most.
+
+**And the `pane_key` defect was worse than the previous entry claimed.** That entry said the
+eighteenth run could not be reached by key. In fact the clamp handed every run past the seventeenth
+the same `z`, so the rebuilt registry hit a collision, **refused, and the surface kept the previous
+registry — no run key worked at all.** Found by a test fixture with thirty runs in it, which is the
+number the question was about.
+
+`Item::key` is `Option<char>` now and `pane_key` returns `None` past the pool, which is what its
+doc comment had claimed since M1 while the body did the opposite. An unkeyed item **keeps its
+border**: §B2's *"a region with no hotkey has no border"* is about §B2's six — the titlebar, the
+footer, the inspector frame — and its purpose is that a border means an interactive region. An
+unkeyed run takes focus, the arrows step to it, the wheel scrolls to it and the pointer clicks it.
+Dropping its border would say the opposite of what is true.
+
+**§B13's region contract was updated, not weakened.** A hotkey is still required of every region in
+the frame; the single exception is an inspector item past its pane's pool, asserted **by
+`RegionId`** so nothing else can quietly become keyless. The run window keeps the contract whole —
+its regions are a fixed set of eight, so there is no pool to run out of.
+
+### Closed before the session ended
+
+* **`scroll_max()` and `draw_output()` no longer both walk the transcript.** The extent moves only
+  when the output does, when the viewport does, or when a key changed the steer field's height — a
+  scroll key moves the offset, not the line count. It is a **driver-side** cache: `WindowApp` still
+  holds no value produced by rendering, so §6.4's purity and `window_flicker.rs` are untouched,
+  which is the reason `scroll_max_hint` is set from outside in the first place.
+* **The resolver has tests, and they are on the decision rather than on the daemon.**
+  `ControlPlane` owns a `DurableControl<JournalCheckpoints>`, so testing through the struct means
+  standing a journal up on disk — and this session proved four times that a function needing a
+  daemon to test is a function nobody tests. `resolve_among` is pure; six tests cover a full UUID
+  resolving with no table at all, a mnemonic, the four-character prefix floor, an unknown token, an
+  escape sequence in the echo, and **ambiguity — with the colliding pair found by walking the name
+  space rather than invented**, because a hand-made collision would not prove one can happen.
+* **The run table has tests**: asking twice does not double the rows, watching twice updates in
+  place and keeps the later status, §B7 hotkeys hold their letters across a refresh, a row is
+  labelled by its mnemonic and still carries the id, **two runs sharing a name stay two rows**, and
+  a running run carries no state colour.
+* **`/runs` has tests on the half that was actually wrong** — that the summary is said *after* the
+  producer answers, not composed at dispatch from the stale view.
+* **`b13_keyboard.rs` knows the composer exists**: the editing chords are reached from the default
+  focus by the advertised route, `^c` is advertised and needs two presses, the footer names the
+  chord the terminal does not eat, and a multi-line message is composable *and readable back* by
+  key alone.
+
+### Still open
+
+* **A run window's multi-agent half remains untestable against a real run** — unchanged from F.
+  Every child-run property in the workspace is verified only against hand-constructed
+  `ModelStep::Spawn` values, and the roster panel is built, honest, and has nothing to show. Still
+  the strongest available argument for scheduling spawn next, and it comes from a surface rather
+  than from an argument.
+* **`control_plane.rs` needs to stop starting real daemons, or to run on its own.** See the top of
+  this entry: ten in-process daemons inside a parallel workspace run take 413 s and time out. The
+  timeout was raised twice this session and that was the wrong lever.
+* **`--input-trace` is kept and is not covered by a test.** It writes what the input queue actually
+  delivered, which is the instrument that settled the paste, and there is no way to assert on it
+  without a terminal. Named here rather than left to be discovered.
+
 ## 2026-08-25 — LOGGED FOR M3 F2: THE WINDOW DOES NOT LOOK LIKE THE PRODUCT
 
 **The human's finding, from using it:** the run window reads as a different application. *"Too many
@@ -28,7 +274,7 @@ two surfaces use the *same* ones. That gap is the finding.
 window in it, and add a test that the window's tone set is a **subset** of the conversation pane's —
 the assertion that would have caught this and that no per-surface budget check can.
 
-Not fixed. Logged before it gets built on.
+**Fixed in F2 — see the entry above.** The mechanism described here was right and was one commit of four; the other three are what using the window produced.
 
 ## 2026-08-25 — M3 SESSION F: THE AGENT WINDOW. ADR-054, ADR-055. Merged with A, green
 

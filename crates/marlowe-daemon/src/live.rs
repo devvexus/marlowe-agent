@@ -309,6 +309,23 @@ impl Produce for LiveSession {
             // **The window is Session F's; the state it renders is this.** So this fetches the
             // daemon's `RunDetail` and folds it into the Runs pane, which is the same state the
             // window will render — one state, two renderings, and F replaces the second one.
+            // §B7's Runs pane, **asked for rather than remembered**. `client.runs()` had exactly
+            // one caller in the workspace before this — `agent.rs`'s `--runs` flag — and the TUI
+            // never called it at all, so the pane rendered whatever `seed_from_journal` put there
+            // at daemon boot and no live run ever reached it.
+            //
+            // **The table is REPLACED, not appended to.** `Request::Runs` answers with the whole
+            // table, so folding it onto what is already here would double every row on the second
+            // `/runs` — and a run the daemon has forgotten would linger forever. The daemon's
+            // answer is the truth; the view holds a copy of it, not a history of it.
+            Intent::Runs => match self.client.runs() {
+                Ok(events) => {
+                    self.view.runs.clear();
+                    crate::project::apply_events(&mut self.view, &events);
+                    Ok(())
+                }
+                Err(e) => Err(self.declined("runs", &e)),
+            },
             Intent::Watch { run } => match self.client.watch(&run, 0) {
                 Ok(events) => {
                     crate::project::apply_events(&mut self.view, &events);

@@ -115,7 +115,7 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
         // No telemetry, so no reading. See this module's header.
         meter: MeterSource::None,
         runs: Vec::new(),
-        schedule: vec![not_built("Schedule", pane_key(0), "triggers land in M4")],
+        schedule: vec![not_built("Schedule", PANE_KEYS[0], "triggers land in M4")],
     }
 }
 
@@ -273,20 +273,24 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 view.status.detail = outcome.clone();
             }
             Event::Run { id, status, tokens, depth, .. } => {
-                view.runs.push(Item::new(
+                upsert_run(
+                    view,
                     id,
-                    // **From the safe pool, never a digit.** The first version numbered runs by
-                    // position, which produced '1'..'9' — the inspector tab digits (§B7). It would
-                    // have refused to start the moment a run existed, and only because
-                    // `KeyRegistry::build` errors on a collision rather than letting one key
-                    // silently shadow another.
-                    pane_key(view.runs.len()),
-                    if status == "running" { Tone::Green } else { Tone::Dim },
+                    // **Running is the ORDINARY case and carries no state colour** (M3 F2).
+                    // This was `Tone::Green`, and `RunState::tone` — the one table that decides
+                    // what a run's status looks like — has always answered `Normal` for a running
+                    // run, for the reason written there: accenting the ordinary case spends the
+                    // budget on the thing that needs no attention. This row was a second table,
+                    // disagreeing with the first, and green appears nowhere else in the pane it
+                    // draws into. Dimming is what distinguishes here, and dimming is load-bearing:
+                    // a stopped run needs nothing from the user and recedes.
+                    if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
+                        (id.as_str(), Tone::Dim),
                         (&format!("{tokens} tokens · depth {depth}"), Tone::Dim),
                     ],
-                ));
+                );
             }
             // **One state, two renderings** (§6.6). The Runs tab shows the row; the window shows
             // this. Both come from the daemon, and this fold never composes a fact of its own —
@@ -307,12 +311,14 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     Some(step) => format!("checkpoint step {step}"),
                     None => "no checkpoint".to_string(),
                 };
-                view.runs.push(Item::new(
+                upsert_run(
+                    view,
                     id,
-                    pane_key(view.runs.len()),
-                    if status == "running" { Tone::Green } else { Tone::Dim },
+                    // Same table, same reason. See the `Event::Run` arm above.
+                    if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
+                        (id.as_str(), Tone::Dim),
                         (&checkpoint, Tone::Dim),
                         (
                             &format!(
@@ -327,7 +333,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                             Tone::Dim,
                         ),
                     ],
-                ));
+                );
             }
             Event::Error { detail } => {
                 view.status.degraded = Some(classify_degradation(detail));
@@ -393,10 +399,69 @@ const PANE_KEYS: &[char] = &[
     'b', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'n', 'o', 'q', 'r', 't', 'u', 'x', 'z',
 ];
 
-/// The nth pane key. **Refuses to wrap** — wrapping would hand two items the same key, which is
-/// the silent shadowing `KeyRegistry` exists to prevent, reintroduced one layer up.
-fn pane_key(n: usize) -> char {
-    PANE_KEYS[n.min(PANE_KEYS.len() - 1)]
+/// A run's row, **replaced in place when it is already there**.
+///
+/// # Two bugs closed by one function
+///
+/// It was `view.runs.push(..)` in both arms. `Request::Runs` answers with the *whole* table, and
+/// `Request::Watch` answers with one run's detail, so a second `/runs` doubled every row and a
+/// second `/watch` on the same run added a duplicate beside the first. Nothing noticed, because
+/// nothing asked twice: the TUI never called `client.runs()` at all, and `/watch` had been a
+/// one-shot. Making the Runs pane live is what made asking twice ordinary.
+///
+/// **The key is kept across the update, and that is not a detail.** §B7 puts a hotkey on each
+/// item's border; `pane_key` assigns it by position, so re-deriving it on every refresh would
+/// shuffle the letters under the user's fingers whenever a run appeared or finished.
+///
+/// The **label is the mnemonic and the id is the UUID** — see [`Item::id`]. Matching on the id is
+/// what makes this safe: 4096 mnemonics means two live runs can share one, and folding by name
+/// would merge them into a single row.
+fn upsert_run(view: &mut SessionView, id: &str, tone: Tone, lines: &[(&str, Tone)]) {
+    let label = marlowe_loop::run::sayable(id);
+    match view.runs.iter().position(|i| i.id.as_deref() == Some(id)) {
+        Some(at) => {
+            let key = view.runs[at].key;
+            // The key is kept across the update, whatever it was — including `None`, so a run
+            // that never had a letter does not acquire one by being refreshed.
+            view.runs[at] = match key {
+                Some(key) => Item::new(&label, key, tone, lines).identified(id),
+                None => Item::unkeyed(&label, tone, lines).identified(id),
+            };
+        }
+        None => {
+            // **From the safe pool, never a digit.** The first version numbered runs by position,
+            // which produced '1'..'9' — the inspector tab digits (§B7). It would have refused to
+            // start the moment a run existed, and only because `KeyRegistry::build` errors on a
+            // collision rather than letting one key silently shadow another.
+            // `None` past the pool — every later run is reached by the arrows, the wheel or the
+            // pointer. Handing out a duplicate is what broke every key in the pane.
+            view.runs.push(match pane_key(view.runs.len()) {
+                Some(key) => Item::new(&label, key, tone, lines).identified(id),
+                None => Item::unkeyed(&label, tone, lines).identified(id),
+            });
+        }
+    }
+}
+
+/// The nth pane key, or `None` once the pool is spent.
+///
+/// # It used to clamp, and the doc claimed it refused to
+///
+/// `PANE_KEYS[n.min(len - 1)]` handed **every** item past the seventeenth the same `z`, while the
+/// comment above it said *"Refuses to wrap — wrapping would hand two items the same key, which is
+/// the silent shadowing `KeyRegistry` exists to prevent"*. Doc and body had disagreed since M1.
+///
+/// The claim was safe only because nothing rebuilt the registry, so the collision was never
+/// constructed. Making `/runs` live constructed it, and the consequence was worse than the missing
+/// key: the rebuild refused, the surface kept the previous registry, and **no run key worked at
+/// all** beyond seventeen runs. Found by a test fixture with thirty runs in it, which is the number
+/// the human asked about.
+///
+/// Now it means what it said. Every other lowercase letter is spoken for — region keys, copy keys,
+/// tab digits — so there is no eighteenth letter to hand out, and `None` is the truth. Those runs
+/// are reached by the arrows, the wheel and the pointer.
+fn pane_key(n: usize) -> Option<char> {
+    PANE_KEYS.get(n).copied()
 }
 
 fn not_built(what: &str, key: char, when: &str) -> Item {
@@ -555,6 +620,161 @@ mod tests {
         assert!(calls[0].is_failure());
         assert!(calls[0].expanded, "§B6: failures auto-expand");
     }
+
+    // ─── the run table (M3 F2) ───────────────────────────────────────────────────────────────
+
+    fn run_event(id: &str, status: &str) -> Event {
+        Event::Run {
+            id: id.into(),
+            status: status.into(),
+            tokens: 10,
+            depth: 0,
+            attribution: None,
+        }
+    }
+
+    fn an_id(name: &str) -> String {
+        marlowe_loop::RunId::from_name(name).0.to_string()
+    }
+
+    /// **`/runs` answers with the WHOLE table**, so folding a second answer onto the first doubled
+    /// every row. Nothing noticed while nothing asked twice — the TUI never called `client.runs()`
+    /// at all, so the pane held whatever daemon boot put there. Making it live is what made asking
+    /// twice ordinary.
+    #[test]
+    fn asking_for_the_runs_twice_does_not_double_the_rows() {
+        let mut view = view_from_status(&report());
+        let id = an_id("a");
+        apply_events(&mut view, &[run_event(&id, "running")]);
+        apply_events(&mut view, &[run_event(&id, "running")]);
+        assert_eq!(view.runs.len(), 1, "{:?}", view.runs.iter().map(|i| &i.label).collect::<Vec<_>>());
+    }
+
+    /// The same shape reached from the other end: `/watch` answers with one run's detail, so
+    /// watching twice added a duplicate beside the first.
+    #[test]
+    fn watching_one_run_twice_updates_its_row_rather_than_adding_another() {
+        let mut view = view_from_status(&report());
+        let id = an_id("b");
+        let detail = |status: &str| Event::RunDetail {
+            id: id.clone(),
+            status: status.into(),
+            parent: None,
+            elapsed_ms: 0,
+            spend_micros_usd: 0,
+            ceiling_micros_usd: 0,
+            spent_tokens: 1,
+            granted_tokens: 2,
+            depth: 0,
+            last_checkpoint_step: None,
+            resumable: true,
+            orphan_policy: "detach".into(),
+            pending_steers: 0,
+        };
+        apply_events(&mut view, &[detail("running")]);
+        apply_events(&mut view, &[detail("completed")]);
+        assert_eq!(view.runs.len(), 1);
+        // ...and it is the LATER state that survives, not the earlier one.
+        assert!(
+            view.runs[0].lines.iter().any(|(l, _)| l == "completed"),
+            "the row kept the stale status: {:?}",
+            view.runs[0].lines
+        );
+    }
+
+    /// **§B7 puts a hotkey on each item's border**, and `pane_key` assigns it by position. Deriving
+    /// it again on every refresh would shuffle the letters under the user's fingers each time a run
+    /// appeared or finished.
+    #[test]
+    fn a_refresh_keeps_each_rows_hotkey_where_the_user_last_saw_it() {
+        let mut view = view_from_status(&report());
+        let (a, b) = (an_id("first"), an_id("second"));
+        apply_events(&mut view, &[run_event(&a, "running"), run_event(&b, "running")]);
+        let keys: Vec<Option<char>> = view.runs.iter().map(|i| i.key).collect();
+
+        apply_events(&mut view, &[run_event(&a, "completed"), run_event(&b, "running")]);
+        assert_eq!(view.runs.iter().map(|i| i.key).collect::<Vec<_>>(), keys);
+    }
+
+    /// A row is labelled by the name a person can type, and carries the id it is a rendering of.
+    #[test]
+    fn a_row_is_labelled_by_its_mnemonic_and_still_shows_the_id() {
+        let mut view = view_from_status(&report());
+        let id = an_id("c");
+        apply_events(&mut view, &[run_event(&id, "running")]);
+
+        let row = &view.runs[0];
+        assert_eq!(row.label, marlowe_loop::run::sayable(&id));
+        assert_ne!(row.label, id, "the label is still the raw id");
+        assert_eq!(row.id.as_deref(), Some(id.as_str()), "the row lost the identity it renders");
+        assert!(
+            row.lines.iter().any(|(l, _)| l == &id),
+            "the full id is not on the row, so it cannot be copied: {:?}",
+            row.lines
+        );
+    }
+
+    /// **Two live runs can share a name.** Folding rows by label would merge them into one, which
+    /// is why `Item::id` exists and the upsert keys on it.
+    #[test]
+    fn two_runs_sharing_a_mnemonic_stay_two_rows() {
+        let mut view = view_from_status(&report());
+        let mut seen: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        let (a, b) = (0..20_000)
+            .find_map(|i| {
+                let id = marlowe_loop::RunId::from_name(&format!("run-{i}"));
+                seen.insert(id.mnemonic(), id.0.to_string())
+                    .map(|first| (first, id.0.to_string()))
+            })
+            .expect("no collision in 20000 ids, which contradicts 4096 names");
+
+        apply_events(&mut view, &[run_event(&a, "running"), run_event(&b, "running")]);
+        assert_eq!(view.runs.len(), 2, "two runs with one name collapsed into a single row");
+        assert_eq!(view.runs[0].label, view.runs[1].label, "the fixture is not actually a collision");
+    }
+
+    /// **Running is the ordinary case and carries no state colour** — `RunState::tone`'s rule,
+    /// which this fold used to disagree with by painting green.
+    #[test]
+    fn a_running_run_carries_no_state_colour_and_a_stopped_one_recedes() {
+        let mut view = view_from_status(&report());
+        apply_events(&mut view, &[run_event(&an_id("d"), "running")]);
+        assert_eq!(view.runs[0].tone, Tone::Normal);
+
+        let mut view = view_from_status(&report());
+        apply_events(&mut view, &[run_event(&an_id("e"), "completed")]);
+        assert_eq!(view.runs[0].tone, Tone::Dim);
+    }
+
+    /// **Past the pool there is no key, and there used to be a duplicate.**
+    ///
+    /// `pane_key` clamped, so every run after the seventeenth got `z`. That is the silent shadowing
+    /// `KeyRegistry` exists to catch — and once `/runs` went live the registry's refusal meant *no*
+    /// run key worked at all, which is strictly worse than the missing accelerator.
+    #[test]
+    fn a_pane_that_runs_out_of_letters_hands_out_none_rather_than_a_duplicate() {
+        let mut view = view_from_status(&report());
+        let n = PANE_KEYS.len() + 4;
+        let events: Vec<Event> = (0..n)
+            .map(|i| run_event(&an_id(&format!("run-{i}")), "running"))
+            .collect();
+        apply_events(&mut view, &events);
+        assert_eq!(view.runs.len(), n);
+
+        let keys: Vec<char> = view.runs.iter().filter_map(|i| i.key).collect();
+        let mut unique = keys.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(keys.len(), unique.len(), "two runs were handed the same key: {keys:?}");
+        assert_eq!(keys.len(), PANE_KEYS.len(), "the pool was not spent exactly once");
+        assert!(
+            view.runs[PANE_KEYS.len()..].iter().all(|i| i.key.is_none()),
+            "a run past the pool still claims a letter"
+        );
+        // ...and every one of them is still a run you can reach, which is what the arrows, the
+        // wheel and the pointer are for.
+        assert!(view.runs.iter().all(|i| i.id.is_some()));
+    }
 }
 
 #[cfg(test)]
@@ -597,17 +817,21 @@ mod key_tests {
 
         for item in v.runs.iter().chain(v.schedule.iter()) {
             assert!(
-                !REGION_KEYS.contains(&item.key),
+                !item.key.is_some_and(|k| REGION_KEYS.contains(&k)),
                 "pane item {:?} took region key {:?} (§B2) — the binary refuses to start",
                 item.label,
                 item.key
             );
             assert!(
-                !item.key.is_ascii_digit(),
+                !item.key.is_some_and(|k| k.is_ascii_digit()),
                 "pane item {:?} took a digit, which reaches an inspector tab (§B7)",
                 item.label
             );
-            assert!(!COPY_KEYS.contains(&item.key), "pane item {:?} took a copy key", item.label);
+            assert!(
+                !item.key.is_some_and(|k| COPY_KEYS.contains(&k)),
+                "pane item {:?} took a copy key",
+                item.label
+            );
         }
         assert!(!v.runs.is_empty() && !v.schedule.is_empty(), "the scan had nothing to check");
         let _ = Tab::ALL;

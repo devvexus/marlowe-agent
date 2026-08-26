@@ -385,6 +385,23 @@ impl Theme {
         self.structure
     }
 
+    /// The accent at 18% luminance — an inactive border. Named so [`crate::chrome::Ink`] can
+    /// reach every colour this theme can emit; without it the palette vocabulary would have a
+    /// hole exactly where `declared_colours` does not, and the two would disagree.
+    pub fn structure_dim(&self) -> Color {
+        self.structure_dim
+    }
+
+    /// Foreground weight 2 of 3, as a colour rather than a `Style`.
+    pub fn dim_color(&self) -> Color {
+        self.dim
+    }
+
+    /// Foreground weight 3 of 3, as a colour rather than a `Style`.
+    pub fn dimmer_color(&self) -> Color {
+        self.dimmer
+    }
+
     /// The colour for a tone. `Normal` is the terminal's own foreground; `Dim` is an explicit
     /// value, because SGR 2 is too widely unimplemented to carry §B2's dimming on its own.
     pub fn tone(&self, tone: Tone) -> Color {

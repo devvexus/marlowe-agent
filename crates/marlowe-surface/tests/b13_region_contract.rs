@@ -33,12 +33,32 @@ fn every_region_in_the_tree_has_a_label_and_a_hotkey() {
                 "{:?} has no label. §B2: the label says what the region holds",
                 r.id()
             );
-            assert!(
-                !r.hotkey().is_control() && !r.hotkey().is_whitespace(),
-                "{:?} has no reachable hotkey. §B2: a region with no hotkey has no border",
-                r.id()
-            );
-            assert_eq!(r.hotkey_label(), format!("({})", r.hotkey()));
+            // **A hotkey is still required of every region here, and the exception is named
+            // rather than assumed.** An inspector item past its pane's seventeen-letter pool has
+            // no accelerator — see `Item::key`, and the alternative it replaced, which was handing
+            // two items the same letter and taking the whole registry down with it. Nothing else
+            // in the frame may be keyless, and this fixture's panes are all inside the pool, so
+            // the count below is still 100%.
+            match r.hotkey() {
+                Some(k) => {
+                    assert!(
+                        !k.is_control() && !k.is_whitespace(),
+                        "{:?} has an unreachable hotkey {k:?}",
+                        r.id()
+                    );
+                    assert_eq!(r.hotkey_label(), format!("({k})"));
+                }
+                None => {
+                    assert!(
+                        matches!(r.id(), marlowe_surface::region::RegionId::Item(_, _)),
+                        "{:?} is not an inspector item and has no hotkey. §B2: a region with no \
+                         hotkey has no border",
+                        r.id()
+                    );
+                    // It draws no key on its border rather than an empty pair of brackets.
+                    assert_eq!(r.hotkey_label(), "");
+                }
+            }
             checked += 1;
         }
     }
@@ -52,12 +72,14 @@ fn no_two_regions_visible_together_claim_the_same_key() {
         let tree = RegionTree::build(session.view(), tab);
         let mut seen: BTreeMap<char, String> = BTreeMap::new();
         for r in tree.regions() {
-            if let Some(prev) = seen.insert(r.hotkey(), r.label().to_string()) {
+            // A region with no key claims none, so it cannot collide. That is the whole point of
+            // `None` over a duplicate.
+            let Some(k) = r.hotkey() else { continue };
+            if let Some(prev) = seen.insert(k, r.label().to_string()) {
                 panic!(
-                    "on the {} tab, '{}' is claimed by both {prev:?} and {:?}. One of those \
+                    "on the {} tab, '{k}' is claimed by both {prev:?} and {:?}. One of those \
                      borders is lying about how to reach it",
                     tab.title(),
-                    r.hotkey(),
                     r.label()
                 );
             }
@@ -159,11 +181,10 @@ fn every_region_in_a_run_window_has_a_label_and_a_hotkey() {
     assert!(!tree.regions().is_empty(), "premise: a window has regions at all");
     for r in tree.regions() {
         assert!(!r.label().trim().is_empty(), "{:?} has no label", r.id());
-        assert!(
-            !r.hotkey().is_control() && !r.hotkey().is_whitespace(),
-            "{:?} has no reachable hotkey",
-            r.id()
-        );
+        // **No exception here.** A window's regions are a fixed set of eight declared in
+        // `for_window` — there is no pool to run out of — so the original contract stands whole.
+        let k = r.hotkey().unwrap_or_else(|| panic!("{:?} has no hotkey at all", r.id()));
+        assert!(!k.is_control() && !k.is_whitespace(), "{:?} has an unreachable hotkey", r.id());
     }
     println!(
         "run window: {} bordered regions with a label and a hotkey (100%)",
@@ -178,11 +199,11 @@ fn every_region_in_a_run_window_has_a_label_and_a_hotkey() {
 fn no_two_regions_in_a_run_window_claim_the_same_key() {
     let mut seen: BTreeMap<char, String> = BTreeMap::new();
     for r in RegionTree::for_window().regions() {
-        if let Some(prev) = seen.insert(r.hotkey(), r.label().to_string()) {
+        let k = r.hotkey().expect("a window region with no hotkey");
+        if let Some(prev) = seen.insert(k, r.label().to_string()) {
             panic!(
-                "in a run window '{}' is claimed by both {prev:?} and {:?}, and both are on \
+                "in a run window '{k}' is claimed by both {prev:?} and {:?}, and both are on \
                  screen at once",
-                r.hotkey(),
                 r.label()
             );
         }
