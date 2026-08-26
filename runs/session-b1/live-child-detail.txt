@@ -1,0 +1,23 @@
+run arctic-reef
+  id          f57d36fd-921b-4eb3-981e-4e17130fae46
+  status      completed
+  parent      feae602b-1072-4d6e-8e82-5cce26498b32
+  elapsed     1142 ms
+  spend       0 of 750000 micros_usd
+  tokens      2927 of 75000 granted
+  depth       2
+  checkpoint  step 0
+  resume      not resumable
+  on cancel   children terminate
+  steers      0 queued
+run south-pioneer
+  id          feae602b-1072-4d6e-8e82-5cce26498b32
+  status      completed
+  elapsed     8766 ms
+  spend       0 of 2000000 micros_usd
+  tokens      12832 of 200000 granted
+  depth       3
+  checkpoint  step 1
+  resume      not resumable
+  on cancel   children terminate
+  steers      0 queued

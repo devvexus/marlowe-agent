@@ -1669,8 +1669,18 @@ impl Daemon {
         }
 
         let trace = run.trace_id;
-        let mut recorder =
-            marlowe_loop::record::SharedJournalRecorder::new(std::sync::Arc::clone(&self.journal), trace);
+        // **Wrapped so a spawned child reaches `/runs` while it is alive.** ADR-057 / `roster.rs`:
+        // `ask_streaming_with` inserts the row for the turn the daemon accepted, and until this
+        // session that was the only writer of the run table. `Engine::spawn` creates children and
+        // knows nothing about a control plane, so a child existed in the journal and in no
+        // listing — invisible for the whole of M2 because no model call could produce a spawn.
+        let mut recorder = crate::roster::RosterRecorder::new(
+            marlowe_loop::record::SharedJournalRecorder::new(
+                std::sync::Arc::clone(&self.journal),
+                trace,
+            ),
+            std::sync::Arc::clone(&self.plane),
+        );
         let outcome = {
             let mut ports = Ports {
                 driver: driver.as_mut(),

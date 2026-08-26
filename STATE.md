@@ -1,5 +1,232 @@
 ﻿# State
 
+## 2026-08-26 — M3 SESSION B1: `run` SPAWNS. ADR-057
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1395 passed, 0 failed, 4 ignored over 118 `test result` lines**, tallied from
+`runs/session-b1/suite.txt`. Branch `m3-run-spawns`, worktree `../Marlowe_B1`, from `d60c0b8`.
+
+**`run` could not spawn and never had.** `builtin.rs` told the model so in its own description —
+*"This build cannot spawn one yet, so the call is refused"* — and `ollama.rs` routed a `run` call to
+a tool host with no executor so the refusal would be one the model could act on. Both were accurate
+and neither was the problem. `Engine::spawn` has been complete since M2 Session A.
+
+What was missing was a **decision**, and the source said which one: §5 requires a spawn's capability
+profile, budget and orphan policy to be *declared at spawn, never inferred*, the model supplies a
+task, and synthesising the other six fields is what that rule forbids.
+
+### ADR-057 — the parent declares, and a default is not an inference
+
+The distinction is the whole decision. **Inference is reading the task and concluding something
+about the contract** — seeing "search for X" and handing the child `web`. **A default is a fixed
+constant that does not vary with the task**, and a constant chosen once and written down is a
+declaration. So the rule is per-field and total:
+
+| Field | Declared by | When the parent does not name it |
+|---|---|---|
+| `task` | the model, **required** | refused by name; a child sent an empty brief burns its grant asking what it was for |
+| `contract` | the model's `output_contract` line | `"what you found"`, one `findings` field — a shape the harness fixes |
+| `tools` | the model's `exposed_tools` | **empty. Not the parent's set** |
+| `grant_tokens` | the model's `budget_tokens` | `None` → `share` of the parent's *original* pool |
+| `share` | **the harness, always** | `Standard`, and not a parameter at all |
+| `orphan` | the model's `orphan_policy` | `Terminate` |
+| `reads_untrusted` | **the harness, always** | `false`, and not a parameter at all |
+
+`share` and `reads_untrusted` are withheld the way §5 says to withhold anything: structurally, by not
+being in the parameter list, so a model cannot reach them by naming them. **`adopt` is withheld the
+same way** — `OrphanPolicy::Adopt { by }` names a run id, the model has no way to name one and no
+`await` to name one from, and a policy whose argument cannot be supplied cannot be declared. The word
+is not accepted rather than accepted and quietly turned into something else.
+
+**What makes the defaults legitimate is the receipt**, not an argument. `Engine::spawn` now pushes
+one line into the parent's window at spawn time:
+
+```text
+[spawned] tools: none · budget: 75000 tokens · orphan: terminate · returns: what you found
+```
+
+Before this there was nothing at all between the spawn and the child's return, so a model that asked
+for `read` and got none — because the parent does not hold `read` — could not tell. CLAUDE.md's rule
+is *"watch for defaults that make a mismatch unobservable"*, and the answer here is to say what was
+granted rather than to refuse a model that omitted a field. The one model-supplied field on that line
+goes through `sanitize_line` and a length cap: it is a payload, so under a latched floor it may be
+attacker-shaped, and a newline in it would let that content contribute a line reading like a harness
+receipt.
+
+### THE FINDING: A SPAWN WAS NEVER ADJUDICATED
+
+`run`'s manifest has declared `exposed_tools`, `budget_*` and `orphan_policy` as
+`ArgumentRole::Target` since M2 Session A, with the comment that untrusted content choosing a child's
+tool set *"is the trifecta reassembling itself one level down"*.
+
+**Nothing enforced it.** `ModelStep::Spawn` is matched in the loop and goes straight to
+`Engine::spawn`; only `tool_batch` calls `self.adjudicator`. `ModelStep::MemoryWrite` hands
+`run.trust_floor()` to the memory host — `ModelStep::Spawn` handed the floor to nobody.
+
+It was invisible because **the path was dead.** No model call could produce a spawn, so every
+`SpawnRequest` in the workspace was hand-built in a test at `UserAsserted`, where the check would not
+have fired either way. Instance #16 — a declared control nothing reads — sitting on top of an
+unreachable path, so neither half was visible from the other. **Making `run` spawn is what makes it
+reachable, so the check ships in the same commit.**
+
+The rule (ADR-057 §4.1): under a floor that blocks composed targets, a spawn's **targets must be
+exactly the harness defaults**; its payload may be anything. The threshold is
+`marlowe_permission::blocks_composed_targets` — the same function the adjudicator enforces on and the
+§B5 banner reads. **A tainted run may still spawn**, at the defaults: delegation is how a latched
+parent gets work done without acting itself, `Run::child` copies `trust_floor` so a spawn is not a
+laundering step, and a child with no tools composes no targets at all.
+
+### The acceptance test, and the vacuity a mutation caught
+
+`crates/marlowe-provider/tests/spawn_from_a_model_reply.rs` — **18 tests, and not one `ModelStep`
+constructor in the file.** Every step comes from the JSON `/api/chat` delivers, through the shipped
+`parse_step`, into a real `Engine`.
+
+Reverting `control_step`'s `run` arm fails **all 18**. It did not, at first: the two trust-latch
+tests asserted `RunSpawned == 0`, which is what a refused spawn looks like **and what a build where
+`run` cannot spawn at all looks like** — the state that shipped for the whole of M2. They now run the
+identical request twice, tainted and clean, and assert on the difference. Five further mutations
+checked: the latch, the zero-grant floor, the receipt-is-not-a-constant, the roster, and the
+composition root.
+
+### M3 SESSION A's CLAIMS, RE-MEASURED ON REAL SPAWNS
+
+**The depth-4 budget claim TRANSFERS, and that is worth stating as clearly as a divergence would
+be.** `budget.rs`'s acceptance row calls `Budget::grant` four times with `spent: Budget::default()`
+at every level — a tree in which no parent has spent anything, which is not a tree that can exist,
+since a parent must make a model call to emit the spawn. Re-measured through four real spawns from
+model replies:
+
+```text
+leaf at depth 4 UNDER REAL SPAWNS: 3954 of 200000 tokens = 1.98% (per level: [75000, 28125, 10546, 3954])
+```
+
+**Identical to the arithmetic-only row**, because `grant` takes its share of the *original* clamped
+by what remains, and a spawn's own hundred tokens are nothing against 200k. The scoped-measurement
+rule cuts both ways and this is the direction it usually does not get written down.
+
+**The orphan policy needed a child that had not finished, and that is a real constraint on the
+mechanism today.** A spawn blocks, so a child whose next reply is prose *completes* — and
+`settle_orphan` returns `None` for a finished run, correctly, because marking a completed child
+cancelled would rewrite history. So the first two attempts recorded **no fate at all**, `[]` rather
+than a wrong verb. The policy is reachable only for a child that paused on its budget:
+`orphan_policy: detach` with `budget_tokens: 600` is one model call and not two. Both fates now
+assert on the child's fate through a real spawn — `detached`, and `terminated` for the default, which
+is the control that stops one verb from passing for both. **Concurrency is what makes orphan policy
+general, and that is Session C.**
+
+### THE SECOND THING THAT WAS INVISIBLE: CHILDREN WERE IN NO LISTING
+
+`Daemon::ask_streaming_with` inserts one `RunSummary` — the turn the daemon accepted — and that was
+the **only** writer of the live run table. `Engine::spawn` creates children, journals them, and knows
+nothing about a control plane, because the loop is a state machine over injected ports and must not
+acquire a dependency on the daemon. So a spawned child existed **in the log and in no listing**;
+`/runs` showed the parent alone, and F's roster panel is a hardcoded `subagents: Vec::new()`.
+
+A roster empty because the tree is empty and a roster empty because nothing fills it read
+identically. `marlowe-daemon/src/roster.rs` closes it by **listening on the port the daemon already
+owns** — a decorator over the journal recorder that folds `RunSpawned`, `Checkpointed` and
+`RunCompleted` into the run table, journal write first and never conditional on the projection.
+
+Two tests, because the property has two halves: one drives a model reply into a real engine over a
+real signed journal and asserts the frame `/runs` renders; the other reads the composition root for
+the installation, because a test on the source cannot see what the running process assembled —
+`persona_emission.rs`'s lesson.
+
+### THE LIVE RUN, AND THE DEFECT IT FOUND
+
+**Budgeted as verification, not as a demo, and it earned its place on the first try.** With
+`qwen3.5:9b` on the shipped release binary:
+
+```text
+run arctic-reef                                 run south-pioneer
+  status      completed                           status      completed
+  parent      feae602b-…                          elapsed     8766 ms
+  elapsed     1142 ms                             tokens      12832 of 200000 granted
+  tokens      2927 of 75000 granted               depth       3
+  depth       2
+  on cancel   children terminate
+```
+
+Marlowe delegated, the child appeared in `/runs` under a sayable name, at depth 2, holding the 3/8
+`Standard` share of the parent's pool.
+
+**And the first reading was wrong in a way no test had caught.** The child reported **32,804 ms
+inside a parent that took 3,536 ms** — impossible for a blocking spawn, and it read longer every time
+anyone looked. `ControlPlane::detail` is *"final when there is one, live otherwise"*: a row whose
+`elapsed_ms` is `0` is reported as `now - started_ms`. `roster.rs` inserted the child's row and never
+closed it.
+
+Two fixes, because zero was doing two jobs — *not finished yet* and *finished having taken almost
+none*. `roster.rs` closes the row from the child's last checkpoint when its status is terminal, and
+`detail` no longer times a stopped run live whatever its final number was. Neither alone leaves a
+moving answer, so *"it did not move"* could not tell them apart; a mutation proved exactly that, and
+the assertion is now on the child's own measured wall time. Re-verified live: **1142 ms, and the same
+1142 ms five seconds later.**
+
+### `coerce_to_declared_types` NOW HAS NO LIVE INSTANCE, and that is recorded rather than hidden
+
+ADR-057 §6 renames `run.budget_micros_usd` to `budget_tokens` and retypes it `Integer`.
+`SpawnRequest::grant_tokens` and `Budget::grant`'s `explicit` are **tokens**; wiring the old name to
+the field it named would have handed a micro-dollar count to a token grant — a correct number about
+the wrong quantity.
+
+`Amount` is documented as money, so it goes with the rename, and it was the **only** builtin
+parameter that had one. `coerce_to_declared_types` is one arm wide and that arm is `Amount`, so **it
+is now a no-op on every shipped path** until a spend ceiling returns with the trust ledger at M6.
+
+Its two tests moved onto a **hand-built** manifest rather than being retargeted at `budget_tokens`,
+where `Integer`-declared-and-`Integer`-supplied would have made them green and vacuous — and a third
+was added asserting the coercion is driven by the declared type, so a version that turned every
+integer into an `Amount` would render a 12,000-token grant as `0.012000` on a line a human approves.
+
+### B2 IS NOW WRITABLE, AND THIS IS THE PART TO READ BEFORE STARTING IT
+
+CLAUDE.md's layer-3 correction says the latch cannot fire in a parent run in the shipped product,
+because `ingest` has one caller in the workspace and it is the eval adapter — so every test that
+establishes taint by hand-pushing an `InjectedMemory` block measures a state the product cannot
+enter. **That is unchanged. B1 did not wire `ingest` and did not touch the compaction stamp or the
+trim marker; the ordering rule stands.**
+
+What changed is that the probe CLAUDE.md asks for now has a second run to cross. Before this session
+there were no children outside a test, so *"a refused composed target across two turns"* could only
+ever be measured inside one run. A spawn is now a real boundary: a parent can be latched, a child
+inherits its floor, and **a spawn's own targets are refused at that floor** — which is a third
+refusal site the probe can assert on, alongside the tool call and the memory write.
+
+Wire it in the recorded order: **the compaction stamp and the trim marker first, then `ingest`**, and
+then the probe reads a `Channel::Web` belief through a parent and a child.
+
+### One operational note for the next worktree
+
+**The first run of that suite read `1394 passed, 1 failed`, and the failure was the worktree, not
+the tree.** `models/` is gitignored and lives only in the main checkout, so
+`cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` refused to be
+vacuous in exactly the words F2 recorded: *"neither model is present, so neither call site was
+exercised."*
+
+A directory junction fixes it and costs nothing:
+
+```powershell
+New-Item -ItemType Junction -Path <worktree>\models -Target <main checkout>\models
+```
+
+The number above is from the re-run with that in place. Worth doing at the start of a worktree
+session rather than explaining one failure at the end of it.
+
+### Still open
+
+- **The orphan policy is only reachable through a budget-paused child**, because a spawn blocks.
+  Not a defect — `settle_orphan` is right to leave a finished child alone — but it means `Adopt` has
+  no loop-level test and cannot get one until runs are concurrent (Session C).
+- **`RunView::subagents` is still `Vec::new()` in `watch_client.rs`.** The run table now holds
+  children; the *window's* roster panel does not read them yet. `/runs` shows a child; a run window
+  does not.
+- **No `await` and no steer target for a child.** `run` spawns and blocks; the model cannot name a
+  run id, so it cannot address one.
+- `pane_key` still clamps past seventeen items (F2's open item, untouched).
+
+---
+
 ## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1368 passed, 3 failed, 4 ignored**, tallied

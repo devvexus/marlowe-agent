@@ -9,7 +9,7 @@
 //! [`CallLimits::max_output_tokens`] is a **hard cap that must be passed to the provider**, not
 //! a hint the harness checks afterwards. See `budget`.
 
-use marlowe_permission::{Args, BlastRadius};
+use marlowe_permission::{ArgValue, Args, BlastRadius};
 use marlowe_tools::{ExposedSet, ResultSummary, ToolId};
 use serde::{Deserialize, Serialize};
 
@@ -76,6 +76,93 @@ pub struct SpawnRequest {
     /// Sets the quarantined-reader profile, which forces the tool set empty. A spawn asking
     /// for both is a load-time error — see `profile`.
     pub reads_untrusted: bool,
+}
+
+/// The default contract description, when the parent names none. ADR-057 §1.
+pub const DEFAULT_SPAWN_CONTRACT: &str = "what you found";
+
+impl SpawnRequest {
+    /// Build a spawn from the arguments a model supplied to `run`. **ADR-057 §1.**
+    ///
+    /// # Why this lives in the loop and not in the provider adapter
+    ///
+    /// `SpawnRequest` is defined here and `Engine::spawn` enforces here, so a second provider
+    /// that wrote its own mapping would be a second definition of the contract — the
+    /// two-sides-silently-disagree shape this project keeps recording. The adapter's job is to
+    /// recognise that the model named `run`; deciding what a `run` call *means* is the loop's.
+    ///
+    /// # It is total, and that is the decision rather than an omission
+    ///
+    /// Every field has a fixed rule (ADR-057 §1) and an unrecognised value takes it. The rule is
+    /// safe because it is the conservative end of each field **and** because `Engine::spawn`
+    /// echoes what it granted into the parent's window — a default a model cannot see is the
+    /// "defaults that make a mismatch unobservable" family, and the receipt is what closes it.
+    ///
+    /// `share` and `reads_untrusted` are not read from `args` at all. ADR-057 §5: they are
+    /// withheld structurally, so a model cannot reach them by naming them.
+    pub fn from_args(args: &Args) -> Self {
+        let text = |k: &str| args.get(k).and_then(ArgValue::as_text).unwrap_or_default().trim();
+
+        let description = {
+            let d = text("output_contract");
+            if d.is_empty() { DEFAULT_SPAWN_CONTRACT.to_string() } else { d.to_string() }
+        };
+
+        SpawnRequest {
+            task: text("task").to_string(),
+            contract: OutputContract::new(description, &["findings"]),
+            orphan: parse_orphan(text("orphan_policy")),
+            // ADR-057 §5. Not `args`-derived, and deliberately not a parameter.
+            share: BudgetShare::Standard,
+            grant_tokens: parse_grant(args),
+            tools: parse_tools(text("exposed_tools")),
+            // ADR-057 §5. Layer 1 decides what is quarantined; a model does not ask to be.
+            reads_untrusted: false,
+        }
+    }
+}
+
+/// **Two words, not three.** `OrphanPolicy::Adopt { by }` names a run id, the model has no way to
+/// name one, and a policy whose argument cannot be supplied cannot be declared — so the word is
+/// not accepted rather than accepted and quietly turned into something else. ADR-057 §2.
+fn parse_orphan(s: &str) -> OrphanPolicy {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "detach" | "detached" => OrphanPolicy::Detach,
+        _ => OrphanPolicy::Terminate,
+    }
+}
+
+/// An explicit token grant. **Zero is not a grant of zero — it is no grant at all.**
+///
+/// `Budget::exhausted` compares `spent >= budget`, so a child granted zero tokens pauses before its
+/// first model call and returns nothing, and the parent reads a failure whose stated reason is not
+/// the real one. That is instance #17, in the one function where a model can type the number.
+/// A model that means "as little as possible" is answered by the default share, which
+/// `Budget::grant` floors at 1 while the parent still has any.
+fn parse_grant(args: &Args) -> Option<u64> {
+    let n = match args.get("budget_tokens")? {
+        ArgValue::Integer(n) => *n,
+        ArgValue::Amount(a) => *a as i64,
+        ArgValue::Text(s) => s.trim().parse::<i64>().ok()?,
+        ArgValue::Boolean(_) => return None,
+    };
+    if n <= 0 {
+        return None;
+    }
+    Some(n as u64)
+}
+
+/// A tool list as a model actually writes it: `read, find`, `["read","find"]`, `read find`.
+///
+/// **Nothing here decides whether a tool may be given away.** `Engine::spawn` checks every id
+/// against the parent's exposed set and refuses by name; this only turns a string into ids. A
+/// filter here would be a second gate that could silently disagree with the first.
+fn parse_tools(s: &str) -> Vec<ToolId> {
+    s.split([',', ' ', '\t', '\n', '[', ']', '"', '\''])
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .map(ToolId::new)
+        .collect()
 }
 
 /// One call inside a [`ModelStep::ToolCall`] batch.

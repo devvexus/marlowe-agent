@@ -188,16 +188,20 @@ mod tests {
     fn a_numeric_argument_has_no_attribution_path() {
         let mut p = Provenance::new();
         p.attribute_user_message("spend 500");
-        let args = Args::new().with("budget_micros_usd", ArgValue::Amount(500));
+        // `budget_tokens` — ADR-057 §6 renamed it from `budget_micros_usd` and retyped it from
+        // `Amount` to `Integer`, because `SpawnRequest::grant_tokens` is tokens and a token count
+        // is not money. The property under test is unchanged: a number is a Target and carries the
+        // floor, whichever numeric variant it arrives as.
+        let args = Args::new().with("budget_tokens", ArgValue::Integer(12_000));
         let dirty = view_with(vec![Block::new(
             SourceKind::ToolResults,
             "page",
             TrustClass::UntrustedContent,
         )]);
         assert_eq!(
-            p.taint_for(&args, &dirty, TrustClass::UserAsserted).of("budget_micros_usd"),
+            p.taint_for(&args, &dirty, TrustClass::UserAsserted).of("budget_tokens"),
             TrustClass::UntrustedContent,
-            "an amount is a Target; `the model picked a number` is not evidence about who chose it"
+            "a number is a Target; `the model picked a number` is not evidence about who chose it"
         );
     }
 }

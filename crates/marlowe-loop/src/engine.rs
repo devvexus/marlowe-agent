@@ -1483,10 +1483,16 @@ impl<S: PathScope> Engine<S> {
 
         // **Coerce arguments to the type the manifest declared.**
         //
-        // `run.budget_micros_usd` is declared `ParamType::Amount` and no provider produces an
-        // `ArgValue::Amount`: JSON has one number type, so a spend ceiling arrives as `Integer`.
-        // A declared type the runtime value never takes is a type nobody can branch on — anything
-        // matching `Amount` was dead code on the model path.
+        // A parameter declared `ParamType::Amount` never arrives as one: JSON has a single number
+        // type, so a money value reaches any provider as `Integer`. A declared type the runtime
+        // value never takes is a type nobody can branch on — anything matching `Amount` was dead
+        // code on the model path.
+        //
+        // **And as of ADR-057 §6 there is no live instance at all.** `run.budget_micros_usd` was
+        // the only builtin parameter typed `Amount`; it is now `budget_tokens`, typed `Integer`,
+        // because `SpawnRequest::grant_tokens` is tokens and `Amount` is money. So this function
+        // is a no-op on every shipped path until a spend ceiling returns with the trust ledger at
+        // M6. Recorded rather than deleted: the arm is right, its subject left.
         //
         // It lives HERE rather than in the Ollama adapter because the manifest is here. A second
         // provider would otherwise need the same coercion and would not know to have it, which is
@@ -2233,6 +2239,56 @@ impl<S: PathScope> Engine<S> {
         ports: &mut Ports<'_>,
         req: SpawnRequest,
     ) {
+        // ── the task, which is the one field the model actually supplies ────────────────
+        //
+        // Refused here rather than in the adapter so that every construction site gets the same
+        // answer, and refused **by name**: a child sent an empty brief has a fresh window with
+        // nothing in it and will burn its whole grant asking what it was for.
+        if req.task.trim().is_empty() {
+            self.tool_error(
+                state,
+                &ToolId::new("run"),
+                "a spawn needs a `task` — a child starts with a fresh window and knows nothing \
+                 that is not in it",
+                CONTROL_CALL_ID,
+            );
+            return;
+        }
+
+        // ── ADR-057 §4: LAYER 3, AT THE ONE CALL SITE THAT DID NOT HAVE IT ──────────────
+        //
+        // `run`'s manifest has always declared `exposed_tools`, `budget_tokens` and
+        // `orphan_policy` as **Targets** — untrusted content choosing a child's tool set is the
+        // trifecta reassembling itself one level down. Nothing enforced it. `ModelStep::Spawn`
+        // goes straight here from the loop's match and never reaches `self.adjudicator`, which
+        // only `tool_batch` calls.
+        //
+        // It was invisible because the path was dead: until ADR-057 no model call could produce a
+        // spawn, so every `SpawnRequest` in the workspace was hand-built in a test at
+        // `UserAsserted`, where this check does not fire either way. Instance #16 — a declared
+        // control nothing reads — on top of an unreachable path, so neither half was visible from
+        // the other.
+        //
+        // **A tainted run may still spawn.** Delegation is how a latched parent gets work done
+        // without acting itself; the child inherits the parent's floor (`Run::child` copies
+        // `trust_floor`, so a spawn is not a laundering step), and a child with no tools composes
+        // no targets at all. What is refused is untrusted content choosing *which* tools and *how
+        // much* budget. The payload flows; the target does not.
+        //
+        // The threshold is `blocks_composed_targets` — the same function the adjudicator enforces
+        // on and the §B5 banner reads. M2 C2f: one definition, or the banner and the guard drift.
+        if blocks_composed_targets(run.trust_floor()) && composes_spawn_targets(&req) {
+            self.tool_error(
+                state,
+                &ToolId::new("run"),
+                "this run has read untrusted content, so a child's tools, budget and orphan \
+                 policy can no longer be composed here — spawn with none of them and the child \
+                 gets the safe defaults, or do the work in this run",
+                CONTROL_CALL_ID,
+            );
+            return;
+        }
+
         // Depth and subagent count are declared caps, checked before anything is created.
         //
         // **Granted, never sliced (M3 Session A).** `slice_for` took its share of what REMAINED,
@@ -2316,6 +2372,52 @@ impl<S: PathScope> Engine<S> {
         // **The declared policy, recorded where something reads it.** `settle_children` is that
         // reader; before M3 Session A the value went into the journal and nowhere else.
         self.children.entry(run.id).or_default().push((child_id, req.orphan));
+
+        // ── the receipt, ADR-057 §2 ──────────────────────────────────────────────────────
+        //
+        // **This is what makes ADR-057's defaults legitimate rather than silent.** Six of a
+        // spawn's seven fields are supplied by rule when the parent does not name them, and
+        // CLAUDE.md's standing warning is about *"defaults that make a mismatch unobservable"*.
+        // The answer is not to refuse a model that omitted a field — it is to say what it got.
+        //
+        // Before this, a parent's window held nothing at all between the spawn and the child's
+        // return. A model that asked for `read` and was given none, or asked to detach and was
+        // given `terminate` because it misspelled it, had no way to find out.
+        //
+        // **Harness-authored except for one field, and that field is normalised.** The tool list
+        // has already been checked against the parent's set, the budget is a number, and the
+        // policy is a closed enum. The contract's description is the parent's own prose — it does
+        // not cross a trust boundary, because it is going back into the window it came from — but
+        // it is a **payload**, so under a latched floor it may have been shaped by untrusted
+        // content. A newline in it would let that content contribute a line that reads like a
+        // harness receipt, which is `CondensedResult::render`'s forgery hazard in a new place, so
+        // it is put through `sanitize_line` and capped rather than interpolated raw.
+        let returns = {
+            let one_line = marlowe_contract::text::sanitize_line(req.contract.description.trim());
+            match one_line.char_indices().nth(RECEIPT_RETURNS_MAX_CHARS) {
+                Some((cut, _)) => format!("{}…", &one_line[..cut]),
+                None => one_line.into_owned(),
+            }
+        };
+        let granted_tools = if req.tools.is_empty() {
+            "none".to_string()
+        } else {
+            req.tools.iter().map(ToolId::to_string).collect::<Vec<_>>().join(", ")
+        };
+        state.push(Block::new(
+            SourceKind::History,
+            format!(
+                "[spawned] tools: {granted_tools} · budget: {} tokens · orphan: {} · returns: {}",
+                child_budget.tokens,
+                match req.orphan {
+                    OrphanPolicy::Terminate => "terminate",
+                    OrphanPolicy::Detach => "detach",
+                    OrphanPolicy::Adopt { .. } => "adopt",
+                },
+                returns,
+            ),
+            TrustClass::AgentObserved,
+        ));
 
         // A fresh context window and a self-contained brief. The child does not know its
         // siblings exist, because nothing about them is in here.
@@ -2542,4 +2644,25 @@ impl<S: PathScope> Engine<S> {
 /// refusal reports what it was.
 pub fn blocked_summary(why: &str) -> ResultSummary {
     ResultSummary::with_detail(vec![Metric::State("blocked")], why)
+}
+
+/// How much of a contract's description the spawn receipt repeats. One line of a brief, not a
+/// brief: the receipt exists so a model can see what it was granted, and a description long enough
+/// to push the numbers off the end defeats it.
+const RECEIPT_RETURNS_MAX_CHARS: usize = 160;
+
+/// Whether a spawn request **composes any target**. ADR-057 §4.1.
+///
+/// A spawn's targets are the three fields `run`'s manifest declares as `ArgumentRole::Target`:
+/// which tools the child holds, how much it may spend, and how long it outlives its parent. Its
+/// payload is the task and the contract description.
+///
+/// Stated as *"anything other than the harness defaults"* rather than *"the model named it"*,
+/// because `SpawnRequest` records the value and not who supplied it — and the value is what the
+/// child gets. A request already at the defaults is granted under a latched floor: the child holds
+/// no tools, so there is no target for untrusted content to have chosen.
+fn composes_spawn_targets(req: &SpawnRequest) -> bool {
+    !req.tools.is_empty()
+        || req.grant_tokens.is_some()
+        || !matches!(req.orphan, OrphanPolicy::Terminate)
 }

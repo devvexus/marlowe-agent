@@ -48,6 +48,7 @@ pub mod mcp;
 pub mod memory;
 pub mod onboarding;
 pub mod recall;
+pub mod roster;
 /// The `use` tool: skill discovery and progressive disclosure. ADR-051.
 pub mod skills;
 pub mod project;
