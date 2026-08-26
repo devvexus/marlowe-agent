@@ -2,9 +2,9 @@
 
 ## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
 
-**`cargo test --workspace --jobs 4 --no-fail-fast`: 1358 passed, 1 failed, 4 ignored**, tallied
-from `runs/session-f2/suite-final.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
-worktree `../Marlowe_F2`, 6 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1363 passed, 1 failed, 4 ignored**, tallied
+from `runs/session-f2/suite-runs-pane.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
+worktree `../Marlowe_F2`, 7 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
 
 **The one failure is a test refusing to be vacuous**, and it says so itself:
 `cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` —
@@ -12,20 +12,22 @@ worktree `../Marlowe_F2`, 6 commits ahead of `01d69e0`, pushed. Not merged to ma
 loader from an unwired one here."* `models/` is gitignored and not vendored, so a fresh worktree
 cannot run it. Working exactly as designed.
 
-**Two `control_plane` tests failed in the FIRST run of this suite and passed in this one**, and that
-is recorded rather than tidied away. They wait 4 s for the plane to write its port file, and the
-first run had sixteen test binaries and a build competing for the machine. The reason to believe
-"load-sensitive" rather than "intermittently broken" is not that they pass alone — that is the
-weaker claim this project keeps warning about — but that
-`socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way in the same pair of
-runs: it failed reproducibly on its own earlier in the session *and at the base commit*, and passed
-inside both workspace runs. Timing verdicts in this crate track machine load in both directions.
-Nothing in F2 touched the listener or `advertised_port`.
+**Two `control_plane` tests failed in two of four workspace runs, and the timeout was raised
+rather than the flakiness described.** They wait for the daemon to write its port file while
+sixteen test binaries and a build compete for the machine, and 4 s is not long enough for a cold
+process under that. **The patience is not the property**: what the test asserts is that a client
+reaches its own daemon's control plane, and how long that daemon took to start is no part of the
+claim. A timeout short enough to fail on a busy machine turns an assertion into a coin flip. Twelve
+seconds costs nothing on the runs where it passes.
 
-**The standing hazard this is an instance of** is CLAUDE.md's form 6 — *one session's build
-invalidates another's measurement* — applied to a timeout rather than to a stopwatch. A suite run
-that shares a machine with a build is not a clean read, and the number quoted at the top of this
-entry is from the run that did not.
+The reason to believe "load-sensitive" rather than "intermittently broken" — before it was fixed —
+was not that they passed alone, which is the weaker claim this project keeps warning about, but
+that `socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way across the same
+runs: it failed reproducibly on its own *and at the base commit*, and passed inside every workspace
+run. Timing verdicts in this crate track machine load in both directions.
+
+**This is CLAUDE.md's shared-resource hazard, form 6 — *one session's build invalidates another's
+measurement* — applied to a timeout rather than to a stopwatch.**
 
 ### What F2 was for, and what it turned into
 
@@ -123,6 +125,38 @@ Two acceptance tests moved with the footer. **The property each asserts is uncha
 key must reach every §B5 state from inside a text field, and the frame must render — and the ADR
 records the change so it is not a quiet edit.
 
+### THE RUNS PANE, AND A DEFECT THIS SESSION INTRODUCED
+
+Found by using it, like the other eleven, and one of them is F2's own.
+
+**`KeyRegistry::build` ran once, in `App::new`, and never again.** That was correct for as long as
+the Runs pane held whatever the connect-time snapshot produced: the registry and the view came from
+one view and could not disagree. **Making `/runs` live broke the invariant.** The pane fills with
+runs the registry has never seen, every one draws a hotkey on its border, and `resolve` misses all
+of them — §B10's own words, reached by a different route: *"the borders are then lying."*
+
+It rebuilds when the item keys move, and **a collision keeps the previous registry and says so on
+the status band** rather than panicking a running session or swallowing it.
+
+**`Enter` on a focused run was `Action::Redraw` — literally nothing.** The only route to a window
+was typing `/watch <name>` from memory, which is the affordance the pane exists to replace. It now
+emits the same pair `/watch` does — the spawn to the driver, the refresh to the producer — opens
+the run whose **id** the row carries rather than its label (a mnemonic can be shared), and the
+focused row shows the enter keycap, because an affordance nobody can see is folklore.
+
+**A third, found on the way and deliberately NOT fully fixed.** `pane_key`'s doc said *"Refuses to
+wrap — wrapping would hand two items the same key, which is the silent shadowing `KeyRegistry`
+exists to prevent"*, and the body is `PANE_KEYS[n.min(len - 1)]`, which **clamps**: every run past
+the seventeenth gets `z`. The claim was safe only because nothing rebuilt the registry, so the
+collision was never constructed — the doc and the body had disagreed since M1 and only a live pane
+could ever have exposed it.
+
+The honest fix is an item past the pool carrying **no** key — every lowercase letter is already
+spoken for by the region keys, the copy keys and the digits — which means `Item::key` becoming
+`Option<char>`, and §B13's region contract asserts a hotkey is always present. That is a design
+change with its own argument rather than a patch. The doc now states what the code does, the
+collision is visible at runtime, and **it is listed under "Still open" below.**
+
 ### Closed before the session ended
 
 * **`scroll_max()` and `draw_output()` no longer both walk the transcript.** The extent moves only
@@ -155,6 +189,10 @@ records the change so it is not a quiet edit.
   `ModelStep::Spawn` values, and the roster panel is built, honest, and has nothing to show. Still
   the strongest available argument for scheduling spawn next, and it comes from a surface rather
   than from an argument.
+* **`pane_key` clamps past seventeen runs, so the eighteenth collides.** Now visible rather than
+  silent — `App::update` keeps the previous registry and puts the conflict on the band — but the
+  eighteenth run still cannot be reached by key. Fixing it properly means `Item::key: Option<char>`
+  against a §B13 contract that says a hotkey is always there; see `pane_key`'s doc for the argument.
 * **`--input-trace` is kept and is not covered by a test.** It writes what the input queue actually
   delivered, which is the instrument that settled the paste, and there is no way to assert on it
   without a terminal. Named here rather than left to be discovered.

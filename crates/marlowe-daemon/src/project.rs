@@ -399,8 +399,6 @@ const PANE_KEYS: &[char] = &[
     'b', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'n', 'o', 'q', 'r', 't', 'u', 'x', 'z',
 ];
 
-/// The nth pane key. **Refuses to wrap** — wrapping would hand two items the same key, which is
-/// the silent shadowing `KeyRegistry` exists to prevent, reintroduced one layer up.
 /// A run's row, **replaced in place when it is already there**.
 ///
 /// # Two bugs closed by one function
@@ -436,6 +434,24 @@ fn upsert_run(view: &mut SessionView, id: &str, tone: Tone, lines: &[(&str, Tone
     }
 }
 
+/// The nth pane key.
+///
+/// # Its doc comment used to say "refuses to wrap" and the body clamped
+///
+/// `PANE_KEYS[n.min(len - 1)]` hands **every** item past the seventeenth the same key, `z` — which
+/// is precisely the silent shadowing the comment claimed to prevent and that `KeyRegistry` exists
+/// to catch. The claim was safe only because nothing rebuilt the registry, so the collision was
+/// never constructed; making `/runs` live is what would have surfaced it, at the eighteenth run.
+///
+/// **It clamps, and that is now recorded rather than denied.** The honest fix is for an item past
+/// the pool to carry NO key — every lowercase letter is already spoken for by the region keys, the
+/// copy keys and the digits, so there is no eighteenth letter to hand out — and that means
+/// `Item::key` becoming an `Option<char>`, which §B13's region contract asserts is always present.
+/// That is a design change with its own argument, not a patch, so it is named in `STATE.md` and
+/// left for the session that takes it.
+///
+/// Until then the collision is **visible**: `App::update` keeps the previous registry and puts the
+/// conflict on the status band rather than swallowing it.
 fn pane_key(n: usize) -> char {
     PANE_KEYS[n.min(PANE_KEYS.len() - 1)]
 }

@@ -94,8 +94,19 @@ impl Fixture {
         panic!("the daemon never bound {}", self.port);
     }
 
+    /// **The patience is not the property.**
+    ///
+    /// This waited 4 s (200 x 20 ms) and failed in two of four workspace runs during M3 F2 — the
+    /// daemon binds and writes its port file while sixteen test binaries and a build compete for
+    /// the machine, and 4 s is simply not long enough for a cold process under that. What the test
+    /// asserts is that the client reaches ITS OWN daemon's control plane; how long the daemon took
+    /// to start is not part of that claim, and a timeout short enough to fail on a busy machine
+    /// turns a real assertion into a coin flip.
+    ///
+    /// Twelve seconds costs nothing when it passes, which is the overwhelming majority of runs.
+    /// CLAUDE.md's shared-resource hazard, form 6, applied to a timeout rather than a stopwatch.
     fn wait_until_advertised(&self) {
-        for _ in 0..200 {
+        for _ in 0..600 {
             if control_plane::advertised_port(&self.profile()).is_some() {
                 return;
             }

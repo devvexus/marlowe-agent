@@ -406,6 +406,39 @@ impl App {
         if let marlowe_view::MeterSource::Reported(f) = view.meter {
             self.last_meter = f;
         }
+        // **The registry is rebuilt when the items change, and until M3 F2 it never was.**
+        //
+        // `KeyRegistry::build` ran once, in `App::new`. That was correct while the Runs pane held
+        // whatever `seed_from_journal` produced at connect time — the registry and the view were
+        // built from the same snapshot and could not disagree. **Making `/runs` live broke that
+        // invariant**: the pane filled with runs the boot-time view had never heard of, every one
+        // of them drew a hotkey on its border, and `keys.resolve` missed every single one.
+        //
+        // §B10 names this exactly: *"an implementation that starts focused in the message field
+        // makes every hotkey printed on every border inert on arrival, and the borders are then
+        // lying."* Same lie, reached by a different route — the border advertises `(b)` and `b`
+        // does nothing.
+        //
+        // Rebuilt only when the item keys actually move, because this runs on every republish.
+        if item_keys(&view) != item_keys(&self.view) {
+            match KeyRegistry::build(&view) {
+                Ok(k) => self.keys = k,
+                // **The previous registry is kept and the collision is SAID.** A conflict here is
+                // not a startup error any more — the session is already running and a panic would
+                // take the user's draft with it — but silently keeping a stale registry is how
+                // this defect got in. Degrade visibly, name the remedy (invariant 4).
+                Err(conflict) => {
+                    self.view = view;
+                    self.set_status_detail(format!(
+                        "two panes claimed {conflict} — hotkeys are showing the previous set until                          one of them goes"
+                    ));
+                    if let Some(tab) = self.pending_pane_summary.take() {
+                        self.client_note(crate::commands::pane_summary(&self.view, tab), Tone::Normal);
+                    }
+                    return;
+                }
+            }
+        }
         self.view = view;
         // **Said here, not at dispatch.** The pane's summary counts what the pane holds, so it is
         // composed once the producer's answer is in the view rather than from what was there when
@@ -1095,6 +1128,28 @@ Action::Redraw
                 }
                 Action::Redraw
             }
+            // **A run listed with no way to act on it is a listing, not a pane.** `/runs` showed
+            // every run and offered nothing to do with one: the only route to a window was typing
+            // `/watch <name>` from memory, which is the affordance the pane exists to replace.
+            //
+            // The two effects are Session F's split, unchanged: the **spawn** goes to the driver,
+            // because a surface holds no process API, and the pane refresh goes to the producer.
+            // Same pair `run_command("watch")` emits, so there is one path and not two.
+            RegionId::Item(tab, i) if tab == self.tab.into() => {
+                let run = crate::inspector::items_for(&self.view, self.tab)
+                    .get(i)
+                    .and_then(|item| item.id.clone());
+                match run {
+                    Some(run) => {
+                        self.window_asks.push(Outcome::Watch(run.clone()));
+                        self.ask(Intent::Watch { run });
+                    }
+                    // An item that names nothing cannot be opened, and saying so is better than a
+                    // key that looks live and is not.
+                    None => self.notice = Some("nothing to open here".into()),
+                }
+                Action::Redraw
+            }
             RegionId::Item(_, _) => Action::Redraw,
             RegionId::Message => Action::None,
             // **A run window's regions, listed rather than swept into a `_`.** `RegionTree::build`
@@ -1591,6 +1646,21 @@ Action::Redraw
             _ => Action::None,
         }
     }
+}
+
+/// Every item hotkey a view would claim, in pane order.
+///
+/// The cheap half of "did the registry go stale": rebuilding on every republish would walk six
+/// panes per crank, and the answer only changes when a run appears, finishes or is renamed.
+fn item_keys(view: &SessionView) -> Vec<(u8, char)> {
+    marlowe_view::Tab::ALL
+        .iter()
+        .flat_map(|tab| {
+            crate::inspector::items_for(view, *tab)
+                .into_iter()
+                .map(move |i| (*tab as u8, i.key))
+        })
+        .collect()
 }
 
 /// Delete back to the start of the previous word.

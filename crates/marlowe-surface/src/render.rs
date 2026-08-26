@@ -866,6 +866,20 @@ pub fn tab_rects(tab_bar: Rect) -> Vec<(Tab, Rect)> {
     out
 }
 
+/// How tall one inspector row is.
+///
+/// **One definition, read by the draw AND by the scroll extent.** They compute the same number for
+/// the same row, and two arithmetics for one height is the shape that puts a pane's scrollbar and
+/// its content in different places.
+///
+/// The focused row is one taller when it can be acted on: §B2 puts the enter keycap where Enter
+/// acts, and a run listed with no visible way to open it leaves the affordance the pane exists to
+/// provide as folklore. Only the focused row carries it — every row would be eight copies of one
+/// sentence, which is the density §B2 spends its dimming to avoid.
+fn row_height(item: &marlowe_view::Item, shows_keycap: bool) -> u16 {
+    item.lines.len() as u16 + 2 + u16::from(shows_keycap)
+}
+
 fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &mut Buffer) {
     // The inspector has no single hotkey — each tab has one — so under §B2 it has no border.
     let mut spans: Vec<Span> = Vec::new();
@@ -905,8 +919,10 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
         // How many items fit if the LAST one is flush with the bottom; everything before that is
         // how far it can scroll.
         let (mut acc, mut fit) = (0u16, 0usize);
-        for item in items.iter().rev() {
-            let h = item.lines.len() as u16 + 2;
+        for (i, item) in items.iter().enumerate().rev() {
+            // The focused row is a row taller, because it carries the keycap — see the draw below.
+            // The extent has to agree with what is drawn or the pane scrolls to the wrong place.
+            let h = row_height(item, app.focus == RegionId::Item(app.tab(), i));
             if acc + h > view {
                 break;
             }
@@ -923,7 +939,8 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
     for (i, item) in items.iter().enumerate().skip(off) {
         let id = RegionId::Item(app.tab(), i);
         let Some(region) = tree.get(id) else { continue };
-        let h = item.lines.len() as u16 + 2;
+        let opens = item.id.is_some() && app.focus == id;
+        let h = row_height(item, opens);
         if y + h > c.inspector_scroll.bottom() {
             break;
         }
@@ -981,6 +998,13 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
                 })
                 .collect()
         };
+        let mut body = body;
+        if opens {
+            body.push(Line::from(Span::styled(
+                format!("{} watch", crate::chrome::KEYCAP_ENTER),
+                Ink::Dim.style(theme),
+            )));
+        }
         Paragraph::new(body).render(text, buf);
         y += h + 1;
     }
