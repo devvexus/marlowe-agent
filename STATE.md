@@ -213,6 +213,16 @@ New-Item -ItemType Junction -Path <worktree>\models -Target <main checkout>\mode
 The number above is from the re-run with that in place. Worth doing at the start of a worktree
 session rather than explaining one failure at the end of it.
 
+**The junction is still in `../Marlowe_B1/models`.** It is gitignored, and it points *into the main
+checkout* — so remove it with `Remove-Item` on the junction itself (or `git worktree remove`, which
+refuses while untracked files remain) and never with a recursive delete that follows links, or the
+real `models/` goes with it.
+
+**The count was taken on exactly the tree that was committed.** No `.rs` or `.toml` changed between
+the run and `0f4c98d`; only `STATE.md`, `DECISIONS.md`, the ADR and `runs/session-b1/` moved, and
+none of those compiles. `git status --porcelain` filtered to source is empty at the commit, which is
+the check rather than the assertion.
+
 ### Still open
 
 - **The orphan policy is only reachable through a budget-paused child**, because a spawn blocks.
