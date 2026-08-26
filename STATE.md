@@ -2,9 +2,9 @@
 
 ## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
 
-**`cargo test --workspace --jobs 4 --no-fail-fast`: 1363 passed, 1 failed, 4 ignored**, tallied
-from `runs/session-f2/suite-runs-pane.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
-worktree `../Marlowe_F2`, 7 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1368 passed, 3 failed, 4 ignored**, tallied
+from `runs/session-f2/suite-selection.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
+worktree `../Marlowe_F2`, 8 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
 
 **The one failure is a test refusing to be vacuous**, and it says so itself:
 `cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` —
@@ -12,22 +12,32 @@ worktree `../Marlowe_F2`, 7 commits ahead of `01d69e0`, pushed. Not merged to ma
 loader from an unwired one here."* `models/` is gitignored and not vendored, so a fresh worktree
 cannot run it. Working exactly as designed.
 
-**Two `control_plane` tests failed in two of four workspace runs, and the timeout was raised
-rather than the flakiness described.** They wait for the daemon to write its port file while
-sixteen test binaries and a build compete for the machine, and 4 s is not long enough for a cold
-process under that. **The patience is not the property**: what the test asserts is that a client
-reaches its own daemon's control plane, and how long that daemon took to start is no part of the
-claim. A timeout short enough to fail on a busy machine turns an assertion into a coin flip. Twelve
-seconds costs nothing on the runs where it passes.
+**`marlowe-daemon/tests/control_plane.rs` CANNOT BE RUN RELIABLY INSIDE A FULL WORKSPACE RUN ON
+THIS MACHINE, and raising its timeout twice was chasing the wrong number.** That is the finding;
+the two failures are the symptom.
 
-The reason to believe "load-sensitive" rather than "intermittently broken" — before it was fixed —
-was not that they passed alone, which is the weaker claim this project keeps warning about, but
-that `socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way across the same
-runs: it failed reproducibly on its own *and at the base commit*, and passed inside every workspace
-run. Timing verdicts in this crate track machine load in both directions.
+Each `Fixture::start` builds a **whole daemon in-process** — `Daemon::open` stands up the memory
+subsystem, embedder included, before `serve` is even reached — and the file starts ten of them.
+Run with `--jobs 4` alongside fifteen other test binaries, that binary took **413 seconds** and
+still timed out waiting for a control plane to advertise its port. Alone it passes in **3.4 s**.
 
-**This is CLAUDE.md's shared-resource hazard, form 6 — *one session's build invalidates another's
-measurement* — applied to a timeout rather than to a stopwatch.**
+Four hundred seconds of wall time is not a logic error and not a bound that needs another twenty
+percent: it is a machine thrashing. The timeout went 4 s → 12 s → 30 s across this session and
+failed at every one of them under load, which is the tell that **the number was never the
+problem**. The honest fix is for this fixture to stop starting real daemons, or for the binary to
+run on its own; both are more than a patch and neither is F2's.
+
+**So the headline count above is from a run in which those two could not succeed**, and it is
+quoted that way rather than re-run until it looked better. `cuda_libs_wiring` is the third failure
+and is a test refusing to be vacuous: *"neither model is present, so neither call site was
+exercised"* — `models/` is gitignored and a fresh worktree cannot run it. Working as designed.
+
+The reason to believe the control-plane pair is starvation and not breakage is not that they pass
+alone, which is the weaker claim this project keeps warning about, but that
+`socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way: it failed
+reproducibly on its own *and at the base commit*, and passed inside every workspace run. Timing
+verdicts in this crate track machine load in both directions, and nothing in F2 touched the
+listener or `advertised_port`.
 
 ### What F2 was for, and what it turned into
 
@@ -157,6 +167,46 @@ spoken for by the region keys, the copy keys and the digits — which means `Ite
 change with its own argument rather than a patch. The doc now states what the code does, the
 collision is visible at runtime, and **it is listed under "Still open" below.**
 
+### SELECTING AMONG MANY RUNS — AND THE DEFECT THAT WAS WORSE THAN RECORDED
+
+Asked for after the pane went live: *"what if we have multiple runs going? Arrow keys + mouse.
+Scrollable window too in case we have a ton."*
+
+**The arrows already worked and the pointer did not reach an item at all.** `region_at` tested the
+control strip, the status band, the conversation and the message field, and returned `None` over
+the inspector — so a click on a run did nothing. `render::item_rects` is now the geometry, read by
+the draw **and** by the driver's hit-testing, for the reason `tab_rects` and `chrome_for` exist:
+rows are variable height, scrolled by whole items and clipped at the fold, so a second derivation
+in the driver would put the click targets somewhere other than the borders.
+
+**§B10 says hit-testing stops at the region and an inspector item IS one** — `RegionTree::build`
+gives each a `RegionId`, a border and a hotkey, and §B2's focus table styles it like any other.
+That sentence predates items becoming regions. **Its stated reason is honoured rather than its
+letter**: a click does exactly what the letter does, one focus change through one dispatch, so the
+mouse gains no capability the keyboard lacks. With more than seventeen runs the letters run out and
+the pointer is the only way left to reach the eighteenth — the opposite of the thing §B10 guards.
+
+The wheel over the inspector now scrolls the **pane** whether or not it is over an item. Items
+became hit-testable, so `hit.is_none()` stopped being true exactly where scrolling matters most.
+
+**And the `pane_key` defect was worse than the previous entry claimed.** That entry said the
+eighteenth run could not be reached by key. In fact the clamp handed every run past the seventeenth
+the same `z`, so the rebuilt registry hit a collision, **refused, and the surface kept the previous
+registry — no run key worked at all.** Found by a test fixture with thirty runs in it, which is the
+number the question was about.
+
+`Item::key` is `Option<char>` now and `pane_key` returns `None` past the pool, which is what its
+doc comment had claimed since M1 while the body did the opposite. An unkeyed item **keeps its
+border**: §B2's *"a region with no hotkey has no border"* is about §B2's six — the titlebar, the
+footer, the inspector frame — and its purpose is that a border means an interactive region. An
+unkeyed run takes focus, the arrows step to it, the wheel scrolls to it and the pointer clicks it.
+Dropping its border would say the opposite of what is true.
+
+**§B13's region contract was updated, not weakened.** A hotkey is still required of every region in
+the frame; the single exception is an inspector item past its pane's pool, asserted **by
+`RegionId`** so nothing else can quietly become keyless. The run window keeps the contract whole —
+its regions are a fixed set of eight, so there is no pool to run out of.
+
 ### Closed before the session ended
 
 * **`scroll_max()` and `draw_output()` no longer both walk the transcript.** The extent moves only
@@ -189,10 +239,9 @@ collision is visible at runtime, and **it is listed under "Still open" below.**
   `ModelStep::Spawn` values, and the roster panel is built, honest, and has nothing to show. Still
   the strongest available argument for scheduling spawn next, and it comes from a surface rather
   than from an argument.
-* **`pane_key` clamps past seventeen runs, so the eighteenth collides.** Now visible rather than
-  silent — `App::update` keeps the previous registry and puts the conflict on the band — but the
-  eighteenth run still cannot be reached by key. Fixing it properly means `Item::key: Option<char>`
-  against a §B13 contract that says a hotkey is always there; see `pane_key`'s doc for the argument.
+* **`control_plane.rs` needs to stop starting real daemons, or to run on its own.** See the top of
+  this entry: ten in-process daemons inside a parallel workspace run take 413 s and time out. The
+  timeout was raised twice this session and that was the wrong lever.
 * **`--input-trace` is kept and is not covered by a test.** It writes what the input queue actually
   delivered, which is the instrument that settled the paste, and there is no way to assert on it
   without a terminal. Named here rather than left to be discovered.

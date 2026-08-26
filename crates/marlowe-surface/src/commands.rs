@@ -348,7 +348,11 @@ fn parse_state(s: &str) -> Option<StatusState> {
 pub fn render_pane_linear(view: &SessionView, tab: Tab) -> Vec<String> {
     let mut out = Vec::new();
     for item in crate::inspector::items_for(view, tab) {
-        out.push(format!("  {} ({})", item.label, item.key));
+        // An item past its pane's letter pool has no accelerator to print. See `Item::key`.
+        out.push(match item.key {
+            Some(k) => format!("  {} ({k})", item.label),
+            None => format!("  {}", item.label),
+        });
         for (line, tone) in &item.lines {
             let mark = match tone {
                 Tone::Red => "!",

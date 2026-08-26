@@ -115,7 +115,7 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
         // No telemetry, so no reading. See this module's header.
         meter: MeterSource::None,
         runs: Vec::new(),
-        schedule: vec![not_built("Schedule", pane_key(0), "triggers land in M4")],
+        schedule: vec![not_built("Schedule", PANE_KEYS[0], "triggers land in M4")],
     }
 }
 
@@ -421,39 +421,47 @@ fn upsert_run(view: &mut SessionView, id: &str, tone: Tone, lines: &[(&str, Tone
     match view.runs.iter().position(|i| i.id.as_deref() == Some(id)) {
         Some(at) => {
             let key = view.runs[at].key;
-            view.runs[at] = Item::new(&label, key, tone, lines).identified(id);
+            // The key is kept across the update, whatever it was — including `None`, so a run
+            // that never had a letter does not acquire one by being refreshed.
+            view.runs[at] = match key {
+                Some(key) => Item::new(&label, key, tone, lines).identified(id),
+                None => Item::unkeyed(&label, tone, lines).identified(id),
+            };
         }
         None => {
             // **From the safe pool, never a digit.** The first version numbered runs by position,
             // which produced '1'..'9' — the inspector tab digits (§B7). It would have refused to
             // start the moment a run existed, and only because `KeyRegistry::build` errors on a
             // collision rather than letting one key silently shadow another.
-            let key = pane_key(view.runs.len());
-            view.runs.push(Item::new(&label, key, tone, lines).identified(id));
+            // `None` past the pool — every later run is reached by the arrows, the wheel or the
+            // pointer. Handing out a duplicate is what broke every key in the pane.
+            view.runs.push(match pane_key(view.runs.len()) {
+                Some(key) => Item::new(&label, key, tone, lines).identified(id),
+                None => Item::unkeyed(&label, tone, lines).identified(id),
+            });
         }
     }
 }
 
-/// The nth pane key.
+/// The nth pane key, or `None` once the pool is spent.
 ///
-/// # Its doc comment used to say "refuses to wrap" and the body clamped
+/// # It used to clamp, and the doc claimed it refused to
 ///
-/// `PANE_KEYS[n.min(len - 1)]` hands **every** item past the seventeenth the same key, `z` — which
-/// is precisely the silent shadowing the comment claimed to prevent and that `KeyRegistry` exists
-/// to catch. The claim was safe only because nothing rebuilt the registry, so the collision was
-/// never constructed; making `/runs` live is what would have surfaced it, at the eighteenth run.
+/// `PANE_KEYS[n.min(len - 1)]` handed **every** item past the seventeenth the same `z`, while the
+/// comment above it said *"Refuses to wrap — wrapping would hand two items the same key, which is
+/// the silent shadowing `KeyRegistry` exists to prevent"*. Doc and body had disagreed since M1.
 ///
-/// **It clamps, and that is now recorded rather than denied.** The honest fix is for an item past
-/// the pool to carry NO key — every lowercase letter is already spoken for by the region keys, the
-/// copy keys and the digits, so there is no eighteenth letter to hand out — and that means
-/// `Item::key` becoming an `Option<char>`, which §B13's region contract asserts is always present.
-/// That is a design change with its own argument, not a patch, so it is named in `STATE.md` and
-/// left for the session that takes it.
+/// The claim was safe only because nothing rebuilt the registry, so the collision was never
+/// constructed. Making `/runs` live constructed it, and the consequence was worse than the missing
+/// key: the rebuild refused, the surface kept the previous registry, and **no run key worked at
+/// all** beyond seventeen runs. Found by a test fixture with thirty runs in it, which is the number
+/// the human asked about.
 ///
-/// Until then the collision is **visible**: `App::update` keeps the previous registry and puts the
-/// conflict on the status band rather than swallowing it.
-fn pane_key(n: usize) -> char {
-    PANE_KEYS[n.min(PANE_KEYS.len() - 1)]
+/// Now it means what it said. Every other lowercase letter is spoken for — region keys, copy keys,
+/// tab digits — so there is no eighteenth letter to hand out, and `None` is the truth. Those runs
+/// are reached by the arrows, the wheel and the pointer.
+fn pane_key(n: usize) -> Option<char> {
+    PANE_KEYS.get(n).copied()
 }
 
 fn not_built(what: &str, key: char, when: &str) -> Item {
@@ -682,7 +690,7 @@ mod tests {
         let mut view = view_from_status(&report());
         let (a, b) = (an_id("first"), an_id("second"));
         apply_events(&mut view, &[run_event(&a, "running"), run_event(&b, "running")]);
-        let keys: Vec<char> = view.runs.iter().map(|i| i.key).collect();
+        let keys: Vec<Option<char>> = view.runs.iter().map(|i| i.key).collect();
 
         apply_events(&mut view, &[run_event(&a, "completed"), run_event(&b, "running")]);
         assert_eq!(view.runs.iter().map(|i| i.key).collect::<Vec<_>>(), keys);
@@ -737,6 +745,36 @@ mod tests {
         apply_events(&mut view, &[run_event(&an_id("e"), "completed")]);
         assert_eq!(view.runs[0].tone, Tone::Dim);
     }
+
+    /// **Past the pool there is no key, and there used to be a duplicate.**
+    ///
+    /// `pane_key` clamped, so every run after the seventeenth got `z`. That is the silent shadowing
+    /// `KeyRegistry` exists to catch — and once `/runs` went live the registry's refusal meant *no*
+    /// run key worked at all, which is strictly worse than the missing accelerator.
+    #[test]
+    fn a_pane_that_runs_out_of_letters_hands_out_none_rather_than_a_duplicate() {
+        let mut view = view_from_status(&report());
+        let n = PANE_KEYS.len() + 4;
+        let events: Vec<Event> = (0..n)
+            .map(|i| run_event(&an_id(&format!("run-{i}")), "running"))
+            .collect();
+        apply_events(&mut view, &events);
+        assert_eq!(view.runs.len(), n);
+
+        let keys: Vec<char> = view.runs.iter().filter_map(|i| i.key).collect();
+        let mut unique = keys.clone();
+        unique.sort_unstable();
+        unique.dedup();
+        assert_eq!(keys.len(), unique.len(), "two runs were handed the same key: {keys:?}");
+        assert_eq!(keys.len(), PANE_KEYS.len(), "the pool was not spent exactly once");
+        assert!(
+            view.runs[PANE_KEYS.len()..].iter().all(|i| i.key.is_none()),
+            "a run past the pool still claims a letter"
+        );
+        // ...and every one of them is still a run you can reach, which is what the arrows, the
+        // wheel and the pointer are for.
+        assert!(view.runs.iter().all(|i| i.id.is_some()));
+    }
 }
 
 #[cfg(test)]
@@ -779,17 +817,21 @@ mod key_tests {
 
         for item in v.runs.iter().chain(v.schedule.iter()) {
             assert!(
-                !REGION_KEYS.contains(&item.key),
+                !item.key.is_some_and(|k| REGION_KEYS.contains(&k)),
                 "pane item {:?} took region key {:?} (§B2) — the binary refuses to start",
                 item.label,
                 item.key
             );
             assert!(
-                !item.key.is_ascii_digit(),
+                !item.key.is_some_and(|k| k.is_ascii_digit()),
                 "pane item {:?} took a digit, which reaches an inspector tab (§B7)",
                 item.label
             );
-            assert!(!COPY_KEYS.contains(&item.key), "pane item {:?} took a copy key", item.label);
+            assert!(
+                !item.key.is_some_and(|k| COPY_KEYS.contains(&k)),
+                "pane item {:?} took a copy key",
+                item.label
+            );
         }
         assert!(!v.runs.is_empty() && !v.schedule.is_empty(), "the scan had nothing to check");
         let _ = Tab::ALL;

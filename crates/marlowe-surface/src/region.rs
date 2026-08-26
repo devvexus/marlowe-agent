@@ -116,7 +116,7 @@ pub enum FocusLevel {
 pub struct Region {
     id: RegionId,
     label: String,
-    hotkey: char,
+    hotkey: Option<char>,
 }
 
 impl Region {
@@ -125,6 +125,19 @@ impl Region {
     /// Panics on an empty label or a hotkey that cannot be typed. A panic rather than a `Result`
     /// because there is no recovery worth writing: a region with no way to reach it is a border
     /// that lies about being interactive, and the honest response is to not start.
+    /// A region with no accelerator — an inspector item past its pane's letter pool.
+    ///
+    /// **§B2 says a region with no hotkey has no border, and that sentence is about §B2's six**:
+    /// the titlebar, the footer and the inspector frame have neither. Its purpose is that *a border
+    /// means an interactive region*, and an unkeyed item is fully interactive — it takes focus, the
+    /// arrows step to it, the wheel scrolls to it and the pointer clicks it. Dropping its border
+    /// would say the opposite of what is true.
+    pub fn unkeyed(id: RegionId, label: impl Into<String>) -> Self {
+        let label = label.into();
+        assert!(!label.is_empty(), "{id:?} has an empty label");
+        Self { id, label, hotkey: None }
+    }
+
     pub fn new(id: RegionId, label: impl Into<String>, hotkey: char) -> Self {
         let label = label.into();
         assert!(
@@ -137,7 +150,7 @@ impl Region {
             "{id:?} has hotkey {hotkey:?}, which cannot be typed as a region key. Ctrl-modified \
              keys are the footer's namespace (§B8) and Enter is the act verb, not an address"
         );
-        Self { id, label, hotkey }
+        Self { id, label, hotkey: Some(hotkey) }
     }
 
     pub fn id(&self) -> RegionId {
@@ -148,13 +161,13 @@ impl Region {
         &self.label
     }
 
-    pub fn hotkey(&self) -> char {
+    pub fn hotkey(&self) -> Option<char> {
         self.hotkey
     }
 
     /// The hotkey as it renders on the bottom border: `(c)`.
     pub fn hotkey_label(&self) -> String {
-        format!("({})", self.hotkey)
+        self.hotkey.map(|k| format!("({k})")).unwrap_or_default()
     }
 
     /// **The only way to get a bordered `Block` in this crate.**
@@ -236,7 +249,10 @@ impl RegionTree {
             Region::new(RegionId::Conversation, "Conversation", 'c'),
         ];
         for (i, item) in crate::inspector::items(view, showing).iter().enumerate() {
-            regions.push(Region::new(RegionId::Item(tab, i), &item.label, item.key));
+            regions.push(match item.key {
+                Some(k) => Region::new(RegionId::Item(tab, i), &item.label, k),
+                None => Region::unkeyed(RegionId::Item(tab, i), &item.label),
+            });
         }
         regions.push(Region::new(RegionId::Message, "Message", 'i'));
         Self { regions }

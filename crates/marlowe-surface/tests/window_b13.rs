@@ -166,13 +166,13 @@ fn every_window_region_is_reachable_by_its_hotkey_and_by_tab() {
     let tree = marlowe_surface::region::RegionTree::for_window();
     for r in tree.regions() {
         let mut app = common::window();
-        app.on_key(marlowe_surface::app::Key::Char(r.hotkey()));
+        let k = r.hotkey().expect("a window region with no hotkey");
+        app.on_key(marlowe_surface::app::Key::Char(k));
         assert_eq!(
             app.focus,
             r.id(),
-            "{:?} advertises ({}) on its border and that key does not reach it",
+            "{:?} advertises ({k}) on its border and that key does not reach it",
             r.id(),
-            r.hotkey()
         );
     }
 

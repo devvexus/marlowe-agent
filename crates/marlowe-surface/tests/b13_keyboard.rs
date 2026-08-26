@@ -39,7 +39,7 @@ fn every_region_is_reachable_from_the_default_focus() {
             );
 
             // The hotkey the border advertises, and nothing else. No Esc, no Tab, no warm-up.
-            app.on_key(Key::Char(target.hotkey()));
+            app.on_key(Key::Char(target.hotkey().expect("a frame region with no hotkey")));
 
             if app.focus == target.id() {
                 reached += 1;

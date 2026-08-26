@@ -396,7 +396,7 @@ impl WindowApp {
             _ if self.focus_is_text() => self.on_text_key(key),
             // ── region hotkeys, §B10: a letter jumps focus ───────────────────────────────────
             Key::Char(c) => {
-                if let Some(r) = self.tree().regions().iter().find(|r| r.hotkey() == c) {
+                if let Some(r) = self.tree().regions().iter().find(|r| r.hotkey() == Some(c)) {
                     self.focus = r.id();
                     return Action::Redraw;
                 }

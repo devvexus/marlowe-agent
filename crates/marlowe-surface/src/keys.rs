@@ -111,22 +111,25 @@ impl KeyRegistry {
         for tab in marlowe_view::Tab::ALL {
             let mut pane: BTreeMap<char, usize> = BTreeMap::new();
             for (i, item) in crate::inspector::items_for(view, tab).iter().enumerate() {
-                if let Some(existing) = owner.get(&item.key) {
+                // **An item with no letter claims none.** The pane's pool is finite; see
+                // `Item::key` for why running out beats handing two items the same key.
+                let Some(item_key) = item.key else { continue };
+                if let Some(existing) = owner.get(&item_key) {
                     return Err(KeyConflict {
-                        key: item.key,
+                        key: item_key,
                         first: existing.clone(),
                         second: format!("the {} item '{}'", tab.title(), item.label),
                     });
                 }
-                if let Some(prev) = pane.get(&item.key) {
+                if let Some(prev) = pane.get(&item_key) {
                     let prev_label = crate::inspector::items_for(view, tab)[*prev].label.clone();
                     return Err(KeyConflict {
-                        key: item.key,
+                        key: item_key,
                         first: format!("the {} item '{prev_label}'", tab.title()),
                         second: format!("the {} item '{}'", tab.title(), item.label),
                     });
                 }
-                pane.insert(item.key, i);
+                pane.insert(item_key, i);
             }
             reg.items.insert(tab.into(), pane);
         }

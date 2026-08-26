@@ -360,9 +360,23 @@ pub struct Item {
     /// so folding an updated run onto its row by name could merge two runs into one. `None` for
     /// every item whose label is all there is.
     pub id: Option<String>,
-    /// The key on this item's bottom border. Registered in the surface's key registry, which
-    /// **errors at startup** on a collision rather than silently letting one key shadow another.
-    pub key: char,
+    /// The key on this item's bottom border, when there is one.
+    ///
+    /// # `None` is a pane that ran out of letters, and it is better than the alternative
+    ///
+    /// Registered in the surface's key registry, which **errors on a collision** rather than
+    /// silently letting one key shadow another. The pane's pool is seventeen letters — every other
+    /// lowercase key is already spoken for by the region keys, the copy keys and the tab digits —
+    /// and `pane_key` used to CLAMP past the end, handing every later item the same `z`.
+    ///
+    /// That was invisible while nothing rebuilt the registry. Once `/runs` went live it became far
+    /// worse than "the eighteenth run has no key": the rebuild hit the collision, refused, and the
+    /// surface kept the previous registry — so **no run key worked at all** past seventeen runs.
+    ///
+    /// An item with no key is still a region: it has a border, it takes focus, and the arrows, the
+    /// wheel and the pointer all reach it. What it does not have is an accelerator, which is the
+    /// honest thing to render when there is no letter left to give.
+    pub key: Option<char>,
     /// Lines inside the region, each with its tone. Dimming is how a dense screen tells the eye
     /// where to look, so this is data, not styling.
     pub lines: Vec<(String, Tone)>,
@@ -378,11 +392,17 @@ impl Item {
         Self {
             label: label.to_string(),
             id: None,
-            key,
+            key: Some(key),
             lines: lines.iter().map(|(s, t)| ((*s).to_string(), *t)).collect(),
             tone,
             editable: false,
         }
+    }
+
+    /// An item with no accelerator. See [`Item::key`] for when that happens and why it beats
+    /// handing two items the same letter.
+    pub fn unkeyed(label: &str, tone: Tone, lines: &[(&str, Tone)]) -> Self {
+        Self { key: None, ..Self::new(label, 'a', tone, lines) }
     }
 
     /// Name what this item is, when its label is a rendering of that rather than the thing itself.
@@ -395,7 +415,7 @@ impl Item {
         Self {
             label: label.to_string(),
             id: None,
-            key,
+            key: Some(key),
             lines: vec![(placeholder.to_string(), Tone::Dim)],
             tone: Tone::Normal,
             editable: true,

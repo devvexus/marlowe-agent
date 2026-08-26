@@ -866,6 +866,57 @@ pub fn tab_rects(tab_bar: Rect) -> Vec<(Tab, Rect)> {
     out
 }
 
+/// Where each inspector item sits, for the rows that are actually on screen.
+///
+/// **One geometry, read by the draw AND by the driver's hit-testing.** `tab_rects` exists for the
+/// same reason and `chrome_for` for the same reason again: the alternative is the driver deriving
+/// row positions a second way, which puts the click targets somewhere other than the borders — the
+/// two-sides-silently-disagree shape with a pointer in it.
+///
+/// Rows are variable height (§B2 gives the focused one a keycap row), scrolled by whole items, and
+/// clipped at the fold — so this cannot be arithmetic on a fixed row height, and that is exactly
+/// why it has to be shared rather than reproduced.
+pub fn item_rects(app: &App, c: &Chrome) -> Vec<(usize, Rect)> {
+    let items = crate::inspector::items(app.view(), app.tab);
+    let mut out = Vec::new();
+    let mut y = c.inspector_scroll.y;
+    for (i, item) in items.iter().enumerate().skip(inspector_offset(app, c)) {
+        let h = row_height(item, item.id.is_some() && app.focus == RegionId::Item(app.tab(), i));
+        if y + h > c.inspector_scroll.bottom() {
+            break;
+        }
+        out.push((
+            i,
+            Rect { x: c.inspector_scroll.x, y, width: c.inspector_scroll.width, height: h },
+        ));
+        y += h + 1;
+    }
+    out
+}
+
+/// How far the pane is scrolled, clamped to what its content allows.
+///
+/// **The clamp lives here rather than in the key handler**, so an over-scroll can never draw out of
+/// range and `App` needs nothing from the previous frame.
+fn inspector_offset(app: &App, c: &Chrome) -> usize {
+    let items = crate::inspector::items(app.view(), app.tab);
+    let view = c.inspector_scroll.height;
+    // How many items fit if the LAST one is flush with the bottom; everything before that is how
+    // far it can scroll.
+    let (mut acc, mut fit) = (0u16, 0usize);
+    for (i, item) in items.iter().enumerate().rev() {
+        let h = row_height(item, app.focus == RegionId::Item(app.tab(), i));
+        if acc + h > view {
+            break;
+        }
+        acc += h;
+        fit += 1;
+    }
+    let max_off = items.len().saturating_sub(fit);
+    app.inspector_scroll_max.set(max_off as u16);
+    (app.inspector_scroll as usize).min(max_off)
+}
+
 /// How tall one inspector row is.
 ///
 /// **One definition, read by the draw AND by the scroll extent.** They compute the same number for
@@ -914,42 +965,19 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
     //
     // Whole items rather than rows, because an item is a bordered region (§B2) and half a border
     // with its label scrolled off is not a region any more — it is a rendering fault.
-    let view = c.inspector_scroll.height;
-    let max_off = {
-        // How many items fit if the LAST one is flush with the bottom; everything before that is
-        // how far it can scroll.
-        let (mut acc, mut fit) = (0u16, 0usize);
-        for (i, item) in items.iter().enumerate().rev() {
-            // The focused row is a row taller, because it carries the keycap — see the draw below.
-            // The extent has to agree with what is drawn or the pane scrolls to the wrong place.
-            let h = row_height(item, app.focus == RegionId::Item(app.tab(), i));
-            if acc + h > view {
-                break;
-            }
-            acc += h;
-            fit += 1;
-        }
-        items.len().saturating_sub(fit)
-    };
-    app.inspector_scroll_max.set(max_off as u16);
-    let off = (app.inspector_scroll as usize).min(max_off);
-
-    let mut y = c.inspector_scroll.y;
-    let mut last_drawn = off;
-    for (i, item) in items.iter().enumerate().skip(off) {
+    let rects = item_rects(app, c);
+    let mut last_drawn = inspector_offset(app, c);
+    for (i, area) in rects {
+        let item = &items[i];
         let id = RegionId::Item(app.tab(), i);
         let Some(region) = tree.get(id) else { continue };
         let opens = item.id.is_some() && app.focus == id;
-        let h = row_height(item, opens);
-        if y + h > c.inspector_scroll.bottom() {
-            break;
-        }
         last_drawn = i;
         let area = Rect {
-            x: c.inspector_scroll.x,
-            y,
-            width: c.inspector_scroll.width,
-            height: h,
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height,
         };
         let focus = if app.focus == id {
             FocusLevel::Focused
@@ -1006,7 +1034,6 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
             )));
         }
         Paragraph::new(body).render(text, buf);
-        y += h + 1;
     }
     app.inspector_last_visible.set(last_drawn as u16);
 }

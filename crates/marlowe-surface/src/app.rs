@@ -1652,7 +1652,7 @@ Action::Redraw
 ///
 /// The cheap half of "did the registry go stale": rebuilding on every republish would walk six
 /// panes per crank, and the answer only changes when a run appears, finishes or is renamed.
-fn item_keys(view: &SessionView) -> Vec<(u8, char)> {
+fn item_keys(view: &SessionView) -> Vec<(u8, Option<char>)> {
     marlowe_view::Tab::ALL
         .iter()
         .flat_map(|tab| {

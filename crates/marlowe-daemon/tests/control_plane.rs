@@ -103,10 +103,19 @@ impl Fixture {
     /// to start is not part of that claim, and a timeout short enough to fail on a busy machine
     /// turns a real assertion into a coin flip.
     ///
-    /// Twelve seconds costs nothing when it passes, which is the overwhelming majority of runs.
+    /// **Raised twice, and the second time is recorded rather than quietly done again.** 4 s
+    /// failed in two of four workspace runs; 12 s then failed in another. This fixture stands up
+    /// TWO full daemons in-process — `Daemon::open` builds the memory subsystem before `serve`
+    /// even starts — and its listener thread competes with sixteen test binaries for a machine.
+    ///
+    /// 30 s is **generous rather than tuned**: the loop returns the instant the file appears, so a
+    /// healthy run pays nothing, and the number is chosen to stop the test being a coin flip
+    /// instead of to sit just above the observed worst case. If it flakes again the answer is to
+    /// stop starting two real daemons here, not to raise it a third time.
+    ///
     /// CLAUDE.md's shared-resource hazard, form 6, applied to a timeout rather than a stopwatch.
     fn wait_until_advertised(&self) {
-        for _ in 0..600 {
+        for _ in 0..1500 {
             if control_plane::advertised_port(&self.profile()).is_some() {
                 return;
             }

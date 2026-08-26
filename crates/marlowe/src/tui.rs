@@ -632,7 +632,7 @@ fn event_loop(
                     // height; with a grown composer the click targets would sit where the borders
                     // used to be.
                     let chrome = render::chrome_for(app, term.size()?.into());
-                    let hit = region_at(&chrome, m.column, m.row);
+                    let hit = region_at(app, &chrome, m.column, m.row);
                     // Every motion event updates hover, including the ones that leave a region for
                     // dead chrome — that is the half that makes a hover clear rather than stick.
                     app.set_hover(hit);
@@ -689,7 +689,13 @@ fn event_loop(
                                 && m.column < chrome.inspector.x + chrome.inspector.width
                                 && m.row >= chrome.inspector.y
                                 && m.row < chrome.inspector.y + chrome.inspector.height;
-                            if over_inspector && hit.is_none() {
+                            // **Over the inspector the wheel scrolls the PANE, whether or not it
+                            // is over an item.** Items are hit-testable now, so `hit.is_none()`
+                            // stopped being true exactly where scrolling matters most — a pane
+                            // full of runs — and the wheel would have started nudging focus
+                            // between rows instead of moving the list. Scrolling a list is what a
+                            // wheel over a list means.
+                            if over_inspector {
                                 let max = app.inspector_scroll_max.get();
                                 app.inspector_scroll = if m.kind == MouseEventKind::ScrollUp {
                                     app.inspector_scroll.saturating_sub(1)
@@ -852,11 +858,39 @@ fn option_at(
 /// Deliberately does **not** resolve inspector items: a click lands on the inspector, and the item
 /// within it is chosen by key. Hit-testing individual items would be the first place the mouse grew
 /// a capability the keyboard did not have, and §B10 keeps them at parity.
-fn region_at(chrome: &render::Chrome, col: u16, row: u16) -> Option<marlowe_surface::region::RegionId> {
+/// Which region a point is inside.
+///
+/// # §B10 said hit-testing stops at the region, and an inspector item IS one
+///
+/// That sentence — *"individual inspector items are chosen by key, because item-level hit-testing
+/// would be the first place the mouse grew a path of its own"* — was written before items became
+/// regions. `RegionTree::build` gives each one a `RegionId`, a border and a hotkey, and §B2's
+/// focus table styles it exactly like every other region. So *"click focuses a region"* already
+/// covers it.
+///
+/// **The prohibition's stated REASON is what is honoured here, not its letter.** A click on an item
+/// does precisely what its letter does — one focus change, through the same dispatch — so the
+/// mouse gains no capability the keyboard lacks and no second state path. The thing §B10 was
+/// guarding against is a mouse that can reach somewhere the keyboard cannot, and this is the
+/// opposite: with more than seventeen runs the letters run out (see `pane_key`) and the pointer is
+/// the only way left to reach the eighteenth.
+fn region_at(
+    app: &App,
+    chrome: &render::Chrome,
+    col: u16,
+    row: u16,
+) -> Option<marlowe_surface::region::RegionId> {
     use marlowe_surface::region::RegionId;
     let hit = |r: ratatui::layout::Rect| {
         col >= r.x && col < r.x + r.width && row >= r.y && row < r.y + r.height
     };
+    // Items first: they sit inside the inspector's rect, so a later `chrome.inspector` test would
+    // shadow them.
+    for (i, r) in render::item_rects(app, chrome) {
+        if hit(r) {
+            return Some(RegionId::Item(app.tab(), i));
+        }
+    }
     for (i, id) in [
         RegionId::Model,
         RegionId::Profile,
