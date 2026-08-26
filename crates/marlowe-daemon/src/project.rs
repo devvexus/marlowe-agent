@@ -281,7 +281,15 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     // `KeyRegistry::build` errors on a collision rather than letting one key
                     // silently shadow another.
                     pane_key(view.runs.len()),
-                    if status == "running" { Tone::Green } else { Tone::Dim },
+                    // **Running is the ORDINARY case and carries no state colour** (M3 F2).
+                    // This was `Tone::Green`, and `RunState::tone` — the one table that decides
+                    // what a run's status looks like — has always answered `Normal` for a running
+                    // run, for the reason written there: accenting the ordinary case spends the
+                    // budget on the thing that needs no attention. This row was a second table,
+                    // disagreeing with the first, and green appears nowhere else in the pane it
+                    // draws into. Dimming is what distinguishes here, and dimming is load-bearing:
+                    // a stopped run needs nothing from the user and recedes.
+                    if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
                         (&format!("{tokens} tokens · depth {depth}"), Tone::Dim),
@@ -310,7 +318,8 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 view.runs.push(Item::new(
                     id,
                     pane_key(view.runs.len()),
-                    if status == "running" { Tone::Green } else { Tone::Dim },
+                    // Same table, same reason. See the `Event::Run` arm above.
+                    if status == "running" { Tone::Normal } else { Tone::Dim },
                     &[
                         (status.as_str(), Tone::Normal),
                         (&checkpoint, Tone::Dim),

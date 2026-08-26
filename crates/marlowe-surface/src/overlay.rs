@@ -11,11 +11,12 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Paragraph, Widget};
 
 use crate::app::App;
+use crate::chrome::Ink;
 use crate::theme::Theme;
 
 fn inner(r: Rect) -> Rect {
@@ -35,6 +36,14 @@ fn inner(r: Rect) -> Rect {
 /// **The dim is a foreground rewrite, never a fill.** That is not a stylistic choice — §B13 asks
 /// for zero background fills and `tests/no_background_fill.rs` walks every cell with the overlay
 /// up. A `bg`-based scrim would fail it, and would also be the full-cell repaint §B12 forbids.
+///
+/// **The scrim colour was a hard-coded `Color::DarkGray` until M3 F2**, in all three overlays. It
+/// is `Ink::Dimmer` now — foreground weight 3, the palette's own "recede so the eye goes
+/// elsewhere" — which is what it was already trying to be. A literal here is a colour chosen
+/// outside the palette: it does not move with `MARLOWE_ACCENT`, it is grey on a screen whose
+/// recessive tone is violet-tinted, and it is invisible to every check that reads the palette.
+/// `tests/palette_subset.rs` walks a buffer with each overlay up and refuses a colour it cannot
+/// name — which is how this one was found.
 pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let Some(radius) = &app.view().approval else {
         return;
@@ -47,7 +56,7 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
                 cell.set_style(
                     s.remove_modifier(Modifier::BOLD)
                         .add_modifier(Modifier::DIM)
-                        .fg(ratatui::style::Color::DarkGray),
+                        .fg(Ink::Dimmer.color(theme)),
                 );
             }
         }
@@ -59,10 +68,10 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
         Line::from(""),
         Line::from(Span::styled(
             radius.consequence(),
-            theme.style(radius.tier.tone()),
+            Ink::of_tone(radius.tier.tone()).style(theme),
         )),
         Line::from(""),
-        Line::from(Span::styled(radius.why(), theme.dim())),
+        Line::from(Span::styled(radius.why(), Ink::Dim.style(theme))),
         Line::from(""),
         Line::from(
             radius
@@ -77,7 +86,7 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
                     [
                         Span::styled(
                             format!("{key} "),
-                            Style::default().fg(theme.tone(radius.tier.tone())),
+                            Ink::of_tone(radius.tier.tone()).style(theme),
                         ),
                         Span::styled(format!("{what}    "), theme.normal()),
                     ]
@@ -93,7 +102,7 @@ pub fn draw_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
         height: h.min(area.height),
     };
     Clear.render(overlay, buf);
-    let tier = Style::default().fg(theme.tone(radius.tier.tone()));
+    let tier = Ink::of_tone(radius.tier.tone()).style(theme);
     let block = Block::bordered()
         .border_type(BorderType::Double)
         .border_style(tier)
@@ -127,7 +136,7 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
                 cell.set_style(
                     s.remove_modifier(Modifier::BOLD)
                         .add_modifier(Modifier::DIM)
-                        .fg(ratatui::style::Color::DarkGray),
+                        .fg(Ink::Dimmer.color(theme)),
                 );
             }
         }
@@ -143,7 +152,7 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(p.headline(), theme.bright())),
         Line::from(""),
-        Line::from(Span::styled(p.detail(), theme.dim())),
+        Line::from(Span::styled(p.detail(), Ink::Dim.style(theme))),
         Line::from(""),
     ];
 
@@ -182,7 +191,7 @@ pub fn draw_pending_approval(app: &App, theme: &Theme, area: Rect, buf: &mut Buf
     // Amber, not red: this is a question, not a failure. Red is for a conflict or something
     // irreversible, and a fetch that has not happened yet is neither.
     let tone = if p.reversible { marlowe_view::Tone::Amber } else { marlowe_view::Tone::Red };
-    let border = Style::default().fg(theme.tone(tone));
+    let border = Ink::of_tone(tone).style(theme);
     let block = Block::bordered()
         .border_type(BorderType::Double)
         .border_style(border)
@@ -233,7 +242,7 @@ pub fn draw_window_cancel(
                 cell.set_style(
                     s.remove_modifier(Modifier::BOLD)
                         .add_modifier(Modifier::DIM)
-                        .fg(ratatui::style::Color::DarkGray),
+                        .fg(Ink::Dimmer.color(theme)),
                 );
             }
         }
@@ -249,12 +258,12 @@ pub fn draw_window_cancel(
                 elapsed(v.elapsed_ms),
                 micros_usd(v.spend_micros_usd)
             ),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )),
         Line::from(""),
         Line::from(Span::styled(
             "anything it already wrote, sent or pushed stays written, sent and pushed.",
-            theme.dim(),
+            Ink::Dim.style(theme),
         )),
         Line::from(""),
         Line::from(vec![
@@ -276,7 +285,7 @@ pub fn draw_window_cancel(
     Clear.render(overlay, buf);
     // Red: ending a run is irreversible in the sense §B9 means it — the work already done is not
     // coming back. Amber would be a question; this is a consequence.
-    let border = Style::default().fg(theme.tone(marlowe_view::Tone::Red));
+    let border = Ink::Red.style(theme);
     let block = Block::bordered()
         .border_type(BorderType::Double)
         .border_style(border)

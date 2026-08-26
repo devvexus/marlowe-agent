@@ -24,7 +24,17 @@
 //! | every glyph | [`crate::chrome`] — the set model prose may not contain |
 //! | the transcript | [`crate::render::entry_lines`] — one body, shared with the conversation pane |
 //! | markdown and maths | ADR-047's renderer, by way of `entry_lines` |
-//! | colour | [`crate::theme`], which has no eighth colour to reach for |
+//! | colour | [`crate::chrome::RUN_WINDOW`] — a **subset** of the conversation pane's palette |
+//!
+//! **The palette row is the one that changed after this file first shipped, and the reason is
+//! worth keeping here.** It used to read *"colour — `crate::theme`, which has no eighth colour to
+//! reach for"*, which was true and insufficient: the theme bounds how many colours **exist**, not
+//! which of them a surface may **spend**. This window spent `Tone::Green` on the resume line and
+//! the conversation pane spends green nowhere at all, so the two surfaces read as two
+//! applications while every §B13 per-surface budget test stayed green — the budget counts colours
+//! within one surface and cannot see across two. [`crate::chrome::RUN_WINDOW`] is the vocabulary
+//! this file draws from, `tests/palette_subset.rs` reads it back off a rendered `Buffer`, and the
+//! assertion is **across the two surfaces**, because no check inside either one can see the drift.
 //!
 //! **State.** §6.6: *"One state, two renderings."* [`WindowApp`] holds a [`RunView`] it was handed
 //! and everything about **looking at** it — the steer draft, the scroll offset, whether a reasoning
@@ -66,14 +76,14 @@ use std::collections::BTreeMap;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
 use marlowe_view::run::{elapsed, micros_usd, RunView};
-use marlowe_view::{Entry, Item, Tone};
+use marlowe_view::{Entry, Item};
 
 use crate::region::{FocusLevel, RegionId, RegionTree};
+use crate::chrome::Ink;
 use crate::theme::Theme;
 
 /// §B11's honest refusal, at a run window's scale.
@@ -564,8 +574,8 @@ fn draw_refusal(area: Rect, buf: &mut Buffer, theme: &Theme) {
 fn draw_titlebar(app: &WindowApp, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let v = app.view();
     let left = Line::from(vec![
-        Span::styled("marlowe", Style::default().fg(theme.accent())),
-        Span::styled("  run ", theme.dim()),
+        Span::styled("marlowe", Ink::Accent.style(theme)),
+        Span::styled("  run ", Ink::Dim.style(theme)),
         Span::styled(v.id.clone(), theme.normal()),
     ]);
     Paragraph::new(left).render(area, buf);
@@ -599,15 +609,15 @@ fn draw_identity(
 
     let spend = format!("{} of {}", micros_usd(v.spend_micros_usd), micros_usd(v.ceiling_micros_usd));
     let spend_style = if v.at_ceiling() {
-        theme.style(Tone::Red)
+        Ink::Red.style(theme)
     } else {
-        theme.dim()
+        Ink::Dim.style(theme)
     };
     let status = Line::from(vec![
-        Span::styled(v.state.name().to_string(), theme.style(v.state.tone())),
-        Span::styled("   elapsed ", theme.dim()),
+        Span::styled(v.state.name().to_string(), Ink::of_tone(v.state.tone()).style(theme)),
+        Span::styled("   elapsed ", Ink::Dim.style(theme)),
         Span::styled(elapsed(v.elapsed_ms), theme.normal()),
-        Span::styled("   spend ", theme.dim()),
+        Span::styled("   spend ", Ink::Dim.style(theme)),
         Span::styled(spend, spend_style),
     ]);
 
@@ -616,7 +626,7 @@ fn draw_identity(
     // deciding.
     let policy = Line::from(Span::styled(
         format!("on cancel · {}", v.orphan_policy.plainly()),
-        theme.dimmer(),
+        Ink::Dimmer.style(theme),
     ));
 
     let mut lines = vec![status, policy];
@@ -624,7 +634,7 @@ fn draw_identity(
     if let marlowe_view::RunState::Failed { error } = &v.state {
         lines.push(Line::from(Span::styled(
             marlowe_contract::text::sanitize_line(error).into_owned(),
-            theme.style(Tone::Red),
+            Ink::Red.style(theme),
         )));
     }
     Paragraph::new(lines).render(body, buf);
@@ -650,12 +660,12 @@ fn draw_checkpoint(
     // resume do" are different questions, and the second is the one being debugged.
     let last = match v.checkpoint.last_completed {
         Some(step) => Line::from(vec![
-            Span::styled("last completed step · ", theme.dim()),
+            Span::styled("last completed step · ", Ink::Dim.style(theme)),
             Span::styled(format!("step {step}"), theme.normal()),
         ]),
         // **`None` means no checkpoint exists — not step zero.** Session A's words, and the
         // renderer says them rather than inventing a step the run never reached.
-        None => Line::from(Span::styled("no checkpoint yet", theme.dim())),
+        None => Line::from(Span::styled("no checkpoint yet", Ink::Dim.style(theme))),
     };
     // **What a resume would do, as the control plane answered it.**
     //
@@ -663,19 +673,25 @@ fn draw_checkpoint(
     // window made. When it is false the window says the run cannot be resumed **and invents no
     // reason**, because it has none: a run that completed, failed or was cancelled is not
     // resumable, and which of those it was is already on the identity panel above.
+    //
+    // **The answer is a FACT, drawn in the same two weights as the line above it** — dim label,
+    // body value. It rendered in green until M3 F2, which is the whole of that session's finding:
+    // green is a legal §B2 state colour, so no per-surface budget check could object, and the
+    // conversation pane spends it nowhere near here. `resumable` is not a health report; it is
+    // the same register as `last completed step`, and it now reads as one.
     let resume = match (v.checkpoint.resumable, v.checkpoint.last_completed) {
         (true, Some(step)) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled(format!("from step {step}"), theme.style(Tone::Green)),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled(format!("from step {step}"), theme.normal()),
         ]),
         // Resumable with no checkpoint yet is a real state — a run accepted and not yet stepped.
         (true, None) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled("from the beginning", theme.style(Tone::Green)),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled("from the beginning", theme.normal()),
         ]),
         (false, _) => Line::from(vec![
-            Span::styled("resume · ", theme.dim()),
-            Span::styled("not from here", theme.dim()),
+            Span::styled("resume · ", Ink::Dim.style(theme)),
+            Span::styled("not from here", Ink::Dim.style(theme)),
         ]),
     };
     Paragraph::new(vec![last, resume]).render(body, buf);
@@ -763,7 +779,7 @@ fn panel_lines<'a>(label: &str, items: &[Item], theme: &Theme) -> Vec<Line<'a>> 
     if items.is_empty() {
         return vec![Line::from(Span::styled(
             format!("{} — none", label.to_lowercase()),
-            theme.dimmer(),
+            Ink::Dimmer.style(theme),
         ))];
     }
     items
@@ -786,7 +802,7 @@ fn draw_steer(app: &WindowApp, theme: &Theme, tree: &RegionTree, area: Rect, buf
     if let Some(notice) = &app.notice {
         Paragraph::new(Line::from(Span::styled(
             marlowe_contract::text::sanitize_line(notice).into_owned(),
-            theme.style(Tone::Amber),
+            Ink::Amber.style(theme),
         )))
         .render(body, buf);
         return;
@@ -794,12 +810,12 @@ fn draw_steer(app: &WindowApp, theme: &Theme, tree: &RegionTree, area: Rect, buf
 
     let line = if app.steer.is_empty() && app.focus != RegionId::RunSteer {
         // §B2's placeholder register: what the field is for, dim, never an instruction.
-        Line::from(Span::styled("steer this run", theme.dimmer()))
+        Line::from(Span::styled("steer this run", Ink::Dimmer.style(theme)))
     } else {
         let cursor = if app.focus == RegionId::RunSteer { "\u{2588}" } else { "" };
         Line::from(vec![
             Span::styled(app.steer.replace('\n', " "), theme.normal()),
-            Span::styled(cursor.to_string(), Style::default().fg(theme.accent())),
+            Span::styled(cursor.to_string(), Ink::Accent.style(theme)),
         ])
     };
     Paragraph::new(line).render(body, buf);
@@ -817,10 +833,10 @@ fn draw_footer(theme: &Theme, area: Rect, buf: &mut Buffer) {
     let mut spans = Vec::new();
     for (i, (key, what)) in FOOTER_KEYS.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::styled("   ", theme.dimmer()));
+            spans.push(Span::styled("   ", Ink::Dimmer.style(theme)));
         }
-        spans.push(Span::styled((*key).to_string(), Style::default().fg(theme.accent())));
-        spans.push(Span::styled(format!(" {what}"), theme.dim()));
+        spans.push(Span::styled((*key).to_string(), Ink::Accent.style(theme)));
+        spans.push(Span::styled(format!(" {what}"), Ink::Dim.style(theme)));
     }
     Paragraph::new(Line::from(spans)).render(area, buf);
 }

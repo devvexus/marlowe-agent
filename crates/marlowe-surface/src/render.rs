@@ -26,6 +26,7 @@ use ratatui::widgets::{
 
 use crate::app::{App, FOOTER_KEYS, MIN_COLS, MIN_ROWS};
 use crate::region::{FocusLevel, Region, RegionId, RegionTree};
+use crate::chrome::Ink;
 use crate::theme::Theme;
 
 /// Where everything sits, including the scroll areas the pinned-chrome test needs.
@@ -213,7 +214,7 @@ fn draw_refusal(area: Rect, buf: &mut Buffer, theme: &Theme) {
 fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
     let session = app.view().control.session.value();
     let left = Line::from(vec![
-        Span::styled("* ", Style::default().fg(theme.accent())),
+        Span::styled("* ", Ink::Accent.style(theme)),
         Span::styled(format!("marlowe — {session}"), theme.normal()),
     ]);
     // One definition, shared with the OS window title — see `App::run_counts`.
@@ -233,11 +234,11 @@ fn draw_titlebar(app: &App, theme: &Theme, area: Rect, buf: &mut Buffer) {
                 app.focus,
                 app.view().status.state.name(),
             ),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         )),
         None => Line::from(Span::styled(
             format!("{running} runs · {due} due today"),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )),
     };
     Paragraph::new(right)
@@ -292,7 +293,7 @@ fn draw_control(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: &m
         Paragraph::new(value).render(text, buf);
         Paragraph::new(Line::from(Span::styled(
             crate::chrome::DISCLOSURE_OPEN.to_string(),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )))
             .alignment(Alignment::Right)
             .render(text, buf);
@@ -342,11 +343,11 @@ fn draw_dropdown(
         // marker and the full accent, hover only lifts the text. **Still no background fill** —
         // §B2, and a fill would repaint the row on every pixel of mouse travel.
         let (marker, style) = if i == picker.selected {
-            ("›", Style::default().fg(theme.accent()))
+            ("›", Ink::Accent.style(theme))
         } else if hovered == Some(i) {
-            (" ", Style::default().fg(theme.hover_color()))
+            (" ", Ink::Hover.style(theme))
         } else {
-            (" ", theme.dim())
+            (" ", Ink::Dim.style(theme))
         };
         buf.set_stringn(
             list.x,
@@ -378,7 +379,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
         &app.meter_frame(),
         meter_area,
         buf,
-        Style::default().fg(theme.tone(band.state.tone())),
+        Style::default().fg(Ink::of_tone(band.state.tone()).color(theme)),
     );
 
     // One column of padding on the right, so a right-aligned figure never runs flush into the
@@ -393,14 +394,14 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
 
     // Degradation lives here, not in the corner of the input line (§B5).
     let (detail, detail_style) = match band.degraded {
-        Some(path) => (path.headline().to_string(), theme.style(Tone::Amber)),
-        None => (band.detail.clone(), theme.dim()),
+        Some(path) => (path.headline().to_string(), Ink::Amber.style(theme)),
+        None => (band.detail.clone(), Ink::Dim.style(theme)),
     };
     let left = vec![
         Line::from(Span::styled(
             band.state.name(),
             Style::default()
-                .fg(theme.tone(band.state.tone()))
+                .fg(Ink::of_tone(band.state.tone()).color(theme))
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(detail, detail_style)),
@@ -410,7 +411,7 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
     let figures: Vec<Line> = band
         .figures
         .iter()
-        .map(|f| Line::from(Span::styled(f.clone(), theme.dim())))
+        .map(|f| Line::from(Span::styled(f.clone(), Ink::Dim.style(theme))))
         .collect();
     Paragraph::new(figures)
         .alignment(Alignment::Right)
@@ -469,10 +470,10 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
                 // U+2588 FULL BLOCK, which tiles edge to edge. A partial block or a box-drawing
                 // glyph leaves gaps between rows and the thumb reads as segmented.
                 .thumb_symbol(&thumb)
-                .track_style(Style::default().fg(theme.structure()))
+                .track_style(Ink::Structure.style(theme))
                 // The scroll position is not a state, so it is not amber. It is structure, and
                 // structure is the accent's role (§B2).
-                .thumb_style(Style::default().fg(theme.accent())),
+                .thumb_style(Ink::Accent.style(theme)),
             c.conversation_scroll,
             buf,
             &mut state,
@@ -486,7 +487,7 @@ fn draw_conversation(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, bu
             "turn {} · {} compacted · lineage {} deep",
             p.turn, p.compacted, p.lineage
         ),
-        theme.dim(),
+        Ink::Dim.style(theme),
     )))
     .alignment(Alignment::Right)
     .render(c.pager, buf);
@@ -541,7 +542,7 @@ pub fn entry_lines<'a>(
             // **Weight 1 — the terminal's own foreground.** What the user typed is not chrome and
             // not the machine's own noise; it is the other half of the conversation.
             //
-            // This rendered at `theme.dim()`, weight 2, which is the same weight the reasoning
+            // This rendered at `Ink::Dim.style(theme)`, weight 2, which is the same weight the reasoning
             // block uses — so a question the user asked and a chain of thought they did not write
             // were the same colour. Reported live as *"user messages are indistinguishable from
             // thinking"*, and the theme had already said otherwise: `speech`'s own doc comment
@@ -563,7 +564,7 @@ pub fn entry_lines<'a>(
                 //
                 // The one place colour marks WHO is speaking rather than state. White prose read
                 // as terminal output rather than as somebody talking.
-                let base = Style::default().fg(theme.speech());
+                let base = Ink::Speech.style(theme);
                 match speech {
                     // **Model prose is markdown (ADR-047).** It always was; until ADR-047 it was
                     // drawn flat, so a reply built out of headings, lists and code arrived as one
@@ -611,7 +612,7 @@ pub fn entry_lines<'a>(
                     // Live: the count moves, so the line itself reports progress.
                     format!("{marker} thinking… {} characters   {key}", text.len())
                 };
-                out.push(Line::from(Span::styled(head, theme.dim())));
+                out.push(Line::from(Span::styled(head, Ink::Dim.style(theme))));
                 if expanded {
                     // **Markdown here too, and only when EXPANDED.**
                     //
@@ -631,9 +632,9 @@ pub fn entry_lines<'a>(
                         text,
                         w.saturating_sub(2),
                         theme,
-                        theme.dim(),
+                        Ink::Dim.style(theme),
                     ) {
-                        let mut spans = vec![Span::styled("  ".to_string(), theme.dim())];
+                        let mut spans = vec![Span::styled("  ".to_string(), Ink::Dim.style(theme))];
                         spans.extend(line.spans);
                         out.push(Line::from(spans));
                     }
@@ -646,7 +647,7 @@ pub fn entry_lines<'a>(
                 let pad = w.saturating_sub(text.chars().count()) / 2;
                 out.push(Line::from(Span::styled(
                     format!("{}{}", " ".repeat(pad), text),
-                    Style::default().fg(theme.accent()).add_modifier(Modifier::DIM),
+                    Ink::Accent.style(theme).add_modifier(Modifier::DIM),
                 )));
                 out.push(Line::from(""));
             }
@@ -698,16 +699,16 @@ fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line
         // Live lines animate in place with elapsed time. Never scrolled in and then cleared.
         ToolLineState::Running { elapsed_ms } => (
             format!("{}.{}s", elapsed_ms / 1000, (elapsed_ms % 1000) / 100),
-            Style::default().fg(theme.tone(Tone::Amber)),
+            Style::default().fg(Ink::Amber.color(theme)),
         ),
-        ToolLineState::Ok(s) => (s.render(), theme.dim()),
-        ToolLineState::Failed(s) => (s.render(), Style::default().fg(theme.tone(Tone::Red))),
+        ToolLineState::Ok(s) => (s.render(), Ink::Dim.style(theme)),
+        ToolLineState::Failed(s) => (s.render(), Style::default().fg(Ink::Red.color(theme))),
     };
     let gap = w
         .saturating_sub(left.chars().count())
         .saturating_sub(right.chars().count());
     Line::from(vec![
-        Span::styled(left, theme.dim()),
+        Span::styled(left, Ink::Dim.style(theme)),
         Span::raw(" ".repeat(gap)),
         Span::styled(right, right_style),
     ])
@@ -723,7 +724,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
     for t in &call.collapsed {
         // Same reason as `tool_line`: these are the targets it collapsed away.
         let t = marlowe_contract::text::sanitize_line(t);
-        out.push(Line::from(Span::styled(format!("      {t}"), theme.dim())));
+        out.push(Line::from(Span::styled(format!("      {t}"), Ink::Dim.style(theme))));
     }
     if let Some(d) = detail {
         // A failure detail is genuinely multi-line — it is a stack trace or a compiler error — so
@@ -733,7 +734,7 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
             for l in wrap(raw, w.saturating_sub(6)) {
                 out.push(Line::from(Span::styled(
                     format!("      {l}"),
-                    theme.style(Tone::Red),
+                    Ink::Red.style(theme),
                 )));
             }
         }
@@ -800,7 +801,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
         let target = if i < 3 { &mut spans } else { &mut line1 };
         target.push(Span::styled(
             format!("{} ", tab.digit()),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ));
         target.push(Span::styled(
             format!("{}  ", tab.title()),
@@ -809,9 +810,9 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
             } else if app.hover_tab == Some(*tab) {
                 // Hover sits below selection here exactly as it does on regions: the active tab
                 // keeps its brightened label, and the pointer only lifts the others.
-                Style::default().fg(theme.hover_color())
+                Ink::Hover.style(theme)
             } else {
-                theme.dim()
+                Ink::Dim.style(theme)
             },
         ));
     }
@@ -885,7 +886,7 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
                 app.steer.clone()
             };
             let style = if app.steer.is_empty() {
-                theme.dim()
+                Ink::Dim.style(theme)
             } else {
                 theme.normal()
             };
@@ -898,9 +899,9 @@ fn draw_inspector(app: &App, theme: &Theme, tree: &RegionTree, c: &Chrome, buf: 
                     // THIRD weight, not the second (§B2, §B7). Using one dim for both is how a
                     // dense screen stops telling the eye where to look.
                     let style = if focus == FocusLevel::Inactive && *tone == Tone::Dim {
-                        theme.dimmer()
+                        Ink::Dimmer.style(theme)
                     } else {
-                        theme.style(*tone)
+                        Ink::of_tone(*tone).style(theme)
                     };
                     Line::from(Span::styled(l.clone(), style))
                 })
@@ -926,13 +927,13 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
     let (body, style) = if app.input.is_empty() {
         (
             app.view().status.state.placeholder().to_string(),
-            theme.dim(),
+            Ink::Dim.style(theme),
         )
     } else {
         (app.input.replace('\n', " ⏎ "), theme.normal())
     };
     Paragraph::new(Line::from(vec![
-        Span::styled("› ", Style::default().fg(theme.accent())),
+        Span::styled("› ", Ink::Accent.style(theme)),
         Span::styled(body, style),
     ]))
     .render(text, buf);
@@ -944,20 +945,20 @@ fn draw_message(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &m
     let ambient = if let Some(notice) = &app.notice {
         Line::from(Span::styled(
             notice.clone(),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ))
     } else {
         Line::from(vec![
             // Context pressure is a colour, not a bar (§B8).
             Span::styled(
                 format!("{}%  ", a.fill_pct),
-                theme.style(a.context_tone()),
+                Ink::of_tone(a.context_tone()).style(theme),
             ),
             Span::styled(
                 format!("${}.{:02}  ", a.spend_cents / 100, a.spend_cents % 100),
-                theme.dim(),
+                Ink::Dim.style(theme),
             ),
-            Span::styled(format!("{}m", a.elapsed_min), theme.dim()),
+            Span::styled(format!("{}m", a.elapsed_min), Ink::Dim.style(theme)),
         ])
     };
     Paragraph::new(ambient)
@@ -993,9 +994,9 @@ fn draw_autocomplete(theme: &Theme, prefix: &str, selected: usize, anchor: Rect,
             line,
             area.width as usize,
             if i == selected {
-                Style::default().fg(theme.accent())
+                Ink::Accent.style(theme)
             } else {
-                theme.dim()
+                Ink::Dim.style(theme)
             },
         );
     }
@@ -1008,15 +1009,15 @@ fn draw_footer(theme: &Theme, area: Rect, buf: &mut Buffer) {
     for (key, what) in FOOTER_KEYS.iter().take(FOOTER_KEYS.len() - 1) {
         spans.push(Span::styled(
             format!("{key} "),
-            Style::default().fg(theme.accent()),
+            Ink::Accent.style(theme),
         ));
-        spans.push(Span::styled(format!("{what}   "), theme.dim()));
+        spans.push(Span::styled(format!("{what}   "), Ink::Dim.style(theme)));
     }
     Paragraph::new(Line::from(spans)).render(area, buf);
     let (key, what) = FOOTER_KEYS[FOOTER_KEYS.len() - 1];
     Paragraph::new(Line::from(vec![
-        Span::styled(format!("{key} "), Style::default().fg(theme.accent())),
-        Span::styled(what, theme.dim()),
+        Span::styled(format!("{key} "), Ink::Accent.style(theme)),
+        Span::styled(what, Ink::Dim.style(theme)),
     ]))
     .alignment(Alignment::Right)
     .render(area, buf);
