@@ -596,6 +596,131 @@ mod tests {
         assert!(calls[0].is_failure());
         assert!(calls[0].expanded, "§B6: failures auto-expand");
     }
+
+    // ─── the run table (M3 F2) ───────────────────────────────────────────────────────────────
+
+    fn run_event(id: &str, status: &str) -> Event {
+        Event::Run {
+            id: id.into(),
+            status: status.into(),
+            tokens: 10,
+            depth: 0,
+            attribution: None,
+        }
+    }
+
+    fn an_id(name: &str) -> String {
+        marlowe_loop::RunId::from_name(name).0.to_string()
+    }
+
+    /// **`/runs` answers with the WHOLE table**, so folding a second answer onto the first doubled
+    /// every row. Nothing noticed while nothing asked twice — the TUI never called `client.runs()`
+    /// at all, so the pane held whatever daemon boot put there. Making it live is what made asking
+    /// twice ordinary.
+    #[test]
+    fn asking_for_the_runs_twice_does_not_double_the_rows() {
+        let mut view = view_from_status(&report());
+        let id = an_id("a");
+        apply_events(&mut view, &[run_event(&id, "running")]);
+        apply_events(&mut view, &[run_event(&id, "running")]);
+        assert_eq!(view.runs.len(), 1, "{:?}", view.runs.iter().map(|i| &i.label).collect::<Vec<_>>());
+    }
+
+    /// The same shape reached from the other end: `/watch` answers with one run's detail, so
+    /// watching twice added a duplicate beside the first.
+    #[test]
+    fn watching_one_run_twice_updates_its_row_rather_than_adding_another() {
+        let mut view = view_from_status(&report());
+        let id = an_id("b");
+        let detail = |status: &str| Event::RunDetail {
+            id: id.clone(),
+            status: status.into(),
+            parent: None,
+            elapsed_ms: 0,
+            spend_micros_usd: 0,
+            ceiling_micros_usd: 0,
+            spent_tokens: 1,
+            granted_tokens: 2,
+            depth: 0,
+            last_checkpoint_step: None,
+            resumable: true,
+            orphan_policy: "detach".into(),
+            pending_steers: 0,
+        };
+        apply_events(&mut view, &[detail("running")]);
+        apply_events(&mut view, &[detail("completed")]);
+        assert_eq!(view.runs.len(), 1);
+        // ...and it is the LATER state that survives, not the earlier one.
+        assert!(
+            view.runs[0].lines.iter().any(|(l, _)| l == "completed"),
+            "the row kept the stale status: {:?}",
+            view.runs[0].lines
+        );
+    }
+
+    /// **§B7 puts a hotkey on each item's border**, and `pane_key` assigns it by position. Deriving
+    /// it again on every refresh would shuffle the letters under the user's fingers each time a run
+    /// appeared or finished.
+    #[test]
+    fn a_refresh_keeps_each_rows_hotkey_where_the_user_last_saw_it() {
+        let mut view = view_from_status(&report());
+        let (a, b) = (an_id("first"), an_id("second"));
+        apply_events(&mut view, &[run_event(&a, "running"), run_event(&b, "running")]);
+        let keys: Vec<char> = view.runs.iter().map(|i| i.key).collect();
+
+        apply_events(&mut view, &[run_event(&a, "completed"), run_event(&b, "running")]);
+        assert_eq!(view.runs.iter().map(|i| i.key).collect::<Vec<_>>(), keys);
+    }
+
+    /// A row is labelled by the name a person can type, and carries the id it is a rendering of.
+    #[test]
+    fn a_row_is_labelled_by_its_mnemonic_and_still_shows_the_id() {
+        let mut view = view_from_status(&report());
+        let id = an_id("c");
+        apply_events(&mut view, &[run_event(&id, "running")]);
+
+        let row = &view.runs[0];
+        assert_eq!(row.label, marlowe_loop::run::sayable(&id));
+        assert_ne!(row.label, id, "the label is still the raw id");
+        assert_eq!(row.id.as_deref(), Some(id.as_str()), "the row lost the identity it renders");
+        assert!(
+            row.lines.iter().any(|(l, _)| l == &id),
+            "the full id is not on the row, so it cannot be copied: {:?}",
+            row.lines
+        );
+    }
+
+    /// **Two live runs can share a name.** Folding rows by label would merge them into one, which
+    /// is why `Item::id` exists and the upsert keys on it.
+    #[test]
+    fn two_runs_sharing_a_mnemonic_stay_two_rows() {
+        let mut view = view_from_status(&report());
+        let mut seen: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
+        let (a, b) = (0..20_000)
+            .find_map(|i| {
+                let id = marlowe_loop::RunId::from_name(&format!("run-{i}"));
+                seen.insert(id.mnemonic(), id.0.to_string())
+                    .map(|first| (first, id.0.to_string()))
+            })
+            .expect("no collision in 20000 ids, which contradicts 4096 names");
+
+        apply_events(&mut view, &[run_event(&a, "running"), run_event(&b, "running")]);
+        assert_eq!(view.runs.len(), 2, "two runs with one name collapsed into a single row");
+        assert_eq!(view.runs[0].label, view.runs[1].label, "the fixture is not actually a collision");
+    }
+
+    /// **Running is the ordinary case and carries no state colour** — `RunState::tone`'s rule,
+    /// which this fold used to disagree with by painting green.
+    #[test]
+    fn a_running_run_carries_no_state_colour_and_a_stopped_one_recedes() {
+        let mut view = view_from_status(&report());
+        apply_events(&mut view, &[run_event(&an_id("d"), "running")]);
+        assert_eq!(view.runs[0].tone, Tone::Normal);
+
+        let mut view = view_from_status(&report());
+        apply_events(&mut view, &[run_event(&an_id("e"), "completed")]);
+        assert_eq!(view.runs[0].tone, Tone::Dim);
+    }
 }
 
 #[cfg(test)]

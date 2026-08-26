@@ -212,6 +212,19 @@ fn event_loop(
 ) -> io::Result<()> {
     // Idle polls since the current notice went up. See `NOTICE_POLLS`.
     let mut notice_age = 0u32;
+    // **`scroll_max` costs a full markdown-and-wrap pass over the run's output**, and `draw` does
+    // that pass again — so an idle window with a long transcript was rendering its transcript
+    // TWICE every 120 ms to answer a question whose answer had not changed.
+    //
+    // The extent moves only when the output does, when the viewport does, or when a key has
+    // altered the steer field's height. Nothing else can change it, and a scroll key cannot: it
+    // moves the offset, not the number of lines.
+    //
+    // **This is a driver-side cache, not state written during a draw.** `WindowApp` still holds no
+    // value produced by rendering, so §6.4's purity and `window_flicker.rs` are untouched — the
+    // reason `scroll_max_hint` is set from outside in the first place.
+    let mut extent_stale = true;
+    let mut last_area: Option<ratatui::layout::Rect> = None;
     loop {
         // LOOP-EXEMPT: a surface's event loop, not an agent loop.
         //
@@ -241,11 +254,15 @@ fn event_loop(
         // this one feels like 25 Hz". Same rule, stated once: **nothing may block between
         // handling an event and painting its result.**
         let area = term.size().map(|s| ratatui::layout::Rect::new(0, 0, s.width, s.height))?;
-        app.set_scroll_max(window::scroll_max(app, theme, area));
+        if extent_stale || last_area != Some(area) {
+            app.set_scroll_max(window::scroll_max(app, theme, area));
+            last_area = Some(area);
+            extent_stale = false;
+        }
         term.draw(|f| window::draw(app, theme, f.area(), f.buffer_mut()))?;
 
         if !event::poll(Duration::from_millis(POLL_MS))? {
-            poll_run(client, run_id, app, &mut projection);
+            extent_stale |= poll_run(client, run_id, app, &mut projection);
             // **Only on the idle path.** A notice must not expire out from under someone who is
             // typing — and a timeout is precisely the case where it looks like a dead field.
             age_notice(&mut app.notice, &mut notice_age);
@@ -263,6 +280,8 @@ fn event_loop(
                 match crate::keyburst::read_burst(k)? {
                     crate::keyburst::Burst::Paste(text) => {
                         app.paste(text);
+                        // A paste grows the steer field, which shortens the output panel.
+                        extent_stale = true;
                         continue;
                     }
                     crate::keyburst::Burst::Keys(keys) => {
@@ -275,6 +294,7 @@ fn event_loop(
                             }
                         }
                         notice_age = 0;
+                        extent_stale = true;
                         if close {
                             return Ok(());
                         }
@@ -325,6 +345,7 @@ fn event_loop(
         };
 
         notice_age = 0;
+        extent_stale = true;
         if handle_key(app, client, run_id, &mut projection, key) {
             return Ok(());
         }
@@ -369,20 +390,23 @@ fn handle_key(
         }
     }
     if wrote {
-        poll_run(client, run_id, app, projection);
+        let _ = poll_run(client, run_id, app, projection);
     }
     action == Action::Close
 }
 
 /// Ask the control plane what is true, and re-project it.
+/// Returns whether the run's state actually moved, which is what decides if the scroll extent
+/// needs recomputing — see the call site.
 fn poll_run(
     client: &Client,
     run_id: &str,
     app: &mut WindowApp,
     projection: &mut RunProjection,
-) {
+) -> bool {
     match client.watch(run_id, projection.since()) {
         Ok(events) => {
+            let moved = !events.is_empty();
             // **A degraded frame is shown, not swallowed.** The plane sends one when a window has
             // fallen off the end of the frame ring; a gap the reader cannot see is worse than a
             // shorter history.
@@ -395,10 +419,14 @@ fn poll_run(
             if let Some(v) = projection.view() {
                 app.update(v);
             }
+            moved
         }
         // **The daemon going away does not close the window**, it says so. A window that vanished
         // when a daemon restarted would take the user's steer draft with it.
-        Err(e) => app.notice = Some(format!("the control plane is unreachable: {e}")),
+        Err(e) => {
+            app.notice = Some(format!("the control plane is unreachable: {e}"));
+            true
+        }
     }
 }
 

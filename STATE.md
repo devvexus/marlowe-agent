@@ -2,24 +2,30 @@
 
 ## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
 
-**`cargo test --workspace --jobs 4 --no-fail-fast`: 1336 passed, 3 failed, 4 ignored**, tallied
-from `runs/session-f2/suite.txt` — 115 `test result` lines, exit 101. Branch `m3-window-style`,
-worktree `../Marlowe_F2`, 4 commits ahead of `01d69e0`. Not merged to master — the human's call.
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1358 passed, 1 failed, 4 ignored**, tallied
+from `runs/session-f2/suite-final.txt` — 116 `test result` lines, exit 101. Branch `m3-window-style`,
+worktree `../Marlowe_F2`, 6 commits ahead of `01d69e0`, pushed. Not merged to master — the human's call.
 
-**All three failures are explained and none is this session's code, but "it passes alone" is the
-weaker claim and is not what is being asserted here:**
+**The one failure is a test refusing to be vacuous**, and it says so itself:
+`cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` —
+*"neither model is present, so neither call site was exercised. This test cannot distinguish a wired
+loader from an unwired one here."* `models/` is gitignored and not vendored, so a fresh worktree
+cannot run it. Working exactly as designed.
 
-* `cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` — **the test
-  refuses to be vacuous**: *"neither model is present, so neither call site was exercised."*
-  `models/` is gitignored and not vendored, so a fresh worktree cannot run it. Working as designed.
-* Two `control_plane` tests time out after 4 s waiting for the plane to write its port file, under
-  sixteen test binaries and a build. The whole `marlowe-daemon` crate — 122 tests — passes at crate
-  level, including these.
-* **The evidence that those two are load-sensitive rather than broken is that
-  `socket_auth::a_silent_peer_does_not_wedge_the_daemon` went the OTHER way**: it failed
-  reproducibly on its own earlier in the session *and at the base commit*, and passed inside the
-  workspace run. Timing verdicts in this crate move with machine load in both directions. Nothing
-  here touched the listener or `advertised_port`.
+**Two `control_plane` tests failed in the FIRST run of this suite and passed in this one**, and that
+is recorded rather than tidied away. They wait 4 s for the plane to write its port file, and the
+first run had sixteen test binaries and a build competing for the machine. The reason to believe
+"load-sensitive" rather than "intermittently broken" is not that they pass alone — that is the
+weaker claim this project keeps warning about — but that
+`socket_auth::a_silent_peer_does_not_wedge_the_daemon` moved the **other** way in the same pair of
+runs: it failed reproducibly on its own earlier in the session *and at the base commit*, and passed
+inside both workspace runs. Timing verdicts in this crate track machine load in both directions.
+Nothing in F2 touched the listener or `advertised_port`.
+
+**The standing hazard this is an instance of** is CLAUDE.md's form 6 — *one session's build
+invalidates another's measurement* — applied to a timeout rather than to a stopwatch. A suite run
+that shares a machine with a build is not a clean read, and the number quoted at the top of this
+entry is from the run that did not.
 
 ### What F2 was for, and what it turned into
 
@@ -117,18 +123,41 @@ Two acceptance tests moved with the footer. **The property each asserts is uncha
 key must reach every §B5 state from inside a text field, and the frame must render — and the ADR
 records the change so it is not a quiet edit.
 
+### Closed before the session ended
+
+* **`scroll_max()` and `draw_output()` no longer both walk the transcript.** The extent moves only
+  when the output does, when the viewport does, or when a key changed the steer field's height — a
+  scroll key moves the offset, not the line count. It is a **driver-side** cache: `WindowApp` still
+  holds no value produced by rendering, so §6.4's purity and `window_flicker.rs` are untouched,
+  which is the reason `scroll_max_hint` is set from outside in the first place.
+* **The resolver has tests, and they are on the decision rather than on the daemon.**
+  `ControlPlane` owns a `DurableControl<JournalCheckpoints>`, so testing through the struct means
+  standing a journal up on disk — and this session proved four times that a function needing a
+  daemon to test is a function nobody tests. `resolve_among` is pure; six tests cover a full UUID
+  resolving with no table at all, a mnemonic, the four-character prefix floor, an unknown token, an
+  escape sequence in the echo, and **ambiguity — with the colliding pair found by walking the name
+  space rather than invented**, because a hand-made collision would not prove one can happen.
+* **The run table has tests**: asking twice does not double the rows, watching twice updates in
+  place and keeps the later status, §B7 hotkeys hold their letters across a refresh, a row is
+  labelled by its mnemonic and still carries the id, **two runs sharing a name stay two rows**, and
+  a running run carries no state colour.
+* **`/runs` has tests on the half that was actually wrong** — that the summary is said *after* the
+  producer answers, not composed at dispatch from the stale view.
+* **`b13_keyboard.rs` knows the composer exists**: the editing chords are reached from the default
+  focus by the advertised route, `^c` is advertised and needs two presses, the footer names the
+  chord the terminal does not eat, and a multi-line message is composable *and readable back* by
+  key alone.
+
 ### Still open
 
-* **`scroll_max()` and `draw_output()` each call `output_lines()`**, so the markdown and wrap
-  pipeline runs **twice per frame**. Free on an empty output panel; doubles per-frame work on a long
-  transcript. Found, deliberately not folded into any of this.
-* **No test covers `/runs` refreshing, the run-row upsert, or the resolver** — including the
-  ambiguous case, which is the whole reason the resolver refuses rather than guessing. The
-  behaviour is verified by hand against a live daemon and nothing else.
-* **`b13_keyboard.rs` does not know `Ctrl-A`, `Ctrl-Backspace`, `^c` or composer growth exist.**
-  The acceptance suite should cover what the product now does.
-* **A run window's multi-agent half is still untestable against a real run** — unchanged from F,
-  and still the strongest argument for scheduling spawn next.
+* **A run window's multi-agent half remains untestable against a real run** — unchanged from F.
+  Every child-run property in the workspace is verified only against hand-constructed
+  `ModelStep::Spawn` values, and the roster panel is built, honest, and has nothing to show. Still
+  the strongest available argument for scheduling spawn next, and it comes from a surface rather
+  than from an argument.
+* **`--input-trace` is kept and is not covered by a test.** It writes what the input queue actually
+  delivered, which is the instrument that settled the paste, and there is no way to assert on it
+  without a terminal. Named here rather than left to be discovered.
 
 ## 2026-08-25 — LOGGED FOR M3 F2: THE WINDOW DOES NOT LOOK LIKE THE PRODUCT
 
