@@ -1,5 +1,135 @@
 ﻿# State
 
+## 2026-08-26 — M3 SESSION F2: THE WINDOW LOOKS AND BEHAVES LIKE THE PRODUCT. ADR-056
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1336 passed, 3 failed, 4 ignored**, tallied
+from `runs/session-f2/suite.txt` — 115 `test result` lines, exit 101. Branch `m3-window-style`,
+worktree `../Marlowe_F2`, 4 commits ahead of `01d69e0`. Not merged to master — the human's call.
+
+**All three failures are explained and none is this session's code, but "it passes alone" is the
+weaker claim and is not what is being asserted here:**
+
+* `cuda_libs_wiring::both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words` — **the test
+  refuses to be vacuous**: *"neither model is present, so neither call site was exercised."*
+  `models/` is gitignored and not vendored, so a fresh worktree cannot run it. Working as designed.
+* Two `control_plane` tests time out after 4 s waiting for the plane to write its port file, under
+  sixteen test binaries and a build. The whole `marlowe-daemon` crate — 122 tests — passes at crate
+  level, including these.
+* **The evidence that those two are load-sensitive rather than broken is that
+  `socket_auth::a_silent_peer_does_not_wedge_the_daemon` went the OTHER way**: it failed
+  reproducibly on its own earlier in the session *and at the base commit*, and passed inside the
+  workspace run. Timing verdicts in this crate move with machine load in both directions. Nothing
+  here touched the listener or `advertised_port`.
+
+### What F2 was for, and what it turned into
+
+The logged finding was **colour**: the window used `Tone::Green` and the conversation pane never
+does. That is fixed in one commit. The other three commits are what a real terminal produced once
+the window was actually driven, and that ratio is the finding worth keeping.
+
+**`chrome.rs` owns the palette as it owns the glyphs** (`bdbf514`). `chrome::Ink` is the
+vocabulary; `Theme` keeps the values. `RUN_WINDOW` is a strict subset of `CONVERSATION` — no green
+(no voice), no hover (no pointer), no structure-dim (no inactive panel). `render.rs`, `window.rs`
+and `overlay.rs` all draw through it.
+
+Two things fell out of routing the third surface. `overlay.rs` scrimmed every cell to a hard-coded
+`Color::DarkGray` in all three overlays — a colour chosen outside the palette, deaf to
+`MARLOWE_ACCENT` and invisible to any check that reads it. And `project.rs` painted a running run
+green, a second table disagreeing with `RunState::tone`, which has always answered `Normal`.
+
+**`tests/palette_subset.rs` is the cross-surface assertion no per-surface budget check can make**,
+and every assertion walks a drawn `Buffer`. `chrome.rs`'s own unit test that `RUN_WINDOW` is a
+subset is the value of a constant — family #16, green on a build where nothing reads it.
+
+**The comparison excludes §B5's status band, and the exclusion has its own control.** Green is the
+colour of `listening` and `speaking`; the band is a region a run window structurally lacks, so
+including it would let the window paint green for free and the subset would hold while saying
+nothing. `the_status_band_is_the_only_place_the_conversation_spends_green` **measures** that
+confinement rather than assuming it. If green ever leaks outside the band, the subset test is not
+evidence until it is re-derived.
+
+Three mutations run, all bite — including `Green` added to `RUN_WINDOW`, which fails with *"declares
+green and no window frame draws it"* and closes the escape hatch of widening the constant.
+
+### ELEVEN DEFECTS FOUND BY USING IT. TWELVE WINDOW TESTS SAW NONE OF THEM.
+
+This is the session's real output. The suite had twelve window tests and a five-size flicker check,
+all green through every one of these:
+
+| what | why no test could see it |
+|---|---|
+| titlebar showed `daring-s` as the run's id | fixtures hand-build `RunView`; they assert the struct's shape, never the plumbing that fills it |
+| window said `paused` where `/runs` said `interrupted` | `Paused { reason }` was constructed and **read by nothing** |
+| a single keystroke took up to 120 ms to appear | the draw sat before the read; a `Buffer` has no loop ordering |
+| a TCP round trip **per keystroke** | a `Buffer` has no socket |
+| an accent `█` caret the product does not have | asserting cells, not comparing surfaces |
+| the terminal's own cursor left visible | `tui.rs` has hidden it since M1; nothing compared the two |
+| the mouse uncaptured, so the frame drag-selects | §B10 requires capture; no test crosses a terminal |
+| clicking a panel did nothing | same |
+| a steer wedged the field — typing showed nothing | the notice displaced the draft and only `Esc` cleared it |
+| `^c` terminated one surface and did nothing in the other | advertised on no footer, asserted by no test |
+| both composers clipped everything past one row | `app.input` held the whole message, so state tests passed |
+
+**Budget one real run per milestone as verification, not as a demo.** M2 learned this with `done`
+going to the tool host. F2 is the same lesson at eleven times the volume, and the multiplier is
+that a window is *used* rather than *read*.
+
+### The paste, and the measurement that took three attempts
+
+`EnableBracketedPaste` was emitted and `Event::Paste` handled — and on Windows it never arrives,
+because crossterm reads input through the console API rather than parsing the VT stream. Three
+pasted paragraphs **sent three messages**. Every paste test passed: they call `App::paste`
+directly, asserting the handler and never the path.
+
+The first fix drained only what was already queued, written from an argument about what a terminal
+ought to deliver. It did not work. `--input-trace` said why:
+
+```text
+drained  1 event(s): "T"
+drained 48 event(s): "he traced wi"
+drained  1 event(s): "\""
+```
+
+**Windows Terminal writes a paste into the console buffer in CHUNKS and the loop drains faster than
+it writes**, so one paste arrived as dozens of fragments and none was ever the whole thing. After
+bridging that gap with `event::poll`'s own bounded wait: **one paste assembled as 1632 events in a
+single burst, and all 639 typed characters still arrived alone.**
+
+The 10 ms wait is not the timing guess refused twice. That guess — *"characters less than N ms
+apart are a paste"* — is a rule about **human typing speed**, fires on a fast typist, and needs a
+clock. This asks whether the **terminal** has finished writing; the gap is a buffer running dry
+mid-write, and a bounded `event::poll` is what the loop already paces itself with. §6.4 and
+`determinism_guard.rs` are untouched.
+
+**`--input-trace <FILE>` is kept.** A diagnostic that cannot be switched on where the defect lives
+is not a diagnostic — the first attempt used an environment variable and `wt.exe -w -1` opens the
+tab from the already-running terminal process, which inherits that process's environment and never
+sees one exported beside the launch.
+
+### ADR-056 — `Ctrl-V` is paste; `^v Voice` moves to `alt-v`
+
+The chord was **already unreachable on the primary platform**: Windows Terminal binds it and
+delivers a paste, so the application never saw it, and `b13_keyboard.rs` could not notice because it
+dispatches into `App` directly and never crosses a terminal. A test on the dispatch table cannot see
+a binding the terminal ate.
+
+Two acceptance tests moved with the footer. **The property each asserts is unchanged** — a footer
+key must reach every §B5 state from inside a text field, and the frame must render — and the ADR
+records the change so it is not a quiet edit.
+
+### Still open
+
+* **`scroll_max()` and `draw_output()` each call `output_lines()`**, so the markdown and wrap
+  pipeline runs **twice per frame**. Free on an empty output panel; doubles per-frame work on a long
+  transcript. Found, deliberately not folded into any of this.
+* **No test covers `/runs` refreshing, the run-row upsert, or the resolver** — including the
+  ambiguous case, which is the whole reason the resolver refuses rather than guessing. The
+  behaviour is verified by hand against a live daemon and nothing else.
+* **`b13_keyboard.rs` does not know `Ctrl-A`, `Ctrl-Backspace`, `^c` or composer growth exist.**
+  The acceptance suite should cover what the product now does.
+* **A run window's multi-agent half is still untestable against a real run** — unchanged from F,
+  and still the strongest argument for scheduling spawn next.
+
 ## 2026-08-25 — LOGGED FOR M3 F2: THE WINDOW DOES NOT LOOK LIKE THE PRODUCT
 
 **The human's finding, from using it:** the run window reads as a different application. *"Too many
@@ -28,7 +158,7 @@ two surfaces use the *same* ones. That gap is the finding.
 window in it, and add a test that the window's tone set is a **subset** of the conversation pane's —
 the assertion that would have caught this and that no per-surface budget check can.
 
-Not fixed. Logged before it gets built on.
+**Fixed in F2 — see the entry above.** The mechanism described here was right and was one commit of four; the other three are what using the window produced.
 
 ## 2026-08-25 — M3 SESSION F: THE AGENT WINDOW. ADR-054, ADR-055. Merged with A, green
 
