@@ -2753,7 +2753,7 @@ impl Daemon {
             // The live path answers on the connection the prompt arrived on — see
             // `SocketApprovals`. This arm stays so the wire shape is total, and it says why.
             Request::Approve { .. } => on_event(Event::Error {
-                detail: "an approval must be answered on the connection that asked for it. This                          daemon serves one connection at a time, so a decision sent on a second                          connection is read only after the turn it answers has already been                          denied. Concurrency is M3."
+                detail: "an approval must be answered on the connection that asked for it. This daemon serves one connection at a time, so a decision sent on a second connection is read only after the turn it answers has already been denied. Concurrency is M3."
                     .into(),
             }),
         }
@@ -3100,7 +3100,7 @@ pub fn workspace_map(root: &std::path::Path) -> Option<String> {
 /// provider was right, and a prompt is just a string until something reads it. It is a function
 /// rather than a literal so `the_system_prompt_names_no_tool_that_does_not_exist` has a subject.
 pub fn governance_prompt() -> &'static str {
-    "Use a tool when the user asks for something a tool can do. You may call tools while      reasoning. When the task is complete, reply to the user in prose and call no tool — that is      what ends the turn."
+    "Use a tool when the user asks for something a tool can do. You may call tools while reasoning. When the task is complete, reply to the user in prose and call no tool — that is      what ends the turn."
 }
 
 #[cfg(test)]
