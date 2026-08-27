@@ -122,6 +122,28 @@ fn the_three_facts_that_cost_a_call_are_the_ones_actually_stated() {
         "`read::range`'s format is unstated, so the model has to guess whether it is 0- or \
          1-based and whether the end is included: {range:?}"
     );
+    // **`exposed_tools` must deny the mechanism the model invented.**
+    //
+    // Observed live 2026-08-27: asked to summarise something, the model passed an EMPTY
+    // `exposed_tools` and explained that the child "only needs read access, which the task will
+    // handle internally through the tool grant mechanism". There is no such mechanism. The old
+    // wording said *"you cannot GRANT what you do not have"* and *"reasons from `task` alone"*,
+    // and between those two phrases the model built a second, imaginary route by which a child
+    // could acquire tools -- then chose it over the real one.
+    //
+    // A description cannot enumerate every wrong belief. It CAN close the one that was actually
+    // held, which is what this pins: the parameter says it is the only way, and says `task` is
+    // not another one.
+    let tools = find_desc("run", "exposed_tools");
+    assert!(
+        tools.contains("only way"),
+        "`exposed_tools` must state that it is the ONLY way a child gets a tool: {tools:?}"
+    );
+    assert!(
+        tools.contains("`task`"),
+        "it must name `task` as the thing that CANNOT grant access, because that is the          alternative the model invented: {tools:?}"
+    );
+
     let pattern = find_desc("find", "pattern");
     assert!(
         pattern.to_lowercase().contains("not a regular expression"),

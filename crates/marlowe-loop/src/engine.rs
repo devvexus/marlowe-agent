@@ -157,6 +157,24 @@ const JOURNALED_RESULT_MAX_CHARS: usize = 4_000;
 /// `spawn` for why it crosses at all.
 const CHILD_FAILURE_MAX_CHARS: usize = 400;
 
+/// What a child is allowed to write, in the words its brief uses.
+///
+/// Read from the same `FieldSpec`s `OutputContract::validate` checks, so the number the child is
+/// given cannot drift from the number it is judged by. Each field is named when there is more than
+/// one, because a multi-field contract caps them separately and a single total would be wrong
+/// about all of them.
+fn contract_limits(contract: &OutputContract) -> String {
+    match contract.fields.as_slice() {
+        [] => "any length".to_string(),
+        [one] => format!("at most {} characters", one.max_chars),
+        many => {
+            let each: Vec<String> =
+                many.iter().map(|f| format!("`{}` at most {}", f.name, f.max_chars)).collect();
+            format!("{} characters", each.join(", "))
+        }
+    }
+}
+
 /// Said when a human was asked and declined **with** a reason. The reason goes between this and
 /// [`DECLINED_ADVICE`], verbatim — §B9's answer belongs to the user, not to a paraphrase.
 const DECLINED_WITH_REASON: &str =
@@ -2685,10 +2703,17 @@ impl<S: PathScope> Engine<S> {
             // Read from the contract rather than restated, so it cannot drift from what
             // `validate` actually checks -- the same reason `expected_params` reads the registry.
             format!(
-                "{}\n\nReturn: {} (at most {} characters)",
+                "{}\n\nReturn: {} ({})",
                 req.task,
                 req.contract.description,
-                req.contract.max_chars,
+                // **The FIELD cap, not the aggregate one.** `OutputContract::max_chars` is
+                // the total across every field; `validate` enforces `FieldSpec::max_chars`
+                // PER FIELD, and for the default contract those are 4000 and 2000. Telling
+                // the child 4000 and refusing it at 2000 is the two-numbers-one-told family,
+                // inside the fix that was written to end it. Watched live 2026-08-27: a
+                // child wrote 3,093 characters, failed `validate` three times and burned
+                // ~120,000 tokens -- which roll up to the parent -- before the run stopped.
+                contract_limits(&req.contract),
             ),
             TrustClass::AgentInferred,
         ));

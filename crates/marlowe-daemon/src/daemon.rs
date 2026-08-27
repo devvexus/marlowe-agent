@@ -510,6 +510,9 @@ type DaemonToolHost = crate::mcp::McpTools<
 
 fn build_tool_host(
     workspace: &std::path::Path,
+    // The model's context window, forwarded to `read` so "this file is large" is measured against
+    // the window the run actually has rather than a constant.
+    context_tokens: u32,
     beliefs: std::sync::Arc<std::sync::Mutex<marlowe_memory::BeliefStore>>,
     skills: std::sync::Arc<std::sync::Mutex<marlowe_tools::skill::SkillRegistry>>,
     fleet: std::sync::Arc<std::sync::Mutex<crate::mcp::McpFleet>>,
@@ -529,7 +532,12 @@ fn build_tool_host(
     Ok(crate::mcp::McpTools::new(
         crate::skills::SkillTools::new(
             crate::recall::RecallTools::new(
-                FileSystemTools::new(scope, workspace.to_path_buf()),
+                // **The same window the driver sends as `num_ctx` and the assembler sizes its
+                // view from.** `read` uses it to decide whether a file is large enough to warn
+                // about; a fixed threshold would warn a 200k-context model about a file that is a
+                // rounding error to it.
+                FileSystemTools::new(scope, workspace.to_path_buf())
+                    .with_context_tokens(context_tokens),
                 beliefs,
             ),
             skills,
@@ -730,6 +738,7 @@ impl Daemon {
             profile.exposed_tools(),
             &build_tool_host(
                 &config.workspace,
+                config.context_tokens,
                 memory.beliefs(),
                 std::sync::Arc::clone(&skills),
                 std::sync::Arc::clone(&fleet),
@@ -1493,6 +1502,7 @@ impl Daemon {
         let _ = tool_scope;
         let mut tools = match build_tool_host(
             &self.config.workspace,
+            self.config.context_tokens,
             self.memory.beliefs(),
             std::sync::Arc::clone(&self.skills),
             std::sync::Arc::clone(&self.mcp),

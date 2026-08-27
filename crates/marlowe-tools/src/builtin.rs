@@ -197,7 +197,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `range`'s format was undocumented anywhere the model could see it: the generated
             // parameter description for a `Text` payload is "Optional. text." `slice_lines` splits
             // on `-`, parses both sides, and takes `skip(a-1).take(b-a+1)` — 1-based and inclusive.
-            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). `range` selects lines by 1-based inclusive number, e.g. \"20-60\". A file that does not exist is REFUSED with a message saying so, so a result of `0 lines · 0 B` means the file is there and is empty — reading it again will not change that.",
+            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). **A read returns a WINDOW, not always the whole file**: at most the first 2000 lines and at most 32KB. If the file is longer the result says exactly which lines you got and which range to ask for next — so a large file is read in parts, and every part is reachable. `range` picks the window: `first-last`, 1-based and inclusive, e.g. \"20-60\". A file that does not exist is REFUSED with a message saying so, so a result of `0 lines · 0 B` means the file is there and is empty.",
             "read",
             8_192,
             Inert,
@@ -237,7 +237,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     ParamType::Path,
                     false,
-                    "The file to read, workspace-relative, e.g. `src/main.rs`. Give this OR `ref`; a call that gives neither is refused. A file that does not exist is refused too, and says so — it does not come back empty.",
+                    "The file to read, workspace-relative, e.g. `src/main.rs`. Give this OR `ref`; a call that gives neither is refused. A file that does not exist is refused too, and says so — it does not come back empty. Reading a large file is fine: you get the first window and the result tells you how to ask for the rest.",
                 ),
                 documented(
                     "ref",
@@ -251,7 +251,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     false,
-                    "Line range as `first-last`, 1-based and inclusive: \"20-60\" is line 20 through line 60. Omit it for the whole file. Every other shape is REFUSED rather than guessed at — a single number, a range with no `-`, a `0` start, a backwards range, and a range past the end of the file all come back with the reason and the file's line count.",
+                    "Which window to read: `first-last`, 1-based and inclusive, so \"20-60\" is line 20 through line 60. Omit it for the first window (2000 lines, 32KB). A range is still bounded by that window, and the result says what you got and what to ask for next. Every other shape is REFUSED rather than guessed at — a single number, a range with no `-`, a `0` start, a backwards range, and a range past the end all come back with the reason and the line count.",
                 ),
             ],
         ),
@@ -591,7 +591,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // Two of the next three live spawns asked for 100 and 500 (journal seq 4584, 4615).
             // Both children died before their first word. Advice the model can ignore is not a
             // control, and the number in it was not even the enforced one.
-            "Delegate a sub-task to a child run and wait for it. The child is a SEPARATE agent with an EMPTY window: it cannot see this conversation, your files, your memory, or anything you have already learned. It knows only what `task` says and only the tools you grant it. Whatever it needs must be IN the task. It works, returns one structured result, and is gone — its reasoning and tool calls never enter this conversation. Use it to parallelise work you could describe to a competent stranger. Do NOT use it to answer a question about this conversation, this codebase, or your own tools: the child knows none of that and will spend its whole budget discovering it cannot.",
+            "Delegate a sub-task to a child run and wait for it. The child is a SEPARATE agent with an EMPTY window: it cannot see this conversation, your files, your memory, or anything you have already learned. It knows only what `task` says, and it can only use the tools you name in `exposed_tools` — there is no other way for it to get one. Whatever it needs must be IN the task. It works, returns one structured result, and is gone — its reasoning and tool calls never enter this conversation. Use it to parallelise work you could describe to a competent stranger. Do NOT use it to answer a question about this conversation, this codebase, or your own tools: the child knows none of that and will spend its whole budget discovering it cannot.",
             "run",
             1_024,
             Consequential,
@@ -628,7 +628,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     Text,
                     true,
-                    "REQUIRED: comma-separated tool names the child may use, drawn from the tools you hold — you cannot grant what you do not have. Pass an empty string only for a child that reasons from `task` alone and needs nothing; a child with no tools cannot look anything up.",
+                    "REQUIRED. **This parameter is the only way a child ever gets a tool.** There is no other mechanism: nothing written in `task` can request, grant or imply access to anything, and the child cannot ask for more once it starts. Give a comma-separated list of names taken from the tools you hold — a name you do not have is refused. A child given an empty string CANNOT read a file, list a directory, search, or run a command no matter what `task` says; it can only think about the text you put in `task` and reply. So if the child must look at anything at all, name the tools here — `read, glob` for reading files, plus `find` to search inside them.",
                 ),
                 // **`budget_micros_usd` -> `budget_tokens`, ADR-057 §6.** `SpawnRequest::grant_tokens`
                 // and `Budget::grant`'s `explicit` are tokens. Wiring the old name to the field it

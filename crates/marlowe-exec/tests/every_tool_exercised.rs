@@ -267,29 +267,45 @@ fn read_empty_file_is_the_documented_signature() {
     assert_eq!(r.summary.render(), "0 lines · 0 B");
 }
 
+/// **A file over the inline threshold is READ, not referenced.**
+///
+/// This asserted the opposite, and the opposite was the defect: anything over `MAX_INLINE_BYTES`
+/// became a `ContentRef` — a hash plus a 4 KB head-and-tail — and **a file reference cannot be
+/// dereferenced**, because `read`'s `ref` takes ids `web` issued. The middle of every file above
+/// 8 KB was unreachable, which is why a run could read five design documents and answer from none
+/// of them.
+///
+/// The summary's numbers now describe what was RETURNED rather than what was withheld, which is
+/// the honest reading of a windowed result: the notice carries the file's true length.
 #[test]
-fn read_large_file_reports_true_counts_and_is_referenced() {
+fn read_large_file_returns_a_readable_window_not_a_hash() {
     let fx = Fixture::new("read-large");
     let content: String = (1..=5000).map(|i| format!("line {i}\n")).collect();
-    let expected_lines = content.lines().count() as u64;
-    let expected_bytes = content.len() as u64;
-    assert!(expected_bytes > marlowe_exec::MAX_INLINE_BYTES as u64, "test is only meaningful over the inline threshold");
+    assert!(
+        content.len() > marlowe_exec::MAX_INLINE_BYTES,
+        "the test is only meaningful over the old inline threshold"
+    );
     fx.seed("big.txt", &content);
 
     let (_, r) = fx.call("read", Args::new().text("path", "big.txt"));
     assert!(!r.failed, "{:?}", r.summary);
-    assert_eq!(
-        r.summary.render(),
-        format!("{expected_lines} lines · {expected_bytes} B"),
-        "the summary's numbers must be true even when the body itself is withheld"
-    );
+
     match &r.body {
-        ToolBody::Reference { bytes, .. } => assert_eq!(*bytes, expected_bytes),
-        ToolBody::Inline(_) => panic!("a file this size must not be inlined"),
+        ToolBody::Inline(body) => {
+            assert!(body.contains("line 1\n"), "the window starts at the top");
+            assert!(body.contains("of 5000"), "and states the file's true length: {body:.200}");
+        }
+        ToolBody::Reference { .. } => {
+            panic!("a file must never come back as a hash the model cannot dereference")
+        }
     }
-    let preview = r.preview.clone().expect("an over-large body carries a preview");
-    assert!(preview.contains("characters omitted from the middle"), "{preview}");
-    assert!(preview.starts_with("line 1\n"), "{preview}");
+    // The counts describe the WINDOW. The full length is in the notice, where it is useful.
+    let rendered = r.summary.render();
+    assert!(rendered.contains("lines"), "{rendered}");
+    assert!(
+        fx.text(&r).lines().count() <= marlowe_exec::READ_WINDOW_LINES + 5,
+        "the window must bound what came back: {rendered}"
+    );
 }
 
 #[test]
@@ -1233,4 +1249,96 @@ fn each_description_promise_is_kept_by_the_executor() {
     let (_, out) = fx.call("glob", Args::new().text("path", ".").text("pattern", "src/*.rs"));
     assert!(fx.text(&out).contains("src/a.rs"), "{}", fx.text(&out));
     assert!(!fx.text(&out).contains("deep"), "the promise is `directly in`: {}", fx.text(&out));
+}
+
+// ============================================================================================
+// read is a WINDOW, the way Claude Code reads a file
+// ============================================================================================
+
+/// **A file bigger than the window comes back as text, not as a hash.**
+///
+/// `read` used to hand anything over `MAX_INLINE_BYTES` to `body_for`, which returned a
+/// `ContentRef` — a hash plus a 4 KB head-and-tail. **That hash is not dereferenceable for a
+/// file**: `read`'s `ref` takes ids `web` issued. So the middle of every file above 8 KB was
+/// unreachable, and a model could see both ends and nothing else.
+#[test]
+fn a_long_file_is_read_in_windows_and_every_part_is_reachable() {
+    let fx = Fixture::new("read-window");
+    let content: String = (1..=5_000).map(|i| format!("line {i}\n")).collect();
+    fx.seed("long.txt", &content);
+
+    let (_, first) = fx.call("read", Args::new().text("path", "long.txt"));
+    assert!(!first.failed, "{}", fx.why(&first));
+    let body = fx.text(&first);
+    assert!(!body.starts_with("<ref"), "a file must not come back as a hash: {}", &body[..60]);
+    assert!(body.contains("line 1\n"), "the window must start at the top");
+    assert!(body.contains(&format!("line {}\n", marlowe_exec::READ_WINDOW_LINES)), "{body:.120}");
+    assert!(
+        !body.contains("line 2001\n"),
+        "the window must STOP at its bound, not merely mention one"
+    );
+    assert!(body.contains("of 5000"), "the notice must say how long the file is: {body:.200}");
+    assert!(body.contains("2001-4000"), "and exactly what to ask for next: {body:.200}");
+
+    // **The part that was unreachable.** The next window really does return the next lines.
+    let (_, second) = fx.call("read", Args::new().text("path", "long.txt").text("range", "2001-4000"));
+    assert!(!second.failed, "{}", fx.why(&second));
+    assert!(fx.text(&second).contains("line 2500\n"), "the middle of the file is reachable now");
+    assert!(!fx.text(&second).contains("line 1\n"), "and it is the SECOND window, not the first");
+}
+
+/// A file that fits is returned whole, with no notice at all — the window is a bound, not a habit.
+#[test]
+fn a_short_file_has_no_window_notice() {
+    let fx = Fixture::new("read-short");
+    fx.seed("short.txt", "alpha\nbeta\ngamma\n");
+    let (_, r) = fx.call("read", Args::new().text("path", "short.txt"));
+    assert_eq!(fx.text(&r), "alpha\nbeta\ngamma\n", "no notice, no truncation, no hash");
+}
+
+/// **The cost warning is held back for files that are actually expensive.**
+///
+/// A model told that everything is expensive has learned nothing about what is. So an ordinary
+/// long file gets one line — what you got, what to ask for next — and only a genuinely large one
+/// also gets the token estimate and the pointer at `find`.
+#[test]
+fn only_a_genuinely_large_file_is_called_expensive() {
+    let fx = Fixture::new("read-cost");
+
+    // Just past the line bound, but small: short notice, no cost, no advice.
+    let modest: String = (1..=2_400).map(|i| format!("{i}\n")).collect();
+    fx.seed("modest.txt", &modest);
+    let (_, r) = fx.call("read", Args::new().text("path", "modest.txt"));
+    let body = fx.text(&r);
+    assert!(body.contains("of 2400"), "it is still truncated and still says so: {body:.150}");
+    assert!(
+        !body.contains("tokens") && !body.contains("`find`"),
+        "an ordinary long file must not be dressed as a warning: {}",
+        &body[body.len().saturating_sub(300)..]
+    );
+
+    // Genuinely large: the cost, and the cheaper way to get an answer.
+    let huge: String = (1..=5_000).map(|i| format!("line {i} with enough text to weigh something\n")).collect();
+    fx.seed("huge.txt", &huge);
+    let (_, r) = fx.call("read", Args::new().text("path", "huge.txt"));
+    let body = fx.text(&r);
+    let tail = &body[body.len().saturating_sub(400)..];
+    assert!(tail.contains("tokens"), "a large file must state its cost in tokens: {tail}");
+    assert!(tail.contains("`find`"), "and name the targeted alternative: {tail}");
+}
+
+/// The window bounds an explicit `range` too, so it is not a way around the ceiling.
+#[test]
+fn an_explicit_range_is_still_bounded_by_the_window() {
+    let fx = Fixture::new("read-range-bounded");
+    let content: String = (1..=9_000).map(|i| format!("line {i}\n")).collect();
+    fx.seed("long.txt", &content);
+    let (_, r) = fx.call("read", Args::new().text("path", "long.txt").text("range", "1-9000"));
+    assert!(!r.failed, "{}", fx.why(&r));
+    let returned = fx.text(&r).lines().count();
+    assert!(
+        returned <= marlowe_exec::READ_WINDOW_LINES + 5,
+        "a range asking for everything returned {returned} lines; the window is {}",
+        marlowe_exec::READ_WINDOW_LINES
+    );
 }

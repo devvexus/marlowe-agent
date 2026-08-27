@@ -53,6 +53,58 @@ use marlowe_tools::{Metric, PathGlob, ResultSummary, ToolId};
 /// only the §8 summary — §6's *"the raw data should never touch attention"*.
 pub const MAX_INLINE_BYTES: usize = 8_192;
 
+/// How many lines one `read` returns when the caller does not say.
+///
+/// # A file is read through a WINDOW, the way Claude Code reads one
+///
+/// `read` used to return the whole file. Anything over [`MAX_INLINE_BYTES`] then became a
+/// `ContentRef` — a hash plus a 4 KB head-and-tail — and **that hash is not dereferenceable for a
+/// file**: `read`'s `ref` parameter takes ids that `web` issued, not file reads. So the middle of
+/// any file above 8 KB was simply unreachable. The model could glimpse both ends and nothing else.
+///
+/// Watched live 2026-08-27: a run read `DECISIONS.md` (208 KB), `ROADMAP.md` (68 KB),
+/// `CONTRACTS.md` (61 KB), `ARCHITECTURE.md` (33 KB) and `M3-DESIGN.md` (32 KB), got head and tail
+/// of each, and could not answer from any of them.
+///
+/// 2,000 lines matches the reference implementation. It is a **default**, not a limit: `range`
+/// reads any window of the file, and a truncated result says so and says how.
+pub const READ_WINDOW_LINES: usize = 2_000;
+
+/// The byte ceiling on one window, whatever its line count.
+///
+/// 2,000 lines of ordinary prose is far more than a 32,768-token context can hold, so lines alone
+/// do not bound this — one call could still swallow the window. 32 KB is roughly 11k tokens
+/// against `DEFAULT_CONTEXT_TOKENS`, which leaves room for the conversation that asked for it.
+///
+/// Both bounds are reported when either bites, because a result that stops without saying so is
+/// indistinguishable from a file that ended.
+pub const READ_WINDOW_BYTES: usize = 32 * 1024;
+
+/// Above this, a truncated read also says what the whole file would cost and names `find`.
+///
+/// A quarter of `DEFAULT_CONTEXT_TOKENS`. Below it a file is several windows at worst and the
+/// short notice is enough; above it, reading the whole thing is a decision worth making
+/// deliberately rather than by repeating `read` until the budget runs out.
+///
+/// **Held back deliberately.** Warning on every truncated read would make the warning worthless —
+/// a model told that everything is expensive has learned nothing about what actually is.
+/// What fraction of the context window makes a file worth warning about.
+///
+/// A quarter. Below it, reading the file costs a share of the window a run can afford to spend on
+/// one call; above it, reading the whole thing is a decision worth making deliberately rather than
+/// by repeating `read` until the budget runs out.
+///
+/// **Held back deliberately.** Warning on every truncated read would make the warning worthless —
+/// a model told that everything is expensive has learned nothing about what actually is.
+pub const LARGE_FILE_SHARE_OF_CONTEXT: u32 = 4;
+
+/// The window assumed when nobody says. Kept as a literal rather than importing
+/// `marlowe_provider::DEFAULT_CONTEXT_TOKENS`, because this crate must not depend on a provider —
+/// `with_context_tokens` is how the real number arrives, and the daemon always passes it.
+fn marlowe_provider_context_default() -> u32 {
+    32_768
+}
+
 /// How many files `find` will open in one call. A search is bounded structurally rather than by
 /// hoping the pattern is selective.
 pub const FIND_FILE_CAP: usize = 2_000;
@@ -112,6 +164,17 @@ pub struct FileSystemTools<S: PathScope> {
     /// store is what makes the next step possible, where the text stops flowing at all and is
     /// pulled only when something asks a question of it. See `docs/design/adr/ADR-042`.
     store: marlowe_extract::store::DocumentStore,
+    /// The model's context window, in tokens — **the thing "large" is large COMPARED TO.**
+    ///
+    /// A fixed byte or token threshold answers the wrong question. A 10,000-token file is most of
+    /// a 32k window and a rounding error in a 200k one, and warning about it in both teaches a
+    /// model with room to spare that the warning means nothing. So the executor is told the window
+    /// and compares against it.
+    ///
+    /// Defaults to `DEFAULT_CONTEXT_TOKENS` so a host built without one still behaves sensibly;
+    /// the daemon passes the number it actually sends as `num_ctx`, which is the same field the
+    /// assembler sizes its view from.
+    context_tokens: u32,
 }
 
 impl<S: PathScope> FileSystemTools<S> {
@@ -120,7 +183,16 @@ impl<S: PathScope> FileSystemTools<S> {
             scope,
             workspace: workspace.into(),
             store: marlowe_extract::store::DocumentStore::new(),
+            context_tokens: marlowe_provider_context_default(),
         }
+    }
+
+    /// The model's context window, so "this file is large" is measured against something real.
+    pub fn with_context_tokens(mut self, tokens: u32) -> Self {
+        if tokens > 0 {
+            self.context_tokens = tokens;
+        }
+        self
     }
 
     /// Share one store across hosts. The daemon builds a single host today, so this exists for the
@@ -217,6 +289,11 @@ fn failed(verb: &'static str, detail: impl Into<String>) -> ToolOutcome {
 }
 
 /// Inline if small, reference if not. §2.8's first axis — **size**, independent of trust.
+///
+/// **`read` does not come through here any more** — see [`body_for_window`]. A file bounded by
+/// [`READ_WINDOW_BYTES`] is meant to be READ, and turning it into a hash the model cannot
+/// dereference was the whole defect. This still governs `bash` output and `find` results, where a
+/// reference is the honest answer to "more than you asked for".
 fn body_for(text: String) -> (ToolBody, u64, Option<String>) {
     let bytes = text.len() as u64;
     if text.len() <= MAX_INLINE_BYTES {
@@ -228,6 +305,17 @@ fn body_for(text: String) -> (ToolBody, u64, Option<String>) {
         let preview = Some(head_and_tail(&text));
         (ToolBody::Reference { hash, bytes }, bytes, preview)
     }
+}
+
+/// A window that has already been bounded reaches the model as TEXT.
+///
+/// `body_for` would hand back a `ContentRef` for anything over 8 KB, and a file reference cannot
+/// be dereferenced — `read`'s `ref` takes ids `web` issued. That is what made every file above
+/// 8 KB unreadable past its first and last 4 KB. The window is bounded by
+/// [`READ_WINDOW_BYTES`] before it gets here, so there is nothing left to protect against.
+fn body_for_window(text: String) -> (ToolBody, u64, Option<String>) {
+    let bytes = text.len() as u64;
+    (ToolBody::Inline(text), bytes, None)
 }
 
 /// How much of an over-large body still reaches the model.
@@ -369,8 +457,68 @@ impl<S: PathScope> FileSystemTools<S> {
                 Err(why) => return failed("read", why),
             }
         }
+        // ── THE WINDOW, AND WHAT IT COSTS ──────────────────────────────────────────────
+        //
+        // Applied AFTER `range`, so an explicit range is bounded by the same ceiling rather than
+        // being a way around it, and BEFORE the metrics, so the numbers describe what was
+        // actually returned.
+        //
+        // **Two notices, and the size decides which.** A 2,400-line file is ordinary and needs one
+        // line: what you got, what to ask for next. A 208 KB file is a different decision, and the
+        // unit that decision is made in is TOKENS -- bytes do not tell a model what it is
+        // committing to. Watched live 2026-08-27: a run read five design documents totalling
+        // ~400 KB, spent its whole 200k budget and answered from none of them.
+        //
+        // The long form is held back for genuinely large files ([`LARGE_FILE_TOKENS`]) so that
+        // routine reads are not dressed as warnings. A model told everything is expensive learns
+        // nothing about what actually is.
+        let total_lines = text.lines().count();
+        // The same pessimistic three-characters-per-token the assembler budgets with, so the two
+        // numbers a run is judged by are computed the same way.
+        let est_tokens = marlowe_loop::estimate_tokens(&text);
+        // **Large COMPARED TO THIS MODEL'S WINDOW**, not against a constant. The same file is
+        // most of a 32k context and a rounding error in a 200k one.
+        let expensive = est_tokens > self.context_tokens / LARGE_FILE_SHARE_OF_CONTEXT;
+        let mut clipped: Option<String> = None;
+
+        let mut note = |kept: usize| {
+            let next_end = (kept + READ_WINDOW_LINES).min(total_lines);
+            let cost = if expensive {
+                format!(
+                    " The whole file is about {est_tokens} tokens; to find something specific, \
+                     `find` searches inside files and returns `path:line: text`."
+                )
+            } else {
+                String::new()
+            };
+            clipped = Some(format!(
+                "\n\n[showing lines 1-{kept} of {total_lines}. Continue with range \
+                 \"{}-{}\".{cost}]",
+                kept + 1,
+                next_end,
+            ));
+        };
+
+        if total_lines > READ_WINDOW_LINES {
+            let first: String =
+                text.lines().take(READ_WINDOW_LINES).collect::<Vec<_>>().join("\n");
+            note(READ_WINDOW_LINES);
+            text = first;
+        }
+        if text.len() > READ_WINDOW_BYTES {
+            let cut = floor_boundary(&text, READ_WINDOW_BYTES);
+            let kept = text[..cut].lines().count();
+            text.truncate(cut);
+            note(kept);
+        }
+        // Appended after truncation so the notice is never itself cut off, and inside the body so
+        // it survives whatever the body becomes.
+        if let Some(n) = &clipped {
+            text.push_str(n);
+        }
+
         let lines = text.lines().count() as u64;
-        let (body, bytes, preview) = body_for(text);
+        let (body, bytes, preview) = body_for_window(text);
         let mut metrics =
             vec![Metric::Count { n: lines, unit: "lines" }, Metric::Bytes { n: bytes }];
         if capped {
