@@ -803,7 +803,19 @@ impl<S: PathScope> Engine<S> {
             // gathering" and start explaining why it was gathering.
             let mut view = view;
             if !pending_nudge.is_empty() {
-                view.stable.push(Block::new(
+                // **`volatile`, NOT `stable`, and that is a TTFT fix rather than a tidy-up.**
+                //
+                // A nudge is by definition present on exactly one call, so pushing it onto the
+                // STABLE tier put a per-turn string into the part of the prompt that is supposed
+                // never to change -- and worse, it landed BEFORE the workspace map, so it
+                // invalidated more of the prefix than injected memory did. A server reuses its KV
+                // cache only for a byte-identical prefix; measured on this machine, a 148-byte
+                // change at the front cost 1.45 seconds.
+                //
+                // `volatile` puts it at the tail with the rest of the turn, where a one-call
+                // string belongs. Nothing else changes: it still reaches exactly one call, still
+                // never enters `state`, and still cannot compound into standing instruction.
+                view.volatile.push(Block::new(
                     SourceKind::Governance,
                     std::mem::take(&mut pending_nudge),
                     TrustClass::AgentObserved,

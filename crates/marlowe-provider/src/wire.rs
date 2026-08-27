@@ -154,11 +154,25 @@ pub fn openai_messages(view: &marlowe_loop::ContextView) -> Vec<Value> {
     // tolerates more, which is why emitting one per block went unnoticed until a qwen3-next model
     // answered `Jinja Exception: System message must be at the beginning`. Injected memory joins
     // it rather than sitting mid-conversation: on the wire it is context, not a turn.
+    // **INJECTED MEMORY IS NO LONGER IN HERE, AND THAT IS THE TTFT FIX.**
+    //
+    // It used to be chained onto the end of this message — which is **position 0**. A server reuses
+    // its KV cache only for a **byte-identical prefix**, and memory is re-retrieved every turn, so
+    // a single changed fact invalidated the system prompt *and every turn of conversation behind
+    // it*. Measured on this machine: a **148-byte** change at the front of the prompt cost
+    // **1.45 seconds**, spontaneously, in an ordinary run nobody was provoking. Over ten turns the
+    // prompt-evaluation cost climbed **689 → 1,320 ms**, monotone in every one of six passes.
+    //
+    // The counterfactual — the same content moved *after* the history — measured **flat at ~275 ms
+    // regardless of turn count**. That is why this moves rather than being trimmed or cached: the
+    // only lever a client has on a server-side KV cache is **emitting byte-identical bytes**, and
+    // it is achieved by construction or not at all.
+    //
+    // What stays true: `stable` then `context` in that order, one system message at position 0.
     let system: Vec<&str> = view
         .stable
         .iter()
         .chain(view.context.iter())
-        .chain(view.volatile.iter().filter(|b| b.source == SourceKind::InjectedMemory))
         .map(|b| b.text.as_str())
         .filter(|t| !t.trim().is_empty())
         .collect();
@@ -168,6 +182,16 @@ pub fn openai_messages(view: &marlowe_loop::ContextView) -> Vec<Value> {
             "content": system.join("\n\n"),
         }));
     }
+
+    // **The memory that used to sit at position 0 is emitted at the TAIL instead — see below the
+    // loop.** Collected first so the loop stays a straight projection of the tier.
+    let recalled: Vec<&str> = view
+        .volatile
+        .iter()
+        .filter(|b| b.source == SourceKind::InjectedMemory)
+        .map(|b| b.text.as_str())
+        .filter(|t| !t.trim().is_empty())
+        .collect();
 
     for block in view.volatile.iter() {
         let role = match block.source {
@@ -209,6 +233,46 @@ pub fn openai_messages(view: &marlowe_loop::ContextView) -> Vec<Value> {
             }
         }
         messages.push(msg);
+    }
+
+    // ── INJECTED MEMORY, AT THE TAIL ────────────────────────────────────────────────────────
+    //
+    // **Here rather than at position 0, and on the rails a spawned child's result already uses.**
+    // See the note on the system message for the measurement; this is the other half of it. What
+    // matters is that everything BEFORE this point is byte-identical between two turns of the same
+    // session, so the server's KV cache survives and only the tail is re-evaluated.
+    //
+    // **Why not simply a `user` message.** A recalled fact would then be indistinguishable from
+    // something the person just said — the model cannot tell "you told me this in March" from "you
+    // are telling me this now", and acting on the second when it was the first is the whole reason
+    // memory carries provenance. **Why not a mid-conversation `system` message.** A qwen3-next
+    // template refuses it outright: `System message must be at the beginning`.
+    //
+    // So it arrives the way a child's return does: an assistant turn announcing a `recall`, paired
+    // by id with a `tool` message carrying the text. `recall` is a real tool in the exposed set, so
+    // this is not a fiction — it is the shape the model already understands for "the harness went
+    // and got something".
+    //
+    // The trust class is untouched. `SourceKind::InjectedMemory` still identifies these blocks,
+    // `trust_floor` is a `min` over blocks and reads neither the source kind nor the wire role, and
+    // `blocks_composed_targets` therefore sees exactly what it saw before. **Layers 2 and 3 are
+    // unchanged by construction, not by argument.**
+    if !recalled.is_empty() {
+        let id = "recall_injected_memory";
+        messages.push(serde_json::json!({
+            "role": "assistant",
+            "content": Value::Null,
+            "tool_calls": [{
+                "id": id,
+                "type": "function",
+                "function": { "name": "recall", "arguments": "{}" },
+            }],
+        }));
+        messages.push(serde_json::json!({
+            "role": "tool",
+            "tool_call_id": id,
+            "content": recalled.join("\n\n"),
+        }));
     }
 
     // A `tool` message that answers no call is refused by a strict endpoint, and the quarantined
