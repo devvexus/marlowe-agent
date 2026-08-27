@@ -301,9 +301,15 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "edit",
-            // Three claims, each from the executor: `existing.find(replacing)` takes the FIRST
-            // occurrence; a miss returns `failed("edit", "`replacing` was not found in the file")`;
-            // with no `replacing` the handle is truncated and rewritten with `content`. The parent
+            // Three claims, each from the executor, and all three moved out from under this
+            // comment: `replacing` must occur EXACTLY ONCE — `existing.find` locates the site and
+            // `match_indices` then refuses a second one, naming the lines, so the description's
+            // "refused and the result lists the line numbers" is the behaviour and "takes the
+            // FIRST occurrence" no longer is; a miss returns `failed("edit", replacing_miss(…))`,
+            // which diagnoses the cause it can check — a line-number prefix, CRLF, whitespace —
+            // rather than one fixed sentence; and `replacing` is REQUIRED, so the truncate-and-
+            // rewrite mode this once described is `write`, which is why the description sends a
+            // whole-file replacement there. The parent
             // directory is the walk's rule, not this tool's — only the LAST component is opened
             // `CreateOrOpen`, so a missing parent is `Unopenable`, which
             // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.

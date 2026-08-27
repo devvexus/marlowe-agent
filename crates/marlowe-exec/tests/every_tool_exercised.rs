@@ -1998,35 +1998,75 @@ fn a_short_file_has_no_window_notice() {
     );
 }
 
-/// **The cost warning is held back for files that are actually expensive.**
+/// **The cost warning is held back for files that are actually expensive, and it states a NUMBER.**
 ///
 /// A model told that everything is expensive has learned nothing about what is. So an ordinary
 /// long file gets one line — what you got, what to ask for next — and only a genuinely large one
 /// also gets the token estimate and the pointer at `grep`.
+///
+/// # This test used to assert the WORD and not the value, and that is why the bug shipped
+///
+/// The old last two lines were `tail.contains("tokens")` and `tail.contains("`grep`")`. Both are
+/// green on a build where the figure is **7.8x low**, because neither of them reads it — the
+/// property asserted where it is *declared* rather than where it is *enforced*. The number is now
+/// checked against an expectation built here; `tests/read_cost_notice.rs` carries the rest of the
+/// family, including the case where the warning vanished entirely.
+///
+/// # Why the modest fixture shrank
+///
+/// It was 2,400 lines of `"{i}\n"`, and against the **32,768-token default** that file is not
+/// modest once the line numbers are counted: 10,893 bytes on disk, 16,800 bytes of prefixes,
+/// **9,231 tokens — over a quarter of the window**, so it is now correctly called expensive. The
+/// control has to be a file that really is under the line, so it is one that plainly is.
+///
+/// The general fact that fixture change exposes is worth stating: on a 32k window a full
+/// `READ_WINDOW_BYTES` window is already ~11k tokens, which is itself over the quarter, so *every*
+/// byte-truncated read is expensive there and only line-truncated reads of very short lines are
+/// not. The discrimination this test is named for lives at a real model's window —
+/// `read_cost_notice.rs` holds that control at 128k. That is a property of the two constants,
+/// not of the fix that revealed it.
 #[test]
 fn only_a_genuinely_large_file_is_called_expensive() {
     let fx = Fixture::new("read-cost");
 
-    // Just past the line bound, but small: short notice, no cost, no advice.
-    let modest: String = (1..=2_400).map(|i| format!("{i}\n")).collect();
+    // Just past the line bound, and genuinely small — 4 KB on disk, ~18 KB numbered, ~6,003
+    // tokens against a threshold of 8,192. Short notice, no cost, no advice.
+    let modest: String = "x\n".repeat(2_001);
     fx.seed("modest.txt", &modest);
     let (_, r) = fx.call("read", Args::new().text("path", "modest.txt"));
     let body = fx.text(&r);
-    assert!(body.contains("of 2400"), "it is still truncated and still says so: {body:.150}");
+    assert!(body.contains("of 2001"), "it is still truncated and still says so: {body:.150}");
     assert!(
         !body.contains("tokens") && !body.contains("`grep`"),
         "an ordinary long file must not be dressed as a warning: {}",
         &body[body.len().saturating_sub(300)..]
     );
 
-    // Genuinely large: the cost, and the cheaper way to get an answer.
-    let huge: String = (1..=5_000).map(|i| format!("line {i} with enough text to weigh something\n")).collect();
+    // Genuinely large: the cost, the cheaper way to get an answer, and the RIGHT cost.
+    let huge: String =
+        (1..=5_000).map(|i| format!("line {i} with enough text to weigh something\n")).collect();
     fx.seed("huge.txt", &huge);
     let (_, r) = fx.call("read", Args::new().text("path", "huge.txt"));
     let body = fx.text(&r);
     let tail = &body[body.len().saturating_sub(400)..];
     assert!(tail.contains("tokens"), "a large file must state its cost in tokens: {tail}");
     assert!(tail.contains("`grep`"), "and name the targeted alternative: {tail}");
+
+    // **The expectation is built, not restated**: the exact string a model receives if it reads
+    // the whole file, through the assembler's own estimator. Unfixed this reads 76,298 against
+    // 87,965 — the bytes on disk, with the line numbers the model is sent left out of the bill.
+    let stated: u32 = tail
+        .split_once("is about ")
+        .and_then(|(_, s)| s.split_once(" tokens"))
+        .and_then(|(n, _)| n.trim().parse().ok())
+        .unwrap_or_else(|| panic!("the cost must be a number: {tail}"));
+    let expected = marlowe_loop::estimate_tokens(&marlowe_exec::number_lines(&huge, 1));
+    let ratio = f64::from(stated.max(expected)) / f64::from(stated.min(expected));
+    assert!(
+        ratio <= 1.01,
+        "the notice claims {stated} tokens; reading the whole file really costs {expected} \
+         — off by {ratio:.2}x"
+    );
 }
 
 /// The window bounds an explicit `range` too, so it is not a way around the ceiling.

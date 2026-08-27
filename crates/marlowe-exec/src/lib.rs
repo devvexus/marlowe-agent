@@ -143,6 +143,21 @@ pub const NUMBERED_CONTENT_LINES: u32 = 2;
 /// a model told that everything is expensive has learned nothing about what actually is.
 pub const LARGE_FILE_SHARE_OF_CONTEXT: u32 = 4;
 
+/// [`marlowe_loop::estimate_tokens`] for text that is never materialised.
+///
+/// `read` must state what the **whole numbered file** would cost while only ever holding one
+/// window of it, so that cost is computed from a length — the bytes on disk plus one
+/// [`LINE_NUMBER_WIDTH`] + 1 byte prefix per line — and there is no string to hand the estimator.
+///
+/// **This is a second copy of the assembler's three-characters-per-token rule**, and a second copy
+/// held true by a comment is held true by nothing:
+/// `read_cost_notice.rs::estimate_tokens_of_agrees_with_the_assemblers_estimator` compares the two
+/// across the rounding boundaries and the sizes this executor deals in, so a change to either one
+/// fails a test rather than quietly relabelling every cost `read` prints.
+pub fn estimate_tokens_of(bytes: usize) -> u32 {
+    u32::try_from(bytes.div_ceil(3)).unwrap_or(u32::MAX)
+}
+
 /// The window assumed when nobody says. Kept as a literal rather than importing
 /// `marlowe_provider::DEFAULT_CONTEXT_TOKENS`, because this crate must not depend on a provider —
 /// `with_context_tokens` is how the real number arrives, and the daemon always passes it.
@@ -643,6 +658,34 @@ impl<S: PathScope> FileSystemTools<S> {
         // **The file's own length is measured before slicing**, so the notice can speak in
         // absolute line numbers whether or not a range was given.
         let total_lines = text.lines().count();
+        // ── AND SO IS ITS COST, FOR THE SAME REASON AND WITH THE SAME URGENCY ──────────────
+        //
+        // The notice says *"The whole file is about N tokens"*. It used to be computed **after**
+        // the `range` slice below and **before** the numbering above, so it was neither of the two
+        // things that sentence claims:
+        //
+        // * **It measured the RANGE and called it the file.** 20,000 weighty lines read as
+        //   `range: "1-3000"`: 45,631 claimed against 356,298 real, **7.8x low**, in the one
+        //   sentence whose entire job is to let a model choose between reading this and `grep`ping
+        //   it. `expensive` derives from the same value, so the failure is not only a wrong
+        //   number — a 509 KB file read through a 3,000-line range fell under the threshold and
+        //   got **no warning at all**, which is the worse half.
+        // * **It measured the bytes on disk while the model receives numbered text.** Exactly the
+        //   reasoning `READ_WINDOW_BYTES` is given below — *"the bytes the model receives rather
+        //   than the bytes on disk"* — never applied four lines up. Each line costs
+        //   `LINE_NUMBER_WIDTH + 1`; +15% on that file, and more the shorter the lines are.
+        //
+        // **It costs nothing to measure here.** `estimate_tokens` is a length divided by three,
+        // `text` already holds the whole file (`clone_and_read` read it before `range` existed),
+        // and `total_lines` is already counted for the notice. Moving it earlier removes a pass
+        // over the text rather than adding one — see [`estimate_tokens_of`], which takes the
+        // length because the numbered whole file is never built.
+        //
+        // A file cut at `MAX_READ_BYTES` reports the cost of the 4 MB prefix rather than of the
+        // file. That is an under-report, it is stated in words by the trailer below, and it cannot
+        // change the decision: 4 MB is ~1.4M tokens and is expensive against every window there is.
+        let whole_file_tokens =
+            estimate_tokens_of(text.len() + total_lines * (LINE_NUMBER_WIDTH + 1));
         let mut first_line = 1usize;
         if let Some(range) = text_arg(args, "range") {
             // **Both failure modes here were SILENT and both produced a result that means
@@ -678,21 +721,31 @@ impl<S: PathScope> FileSystemTools<S> {
         // being a way around it, and BEFORE the metrics, so the numbers describe what was
         // actually returned.
         //
-        // **Two notices, and the size decides which.** A 2,400-line file is ordinary and needs one
-        // line: what you got, what to ask for next. A 208 KB file is a different decision, and the
-        // unit that decision is made in is TOKENS -- bytes do not tell a model what it is
-        // committing to. Watched live 2026-08-27: a run read five design documents totalling
-        // ~400 KB, spent its whole 200k budget and answered from none of them.
+        // **Two notices, and the size decides which.** An ordinary long file needs one line: what
+        // you got, what to ask for next. A 208 KB file is a different decision, and the unit that
+        // decision is made in is TOKENS -- bytes do not tell a model what it is committing to.
+        // Watched live 2026-08-27: a run read five design documents totalling ~400 KB, spent its
+        // whole 200k budget and answered from none of them.
         //
-        // The long form is held back for genuinely large files ([`LARGE_FILE_TOKENS`]) so that
-        // routine reads are not dressed as warnings. A model told everything is expensive learns
-        // nothing about what actually is.
-        // The same pessimistic three-characters-per-token the assembler budgets with, so the two
-        // numbers a run is judged by are computed the same way.
-        let est_tokens = marlowe_loop::estimate_tokens(&text);
+        // The long form is held back for genuinely large files -- more than
+        // [`LARGE_FILE_SHARE_OF_CONTEXT`] of the window -- so that routine reads are not dressed
+        // as warnings. A model told everything is expensive learns nothing about what actually is.
+        //
+        // **Two things this paragraph used to say are no longer true and are corrected rather
+        // than deleted, because both were load-bearing to someone reading it.** It cited a
+        // `LARGE_FILE_TOKENS` constant, which has not existed since the threshold became a
+        // fraction of the window; and it offered *"a 2,400-line file is ordinary"* as the example,
+        // which stopped holding the moment the figure counted the line numbers the model is
+        // actually sent — 2,400 lines of `"{i}\n"` is 9,231 tokens, which is over a quarter of a
+        // 32,768-token window, so that file is now correctly called expensive.
+        //
         // **Large COMPARED TO THIS MODEL'S WINDOW**, not against a constant. The same file is
         // most of a 32k context and a rounding error in a 200k one.
-        let expensive = est_tokens > self.context_tokens / LARGE_FILE_SHARE_OF_CONTEXT;
+        //
+        // **The trigger reads the same figure the sentence prints**, measured above on the whole
+        // numbered file. Triggering on one quantity and printing another is how this went wrong in
+        // the first place.
+        let expensive = whole_file_tokens > self.context_tokens / LARGE_FILE_SHARE_OF_CONTEXT;
 
         let selected = text.lines().count();
         let mut kept = selected;
@@ -737,8 +790,8 @@ impl<S: PathScope> FileSystemTools<S> {
             let next_end = (last + READ_WINDOW_LINES).min(total_lines);
             let cost = if expensive {
                 format!(
-                    " The whole file is about {est_tokens} tokens; to find something specific, \
-                     `grep` searches inside files and returns `path:line:text`."
+                    " The whole file is about {whole_file_tokens} tokens; to find something \
+                     specific, `grep` searches inside files and returns `path:line:text`."
                 )
             } else {
                 String::new()
