@@ -17,6 +17,10 @@
 //! **correct** token must produce a `Status`. Without it, a daemon that refused everything would
 //! pass.
 
+#[path = "../../marlowe-loop/tests/common/exclusive.rs"]
+mod exclusive;
+use exclusive::exclusive;
+
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::path::PathBuf;
@@ -213,6 +217,10 @@ fn a_client_from_another_profile_gets_a_named_refusal_not_a_silence() {
 /// port scanner reaches first.
 #[test]
 fn a_silent_peer_does_not_wedge_the_daemon() {
+    // **Ports are a machine resource and cargo runs test binaries concurrently.** This test
+    // needs specific adjacent ports and no other daemon competing for them; it passed alone
+    // and failed under `--workspace` until this. See `common/exclusive.rs`.
+    let _ports = exclusive("daemon-ports");
     let fx = Fixture::start("silent");
 
     let idle = TcpStream::connect(("127.0.0.1", fx.port)).expect("accepted");

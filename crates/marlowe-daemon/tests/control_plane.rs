@@ -23,6 +23,10 @@
 //! A daemon-level version would need a live model, and a test that skips when Ollama is absent is
 //! a test that is usually not run.
 
+#[path = "../../marlowe-loop/tests/common/exclusive.rs"]
+mod exclusive;
+use exclusive::exclusive;
+
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
@@ -304,6 +308,10 @@ fn the_control_port_refuses_what_needs_the_model_and_says_where_it_lives() {
 /// refusal is not a `NoDaemon`, so `control_or_main` correctly does not paper over it.
 #[test]
 fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
+    // **Ports are a machine resource and cargo runs test binaries concurrently.** This test
+    // needs specific adjacent ports and no other daemon competing for them; it passed alone
+    // and failed under `--workspace` until this. See `common/exclusive.rs`.
+    let _ports = exclusive("daemon-ports");
     let a = Fixture::start("client-a");
     let b = Fixture::start_on("client-b", a.port + 1);
     assert_eq!(b.port, a.port + 1, "the control: they really are adjacent");
@@ -326,6 +334,10 @@ fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
 
 #[test]
 fn two_daemons_never_collide_and_the_derived_port_would_have() {
+    // **Ports are a machine resource and cargo runs test binaries concurrently.** This test
+    // needs specific adjacent ports and no other daemon competing for them; it passed alone
+    // and failed under `--workspace` until this. See `common/exclusive.rs`.
+    let _ports = exclusive("daemon-ports");
     // **The bug that made this an advertised port rather than `port + 1`.** Deriving it put one
     // daemon's control plane on another daemon's main port, and the symptom was a token refusal
     // that looked like a profile mismatch. Two workspace tests hit it within minutes, because

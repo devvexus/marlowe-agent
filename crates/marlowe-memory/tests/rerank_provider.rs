@@ -12,6 +12,10 @@
 //! successfully registered CUDA session. So the strongest available claim is *a CUDA session
 //! constructed and was not permitted to fall back silently*, and these tests make exactly that one.
 
+#[path = "../../marlowe-loop/tests/common/exclusive.rs"]
+mod exclusive;
+use exclusive::exclusive;
+
 use std::path::{Path, PathBuf};
 
 use marlowe_memory::cue::dense::vram::{Probe, Reserve};
@@ -111,6 +115,10 @@ fn the_measurement_arm_reserves_nothing_and_admits_it() {
 
 #[test]
 fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     // **The test that fails when the reserve is reverted to zero.** It needs a real tier-1 model,
     // so it reports rather than skips silently when there is none — and it is deliberately not
     // asserted against a fixed byte count, because the reserve is DERIVED from whatever Ollama
@@ -168,6 +176,10 @@ fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
 
 #[test]
 fn the_reserve_can_push_the_rerank_off_a_card_that_looks_free() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     // **This is the defect ADR-045 §4 exists to fix, driven rather than described.** The card
     // reports plenty free; tier 1's claim is what makes it not free. Under the pre-ADR-045 code
     // the same reading opened a CUDA session, because it read `memory.free` and stopped there.
@@ -229,6 +241,10 @@ fn the_reserve_can_push_the_rerank_off_a_card_that_looks_free() {
 
 #[test]
 fn a_full_card_falls_back_to_cpu_instead_of_failing_the_run() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     // `auto` NEVER fails a run over a busy card. Failing would be a correctness outcome imposed
     // for a throughput reason — the trade ADR-044 refused and ADR-045 refuses again.
     let Some(dir) = dir_or_skip() else { return };
@@ -260,6 +276,10 @@ fn an_explicit_cpu_request_never_touches_the_card() {
 
 #[test]
 fn scoring_is_deterministic_on_cuda_within_one_process() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     let Some(dir) = dir_or_skip() else { return };
     if !cuda_or_report(&dir) {
         return;
@@ -289,6 +309,10 @@ fn scoring_is_deterministic_on_cuda_within_one_process() {
 /// PRINTS the delta rather than asserting a threshold nobody derived.
 #[test]
 fn batch_invariance_on_cuda_is_measured_here_and_never_inherited_from_cpu() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     let Some(dir) = dir_or_skip() else { return };
     if !cuda_or_report(&dir) {
         return;
@@ -370,6 +394,10 @@ fn the_batch_invariance_check_can_actually_see_a_reordering() {
 /// A CUDA session holds **device** memory. The cheapest possible check that it is on the card.
 #[test]
 fn a_loaded_cuda_rerank_session_holds_device_memory() {
+    // The card is one machine resource and `cargo test --workspace` runs test binaries
+    // concurrently. Without this, this file wedged the suite twice and failed a reserve
+    // assertion a third time -- all four passing alone. See `common/exclusive.rs`.
+    let _gpu = exclusive("gpu");
     let Some(dir) = dir_or_skip() else { return };
     if !cuda_or_report(&dir) {
         return;
