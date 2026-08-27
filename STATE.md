@@ -1,5 +1,52 @@
 ﻿# State
 
+## 2026-08-27 — OPEN: THE SUITE-WEDGE GUARD GREPS ONLY THE FILE IT LIVES IN
+
+**Surfaced by the B1 merge agent, verified here, NOT fixed** — two background jobs are using this
+tree and a timing measurement is in flight, so nothing is being built.
+
+### The hazard, and it is the one a guard already exists for
+
+`crates/marlowe-memory/tests/rerank_provider.rs:126`:
+
+```rust
+let installed = std::process::Command::new("ollama").arg("list").output();
+```
+
+A bare, unbounded `Command::output()` with no null stdin and no deadline — **the exact shape
+`bounded_output` was written for** after this wedged the suite on 2026-08-25.
+
+### Why the guard did not catch it
+
+`vram.rs`'s `no_external_command_in_this_module_waits_forever` is `include_str!("vram.rs")`. It
+greps **its own module and nothing else**. So the guard is sound, has never regressed, and is
+structurally incapable of seeing the same hazard in a sibling file.
+
+This is CLAUDE.md's instance **#14 with the sign flipped**. There, a guarded path MOVED and the
+guard silently covered nothing. Here the guard has not moved at all — the hazard was reproduced
+outside its reach, and the guard's own name (*"in this module"*) is an accurate description of a
+scope nobody chose deliberately.
+
+### The symptom is observed, not theoretical
+
+The merge agent watched `rerank_provider` hang for **~25 minutes at 1 GB RSS**, stalling every
+binary queued behind it, where B1's own run had finished the same binary in 3.89s. It passes 10/10
+alone. The agent was careful to say it **could not prove** the bare call was the trigger — Ollama
+answered fine when probed — so this is a hazard with a matching symptom, not a diagnosis.
+
+**It is also a candidate for something seen repeatedly tonight:** several `cargo test -p
+marlowe-exec` invocations exceeded a 600s foreground timeout. That was attributed to package-lock
+contention with a concurrent agent, which was independently confirmed at the time — but a wedged
+binary produces the same reading, and nothing distinguished them.
+
+### What a fix has to do
+
+Route the call through a bounded helper, and — the part that matters more — **widen the guard so it
+covers every file that shells out**, not one module. A guard whose subject is "this file" answers a
+question nobody asked; the question is "does anything in this crate wait forever on an external
+command". `protect-boundaries.py --self-check` is the precedent: it fails when a guarded path does
+not exist, so a rename cannot silently un-guard anything.
+
 ## 2026-08-27 — OPEN: TIME TO FIRST TOKEN IS LONG, AND IT IS NOT HTTPS
 
 **Reported live, partially diagnosed, MEASUREMENT DISPATCHED.** The user's question was whether the
