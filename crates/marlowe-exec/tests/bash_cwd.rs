@@ -73,7 +73,8 @@ fn the_child_starts_in_the_verified_directory() {
     // The positive control. Both platforms. Without it, a `bash` that silently ran in the wrong
     // directory would still satisfy every negative assertion below.
     let root = fixture("positive");
-    let list = if cfg!(windows) { "dir /b" } else { "ls" };
+    // One spelling: `bash` really is bash on both platforms now.
+    let list = "ls";
     let (failed, text) = run_bash(&root, list, "work");
     assert!(!failed, "{text}");
     assert!(text.contains("marker.txt"), "the child did not start in `work`: {text}");

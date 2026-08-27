@@ -427,11 +427,45 @@ fn refusal_prose(reason: &BlockReason, tool: &ToolId) -> String {
              that choose WHAT a tool acts on may never come from there. Retrying with the same \
              value will fail again. Use a value the user gave you, or ask the user for one."
         ),
-        BlockReason::UndeclaredPath { path, detail } => format!(
-            "`{tool}` was not run. The path `{path}` is outside the workspace this run may touch: \
-             {detail}. Retry with a path relative to the workspace root, with no `..` and no drive \
-             letter."
-        ),
+        // ── ONE TEMPLATE COVERED EVERY SCOPE FAILURE, AND IT WAS FALSE FOR THE COMMONEST ──
+        //
+        // This said *"is outside the workspace this run may touch … retry with a path relative to
+        // the workspace root, with no `..` and no drive letter"* for **every** `UndeclaredPath`.
+        // The overwhelmingly common case is a path that is ALREADY relative, ALREADY inside the
+        // workspace, and simply does not exist — for which every word of that advice is wrong.
+        //
+        // A model told to make a path "properly relative" when it already was tries meaningless
+        // reformulations of a filename that was never the problem: observed live 2026-08-27 as
+        // `scratchpad/session-handoff.md`, then `scratchpad/wsC/session-handoff.md`, then the
+        // right path, 190 seconds and three approval prompts later.
+        //
+        // `ScopeError::Unopenable` already carries the careful, ENOENT-specific sentence — it says
+        // in as many words that it is *"NOT a scoping refusal and NOT a permission denial"* — and
+        // this template threw it away and substituted advice about a different failure. The detail
+        // is now read rather than overwritten.
+        BlockReason::UndeclaredPath { path, detail } => {
+            // The OS says one of these when a path simply is not there. Matching the DETAIL rather
+            // than re-deriving the answer keeps this honest: if scoping's message changes, this
+            // falls back to the general refusal instead of inventing a new claim.
+            let missing = ["cannot find the file", "cannot find the path", "os error 2", "os error 3"]
+                .iter()
+                .any(|m| detail.to_lowercase().contains(m));
+            if missing {
+                format!(
+                    "`{tool}` was not run: `{path}` does not exist. This is NOT a scoping refusal \
+                     and NOT a permission denial — the path is fine, there is simply nothing \
+                     there. Do NOT retry with a different prefix or a rearranged path; that is \
+                     not the problem. Use `glob` to see what is actually there, or `write` if you \
+                     meant to create it. ({detail})"
+                )
+            } else {
+                format!(
+                    "`{tool}` was not run. The path `{path}` is outside the workspace this run \
+                     may touch: {detail}. Retry with a path relative to the workspace root, with \
+                     no `..` and no drive letter."
+                )
+            }
+        }
         BlockReason::EgressNotAllowed { host } => format!(
             "`{tool}` was not run. This run may not reach the network, so `{host}` is \
              unreachable — this is a policy on the run, not a problem with the address. No URL \

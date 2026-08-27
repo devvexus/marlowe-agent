@@ -97,16 +97,34 @@ fn body(o: &marlowe_loop::ToolOutcome) -> String {
     }
 }
 
-/// **A7.** The value that actually overflows. It must produce an answer, not a panic.
+/// **A7.** The value that actually overflows. It must produce an ANSWER, not a panic.
+///
+/// The answer changed and the property did not. This asserted `!out.failed` on `0-<u64::MAX>`,
+/// which passed because `slice_lines` treated a `0` start as `1` — silent inference, and the rule
+/// it broke is the one every other fix in this file serves: a tool must not guess. A model that
+/// writes `0-10` is 0-indexing, and being told so once is worth more than being quietly handed
+/// eleven lines it did not ask for.
+///
+/// So the overflow value still produces an answer — a refusal naming the mistake — and the thing
+/// A7 exists to prevent, an unwind, is asserted directly instead of through a proxy.
 #[test]
 fn the_range_that_overflowed_returns_a_result() {
     let ws = Workspace::new("overflow");
     let path = ws.write("f.txt", b"one\ntwo\nthree\n");
 
-    let out = read_with(&ws, vec![("path", &path), ("range", "0-18446744073709551615")]);
+    let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        read_with(&ws, vec![("path", &path), ("range", "0-18446744073709551615")])
+    }))
+    .expect("an absurd range must not unwind the executor");
 
-    assert!(!out.failed, "an absurd range is not a failure, it is a wide range");
-    assert!(body(&out).contains("one"), "a range from line 1 must still start at line 1");
+    assert!(out.failed, "a 0 start is a mistake and is now named rather than reinterpreted");
+    let why = out.summary.detail.clone().unwrap_or_default();
+    assert!(why.contains("numbered from 1"), "the refusal must say what was wrong: {why}");
+
+    // The negative control: a range that IS valid and absurdly wide still answers with content.
+    let wide = read_with(&ws, vec![("path", &path), ("range", "1-18446744073709551615")]);
+    assert!(!wide.failed, "a wide but valid range is not a failure: {:?}", wide.summary);
+    assert!(body(&wide).contains("one"), "a range from line 1 must still start at line 1");
 }
 
 /// Every neighbouring shape of the same argument, because an off-by-one fix that clears exactly one
@@ -144,13 +162,20 @@ fn no_range_argument_can_unwind_the_executor() {
     }
 }
 
-/// An inverted range selects nothing rather than one arbitrary line.
+/// An inverted range is a typo, and it is named rather than silently emptied.
+///
+/// This asserted that `4-2` produced NOTHING, which was true and was the wrong answer: an empty
+/// result is indistinguishable from an empty file, from a range past the end, and from a file the
+/// scope refused — four different facts wearing one face. `60-20` is a transposition, and the
+/// refusal says so and offers the swap.
 #[test]
-fn an_inverted_range_selects_nothing() {
+fn an_inverted_range_is_refused_with_the_swap() {
     let ws = Workspace::new("inverted");
     let path = ws.write("f.txt", b"a\nb\nc\nd\ne\n");
     let out = read_with(&ws, vec![("path", &path), ("range", "4-2")]);
-    assert!(body(&out).trim().is_empty(), "got {:?}", body(&out));
+    assert!(out.failed, "a backwards range must not read as an empty file");
+    let why = out.summary.detail.clone().unwrap_or_default();
+    assert!(why.contains("2-4"), "the refusal must offer the swap it can see: {why}");
 }
 
 /// The negative control: ordinary ranges still work. Without this, a `slice_lines` that returned

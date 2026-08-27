@@ -15,7 +15,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::manifest::ToolId;
 
-/// ARCHITECTURE §5, **amended 2026-08-27 from twelve to thirteen** (ADR-058).
+/// ARCHITECTURE §5, **amended 2026-08-27: twelve → thirteen (ADR-058), thirteen → fourteen
+/// (ADR-059, `glob`)**.
 ///
 /// # The number is a floor on what MCP gets, not a ceiling on what Marlowe has
 ///
@@ -27,11 +28,11 @@ use crate::manifest::ToolId;
 /// what a user's server may offer, and one tool is not a usable budget for a server: `mcp.json`
 /// is not hypothetical. So the cap moved rather than the MCP allowance.
 ///
-/// **Thirteen is arithmetic, not a new judgement: eleven exposed builtins plus the two MCP slots
+/// **The number is arithmetic, not a new judgement: the exposed builtins plus the two MCP slots
 /// the budget has always meant.** It carries no spare, and that is deliberate — the next builtin
 /// has to raise this again, in the open, with a reason. A cap that quietly absorbed each new tool
 /// would be the permissive default this project keeps deleting.
-pub const MAX_EXPOSED_TOOLS: usize = 13;
+pub const MAX_EXPOSED_TOOLS: usize = 14;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ExposureError {

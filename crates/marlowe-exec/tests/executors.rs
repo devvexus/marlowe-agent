@@ -167,7 +167,8 @@ fn find_reports_matches_and_how_many_files_it_actually_read() {
 #[test]
 fn bash_runs_in_the_verified_directory() {
     let fx = Fixture::new("bash");
-    let cmd = if cfg!(windows) { "cd" } else { "pwd" };
+    // `cd` printed the directory in `cmd`; in bash it goes to $HOME and prints nothing.
+    let cmd = "pwd";
     let (outcome, r) = fx.call("bash", Args::new().text("command", cmd).text("cwd", "src"));
 
     // ADR-026: `bash` escalates unconditionally, at EVERY tier including Silent. Asserted here
@@ -282,5 +283,56 @@ fn a_failed_replace_says_which_of_the_three_things_went_wrong() {
         !d.contains("apart from whitespace"),
         "**THE CONTROL.** If the whitespace branch fired here it fires on everything, and \
          branch 2 proves nothing: {d:?}"
+    );
+}
+
+/// **A quoted command reaches the shell as it was written.**
+///
+/// `Command::arg` applies **Rust's** escaping rules — an argument containing a double quote is
+/// wrapped and its quotes turned into `\"` — and `cmd.exe` does not use those rules. It reads `\"`
+/// literally, so on Windows every command the model quoted arrived corrupted.
+///
+/// Measured 2026-08-27, the same code against this repo:
+///
+/// ```text
+///   arg:      dir "docs\*" /b  ->  exit 1, "The system cannot find the path specified."
+///   arg:      echo "hello"     ->  prints  \"hello\"      <- the escaping, visible in stdout
+///   raw_arg:  dir "docs\*" /b  ->  exit 0
+/// ```
+///
+/// Live, the model made **four** `bash` calls trying to list one directory, each stopping to ask
+/// the user for approval before failing (journal seq 4884-4908). Three of the four were correct
+/// `cmd` that would have worked if typed at a prompt. `SHELL_DESCRIPTION` had told it to *"quote
+/// with double quotes"* — the harness instructing the model to do the one thing that could not
+/// work, which is why this read as a model that could not use a shell.
+///
+/// The assertion is on the shell's OUTPUT rather than on the argument vector, because the argument
+/// vector is what looked right the whole time.
+#[test]
+fn quotes_in_a_command_survive_to_the_shell() {
+    let fx = Fixture::new("quoting");
+    std::fs::create_dir_all(fx.root.join("a dir")).unwrap();
+    std::fs::write(fx.root.join("a dir").join("inside.txt"), "found me").unwrap();
+
+    // A path with a space CANNOT be expressed without quotes, so this fails on any build where
+    // quoting is mangled — there is no unquoted spelling that would pass by accident.
+    // **One spelling for both platforms, because there is one shell now.** This was `cfg`-split
+    // for `type` versus `cat` while Windows ran `cmd /C`; it runs bash on both.
+    let cmd = r#"cat "a dir/inside.txt""#;
+    let (_, r) = fx.call("bash", Args::new().text("command", cmd));
+    let text = fx.text(&r);
+    assert!(!r.failed, "a quoted path did not survive to the shell: {:?} {text}", r.summary);
+    assert!(text.contains("found me"), "the file was not read: {text}");
+
+    // **The control.** The escaping was VISIBLE in stdout — `echo "x"` printed `\"x\"` — so this
+    // fails loudly on a build that reverts to `Command::arg`, rather than only failing on paths
+    // that happen to contain spaces.
+    let echo = r#"echo "quoted""#;
+    let (_, r) = fx.call("bash", Args::new().text("command", echo));
+    let out = fx.text(&r);
+    assert!(
+        !out.contains(r#"\""#),
+        "the shell received backslash-escaped quotes, which is Rust's escaping reaching a shell \
+         that does not use it: {out}"
     );
 }

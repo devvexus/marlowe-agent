@@ -246,7 +246,7 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     let registry = builtin_registry().expect("the builtins are compiled in, not loaded");
     // Ten since M2 C2e removed `done`: a run ends when the model replies without calling a
     // tool, so a tool whose only job was ending no longer exists.
-    assert_eq!(registry.len(), 11);
+    assert_eq!(registry.len(), 12);
 
     let profile = CapabilityProfile::interactive();
     // **Registered is ten and exposed is ten: the gap closed in M2 C3.**
@@ -261,7 +261,7 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     // The equality is not the property. The property is that the two numbers agree *because* a
     // guard makes them agree, and the next tool to arrive fails this line until it can run.
     // **Eleven since ADR-058 split `write` out of `edit`.** Four tools have crossed this gap now.
-    assert_eq!(profile.exposed_tools().len(), 11);
+    assert_eq!(profile.exposed_tools().len(), 12);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");

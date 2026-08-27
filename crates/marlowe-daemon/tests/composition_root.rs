@@ -197,7 +197,7 @@ fn each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch() {
 fn two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name() {
     let base = CapabilityProfile::interactive();
     let builtins = base.exposed_tools().len();
-    assert_eq!(builtins, 11, "ADR-051 exposed `use`; ADR-058 split out `write`");
+    assert_eq!(builtins, 12, "ADR-051 `use`; ADR-058 `write`; ADR-059 `glob`");
 
     // The property: whatever the builtins are, a server gets two.
     assert_eq!(

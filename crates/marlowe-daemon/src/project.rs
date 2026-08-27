@@ -363,6 +363,7 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
         "read" => "read",
         "write" => "write",
         "edit" => "edit",
+        "glob" => "glob",
         "find" => "find",
         "bash" => "bash",
         "recall" => "recall",

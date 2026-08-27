@@ -202,14 +202,14 @@ impl CapabilityProfile {
         // shell instead -- no builtin was named for the verb. Splitting them is only useful if
         // BOTH are exposed, which is this line.
         let tools = [
-            "read", "write", "edit", "find", "bash", "web", "recall", "use", "ask", "remember",
-            "run",
+            "read", "write", "edit", "glob", "find", "bash", "web", "recall", "use", "ask",
+            "remember", "run",
         ]
         .iter()
         .map(|t| ToolId::new(*t))
         .collect();
         Self::new(
-            ExposedSet::new(tools).expect("eleven fits in thirteen"),
+            ExposedSet::new(tools).expect("twelve fits in fourteen"),
             // **ADR-032 §3.1: nothing reachable by default, each host by human approval.**
             //
             // Not `DenyAll`, which is structural and unwidenable — the quarantined reader holds
@@ -441,7 +441,7 @@ mod tests {
         // thirteen instead, because a fix to Marlowe's own surface must not be paid for out of a
         // user's server allowance. `composition_root.rs` asserts the two slots rather than the
         // total, so the next builtin that would eat one fails the suite.
-        assert_eq!(i.exposed_tools().len(), 11);
+        assert_eq!(i.exposed_tools().len(), 12);
         assert!(
             i.exposed_tools().iter().any(|t| t.as_str() == "recall"),
             "recall is what makes a memory written a minute ago reachable at all: auto-injection \

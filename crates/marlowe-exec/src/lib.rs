@@ -187,9 +187,26 @@ fn replacing_miss(existing: &str, replacing: &str) -> String {
 }
 
 fn failed(verb: &'static str, detail: impl Into<String>) -> ToolOutcome {
+    // ── THE REASON GOES IN THE BODY TOO, AND THAT IS THE WHOLE POINT ────────────────────
+    //
+    // This returned an EMPTY body with the reason in `summary.detail`, and `detail` is the §B6
+    // expansion — a field every consumer had to know to look in. The ones that did not:
+    //
+    // * the model's own window, which is built from `summary.render()` and the BODY, so a failed
+    //   `edit` arrived as the literal string `"edit · "`;
+    // * the journal, which recorded `{"tool":"read","summary":"read"}` — the name, twice;
+    // * the surface, which shows `render()` only;
+    // * and every failure assertion in `every_tool_exercised.rs`, which read the body and got the
+    //   empty string, panicking with a blank message.
+    //
+    // Four consumers, four separate patches, one cause. **A failure's reason is not an optional
+    // detail — it is the result.** Putting it in the body means nothing downstream has to know
+    // that failures are shaped differently from successes, and the places already patched keep
+    // working (`Engine::finish` appends `detail` only when the text does not already contain it).
+    let detail = detail.into();
     ToolOutcome {
-        summary: ResultSummary::with_detail(vec![Metric::State(verb)], detail),
-        body: ToolBody::Inline(String::new()),
+        summary: ResultSummary::with_detail(vec![Metric::State(verb)], detail.clone()),
+        body: ToolBody::Inline(detail),
         // The harness computed this refusal, so it is agent-observed. Inheriting the call's own
         // taint would make a blocked-call notice unreadable by the very next step.
         trust: TrustClass::AgentObserved,
@@ -328,7 +345,29 @@ impl<S: PathScope> FileSystemTools<S> {
         // `range` is a Payload: untrusted prose may shape it freely, because it selects nothing
         // outside a file the target check already approved.
         if let Some(range) = text_arg(args, "range") {
-            text = slice_lines(&text, range);
+            // **Both failure modes here were SILENT and both produced a result that means
+            // something else.** See `slice_lines`.
+            let of = text.lines().count();
+            match slice_lines(&text, range) {
+                Ok(sliced) if sliced.is_empty() && of > 0 => {
+                    // `0 lines · 0 B` is the signature `read`'s own description reserves for "the
+                    // file is there and is empty". A range that selected nothing rendered
+                    // IDENTICALLY, so a model asking for lines 500-600 of a ten-line file was
+                    // handed the exact string it had been told to read as "this file is empty".
+                    return failed(
+                        "read",
+                        format!(
+                            "`range` \"{range}\" selected no lines: the file has {of}. Ask for a \
+                             range inside 1-{of}, or omit `range` for the whole file."
+                        ),
+                    );
+                }
+                Ok(sliced) => text = sliced,
+                // `slice_lines` used to swallow this and return the WHOLE FILE. A model that
+                // mistyped a range on a large file got everything back, with nothing to say the
+                // range had been ignored rather than honoured.
+                Err(why) => return failed("read", why),
+            }
         }
         let lines = text.lines().count() as u64;
         let (body, bytes, preview) = body_for(text);
@@ -409,6 +448,26 @@ impl<S: PathScope> FileSystemTools<S> {
         let Some(content) = text_arg(args, "content") else {
             return failed("edit", "`content` is required");
         };
+        // **AN EMPTY `replacing` IS A SILENT, UNREQUESTED WRITE, and this is the one place it
+        // could be caught.** `str::find("")` returns `Some(0)` for ANY string, so an empty
+        // `replacing` matches trivially at offset 0 and the splice PREPENDS `content` to the file
+        // — reported back as an ordinary successful `edit`, with a `+n −0` line that looks right.
+        //
+        // A model reaches an empty `replacing` by accident, not on purpose: a snippet extracted
+        // from a `read` that returned nothing, a template that filled in blank, a variable that
+        // was stripped. Every other failure in this executor at least SAYS something; this one
+        // mutated a file and said "done".
+        //
+        // It is the write-then-refuse bug one step worse — that one failed loudly and wasted a
+        // call; this one succeeds wrongly and damages a file.
+        if text_arg(args, "replacing").is_some_and(|r| r.is_empty()) {
+            return failed(
+                "edit",
+                "`replacing` is empty, which would match at the very start of the file and insert \
+                 `content` there rather than replace anything. Give the exact snippet to replace, \
+                 or use `write` to replace the whole file.",
+            );
+        }
         let Some(replacing) = text_arg(args, "replacing") else {
             return failed(
                 "edit",
@@ -466,10 +525,114 @@ impl<S: PathScope> FileSystemTools<S> {
         }
     }
 
+    /// **List what is in a directory. There was no way to do this at all.**
+    ///
+    /// `find` searches file CONTENTS and needs a pattern. `read` needs a path you already know.
+    /// `bash` is `Irreversible`, so every attempt stops and asks the user. Asked what was inside
+    /// `docs/requirements`, the model had exactly one option and it cost a prompt each time:
+    /// journal seq 4884-4908 shows four `bash` calls — `dir "docs/requirements" /s`,
+    /// `dir "docs\*" /b`, `list "docs"`, a GNU-`find` invocation — and 2026-08-27 shows three more
+    /// (`ls -la docs/requirements/`, `ls docs/requirements`, `find ... | head -20`) declined for
+    /// want of an approval surface. It then reported the directory **"appears empty"**. It has four
+    /// files in it.
+    ///
+    /// That last part is the cost of the gap: with no way to look and no way to say "I could not
+    /// look", a model fills the silence. The answer is not a better refusal, it is a tool.
+    ///
+    /// # Names only, and that is what makes it `Inert`
+    ///
+    /// This returns paths. It opens nothing and reads no bytes, so no file content — trusted or
+    /// otherwise — passes through it, which is why it can be `Inert` and run without asking while
+    /// `bash` cannot. Enumeration is bounded by [`FIND_FILE_CAP`] exactly as `find`'s is, and the
+    /// cap being hit is **stated**, because a listing that silently stops makes absence
+    /// indistinguishable from truncation.
+    fn glob(&self, args: &Args, a: &Adjudication) -> ToolOutcome {
+        let Some(root) = handle_for(a, "path") else {
+            return failed("glob", "no adjudicated handle for `path`");
+        };
+        // Absent means "everything here", which is the common case: `glob` with a path and no
+        // pattern is "list this directory".
+        let pattern = text_arg(args, "pattern").unwrap_or("*");
+
+        let base = root.resolved().to_path_buf();
+        // Same as `find`: a file here is the mistake the description names, and it must not
+        // look like an empty directory.
+        if base.is_file() {
+            return failed(
+                "glob",
+                "`path` is a file, and `glob` lists a DIRECTORY. Pass the directory that contains \
+                 it — the file you named is already the answer.",
+            );
+        }
+        let mut candidates = Vec::new();
+        collect(&base, &mut candidates, FIND_FILE_CAP);
+        let truncated = candidates.len() >= FIND_FILE_CAP;
+
+        let mut hits: Vec<String> = Vec::new();
+        for candidate in &candidates {
+            let Ok(relative) = candidate.strip_prefix(&self.workspace) else { continue };
+            let relative = relative.to_string_lossy().replace('\\', "/");
+            let name = candidate
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            // The pattern matches the NAME when it has no slash, and the workspace-relative PATH
+            // when it does — so `*.rs` means "any .rs anywhere under here" and `src/*.rs` means
+            // what it looks like. Stated in the tool's description rather than left to be guessed.
+            let subject = if pattern.contains('/') { relative.as_str() } else { name.as_str() };
+            if glob_match(pattern, subject) {
+                hits.push(relative);
+            }
+        }
+        hits.sort();
+
+        let found = hits.len() as u64;
+        let mut listing = hits.join("\n");
+        if truncated {
+            listing.push_str(&format!(
+                "\n[enumeration stopped at {FIND_FILE_CAP} files; there may be more under this \
+                 path than are listed]"
+            ));
+        }
+        if found == 0 {
+            // **An empty result says which of the two things happened.** "No matches" and "that
+            // directory has nothing in it" are different facts, and a model that cannot tell them
+            // apart invents one — which is exactly what happened live.
+            listing = if candidates.is_empty() {
+                format!("no files under this path at all (`{pattern}` was not the reason)")
+            } else {
+                format!(
+                    "{} file(s) are under this path and none matched `{pattern}`",
+                    candidates.len()
+                )
+            };
+        }
+        let (body, _, preview) = body_for(listing);
+        ToolOutcome {
+            summary: ResultSummary::new(vec![Metric::Count { n: found, unit: "paths" }]),
+            body,
+            trust: TrustClass::AgentObserved,
+            failed: false,
+            wall_ms: 0,
+            preview,
+        }
+    }
+
     fn find(&self, args: &Args, a: &Adjudication, declared: &[PathGlob]) -> ToolOutcome {
         let Some(pattern) = text_arg(args, "pattern") else {
             return failed("find", "`pattern` is required");
         };
+        // **`str::contains("")` is always true**, so an empty pattern reported every line of every
+        // file under `path` as a match — a context-flood standing in for what should have been an
+        // error. A model arrives at an empty pattern the same way it arrives at an empty
+        // `replacing`: a stripped variable, a bad split, never on purpose.
+        if pattern.is_empty() {
+            return failed(
+                "find",
+                "`pattern` is empty, which matches every line of every file. Give the text to \
+                 search for, or use `glob` to list files without searching inside them.",
+            );
+        }
         let Some(root) = handle_for(a, "path") else {
             return failed("find", "no adjudicated handle for `path`");
         };
@@ -477,6 +640,18 @@ impl<S: PathScope> FileSystemTools<S> {
         // Enumeration produces candidate NAMES. Every one is then opened through the scope, so
         // nothing this loop reads bypassed the wall.
         let base = root.resolved().to_path_buf();
+        // **A file where a directory was asked for produced `0 results · 0 files` — the same
+        // answer an empty directory gives.** `collect` swallows `read_dir`'s error on a file
+        // (`let Ok(entries) = read_dir(..) else { continue }`), so the walk simply found nothing.
+        // The manifest says "the DIRECTORY to search -- not a file"; nothing enforced it, and the
+        // model that made exactly the mistake the manifest names got no signal at all.
+        if base.is_file() {
+            return failed(
+                "find",
+                "`path` is a file, and `find` searches a DIRECTORY. Pass the directory that \
+                 contains it, or use `read` to look at this one file.",
+            );
+        }
         let mut candidates = Vec::new();
         collect(&base, &mut candidates, FIND_FILE_CAP);
 
@@ -607,8 +782,23 @@ impl<S: PathScope> FileSystemTools<S> {
             );
         };
         let mut text = crate::corpus::render(&document);
+        // The `ref` path takes the same treatment as the `path` path: a malformed range is an
+        // error rather than a silent whole-document read, and a range that selects nothing is
+        // reported instead of rendering as an empty document.
         if let Some(range) = text_arg(args, "range") {
-            text = slice_lines(&text, range);
+            let of = text.lines().count();
+            match slice_lines(&text, range) {
+                Ok(sliced) if sliced.is_empty() && of > 0 => {
+                    return failed(
+                        "read",
+                        format!(
+                            "`range` \"{range}\" selected no lines: the document has {of}. Ask                              for a range inside 1-{of}, or omit `range` for all of it."
+                        ),
+                    );
+                }
+                Ok(sliced) => text = sliced,
+                Err(why) => return failed("read", why),
+            }
         }
         let chars = text.len() as u64;
         let (body, _, preview) = body_for(text);
@@ -839,7 +1029,7 @@ impl<S: PathScope> ToolHost for FileSystemTools<S> {
     /// **The five this host actually has arms for.** Kept beside the match below so the two
     /// cannot drift; `every_declared_tool_has_a_match_arm` asserts they agree.
     fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-        ["read", "write", "edit", "find", "bash", "web"]
+        ["read", "write", "edit", "glob", "find", "bash", "web"]
             .iter()
             .map(|t| marlowe_tools::ToolId::new(*t))
             .collect()
@@ -946,6 +1136,7 @@ impl<S: PathScope> FileSystemTools<S> {
             "read" => self.read(args, adjudication),
             "write" => self.write(args, adjudication),
             "edit" => self.edit(args, adjudication),
+            "glob" => self.glob(args, adjudication),
             "find" => self.find(args, adjudication, &declared),
             "bash" => self.bash(args, adjudication),
             "web" => self.web(args),
@@ -1022,21 +1213,82 @@ fn count_lines(s: &str) -> u32 {
 /// And it is reachable by design, not by accident: `range` is a declared **Payload**, so §9
 /// explicitly permits untrusted content to choose this value with no permission check in the way.
 /// Injected prose could pick the number directly.
-fn slice_lines(text: &str, range: &str) -> String {
-    let Some((a, b)) = range.split_once('-') else { return text.to_string() };
-    let (Ok(a), Ok(b)) = (a.trim().parse::<usize>(), b.trim().parse::<usize>()) else {
-        return text.to_string();
-    };
-    // An inverted range selects nothing. `b.saturating_sub(a)` would read 0 and `take(1)` would
-    // return line `a` — an answer to a question nobody asked.
-    if b < a {
-        return String::new();
+/// `*` and `?` only, and deliberately no more.
+///
+/// `*` matches any run of characters including none; `?` matches exactly one. **No `**`, no `[a-z]`,
+/// no `{a,b}`** — every one of those is a spelling some shells accept and others do not, and a
+/// pattern language a model has to guess at is the thing this tool exists to stop. What it does is
+/// stated in the tool's description in full, so there is nothing left to infer.
+///
+/// Case-insensitive, because this ships on Windows where the filesystem is, and a `*.MD` that
+/// silently found nothing would be indistinguishable from an empty directory.
+fn glob_match(pattern: &str, subject: &str) -> bool {
+    fn go(p: &[char], s: &[char]) -> bool {
+        match p.first() {
+            None => s.is_empty(),
+            Some('*') => {
+                // Match zero characters, or one more and try again. Bounded by the subject's
+                // length because each recursion consumes one.
+                //
+                // **`*` does not cross a `/`.** Without this it did, and `src/*.rs` matched
+                // `src/deep/other.rs` — contradicting the tool's own description, which promises
+                // that a pattern with a slash finds only what is directly in that directory. Found
+                // by `glob_pattern_with_a_slash_matches_the_path`, which is why that test names
+                // the directory it must NOT reach into rather than only what it must find.
+                //
+                // A name-only pattern is unaffected: a file name contains no separator, so the
+                // guard never fires on `*.rs`, which is the spelling for "anywhere beneath".
+                go(&p[1..], s) || (!s.is_empty() && s[0] != '/' && go(p, &s[1..]))
+            }
+            Some('?') => !s.is_empty() && go(&p[1..], &s[1..]),
+            Some(c) => !s.is_empty() && s[0] == *c && go(&p[1..], &s[1..]),
+        }
     }
-    text.lines()
+    let p: Vec<char> = pattern.to_lowercase().chars().collect();
+    let s: Vec<char> = subject.to_lowercase().chars().collect();
+    go(&p, &s)
+}
+
+/// `first-last`, 1-based and inclusive — and **every way of getting it wrong is now an error**.
+///
+/// # It used to fall back to the whole file, silently, for anything it could not parse
+///
+/// `split_once('-')` failing, or either half failing `parse::<usize>()`, returned `text` unchanged.
+/// So `range: "abc"` and `range: "2"` — the latter a perfectly reasonable guess at "just line 2"
+/// from a parameter documented as *"line range"* — both returned the ENTIRE file with no signal
+/// that `range` had been ignored. On a large file that turns a targeted read into an unexpectedly
+/// huge one, or into a `ContentRef` the model then cannot dereference.
+///
+/// A caller that wants the whole file omits `range`. There is no reading of a malformed range
+/// under which returning everything is what was asked for.
+fn slice_lines(text: &str, range: &str) -> Result<String, String> {
+    let malformed = |detail: &str| {
+        Err(format!(
+            "`range` must be `first-last`, 1-based and inclusive, e.g. \"20-60\" — {detail}. Omit \
+             `range` to read the whole file."
+        ))
+    };
+    let Some((a, b)) = range.split_once('-') else {
+        return malformed(&format!("\"{range}\" has no `-`"));
+    };
+    let (Ok(a), Ok(b)) = (a.trim().parse::<usize>(), b.trim().parse::<usize>()) else {
+        return malformed(&format!("\"{range}\" is not two whole numbers"));
+    };
+    if a == 0 {
+        return malformed("lines are numbered from 1, not 0");
+    }
+    // An inverted range selects nothing. `b.saturating_sub(a)` would read 0 and `take(1)` would
+    // return line `a` — an answer to a question nobody asked. It is refused rather than silently
+    // emptied, because a caller that wrote `60-20` meant `20-60`.
+    if b < a {
+        return malformed(&format!("\"{range}\" runs backwards; did you mean \"{b}-{a}\"?"));
+    }
+    Ok(text
+        .lines()
         .skip(a.saturating_sub(1))
         .take(b.saturating_sub(a).saturating_add(1))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n"))
 }
 
 /// Enumerate regular files under `base`, breadth-first, to a hard cap.
@@ -1104,6 +1356,116 @@ pub struct ShellRun {
     pub flooded: bool,
 }
 
+/// The shell every `bash` call runs, as a `Command` with its program and `-c` already set.
+///
+/// **Public because `shell_bounds.rs` had its own copy and the copy drifted.** That file built
+/// `Command::new("cmd").arg("/C")` under a doc comment reading *"the way `spawn_shell` does on
+/// this platform"* — true when it was written, false the moment the interpreter changed, and
+/// nothing could have reported it. A test that constructs its own idea of the subject is testing
+/// its own idea.
+///
+/// Fails rather than falling back: a shell that is silently a different shell is the defect being
+/// removed here, not a graceful degradation.
+pub fn shell_command() -> std::io::Result<std::process::Command> {
+    #[cfg(windows)]
+    {
+        let Some(bash) = git_bash() else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "the `bash` tool needs Git Bash and it is not installed. Install Git for Windows \
+                 (https://git-scm.com/download/win), or set MARLOWE_BASH to a bash.exe. The \
+                 `read`, `write`, `edit`, `glob` and `find` tools do not need it.",
+            ));
+        };
+        let mut c = std::process::Command::new(bash);
+        c.arg("-c");
+        Ok(c)
+    }
+    #[cfg(unix)]
+    {
+        let mut c = std::process::Command::new("bash");
+        c.arg("-c");
+        Ok(c)
+    }
+}
+
+/// Where Git Bash is, resolved once and never taken from `PATH`.
+///
+/// # `PATH` holds a bash that is a different machine
+///
+/// `C:\Windows\System32\bash.exe` comes first on a default `PATH` and it is **WSL's launcher**,
+/// not a shell — it runs inside a Linux VM with its own filesystem. Measured on this machine, the
+/// same `pwd` through each:
+///
+/// ```text
+///   Git Bash   ->  /c/Users/matth/Projects/Marlowe_Harness
+///   PATH bash  ->  /mnt/c/Users/matth/Projects/Marlowe_Harness
+/// ```
+///
+/// Both "work", which is what makes it dangerous: a path scoping decision made about a Windows
+/// directory would be enforced against a handle in one filesystem and a command run in another,
+/// and on a machine with no WSL distribution installed the same call fails outright. So the
+/// candidates are explicit and `PATH` is not consulted.
+///
+/// `MARLOWE_BASH` overrides, for a machine that keeps Git somewhere else. It is read once.
+#[cfg(windows)]
+fn git_bash() -> Option<std::path::PathBuf> {
+    use std::sync::OnceLock;
+    static FOUND: OnceLock<Option<std::path::PathBuf>> = OnceLock::new();
+    FOUND
+        .get_or_init(|| {
+            if let Some(explicit) = std::env::var_os("MARLOWE_BASH") {
+                let p = std::path::PathBuf::from(explicit);
+                return p.is_file().then_some(p);
+            }
+            let mut roots: Vec<std::path::PathBuf> = Vec::new();
+            for var in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+                if let Some(v) = std::env::var_os(var) {
+                    roots.push(std::path::PathBuf::from(&v).join("Git"));
+                    roots.push(std::path::PathBuf::from(&v).join("Programs").join("Git"));
+                }
+            }
+            roots.push(std::path::PathBuf::from(r"C:\Program Files\Git"));
+            for root in roots {
+                // `bin\bash.exe` is the launcher Git for Windows puts on a user's PATH;
+                // `usr\bin\bash.exe` is the same shell one level down. Either is fine.
+                for rel in [r"bin\bash.exe", r"usr\bin\bash.exe"] {
+                    let candidate = root.join(rel);
+                    if candidate.is_file() {
+                        return Some(candidate);
+                    }
+                }
+            }
+            None
+        })
+        .clone()
+}
+
+/// **The `bash` tool runs bash.** On Windows that is Git Bash, which is what this project's own
+/// tooling uses and what the model's shell vocabulary assumes.
+///
+/// # It ran `cmd /C` until 2026-08-27, and that is why every shell call failed
+///
+/// The tool has always been NAMED `bash`. It ran `cmd.exe`, so a model writing the shell it was
+/// told it had -- `ls`, `find -type f`, `head`, `grep`, `2>/dev/null` -- got failures that looked
+/// like a model unable to use a shell. Across two live sessions it made **seven** attempts to list
+/// one directory and never succeeded once; each was `Irreversible`, so each stopped and asked the
+/// user first. It then reported a directory with four files in it as *"appears empty"*.
+///
+/// Two separate faults, and fixing only the first left it broken:
+///
+/// 1. `Command::arg` applies **Rust's** escaping, turning `"` into `\"`, and `cmd.exe` reads that
+///    literally -- so every QUOTED command arrived corrupted. `raw_arg` fixed that for `cmd`.
+/// 2. The interpreter was still wrong. Teaching the model `cmd` was the other option and it is the
+///    worse one: the tool's name, the model's priors and this project's own scripts are all bash.
+///
+/// **Rust's escaping is correct for this shell**, so `arg` is right here where `raw_arg` was right
+/// for `cmd` -- MSYS2 parses the MSVC-style command line the way `Command` writes it. Measured:
+/// `echo "hello world"` through `arg` prints `hello world`, where the same call to `cmd` printed
+/// `\"hello world\"`.
+///
+/// **No fallback to `cmd`.** A shell that is silently a different shell is precisely the defect
+/// being removed; if Git Bash is absent the call fails and says what to install.
 #[cfg(windows)]
 fn spawn_shell(
     command: &str,
@@ -1113,8 +1475,8 @@ fn spawn_shell(
     // The cwd crosses as a STRING because Win32 has no handle-relative spawn. What makes it safe
     // is that `_cwd_handle` is still alive: the walk opened it without FILE_SHARE_DELETE, so the
     // directory cannot be renamed or deleted, and the string still names the verified object.
-    let mut cmd = std::process::Command::new("cmd");
-    cmd.arg("/C").arg(command).current_dir(dir);
+    let mut cmd = shell_command()?;
+    cmd.arg(command).current_dir(dir);
     run_bounded(cmd, ShellLimits::production())
 }
 
@@ -1128,8 +1490,11 @@ fn spawn_shell(
     use std::os::unix::io::AsRawFd;
     use std::os::unix::process::CommandExt;
 
-    let mut cmd = std::process::Command::new("sh");
-    cmd.arg("-c").arg(command);
+    // **`bash`, not `sh`.** The tool is named `bash` and the model writes bash; `sh` is a
+    // different shell on several distributions and the difference shows up exactly where a model
+    // reaches for a bashism.
+    let mut cmd = shell_command()?;
+    cmd.arg(command);
     match cwd_handle {
         Some(scoped) => {
             // No string crosses at all: the child changes directory to the descriptor the walk

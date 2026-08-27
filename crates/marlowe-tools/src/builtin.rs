@@ -33,8 +33,9 @@ use crate::ArgumentRole;
 
 /// The eleven ids, in ADR-006's order. Used by the HP10 budget test and by profile
 /// construction, so the list exists once.
-pub const BUILTIN_TOOLS: [&str; 11] = [
-    "bash", "read", "write", "edit", "find", "web", "recall", "remember", "use", "run", "ask",
+pub const BUILTIN_TOOLS: [&str; 12] = [
+    "bash", "read", "write", "edit", "glob", "find", "web", "recall", "remember", "use", "run",
+    "ask",
 ];
 
 /// The workspace-relative glob every filesystem tool declares.
@@ -130,11 +131,12 @@ fn registration(
 /// disagree about which interpreter runs. **Naming the network is deliberate**: the absence of any
 /// statement was read by a live session as evidence that there was none, and it reported a
 /// non-existent egress boundary rather than a quoting problem.
-#[cfg(windows)]
-const SHELL_DESCRIPTION: &str = "Run a command through the Windows shell, `cmd /C` — NOT bash, despite the name. Quote with double quotes, not single. No `grep`/`sed`/`awk`, no `&&`, no `2>/dev/null`. **To write or change a file use `edit`, never this**: heredocs (`<< EOF`) and output redirection (`>`) do not work in `cmd` and fail with a bare exit code. To search file contents use `find`; to list files, `dir`. It reaches the network normally. Each call is a fresh shell and asks the user to approve it first. For something the user already told Marlowe, try `recall` first.";
-
-#[cfg(not(windows))]
-const SHELL_DESCRIPTION: &str = "Run a command through `sh -c`. **To write or change a file use `edit`, not shell redirection**: `edit` reports what changed and this does not. It reaches the network normally. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.";
+// **One description, because there is now one shell.** This was `cfg`-split while Windows
+// ran `cmd /C` and everything else ran `sh -c`; the note that lived here said a
+// description naming two shells "makes the model guess which one it has", which was right.
+// The split is gone rather than left as two strings that can drift, because the answer is
+// the same on both: it is bash. See `marlowe_exec::spawn_shell`.
+const SHELL_DESCRIPTION: &str = "Run one command line through bash — really bash, including on Windows, where it is Git Bash. So `ls`, `grep`, `find`, `head`, `sed`, `awk`, `&&`, `|`, `2>/dev/null` and forward slashes all work as you expect. Paths are POSIX: `docs/design`, and the workspace is the working directory. **Reach for a real tool first** — `glob` lists files, `find` searches inside them, `read`, `write` and `edit` handle files, and none of those interrupt the user, whereas EVERY call to this one STOPS AND ASKS THEM for approval, so a wrong guess costs them a prompt. Each call is a fresh shell: no `cd` or variable carries over, use `cwd`. It reaches the network normally. For something the user already told Marlowe, try `recall` first.";
 
 /// Every builtin, registered. **Registration, not exposure** — a profile still selects ≤12.
 pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
@@ -179,7 +181,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     Text,
                     true,
-                    "The command line, run by the platform shell. One invocation: use the shell's own `&&`, `|` and `;` rather than expecting several calls. Killed after 120 seconds, and a killed command says so at the end of its output.",
+                    "One command line, exactly as you would type it at a bash prompt. Quoting reaches the shell verbatim, so quote normally. Chain with `&&`, `|` and `;` within this one call rather than expecting several. Killed after 120 seconds, and a killed command says so at the end of its output.",
                 ),
                 documented(
                     "cwd",
@@ -235,7 +237,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     ParamType::Path,
                     false,
-                    "The file to read, workspace-relative, e.g. `src/main.rs`. Give this OR `ref`. A call that gives neither is refused.",
+                    "The file to read, workspace-relative, e.g. `src/main.rs`. Give this OR `ref`; a call that gives neither is refused. A file that does not exist is refused too, and says so — it does not come back empty.",
                 ),
                 documented(
                     "ref",
@@ -249,7 +251,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     false,
-                    "Line range as `first-last`, 1-based and inclusive: \"20-60\" is line 20 through line 60. Omit for the whole file. A backwards range returns nothing.",
+                    "Line range as `first-last`, 1-based and inclusive: \"20-60\" is line 20 through line 60. Omit it for the whole file. Every other shape is REFUSED rather than guessed at — a single number, a range with no `-`, a `0` start, a backwards range, and a range past the end of the file all come back with the reason and the file's line count.",
                 ),
             ],
         ),
@@ -334,7 +336,53 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "REQUIRED: the exact existing text to replace, copied verbatim from a `read` including indentation. Keep it SMALL -- the smallest snippet that appears only once, usually one line or a few. Do NOT paste the whole file: everything you put here is deleted and replaced by `content`, so a large `replacing` with a short `content` destroys the rest of the file. The FIRST occurrence is replaced and the call FAILS if it is not found.",
+                    "REQUIRED: the exact existing text to replace, copied verbatim from a `read` including indentation. Keep it SMALL — the smallest snippet that appears only once, usually one line or a few. Do NOT paste the whole file: everything you put here is deleted and replaced by `content`, so a large `replacing` with a short `content` destroys the rest of the file. The FIRST occurrence is replaced; the call FAILS if it is not found, and an empty string is refused rather than inserting at the start.",
+                ),
+            ],
+        ),
+        registration(
+            "glob",
+            // **There was no way to list a directory, and the model invented what was in one.**
+            //
+            // `find` searches file CONTENTS and needs a pattern. `read` needs a path already
+            // known. `bash` is `Irreversible`, so every attempt stops and asks the user. Asked
+            // what was inside `docs/requirements`, the model made SEVEN shell calls across two
+            // sessions -- `dir "docs/requirements" /s`, `dir "docs\*" /b`, `list "docs"`,
+            // `ls -la docs/requirements/`, and three more -- and then reported the directory
+            // *"appears empty"*. It has four files in it.
+            //
+            // Names only: this opens nothing and reads no bytes, which is what lets it be `Inert`
+            // and run without asking while `bash` cannot.
+            "List the files under a directory, by name. This is how you see what EXISTS — `find` \
+             searches inside files and `read` needs a path you already have. Returns \
+             workspace-relative paths, one per line, sorted. It never reads a file's contents, so \
+             it does not ask for approval.",
+            "find",
+            8_192,
+            Inert,
+            &[WORKSPACE],
+            &[],
+            vec![
+                documented(
+                    "path",
+                    ArgumentRole::Target,
+                    ParamType::Path,
+                    true,
+                    "The DIRECTORY to list, workspace-relative. Pass \".\" for the whole \
+                     workspace. Everything beneath it is included, not just its immediate \
+                     children.",
+                ),
+                documented(
+                    "pattern",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "Filename pattern. `*` matches any run of characters, `?` matches exactly \
+                     one, and NOTHING ELSE is special — no `**`, no `[a-z]`, no `{a,b}`. With no \
+                     `/` it matches the file's NAME anywhere beneath `path`, so `*.rs` finds every \
+                     Rust file; with a `/` it matches the whole workspace-relative path, so \
+                     `src/*.rs` finds only those directly in `src`. Case-insensitive. Omit it to \
+                     list everything.",
                 ),
             ],
         ),
@@ -345,7 +393,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // directory, and it stops at `FIND_FILE_CAP` (2000). `.` is the spelling the scope
             // accepts for the workspace root — `request::validate` drops `.` components, and
             // `executors.rs::find_reports_matches_and_how_many_files_it_actually_read` passes it.
-            "Search files under a directory for a literal substring, line by line. Not a regex and not a symbol index. `path` is the directory to search: pass \".\" for the whole workspace. Matches come back as `path:line: text`, over at most 2000 files.",
+            "Search INSIDE files under a directory for a literal substring, line by line. To list which files exist, use `glob` — this reads their contents and needs something to look for. Not a regex and not a symbol index. `path` is the directory to search: pass \".\" for the whole workspace. Matches come back as `path:line: text`, over at most 2000 files.",
             "find",
             8_192,
             Inert,
@@ -362,14 +410,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "The literal substring to look for. NOT a regular expression and not a glob: `.` and `*` match themselves. Case-sensitive.",
+                    "The literal substring to look for inside the files. NOT a regular expression and not a filename pattern: `.` and `*` match themselves. Case-sensitive, and an empty string is refused rather than matching every line.",
                 ),
                 documented(
                     "path",
                     ArgumentRole::Target,
                     ParamType::Path,
                     true,
-                    "The DIRECTORY to search, workspace-relative -- not a file. Pass \".\" for the whole workspace.",
+                    "The DIRECTORY to search, workspace-relative. Pass \".\" for the whole workspace. A file here is refused — use `read` for one file.",
                 ),
             ],
         ),
@@ -653,14 +701,14 @@ mod tests {
         //
         // **One spare slot left, and spending it needs an ADR.** This comment is the record that
         // the last one was spent on purpose.
-        assert_eq!(BUILTIN_TOOLS.len(), 11, "ADR-006's eleven, less `done`, plus `write`");
+        assert_eq!(BUILTIN_TOOLS.len(), 12, "ADR-006's eleven, less `done`, plus `write` and `glob`");
         assert!(
             BUILTIN_TOOLS.len() < MAX_EXPOSED_TOOLS,
             "the spare slot is the design; spending it here needs an ADR"
         );
 
         let ids: Vec<ToolId> = BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
-        assert!(r.expose(&ids).is_ok(), "all eleven fit in one exposed set");
+        assert!(r.expose(&ids).is_ok(), "all twelve fit in one exposed set");
     }
 
     /// **A description that hit the cap was cut mid-sentence and nothing said so.**

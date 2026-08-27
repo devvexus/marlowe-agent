@@ -1758,7 +1758,8 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             // verifies **the host it will actually use**, a gap that was open until Session D
             // closed it.
             // **Fourth time: `write`, when it was split out of `edit`.**
-            ["read", "write", "edit", "find", "bash", "web", "recall", "use"]
+            // **Fifth time: `glob`.**
+            ["read", "write", "edit", "glob", "find", "bash", "web", "recall", "use"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()

@@ -27,21 +27,17 @@ fn fast() -> ShellLimits {
     ShellLimits { timeout_ms: 400, max_output_bytes: 64 * 1024 }
 }
 
-/// Build a shell command the way `spawn_shell` does on this platform.
+/// The shell `spawn_shell` uses — **the same function, not a copy of it.**
+///
+/// This built `Command::new("cmd").arg("/C")` under a doc comment saying it matched
+/// `spawn_shell`. It did, until the interpreter changed to Git Bash, and then it silently tested a
+/// shell the product no longer runs. `marlowe_exec::shell_command` is now the one definition.
 fn shell(script: &str) -> Command {
-    #[cfg(windows)]
-    {
-        let mut c = Command::new("cmd");
-        c.arg("/C").arg(script);
-        c
-    }
-    #[cfg(unix)]
-    {
-        let mut c = Command::new("sh");
-        c.arg("-c").arg(script);
-        c
-    }
+    let mut c = marlowe_exec::shell_command().expect("a shell is installed");
+    c.arg(script);
+    c
 }
+
 
 /// A command that never exits on its own, **and spawns nothing**.
 ///
@@ -57,27 +53,17 @@ fn shell(script: &str) -> Command {
 /// an orphan holding a handle, read as a property of the code under test — the same shape as the
 /// `echo`-escaping incident in CLAUDE.md, in a new place.
 ///
-/// `for /L` with a step of zero loops forever **inside `cmd.exe`**, so there is no grandchild and
-/// no inherited handle to leak. On POSIX `sh -c 'sleep …'` execs in place, so the shell *becomes*
-/// the sleep and there was never a second process.
+/// `bash -c 'sleep …'` execs in place, so the shell BECOMES the sleep and there is never a
+/// second process to orphan. This was a `cmd`-only `for /L` loop on Windows until the shell
+/// became Git Bash on both.
 fn forever() -> &'static str {
-    #[cfg(windows)]
-    {
-        "for /L %i in (1,0,2) do @rem"
-    }
-    #[cfg(unix)]
-    {
-        "sleep 600"
-    }
+    // One spelling: it is bash on both platforms now. `sleep` execs in place, so the shell
+    // BECOMES the sleep and there is no grandchild holding an inherited handle.
+    "sleep 600"
 }
 
 /// A command that writes without stopping — again with no grandchild, for the reason above.
 fn floods() -> &'static str {
-    #[cfg(windows)]
-    {
-        "for /L %i in (1,0,2) do @echo AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-    }
-    #[cfg(unix)]
     {
         "yes AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     }
@@ -147,7 +133,8 @@ fn an_ordinary_command_finishes_normally_and_is_reported_as_finished() {
 /// stderr comes back too, and a non-zero exit is reported as one.
 #[test]
 fn stderr_and_a_failing_exit_code_both_survive_the_bounded_path() {
-    let script = if cfg!(windows) { "echo to-stderr 1>&2 & exit /b 3" } else { "echo to-stderr >&2; exit 3" };
+    // One spelling: bash on both platforms.
+    let script = "echo to-stderr >&2; exit 3";
     let run = run_bounded(shell(script), fast()).expect("spawns");
     assert_eq!(run.code, 3);
     assert!(run.text.contains("to-stderr"), "stderr was dropped: {:?}", run.text);
@@ -169,11 +156,8 @@ fn stderr_and_a_failing_exit_code_both_survive_the_bounded_path() {
 /// seconds is long enough to still be running when the harness returns, which is the whole point.
 #[test]
 fn a_command_that_backgrounds_a_child_still_returns_promptly() {
-    let script = if cfg!(windows) {
-        "start /b ping -n 4 127.0.0.1 >nul & for /L %i in (1,0,2) do @rem"
-    } else {
-        "sleep 3 & sleep 600"
-    };
+    // One spelling: bash on both platforms.
+    let script = "sleep 3 & sleep 600";
     let run = run_bounded(shell(script), fast()).expect("spawns");
     assert!(
         run.stopped,
