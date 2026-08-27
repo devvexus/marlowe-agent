@@ -75,10 +75,16 @@ impl ArgValue {
     ///
     /// `blast_radius` used to build the scope line with `as_text`, which returns `None` for every
     /// variant but `Text` — so a declared Target that was a number **was silently dropped from the
-    /// line a human approves against**. The known instance is `run.budget_micros_usd`, typed
+    /// line a human approves against**. The known instance was `run.budget_micros_usd`, typed
     /// `Amount`: §B9 requires the blast radius be stated, and the spend ceiling had never once
     /// appeared in it. That is precisely the case where somebody approves what they would have
     /// refused.
+    ///
+    /// **ADR-057 §6 renamed that parameter to `budget_tokens` and retyped it `Integer`, so no
+    /// builtin declares `Amount` any more.** The variant stays — a spend ceiling is coming back
+    /// with the trust ledger at M6 — and so does its arm here, but be aware that the `Amount` arm
+    /// currently has no live producer in the builtin set. `every_arg_value_variant_renders_to_
+    /// something_a_human_can_read` is what keeps it from rotting.
     ///
     /// The defect was the `filter_map`, not the missing `Amount` arm. A renderer that drops what it
     /// cannot express fails silently and re-breaks on the next variant added. This match has no
@@ -479,32 +485,37 @@ mod tests {
     /// **§B9's blast radius must state every declared Target, including the ones that are not
     /// strings.** (M2 C2f, ADR-032 §3.2.)
     ///
-    /// `run.budget_micros_usd` is a Target typed `Amount`. The scope line was built with
-    /// `as_text`, which returns `None` for it, so **the spend ceiling had never appeared in an
-    /// approval prompt** — §B9 requires the blast radius stated, and a human was being asked to
-    /// approve a spawn with the amount silently absent.
+    /// `run`'s budget parameter is a Target and it is a number. The scope line was built with
+    /// `as_text`, which returns `None` for every non-`Text` variant, so **the child's budget had
+    /// never appeared in an approval prompt** — §B9 requires the blast radius stated, and a human
+    /// was being asked to approve a spawn with the number silently absent.
     ///
-    /// The assertion is on the ceiling being *present and readable*, not on the exact spelling, so
+    /// **The subject was renamed under this test, and the defect it guards did not move.**
+    /// ADR-057 §6 made it `budget_tokens`, typed `Integer`, because `SpawnRequest::grant_tokens`
+    /// is tokens and `Amount` is documented as money. The `filter_map` was the defect, not the
+    /// missing `Amount` arm, so `Integer` exercises it exactly as `Amount` did.
+    ///
+    /// The assertion is on the number being *present and readable*, not on the exact spelling, so
     /// a formatting change does not train anyone to update the test without reading it.
     #[test]
     fn a_numeric_target_appears_in_the_scope_line_a_human_approves() {
         let r = registry();
         let args = Args::new()
             .text("task", "summarise the repo")
-            .with("budget_micros_usd", ArgValue::Amount(2_500_000));
+            .with("budget_tokens", ArgValue::Integer(12_000));
         let d = adjudicate(
             &r,
             "run",
             args,
             TaintSet::new()
                 .with("task", TrustClass::UserAsserted)
-                .with("budget_micros_usd", TrustClass::UserAsserted),
+                .with("budget_tokens", TrustClass::UserAsserted),
             EgressPolicy::DenyAll,
             Tier::Act,
         );
         assert!(
-            d.blast_radius.scope.contains("2.500000"),
-            "the spend ceiling is a declared Target and must be in the line the human reads. \
+            d.blast_radius.scope.contains("12000"),
+            "the child's budget is a declared Target and must be in the line the human reads. \
              This is the case where somebody approves what they would have refused. scope was: \
              {:?}",
             d.blast_radius.scope

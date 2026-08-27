@@ -262,8 +262,17 @@ impl ControlPlane {
             // once, when the turn ends; until then it is `0` and a window would report a run that
             // had been going for a minute as having taken no time at all. The daemon owns the
             // clock, so the daemon is what resolves the two — not the surface, which reads none.
+            //
+            // **`elapsed_ms > 0` alone is not enough, and the gap is a run that stopped without
+            // spending wall time.** Zero does two jobs here — *not finished yet* and *finished
+            // having taken almost none* — and the live branch turns the second into a number that
+            // grows every time anybody looks. It could not arise while `ask_streaming_with` owned
+            // every row, because a turn containing a model call never takes zero. A spawned child's
+            // row is written by `roster.rs` from its last checkpoint, and a child that paused
+            // before its first call has spent no wall time at all. So the status decides as well:
+            // **a run that has stopped is never timed live**, whatever its final number was.
             elapsed_ms: summary.map_or(0, |s| {
-                if s.elapsed_ms > 0 {
+                if s.elapsed_ms > 0 || crate::roster::is_terminal_word(&s.status) {
                     s.elapsed_ms
                 } else {
                     // Through the fence — see `clock.rs`, which is the one file the determinism
@@ -290,7 +299,35 @@ impl ControlPlane {
                 },
             ),
             pending_steers: self.control.pending_steers(run),
+            subagents: self.children_of(run),
         }
+    }
+
+    /// The runs this one spawned, for §6.3's roster panel.
+    ///
+    /// **Read from the checkpoint store, not from the run table**, and for the same reason
+    /// `parent` above is: the table is what this daemon remembers and the store is what survived.
+    /// A child spawned before a restart is still this run's child, and a roster that forgot it
+    /// would be a window disagreeing with the journal.
+    ///
+    /// The status still prefers the live table when it has a row, because that is the one that
+    /// moves while a child works; the checkpoint is the fallback and never a guess.
+    fn children_of(&self, parent: RunId) -> Vec<crate::protocol::RunChild> {
+        self.control
+            .store()
+            .latest_per_run()
+            .into_iter()
+            .filter(|cp| cp.parent == Some(parent))
+            .map(|cp| {
+                let id = cp.run.to_string();
+                let status = self
+                    .runs
+                    .get(&id)
+                    .map(|s| s.status.clone())
+                    .unwrap_or_else(|| format!("{:?}", cp.status).to_lowercase());
+                crate::protocol::RunChild { id, status }
+            })
+            .collect()
     }
 }
 

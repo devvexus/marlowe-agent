@@ -3158,6 +3158,7 @@ re-litigate from scratch.
 | [**ADR-054**](adr/ADR-054-a-steer-is-a-write-and-has-one-door.md) | **A steer is a write, it has exactly one door, and the door is where authority is checked.** §6's earlier draft said a window *"reads the control plane and writes nothing"*; a steer field is a write. A steer is the ONLY channel that writes new strings into `UserAsserted` in an already-latched run, so what matters is not how trusted the text is — in a latched run everything is at the bottom — but WHO asserted it. `steer::admit` is the only constructor of a `SteerMessage` in the workspace, and a grep guard says so |
 | [**ADR-055**](adr/ADR-055-run-output-streams-to-a-window.md) | **A run's own prose streams to its window; the quarantined reader's still does not.** Audit finding E4's generalised form forbade a run window's output panel; it is crossed deliberately, once, on the condition that E4's own unbuilt second clause — the character check at the display boundary — is built. The reader's suppression is unchanged, and the E4 test is MOVED rather than deleted: the loop-level half stays where it is, and the boundary half gets the test it never had |
 | [**ADR-056**](adr/ADR-056-ctrl-v-belongs-to-paste.md) | **`Ctrl-V` is paste; `^v Voice` moves to `Alt-V` and the footer grows a second modifier namespace.** The chord was already unreachable on the primary platform — Windows Terminal binds it and delivers a bracketed paste, so the application never saw it, and no dispatch-table test could notice because those never cross a terminal. M3 F2 gave the composer `Ctrl-A` and `Ctrl-C`; a composer answering two of that set and not the third is worse than one answering none. §B10s footer stays `Ctrl`-first — `Alt` holds exactly one binding, and the requirement that every footer key works from inside a text field is unchanged and still asserted |
+| [**ADR-057**](adr/ADR-057-who-declares-a-childs-contract.md) | **`run` spawns, and the parent declares the child's contract at the call.** The blocker was never plumbing — `Engine::spawn` has been complete since M2 A — but the difference between *inferring* a contract from the task, which §5 forbids, and *defaulting* it to a fixed constant, which is a declaration written down once. Tools default to **empty, not the parent's set**; `share` and `reads_untrusted` are withheld structurally; `adopt` is not in the model's vocabulary because its argument cannot be supplied. **And a spawn is now adjudicated** — `run`'s three Target parameters were enforced by nothing, invisibly, because no model call could reach the path |
 
 **ADR-044 is the one to read before touching the embedder, the embedding cache identity, or any
 published retrieval number.** It records that the HuggingFace reference tolerance *fails* on CUDA
@@ -3191,3 +3192,44 @@ degraded state a user cannot act on is a crash with better manners.*
 `a_refusal_and_a_missing_file_do_not_read_alike` — the second being the control, since the whole
 change is that the two must not read alike. Mutating the sentence out fails the first and nothing
 else.
+
+---
+
+## 2026-08-26 — A §13 change: layer 3 now fires at the spawn site, and two guarded files were edited
+
+**Three of the six §13 entries are involved, so this arrives with an entry rather than as a quiet
+edit.** ADR-057 §4 has the argument; this records what was touched and what was not.
+
+**The change that is logic.** `Engine::spawn` refuses a spawn whose *targets* — the child's tool
+set, its explicit token grant, its orphan policy — are anything but the harness defaults, when
+`marlowe_permission::blocks_composed_targets(run.trust_floor())` holds. `engine.rs` is not itself a
+guarded path (it is ordinary milestone work, and CLAUDE.md says so), but this is an **addition to
+the permission boundary** and it belongs here.
+
+`run`'s manifest has declared those three as `ArgumentRole::Target` since M2 Session A, with the
+comment that untrusted content choosing a child's tool set *"is the trifecta reassembling itself one
+level down"*. **Nothing enforced it.** `ModelStep::Spawn` is matched in the loop and goes straight
+to `Engine::spawn`; only `tool_batch` calls the adjudicator. It was invisible because the path was
+dead — no model call could produce a spawn, so every `SpawnRequest` in the workspace was hand-built
+in a test at `UserAsserted`, where the check does not fire either way.
+
+**A tainted run may still spawn**, at the defaults. Refusing outright would make delegation
+impossible for exactly the run that most needs it, and a child with no tools composes no targets.
+The payload flows; the target does not.
+
+**The two guarded files, and neither had its logic touched.**
+
+| File | What changed | What did not |
+|---|---|---|
+| `marlowe-permission/src/adjudicate.rs` | one doc comment, and one test's subject renamed with the parameter | `adjudicate`, `blast_radius`, `ArgValue::render` — every line of enforcement |
+| `marlowe-loop/src/provenance.rs` | one unit test's argument name and type | `taint_for` and everything it calls |
+
+Both follow `run.budget_micros_usd` being renamed `budget_tokens` and retyped `Integer` (ADR-057
+§6): `SpawnRequest::grant_tokens` is tokens, `Amount` is documented as money, and wiring the old
+name to the field it named would have handed a micro-dollar count to a token grant.
+
+**One thing lost, recorded rather than hidden.** No builtin declares `ParamType::Amount` any more,
+so `coerce_to_declared_types` — one arm wide, and that arm is `Amount` — has **no live instance in
+the product**. It is correct and unexercised until a spend ceiling returns with the trust ledger at
+M6. Its tests were moved onto a hand-built manifest rather than retargeted at `budget_tokens`, where
+`Integer`-declared-and-`Integer`-supplied would have made them green and vacuous.

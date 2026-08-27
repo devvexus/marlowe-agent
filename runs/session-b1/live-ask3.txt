@@ -1,0 +1,1 @@
+ out about Marlowe_B1's project structure by reading C:\Users\matth\Projects\Marlowe\_B1, or say so you don't know. I'll read the workspace root to see how it is organized and what files are present there first if they exist before attempting to answer any question at all about Marlowe_B1  [completed · 8766 ms]

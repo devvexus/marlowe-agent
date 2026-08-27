@@ -22,6 +22,7 @@
 use std::collections::BTreeMap;
 
 use marlowe_view::notice::Speech;
+use marlowe_view::model::{Item, Tone};
 use marlowe_view::run::{CheckpointView, OrphanPolicyLabel, RunState, RunView};
 use marlowe_view::{Entry, ResultSummary, ToolCall, ToolLineState};
 
@@ -101,6 +102,7 @@ impl RunProjection {
             resumable,
             orphan_policy,
             pending_steers,
+            subagents,
             ..
         }) = &self.detail
         else {
@@ -128,9 +130,28 @@ impl RunProjection {
             orphan_policy: policy_of(orphan_policy),
             pending_steers: *pending_steers,
             output: self.entries(),
-            // §6.3's placeholders. **Empty because nothing produces them**, which is a fact and
-            // stays one for a childless run after the roster lands.
-            subagents: Vec::new(),
+            // **The roster, and it has a producer now.** M3 Session B1: `run` could not spawn, so
+            // this was a hardcoded `Vec::new()` and the panel read `subagents — none` for every
+            // run there had ever been — a roster empty because the tree was empty and a roster
+            // empty because nothing filled it, reading identically. Empty is now a fact about a
+            // childless run.
+            //
+            // **Unkeyed.** An item with no key is still a region — border, focus, arrows, wheel and
+            // pointer all reach it — and the window has no accelerator pool of its own to draw
+            // from. Inventing one here is how two items end up sharing a letter, which is the
+            // silent shadowing `KeyRegistry` exists to prevent and which cost the Runs pane every
+            // key it had.
+            subagents: subagents
+                .iter()
+                .map(|c| {
+                    Item::unkeyed(
+                        &marlowe_loop::run::sayable(&c.id),
+                        Tone::Dim,
+                        &[(c.status.as_str(), Tone::Dim)],
+                    )
+                    .identified(&c.id)
+                })
+                .collect(),
             budget: Vec::new(),
             scope_memory: Vec::new(),
             meetings: Vec::new(),
@@ -276,6 +297,10 @@ mod tests {
             resumable: true,
             orphan_policy: "detach".into(),
             pending_steers: 0,
+            // The childless case. `a_run_windows_roster_names_the_children_and_a_childless_run_
+            // names_none` is where a populated roster is asserted, and it gets there through a
+            // real spawn rather than through a fixture that states the answer.
+            subagents: Vec::new(),
         }
     }
 

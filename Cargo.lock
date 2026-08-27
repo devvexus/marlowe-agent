@@ -1639,6 +1639,7 @@ name = "marlowe-provider"
 version = "0.1.0"
 dependencies = [
  "marlowe-contract",
+ "marlowe-journal",
  "marlowe-loop",
  "marlowe-permission",
  "marlowe-tools",

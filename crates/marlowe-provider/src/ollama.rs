@@ -1009,28 +1009,23 @@ fn control_step(name: &str, args: &Args, message: &serde_json::Value) -> ModelSt
             payload_kind: text("payload_kind").unwrap_or_else(|| "fact".into()),
             derived_from: text("derived_from").into_iter().collect(),
         }),
-        // **`run` cannot spawn yet, and this refusal goes to the MODEL, not to the user.**
+        // **`run` SPAWNS, as of ADR-057.** For the whole of M2 this arm routed the call to a tool
+        // host with no `run` executor so the model would read an ordinary refusal — the same route
+        // every unbuilt tool takes, and it was the right holding pattern. What it was waiting for
+        // was never plumbing: `Engine::spawn` has been complete since M2 Session A. It was waiting
+        // for a decision about **who declares the six fields of the contract the model does not
+        // supply**, because M3-DESIGN §5 requires them declared at spawn and never inferred.
         //
-        // It was `ModelStep::Say`, which ends the turn — so a model that called `run` put the
-        // string "[run is not yet reachable from a model call...]" on screen *as Marlowe's reply*
-        // and stopped. Two things wrong at once: harness prose in Marlowe's voice, which ADR-030
-        // forbids, and a turn ended by a tool refusal, which is not an answer to anything.
+        // ADR-057 is that decision, and the mapping lives in `SpawnRequest::from_args` rather than
+        // here. The adapter's job is to recognise that the model named `run`; what a `run` call
+        // *means* belongs next to the type it produces and the engine that enforces it, or a
+        // second provider would write a second answer to the same question.
         //
-        // Routed as a `ToolCall` instead. The tool host has no `run` executor, so the loop
-        // refuses it through the ordinary path, the model reads a refusal it can act on, and the
-        // turn continues. That is the same route every other unbuilt tool takes.
-        //
-        // **Why it cannot simply spawn.** §5 requires a spawn's capability profile, budget and
-        // orphan policy to be *declared at spawn, never inferred*, and the model supplies a task.
-        // Synthesising the rest is precisely what that rule forbids, so this needs a decision
-        // about who declares the contract — not more plumbing. M2 D.
-        "run" => ModelStep::ToolCall {
-            calls: vec![marlowe_loop::ToolInvocation {
-                id: "call_1".to_string(),
-                tool: ToolId::new("run"),
-                args: args.clone(),
-            }],
-        },
+        // **Nothing is refused here**, and that is deliberate. An empty task, a tool the parent
+        // does not hold, a grant larger than the pool — each is refused by `Engine::spawn`, by
+        // name, into the model's own window. A refusal invented in the adapter would be a second
+        // gate that could disagree with the first.
+        "run" => ModelStep::Spawn(marlowe_loop::SpawnRequest::from_args(args)),
         _ => ModelStep::Say(body),
     }
 }

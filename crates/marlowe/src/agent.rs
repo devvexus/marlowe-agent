@@ -645,6 +645,7 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 resumable,
                 orphan_policy,
                 pending_steers,
+                subagents,
             } => {
                 writeln!(out, "run {}", marlowe_loop::run::sayable(&sanitize_line(id)))?;
                 writeln!(out, "  id          {}", sanitize_line(id))?;
@@ -671,6 +672,25 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                 // §6.2: cancel, with the orphan policy the run declared, stated plainly.
                 writeln!(out, "  on cancel   children {}", sanitize_line(orphan_policy))?;
                 writeln!(out, "  steers      {pending_steers} queued")?;
+                // **The roster, one line per child.** M3 Session B1 gave it a producer; before
+                // that `run` could not spawn and this was structurally always empty. Printed only
+                // when there are children, for `parent`'s reason above: a line reading
+                // `subagents   none` on every run there has ever been is noise, and the window's
+                // panel is where an explicit *none* belongs.
+                //
+                // Both fields go through `sanitize_line` even though both are harness-derived —
+                // an id from the journal and a status word from a closed enum. The two other
+                // render sites here do the same, and a display sanitiser applied selectively is
+                // one refactor away from being applied nowhere.
+                for child in subagents {
+                    writeln!(
+                        out,
+                        "  subagent    {}  {}  {}",
+                        marlowe_loop::run::sayable(&sanitize_line(&child.id)),
+                        sanitize_line(&child.status),
+                        sanitize_line(&child.id)
+                    )?;
+                }
             }
             Event::Error { detail } => writeln!(out, "  error: {}", sanitize_line(detail))?,
             // **The control plane's frames, and the classic CLI does not render them here.**

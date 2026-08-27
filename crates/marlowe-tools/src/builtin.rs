@@ -338,14 +338,25 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
         ),
         registration(
             "run",
-            // **"Spawn, steer or await" named three operations, and the model can reach none.**
-            // `ollama::control_step` routes a model's `run` call to an ordinary `ToolCall`, no host
-            // declares a `run` executor, and `ModelStep::Spawn` — the only thing that reaches
-            // `Engine::spawn` — is constructed nowhere outside `spawn_and_budget.rs`. There is also
-            // no steer and no await: the parameters are a task and a child's capability profile,
-            // with no run id among them. Saying so is the `web`-does-not-search precedent; it comes
-            // back when M2 D decides who declares the spawn contract (§5: never inferred).
-            "Delegate a sub-task to a child run. This build cannot spawn one yet, so the call is refused — do the work in this run instead.",
+            // **It spawns now — ADR-057, M3 Session B1.** This description said *"this build cannot
+            // spawn one yet, so the call is refused"* for the whole of M2, and it was accurate:
+            // `control_step` routed the call to a tool host with no `run` executor, deliberately,
+            // so the model got a refusal it could act on. What was missing was never plumbing —
+            // `Engine::spawn` has been complete since M2 A — but a decision about who declares the
+            // six fields of the contract the model does not supply. ADR-057 is that decision.
+            //
+            // **Still no steer and no await.** There is no run id among these parameters and the
+            // model cannot name one, so `run` spawns and blocks. Saying so is the
+            // `web`-does-not-search precedent: a description that names an operation the model
+            // cannot reach is the one thing worse than a missing feature.
+            //
+            // The defaults named here are ADR-057 §1's, restated where the model actually reads
+            // them. A model that has to guess whether omitting `exposed_tools` means "none" or
+            // "everything I have" will guess the generous one.
+            "Delegate a sub-task to a child run: it starts with a fresh window, works, and returns \
+             one structured result. Blocks until the child finishes; its working never enters this \
+             conversation, only what it returns. What you leave out takes a safe default — no \
+             tools, a share of this run's budget, and the child ends when this run does.",
             "run",
             1_024,
             Consequential,
@@ -357,8 +368,21 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                 // The child's capability profile and budget are Targets. Untrusted content
                 // choosing a child's tool set is the trifecta reassembling itself one level
                 // down.
+                //
+                // **And that declaration was enforced by nothing until ADR-057 §4.**
+                // `ModelStep::Spawn` never reached the adjudicator — only `tool_batch` calls it —
+                // so these three were Targets in a manifest and free-for-all in the loop. It was
+                // invisible because the path was dead: no model call could produce a spawn, so
+                // every spawn in the workspace was hand-built at `UserAsserted`, where the check
+                // would not have fired either way. `Engine::spawn` now applies
+                // `blocks_composed_targets` itself.
                 target_opt("exposed_tools", Text),
-                target_opt("budget_micros_usd", Amount),
+                // **`budget_micros_usd` -> `budget_tokens`, ADR-057 §6.** `SpawnRequest::grant_tokens`
+                // and `Budget::grant`'s `explicit` are tokens. Wiring the old name to the field it
+                // names would have handed a micro-dollar count to a token grant: a correct number
+                // about the wrong quantity, which is the family this file is full of warnings about.
+                // `Amount` goes with it — it is documented as money, and a token count is not money.
+                target_opt("budget_tokens", Integer),
                 target_opt("orphan_policy", Text),
             ],
         ),
@@ -477,12 +501,23 @@ mod tests {
         );
     }
 
+    /// **The declaration. `Engine::spawn` is where it is now ENFORCED** — ADR-057 §4, and the
+    /// enforcement is a separate test in `spawn_and_budget.rs` on purpose. This one asserts what
+    /// the manifest says; between M2 and ADR-057 it was green while `ModelStep::Spawn` bypassed
+    /// the adjudicator entirely, which is the "declared control nothing reads" family. A role in a
+    /// manifest is a claim about a check somewhere else, so both halves need their own test.
     #[test]
     fn the_child_capability_arguments_are_targets() {
         let r = builtin_registry().unwrap();
         let run = r.manifest(&ToolId::new("run")).unwrap();
         assert_eq!(run.role_of("exposed_tools"), Some(ArgumentRole::Target));
-        assert_eq!(run.role_of("budget_micros_usd"), Some(ArgumentRole::Target));
+        assert_eq!(run.role_of("budget_tokens"), Some(ArgumentRole::Target));
+        assert_eq!(run.role_of("orphan_policy"), Some(ArgumentRole::Target));
         assert_eq!(run.role_of("task"), Some(ArgumentRole::Payload));
+        // The two the model may never name at all. ADR-057 §5: withheld structurally, so there is
+        // nothing to type. A parameter added here later would make `share` and the quarantine
+        // profile model-reachable without anyone deciding to.
+        assert_eq!(run.role_of("share"), None);
+        assert_eq!(run.role_of("reads_untrusted"), None);
     }
 }

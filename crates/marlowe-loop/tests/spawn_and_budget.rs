@@ -1414,31 +1414,73 @@ fn a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked(
     );
 }
 
+/// A manifest that declares an `Amount`, built by hand. **This exists because no builtin declares
+/// one any more**, and saying so is the point — see the two tests below.
+fn a_manifest_declaring_an_amount() -> marlowe_tools::CapabilityManifest {
+    marlowe_tools::load(
+        marlowe_tools::RawManifest {
+            tool: ToolId::new("pay"),
+            paths: Vec::new(),
+            hosts: Vec::new(),
+            creds: Vec::new(),
+            consequence: Some(marlowe_tools::ConsequenceLevel::Irreversible),
+            params: vec![
+                marlowe_tools::RawParamSpec {
+                    name: "amount".into(),
+                    role: Some(marlowe_tools::ArgumentRole::Target),
+                    ty: marlowe_tools::ParamType::Amount,
+                    required: true,
+                },
+                marlowe_tools::RawParamSpec {
+                    name: "task".into(),
+                    role: Some(marlowe_tools::ArgumentRole::Payload),
+                    ty: marlowe_tools::ParamType::Text,
+                    required: false,
+                },
+            ],
+        },
+        marlowe_tools::ManifestProvenance::FirstParty,
+    )
+    .expect("a hand-built manifest with declared roles loads")
+}
+
 /// **A declared `Amount` reaches the approval prompt as money, not as a bare integer.**
 /// (M2 C2f.)
 ///
-/// JSON has one number type, so a spend ceiling arrives from any provider as `ArgValue::Integer`
+/// JSON has one number type, so a money amount arrives from any provider as `ArgValue::Integer`
 /// — meaning `ParamType::Amount` was a declared type the runtime value never took, and every
 /// branch on `Amount` was dead on the model path. The visible consequence is the §B9 scope line:
 /// `2500000` is a number a human approves after reading it as dollars.
+///
+/// **THE SUBJECT MOVED AND THE TEST DID NOT FOLLOW IT — DELIBERATELY.** This used to run against
+/// `run.budget_micros_usd`, the only builtin parameter typed `Amount`. ADR-057 §6 renamed it to
+/// `budget_tokens` and retyped it `Integer`, because `SpawnRequest::grant_tokens` is tokens and
+/// `Amount` is documented as money. Pointing this test at `budget_tokens` would have been the
+/// obvious edit and it would have been **vacuous**: `Integer` declared and `Integer` supplied means
+/// `coerce_to_declared_types` does nothing, and the test would be green on a build where the
+/// function was `fn coerce(_, args) { args }`.
+///
+/// So it runs against a hand-built manifest instead, and the honest consequence is recorded here:
+/// **`coerce_to_declared_types` currently has no live instance in the builtin set.** It is one arm
+/// wide, that arm is `Amount`, and nothing shipped declares one. That is a finding, not a fix — the
+/// function is correct, it is simply unexercised by the product until a spend ceiling returns at M6.
 #[test]
 fn a_declared_amount_is_rendered_as_money_in_the_scope_line() {
-    let r = builtin_registry().expect("the builtins load");
-    let manifest = r.manifest(&ToolId::new("run")).expect("`run` is a builtin");
+    let manifest = a_manifest_declaring_an_amount();
 
-    // What a provider actually produces for `"budget_micros_usd": 2500000`.
+    // What a provider actually produces for `"amount": 2500000`.
     let raw = marlowe_permission::Args::new()
         .text("task", "summarise")
-        .with("budget_micros_usd", marlowe_permission::ArgValue::Integer(2_500_000));
+        .with("amount", marlowe_permission::ArgValue::Integer(2_500_000));
 
-    let coerced = marlowe_loop::coerce_to_declared_types(manifest, raw);
+    let coerced = marlowe_loop::coerce_to_declared_types(&manifest, raw);
     assert_eq!(
-        coerced.get("budget_micros_usd"),
+        coerced.get("amount"),
         Some(&marlowe_permission::ArgValue::Amount(2_500_000)),
         "the manifest declares Amount, so that is what the adjudicator should see"
     );
     assert!(
-        coerced.get("budget_micros_usd").map(|v| v.render()).unwrap_or_default().contains("2.500000"),
+        coerced.get("amount").map(|v| v.render()).unwrap_or_default().contains("2.500000"),
         "and it renders as money rather than as a raw micro count"
     );
 
@@ -1449,17 +1491,37 @@ fn a_declared_amount_is_rendered_as_money_in_the_scope_line() {
     );
 }
 
+/// The control for the above, and it is what makes the pair non-vacuous: the coercion must be
+/// driven by the **declared type**, not applied to every integer it sees. `run.budget_tokens` is
+/// declared `Integer`, so an integer must come out the other side unchanged.
+///
+/// Without this, a `coerce_to_declared_types` that turned every non-negative integer into an
+/// `Amount` would pass the test above and would render a 12,000-token grant as `0.012000` on the
+/// line a human approves.
+#[test]
+fn an_integer_declared_as_an_integer_is_not_turned_into_money() {
+    let r = builtin_registry().expect("the builtins load");
+    let manifest = r.manifest(&ToolId::new("run")).expect("`run` is a builtin");
+    let raw = marlowe_permission::Args::new()
+        .with("budget_tokens", marlowe_permission::ArgValue::Integer(12_000));
+    let coerced = marlowe_loop::coerce_to_declared_types(manifest, raw);
+    assert_eq!(
+        coerced.get("budget_tokens"),
+        Some(&marlowe_permission::ArgValue::Integer(12_000)),
+        "ADR-057 §6: a token grant is not money and must not render as a currency figure"
+    );
+}
+
 /// A nonsensical value is passed through rather than made plausible. Clamping a negative amount
 /// to zero would hand the adjudicator a number nobody sent.
 #[test]
 fn a_negative_amount_is_not_quietly_turned_into_a_valid_one() {
-    let r = builtin_registry().expect("the builtins load");
-    let manifest = r.manifest(&ToolId::new("run")).expect("`run` is a builtin");
+    let manifest = a_manifest_declaring_an_amount();
     let raw = marlowe_permission::Args::new()
-        .with("budget_micros_usd", marlowe_permission::ArgValue::Integer(-5));
-    let coerced = marlowe_loop::coerce_to_declared_types(manifest, raw);
+        .with("amount", marlowe_permission::ArgValue::Integer(-5));
+    let coerced = marlowe_loop::coerce_to_declared_types(&manifest, raw);
     assert_eq!(
-        coerced.get("budget_micros_usd"),
+        coerced.get("amount"),
         Some(&marlowe_permission::ArgValue::Integer(-5)),
         "left as it arrived: the adjudicator should see what was actually sent"
     );

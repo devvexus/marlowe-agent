@@ -216,6 +216,14 @@ pub enum Event {
         /// Stated plainly beside cancel, per §6.2.
         orphan_policy: String,
         pending_steers: usize,
+        /// The runs this one spawned. **§6.3's roster panel, and until M3 Session B1 there was
+        /// nothing that could fill it** — `run` could not spawn, so `RunView::subagents` was a
+        /// hardcoded empty vector and the panel read `subagents — none` for every run there had
+        /// ever been. Empty here is now a fact about a childless run rather than about the build.
+        ///
+        /// Derived from the checkpoint store, which is where `parent` already comes from — not
+        /// from the run table, which is what the daemon remembers rather than what survived.
+        subagents: Vec<RunChild>,
     },
     Error { detail: String },
 
@@ -231,6 +239,17 @@ pub enum Event {
     /// *"the count, not an acknowledgement. 'queued' is a claim about a mechanism; a number is a
     /// fact the next `/watch` can be checked against."*
     RunOutput { seq: u64, frame: RunFrame },
+}
+
+/// One child of a watched run, as its parent's roster panel shows it.
+///
+/// **Two fields, and the id is not decoration.** A run's label is its mnemonic; 4096 names means
+/// two live runs can share one, so a roster folded by name could merge two children into a row.
+/// [`marlowe_view::model::Item`] keeps the same pair for the same reason.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RunChild {
+    pub id: String,
+    pub status: String,
 }
 
 /// What `Status` answers. Everything §B5's band and the first-run disclosure need, in one frame.
