@@ -47,61 +47,144 @@ question nobody asked; the question is "does anything in this crate wait forever
 command". `protect-boundaries.py --self-check` is the precedent: it fails when a guarded path does
 not exist, so a rename cannot silently un-guard anything.
 
-## 2026-08-27 — OPEN: TIME TO FIRST TOKEN IS LONG, AND IT IS NOT HTTPS
+## 2026-08-27 — OPEN: TTFT IS 1,064 ms. THE TRANSPORT IS INNOCENT AND THE PREFIX IS NOT
 
-**Reported live, partially diagnosed, MEASUREMENT DISPATCHED.** The user's question was whether the
-Ollama transport is HTTPS, since that would explain a handshake delay. It is not, and the two things
-that are actually in the path are below.
+**MEASURED on a controlled machine, NOT FIXED.** Two agents ran: one instrumenting Ollama directly
+(~130 requests, `runs/ttft/raw.ndjson`), one auditing the client path by reading code only
+(`runs/ttft/client-path.md`). Nothing was built or changed. The user's verdict on the result stands
+as the target: *"1 second is unacceptable in all scenarios, 0.2 seconds is a stretch."*
 
-### It is plain HTTP over a raw socket
+### The headline, and the decomposition
 
-`LocalEndpoint::default_ollama()` is `127.0.0.1:11434` and `http::post_ndjson` does
-`TcpStream::connect` and writes a request head by hand. **There is no TLS anywhere on this path** —
-no rustls, no handshake, no certificate verification. `marlowe-net`'s rustls is the `web` tool's
-egress path and is not involved in a model call. So HTTPS is ruled out, and ruled out by reading the
-code rather than by measuring around it.
+**1,064 ms to the first token**, median, n=22, qwen3.5:9b warm, plain HTTP loopback, at the
+product's system-message size. The first token is `thinking` in every case, which was the metric
+asked for.
 
-### Two things that ARE in the path
+| stage | ms |
+|---|---|
+| `load_duration`, fixed, model already resident | 226 |
+| prompt evaluation | 782 |
+| Ollama scheduling / tokenization | ~54 |
+| TCP connect + write | 0.5 |
 
-**1. `Connection: close`, so a new TCP connection per model call.** On loopback this is
-sub-millisecond and is almost certainly not the delay, but it is a fresh connect + accept every
-turn and it is free to remove.
+**The measurement is not provisional.** An unchanging control cell — fixed 15,000-char system with a
+globally-unique marker so it always pays full prompt eval — read 1068 / 1063 / 1076 / 1072 ms across
+four phases, 0.8% spread. Cargo appeared twice; the instrument waited it out and marked those cells.
+CLAUDE.md hazard form 6 is therefore closed rather than assumed.
 
-**2. THE SYSTEM PREFIX CHANGES EVERY TURN, and this is the suspect worth measuring.**
-`request_body` builds ONE system message from `view.stable` + `view.context` + every
-`SourceKind::InjectedMemory` block, concatenated. **Injected memory is retrieved per turn**, so the
-system message differs between turns even when identity, persona, governance and the workspace map
-are identical.
+**The instrument caught its own defect first, and it looked like good news.** The original control
+reused marker values, so its last reading collapsed from 1068 ms to 336 ms — a cache HIT
+masquerading as *"the machine got faster"*. Unique markers restore it to 1096 ms. Same family as
+everything else in CLAUDE.md: a number that moved for a reason adjacent to the one being measured.
 
-`llama.cpp` reuses its KV cache only for a **byte-identical** prefix. A system message that changes
-at any point forces re-evaluation of everything from that point on — and the system message
-measured on a real run is **12,556 to 17,353 characters**, roughly 4-6k tokens, before any
-conversation. If the prefix is invalidated every turn, every turn pays full prompt evaluation
-before the first token appears.
+### HTTPS is ruled out, and so is the transport entirely
 
-This is exactly why `workspace_map` sorts its entries: an unsorted listing would change the prefix
-for no reason. That instinct was right and it does not survive injected memory being concatenated
-after it.
+The original hypothesis was a TLS handshake. **There is no TLS on the model path at all**:
+`LocalEndpoint::default_ollama()` is `127.0.0.1:11434` and `http::post_ndjson` writes a request head
+by hand over a raw `TcpStream`. A grep for `rustls`/`TlsConnector` in `marlowe-provider` returns one
+hit and it is the string `"e.g. https://example.com/page"` in a parameter description. The rustls in
+`marlowe-net` is the `web` tool's egress path.
 
-**The tension is real and is not a simple fix.** Injected memory was deliberately moved INTO the
-system message: a `system` message appearing after the user's turn broke a qwen3-next template with
-*"System message must be at the beginning"*, and attributing memory to the user would make a
-recalled fact indistinguishable from something the user just said. Any fix has to keep both of
-those true while leaving the stable prefix untouched between turns.
+Then measured four more ways, all null, so this is closed by measurement and not only by reading:
+connect+write on loopback **0.45 ms** median (n=24); Nagle on vs off **266 vs 279 ms**; keep-alive
+reuse vs a fresh connection per call **267 vs 279 ms**; one write vs two **258 vs 279 ms**.
+`Connection: close` at `http.rs:371` is real and free to remove, and it is not the delay.
 
-### What is being measured, and the control that decides whether the numbers count
+### The prefix-cache hypothesis holds, and it is the dominant variable term
 
-Metric: **time to FIRST TOKEN, including a thinking token** — the user's stated target, and the
-right one, because a reasoning model emits `thinking` long before `content`.
+```text
+byte-identical prefix       peval    31 ms    TTFT   275 ms
+one char at the END         peval   233 ms    TTFT   474 ms
+one char at the START       peval   763 ms    TTFT  1064 ms   <- exactly cold
+```
 
-Cells worth separating: a warm model with a byte-identical system prefix; the same with one byte
-changed near the start; system prompts of increasing length; `num_ctx` at the shipped 32,768 versus
-smaller; and connection reuse versus `Connection: close`.
+Length sweep on a cold prefix: 31 tok/42 ms | 998/211 | 3,989/782 | 5,891/1,165 | 11,839/2,301 — a
+straight line at **5,227 tokens/s**. Marlowe's system message measures 12,556–17,353 characters,
+~3,200–4,500 tokens, so churning it costs **610–860 ms every turn**.
 
-**CLAUDE.md hazard form 6 governs this measurement.** A timing run taken while a `cargo` build or
-the CUDA suite is using the machine is not evidence — a 16-core build inflated every stage of a
-previous session's table by ~10%, and that table looked complete. **Any number here needs an idle
-machine and a control that would have caught a busy one.**
+**Three sources of churn, and STATE.md previously named only the first.**
+
+1. `request_body` (`ollama.rs:393-419`) concatenates `view.stable` + `view.context` + every
+   `SourceKind::InjectedMemory` block into ONE system message, and injected memory is retrieved per
+   turn. It sits at the END of the system message, so the invalidation point is BEFORE all
+   conversation history — every turn re-evaluates system *plus the entire conversation*. **That cost
+   grows with turn count and is in none of the numbers above.**
+2. **The ephemeral nudge is pushed onto `view.stable`** (`engine.rs:806-810`), landing *mid-prefix*,
+   and it fires after tool chains — so a tool-using turn churns the prefix a second way.
+3. `workspace_map` sorts its entries specifically so the prefix does not churn. That instinct was
+   right and it does not survive either of the above.
+
+### THE SECOND FINDING, WHICH NOBODY PREDICTED
+
+**`load_duration` is 226 ms median on EVERY request** — min 217, max 253, n=80 — with the model
+fully resident on the GPU. It is not a model load. It is a fixed per-request cost, remarkably tight,
+and **82% of the best-case warm TTFT of 275 ms**. Fixing the prefix cache alone therefore lands at
+~275 ms, not at ~50 ms.
+
+It is being attacked rather than accepted. The decisive control is a **`llama-server` head-to-head**:
+same GGUF, llama.cpp's own HTTP server, measured identically. ~40 ms there means the 226 ms is an
+Ollama tax and this becomes a product decision; ~226 ms there means it is the runtime.
+**Open question that changes its weight: is it per REQUEST or per STREAM?** The loop makes several
+model calls per user turn, so per-request means a five-call turn pays 1.13 s of pure tax.
+
+### The client side: what Marlowe adds between the socket and the screen
+
+Read-only audit, `runs/ttft/client-path.md`. **The read path is clean** — `ChunkedBody`
+(`http.rs:311-345`) implements `Read` over chunk framing, `want = buf.len().min(self.remaining)`
+clamps to the current chunk, and the only `read_to_string` is the non-2xx error branch (`:411`). No
+hop buffers a whole turn. **The first thinking token does reach the screen** in the TUI —
+forwarded at `ollama.rs:708-717`, painted at `render.rs:655-672`.
+
+Three costs we add, in priority order:
+
+1. **`Availability::probe` does a full `/api/tags` HTTP round trip before EVERY turn**
+   (`daemon.rs:1191`): fresh connect, chunked body read into a `String`, JSON parse — on the
+   critical path, ahead of the model call. **Cost never measured; a cell is now queued for it.**
+   The OpenRouter arm of the same `match` already refuses to probe and explains why (`:1210-1212`),
+   so the Ollama arm is the odd one out.
+2. **A 50 ms input poll that a token cannot wake** (`tui.rs:594-603`, `live.rs:456-458`).
+   `event::poll` blocks on terminal input; deltas sit in the mpsc until it times out. **Mean 25 ms,
+   worst 50 ms**, derived from a constant and a blocking call. One-line mitigation: drop the
+   in-flight beat to 16 ms.
+3. **Synchronous cross-encoder rerank before the request is sent** (`daemon.rs:1656-1661`), 10 pairs.
+   The crate's own ~182 ms p50 CPU figure (`retrieve.rs:298-304`) is **a carried measurement, not a
+   reading of this daemon** — it depends on what `load_auto` resolved to at boot, and it is zero on
+   an empty belief store. `vectors` is empty (`memory.rs:112`), so no embedder is on this path.
+
+**Two traps that would make any TTFT number wrong.** `marlowe --ask` does not stream at all —
+`agent.rs:257-265` buffers the whole turn and `:580` discards reasoning, so perceived TTFT there is
+the full turn duration. And **a model that puts reasoning in `content` rather than Ollama's
+`thinking` field renders nothing until the closing think tag**: `closed` starts false
+(`ollama.rs:685`), speech goes to `held` (`:747-750`), resolved only when the stream closes. That
+fires on model choice, not configuration.
+
+### Instance #16 again: `PrefixCache` is dead
+
+`store()` and `lookup()` have **zero production callers** — the only calls are in test modules
+(`context.rs:809-821`, `compaction.rs:275-279`). The one production call is `invalidate`
+(`context.rs:762`). It is epoch-keyed, correctly invalidated, and carries a green test asserting the
+invalidation works in both directions — **on a cache that has never held a prefix.** A control
+asserted where it is declared rather than where it is enforced, for the second time this week.
+It also means there is no client-side prefix reuse to build the KV-cache fix on.
+
+### What a fix has to do
+
+* **Keep the stable prefix byte-identical between turns.** Injected memory must move off the front
+  of the prefix. The pattern already exists in this codebase: a child's result rides as an assistant
+  turn carrying a `WireToolCall` paired with a `tool` message. Memory can ride the same rails at the
+  TAIL of the conversation — stable prefix untouched, memory still attributable, and no
+  mid-conversation `system` message to trip the qwen3-next template that forced it here originally.
+* **The ephemeral nudge must stop landing in `view.stable`.**
+* Neither of these is licence to attribute memory to the user; that was rejected for a reason —
+  a recalled fact must not read as something the user just said.
+
+### Still queued on the measurement
+
+`llama-server` head-to-head; `load_duration` vs `num_ctx` (32768/8192/4096); whether the `options`
+payload forces a runner reconfigure per request; `OLLAMA_NUM_PARALLEL=1`; flash attention;
+whether 5,227 tok/s is the card's ceiling or ours; `/api/tags` round-trip cost; the
+production-shaped cell (TTFT growth with turn count, plus the counterfactual with the changing
+block moved after the history); `think` true/false.
 
 ## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
 
