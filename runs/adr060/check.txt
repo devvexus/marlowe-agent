@@ -1,0 +1,210 @@
+    Checking marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:158:9
+    |
+158 |     let mut a = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:159:9
+    |
+159 |     let mut b = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_flicker") generated 2 warnings (run `cargo fix --test "window_flicker" -p marlowe-surface` to apply 2 suggestions)
+warning: variable does not need to be mutable
+  --> crates\marlowe-surface\tests\window_render.rs:92:9
+   |
+92 |     let mut app = common::window();
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:128:9
+    |
+128 |     let mut c1 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:129:9
+    |
+129 |     let mut c2 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "window_render") generated 3 warnings (run `cargo fix --test "window_render" -p marlowe-surface` to apply 3 suggestions)
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+    Checking marlowe-openrouter v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-openrouter)
+warning: `marlowe-provider` (lib test) generated 1 warning (1 duplicate)
+warning: unused variable: `registry`
+   --> crates\marlowe-provider\tests\tool_call_probe.rs:101:9
+    |
+101 |     let registry = builtin_registry().unwrap();
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_registry`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (test "tool_call_probe") generated 1 warning (run `cargo fix --test "tool_call_probe" -p marlowe-provider` to apply 1 suggestion)
+    Checking marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ModelStep`
+  --> crates\marlowe-provider\tests\spawned_child_wire.rs:34:29
+   |
+34 |     ModelCall, ModelDriver, ModelStep, OutputContract, Ports, Provenance, ProviderError, Run, RunId,
+   |                             ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: `marlowe-provider` (test "spawned_child_wire") generated 1 warning (run `cargo fix --test "spawned_child_wire" -p marlowe-provider` to apply 1 suggestion)
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1564:9
+     |
+1564 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:3035:9
+     |
+3035 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+    Checking marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:767:13
+    |
+701 | /             Event::RunDetail {
+702 | |                 id,
+703 | |                 status,
+704 | |                 parent,
+...   |
+715 | |                 subagents,
+716 | |             } => {
+    | |_____________- matches all the relevant values
+...
+767 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe` (bin "marlowe" test) generated 1 warning
+warning: `marlowe` (bin "marlowe") generated 1 warning (1 duplicate)
+warning: unused import: `Ipv4Addr`
+  --> crates\marlowe-daemon\tests\socket_auth.rs:25:16
+   |
+25 | use std::net::{Ipv4Addr, TcpListener, TcpStream};
+   |                ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (test "socket_auth") generated 1 warning (run `cargo fix --test "socket_auth" -p marlowe-daemon` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.27s

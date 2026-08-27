@@ -743,6 +743,12 @@ pub fn prepared(entries: &[Entry]) -> Vec<Entry> {
                         let mut c = c.clone();
                         c.target = clean(&c.target);
                         c.collapsed = c.collapsed.iter().map(|t| clean(t)).collect();
+                        // Harness-composed from typed metrics — but it reached this process over
+                        // a socket as a `String`, and the doc comment above claims the only
+                        // model-composed strings in a tool line are `target`, the collapsed
+                        // targets and `detail`. Preparing it keeps that claim true by
+                        // construction rather than by an argument about who wrote it.
+                        c.summary_line = c.summary_line.as_deref().map(clean);
                         c.state = clean_state(&c.state);
                         c
                     })

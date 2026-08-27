@@ -1,6 +1,8 @@
 # ADR-060 — The 225 ms is Ollama's scheduler, not the runtime: four ways out, and what each one breaks
 
-**Status:** PROPOSED — **a decision for the human. Nothing is built, nothing is changed, and
+**Status:** **ACCEPTED 2026-08-27 as the HYBRID** — Ollama stores and lists, llama.cpp serves, one surface entry naming both, and a fallback to Ollama that states its reason. See DECISIONS.md. Original proposal text follows unchanged.
+
+**Superseded status line:** PROPOSED — **a decision for the human. Nothing is built, nothing is changed, and
 `DECISIONS.md` is untouched.** If adopted, this amends ADR-028, which chose Ollama and is still
 right about *why* it chose it.
 

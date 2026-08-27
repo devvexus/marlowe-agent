@@ -3263,3 +3263,51 @@ so `coerce_to_declared_types` — one arm wide, and that arm is `Amount` — has
 the product**. It is correct and unexercised until a spend ceiling returns with the trust ledger at
 M6. Its tests were moved onto a hand-built manifest rather than retargeted at `budget_tokens`, where
 `Integer`-declared-and-`Integer`-supplied would have made them green and vacuous.
+
+## ADR-060 ACCEPTED AS THE HYBRID, 2026-08-27 — Ollama stores, llama.cpp runs, and a fallback that speaks
+
+**Matthew's decision, taken on the measurements below.** ADR-060 laid out stay / replace / hybrid.
+The answer is the hybrid, and its two halves are not negotiable independently:
+
+**Ollama remains the model store, the downloader and the inventory. llama.cpp is the engine.**
+`ollama pull` and `/model` do not change; the model list still comes from Ollama. What changes is
+that the blob Ollama already holds is served by the `llama-server.exe` Ollama already ships.
+
+**One surface entry that names both halves — `ollama/llama.cpp`.** Not a silent swap under the
+existing `ollama` entry: the user must be able to see which engine is serving. Plain `ollama`
+remains selectable for compatibility, and `openrouter` is untouched.
+
+**On llama-server failure: FALL BACK TO OLLAMA, AND SURFACE WHY.** Verbatim requirement — *"llama
+fails fall back to ollama but surface to user why"*. The fallback is what makes the hybrid safe to
+default to; the surfacing is what stops it from being a lie. A silent fallback would show the user
+the provider they chose while serving 275 ms from the other one, and they would have no way to find
+out. **The reason must be specific** — port taken, blob unresolvable, GPU full, server exited — and
+must persist for the session rather than flashing once. `classify_degradation` must not label it
+*"failed over · secondary provider"*, which is a different and false claim.
+
+### What it is bought with, measured
+
+Warm TTFT **275.1 ms → 52.0 ms** on this machine, Ollama's own bundled `llama-server.exe` against
+the same GGUF blob, same card, GPU-resident. Two additive taxes removed: a **fixed ~225 ms per
+request** — Ollama's own `load_duration` on a model that never left VRAM, pure `sched.GetRunner`
+overhead — and **~19% on prompt eval** (5,227 vs 6,228 tok/s). It is **per request**, so a five-call
+turn pays 1.13 s of scheduler tax. Reproduced four independent times at 226 / 301 / 257 / 285 ms.
+
+**And tool calling is BETTER, not worse, which was the gate.** Same fourteen trials from
+`tool_call_probe.rs`: llama-server `--jinja` **126/126 (100%)** against Ollama's **112/140 (80%)**,
+with **0/168** responses that narrated instead of calling a tool against Ollama's **5/168**. The
+concern that motivated the gate was misplaced; the measurement is what established that, not the
+argument.
+
+### Known costs, accepted with eyes open
+
+* **Depending on `~/.ollama/models` layout is not officially supported.** It is the same class of
+  dependency as parsing another program's cache directory, and an Ollama release can break it. This
+  is why the fallback is mandatory rather than a nicety — the fallback IS the mitigation.
+* **A model switch restarts `llama-server`** (~1.59 s warm), where Ollama keeps runners hot. `/model`
+  needs a real loading state instead of appearing instant.
+* **The tier-1 VRAM reserve reads `ollama ps`.** A blob served by llama-server is in `ollama list`
+  but not in `ps`, so the reserve stacks on top of the ~9.5 GB already taken and the embedder
+  silently resolves to CPU with a plausible reason string. **This must be fixed in the same change**;
+  it is the one failure here that is invisible.
+

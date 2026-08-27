@@ -28,7 +28,7 @@ use marlowe_view::model::{
     Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tone, ToolCall,
 };
 use marlowe_view::notice::Speech;
-use marlowe_view::turn::{DegradedPath, Metric, ResultSummary, ToolLineState};
+use marlowe_view::turn::{DegradedPath, ResultSummary, ToolLineState};
 use marlowe_view::SessionView;
 
 use crate::protocol::{Event, StatusReport};
@@ -38,12 +38,18 @@ use crate::protocol::{Event, StatusReport};
 /// **`rerank_provider` is read, never derived.** ADR-029: the active provider is announced, and
 /// STATE.md's inherited note is explicit that the profile row's field is *the* source — building a
 /// second one here would be the two-sides-silently-disagree shape with a fresh coat of paint.
-/// The providers a build can be switched between, and **the single definition of that set**.
+/// The providers a build can be switched between.
 ///
-/// The picker is built from this and `Daemon::set_provider` validates against it, so an option a
-/// user can see is an option the daemon accepts. Two lists would be the second-source shape: one
-/// of them would gain an entry and the other would refuse it.
-pub const PROVIDERS: &[&str] = &["ollama", "openrouter"];
+/// **A re-export, and moving the definition is the fix rather than a tidy-up.** This used to be
+/// the literal `["ollama", "openrouter", "llamacpp"]`, and `marlowe_stub::script` held a second
+/// copy reading `["ollama", "openrouter"]`. The stub **structurally cannot reach this crate** —
+/// that is the C2d acceptance, enforced by the dependency graph — so the two could never have been
+/// made to agree from either end, and the stub's list was already a provider out of date.
+///
+/// It now lives in `marlowe-view`, which depends on nothing and which the stub, the daemon and the
+/// surface all depend on. The picker is built from it and `Daemon::set_provider` validates against
+/// it, so an option a user can see is an option the daemon accepts.
+pub use marlowe_view::provider::PROVIDERS;
 
 pub fn view_from_status(report: &StatusReport) -> SessionView {
     let degraded = report.degraded.as_deref().map(classify_degradation);
@@ -126,6 +132,19 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
 /// daemon into a healthy-looking band, which is the failure the invariant exists to prevent. So
 /// the fallback is the *most* general declared path rather than an absence.
 pub(crate) fn classify_degradation(remedy: &str) -> DegradedPath {
+    // **FIRST, and matched on the un-lowercased marker.** ADR-060's fallback line contains the
+    // word `ollama`, so the general arm below would have swallowed it and rendered *"failed over ·
+    // secondary provider"* — a claim about a hosted secondary taking over from a primary, which is
+    // a different event involving a provider the user may not have. Nothing of the sort happened:
+    // same model, same weights, same answers, one local process instead of another.
+    //
+    // `FELL_BACK_MARKER` is the constant the line is BUILT from, so this arm and that sentence
+    // cannot drift. Two literals could, and the drift would be silent — an unmatched remedy falls
+    // to `Unclassified`, whose headline replaces the specific claim with a general one on the
+    // single sentence this whole change exists to put on screen.
+    if remedy.contains(marlowe_provider::FELL_BACK_MARKER) {
+        return DegradedPath::EngineFellBackToOllama;
+    }
     let r = remedy.to_lowercase();
     if r.contains("ollama") || r.contains("model") || r.contains("provider") {
         DegradedPath::ProviderFailedOver
@@ -229,11 +248,27 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                     .transcript
                     .push(Entry::Reasoning { text: delta.clone(), done: false }),
             },
-            Event::Tool { id, verb, target, state, summary } => {
-                let call = tool_call(*id, verb, target, state, summary);
-                match view.transcript.last_mut() {
-                    Some(Entry::Tools(calls)) => calls.push(call),
-                    _ => view.transcript.push(Entry::Tools(vec![call])),
+            Event::Tool { id, verb, target, state, summary, detail } => {
+                let call = tool_call(*id, verb, target, state, summary, detail.as_deref());
+                // ── A TOOL LINE REPLACES ITS OWN EARLIER FRAME. IT WAS ADDING ONE. ──────────
+                //
+                // Every call emits twice: `Running` when `prepare` allows it, then `Ok`/`Failed`
+                // when it returns. This arm pushed both, so the conversation pane drew **two
+                // lines for one call** — the second reading `0.0s` forever, because a `Running`
+                // frame off the wire has no clock behind it. `control_plane::push` had the rule
+                // and the comment (*"a tool line REPLACES its own earlier frame rather than
+                // adding one"*) since ADR-055; this pane never got it.
+                //
+                // It stops being cosmetic the moment `detail` lands: `App::is_expanded` keys on
+                // `id`, so both lines expand together and Enter printed the file twice.
+                if let Some(Entry::Tools(calls)) = view.transcript.last_mut() {
+                    if let Some(slot) = calls.iter_mut().find(|c| c.id == *id) {
+                        *slot = call;
+                        continue;
+                    }
+                    calls.push(call);
+                } else {
+                    view.transcript.push(Entry::Tools(vec![call]));
                 }
             }
             Event::Compacted { turns } => {
@@ -355,7 +390,14 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
     }
 }
 
-fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> ToolCall {
+fn tool_call(
+    id: u64,
+    verb: &str,
+    target: &str,
+    state: &str,
+    summary: &str,
+    detail: Option<&str>,
+) -> ToolCall {
     // `ToolCall::verb` is `&'static str` because §B6's vocabulary is closed. A verb off the wire
     // is not static, so it is matched against the builtins and anything unrecognised renders as
     // `tool` rather than leaking an arbitrary string into the frame.
@@ -389,17 +431,27 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
         "ask" => "ask",
         _ => "tool",
     };
-    let metrics = vec![Metric::State(match state {
-        "ok" => "ok",
-        "failed" => "failed",
-        _ => "running",
-    })];
-    let summary = ResultSummary::with_detail(metrics, summary);
+    // ── THE METRICS AND THE DETAIL WERE INVERTED, AND BOTH SLOTS HELD THE WRONG THING ──────
+    //
+    // This built `metrics = [State("ok")]` and put the RENDERED SUMMARY in `detail`. So §B6's
+    // right-hand side read `ok` on every successful call while `48 lines` sat in the expansion —
+    // the one place a person has to press a key to see — and the expansion is styled as a failure
+    // reason, in red, because that is what it used to hold.
+    //
+    // The wire summary cannot become metrics (`Metric` is `Serialize`-only by written decision:
+    // a `Deserialize` needs `String`, "which reintroduces free text at exactly the boundary that
+    // reads outside input"). It goes in `ToolCall::summary_line`, which is that slot.
+    let summary_line = summary.to_string();
+    let result = match detail {
+        Some(d) => ResultSummary::with_detail(Vec::new(), d),
+        None => ResultSummary::new(Vec::new()),
+    };
     let mut call = ToolCall::ok(id, verb, target, Vec::new());
+    call.summary_line = Some(summary_line);
     call.state = match state {
-        "failed" => ToolLineState::Failed(summary),
+        "failed" => ToolLineState::Failed(result),
         "running" => ToolLineState::Running { elapsed_ms: 0 },
-        _ => ToolLineState::Ok(summary),
+        _ => ToolLineState::Ok(result),
     };
     // §B6: failures auto-expand.
     call.expanded = matches!(call.state, ToolLineState::Failed(_));
@@ -612,6 +664,7 @@ mod tests {
                 target: "x".into(),
                 state: "ok".into(),
                 summary: "1 file".into(),
+                detail: None,
             }],
         );
         let Some(Entry::Tools(calls)) = v.transcript.last() else {
@@ -631,6 +684,7 @@ mod tests {
                 target: "pytest".into(),
                 state: "failed".into(),
                 summary: "exit 1".into(),
+                detail: None,
             }],
         );
         let Some(Entry::Tools(calls)) = v.transcript.last() else {

@@ -134,6 +134,29 @@ pub enum DegradedPath {
     Unclassified,
     /// ADR-023's latch engaged: the run read untrusted content and cannot act on composed targets.
     TrustFloorLatched,
+    /// **ADR-060.** The `ollama/llama.cpp` provider is selected, `llama-server` could not serve,
+    /// and **Ollama is answering instead**. The run continues; the engine is not the one chosen.
+    ///
+    /// # Deliberately NOT `ProviderFailedOver`, and the distance is the point
+    ///
+    /// That path's headline is *"failed over · secondary provider"* and its reason is *"run state
+    /// preserved across the switch"*. Both sentences describe a **hosted secondary taking over
+    /// from a primary** — a different event, involving a provider this user may not have, possibly
+    /// costing money, possibly off this machine. Nothing of the kind happened: the model is the
+    /// same model, the weights are the same blob, the answers are unaffected, and the only thing
+    /// that changed is which local process ran the forward pass.
+    ///
+    /// This project has already shipped one banner whose text asserted something the event did not
+    /// mean (`TrustFloorLatched`, M2 C2f, where *"read untrusted"* fired on the string
+    /// `"Marlowe."`). Reusing `ProviderFailedOver` here would be the same mistake with a different
+    /// subject, so this gets its own path and its own words.
+    ///
+    /// **The specific cause travels in the remedy, not here.** *Which* failure — port taken, blob
+    /// unresolvable, GPU full, server exited, binary missing — varies per incident, and a
+    /// `&'static str` cannot carry it. §B5 puts the headline in the band and the reason in the
+    /// Status tab; the daemon's `degraded` string is what names the cause, and it is held for the
+    /// life of the session rather than flashed once.
+    EngineFellBackToOllama,
 }
 
 impl DegradedPath {
@@ -145,6 +168,10 @@ impl DegradedPath {
             DegradedPath::ProviderFailedOver => "failed over · secondary provider",
             DegradedPath::Unclassified => "degraded · see the Status tab",
             DegradedPath::TrustFloorLatched => "read untrusted · composed targets blocked",
+            // Names BOTH engines: the one that is not serving and the one that is. A headline
+            // saying only "llama.cpp unavailable" would leave the reader unable to tell whether
+            // anything is answering at all.
+            DegradedPath::EngineFellBackToOllama => "llama.cpp not serving · Ollama is",
         }
     }
 
@@ -157,6 +184,9 @@ impl DegradedPath {
             DegradedPath::Unclassified => "the remedy is stated where this was raised",
             DegradedPath::TrustFloorLatched => {
                 "ADR-023 — spawn a quarantined reader and let an untainted run act on its findings"
+            }
+            DegradedPath::EngineFellBackToOllama => {
+                "same model, same answers — only the engine changed; ~225 ms/request slower"
             }
         }
     }

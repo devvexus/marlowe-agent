@@ -29,9 +29,14 @@
 #![forbid(unsafe_code)]
 
 pub mod capability;
+pub mod deadline;
 pub mod http;
+pub mod hybrid;
 pub mod ollama;
+pub mod llamacpp;
+pub mod ollama_store;
 pub mod routing;
+pub mod sse;
 pub mod think;
 pub mod wire;
 
@@ -39,5 +44,9 @@ pub use capability::{ModelCapability, ToolCallReport};
 pub use marlowe_permission::ArgValue;
 pub use http::{HttpError, LocalEndpoint};
 pub use ollama::{DEFAULT_CONTEXT_TOKENS, MODEL_CONTEXT_CEILING, capability_for, default_capability, Availability, OllamaDriver, DEFAULT_MODEL};
+pub use llamacpp::{LlamaCppDriver, Offload, OffloadPolicy, LLAMACPP_DEFAULT_PORT};
+pub use hybrid::{EngineFailure, SupervisedServer, FELL_BACK_MARKER, HYBRID_PROVIDER_NAME};
+pub use ollama_store::{LaunchPlan, ResolveError, ResolvedModel, Sampling};
 pub use routing::{is_cloud_tag, Routing, RoutingError};
+pub use sse::{Frame, SseStream};
 pub use think::{Segment, Split, ThinkSplitter};

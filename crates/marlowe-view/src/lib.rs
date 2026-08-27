@@ -31,12 +31,14 @@ pub mod meter;
 pub mod notice;
 pub mod model;
 pub mod produce;
+pub mod provider;
 pub mod run;
 pub mod turn;
 pub mod view;
 
 pub use meter::{Frame, MeterSource, BASELINE, LEVELS, SAMPLES};
 pub use produce::{ClockRead, Produce};
+pub use provider::{HYBRID, OLLAMA, OPENROUTER, PROVIDERS};
 pub use approval::{
     BlastRadius, Ceiling, Deviation, Effect, FirstTime, Medium, Novelty, Offered, PathLabel,
     RiskTier,

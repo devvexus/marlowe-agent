@@ -364,8 +364,7 @@ impl ToolOutcome {
             // A reference the model cannot dereference is not a result — see `finish_call`, where
             // this wording was written and where the live failure that produced it is recorded.
             ToolBody::Reference { hash, bytes } => match &self.preview {
-                Some(p) => format!("{bytes} B total, ref {hash}
-{p}"),
+                Some(p) => format!("{bytes} B total, ref {hash}\n{p}"),
                 None => format!("ref {hash} ({bytes} B)"),
             },
         }
@@ -399,8 +398,7 @@ impl ToolOutcome {
             (Some(r), true) => Some(r.to_string()),
             // Already quoted inside the body: `web`'s detail is a description of the same bytes.
             (Some(r), false) if body.contains(r) => Some(body),
-            (Some(r), false) => Some(format!("{r}
-{body}")),
+            (Some(r), false) => Some(format!("{r}\n{body}")),
             (None, true) => None,
             (None, false) => Some(body),
         }

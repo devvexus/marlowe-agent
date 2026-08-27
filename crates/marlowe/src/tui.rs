@@ -174,11 +174,34 @@ fn spawn_args(port: u16, provider: &marlowe_daemon::ModelProviderChoice) -> Vec<
         out.push("--daemon-port".to_string());
         out.push(port.to_string());
     }
-    if let marlowe_daemon::ModelProviderChoice::OpenRouter { model } = provider {
-        out.push("--provider".to_string());
-        out.push("openrouter".to_string());
-        out.push("--openrouter-model".to_string());
-        out.push(model.clone());
+    // **An exhaustive `match`, because the `if let` this replaces is the defect this function's
+    // header records — repeated.** `marlowe --tui --provider llamacpp` parsed the flag, dropped
+    // it, spawned a LOCAL OLLAMA daemon and answered from it, with nothing on screen saying which
+    // runtime replied. A `match` makes the next provider a compile error here instead.
+    match provider {
+        marlowe_daemon::ModelProviderChoice::Ollama => {}
+        marlowe_daemon::ModelProviderChoice::OpenRouter { model } => {
+            out.push("--provider".to_string());
+            out.push("openrouter".to_string());
+            out.push("--openrouter-model".to_string());
+            out.push(model.clone());
+        }
+        marlowe_daemon::ModelProviderChoice::LlamaCpp { endpoint, sampling } => {
+            out.push("--provider".to_string());
+            // The picker's own spelling, so what the TUI shows and what the daemon was told are
+            // one string. `resolve_provider` accepts both, and this is the one a user reads.
+            out.push(marlowe_view::provider::HYBRID.to_string());
+            out.push("--llamacpp-port".to_string());
+            out.push(endpoint.port().to_string());
+            out.push("--llamacpp-sampling".to_string());
+            out.push(
+                match sampling {
+                    marlowe_provider::llamacpp::SamplingSource::OllamaParams => "ollama",
+                    marlowe_provider::llamacpp::SamplingSource::ServerDefaults => "server",
+                }
+                .to_string(),
+            );
+        }
     }
     out
 }
@@ -978,6 +1001,35 @@ mod spawn_argv {
         assert_eq!(a, vec!["--serve".to_string()], "the default spawn must be unchanged: {a:?}");
     }
 
+    /// **The regression for the hybrid, asserted the same way.** ADR-060 makes
+    /// `ollama/llama.cpp` opt-in; a `--tui` that dropped the flag would spawn a daemon on the
+    /// DEFAULT provider while the client believed otherwise — Ollama answering while the TUI shows
+    /// llama.cpp, which is the OpenRouter defect this module exists for and the worst of the three
+    /// sites ADR-060 had to close.
+    #[test]
+    fn the_tui_forwards_a_hybrid_choice_including_the_port_and_the_sampler() {
+        let a = spawn_args(
+            marlowe_daemon::DEFAULT_DAEMON_PORT,
+            &ModelProviderChoice::LlamaCpp {
+                endpoint: marlowe_provider::LocalEndpoint::new("127.0.0.1", 11999).unwrap(),
+                sampling: marlowe_provider::llamacpp::SamplingSource::ServerDefaults,
+            },
+        );
+        let joined = a.join(" ");
+        // **The picker's own spelling.** `resolve_provider` accepts `llamacpp` as an alias, so a
+        // build emitting the alias here would still work — and the child's `--status` would then
+        // report a name the parent's picker does not offer. One string, both sides.
+        assert!(
+            joined.contains(&format!("--provider {}", marlowe_view::provider::HYBRID)),
+            "{joined}"
+        );
+        // The port and the sampler are not decoration: a child spawned on the default port would
+        // probe a server nobody started, and one spawned on the default sampler would run the
+        // model at Ollama's temperature after the user asked for llama.cpp's.
+        assert!(joined.contains("--llamacpp-port 11999"), "{joined}");
+        assert!(joined.contains("--llamacpp-sampling server"), "{joined}");
+    }
+
     /// A non-default port still reaches the child, and does so alongside the provider rather than
     /// instead of it — the two are independent and a reader should not have to assume that.
     #[test]
@@ -997,6 +1049,10 @@ mod spawn_argv {
         for p in [
             ModelProviderChoice::Ollama,
             ModelProviderChoice::OpenRouter { model: "stealth/ox-alpha".into() },
+            ModelProviderChoice::LlamaCpp {
+                endpoint: marlowe_provider::llamacpp::default_endpoint(),
+                sampling: marlowe_provider::llamacpp::SamplingSource::OllamaParams,
+            },
         ] {
             let joined = spawn_args(11500, &p).join(" ");
             assert!(!joined.contains("sk-or"), "a key reached the argv: {joined}");

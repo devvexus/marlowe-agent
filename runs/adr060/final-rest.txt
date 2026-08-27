@@ -1,0 +1,1038 @@
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-exec` (lib) generated 1 warning
+   Compiling marlowe-surface v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-surface)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1564:9
+     |
+1564 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:767:13
+    |
+701 | /             Event::RunDetail {
+702 | |                 id,
+703 | |                 status,
+704 | |                 parent,
+...   |
+715 | |                 subagents,
+716 | |             } => {
+    | |_____________- matches all the relevant values
+...
+767 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe` (bin "marlowe") generated 1 warning
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+   Compiling marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+warning: unused import: `Ipv4Addr`
+  --> crates\marlowe-daemon\tests\socket_auth.rs:25:16
+   |
+25 | use std::net::{Ipv4Addr, TcpListener, TcpStream};
+   |                ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (test "socket_auth") generated 1 warning (run `cargo fix --test "socket_auth" -p marlowe-daemon` to apply 1 suggestion)
+warning: `marlowe` (bin "marlowe" test) generated 1 warning (1 duplicate)
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:3035:9
+     |
+3035 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:158:9
+    |
+158 |     let mut a = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:159:9
+    |
+159 |     let mut b = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_flicker") generated 2 warnings (run `cargo fix --test "window_flicker" -p marlowe-surface` to apply 2 suggestions)
+warning: variable does not need to be mutable
+  --> crates\marlowe-surface\tests\window_render.rs:92:9
+   |
+92 |     let mut app = common::window();
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:128:9
+    |
+128 |     let mut c1 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:129:9
+    |
+129 |     let mut c2 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_render") generated 3 warnings (run `cargo fix --test "window_render" -p marlowe-surface` to apply 3 suggestions)
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 26.07s
+     Running unittests src\main.rs (target\debug\deps\marlowe-57197f6fc08aadf7.exe)
+
+running 46 tests
+test agent::display_sanitiser::status_shows_which_provider_answers_and_the_two_providers_do_not_render_alike ... ok
+test agent::display_sanitiser::prose_keeps_its_newlines_and_a_tool_line_does_not ... ok
+test agent::display_sanitiser::no_rendered_event_carries_a_control_sequence_to_the_terminal ... ok
+test agent::display_sanitiser::the_approval_prompt_never_prints_an_escape_the_model_composed ... ok
+test elapsed::tests::elapsed_cannot_masquerade_as_a_timestamp ... ok
+test elapsed::tests::elapsed_is_reportable_as_cost ... ok
+test elapsed::tests::finish_on_a_timer_with_nothing_open_banks_nothing ... ok
+test elapsed::tests::stage_totals_never_exceed_the_span_they_were_taken_inside ... ok
+test embedder_provider_flag::a_flag_with_no_value_takes_the_default_and_that_is_recorded_not_discovered ... ok
+test embedder_provider_flag::an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu ... ok
+test embedder_provider_flag::an_unknown_value_is_refused_rather_than_defaulted ... ok
+test embedder_provider_flag::the_announcement_names_what_was_asked_and_what_was_obtained ... ok
+test embedder_provider_flag::the_default_is_auto ... ok
+test embedder_provider_flag::an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu ... ok
+test elapsed::tests::a_stage_entered_twice_accumulates_rather_than_restarts ... ok
+test elapsed::tests::finish_is_what_closes_the_last_stage ... ok
+test embedder_provider_flag::the_explicit_arms_still_reach_the_loader ... ok
+test keyburst::tests::a_burst_carrying_a_newline_is_a_paste_however_short ... ok
+test keyburst::tests::a_burst_containing_a_non_text_key_is_not_a_paste ... ok
+test keyburst::tests::a_long_burst_with_no_newline_is_a_paste ... ok
+test keyburst::tests::a_short_burst_with_no_newline_stays_keystrokes ... ok
+test keyburst::tests::one_keystroke_is_never_a_paste ... ok
+test launcher::profile_commandline_tests::a_key_can_never_reach_the_profile ... ok
+test launcher::profile_commandline_tests::a_plain_launch_writes_exactly_what_it_always_did ... ok
+test launcher::profile_commandline_tests::an_argument_with_a_space_is_quoted ... ok
+test launcher::profile_commandline_tests::the_shortcut_carries_the_provider_it_was_launched_with ... ok
+test launcher::tests::a_settings_file_with_comments_is_refused_rather_than_rewritten ... ok
+test launcher::tests::upsert_appends_when_we_are_not_there_yet ... ok
+test launcher::tests::upsert_replaces_our_entry_and_leaves_every_other_one_alone ... ok
+test rerank_provider_flag::an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu ... ok
+test rerank_provider_flag::an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu ... ok
+test rerank_provider_flag::an_unknown_value_is_refused_rather_than_defaulted ... ok
+test rerank_provider_flag::the_announcement_names_what_was_asked_and_what_was_obtained ... ok
+test rerank_provider_flag::the_batching_follows_the_resolution_and_the_announcement_shows_it ... ok
+test rerank_provider_flag::the_default_is_auto ... ok
+test rerank_provider_flag::the_explicit_arms_still_reach_the_loader ... ok
+test tui::spawn_argv::a_scratch_port_and_a_provider_both_survive ... ok
+test tui::spawn_argv::an_ollama_spawn_carries_no_provider_flags_at_all ... ok
+test tui::spawn_argv::no_spawn_argv_can_contain_a_key ... ok
+test tui::spawn_argv::the_tui_forwards_a_hybrid_choice_including_the_port_and_the_sampler ... ok
+test tui::spawn_argv::the_tui_forwards_the_provider_to_a_daemon_it_spawns ... ok
+test watch::tests::a_notice_disappears_on_its_own_after_about_three_seconds_of_not_typing ... ok
+test watch::tests::a_notice_survives_a_single_tick ... ok
+test watch::tests::an_absent_notice_keeps_the_counter_at_zero ... ok
+test launcher::window_tests::the_fallback_command_survives_a_path_with_spaces ... ok
+test launcher::window_tests::a_command_is_always_offered_whether_or_not_a_window_opened ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\alternate_screen.rs (target\debug\deps\alternate_screen-5ff48a2dcdc8fbf2.exe)
+
+running 3 tests
+test the_scan_would_catch_a_print_inside_the_region ... ok
+test the_file_under_test_does_print_elsewhere ... ok
+test nothing_prints_to_the_terminal_while_the_alternate_screen_is_up ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\determinism_guard.rs (target\debug\deps\determinism_guard-7c1a739e36c84b65.exe)
+
+running 3 tests
+test no_hash_map_in_crate_sources ... ok
+test memory_ids_are_not_built_from_timestamps ... ok
+test the_only_real_clock_read_is_the_latency_fence ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests\tool_detail_reaches_the_screen.rs (target\debug\deps\tool_detail_reaches_the_screen-84a45878e0ae5209.exe)
+
+running 4 tests
+test the_b6_summary_column_carries_the_metrics_and_not_the_word_ok ... ok
+test a_running_call_expands_to_nothing_because_it_has_produced_nothing ... ok
+test a_refused_write_puts_its_reason_on_the_screen_and_says_nothing_extra_without_one ... ok
+test a_failure_expands_itself_and_the_identical_text_on_a_success_stays_collapsed ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_daemon-0730613afbe5c199.exe)
+
+running 73 tests
+test client::tests::the_client_holds_no_run_state ... ok
+test control_plane::resolve_tests::a_full_uuid_resolves_even_when_this_daemon_has_never_heard_of_it ... ok
+test control_plane::resolve_tests::an_id_prefix_resolves_from_four_characters_and_not_from_three ... ok
+test control_plane::resolve_tests::a_mnemonic_resolves_to_its_run ... ok
+test control_plane::resolve_tests::a_typed_token_cannot_carry_an_escape_sequence_into_the_refusal ... ok
+test control_plane::resolve_tests::an_unknown_token_says_how_a_run_is_addressed ... ok
+test control_plane::resolve_tests::an_ambiguous_name_is_refused_by_name_and_lists_what_it_matched ... ok
+test daemon::approval_gate_tests::the_model_is_told_the_surface_renders_markdown_and_latex ... ok
+test auth::tests::no_token_means_no_daemon_has_run_here ... ok
+test auth::tests::comparison_rejects_every_near_miss ... ok
+test onboarding::tests::a_tool_is_disclosed_as_always_asking_exactly_when_its_manifest_is_irreversible ... ok
+test onboarding::tests::a_fresh_profile_root_is_a_first_run_and_one_with_a_journal_is_not ... ok
+test onboarding::tests::the_journal_filename_this_depends_on_is_the_journals_own ... ok
+test daemon::approval_gate_tests::a_granted_decision_is_approved_and_the_prompt_names_the_blast_radius ... ok
+test daemon::approval_gate_tests::a_declined_decision_is_denied ... ok
+test daemon::approval_gate_tests::each_prompt_in_a_turn_gets_its_own_decision_id ... ok
+test project::tests::a_daemon_with_no_amplitude_source_reports_no_reading_rather_than_silence ... ok
+test project::key_tests::no_projected_pane_item_collides_with_a_region_key_or_a_tab_digit ... ok
+test project::tests::a_degraded_report_reaches_the_band_even_when_the_remedy_is_unrecognised ... ok
+test auth::tests::two_profiles_get_different_tokens ... ok
+test project::tests::a_failed_tool_call_arrives_expanded ... ok
+test project::tests::a_refresh_keeps_each_rows_hotkey_where_the_user_last_saw_it ... ok
+test onboarding::tests::bash_is_disclosed_as_always_asking ... ok
+test project::tests::a_pane_that_runs_out_of_letters_hands_out_none_rather_than_a_duplicate ... ok
+test project::tests::a_row_is_labelled_by_its_mnemonic_and_still_shows_the_id ... ok
+test project::tests::a_running_run_carries_no_state_colour_and_a_stopped_one_recedes ... ok
+test daemon::approval_gate_tests::silence_a_malformed_reply_and_a_stale_decision_id_are_all_denials ... ok
+test project::tests::an_unrecognised_verb_does_not_leak_an_arbitrary_string_into_the_frame ... ok
+test onboarding::tests::the_screen_never_claims_a_tool_runs_silently ... ok
+test project::tests::asking_for_the_runs_twice_does_not_double_the_rows ... ok
+test project::tests::text_deltas_coalesce_into_one_turn_rather_than_one_entry_per_token ... ok
+test onboarding::tests::the_workspace_path_is_stated_literally ... ok
+test project::tests::the_band_reads_the_daemons_own_report_rather_than_a_second_source ... ok
+test project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed ... ok
+test project::tests::watching_one_run_twice_updates_its_row_rather_than_adding_another ... ok
+test protocol::tests::a_degraded_event_carries_its_remedy ... ok
+test project::tests::two_runs_sharing_a_mnemonic_stay_two_rows ... ok
+test protocol::tests::frames_round_trip_as_ndjson ... ok
+test protocol::tests::no_request_or_event_hands_the_client_run_state ... ok
+test protocol::tests::the_status_report_announces_the_provider_rather_than_implying_it ... ok
+test recall::batch_forwarding_tests::a_batch_of_web_calls_reaches_the_inner_host_as_a_batch ... ok
+test recall::batch_forwarding_tests::recall_is_served_locally_without_breaking_the_order_of_the_rest ... ok
+test roster::tests::a_status_word_is_read_from_both_shapes_and_never_guessed ... ok
+test roster::tests::a_terminal_word_matches_run_status_and_a_live_one_does_not ... ok
+test skills::tests::a_profile_with_no_skills_says_so_rather_than_failing ... ok
+test skills::tests::something_actually_produces_a_skills_block ... ok
+test skills::tests::surfacing_is_silent_when_no_skills_are_installed ... ok
+test auth::tests::a_truncated_token_file_is_replaced_rather_than_accepted ... ok
+test skills::tests::use_is_in_the_executed_set_alongside_whatever_is_wrapped ... ok
+test watch_client::tests::a_finished_run_does_not_show_thinking_forever ... ok
+test auth::tests::a_token_is_minted_once_and_reread_thereafter ... ok
+test skills::tests::surfacing_names_the_library_even_when_nothing_matches ... ok
+test watch_client::tests::a_re_sent_tail_overwrites_rather_than_appending ... ok
+test watch_client::tests::a_projection_with_no_answer_yet_has_no_view_rather_than_an_invented_one ... ok
+test skills::tests::surfacing_never_carries_one_word_of_a_body ... ok
+test watch_client::tests::an_adopted_runs_policy_names_the_run_that_adopted_it ... ok
+test watch_client::tests::retracted_speech_becomes_a_finished_thought_rather_than_staying_an_answer ... ok
+test watch_client::tests::a_status_the_window_does_not_know_is_shown_rather_than_defaulted_away ... ok
+test watch_client::tests::sessions_a_own_status_words_survive_the_projection ... ok
+test skills::tests::disclosure_returns_the_body_and_only_when_asked_by_name ... ok
+test watch_client::tests::the_checkpoint_comes_through_as_the_two_facts_it_is ... ok
+test watch_client::tests::the_next_poll_asks_from_the_highest_sequence_not_one_past_it ... ok
+test skills::tests::name_wins_over_query_when_both_are_supplied ... ok
+test skills::tests::the_body_crosses_on_disclosure_and_not_on_discovery ... ok
+test skills::tests::discovery_returns_names_and_descriptions_and_not_one_word_of_a_body ... ok
+test skills::tests::a_name_that_is_not_installed_says_what_is ... ok
+test skills::tests::surfacing_puts_a_matching_skill_in_front_of_the_model ... ok
+test live::tests::every_intent_the_surface_can_form_is_answered_or_refused_by_name ... ok
+test live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted ... ok
+test live::tests::approving_when_nothing_is_pending_refuses_rather_than_dropping_the_answer ... ok
+test live::tests::selecting_the_value_that_is_already_live_is_not_an_error ... ok
+test live::tests::an_absent_daemon_degrades_visibly_rather_than_refusing_to_start ... ok
+test client::tests::an_absent_daemon_is_a_named_error_not_a_hang ... ok
+
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\a_description_cannot_forge_its_own_rendering.rs (target\debug\deps\a_description_cannot_forge_its_own_rendering-80188e4691a433fc.exe)
+
+running 2 tests
+test the_probe_characters_reach_the_body_when_the_sanitiser_is_absent ... ok
+test no_invisible_character_reaches_either_adapters_request_body ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\a_spawned_child_is_listed_in_runs.rs (target\debug\deps\a_spawned_child_is_listed_in_runs-c84ebad272809feb.exe)
+
+running 4 tests
+test the_daemon_installs_this_recorder_at_the_composition_root ... ok
+test a_child_spawned_from_a_model_reply_is_listed_in_runs ... ok
+test a_run_windows_roster_names_the_children_and_a_childless_run_names_none ... ok
+test a_finished_childs_elapsed_is_final_rather_than_growing ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests\approval_round_trip.rs (target\debug\deps\approval_round_trip-037f8cb665a8bedb.exe)
+
+running 3 tests
+test a_declined_prompt_is_sent_as_declined_rather_than_dropped ... ok
+test the_client_answers_the_prompt_on_the_same_connection_and_names_the_decision ... ok
+test the_render_only_prompt_is_not_answered ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests\composition_root.rs (target\debug\deps\composition_root-4ccf2f1acfa763df.exe)
+
+running 5 tests
+test two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name ... ok
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... ok
+test widening_a_top_level_profile_does_not_weaken_the_narrowing_rule_for_children ... ok
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... ok
+test a_malformed_mcp_config_is_an_error_and_an_absent_one_is_not ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\context_window.rs (target\debug\deps\context_window-47c63d26efa9c4f0.exe)
+
+running 6 tests
+test a_completed_turn_does_not_repeat_its_reply_in_the_done_frame ... ok
+test the_declared_default_is_well_under_the_recorded_ceiling ... ok
+test the_assembler_window_and_num_ctx_come_from_the_same_field ... ok
+test the_daemons_thinking_setting_is_the_one_the_driver_uses ... ok
+test every_request_carries_num_ctx ... ok
+test every_request_declares_whether_the_model_should_think ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\control_plane.rs (target\debug\deps\control_plane-c154e66973f5501b.exe)
+
+running 10 tests
+test a_steer_sent_on_one_connection_is_visible_on_another ... ok
+test a_steer_cannot_carry_an_escape_sequence_onto_a_terminal ... ok
+test the_control_port_refuses_a_wrong_token ... ok
+test an_empty_steer_is_refused_rather_than_queued ... ok
+test the_control_port_refuses_what_needs_the_model_and_says_where_it_lives ... ok
+test an_oversized_steer_is_refused_by_the_door_and_never_queued ... ok
+test a_steer_for_a_stopped_run_is_refused_and_nothing_is_queued ... ok
+test the_client_reaches_its_own_control_plane_and_not_the_adjacent_port ... ok
+test two_daemons_never_collide_and_the_derived_port_would_have ... ok
+test the_control_port_answers_while_the_main_port_is_wedged ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.58s
+
+     Running tests\every_builtin_has_a_verb.rs (target\debug\deps\every_builtin_has_a_verb-0c23ed25ff746e4c.exe)
+
+running 4 tests
+test a_spawn_renders_as_a_verb_in_both_panes ... ok
+test an_unrecognised_verb_still_renders_as_tool_in_the_window ... ok
+test an_old_journals_find_still_renders_as_a_verb ... ok
+test every_builtin_is_in_the_section_b6_verb_vocabulary ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\hybrid_engine.rs (target\debug\deps\hybrid_engine-6fbe1d813a92d368.exe)
+
+running 6 tests
+test a_cpu_server_is_a_fallback_and_the_reason_names_the_gpu ... ok
+test an_engine_fallback_is_not_projected_as_a_hosted_failover ... ok
+test the_hybrids_name_is_one_string_and_every_reader_has_the_same_one ... ok
+test the_tier1_runtime_follows_the_engine_that_is_actually_serving ... ok
+test each_named_failure_reaches_the_user_as_a_sentence_only_it_could_have_produced ... ok
+test a_llama_server_holding_the_weights_reserves_nothing_and_names_the_branch ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests\llamacpp_is_opt_in.rs (target\debug\deps\llamacpp_is_opt_in-2cb5a7682086bbbc.exe)
+
+running 9 tests
+test every_provider_the_picker_offers_has_a_name_the_enum_can_produce ... ok
+test the_default_provider_is_still_ollama_after_a_third_option_exists ... ok
+test a_llamacpp_port_equal_to_the_daemons_own_is_refused_by_name ... ok
+test llamacpp_is_not_rejected_by_name ... ok
+test a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exactly_why ... ok
+test the_fallback_sentence_is_absent_when_no_engine_was_asked_to_start ... ok
+test switching_models_on_the_hybrid_restarts_the_engine_and_is_not_acknowledged_before_it_is_true ... ok
+test the_hybrids_picker_offers_what_ollama_has_pulled_because_ollama_is_the_store ... ok
+test a_llamacpp_daemon_does_not_disclose_ollamas_measured_tool_call_reliability ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+
+     Running tests\mcp_output_is_untrusted.rs (target\debug\deps\mcp_output_is_untrusted-521a8b7aee756643.exe)
+
+running 3 tests
+test a_real_server_answers_and_its_result_is_untrusted_content ... ok
+test the_hostile_response_does_not_reach_the_parents_window ... ok
+test the_probe_token_reaches_the_parent_when_the_result_is_TRUSTED ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\memory_durability.rs (target\debug\deps\memory_durability-a586be43d79561c7.exe)
+
+running 5 tests
+test retrieval_is_announced_as_write_only_when_no_graph_is_loaded ... ok
+test an_unrecognised_payload_kind_is_refused_and_an_absent_one_is_not ... ok
+test a_write_only_daemon_still_remembers ... ok
+test the_run_floor_reaches_the_daemons_write_path ... ok
+test a_claim_written_today_is_still_there_after_the_daemon_restarts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\provider_switching.rs (target\debug\deps\provider_switching-096aeaab48991ad6.exe)
+
+running 6 tests
+test the_provider_picker_is_built_from_the_daemons_own_report ... ok
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... ok
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests\reasoning_leak.rs (target\debug\deps\reasoning_leak-08454344cbb64bc9.exe)
+
+running 14 tests
+test a_blocked_tool_call_reaches_the_transcript ... ok
+test a_retraction_is_honoured_when_it_is_not_the_last_event ... ok
+test a_retraction_with_nothing_outstanding_is_harmless ... ok
+test the_retired_name_sweep_rejects_the_description_that_shipped ... ok
+test retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript ... ok
+test speech_after_a_retraction_is_kept ... ok
+test shutdown_is_reachable_and_the_wire_carries_it ... ok
+test a_turn_that_was_entirely_reasoning_yields_no_prose_for_the_loop ... ok
+test narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript ... ok
+test the_system_prompt_names_no_tool_that_does_not_exist ... ok
+test the_guard_catches_the_prompt_that_actually_shipped ... ok
+test no_live_prose_names_a_retired_tool ... ok
+test a_second_turn_on_the_same_session_can_see_the_first ... ok
+test shutting_down_an_absent_daemon_fails_quietly ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests\socket_auth.rs (target\debug\deps\socket_auth-daf30f1a7e3b328b.exe)
+
+running 5 tests
+test a_client_from_another_profile_gets_a_named_refusal_not_a_silence ... ok
+test the_right_token_is_served ... ok
+test a_wrong_token_is_refused_before_the_request_is_dispatched ... ok
+test an_empty_a_truncated_and_a_one_character_wrong_token_are_all_refused ... ok
+test a_silent_peer_does_not_wedge_the_daemon ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.56s
+
+     Running tests\split.rs (target\debug\deps\split-beccf2b6a2b086e8.exe)
+
+running 4 tests
+test the_client_can_render_before_a_daemon_exists ... ok
+test a_turn_with_no_model_degrades_with_a_remedy_rather_than_failing ... ok
+test a_status_request_answers_without_touching_a_model ... ok
+test the_daemon_owns_the_run_across_a_client_disconnect ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.14s
+
+     Running tests\the_model_knows_where_it_is.rs (target\debug\deps\the_model_knows_where_it_is-c3925d8e810d7c52.exe)
+
+running 4 tests
+test an_empty_workspace_contributes_nothing ... ok
+test the_map_is_the_same_twice ... ok
+test the_map_names_the_top_level_and_skips_the_noise ... ok
+test a_listing_that_hit_its_cap_says_so ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\zero_config_is_unchanged.rs (target\debug\deps\zero_config_is_unchanged-92310ddb2ec06b6f.exe)
+
+running 3 tests
+test status_names_the_provider_it_selected ... ok
+test no_environment_variable_can_move_the_default_provider ... ok
+test the_default_daemon_still_routes_to_the_pinned_local_model ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_stub-354226ccb4a610a7.exe)
+
+running 16 tests
+test amplitude::tests::idle_reports_a_flat_baseline_which_is_a_reading_not_an_absence ... ok
+test amplitude::tests::running_progress_fills_left_to_right_and_completes ... ok
+test frame_clock::tests::advancing_a_real_clock_panics - should panic ... ok
+test amplitude::tests::waiting_reports_nothing_so_the_indicator_freezes ... ok
+test amplitude::tests::progress_past_the_expected_duration_stays_full_rather_than_wrapping ... ok
+test script::tests::consecutive_same_verb_calls_collapse ... ok
+test frame_clock::tests::virtual_clock_moves_only_when_advanced ... ok
+test script::tests::a_failure_auto_expands_and_never_collapses_into_a_group ... ok
+test amplitude::tests::the_same_moment_always_produces_the_same_frame ... ok
+test script::tests::driving_waiting_raises_the_overlay_because_they_are_one_situation ... ok
+test script::tests::every_state_is_reachable_by_cycling ... ok
+test script::tests::idle_reports_a_flat_frame_and_waiting_reports_no_frame_at_all ... ok
+test script::tests::a_session_replays_identically_on_a_fixed_schedule ... ok
+test script::tests::interrupt_keeps_partial_output ... ok
+test script::tests::waiting_holds_the_last_meter_frame_rather_than_clearing_it ... ok
+test amplitude::tests::every_sample_is_within_the_meters_range ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_surface-a036ee579803c6c0.exe)
+
+running 70 tests
+test chrome::tests::a_clean_string_is_borrowed_not_rebuilt ... ok
+test chrome::tests::blocking_one_rule_glyph_would_leave_sixty_others ... ok
+test chrome::tests::every_declared_marker_is_reserved_and_named_rather_than_dropped ... ok
+test chrome::tests::every_tone_a_producer_can_send_has_an_ink ... ok
+test chrome::tests::every_role_has_a_distinct_colour_so_a_drawn_cell_maps_back_to_one ... ok
+test chrome::tests::ordinary_prose_punctuation_is_not_reserved ... ok
+test chrome::tests::the_pipeline_closes_the_three_families_ratatui_does_not ... ok
+test chrome::tests::the_window_vocabulary_is_a_subset_of_the_conversation_one ... ok
+test clipboard::tests::a_collapsed_group_copies_every_target_it_hid ... ok
+test clipboard::tests::a_failed_tool_call_copies_its_detail_not_its_summary ... ok
+test cli::display_sanitiser::a_model_reply_keeps_its_paragraphs ... ok
+test clipboard::tests::base64_matches_the_rfc_examples ... ok
+test cli::display_sanitiser::a_tool_target_cannot_forge_a_second_b6_line ... ok
+test cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence ... ok
+test cli::display_sanitiser::the_classic_surface_never_writes_a_control_sequence_to_the_terminal ... ok
+test clipboard::tests::osc52_is_well_formed_and_carries_utf8 ... ok
+test clipboard::tests::copied_text_carries_no_frame ... ok
+test commands::tests::a_bad_argument_is_rejected_out_loud_and_changes_nothing ... ok
+test commands::tests::a_command_cannot_return_prose_because_the_type_has_nowhere_to_put_it ... ok
+test commands::tests::a_command_that_changes_the_session_asks_rather_than_acts ... ok
+test commands::tests::a_request_carries_no_narration_of_its_own ... ok
+test commands::tests::autocomplete_carries_descriptions ... ok
+test doctor::tests::the_shipped_accent_is_measured_and_the_numbers_are_recorded_here ... ok
+test commands::tests::every_registered_command_dispatches_to_something_other_than_unknown ... ok
+test doctor::tests::the_report_states_both_backgrounds_and_the_braille_row ... ok
+test inspector::tests::every_tab_renders_at_least_one_region ... ok
+test inspector::tests::the_four_deferred_panes_say_so_rather_than_showing_invented_data ... ok
+test keys::tests::a_conflict_names_both_claimants ... ok
+test keys::tests::item_keys_are_pane_scoped_and_globals_win_everywhere ... ok
+test keys::tests::the_shipped_key_set_has_no_conflicts ... ok
+test latex::function_table_agreement::every_function_name_has_a_symbol_row ... ok
+test latex::tests::a_chrome_glyph_reaching_the_output_refuses_the_whole_expression ... ok
+test latex::tests::a_dollar_sign_in_prose_is_not_maths ... ok
+test latex::tests::a_partial_translation_would_be_a_different_integral ... ok
+test latex::tests::every_glyph_the_table_can_emit_passes_the_projects_display_predicate ... ok
+test latex::tests::relations_are_spaced_and_signs_are_not ... ok
+test latex::tests::the_common_cases_read_as_maths ... ok
+test latex::tests::what_cannot_be_shown_is_refused_whole ... ok
+test markdown::tests::a_block_quote_takes_the_rule_and_the_second_weight ... ok
+test markdown::tests::a_heading_loses_its_hashes_and_takes_the_accent ... ok
+test markdown::tests::a_horizontal_rule_is_not_the_compaction_marker ... ok
+test markdown::tests::a_link_always_shows_where_it_goes ... ok
+test markdown::tests::a_list_keeps_its_items_apart_and_nests ... ok
+test markdown::tests::a_paragraph_wraps_and_the_line_count_is_the_renderers_answer ... ok
+test markdown::tests::a_price_is_not_an_equation ... ok
+test markdown::tests::a_table_is_columns_and_carries_no_box_drawing ... ok
+test markdown::tests::a_table_too_wide_for_the_pane_is_shown_as_source_not_squashed ... ok
+test markdown::tests::a_very_long_word_is_split_rather_than_overflowing_the_pane ... ok
+test markdown::tests::an_ordered_list_counts_from_where_it_started ... ok
+test markdown::tests::code_is_hard_wrapped_and_never_reflowed ... ok
+test markdown::tests::emphasis_and_strong_become_attributes_not_colours ... ok
+test markdown::tests::maths_renders_when_it_can_and_stays_source_when_it_cannot ... ok
+test markdown::tests::plain_prose_survives_untouched ... ok
+test markdown::tests::no_span_this_module_produces_carries_a_background_or_reverse_video ... ok
+test markdown::tests::rendering_is_a_pure_function_of_its_arguments ... ok
+test meter::tests::a_full_frame_raises_every_dot ... ok
+test markdown::tests::snake_case_and_arithmetic_are_not_emphasis ... ok
+test meter::tests::a_silent_frame_is_all_blank_braille_cells ... ok
+test meter::tests::every_column_is_independent ... ok
+test meter::tests::every_glyph_is_inside_the_braille_block ... ok
+test meter::tests::levels_fill_from_the_bottom_up ... ok
+test meter::tests::one_level_lights_only_the_lowest_dot_row ... ok
+test meter::tests::the_meter_is_always_exactly_six_cells_wide ... ok
+test theme::tests::a_malformed_accent_refuses_rather_than_falling_back ... ok
+test theme::tests::no_color_is_reported_rather_than_swallowed ... ok
+test theme::tests::no_style_this_module_produces_has_a_background ... ok
+test theme::tests::the_accent_is_measured_against_both_backgrounds ... ok
+test theme::tests::the_depth_rule_reports_why_it_chose ... ok
+test window::tests::a_placeholder_names_the_panel_and_says_none ... ok
+test window::tests::the_window_title_cannot_carry_a_byte_the_run_chose_except_its_id ... ok
+
+test result: ok. 70 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\accent_legibility.rs (target\debug\deps\accent_legibility-b53b88a3b9ac1b83.exe)
+
+running 4 tests
+test both_floors_are_satisfiable_but_the_window_is_under_one_percent ... ok
+test contrast_is_measured_on_the_resolved_colour_not_the_default ... ok
+test light_is_the_binding_direction_and_its_margin_is_small ... ok
+test the_default_accent_clears_its_floor_on_both_reference_backgrounds ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_keyboard.rs (target\debug\deps\b13_keyboard-284030abfb166a3e.exe)
+
+running 12 tests
+test the_footer_advertises_alt_v_because_the_terminal_eats_ctrl_v ... ok
+test ctrl_c_is_advertised_and_needs_two_presses ... ok
+test every_inspector_tab_is_reachable_by_its_digit ... ok
+test the_overlay_swallows_unrelated_keys_rather_than_letting_them_through ... ok
+test tab_and_shift_tab_cycle_every_region_in_reading_order ... ok
+test ctrl_v_does_not_walk_past_a_pending_approval ... ok
+test esc_backs_out_one_level_and_interrupt_is_the_outermost ... ok
+test ctrl_keys_work_even_from_inside_a_text_field ... ok
+test the_composers_editing_chords_are_reachable_from_the_default_focus ... ok
+test a_multiline_message_is_composable_and_scrollable_by_key_alone ... ok
+test every_region_is_reachable_from_the_default_focus ... ok
+test no_keystroke_is_dropped_while_the_stub_is_streaming ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_memory_surface.rs (target\debug\deps\b13_memory_surface-5e4a1f061e0696a9.exe)
+
+running 3 tests
+test no_inspector_item_reports_a_score_a_count_or_a_provenance ... ok
+test turn_event_has_no_injection_variant_and_must_never_gain_one ... ok
+test no_region_in_any_pane_has_memory_as_its_subject ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_parity.rs (target\debug\deps\b13_parity-ba0ac9061b90ed6f.exe)
+
+running 8 tests
+test slash_autocomplete_offers_every_matching_command_with_its_description ... ok
+test an_approval_raised_by_a_command_surfaces_in_the_classic_cli_too ... ok
+test the_classic_cli_runs_from_a_pipe_with_no_terminal_at_all ... ok
+test approvals_reach_the_classic_cli_too ... ok
+test the_two_surfaces_produce_the_same_data_for_a_pane ... ok
+test the_classic_cli_never_lies_about_an_unbuilt_pane ... ok
+test the_registry_is_the_only_dispatcher ... ok
+test every_command_in_the_registry_is_reachable_in_both_surfaces ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_region_contract.rs (target\debug\deps\b13_region_contract-22cf36ed84f0d388.exe)
+
+running 7 tests
+test a_windows_region_tree_does_not_depend_on_what_the_run_holds ... ok
+test every_region_in_a_run_window_has_a_label_and_a_hotkey ... ok
+test no_two_regions_in_a_run_window_claim_the_same_key ... ok
+test every_region_in_the_tree_has_a_label_and_a_hotkey ... ok
+test no_two_regions_visible_together_claim_the_same_key ... ok
+test no_border_is_drawn_outside_the_region_contract ... ok
+test the_conversation_never_drops_below_55_percent_of_the_split ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\b13_rendering.rs (target\debug\deps\b13_rendering-14fcba1bc0514c0a.exe)
+
+running 13 tests
+test a_settled_tool_call_occupies_exactly_one_line ... ok
+test below_the_minimum_it_refuses_and_draws_no_grid ... ok
+test the_user_the_reasoning_and_marlowe_do_not_share_a_colour ... ok
+test no_label_hotkey_pager_or_tab_bar_falls_inside_a_scroll_area ... ok
+test the_indicator_freezes_in_waiting_and_moves_in_every_other_live_state ... ok
+test a_resize_round_trip_returns_the_identical_frame ... ok
+test every_inspector_tab_rect_covers_its_own_label_in_the_rendered_frame ... ok
+test the_scrollbar_thumb_is_contiguous_full_blocks_with_no_fill ... ok
+test every_colour_emitted_is_one_of_the_declared_values ... ok
+test a_streaming_text_delta_touches_the_conversation_and_the_status_band_only ... ok
+test a_focus_change_repaints_borders_only_and_never_a_region_interior ... ok
+test not_one_cell_in_any_screen_carries_a_background ... ok
+test every_size_in_the_supported_range_renders ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests\c2d_boundary.rs (target\debug\deps\c2d_boundary-5bb4a5968d8eeb5e.exe)
+
+running 2 tests
+test the_surface_depends_on_no_producer ... ok
+test the_surface_reads_no_clock_and_takes_time_as_an_argument ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\composer.rs (target\debug\deps\composer-f30cbe59f463bed3.exe)
+
+running 30 tests
+test a_marker_the_user_typed_before_any_paste_is_left_alone ... ok
+test a_keystroke_between_them_disarms_the_quit ... ok
+test alt_v_carries_the_state_cycle_that_ctrl_v_used_to ... ok
+test copying_a_draft_puts_the_pasted_text_on_the_clipboard_and_not_the_chip ... ok
+test ctrl_c_does_not_quit_on_one_press ... ok
+test ctrl_c_over_a_draft_copies_it_and_does_not_arm_a_quit ... ok
+test ctrl_v_no_longer_cycles_the_status_band ... ok
+test ctrl_v_reaching_the_app_names_the_fallback_rather_than_doing_nothing ... ok
+test the_run_window_answers_ctrl_c_too_rather_than_ignoring_it ... ok
+test an_empty_composer_is_one_row_so_the_resting_layout_is_unchanged ... ok
+test the_footer_advertises_the_chord_that_actually_works ... ok
+test a_steer_field_that_grew_leaves_the_output_panel_smaller_rather_than_overlapping_it ... ok
+test ctrl_backspace_takes_a_whole_paste_chip_because_a_chip_is_one_word_to_the_eye ... ok
+test the_windows_ctrl_c_detaches_only_on_the_second_press_and_never_cancels ... ok
+test a_short_paste_goes_in_literally_because_a_chip_would_be_longer_than_it ... ok
+test ctrl_a_then_typing_replaces_the_whole_message ... ok
+test a_pasted_wall_is_represented_in_the_composer_and_sent_in_full ... ok
+test esc_lets_go_of_a_selection_rather_than_backing_out_of_the_field ... ok
+test two_consecutive_ctrl_c_presses_quit ... ok
+test ctrl_a_does_not_survive_the_keystroke_that_acted_on_it ... ok
+test a_shift_enter_newline_is_a_line_break_rather_than_a_glyph ... ok
+test a_message_longer_than_the_field_wraps_instead_of_vanishing_off_the_edge ... ok
+test backspace_deletes_a_whole_chip_rather_than_breaking_it ... ok
+test ctrl_backspace_deletes_a_word_and_the_space_before_it ... ok
+test the_run_windows_steer_field_grows_and_scrolls_exactly_as_the_message_field_does ... ok
+test scrolling_past_the_top_clamps_rather_than_rendering_out_of_range ... ok
+test the_steer_field_answers_the_same_three_chords ... ok
+test the_field_grows_only_to_the_cap_and_then_scrolls_to_what_is_being_typed ... ok
+test up_walks_back_through_a_paste_too_long_to_show ... ok
+test typing_snaps_the_composer_back_to_what_is_being_typed ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\diagnostic_bound.rs (target\debug\deps\diagnostic_bound-6d448b7d187e214b.exe)
+
+running 2 tests
+test diagnostics_are_reachable_from_exactly_two_entry_points ... ok
+test a_diagnostic_never_enters_the_transcript ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\display_sanitiser.rs (target\debug\deps\display_sanitiser-d462f21bc55fcf35.exe)
+
+running 4 tests
+test ratatui_does_not_filter_the_tag_block_and_the_project_predicate_does ... ok
+test the_hostile_text_actually_reached_the_screen ... ok
+test a_tag_character_reaches_the_grid_from_the_user_and_never_from_the_model ... ok
+test ratatui_is_the_layer_that_stops_an_escape_reaching_the_grid ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\live_approval_window.rs (target\debug\deps\live_approval_window-fc326cd7fa6e7ee7.exe)
+
+running 7 tests
+test o_collects_a_reason_and_sends_it_with_the_decline ... ok
+test an_unrelated_key_neither_answers_nor_dismisses ... ok
+test escaping_the_reason_editor_returns_to_the_question_without_answering ... ok
+test y_approves_and_n_declines ... ok
+test the_window_does_not_report_which_subsystems_are_missing ... ok
+test the_whole_target_is_on_screen_however_long_it_is ... ok
+test an_irreversible_call_says_so ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\markdown_cost.rs (target\debug\deps\markdown_cost-68d328a8df74c0bf.exe)
+
+running 3 tests
+test a_typical_transcript_lays_out_in_under_a_millisecond ... ok
+test a_pathological_reply_costs_no_more_than_a_long_one ... ok
+test laying_out_a_heavy_transcript_stays_inside_the_first_frame_budget ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s
+
+     Running tests\markdown_forgery.rs (target\debug\deps\markdown_forgery-cec2962a0f261a39.exe)
+
+running 8 tests
+test a_tool_target_carries_no_invisible_text ... ok
+test a_reply_cannot_draw_a_disclosure_affordance ... ok
+test a_reply_cannot_forge_the_compaction_marker ... ok
+test harness_notices_are_not_subject_to_the_reservation ... ok
+test every_reserved_glyph_is_one_the_harness_actually_draws ... ok
+test a_reply_cannot_draw_a_tool_line ... ok
+test a_reply_cannot_draw_a_bordered_region ... ok
+test a_reply_writes_nowhere_but_the_conversation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\markdown_render.rs (target\debug\deps\markdown_render-2563442b770c562e.exe)
+
+running 26 tests
+test a_closed_expression_that_cannot_render_is_not_silently_truncated ... ok
+test a_script_unicode_can_express_still_uses_the_real_glyph ... ok
+test collapsed_reasoning_parses_nothing_and_reports_a_count ... ok
+test expanded_reasoning_renders_maths_and_it_is_lighter_than_the_reasoning ... ok
+test display_maths_on_its_own_line_still_renders ... ok
+test display_maths_stands_out_the_same_way_inline_maths_does ... ok
+test conditional_and_norm_bars_render_and_are_spaced ... ok
+test an_accent_with_a_precomposed_form_renders_and_one_without_still_refuses ... ok
+test deliberate_spacing_between_equations_survives ... ok
+test an_unclosed_equation_renders_while_it_is_still_arriving ... ok
+test an_unclosed_dollar_in_prose_is_still_not_maths ... ok
+test a_subscript_with_no_unicode_form_degrades_rather_than_refusing ... ok
+test display_maths_after_a_label_on_the_same_line_renders ... ok
+test plain_prose_reaches_the_grid_exactly_as_written ... ok
+test rendered_maths_is_lighter_than_the_prose_around_it ... ok
+test transpose_renders_so_the_attention_formula_does ... ok
+test the_attributes_reach_the_grid_and_the_source_markers_do_not ... ok
+test y_still_copies_the_source_markdown_and_not_the_rendered_form ... ok
+test a_resize_round_trip_with_markdown_returns_the_identical_frame ... ok
+test markdown_emits_no_colour_outside_the_declared_palette ... ok
+test not_one_cell_carries_a_background_or_reverse_video ... ok
+test markdown_never_paints_over_the_pager_or_the_border ... ok
+test a_second_render_of_the_same_state_changes_not_one_cell ... ok
+test the_scroll_extent_agrees_with_what_markdown_actually_drew ... ok
+test a_focus_change_repaints_no_markdown_cell ... ok
+test no_frame_of_a_streaming_equation_shows_raw_latex ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests\palette_subset.rs (target\debug\deps\palette_subset-0d4e72321c7d337e.exe)
+
+running 4 tests
+test the_windows_declared_palette_is_exactly_what_it_draws ... ok
+test the_status_band_is_the_only_place_the_conversation_spends_green ... ok
+test the_run_window_paints_no_colour_the_conversation_pane_does_not ... ok
+test the_window_spends_strictly_less_colour_than_the_conversation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s
+
+     Running tests\provider_command.rs (target\debug\deps\provider_command-760e21e9b087c026.exe)
+
+running 4 tests
+test adding_the_provider_control_did_not_widen_the_control_strip ... ok
+test provider_is_a_registered_command_whose_description_names_both_options ... ok
+test provider_with_no_argument_lists_rather_than_changing_anything ... ok
+test naming_a_provider_asks_the_producer_to_select_it ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\runs_pane.rs (target\debug\deps\runs_pane-2a54cb770e3f013d.exe)
+
+running 15 tests
+test slash_runs_asks_the_daemon_rather_than_re_reading_the_cache ... ok
+test enter_on_a_focused_run_opens_its_window ... ok
+test the_arrows_step_from_one_run_to_the_next ... ok
+test a_run_that_arrived_after_startup_answers_to_the_key_on_its_border ... ok
+test the_request_carries_no_summary_because_there_is_nothing_to_summarise_yet ... ok
+test the_pane_summary_is_said_once_the_producer_has_answered ... ok
+test pressing_slash_runs_switches_the_tab_at_once_and_queues_the_request ... ok
+test enter_opens_the_run_the_row_names_rather_than_the_first_one ... ok
+test the_same_key_does_nothing_when_the_pane_is_empty ... ok
+test the_arrows_stop_at_the_ends_rather_than_wrapping ... ok
+test every_visible_run_has_a_rect_the_pointer_can_land_on ... ok
+test the_rect_of_a_row_is_where_that_row_is_actually_drawn ... ok
+test the_focused_run_shows_that_enter_opens_it ... ok
+test a_run_below_the_fold_is_reachable_and_then_openable ... ok
+test stepping_past_the_fold_scrolls_the_pane_to_keep_the_selection_visible ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\snapshot.rs (target\debug\deps\snapshot-ef90e719cfa13725.exe)
+
+running 3 tests
+test a_dropdown_draws_over_the_frame_without_a_fill ... ok
+test a_markdown_reply_can_be_read ... ok
+test the_frame_renders_and_can_be_read ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\window_b13.rs (target\debug\deps\window_b13-79fff1ee23dd79ff.exe)
+
+running 5 tests
+test every_window_region_is_reachable_by_its_hotkey_and_by_tab ... ok
+test the_frame_is_whole_at_the_minimum_and_refused_one_column_below_it ... ok
+test a_healthy_run_carries_no_state_colour_anywhere ... ok
+test not_one_cell_in_any_window_carries_a_background_or_reverse_video ... ok
+test every_colour_a_window_emits_is_one_of_the_declared_values ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\window_flicker.rs (target\debug\deps\window_flicker-f6e64a1207fe4fc7.exe)
+
+running 6 tests
+test the_diff_does_see_a_change_when_output_arrives ... ok
+test the_diff_does_see_a_change_when_the_run_advances ... ok
+test moving_focus_repaints_borders_and_not_the_inside_of_a_region ... ok
+test two_windows_at_the_same_instant_are_the_same_frame ... ok
+test scrolling_moves_only_the_scroll_area ... ok
+test a_second_render_of_the_same_state_changes_not_one_cell ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\window_render.rs (target\debug\deps\window_render-7668f3a830f2543a.exe)
+
+running 13 tests
+test below_the_minimum_it_refuses_honestly_and_names_both_sizes ... ok
+test a_run_with_no_checkpoint_says_so_rather_than_printing_step_zero ... ok
+test the_checkpoint_panel_carries_both_the_last_step_and_what_a_resume_would_do ... ok
+test status_elapsed_and_spend_against_the_ceiling_all_render ... ok
+test the_cancel_confirmation_states_the_cost_and_what_it_cannot_undo ... ok
+test spend_takes_a_state_colour_only_at_the_ceiling ... ok
+test an_empty_panel_draws_one_honest_line_and_no_example_rows ... ok
+test no_panel_names_a_milestone_a_session_or_a_future ... ok
+test a_run_that_cannot_be_resumed_says_so_without_inventing_a_reason ... ok
+test elapsed_renders_what_the_daemon_reported_and_tracks_it ... ok
+test the_cancel_confirmation_states_the_orphan_policy_in_words ... ok
+test a_filled_panel_uses_the_space_the_empty_one_reserved_and_moves_nothing_else ... ok
+test every_placeholder_panel_is_present_at_every_size_and_states_a_fact ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\window_sanitiser.rs (target\debug\deps\window_sanitiser-2d032f9ec9d9e260.exe)
+
+running 7 tests
+test without_the_windows_preparation_the_tag_block_survives_into_the_rendered_line ... ok
+test the_harness_own_speech_is_not_mangled_by_the_reservation ... ok
+test a_runs_output_cannot_forge_chrome_inside_the_window ... ok
+test no_hostile_character_in_an_expanded_failure_detail_reaches_a_cell ... ok
+test no_hostile_character_in_a_tool_target_reaches_a_cell ... ok
+test no_hostile_character_in_a_runs_prose_reaches_a_cell ... ok
+test no_hostile_character_in_a_runs_reasoning_reaches_a_cell_when_expanded ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\window_steer.rs (target\debug\deps\window_steer-ef0cfbd154666d19.exe)
+
+running 11 tests
+test backing_out_of_the_cancel_confirmation_leaves_the_run_alone ... ok
+test an_empty_steer_asks_for_nothing ... ok
+test cancel_asks_for_nothing_until_it_is_confirmed ... ok
+test typing_and_pressing_enter_produces_exactly_one_steer_request ... ok
+test resume_is_one_key_and_asks_once ... ok
+test an_oversized_steer_leaves_the_window_unmodified_and_is_refused_by_the_door ... ok
+test closing_the_window_detaches_and_never_cancels ... ok
+test escaping_the_field_keeps_the_draft_and_sends_nothing ... ok
+test shift_enter_adds_a_line_and_does_not_send ... ok
+test the_cancel_confirmation_swallows_every_other_key ... ok
+test a_refusal_is_rendered_in_the_control_planes_own_words ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_view-e60194b4cfa4d302.exe)
+
+running 22 tests
+test approval::tests::a_promotable_class_states_how_far_off_promotion_is ... ok
+test approval::tests::the_delegation_hatch_can_be_withheld_and_the_answer_keys_never_can ... ok
+test approval::tests::the_accept_label_follows_the_effect_rather_than_always_saying_send ... ok
+test approval::tests::the_novelty_reason_and_the_ceiling_both_reach_the_one_line ... ok
+test meter::tests::a_flat_reading_and_no_reading_are_not_the_same_value ... ok
+test approval::tests::the_overlay_states_blast_radius_and_has_no_way_to_state_a_command ... ok
+test notice::tests::money_renders_from_cents_rather_than_from_a_preformatted_string ... ok
+test meter::tests::an_absent_source_holds_the_last_frame_rather_than_flattening_it ... ok
+test notice::tests::a_listing_without_its_data_says_so_rather_than_printing_nothing ... ok
+test notice::tests::a_pane_with_nothing_in_it_says_so_rather_than_rendering_an_empty_sentence ... ok
+test notice::tests::an_echo_is_quoted_and_never_reworded ... ok
+test approval::tests::routine_is_a_stated_claim_rather_than_an_absent_one ... ok
+test run::tests::no_ceiling_is_not_a_full_bar ... ok
+test run::tests::the_orphan_policy_is_stated_plainly_and_never_as_its_variant_name ... ok
+test run::tests::elapsed_never_prints_a_bare_seconds_count_for_a_long_run ... ok
+test run::tests::every_state_that_has_stopped_reports_itself_as_not_live ... ok
+test notice::tests::not_built_is_not_the_same_speech_act_as_an_unknown_command ... ok
+test run::tests::a_tenth_of_a_cent_does_not_render_as_zero_beside_a_three_dollar_ceiling ... ok
+test view::tests::a_degraded_band_carries_the_specific_path_not_the_word_degraded ... ok
+test view::tests::a_pending_line_is_retired_by_the_producer_and_by_nothing_else ... ok
+test view::tests::every_control_is_reachable_read_only_and_none_is_writable ... ok
+test view::tests::there_is_no_way_to_turn_a_pending_line_into_transcript ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\vocabulary.rs (target\debug\deps\vocabulary-a43853e9ad4ef5c2.exe)
+
+running 3 tests
+test every_notice_variant_passes_the_persona_probes ... ok
+test no_notice_field_is_a_free_text_string ... ok
+test no_produce_impl_has_a_catch_all_arm ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests marlowe_daemon
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_stub
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_surface
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_view
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

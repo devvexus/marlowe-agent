@@ -60,6 +60,48 @@ impl Probe {
     }
 }
 
+/// **WHICH PROCESS HOLDS TIER 1, because the reserve's authority depends on it.**
+///
+/// # This closes a defect that is already shipped, and reading is what found it
+///
+/// [`Reserve::ForTier1`] knew a model NAME and nothing else, so it asked Ollama two questions:
+/// `ollama ps` for residency and `ollama list` for size. Both assume Ollama runs tier 1. Three
+/// ways that is false, and the middle one is **live in the product today**:
+///
+/// | situation | `ollama ps` | `ollama list` | reserve applied | truth |
+/// |---|---|---|---|---|
+/// | a `llama-server` holds the weights (ADR-060) | absent | present | ~5.8 GB | **0** — already out of `memory.free` |
+/// | **a hosted provider serves tier 1 — SHIPPED NOW** | absent | present | ~5.8 GB | **0** — tier 1 is not on this card at all |
+/// | Ollama serves it | present | present | 0 | 0 |
+///
+/// Row 2 is not hypothetical. `Daemon::open` passed `Reserve::ForTier1(&config.model)`
+/// unconditionally, including when `model_provider` is `OpenRouter`, where `config.model` is still
+/// the compile-time default and nothing on this machine runs it. The embedder over-reserved
+/// ~5.8 GB against a card with nothing on it, resolved to CPU, and `--status` printed a reason
+/// that was internally coherent and false in every clause.
+///
+/// **It is a REQUIRED FIELD rather than a new variant or a defaulted one**, and that is the whole
+/// mechanism. A `ForTier1(&str)` that kept compiling would leave every existing call site meaning
+/// "Ollama" *by omission* — the permissive default that makes a mismatch unobservable, which is
+/// what produced row 2. A required field turns each call site into a compile error that must STATE
+/// which runtime it means.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tier1Runtime {
+    /// Ollama serves tier 1 on this machine. Ask it — `ollama ps`, then `ollama list`.
+    Ollama,
+    /// A `llama-server` has answered `/health` on this machine, which is 200 only once the weights
+    /// are IN. Its bytes are therefore already out of `memory.free`.
+    ///
+    /// **The reading must be EARNED.** Ask what this would report if the server were *not* loaded:
+    /// zero, with a confident reason — the exact family this fix closes. So a caller may pass it
+    /// only after `marlowe_provider::llamacpp::Availability::probe` returned `Ready`, which is a
+    /// positive reading of the state, taken moments before, rather than an assumption.
+    LlamaServerLoaded,
+    /// Tier 1 is not resident on this card: a hosted provider, or a local server that is not up.
+    /// Either way there is nothing here to yield to.
+    NotOnThisCard,
+}
+
 /// **What tier 3 must LEAVE ALONE, in bytes — the VRAM priority order, ADR-045 §4.**
 ///
 /// The card is shared, and the sharing has an order that is not negotiable:
@@ -124,7 +166,9 @@ pub enum Reserve<'a> {
     /// disagree. It borrows rather than owning a `&'static str` because the daemon's model is
     /// **switchable at runtime** (`--status` reports it, `switch_model` changes it), so a reserve
     /// pinned to a compile-time default would protect the wrong model the moment a user switched.
-    ForTier1(&'a str),
+    /// `runtime` arrives the same way the name does, and for the same reason — see
+    /// [`Tier1Runtime`].
+    ForTier1 { model: &'a str, runtime: Tier1Runtime },
     /// Reserve nothing. **Measurement only** — this is the pre-ADR-045 behaviour and it is kept
     /// so the defect above can be reproduced deliberately rather than described.
     None,
@@ -149,7 +193,36 @@ impl Reserve<'_> {
                     reason: "no reserve was requested (measurement arm)".to_string(),
                 }
             }
-            Reserve::ForTier1(name) => name,
+            // **The runtime is read BEFORE anything shells out to Ollama.** Everything below
+            // this point asks Ollama about residency and about size, and those are the right
+            // questions only when Ollama is the thing running tier 1.
+            //
+            // Both non-Ollama arms return zero, and zero is produced by five different branches of
+            // this function -- so the NUMBER cannot say which branch answered and the reason has
+            // to. `rerank_provider.rs` asserts on the reason for exactly that reason.
+            Reserve::ForTier1 { model, runtime: Tier1Runtime::NotOnThisCard } => {
+                return ReserveReading {
+                    bytes: 0,
+                    reason: format!(
+                        "tier 1 ({model}) is not resident on this card, so there is nothing to \
+                         yield to"
+                    ),
+                }
+            }
+            Reserve::ForTier1 { model, runtime: Tier1Runtime::LlamaServerLoaded } => {
+                return ReserveReading {
+                    bytes: 0,
+                    // The same sentence the `ollama ps` hit below uses, for the same reason: the
+                    // bytes are ALREADY OUT of `memory.free`, and reserving them a second time
+                    // would double-count, read as a smaller card, and push tier 3 onto CPU for a
+                    // reason that does not exist.
+                    reason: format!(
+                        "{model} is held by a loaded llama-server; free device memory is already \
+                         net of it"
+                    ),
+                }
+            }
+            Reserve::ForTier1 { model, runtime: Tier1Runtime::Ollama } => model,
         };
 
         // Resident already? Then its bytes are ALREADY OUT of `memory.free` and reserving them a

@@ -123,13 +123,57 @@ pub fn serve(
     // **Announced, never inferred** — ADR-029's rule applied to the model provider. A daemon on
     // openrouter.ai and one on loopback otherwise print an identical startup, and the difference
     // is money and a network.
-    if let ModelProviderChoice::OpenRouter { model } = config.model_provider() {
-        eprintln!("marlowe: model provider OPENROUTER · {model} · https://openrouter.ai");
-        eprintln!(
-            "marlowe: this path is NOT bit-identically reproducible — the serving upstream is \
-             recorded per call instead. See ADR-046 §6."
-        );
-        eprintln!("marlowe: {}", marlowe_provider::ModelCapability::unmeasured(&model).disclosure());
+    //
+    // **An exhaustive `match`, not an `if let`.** As an `if let` on OpenRouter, a daemon serving
+    // from a local `llama-server` started with output byte-identical to an Ollama one — ADR-029's
+    // announced-never-inferred violated by omission, in the one place a person reads what they
+    // just started.
+    match config.model_provider() {
+        ModelProviderChoice::Ollama => {}
+        ModelProviderChoice::OpenRouter { model } => {
+            eprintln!("marlowe: model provider OPENROUTER · {model} · https://openrouter.ai");
+            eprintln!(
+                "marlowe: this path is NOT bit-identically reproducible — the serving upstream is \
+                 recorded per call instead. See ADR-046 §6."
+            );
+            eprintln!(
+                "marlowe: {}",
+                marlowe_provider::ModelCapability::unmeasured(&model).disclosure()
+            );
+        }
+        ModelProviderChoice::LlamaCpp { endpoint, sampling } => {
+            eprintln!(
+                "marlowe: model provider {} · Ollama stores, downloads and lists; a llama-server \
+                 on {endpoint} serves. ADR-060",
+                marlowe_view::provider::HYBRID,
+            );
+            // **The two things that silently change under this engine, both printed.** The
+            // template is llama.cpp's rendering of the GGUF's own, not Ollama's Go renderer; the
+            // sampler is whatever `resolve_sampling` found, or a stated absence.
+            //
+            // **Neither clause is stated as a fact about THIS run**, because the engine has not
+            // started yet — `Daemon::open` starts it a few lines below and prints which half is
+            // actually serving. Saying "llama.cpp renders the template" here, ahead of a start
+            // that may fall back, would be a claim about a run that had not happened.
+            eprintln!(
+                "marlowe: if llama.cpp serves, it renders the GGUF's own chat template and parses \
+                 its own tool-call dialect — Ollama's renderer and parser are NOT in that path. \
+                 The engine line below says which half actually started"
+            );
+            match marlowe_provider::llamacpp::resolve_sampling(&config.model, sampling) {
+                Ok(plan) => eprintln!("marlowe: {}", plan.disclosure()),
+                // Printed, not swallowed. The refusal itself lands later -- at the first turn,
+                // where the driver is built -- and a reader who sees only that has to guess which
+                // of four reads of Ollama.s store failed and where it looked.
+                Err(e) => eprintln!("marlowe: {}", e.remedy()),
+            }
+            // Through the ONE definition the daemon's status line also calls, so a startup
+            // announcement and a status band cannot say different things about one run.
+            eprintln!(
+                "marlowe: {}",
+                marlowe_provider::llamacpp::disclosure_for(&config.model)
+            );
+        }
     }
     let port = config.port;
     // **Read BEFORE `Daemon::open`, because opening is what creates the journal.** Asking
@@ -580,7 +624,25 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
             Event::Reasoning { .. } => {}
             // Already applied by `resolve_retractions`, above.
             Event::SpeechRetracted => {}
-            Event::Tool { verb, target, state, summary, .. } => {
+            // ── `detail` IS BOUND, NOT SWEPT INTO THE `..`. THE DECISION IS BELOW. ──────────
+            //
+            // This arm read `{ verb, target, state, summary, .. }`, so adding `detail` to
+            // `Event::Tool` would have compiled here and printed nothing — the "declared control
+            // nothing reads" shape, in the one place the compiler could not have told anyone.
+            // Binding it means a future field has to be decided about here too.
+            //
+            // **A SUCCESS DETAIL IS WITHHELD, AND THAT IS THE DECISION.** §B6's expansion is an
+            // interactive affordance — a keystroke, on a line a person chose. This path has no
+            // collapsible element; it is a script's stdout, and it already declines to print
+            // reasoning for exactly that reason. A `read` here would put the whole file between
+            // the tool line and the answer on every `--ask`, which is the interface, changed.
+            //
+            // **A FAILURE REASON IS PRINTED.** A failed call reached this surface as
+            // `⋯ edit  notes.md    [failed]` — the verb, the target, and no cause, because
+            // `summary` is metrics and `failed()` has no metrics. That is the same silence the
+            // loop closed for the model on 2026-08-26, on the same field, and it is the one thing
+            // somebody reading a piped transcript afterwards actually needs.
+            Event::Tool { verb, target, state, summary, detail, .. } => {
                 writeln!(
                     out,
                     "  ⋯ {}  {}  {}  [{}]",
@@ -589,6 +651,11 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
                     sanitize_line(summary),
                     sanitize_line(state)
                 )?;
+                if state == "failed" {
+                    for line in detail.iter().flat_map(|d| d.lines()) {
+                        writeln!(out, "    {}", sanitize_line(line))?;
+                    }
+                }
             }
             Event::Compacted { turns } => writeln!(out, "  ─ compacted · {turns} turns ─")?,
             Event::Degraded { what, remedy } => {
@@ -796,6 +863,7 @@ mod display_sanitiser {
                 target: format!("ls\u{202E}gnp.exe"),
                 state: format!("ok{OVERWRITE}"),
                 summary: format!("0 files{OVERWRITE}"),
+                detail: None,
             },
             Event::Degraded { what: format!("w{OVERWRITE}"), remedy: format!("r{OVERWRITE}") },
             Event::Approval {
@@ -857,6 +925,7 @@ mod display_sanitiser {
                 target: "a.txt\n  ⋯ bash  rm -rf /  ok  [ok]".into(),
                 state: "ok".into(),
                 summary: "1 file".into(),
+                detail: None,
             }],
             &mut out,
         )

@@ -31,7 +31,7 @@ use std::io::BufRead;
 
 use marlowe_loop::{
     CallLimits, ContextView, DegradedPath, ModelCall, ModelDriver, ModelStep, ProviderError,
-    SourceKind, Usage,
+    Usage,
 };
 use marlowe_provider::ModelCapability;
 use marlowe_tools::{ExposedSet, ToolRegistry};
@@ -180,55 +180,12 @@ impl OpenRouterDriver {
 
     /// The exposed tools, in OpenAI's function schema.
     ///
-    /// `required` is not optional: omitting it makes every parameter optional, so a model that
-    /// leaves out the one thing the tool needs produces a call that is valid against the schema it
-    /// was given and is then refused by the permission layer for "no declared target". That is a
-    /// failure caused by our own schema and reported as if the model had erred — see ADR-034.
+    /// **One definition, in [`marlowe_provider::wire::openai_tool_schema`].** This was a verbatim
+    /// copy of the Ollama adapter's, and the copies had already drifted: only that one honoured a
+    /// parameter's own `description`, so every hosted request described `run`'s `task` as "text"
+    /// while the local one described what it is for. ADR-060 §6 collapsed them.
     fn tool_schema(&self, exposed: &ExposedSet) -> serde_json::Value {
-        let tools: Vec<serde_json::Value> = exposed
-            .iter()
-            .filter_map(|id| self.registry.get(id))
-            .map(|reg| {
-                let properties: serde_json::Map<String, serde_json::Value> = reg
-                    .manifest
-                    .params()
-                    .iter()
-                    .map(|p| {
-                        (
-                            p.name.clone(),
-                            serde_json::json!({
-                                "type": json_type(p.ty),
-                                "description": param_description(p),
-                            }),
-                        )
-                    })
-                    .collect();
-                let required: Vec<&str> = reg
-                    .manifest
-                    .params()
-                    .iter()
-                    .filter(|p| p.required)
-                    .map(|p| p.name.as_str())
-                    .collect();
-                serde_json::json!({
-                    "type": "function",
-                    "function": {
-                        "name": reg.id.as_str(),
-                        // ADR-052. Trusted prose, because the user installed the server; its
-                        // RESULTS are not, and go through layer 1. Sanitised at registration so
-                        // the description cannot render as something other than what the user
-                        // read. See the Ollama adapter's twin of this comment for the long form.
-                        "description": reg.description.text(),
-                        "parameters": {
-                            "type": "object",
-                            "properties": properties,
-                            "required": required,
-                        },
-                    }
-                })
-            })
-            .collect();
-        serde_json::Value::Array(tools)
+        marlowe_provider::wire::openai_tool_schema(&self.registry, exposed)
     }
 
     /// The outbound request, built and returned rather than sent.
@@ -242,80 +199,12 @@ impl OpenRouterDriver {
         tools: &ExposedSet,
         limits: CallLimits,
     ) -> serde_json::Value {
-        let mut messages = Vec::new();
-
-        // One system message, at position 0. Same shape as the Ollama adapter builds, and for a
-        // reason that applies here too: several chat templates accept exactly one system message
-        // and require it first, and a wire format that varies by model makes a model swap a
-        // debugging session.
-        let system: Vec<&str> = view
-            .stable
-            .iter()
-            .chain(view.context.iter())
-            .chain(view.volatile.iter().filter(|b| b.source == SourceKind::InjectedMemory))
-            .map(|b| b.text.as_str())
-            .filter(|t| !t.trim().is_empty())
-            .collect();
-        if !system.is_empty() {
-            messages.push(serde_json::json!({
-                "role": "system",
-                "content": system.join("\n\n"),
-            }));
-        }
-
-        for block in view.volatile.iter() {
-            let role = match block.source {
-                // See `Engine::spawn`: a child's return is announced by an assistant
-                // turn and paired by id, so it goes out as a tool result, never as the parent's
-                // own words.
-                SourceKind::ToolResults | SourceKind::ChildResults => "tool",
-                // See `SourceKind::Brief`: the parent speaking, not the child.
-                SourceKind::Brief => "user",
-                SourceKind::History => match block.trust {
-                    marlowe_contract::TrustClass::AgentInferred => "assistant",
-                    _ => "user",
-                },
-                SourceKind::InjectedMemory => continue,
-                _ => "user",
-            };
-            let mut msg = serde_json::json!({ "role": role, "content": block.text });
-            if let Some(w) = &block.wire {
-                if !w.tool_calls.is_empty() {
-                    msg["tool_calls"] = serde_json::Value::Array(
-                        w.tool_calls
-                            .iter()
-                            .map(|c| {
-                                serde_json::json!({
-                                    "id": c.id,
-                                    "type": "function",
-                                    "function": {
-                                        "name": c.name,
-                                        // **A STRING, not an object.** This is the OpenAI shape
-                                        // and the difference is load-bearing: a server given an
-                                        // object here rejects the request, and the rejection
-                                        // arrives as a 400 on the turn after a tool ran, which
-                                        // reads like a tool bug.
-                                        "arguments": c.arguments.to_string(),
-                                    }
-                                })
-                            })
-                            .collect(),
-                    );
-                }
-                // No `tool_name` field in this dialect; the pairing is `tool_call_id` alone.
-                if let Some(id) = &w.tool_call_id {
-                    msg["tool_call_id"] = serde_json::Value::String(id.clone());
-                }
-            }
-            messages.push(msg);
-        }
-
-        // **A `tool` message that answers no call is a 400 here**, and that is the message the
-        // quarantined reader's window is made of: it never called anything and structurally never
-        // can, so the block carries no pairing and no assistant turn precedes it. Measured, not
-        // reasoned about — four `run_failed` records in the shipped profile's journal, every one
-        // an HTTP 400 on a child spawned by `condense_batch`. See `marlowe_provider::wire`.
-        marlowe_provider::wire::unorphan_tool_messages(&mut messages);
+        // **Built by [`marlowe_provider::wire::openai_messages`], which is also what the local
+        // llama.cpp adapter sends.** The three things it does that a naive builder does not —
+        // one system message at position 0, `arguments` as a JSON string with `"type": "function"`,
+        // and demoting a `tool` message that answers no call — were each found by a live HTTP 400
+        // or 500 on a shipped path, and a second copy is how the next one gets found twice.
+        let messages = marlowe_provider::wire::openai_messages(view);
 
         let mut body = serde_json::json!({
             "model": self.model,
@@ -793,36 +682,4 @@ impl Accumulator {
 /// Invariant 4: the flag is on the run, so silent degradation is not representable.
 pub fn degraded_path() -> DegradedPath {
     DegradedPath::ModelUnavailable
-}
-
-fn json_type(ty: marlowe_tools::ParamType) -> &'static str {
-    use marlowe_tools::ParamType;
-    match ty {
-        ParamType::Integer | ParamType::Amount => "integer",
-        ParamType::Boolean => "boolean",
-        ParamType::Text
-        | ParamType::Path
-        | ParamType::WritePath
-        | ParamType::Url
-        | ParamType::Identifier => "string",
-    }
-}
-
-fn param_description(p: &marlowe_tools::ParamSpec) -> String {
-    use marlowe_tools::{ArgumentRole, ParamType};
-    let what = match p.ty {
-        ParamType::Path => "an existing path, relative to the workspace root",
-        ParamType::WritePath => "a path relative to the workspace root; it may not exist yet",
-        ParamType::Url => "a full URL including the scheme, e.g. https://example.com/page",
-        ParamType::Amount => "an amount in micros of the profile's currency",
-        ParamType::Identifier => "an identifier returned by an earlier call",
-        ParamType::Integer => "a whole number",
-        ParamType::Boolean => "true or false",
-        ParamType::Text => "text",
-    };
-    let arity = if p.required { "REQUIRED" } else { "Optional" };
-    match p.role {
-        ArgumentRole::Target => format!("{arity}. What this acts on: {what}."),
-        ArgumentRole::Payload => format!("{arity}. {what}."),
-    }
 }

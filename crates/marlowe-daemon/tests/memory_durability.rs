@@ -37,7 +37,17 @@ fn open(root: &PathBuf) -> DaemonMemory {
     // 60 MB graph to exercise it would make them slow and make a missing model look like a write
     // failure. `retrieval_is_announced_as_write_only_when_no_graph_is_loaded` asserts that this
     // state is reported rather than silent.
-    DaemonMemory::open(Arc::new(Mutex::new(journal)), DERIVATION_VERSION, None, "test-model")
+    DaemonMemory::open(
+        Arc::new(Mutex::new(journal)),
+        DERIVATION_VERSION,
+        None,
+        "test-model",
+        // Stated rather than defaulted: ADR-060 made this a required field precisely so a call
+        // site cannot mean Ollama by omission. This fixture reserves nothing either way -- there
+        // is no cross-encoder here -- so `Ollama` is the honest label for what it is standing in
+        // for, and it is the branch that would shell out if anything did read it.
+        marlowe_memory::cue::dense::vram::Tier1Runtime::Ollama,
+    )
         .unwrap()
 }
 

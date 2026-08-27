@@ -23,7 +23,7 @@ use marlowe_permission::{BlastRadius, Tier};
 use marlowe_provider::{capability_for, Availability, LocalEndpoint, OllamaDriver, Routing};
 use marlowe_tools::builtin_registry;
 
-use crate::protocol::{Event, Request, StatusReport};
+use crate::protocol::{Event, Request, StatusReport, MAX_TOOL_DETAIL_BYTES};
 use crate::DEFAULT_DAEMON_PORT;
 
 #[derive(Debug, thiserror::Error)]
@@ -65,6 +65,23 @@ pub enum ModelProviderChoice {
     Ollama,
     /// ADR-046. **Opt-in only**, and never reachable except by an explicit `--provider openrouter`.
     OpenRouter { model: String },
+    /// ADR-060, delivered as its Option E. A local `llama-server` on loopback: **opt-in only**,
+    /// never reachable except by an explicit `--provider llamacpp`, and Ollama stays the default.
+    ///
+    /// The endpoint is a [`LocalEndpoint`], which refuses any non-loopback host by construction —
+    /// the property ADR-060 §10 asks to preserve, held by the type rather than by a check somebody
+    /// has to remember. The model NAME is not in here: `llama-server` serves whatever it was
+    /// launched with, and `config.model` is what this daemon believes that to be.
+    ///
+    /// **Both settings live in the variant rather than beside it on `DaemonConfig`.** A port field
+    /// and a sampling field on the config would be a second source of two facts the choice already
+    /// carries, and the two can disagree — which is the shape this file's own header calls the
+    /// zero-config guard's failure mode. Everything that already threads a `ModelProviderChoice`
+    /// through the harness therefore carries these with no signature change.
+    LlamaCpp {
+        endpoint: LocalEndpoint,
+        sampling: marlowe_provider::llamacpp::SamplingSource,
+    },
 }
 
 impl ModelProviderChoice {
@@ -73,7 +90,38 @@ impl ModelProviderChoice {
         match self {
             ModelProviderChoice::Ollama => "ollama",
             ModelProviderChoice::OpenRouter { .. } => "openrouter",
+            // **ONE ENTRY NAMING BOTH HALVES, and it is the decision rather than a label.**
+            // ADR-060 accepted as the hybrid: Ollama stores, downloads and lists the models;
+            // `llama-server` serves them off the blob Ollama already holds. A silent swap under
+            // the existing `ollama` entry was explicitly refused — the user must be able to see
+            // which engine is answering.
+            //
+            // **This string MUST equal the `PROVIDERS` entry**, so it is the same constant.
+            // `project.rs`'s picker finds the active provider with `position()` and falls back to
+            // `unwrap_or(0)`, so a typo here would render a hybrid daemon as plain `ollama` — a
+            // silent wrong answer in the one place a user reads which engine is live.
+            ModelProviderChoice::LlamaCpp { .. } => marlowe_view::provider::HYBRID,
         }
+    }
+}
+
+/// **Two facts, and `or_else` published only one of them.**
+///
+/// Every status arm read `stale_against_source().or_else(|| availability.remedy())`. With nothing
+/// listening on the engine's port AND a daemon built from stale source, `--status` printed the
+/// staleness warning and **not the launch command** — so the one instruction that makes a missing
+/// server survivable was hidden at exactly the moment it was needed.
+///
+/// A stale binary and a dead engine are independent, and both are the user's to act on. The engine
+/// leads because it is what stops the next turn working; staleness follows because it explains why
+/// the engine's behaviour may not match the source in front of them.
+fn degraded_line(primary: Option<String>, stale: Option<String>) -> Option<String> {
+    match (primary, stale) {
+        (Some(p), Some(s)) => Some(format!("{p}
+
+Also: {s}")),
+        (Some(p), None) => Some(p),
+        (None, s) => s,
     }
 }
 
@@ -84,6 +132,9 @@ impl ModelProviderChoice {
 enum Selected {
     Ollama(LocalEndpoint, Routing),
     OpenRouter(String),
+    /// The endpoint, the configured model name, and where the sampler comes from. The name is
+    /// sent as `"model"` and used to resolve the sampler from Ollama's store; it does not route.
+    LlamaCpp(LocalEndpoint, String, marlowe_provider::llamacpp::SamplingSource),
 }
 
 pub struct DaemonConfig {
@@ -225,6 +276,30 @@ impl RunSummary {
     }
 }
 
+/// A tool detail cut to [`MAX_TOOL_DETAIL_BYTES`], **saying so where it was cut**.
+///
+/// Cut here rather than at the producer: the loop's `text` is what the MODEL received, and a
+/// display bound must never shorten the record of that. This is the display's own boundary.
+///
+/// The notice is the shape `bash` already uses for a killed command — a bracketed sentence naming
+/// the bound and what was really produced — because a pane whose output merely stops is
+/// indistinguishable from a command that finished.
+pub fn bounded_detail(d: String) -> String {
+    if d.len() <= MAX_TOOL_DETAIL_BYTES {
+        return d;
+    }
+    let mut cut = MAX_TOOL_DETAIL_BYTES;
+    while cut > 0 && !d.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let n = d.len();
+    format!(
+        "{}\n[the harness stopped showing this at {MAX_TOOL_DETAIL_BYTES} bytes. The model \
+         received {n}.]",
+        &d[..cut]
+    )
+}
+
 /// Turns a loop event into a wire event. Render-only.
 ///
 /// `TurnEvent::Done` returns `None`: the loop's own Done carries no outcome, and the daemon emits
@@ -238,14 +313,23 @@ fn to_wire(event: TurnEvent) -> Option<Event> {
         TurnEvent::ReasoningDelta(t) => Event::Reasoning { delta: t },
         TurnEvent::SpeechRetracted => Event::SpeechRetracted,
             TurnEvent::ToolLine { id, verb, target, state } => {
-                let (state, summary) = match state {
+                // **The detail died on this line for the whole of M1 and M2**, and both ends of
+                // the path had the field. `ResultSummary::render` is metrics only; `Event::Tool`
+                // had five fields and none was a detail, so `s.detail` was dropped here and
+                // nothing downstream could recover it. A `write` the permission layer refused
+                // carried its reason as far as this function and no further.
+                let (state, summary, detail) = match state {
+                    // A running call has produced nothing yet. `None`, not an empty string: the
+                    // absence is the fact.
                     ToolLineState::Running { elapsed_ms } => {
-                        ("running".to_string(), format!("{elapsed_ms} ms"))
+                        ("running".to_string(), format!("{elapsed_ms} ms"), None)
                     }
-                    ToolLineState::Ok(s) => ("ok".to_string(), s.render()),
-                    ToolLineState::Failed(s) => ("failed".to_string(), s.render()),
+                    ToolLineState::Ok(s) => ("ok".to_string(), s.render(), s.detail.clone()),
+                    ToolLineState::Failed(s) => {
+                        ("failed".to_string(), s.render(), s.detail.clone())
+                    }
                 };
-                Event::Tool { id, verb, target, state, summary }
+                Event::Tool { id, verb, target, state, summary, detail: detail.map(bounded_detail) }
             }
             TurnEvent::Compacted { turns } => Event::Compacted { turns },
             TurnEvent::Degraded { what } => Event::Degraded {
@@ -304,13 +388,28 @@ impl<F: FnMut(Event)> TurnSink for CallbackSink<F> {
 ///
 /// **Exhaustive, with no `_` arm.** The next `Event` variant somebody adds has to decide whether it
 /// belongs in a window, at the site where ADR-055's scope is written down.
-fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
+pub fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
     use crate::protocol::RunFrame;
     Some(match e {
         Event::Text { delta } => RunFrame::Text { delta: delta.clone() },
         Event::Reasoning { delta } => RunFrame::Reasoning { delta: delta.clone() },
         Event::SpeechRetracted => RunFrame::SpeechRetracted,
-        Event::Tool { id, verb, target, state, summary } => RunFrame::Tool {
+        // **`detail` is dropped, and that is ADR-055 being enforced rather than an omission.**
+        // `RunFrame`'s own doc says it: *"There is no `ToolResult` variant and there must not be
+        // one. What crosses is model prose and the harness's own §B6 summary line."* A `read`
+        // window is a raw tool result.
+        //
+        // There is a second reason and it is arithmetic. Conversation events stream once and are
+        // not retained; run frames live in `control_plane::Frames` up to `MAX_FRAMES`, and every
+        // `frames_since` poll CLONES them. At `MAX_TOOL_DETAIL_BYTES` that is 64 MB per watched
+        // run, re-cloned per poll.
+        //
+        // A failure detail was considered as a carve-out and refused for the reason `finish_call`
+        // already gives about failures: `bash` sets `failed: code != 0` with a full stdout body,
+        // so "a failure detail is harness prose" is an assumption about every executor that will
+        // ever exist. If a window should show refusal reasons, that is a separate harness-authored
+        // field and a separate decision.
+        Event::Tool { id, verb, target, state, summary, detail: _ } => RunFrame::Tool {
             id: *id,
             verb: verb.clone(),
             target: target.clone(),
@@ -602,6 +701,15 @@ pub struct Daemon {
     /// daemon must not change who it will serve, and re-reading would make that possible for anyone
     /// who could write the profile root.
     token: String,
+    /// **ADR-060: which engine is actually serving, and the latched reason when it is not the one
+    /// the user picked.** See [`crate::engine::HybridEngine`].
+    ///
+    /// It is state on the daemon rather than on `DaemonConfig` because the config is the
+    /// *declaration* — what was asked for — and this is the *resolution*. Collapsing them would
+    /// force a choice between two lies: a picker that silently flips to `ollama`, changing the
+    /// user's own setting with no record of who did it, or a screen claiming llama.cpp is serving
+    /// when Ollama is.
+    engine: crate::engine::HybridEngine,
 }
 
 impl Daemon {
@@ -658,6 +766,47 @@ impl Daemon {
         // `marlowe_loop::record::SharedJournalRecorder`.
         let journal = std::sync::Arc::new(std::sync::Mutex::new(journal));
 
+        // **Computed BEFORE the embedder loads, and from a reading rather than an assumption.**
+        //
+        // `LlamaServerLoaded` claims the weights are already out of `memory.free`. Ask what that
+        // would report if the server were NOT up: zero reserve, with a confident reason -- the
+        // exact family this fix exists to close. So it is only reached when `/health` answers 200,
+        // which `llama-server` gives only once the model is IN, taken moments before the embedder
+        // resolves. Anything else is `NotOnThisCard`, which under-reserves; the two failures are
+        // not symmetric, and under-reserving surfaces as a llama-server that will not allocate --
+        // loud, and actionable -- where over-reserving surfaces as an embedder silently on CPU.
+        // ── THE ENGINE STARTS HERE, BEFORE THE EMBEDDER LOADS. ────────────────────────────
+        //
+        // **DO NOT MOVE THIS LATER TO MAKE STARTUP FEEL FASTER. The ordering IS the fix.**
+        //
+        // `llama-server` takes ~9.5 GB when it offloads a 9B. Starting it first means the embedder
+        // resolves against a `memory.free` that is **already net of the language model**, and the
+        // tier-1 reserve then correctly adds nothing on top. That is the double-count closed by
+        // **sequencing** rather than by arithmetic — and the distinction matters, because the
+        // arithmetic alternative (reserve the model's size, then subtract it again when a
+        // llama-server is up) is a compensation, and a compensation drifts the moment either side
+        // changes. This does not: whatever the engine took, it took before anyone measured.
+        //
+        // The cost is ~1.6 s of daemon startup on a warm page cache. It is spent where a person
+        // expects to wait — at start — and it buys the state every later reading depends on.
+        // Deferring it to the first turn would put the same 1.6 s in front of the first answer AND
+        // make the embedder resolve against a card the language model had not claimed yet.
+        //
+        // It is also where the fallback fires. `HybridEngine::start` never fails: it either serves
+        // or latches a reason, so a daemon whose `llama-server` will not run still opens, still
+        // answers, and says which engine is doing it.
+        let engine = match config.model_provider() {
+            ModelProviderChoice::LlamaCpp { endpoint, .. } => crate::engine::HybridEngine::start(
+                &config.model,
+                &endpoint,
+                config.context_tokens,
+            ),
+            _ => crate::engine::HybridEngine::NotSelected,
+        };
+        // **A function, not seven lines inline, so a test can read the deciding code.** See
+        // `crate::engine::tier1_runtime_for` for the four answers and for which one was wrong.
+        let tier1_runtime = crate::engine::tier1_runtime_for(&config.model_provider(), &engine);
+
         // **Beliefs are rebuilt from the log here**, which is what makes memory durable across a
         // restart without any new persistence machinery. A derivation failure stops the daemon
         // rather than starting it with an empty store: a silently forgotten store is
@@ -671,6 +820,15 @@ impl Daemon {
             // that gives way. `config.model` rather than the compile-time default because
             // `switch_model` can change it.
             &config.model,
+            // **WHICH PROCESS holds tier 1, not only which model.** ADR-060 §3, and it closes a
+            // defect that was already shipped: this line passed a name unconditionally, including
+            // on the OpenRouter path where nothing on this machine runs the model, so the embedder
+            // reserved ~5.8 GB against a card with nothing on it and resolved to CPU with a
+            // coherent, false reason.
+            //
+            // Derived from `model_provider()` -- the ONE function that decides which provider is
+            // in use -- so this cannot disagree with the run path about who is serving.
+            tier1_runtime,
         )
         .map_err(|e| DaemonError::Profile {
             root: config.profile_root.display().to_string(),
@@ -784,6 +942,7 @@ impl Daemon {
             mcp: fleet,
             mcp_notices,
             token,
+            engine,
         })
     }
 
@@ -829,11 +988,32 @@ impl Daemon {
     }
 
     /// What §B5's band and first-run onboarding need, without touching a model.
+    ///
+    /// # An exhaustive `match`, and that is the change ADR-060 had to make first
+    ///
+    /// This was `if let ModelProviderChoice::OpenRouter { .. } { ... return }` followed by the
+    /// Ollama tail. Adding a third provider compiles clean against that shape and **falls through
+    /// to the Ollama branch**: it would probe `127.0.0.1:11434`, offer Ollama's `/api/tags` as the
+    /// model picker, and hand back `capability_for(&config.model)` — the 12/12 measured on
+    /// 2026-08-08 **through Ollama's own renderer and parser**, for a runtime that uses neither.
+    /// One runtime's measured reliability disclosed under another's name, with nothing failing.
+    ///
+    /// A `match` makes a fourth provider a compile error instead. Same for
+    /// [`Self::set_model`], `marlowe::tui::spawn_args` and `marlowe::agent::serve`, which had the
+    /// identical shape.
     pub fn status(&self) -> StatusReport {
-        // **The hosted path answers without touching the network.** A probe here would put a
-        // round trip in front of every `--status`, and the failures worth catching early — no
-        // key, no model named — need no network to see. See `marlowe_openrouter::Availability`.
-        if let ModelProviderChoice::OpenRouter { model } = self.config.model_provider() {
+        match self.config.model_provider() {
+            ModelProviderChoice::OpenRouter { model } => self.status_openrouter(model),
+            ModelProviderChoice::LlamaCpp { endpoint, .. } => self.status_hybrid(endpoint),
+            ModelProviderChoice::Ollama => self.status_ollama(),
+        }
+    }
+
+    /// **Answers without touching the network.** A probe here would put a round trip in front of
+    /// every `--status`, which the surface hits on essentially every tick, and the failures worth
+    /// catching early — no key, no model named — need no network to see.
+    fn status_openrouter(&self, model: String) -> StatusReport {
+        {
             let availability = marlowe_openrouter::Availability::check(
                 &model,
                 &marlowe_openrouter::ApiKey::from_environment(),
@@ -848,8 +1028,10 @@ impl Daemon {
                 // about any OpenRouter model has been measured on this machine.
                 model_disclosure: marlowe_provider::ModelCapability::unmeasured(&model)
                     .disclosure(),
-                degraded: crate::staleness::stale_against_source()
-                    .or_else(|| (!availability.is_ready()).then(|| availability.remedy())),
+                degraded: degraded_line(
+                    (!availability.is_ready()).then(|| availability.remedy()),
+                    crate::staleness::stale_against_source(),
+                ),
                 rerank_provider: self.config.rerank_provider.clone(),
                 model_provider: self.config.model_provider().name().to_string(),
                 live_runs: self.live_runs(),
@@ -877,6 +1059,100 @@ impl Daemon {
                 },
             };
         }
+    }
+
+    /// **The hybrid: Ollama stores and lists, `llama-server` serves — and this is where the user
+    /// finds out which of those is actually true right now.** ADR-060.
+    ///
+    /// # Three things this arm does that the third-provider version did not
+    ///
+    /// * **The model list comes from Ollama**, not from `vec![config.model]`. That is the decision:
+    ///   Ollama is the inventory. Under the old shape `llama-server` served one model chosen at
+    ///   launch, so a one-entry picker was the truth; now `/model` restarts the engine, so every
+    ///   model Ollama has pulled is selectable and the picker says so.
+    /// * **The fallback line leads the degraded field and persists.** Not a flash — §B5 renders
+    ///   `degraded` in amber on every frame, so a user who looks ten minutes later still reads
+    ///   which engine is serving and why it is not the one they picked.
+    /// * **The offload reading is CARRIED, never re-measured here.** Taking it costs a real
+    ///   generation, and this function is on the path the surface hits every tick. The reading is a
+    ///   fact about the server process we are still holding — a weaker claim than a fresh
+    ///   measurement, and the type says which one it is.
+    fn status_hybrid(&self, endpoint: LocalEndpoint) -> StatusReport {
+        // **Ollama answers the inventory question in both states**, because Ollama is the store
+        // whether or not llama.cpp is the engine. This is the same call the default provider makes
+        // and it costs the same.
+        let mut models: Vec<String> = match Routing::uniform(&self.config.model) {
+            Ok(r) => match Availability::probe(&LocalEndpoint::default_ollama(), &r) {
+                Availability::Ready { models } => models,
+                Availability::ModelMissing { available, .. } => available,
+                _ => Vec::new(),
+            },
+            Err(_) => Vec::new(),
+        };
+        models.retain(|m| !marlowe_provider::is_cloud_tag(m));
+        if !models.iter().any(|m| *m == self.config.model) {
+            models.push(self.config.model.clone());
+        }
+        models.sort();
+
+        // **The engine's own state first, and it does not touch the network.** A fallen-back
+        // engine has a latched sentence; a serving one is re-probed with its CARRIED offload
+        // reading, which catches a server that died without the daemon having taken a turn since.
+        let engine_trouble = match self.engine.fallback_line() {
+            Some(line) => Some(line.to_string()),
+            None => match self.config.model_provider() {
+                ModelProviderChoice::LlamaCpp { .. } => {
+                    let a = marlowe_provider::llamacpp::Availability::probe(
+                        &endpoint,
+                        &self.config.model,
+                        self.config.context_tokens,
+                        marlowe_provider::OffloadPolicy::Carried(
+                            self.engine.offload().unwrap_or(marlowe_provider::Offload::Unknown),
+                        ),
+                    );
+                    (!a.is_ready()).then(|| a.remedy())
+                }
+                _ => None,
+            },
+        };
+
+        StatusReport {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            workspace: self.config.workspace.display().to_string(),
+            model: self.config.model.clone(),
+            // **Names the engine that is serving, in the line where the model is named.** The
+            // live CPU defect's status line read *"serving … template reports tool support"* —
+            // every clause true, and nothing in it could have revealed the wrong processor. This
+            // one carries the engine and the offload reading.
+            //
+            // **And the measurement-transfer caveat is applied only while it is TRUE.**
+            // `disclosure_for` says the recorded tool-call figure was measured through Ollama's
+            // own renderer and parser and so does not describe llama.cpp. That is right when
+            // llama.cpp is serving. **When the engine has fallen back, Ollama IS the renderer and
+            // the parser**, so the figure describes this run exactly — and printing "not measured
+            // for this runtime" there would be the caveat applied to the wrong system, which is
+            // the same error it exists to prevent, mirrored.
+            model_disclosure: match self.engine.fallback_line() {
+                Some(_) => format!(
+                    "{} · {}",
+                    capability_for(&self.config.model).disclosure(),
+                    self.engine.disclosure(),
+                ),
+                None => format!(
+                    "{} · {}",
+                    marlowe_provider::llamacpp::disclosure_for(&self.config.model),
+                    self.engine.disclosure(),
+                ),
+            },
+            degraded: degraded_line(engine_trouble, crate::staleness::stale_against_source()),
+            rerank_provider: self.config.rerank_provider.clone(),
+            model_provider: self.config.model_provider().name().to_string(),
+            live_runs: self.live_runs(),
+            models,
+        }
+    }
+
+    fn status_ollama(&self) -> StatusReport {
         let endpoint = LocalEndpoint::default_ollama();
         let routing = Routing::uniform(&self.config.model);
         // **One probe, two answers.** The availability check already enumerates what the endpoint
@@ -907,10 +1183,22 @@ impl Daemon {
             models.push(self.config.model.clone());
         }
         models.sort();
+        // **THE ENGINE FALLBACK LEADS, AND THIS ARM IS REACHED PRECISELY WHEN IT MATTERS.**
+        // A hybrid whose `llama-server` could not start is *served by Ollama*, so `status()`
+        // dispatches here -- and without this line the degraded field carried Ollama's own
+        // availability remedy and **never named the engine at all**. The user picked
+        // `ollama/llama.cpp`, the picker still shows it, and this sentence was the only thing that
+        // could say the engine half is not happening. It was built, wired at eight other sites,
+        // and missing from the one arm the fallback actually routes through.
+        //
+        // Ordered by what the user must act on first: the engine, then whatever Ollama has to say
+        // about itself, then staleness. `degraded_line` composes with a blank line and `Also:`, so
+        // none of the three is lost when more than one is present.
+        let degraded = degraded_line(self.engine.fallback_line().map(str::to_string), degraded);
         // **Announced, loudly, and ahead of everything else.** A daemon serving stale code
         // produces symptoms that look like bugs in whatever was just changed, and the reflex is to
         // debug the change. Invariant 4's rule applies: degrade visibly, and name the remedy.
-        let degraded = crate::staleness::stale_against_source().or(degraded);
+        let degraded = degraded_line(degraded, crate::staleness::stale_against_source());
         StatusReport {
             version: env!("CARGO_PKG_VERSION").to_string(),
             workspace: self.config.workspace.display().to_string(),
@@ -932,6 +1220,74 @@ impl Daemon {
     /// A silent accept would leave the picker showing a model that every subsequent turn fails
     /// against, and the failure would present as a broken model rather than as a bad choice.
     pub fn set_model(&mut self, model: &str) -> Result<(), String> {
+        // **An exhaustive match, for the reason `status` is one.** As an `if let` on OpenRouter,
+        // a llamacpp daemon fell through to `Availability::probe(&LocalEndpoint::default_ollama())`
+        // and accepted or refused models on the authority of what OLLAMA has pulled -- which for
+        // this provider is a question about the wrong process.
+        match self.config.model_provider() {
+            ModelProviderChoice::LlamaCpp { endpoint, .. } => {
+                if model == self.config.model {
+                    return Ok(());
+                }
+                // ── The engine restarts. ~1.59 s warm, and it is SYNCHRONOUS. ────────────
+                //
+                // # Why not a loading state, and why not a refusal
+                //
+                // Under Ollama `/model` is a validated config write and the runner stays hot. Here
+                // the model is the argv `llama-server` was started with, so switching means
+                // stopping a process and starting another — 1.59 s warm, longer cold.
+                //
+                // **A refusal was the old behaviour and it belongs to the old design.** It made
+                // sense when Marlowe did not own the server: there was genuinely nothing a config
+                // write could change. Now Marlowe owns it, so refusing would be declining to do
+                // something it can do, and would leave `/model` meaning two different things
+                // depending on a provider setting.
+                //
+                // **An asynchronous switch with a loading state was the other candidate and it is
+                // the one that can lie.** `Request::SetModel` is answered with a fresh `Status`;
+                // if this returned immediately, the picker would show the new model while the old
+                // server was still the thing answering — an interval, however short, in which the
+                // screen names a model that is not loaded. That is the exact failure this
+                // function's header forbids, and a spinner does not fix it, it decorates it.
+                //
+                // Doing it synchronously means there is **no window at all**: the switch is not
+                // acknowledged until a server answering on our port is serving the new blob and
+                // has been measured on the GPU. The user waits ~1.6 s for a thing that takes
+                // ~1.6 s. The elapsed time is announced so the wait is accounted for rather than
+                // mysterious.
+                let previous = self.config.model.clone();
+                self.engine.stop();
+                let engine = crate::engine::HybridEngine::start(
+                    model,
+                    &endpoint,
+                    self.config.context_tokens,
+                );
+                let fallback = engine.fallback_line().map(str::to_string);
+                match fallback {
+                    None => {
+                        self.engine = engine;
+                        self.config.model = model.to_string();
+                        eprintln!(
+                            "marlowe: model {previous} -> {model} · {}",
+                            self.engine.disclosure()
+                        );
+                        return Ok(());
+                    }
+                    // **The switch still happens, and the engine falls back.** Ollama has the
+                    // model — it is Ollama's store the name came from — so the user gets the model
+                    // they asked for, served by the other half of the hybrid, with the reason
+                    // latched in the band. Refusing the model because the *engine* would not start
+                    // would be reporting an engine problem as a model problem.
+                    Some(line) => {
+                        self.engine = engine;
+                        self.config.model = model.to_string();
+                        eprintln!("marlowe: model {previous} -> {model}; {line}");
+                        return Ok(());
+                    }
+                }
+            }
+            ModelProviderChoice::Ollama | ModelProviderChoice::OpenRouter { .. } => {}
+        }
         if let ModelProviderChoice::OpenRouter { model: current } = self.config.model_provider() {
             // **This used to refuse outright**, and the refusal was right while the picker could
             // only ever hold the machine's Ollama inventory: accepting a name would have put a
@@ -999,14 +1355,62 @@ impl Daemon {
         &mut self.config
     }
 
+    /// Where this daemon expects a local `llama-server`, and where its sampling comes from.
+    /// **One definition**, so the probe, the turn path and the VRAM reserve cannot end up asking
+    /// about different ports.
+    ///
+    /// An already-active `LlamaCpp` choice wins; otherwise the documented defaults, which is the
+    /// case `/provider llamacpp` takes on a daemon launched as something else. A non-default port
+    /// reached that way needs a relaunch with `--llamacpp-port`, and the remedy names the port it
+    /// looked at either way.
+    fn llamacpp_settings(&self) -> (LocalEndpoint, marlowe_provider::llamacpp::SamplingSource) {
+        match self.config.model_provider() {
+            ModelProviderChoice::LlamaCpp { endpoint, sampling } => (endpoint, sampling),
+            _ => (
+                marlowe_provider::llamacpp::default_endpoint(),
+                marlowe_provider::llamacpp::SamplingSource::OllamaParams,
+            ),
+        }
+    }
+
     pub fn set_provider(&mut self, provider: &str) -> Result<(), String> {
+        // **`llamacpp` is a SPELLING of `ollama/llama.cpp`, not a second provider.** A person
+        // typing `/provider llamacpp` at a prompt means the hybrid; refusing them over a slash
+        // would be pedantry, and silently doing something else would be the thing this whole
+        // change exists to prevent. Normalised here, once, so everything downstream — the match
+        // below, the config, `name()`, the picker — sees exactly one string.
+        //
+        // **An alias is not a default.** Both spellings are things the user typed; neither is
+        // reachable by omission, which is the property `--reranking off` and `--llamacpp-sampling`
+        // are written to hold.
+        let provider = if provider == "llamacpp" {
+            marlowe_view::provider::HYBRID
+        } else {
+            provider
+        };
         if !crate::project::PROVIDERS.contains(&provider) {
             return Err(format!(
                 "`{provider}` is not a provider this build has. Options: {}",
                 crate::project::PROVIDERS.join(", ")
             ));
         }
-        if provider == self.config.model_provider().name() {
+        // **Selecting the provider already in use is a no-op — EXCEPT for the hybrid, where it is
+        // the retry, and this exception is not a special case so much as a bug report.**
+        //
+        // `EngineFailure::fallback_line` ends with *"`/provider ollama/llama.cpp` retries the
+        // engine"*. That sentence is the one actionable clause in the persistent band, and the
+        // early return above made it **false**: the provider was already `ollama/llama.cpp` — the
+        // user never left it, only the engine fell back — so the gesture the product told them to
+        // perform did nothing at all, silently, and the band went on saying it would work.
+        //
+        // Found by `a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exactly_why`,
+        // which asserts on the words the user reads. A test asserting `set_provider(...).is_ok()`
+        // would have passed on this build: the call DID succeed, it just did not do anything.
+        //
+        // For `ollama` and `openrouter` the no-op is still right — re-selecting them costs a
+        // catalogue fetch and changes nothing.
+        if provider == self.config.model_provider().name() && provider != marlowe_view::provider::HYBRID
+        {
             return Ok(());
         }
         match provider {
@@ -1017,6 +1421,12 @@ impl Daemon {
                 if let ModelProviderChoice::OpenRouter { model } = self.config.model_provider() {
                     self.config.last_openrouter_model = Some(model);
                 }
+                // **Stopping the engine is not tidiness, it is the card.** A `llama-server` we
+                // started holds ~9.5 GB; leaving it running after the user switched away means
+                // the next thing that wants the GPU -- Ollama loading this very model, or the
+                // embedder -- finds it full, and neither of them fails loudly. Ollama evicts its
+                // own model; the embedder drops to CPU with a coherent reason.
+                self.engine.stop();
                 self.config.model_provider = ModelProviderChoice::Ollama;
                 Ok(())
             }
@@ -1048,6 +1458,87 @@ impl Daemon {
                     return Err(availability.remedy());
                 }
                 self.config.model_provider = ModelProviderChoice::OpenRouter { model };
+                Ok(())
+            }
+            // **`marlowe_view::provider::HYBRID`, not a literal.** The picker offers this string,
+            // `ModelProviderChoice::name()` returns it, and this arm accepts it — three readers,
+            // one constant, so a name a user can see is a name this function takes.
+            marlowe_view::provider::HYBRID => {
+                // The hosted slug survives a round trip through any other provider, for the
+                // reason the `ollama` arm keeps it: switching back should not make the user
+                // retype it.
+                if let ModelProviderChoice::OpenRouter { model } = self.config.model_provider() {
+                    self.config.last_openrouter_model = Some(model);
+                }
+                let (endpoint, sampling) = self.llamacpp_settings();
+
+                // **The compiled defaults are not the check; the configured ports are.**
+                // `LLAMACPP_DEFAULT_PORT` used to BE `DEFAULT_DAEMON_PORT`, and every unit test
+                // passed throughout because no single process knows both numbers -- it took a live
+                // `--status`, which reported "something is listening but it is not llama-server"
+                // about Marlowe's own daemon. Moving one constant fixes today; this fixes the
+                // class, because `--daemon-port` and `--llamacpp-port` can both be set by hand.
+                if endpoint.port() == self.config.port {
+                    return Err(format!(
+                        "port {} is this daemon's own control port, so a llama-server cannot be \
+                         there. Start marlowe with `--llamacpp-port <N>`",
+                        endpoint.port()
+                    ));
+                }
+
+                // **The sampler is resolved BEFORE the engine starts, and a failure refuses the
+                // switch.** Ollama applies the model's `.params` layer on every request it serves
+                // and `llama-server` pointed at the raw blob does not, so a switch that could not
+                // read that layer would run the same weights at a different temperature with
+                // nothing reporting the change. `--llamacpp-sampling server` is how a user says
+                // they meant llama.cpp's own defaults; it is never reached by omission.
+                //
+                // **This is a REFUSAL, not a fallback**, and the asymmetry is deliberate. The
+                // fallback exists for things that break under us — a moved store layout, a full
+                // card. A sampler we cannot read is a thing we do not know, and continuing on a
+                // silently different temperature is not "still working".
+                let plan =
+                    marlowe_provider::llamacpp::resolve_sampling(&self.config.model, sampling)
+                        .map_err(|e| e.remedy())?;
+
+                // ── The engine ────────────────────────────────────────────────────────────
+                //
+                // **Re-issuing this command CLEARS the latch**, and that is the whole retry
+                // story. `HybridEngine::FellBack` never retries on its own — see its header — so
+                // the user asking again is the one event that starts a new attempt. Dropping the
+                // old engine first stops any server we own, because the commonest reason a start
+                // fails on this card is that a `llama-server` is already holding it.
+                self.engine.stop();
+                self.engine = crate::engine::HybridEngine::start(
+                    &self.config.model,
+                    &endpoint,
+                    self.config.context_tokens,
+                );
+
+                // **The switch is ACCEPTED either way, and that is the decision.** *"llama fails
+                // fall back to ollama but surface to user why."* Refusing here would be the old
+                // third-provider behaviour: the user picks the hybrid, is told no, and gets
+                // nothing. Instead they get Ollama, working, with the reason on screen for the
+                // session.
+                self.config.model_provider =
+                    ModelProviderChoice::LlamaCpp { endpoint, sampling };
+
+                // ADR-029: announced, never inferred. Both halves of the hybrid are named,
+                // because the point of one entry with two names is that the user can see both.
+                eprintln!(
+                    "marlowe: model provider {} · Ollama stores and lists · {} · {}",
+                    marlowe_view::provider::HYBRID,
+                    self.engine.disclosure(),
+                    plan.disclosure(),
+                );
+                if self.engine.fallback_line().is_none() {
+                    eprintln!(
+                        "marlowe: llama.cpp renders the GGUF's own chat template and parses its \
+                         own tool-call dialect. Ollama's renderer and parser are NOT in this \
+                         path, so the tool-call reliability recorded for this model does not \
+                         describe it."
+                    );
+                }
                 Ok(())
             }
             // Unreachable while `PROVIDERS` and this match agree, and a wrong answer here is a
@@ -1229,6 +1720,120 @@ impl Daemon {
                     return;
                 }
                 Selected::OpenRouter(model)
+            }
+            ModelProviderChoice::LlamaCpp { endpoint, sampling } => {
+                // **The mid-session case, and the only one that cannot be caught at startup.**
+                // One non-blocking `try_wait` per turn. A server that died since the last turn
+                // latches its reason here, so the very next thing the user sees names the exit
+                // code and the server's own last log line rather than a connection failure.
+                if let Some(line) = self.engine.refresh() {
+                    on_event(Event::Degraded {
+                        what: "the engine changed".into(),
+                        remedy: line,
+                    });
+                }
+                match self.engine.fallback_line() {
+                    // ── FALLEN BACK: Ollama serves this turn. ─────────────────────────
+                    //
+                    // **The turn runs.** That is the decision — *"llama fails fall back to ollama
+                    // but surface to user why"* — and it is the opposite of what this arm used to
+                    // do, which was emit `Degraded` and `Done{degraded}` and answer nothing at
+                    // all. The user asked a question; they get an answer.
+                    //
+                    // The `Degraded` event is emitted on **every** such turn rather than once.
+                    // §B5's band reads `StatusReport::degraded`, which holds it permanently, but a
+                    // transcript scrolled back through weeks later has only the events, and a turn
+                    // that does not carry the reason is a turn whose engine is unrecoverable from
+                    // the record.
+                    Some(line) => {
+                        on_event(Event::Degraded {
+                            what: "llama.cpp is not serving".into(),
+                            remedy: line.to_string(),
+                        });
+                        let ollama = LocalEndpoint::default_ollama();
+                        let routing = match Routing::uniform(&self.config.model) {
+                            Ok(r) => r,
+                            Err(e) => {
+                                mark(&plane, "degraded", 0);
+                                on_event(Event::Degraded {
+                                    what: "no model available".into(),
+                                    remedy: e.to_string(),
+                                });
+                                on_event(Event::Done {
+                                    outcome: "degraded".into(),
+                                    detail: e.to_string(),
+                                    spend_micros_usd: 0,
+                                    elapsed_ms: 0,
+                                });
+                                return;
+                            }
+                        };
+                        let availability = Availability::probe(&ollama, &routing);
+                        if !availability.is_ready() {
+                            // Both halves are down. The remedy names both, because a user reading
+                            // only the second would think Ollama was the thing they chose.
+                            let detail = format!(
+                                "{}\n\nAnd the engine had already fallen back: {line}",
+                                availability.remedy()
+                            );
+                            mark(&plane, "degraded", 0);
+                            on_event(Event::Degraded {
+                                what: "no model available".into(),
+                                remedy: detail.clone(),
+                            });
+                            on_event(Event::Done {
+                                outcome: "degraded".into(),
+                                detail,
+                                spend_micros_usd: 0,
+                                elapsed_ms: 0,
+                            });
+                            return;
+                        }
+                        Selected::Ollama(ollama, routing)
+                    }
+                    // ── SERVING: llama.cpp answers. ───────────────────────────────────
+                    //
+                    // The probe carries the offload reading taken at start rather than measuring
+                    // again: a generation on every turn's first millisecond would be a model call
+                    // in front of every model call.
+                    None => {
+                        let availability = marlowe_provider::llamacpp::Availability::probe(
+                            &endpoint,
+                            &self.config.model,
+                            self.config.context_tokens,
+                            marlowe_provider::OffloadPolicy::Carried(
+                                self.engine
+                                    .offload()
+                                    .unwrap_or(marlowe_provider::Offload::Unknown),
+                            ),
+                        );
+                        if !availability.is_ready() {
+                            // Healthy a moment ago and not now, and the child has not exited —
+                            // the server is wedged rather than dead. Latch it and let the NEXT
+                            // turn take the Ollama path above; answering this one on a server
+                            // that just failed its own health check would be guessing.
+                            let failure = marlowe_provider::EngineFailure::PortUnavailable {
+                                port: endpoint.port(),
+                                detail: availability.remedy(),
+                            };
+                            self.engine = crate::engine::HybridEngine::fell_back(&failure);
+                            let line = failure.fallback_line();
+                            mark(&plane, "degraded", 0);
+                            on_event(Event::Degraded {
+                                what: "llama.cpp is not serving".into(),
+                                remedy: line.clone(),
+                            });
+                            on_event(Event::Done {
+                                outcome: "degraded".into(),
+                                detail: line,
+                                spend_micros_usd: 0,
+                                elapsed_ms: 0,
+                            });
+                            return;
+                        }
+                        Selected::LlamaCpp(endpoint, self.config.model.clone(), sampling)
+                    }
+                }
             }
         };
 
@@ -1472,6 +2077,124 @@ impl Daemon {
                             .unwrap_or("");
                         let think = frame
                             .pointer("/choices/0/delta/reasoning")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
+                        if !think.is_empty() {
+                            eprintln!("[dev] frame {n:>4}  THINK {:>4} bytes", think.len());
+                        }
+                        eprintln!(
+                            "[dev] frame {n:>4}  {:>5} bytes  {:?}",
+                            text.len(),
+                            text.chars().take(60).collect::<String>()
+                        );
+                    }));
+                }
+                Box::new(driver)
+            }
+            Selected::LlamaCpp(endpoint, model, sampling) => {
+                // **The load-time refusals live in `build`**, so this call site cannot skip one.
+                // A store that will not resolve is a named `ResolveError` with a remedy, not a
+                // silent substitution of llama.cpp's own sampler.
+                let built = marlowe_provider::LlamaCppDriver::build(
+                    endpoint,
+                    &model,
+                    tool_registry(&self.mcp).expect("the registry loaded a moment ago"),
+                    sampling,
+                );
+                let mut driver = match built {
+                    Ok(d) => d
+                        .with_context_tokens(self.config.context_tokens)
+                        .with_thinking(self.config.thinking),
+                    Err(e) => {
+                        mark(&plane, "degraded", 0);
+                        on_event(Event::Degraded {
+                            what: "no model available".into(),
+                            remedy: e.remedy(),
+                        });
+                        on_event(Event::Done {
+                            outcome: "degraded".into(),
+                            detail: e.remedy(),
+                            spend_micros_usd: 0,
+                            elapsed_ms: 0,
+                        });
+                        return;
+                    }
+                };
+
+                if self.config.dev {
+                    // **Its OWN dump, not the Ollama one.** That dump reads `/options/num_ctx` and
+                    // prints `UNSET (Ollama defaults to 2048)` when it is missing -- and on a
+                    // llamacpp body it is CORRECTLY missing, because the window is a launch flag
+                    // here. Reusing it would print a confident falsehood on every single request,
+                    // which is worse than printing nothing. Its raw-frame half reads
+                    // `frame["message"]["thinking"]`, which is Ollama's NDJSON shape, not SSE.
+                    let sampling = driver.sampling().disclosure();
+                    driver = driver.with_request_dump(Box::new(move |body| {
+                        eprintln!("[dev] ===== OUTBOUND REQUEST (llamacpp) =====");
+                        eprintln!(
+                            "[dev] model={} max_tokens={} enable_thinking={}",
+                            body.get("model").and_then(|m| m.as_str()).unwrap_or("?"),
+                            body.get("max_tokens").map(|v| v.to_string()).unwrap_or_default(),
+                            body.pointer("/chat_template_kwargs/enable_thinking")
+                                .map(|v| v.to_string())
+                                .unwrap_or_else(|| "unset".into()),
+                        );
+                        // The window is NOT in this body by design; saying so is what stops a
+                        // reader hunting for it. `Availability::ContextTooSmall` is what checks it.
+                        eprintln!(
+                            "[dev] context window: a LAUNCH flag (-c), not a request field; \
+                             checked against /props at switch and at turn start"
+                        );
+                        eprintln!("[dev] {sampling}");
+                        if let Some(msgs) = body.get("messages").and_then(|m| m.as_array()) {
+                            eprintln!("[dev] --- conversation ({} messages) ---", msgs.len());
+                            for (i, m) in msgs.iter().enumerate() {
+                                let role = m.get("role").and_then(|r| r.as_str()).unwrap_or("?");
+                                let content =
+                                    m.get("content").and_then(|c| c.as_str()).unwrap_or("");
+                                let calls = m
+                                    .get("tool_calls")
+                                    .and_then(|t| t.as_array())
+                                    .map(|a| a.len())
+                                    .unwrap_or(0);
+                                eprintln!(
+                                    "[dev] [{i:>3}] {role:<9} {:>5} chars  tool_calls={calls}  {:?}",
+                                    content.len(),
+                                    content.chars().take(70).collect::<String>()
+                                );
+                            }
+                        }
+                        eprintln!(
+                            "[dev] tools offered: {}",
+                            body.get("tools")
+                                .and_then(|t| t.as_array())
+                                .map(|a| a
+                                    .iter()
+                                    .filter_map(|t| {
+                                        t.pointer("/function/name").and_then(|n| n.as_str())
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", "))
+                                .unwrap_or_else(|| "NONE".into())
+                        );
+                        if std::env::var("MARLOWE_DUMP_BODY").is_ok() {
+                            eprintln!("[dev] ===== RAW BODY =====");
+                            eprintln!("{}", serde_json::to_string_pretty(body).unwrap_or_default());
+                        }
+                        eprintln!("[dev] ===== END REQUEST =====");
+                    }));
+                    let mut n: u64 = 0;
+                    driver = driver.with_raw_frames(Box::new(move |frame| {
+                        n += 1;
+                        // `reasoning_content` on the DELTA -- 168/168 of this server's first
+                        // deltas. Reading `message.thinking` here would print zero bytes of
+                        // reasoning on every frame of a reasoning model.
+                        let think = frame
+                            .pointer("/choices/0/delta/reasoning_content")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("");
+                        let text = frame
+                            .pointer("/choices/0/delta/content")
                             .and_then(|c| c.as_str())
                             .unwrap_or("");
                         if !think.is_empty() {
@@ -1894,6 +2617,17 @@ impl Daemon {
                                     summary: wire
                                         .and_then(|w| w.tool_summary.clone())
                                         .unwrap_or_default(),
+                                    // **`None`, and there is nothing to put here.** A replay is
+                                    // rebuilt from `WireTurn` (`marlowe-loop/src/context.rs`),
+                                    // which carries `tool_summary` and no `tool_detail` — the
+                                    // context window keeps the §B6 line, not the bytes. Nor
+                                    // should it: the journal is deliberately not a copy of every
+                                    // file the agent has opened (see `Engine::finish_call`).
+                                    //
+                                    // A replayed tool line therefore has no expansion, which is a
+                                    // true statement about what was retained rather than a gap to
+                                    // fill with the summary.
+                                    detail: None,
                                 });
                             }
                             _ => {}

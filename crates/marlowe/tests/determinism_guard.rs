@@ -215,6 +215,25 @@ fn the_only_real_clock_read_is_the_latency_fence() {
         // method returning `bool` -- no `Duration`, no accessor, nothing a decay path could key
         // off -- and asserts that property about itself.
         "marlowe-mcp/src/deadline.rs",
+        // ADR-060. `hybrid::start` spawns a `llama-server` and waits for it to answer `/health`.
+        // A child that never answers would hang the daemon forever with no output and no
+        // indication why -- the same failure `marlowe-mcp/src/deadline.rs` is fenced for, one
+        // subsystem over -- and counting poll iterations cannot substitute, because the loop's own
+        // HTTP probes carry multi-second timeouts and would make the count understate the elapsed
+        // time by whatever they cost.
+        //
+        // A FILE, not the crate, and for `clock.rs`'s stated reason: `llamacpp.rs` is eleven
+        // hundred lines and `hybrid.rs` spawns processes, so fencing either would exempt every
+        // future clock read in them, silently, because the fence would already be green.
+        // `deadline.rs` holds one type exposing `elapsed()` and NO way to obtain a time value.
+        //
+        // **`marlowe_net::age::Mark` was tried first and reverted.** It is the same type, already
+        // fenced and already argued, and reusing it would have added zero entries here -- but
+        // `marlowe-net` carries `rustls` and a vendored root store, and ADR-031 §2.3 keeps that
+        // out of `marlowe-provider` so the crate's dependency tree stays evidence for ADR-028.
+        // `no_tls_in_the_default_path.rs` failed, correctly, and one fence entry is the cheaper
+        // of the two costs.
+        "marlowe-provider/src/deadline.rs",
     ];
 
     /// The engine spike — a **temporary** measurement crate, exempt with an expiry.

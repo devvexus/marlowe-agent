@@ -117,6 +117,13 @@ fn a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name() {
 fn every_provider_the_picker_offers_is_one_the_daemon_accepts() {
     for p in marlowe_daemon::PROVIDERS {
         let mut d = daemon("offered");
+    // **A model that is not in Ollama's store, so the engine cannot start and this test cannot
+    // spawn a 6.7 GB server.** It was spawning one: `set_provider` starts the engine, and on this
+    // machine that meant a real `llama-server` on the card for ~2 s per test. CLAUDE.md's sixth
+    // parallel-session hazard is a build stealing CPU from a timed measurement; a test suite
+    // taking the GPU is the same hazard with a different resource, and it would be invisible in
+    // the measurement it corrupted. The subject here is the NAME being accepted, not the engine.
+        d.config_mut().model = "definitely-not-a-model:0b".to_string();
         let outcome = d.set_provider(p);
         // `openrouter` may legitimately fail here for want of a key or a network — what must not
         // happen is it failing because the NAME was not recognised, which is the mismatch this
@@ -126,6 +133,15 @@ fn every_provider_the_picker_offers_is_one_the_daemon_accepts() {
                 !e.contains("is not a provider this build has"),
                 "`{p}` is offered by the picker and rejected by name: {e}"
             );
+            // **The second error string, and forbidding only the first is why this test passed
+            // while lying.** `set_provider`'s catch-all arm answers *"is listed as a provider and
+            // has no implementation"* — a DIFFERENT sentence for the same defect, so a `PROVIDERS`
+            // entry with no arm sailed past the assertion above. Both are the mismatch this
+            // guards; neither is a legitimate failure for an offered name.
+            assert!(
+                !e.contains("has no implementation"),
+                "`{p}` is offered by the picker and has no arm in `set_provider`: {e}"
+            );
         }
     }
 
@@ -134,7 +150,10 @@ fn every_provider_the_picker_offers_is_one_the_daemon_accepts() {
     let mut d = daemon("not-offered");
     let e = d.set_provider("anthropic").expect_err("an unknown provider must be refused");
     assert!(e.contains("is not a provider this build has"), "{e}");
-    assert!(e.contains("ollama") && e.contains("openrouter"), "the refusal must list them: {e}");
+    assert!(
+        e.contains("ollama") && e.contains("openrouter") && e.contains("ollama/llama.cpp"),
+        "the refusal must list them: {e}"
+    );
 }
 
 /// Switching to a provider that is already active is a no-op rather than a re-fetch, so `/provider
@@ -169,7 +188,11 @@ fn the_provider_picker_is_built_from_the_daemons_own_report() {
 
     let local = marlowe_daemon::view_from_status(&report("ollama"));
     let p = local.picker(marlowe_view::ControlId::Provider);
-    assert_eq!(p.options, vec!["ollama".to_string(), "openrouter".to_string()]);
+    assert_eq!(
+        p.options,
+        vec!["ollama".to_string(), "ollama/llama.cpp".to_string(), "openrouter".to_string()],
+        "the picker is built from `project::PROVIDERS`, so this list changing means that list did"
+    );
     assert_eq!(p.options[p.selected], "ollama");
 
     // The control, and it is the one that matters: a different report must select differently.
@@ -178,6 +201,17 @@ fn the_provider_picker_is_built_from_the_daemons_own_report() {
     let p = hosted.picker(marlowe_view::ControlId::Provider);
     assert_eq!(
         p.options[p.selected], "openrouter",
+        "the picker showed a provider the daemon did not report"
+    );
+
+    // **And the third, which is the one this control was written before there was.** `position()`
+    // falls back to `unwrap_or(0)` for a name it does not recognise, so a `name()` that did not
+    // spell `llamacpp` EXACTLY as `PROVIDERS` does would render a llamacpp daemon as `ollama` --
+    // a silent wrong answer in the one place a person reads which provider is live.
+    let local_llamacpp = marlowe_daemon::view_from_status(&report("ollama/llama.cpp"));
+    let p = local_llamacpp.picker(marlowe_view::ControlId::Provider);
+    assert_eq!(
+        p.options[p.selected], "ollama/llama.cpp",
         "the picker showed a provider the daemon did not report"
     );
 }

@@ -102,13 +102,27 @@ pub fn tool_call_text(t: &ToolCall) -> String {
         }
         ToolLineState::Ok(r) | ToolLineState::Failed(r) => {
             let outcome = if t.is_failure() { "failed" } else { "ok" };
-            let metrics: Vec<String> = r.metrics.iter().map(|m| m.render()).collect();
-            if metrics.is_empty() {
+            // Rendered upstream (the daemon's fold) or built from typed metrics here. `y` copied
+            // `ok` alone on every wire-fed call before `summary_line` existed.
+            let summary = match &t.summary_line {
+                Some(line) => line.clone(),
+                None => r.metrics.iter().map(|m| m.render()).collect::<Vec<_>>().join(" · "),
+            };
+            if summary.is_empty() {
                 s.push_str(&format!("\n  {outcome}"));
             } else {
-                s.push_str(&format!("\n  {outcome} · {}", metrics.join(" · ")));
+                s.push_str(&format!("\n  {outcome} · {summary}"));
             }
             if let Some(d) = &r.detail {
+                // **The clipboard is an egress, and `detail` is tool output now.** This copied it
+                // verbatim, which was correct while it held a harness constant; 32 KB of `bash`
+                // stdout puts an unterminated ESC sequence on the clipboard, and it fires in
+                // whatever terminal the user pastes into — a terminal Marlowe does not draw.
+                //
+                // `sanitize_prose`, not `mark_reserved`: a clipboard is not a Marlowe frame and
+                // has no chrome to forge, and a pasted box-drawing character is what the user
+                // asked to copy.
+                let d = marlowe_contract::text::sanitize_prose(d);
                 for line in d.lines() {
                     s.push_str(&format!("\n  {line}"));
                 }

@@ -138,6 +138,27 @@ pub enum RunFrame {
     Compacted { turns: u32 },
 }
 
+/// How much of a tool result [`Event::Tool::detail`] carries.
+///
+/// # Derived, not chosen
+///
+/// `read` returns a window of [`marlowe_exec::READ_WINDOW_BYTES`]. Binding this to that constant
+/// is what makes §B6's promise — *"Enter for full output in place"* — literally true for the tool
+/// whose whole purpose is to put a file on screen: a `read` is never cut here, because it was
+/// already cut there. Anything bigger than a `read` window is already a `ToolBody::Reference` with
+/// a head-and-tail preview, so the harness has decided the MODEL does not get it whole; a terminal
+/// pane has no stronger claim than the model does.
+///
+/// **`MAX_INLINE_BYTES` would have been the wrong constant to reuse.** It is a token-budget bound
+/// on what reaches attention. A pane and a token budget are different systems, and carrying a
+/// number across that boundary because it is nearby is the mistake CLAUDE.md names as *"a
+/// measurement is scoped to the system it was taken on"*.
+///
+/// The bound is not decorative. `bash` may return [`marlowe_exec::MAX_SHELL_OUTPUT_BYTES`] **per
+/// stream** — about 2 MB — onto a newline-delimited JSON socket whose reader is an unbounded
+/// `read_line`.
+pub const MAX_TOOL_DETAIL_BYTES: usize = marlowe_exec::READ_WINDOW_BYTES;
+
 /// Daemon → client. Render-only, mirroring `TurnEvent` plus the frames a client needs to know
 /// the turn is over.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -157,8 +178,32 @@ pub enum Event {
     /// The speech streamed so far this turn was reasoning. The client moves it, and no text that
     /// belonged inside a think block is left in the response colour.
     SpeechRetracted,
-    /// §B6's one line per call.
-    Tool { id: u64, verb: String, target: String, state: String, summary: String },
+    /// §B6's one line per call, **and what it opens to**.
+    ///
+    /// `summary` is the right-hand side: typed metrics, already rendered. `detail` is what §B6's
+    /// *"Enter for full output in place"* puts on screen — the tool's body, or a refusal's reason,
+    /// derived once by [`marlowe_loop::ToolOutcome::screen_detail`].
+    ///
+    /// **`Option`, and never defaulted to the summary.** A running line has no output yet, and a
+    /// tool that produced nothing produced nothing; filling the field with the summary would make
+    /// an expansion that shows `48 lines` indistinguishable from one that shows the file, which is
+    /// exactly the state this field was added to end.
+    ///
+    /// Bounded by [`MAX_TOOL_DETAIL_BYTES`] at `to_wire`, never at the producer: the loop's own
+    /// text is what the model received and a display bound must not shorten it.
+    ///
+    /// `#[serde(default)]` so a client built before this field still parses the frame, and
+    /// `skip_serializing_if` so a running line does not carry a null — the same pair
+    /// `Event::Run::attribution` uses.
+    Tool {
+        id: u64,
+        verb: String,
+        target: String,
+        state: String,
+        summary: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        detail: Option<String>,
+    },
     Compacted { turns: u32 },
     /// Invariant 4. Carries the **remedy**, not just the fact.
     Degraded { what: String, remedy: String },

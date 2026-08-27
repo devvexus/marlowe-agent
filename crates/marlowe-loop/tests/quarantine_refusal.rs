@@ -125,6 +125,16 @@ impl ModelDriver for Scripted {
 
 /// One turn: fetch a page, let the reader end in the given way, return the parent's whole window.
 fn note_when(ends: ReaderEnds) -> String {
+    turn_when(ends).0
+}
+
+/// The same turn, returning **both** audiences: the parent's window and every event the
+/// surface was handed.
+///
+/// They are returned together on purpose. The defect this separates was one audience being
+/// told and the other not, and a fixture that could only see one of them could not have found
+/// it -- which is why `note_when` read the window alone for as long as it did.
+fn turn_when(ends: ReaderEnds) -> (String, Vec<marlowe_loop::TurnEvent>) {
     let reader_calls = Arc::new(Mutex::new(0usize));
     let calls = vec![ToolInvocation {
         id: "call_0".into(),
@@ -176,7 +186,8 @@ fn note_when(ends: ReaderEnds) -> String {
     // The control, in every case: a reader ran and saw the page. Without this, a build where the
     // fetch quietly returned nothing would satisfy every assertion below.
     assert!(*reader_calls.lock().unwrap() >= 1, "no quarantined reader ran; nothing was tested");
-    engine.assembler().assemble(&state).rendered()
+    let window = engine.assembler().assemble(&state).rendered();
+    (window, sink.events.clone())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -273,4 +284,105 @@ fn the_five_refusals_say_five_different_things() {
     assert_eq!(notes.len(), all.len(), "two refusals share a sentence");
     let tags: std::collections::BTreeSet<&str> = all.iter().map(|r| r.tag()).collect();
     assert_eq!(tags.len(), all.len(), "two refusals share a journal tag");
+}
+
+/// **The user is the fifth audience, and was the last to be told.**
+///
+/// The four this file already covers are the parent's window, the journal, the classifier and the
+/// run record. The **screen** got `contract_unmet · 3 sources` — a snake_case tag, on the one line
+/// a person actually sees — while `QuarantineRefusal::note()`, which names the cause *and* the
+/// remedy, went everywhere else.
+///
+/// # Why this is not covered by the sweep that gave every other tool line a detail
+///
+/// That sweep derives an expansion from a [`marlowe_loop::ToolOutcome`]. This line has no
+/// `ToolOutcome` behind it: the loop composes it directly, as it does for a refused call and a
+/// refused spawn. **A derivation keyed on a type cannot reach a line that type never produced**,
+/// so this site had to be given its reason by hand and a test naming it is what stops it being
+/// lost again.
+///
+/// # The controls
+///
+/// Two, and neither is optional. The success case must carry **no** detail — otherwise an
+/// implementation that attached the same string to every line would pass. And the detail must be
+/// the same sentence the parent's window received: the model and the user disagreeing about why a
+/// read failed is how a transcript stops being an account of one event.
+#[test]
+fn a_failed_quarantined_read_puts_its_reason_on_the_subagent_line_and_not_just_a_tag() {
+    use marlowe_loop::{ToolLineState, TurnEvent};
+
+    let closing = |ends: ReaderEnds| -> (String, ToolLineState) {
+        let (window, events) = turn_when(ends);
+        let last = events
+            .iter()
+            .rev()
+            .find_map(|e| match e {
+                TurnEvent::ToolLine { verb, state, .. } if verb == "subagent" => Some(state.clone()),
+                _ => None,
+            })
+            .expect("the quarantined reader emits a `subagent` line");
+        (window, last)
+    };
+
+    // ── the refusal ───────────────────────────────────────────────────────────────────────────
+    let (window, state) = closing(ReaderEnds::ProviderRefuses);
+    let ToolLineState::Failed(summary) = state else {
+        panic!("a refused read must close the line `Failed`; §B6 auto-expands those: {state:?}");
+    };
+
+    // The tag is still there — this adds to the line, it does not replace what the journal greps.
+    assert!(
+        summary.render().contains(QuarantineRefusal::ReaderFailed.tag()),
+        "the metrics no longer carry the tag the journal keys on: {}",
+        summary.render()
+    );
+
+    let detail = summary
+        .detail
+        .as_deref()
+        .expect("a failed quarantined read must say why on the line the user can see");
+
+    // **Not `is_some()`.** What it SAYS is the property; a present-but-wrong string is the same
+    // silence with extra steps. This is the sentence, and it is the one the parent got.
+    assert_eq!(
+        detail,
+        QuarantineRefusal::ReaderFailed.note(),
+        "the screen and the model must give one account of one event"
+    );
+    assert!(
+        window.contains(detail),
+        "the detail on screen is not the note the parent's window received:\n{window}"
+    );
+    // The half of the note that is the remedy. A cause without one is what sent a user back to
+    // re-fetch a document that was never the problem.
+    assert!(
+        detail.contains("will not help"),
+        "the reason names no remedy, which is the defect this note was written to fix: {detail:?}"
+    );
+
+    // ── control 1: a different ending says a different thing on the same line ─────────────────
+    let (_, state) = closing(ReaderEnds::AnswerTooLong);
+    let ToolLineState::Failed(other) = state else {
+        panic!("a contract failure must also close `Failed`: {state:?}");
+    };
+    assert_eq!(other.detail.as_deref(), Some(QuarantineRefusal::ContractUnmet.note()));
+    assert_ne!(
+        other.detail, summary.detail,
+        "two structurally different endings render the same sentence on screen. That is the \
+         original defect, moved from the window to the tool line."
+    );
+
+    // ── control 2: a successful read carries no refusal at all ────────────────────────────────
+    //
+    // Without this, an implementation that hung `note()` on every `subagent` line — success
+    // included — would satisfy everything above while telling the user a read that worked had
+    // failed.
+    let (_, state) = closing(ReaderEnds::Succeeds);
+    let ToolLineState::Ok(ok) = state else {
+        panic!("a successful read must close the line `Ok`: {state:?}");
+    };
+    assert_eq!(
+        ok.detail, None,
+        "a successful quarantined read reported a refusal reason it does not have"
+    );
 }

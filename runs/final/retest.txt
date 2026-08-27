@@ -1,0 +1,140 @@
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.51s
+     Running tests\ollama_store_resolution.rs (target\debug\deps\ollama_store_resolution-4059c18a72b89af0.exe)
+
+running 10 tests
+test a_store_that_is_not_there_is_refused_by_path_rather_than_treated_as_empty ... ok
+test a_missing_server_binary_is_refused_by_name_with_every_path_it_tried ... ok
+test a_model_that_was_never_pulled_is_refused_with_the_pull_command ... ok
+test a_manifest_that_will_not_parse_is_refused_rather_than_half_read ... ok
+test a_manifest_that_names_a_blob_the_store_does_not_hold_is_refused_before_any_launch ... ok
+test a_manifest_with_no_model_layer_names_the_media_types_it_did_find ... ok
+test a_model_with_no_params_layer_resolves_with_no_sampler_rather_than_refusing ... ok
+test the_launch_command_carries_the_blob_the_backend_dll_the_window_and_the_path_prefix ... FAILED
+test a_params_layer_that_will_not_parse_refuses_rather_than_silently_using_llama_cpp_defaults ... ok
+test a_well_formed_store_resolves_to_the_blob_and_the_published_sampler ... ok
+
+failures:
+
+---- the_launch_command_carries_the_blob_the_backend_dll_the_window_and_the_path_prefix stdout ----
+
+thread 'the_launch_command_carries_the_blob_the_backend_dll_the_window_and_the_path_prefix' (119068) panicked at crates\marlowe-provider\tests\ollama_store_resolution.rs:315:5:
+assertion `left == right` failed: the binary's own directory stays; only the backend's goes: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_launch_command_carries_the_blob_the_backend_dll_the_window_and_the_path_prefix
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p marlowe-provider --test ollama_store_resolution`
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-openrouter v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-openrouter)
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1564:9
+     |
+1564 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.66s
+     Running tests\hybrid_engine.rs (target\debug\deps\hybrid_engine-9317d184fe669447.exe)
+
+running 6 tests
+test an_engine_fallback_is_not_projected_as_a_hosted_failover ... ok
+test the_hybrids_name_is_one_string_and_every_reader_has_the_same_one ... ok
+test each_named_failure_reaches_the_user_as_a_sentence_only_it_could_have_produced ... ok
+test a_cpu_server_is_a_fallback_and_the_reason_names_the_gpu ... ok
+test the_tier1_runtime_follows_the_engine_that_is_actually_serving ... ok
+test a_llama_server_holding_the_weights_reserves_nothing_and_names_the_branch ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests\llamacpp_is_opt_in.rs (target\debug\deps\llamacpp_is_opt_in-684a10712b4b8638.exe)
+
+running 9 tests
+test every_provider_the_picker_offers_has_a_name_the_enum_can_produce ... ok
+test the_default_provider_is_still_ollama_after_a_third_option_exists ... ok
+test a_llamacpp_port_equal_to_the_daemons_own_is_refused_by_name ... ok
+test a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exactly_why ... ok
+test the_fallback_sentence_is_absent_when_no_engine_was_asked_to_start ... ok
+test switching_models_on_the_hybrid_restarts_the_engine_and_is_not_acknowledged_before_it_is_true ... ok
+test a_llamacpp_daemon_does_not_disclose_ollamas_measured_tool_call_reliability ... ok
+test the_hybrids_picker_offers_what_ollama_has_pulled_because_ollama_is_the_store ... ok
+test llamacpp_is_not_rejected_by_name ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.46s
+
+     Running tests\provider_switching.rs (target\debug\deps\provider_switching-8f480f49dc948432.exe)
+
+running 6 tests
+test the_provider_picker_is_built_from_the_daemons_own_report ... ok
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... ok
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.74s
+

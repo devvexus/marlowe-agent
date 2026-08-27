@@ -758,8 +758,13 @@ fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line
             format!("{}.{}s", elapsed_ms / 1000, (elapsed_ms % 1000) / 100),
             Style::default().fg(Ink::Amber.color(theme)),
         ),
-        ToolLineState::Ok(s) => (s.render(), Ink::Dim.style(theme)),
-        ToolLineState::Failed(s) => (s.render(), Style::default().fg(Ink::Red.color(theme))),
+        // `summary_line` when the producer rendered it upstream — it is `48 lines`, and this side
+        // of §B6's line read `ok` until it existed. It is a `String` off a socket, so it goes
+        // through the same `Shape::Line` predicate `target` does: a `\n` here forges a tool line.
+        ToolLineState::Ok(s) => (rendered(call, s), Ink::Dim.style(theme)),
+        ToolLineState::Failed(s) => {
+            (rendered(call, s), Style::default().fg(Ink::Red.color(theme)))
+        }
     };
     let gap = w
         .saturating_sub(left.chars().count())
@@ -769,6 +774,14 @@ fn tool_line<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Line
         Span::raw(" ".repeat(gap)),
         Span::styled(right, right_style),
     ])
+}
+
+/// §B6's right-hand side: what the producer rendered if it rendered one, else the metrics.
+fn rendered(call: &marlowe_view::ToolCall, s: &marlowe_view::ResultSummary) -> String {
+    match &call.summary_line {
+        Some(line) => marlowe_contract::text::sanitize_line(line).into_owned(),
+        None => s.render(),
+    }
 }
 
 fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<Line<'a>> {
@@ -784,15 +797,33 @@ fn expansion<'a>(call: &marlowe_view::ToolCall, theme: &Theme, w: usize) -> Vec<
         out.push(Line::from(Span::styled(format!("      {t}"), Ink::Dim.style(theme))));
     }
     if let Some(d) = detail {
+        // ── `prepare_model_text`, NOT `sanitize_prose`. THE DETAIL IS TOOL OUTPUT NOW. ────────
+        //
+        // `sanitize_prose` refuses control characters, BiDi overrides and the tag block. It does
+        // **not** apply `chrome::mark_reserved`, which is what refuses U+2500–U+259F and the
+        // harness's own markers. That was safe while `detail` held a harness constant; the moment
+        // it carries a fetched page or a `bash` stdout, a §B2 border and a forged `⋯ bash  rm -rf`
+        // line can be drawn inside the transcript.
+        //
+        // `window.rs` has had this since M3 F2 — `window::prepared` applies both, and
+        // `a_runs_output_cannot_forge_chrome_inside_the_window` asserts it. The conversation pane
+        // never calls `window::prepared`, and `window_sanitiser.rs`'s own third test says so:
+        // `without_the_windows_preparation_the_tag_block_survives_into_the_rendered_line`.
+        //
+        // Marked once on the raw string, **before** `wrap`, per `chrome.rs`: marking after
+        // wrapping widens a line already fitted to the pane and puts §B13's column arithmetic out
+        // by seven columns per marker.
+        let d = crate::chrome::prepare_model_text(&d);
         // A failure detail is genuinely multi-line — it is a stack trace or a compiler error — so
         // `Shape::Prose` here and `Shape::Line` above. Two destinations, two correct answers.
-        let d = marlowe_contract::text::sanitize_prose(&d);
+        //
+        // A successful call's detail is its OUTPUT and is not a failure, so it is not painted in
+        // the failure colour. `Ink::Red` on a `read` window would report every expanded file as an
+        // error.
+        let ink = if call.is_failure() { Ink::Red } else { Ink::Dim };
         for raw in d.lines() {
             for l in wrap(raw, w.saturating_sub(6)) {
-                out.push(Line::from(Span::styled(
-                    format!("      {l}"),
-                    Ink::Red.style(theme),
-                )));
+                out.push(Line::from(Span::styled(format!("      {l}"), ink.style(theme))));
             }
         }
     }

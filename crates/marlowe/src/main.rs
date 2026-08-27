@@ -26,7 +26,8 @@ marlowe --status
 marlowe --shutdown [--daemon-port <N>]
 marlowe --launch
 marlowe --tui [--scripted] [--daemon-port <N>] [--timing-probe] [--color-depth <truecolor|256|16>]
-        [--ground] [--provider <ollama|openrouter>] [--openrouter-model <SLUG>]
+        [--ground] [--provider <ollama|ollama/llama.cpp|openrouter>] [--openrouter-model <SLUG>]
+        [--llamacpp-port <N>] [--llamacpp-sampling <ollama|server>]
 marlowe --classic
 marlowe --doctor
 marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <off|DIR>
@@ -37,6 +38,7 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
         [--profile-retrieval <FILE>]
         [--rerank-threads <N>] [--rerank-batch <on|off>]
         [--rerank-provider <cpu|cuda|auto>] [--tier1-model <NAME>]
+        [--tier1-runtime <ollama|llama-server|off>]
 
   --ask <question>              Ask one question and print the answer. The thin client of
                                 ARCHITECTURE §6: it holds no run state, so the run belongs to the
@@ -99,7 +101,30 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 and four more for the clock probe, and each must start from
                                 empty state.
 
-  --provider <P>                `ollama` (DEFAULT) or `openrouter`. ADR-046.
+  --llamacpp-port <N>           Where `--provider llamacpp` expects a llama-server. Default
+                                11437. NOT 11434 (Ollama's), NOT 11435 (Marlowe's own daemon)
+                                and NOT 11436 (a second daemon, by convention). A port equal
+                                to Ollama's or to this invocation's --daemon-port is REFUSED
+                                at load: the two defaults collided once, and no unit test
+                                could see it because no single process knew both constants.
+
+  --llamacpp-sampling <S>       Where `--provider llamacpp` takes its sampler from. An EXPLICIT
+                                value, deliberately not a bare boolean, for the reason --reranking
+                                is one. `ollama` (DEFAULT): the model's own `.params` layer out of
+                                Ollama's store, which is what Ollama would have applied --
+                                qwen3.5:9b publishes temperature 1, top_k 20, top_p 0.95,
+                                presence_penalty 1.5. `server`: llama-server's own defaults
+                                (temperature 0.8, top_k 40, presence_penalty 0), a RECORDED choice
+                                for a GGUF Ollama never pulled. A forgotten switch would otherwise
+                                run the same weights at a different temperature under the same
+                                label, with nothing reporting the change.
+
+  --provider <P>                `ollama` (DEFAULT: Ollama stores and runs), `ollama/llama.cpp`
+                                (ADR-060's hybrid: Ollama stores and lists, a llama-server Marlowe
+                                starts and owns serves -- and falls back to Ollama, saying why, if
+                                it cannot; `llamacpp` is the same choice without the slash), or
+                                `openrouter`.
+                                ADR-046 and ADR-060.
                                 **`ollama` is the zero-config path and nothing moves it but this
                                 flag** -- not an environment variable, not a config file. K6
                                 measures install-to-answer with no configuration at all, and it
@@ -221,6 +246,18 @@ marlowe --eval-adapter --profile-root <DIR> --embedder-model <DIR> --reranking <
                                 one that is already RESIDENT reserves nothing because free memory
                                 is already net of it. `marlowe --serve` ignores this and uses its
                                 own --model, which is switchable at runtime.
+
+  --tier1-runtime <R>           WHICH PROCESS holds tier 1 -- ADR-060 §3, and it decides whether
+                                the two `ollama` reads above are the right questions at all.
+                                `ollama` (DEFAULT): ask `ollama ps` and `ollama list`, as before.
+                                `llama-server`: a llama-server that is ALREADY LOADED holds the
+                                weights, so free device memory is already net of them and the
+                                reserve is 0. Passing this when the server is NOT up under-reserves
+                                -- which surfaces as a llama-server that will not allocate, loud
+                                and actionable, where OVER-reserving surfaces as the embedder
+                                silently on CPU with a coherent, false reason.
+                                `off`: tier 1 is not on this card at all (a hosted provider), so
+                                there is nothing to yield to.
 
   --rerank-batch <on|off>       Score the whole depth-10 slate in ONE forward pass. Explicit value,
                                 no bare boolean. DEFAULT IS DERIVED FROM THE RESOLVED PROVIDER, not
@@ -799,6 +836,28 @@ fn main() {
     let tier1_model =
         flag_value(&args, "--tier1-model").unwrap_or(marlowe_provider::DEFAULT_MODEL).to_string();
 
+    // **WHICH PROCESS holds tier 1, not only which model — ADR-060 §3.** The reserve used to know
+    // a name and ask Ollama about it, which is the right question only when Ollama is what runs
+    // tier 1. It is a required field on `Reserve::ForTier1` precisely so this call site cannot
+    // mean "Ollama" by omission, and `ollama` is stated here rather than defaulted: the eval
+    // adapter's own tier 1 is Ollama unless somebody says otherwise, and now they can.
+    let tier1_runtime = match flag_value(&args, "--tier1-runtime") {
+        None | Some("ollama") => marlowe_memory::cue::dense::vram::Tier1Runtime::Ollama,
+        Some("llama-server") => {
+            marlowe_memory::cue::dense::vram::Tier1Runtime::LlamaServerLoaded
+        }
+        Some("off") => marlowe_memory::cue::dense::vram::Tier1Runtime::NotOnThisCard,
+        Some(other) => {
+            eprintln!("{USAGE}");
+            eprintln!(
+                "error: --tier1-runtime {other:?} is not a runtime. Valid values are `ollama` \
+                 (the default), `llama-server` (a llama-server that is ALREADY LOADED — its bytes \
+                 are then already out of memory.free) and `off` (tier 1 is not on this card)."
+            );
+            std::process::exit(2);
+        }
+    };
+
     let embedder_provider = match embedder_provider_choice(&args) {
         Ok(c) => c,
         Err(message) => {
@@ -817,7 +876,10 @@ fn main() {
         // **Tier 3 yields to tier 1 -- ADR-045.** The model name comes from the provider crate
         // rather than being spelled here: a second copy of the routed model's identity is how the
         // reserve would end up protecting a model nobody runs.
-        marlowe_memory::cue::dense::vram::Reserve::ForTier1(&tier1_model),
+        marlowe_memory::cue::dense::vram::Reserve::ForTier1 {
+            model: &tier1_model,
+            runtime: tier1_runtime,
+        },
     ) {
         Ok(e) => e,
         Err(e) => {
@@ -839,7 +901,10 @@ fn main() {
             rerank_threads,
             rerank_choice,
             marlowe_memory::cue::dense::vram::Probe::Device,
-            marlowe_memory::cue::dense::vram::Reserve::ForTier1(&tier1_model),
+            marlowe_memory::cue::dense::vram::Reserve::ForTier1 {
+                model: &tier1_model,
+                runtime: tier1_runtime,
+            },
         ) {
             Ok(e) => Some(e),
             Err(e) => {
@@ -1005,7 +1070,7 @@ fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
 
     let named = flag_value(args, "--provider");
     if named.is_none() && args.iter().any(|a| a == "--provider") {
-        eprintln!("error: --provider requires a value: `ollama` or `openrouter`.");
+        eprintln!("error: --provider requires a value: `ollama`, `openrouter` or `llamacpp`.");
         std::process::exit(2);
     }
     match named {
@@ -1031,10 +1096,81 @@ fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
             }
             ModelProviderChoice::OpenRouter { model: model.to_string() }
         }
+        // **Two spellings, one meaning, and neither is a default.** `ollama/llama.cpp` is what
+        // the picker offers and what `/provider` takes; `llamacpp` is the same choice typed
+        // without a slash, which a shell user will reach for. Both are explicit — an alias is not
+        // a default, and nothing here is reachable by omission.
+        Some(marlowe_view::provider::HYBRID) | Some("llamacpp") => {
+            // **ADR-060, accepted as the hybrid.** Ollama stores, downloads and lists; a
+            // `llama-server` this daemon starts and owns serves off the blob Ollama already holds.
+            // Ollama stays the compiled default.
+            //
+            // Nothing is checked against the network here: the daemon starts the engine at
+            // `Daemon::open` and falls back to Ollama with a stated reason if it cannot. What IS
+            // checked at load is the port, because a bad port is a typo the user can fix now and a
+            // fallback four minutes from now otherwise.
+            let port = match flag_value(args, "--llamacpp-port") {
+                None => marlowe_provider::LLAMACPP_DEFAULT_PORT,
+                Some(v) => match v.parse::<u16>() {
+                    Ok(p) if p > 0 => p,
+                    _ => {
+                        eprintln!("error: --llamacpp-port {v:?} is not a port number.");
+                        std::process::exit(2);
+                    }
+                },
+            };
+            // **An explicit value with no bare-boolean form**, for the reason `--reranking` has
+            // one: Ollama applies the model's `.params` layer and `llama-server` pointed at the raw
+            // blob does not, so a forgotten switch runs the same weights at a different temperature
+            // under the same label. `ollama` is the default because it is what the model was
+            // published with; `server` is a recorded choice, never reached by omission.
+            let sampling = match flag_value(args, "--llamacpp-sampling") {
+                None | Some("ollama") => {
+                    marlowe_provider::llamacpp::SamplingSource::OllamaParams
+                }
+                Some("server") => marlowe_provider::llamacpp::SamplingSource::ServerDefaults,
+                Some(other) => {
+                    eprintln!(
+                        "error: --llamacpp-sampling {other:?} is not a source. Valid values are \
+                         `ollama` (the default: the model's own .params layer, which is what \
+                         Ollama would have applied) and `server` (llama-server's own defaults — \
+                         temperature 0.8, top_k 40, presence_penalty 0)."
+                    );
+                    std::process::exit(2);
+                }
+            };
+            // **Refused at load, against the port this invocation will actually use.** The two
+            // defaults collided once already (both 11435) and no unit test could see it, because
+            // no single process knows both constants. This one does.
+            let daemon_port = flag_value(args, "--daemon-port")
+                .and_then(|v| v.parse::<u16>().ok())
+                .unwrap_or(marlowe_daemon::DEFAULT_DAEMON_PORT);
+            if port == daemon_port {
+                eprintln!(
+                    "error: --llamacpp-port {port} is Marlowe's own daemon port. A llama-server \
+                     cannot be there. Pick another port for the server, or move the daemon with \
+                     --daemon-port."
+                );
+                std::process::exit(2);
+            }
+            if port == marlowe_provider::LocalEndpoint::DEFAULT_PORT {
+                eprintln!(
+                    "error: --llamacpp-port {port} is Ollama's port. This provider exists to run \
+                     BESIDE Ollama, which stays the model store and the default."
+                );
+                std::process::exit(2);
+            }
+            let Some(endpoint) = marlowe_provider::LocalEndpoint::new("127.0.0.1", port) else {
+                eprintln!("error: 127.0.0.1:{port} is not a loopback endpoint.");
+                std::process::exit(2);
+            };
+            ModelProviderChoice::LlamaCpp { endpoint, sampling }
+        }
         Some(other) => {
             eprintln!(
                 "error: --provider {other:?} is not a provider. Valid values are `ollama` (the \
-                 default, local, zero-config) and `openrouter` (hosted, needs a key)."
+                 default, local, zero-config), `openrouter` (hosted, needs a key) and `llamacpp` \
+                 (a local llama-server you start yourself — ADR-060)."
             );
             std::process::exit(2);
         }

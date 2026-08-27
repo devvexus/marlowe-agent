@@ -132,6 +132,9 @@ impl DaemonMemory {
         derivation_version: u32,
         reranking: Option<&std::path::Path>,
         tier1_model: &str,
+        // Which process holds tier 1. **A required parameter**, so a caller cannot mean "Ollama"
+        // by omission -- see `marlowe_memory::cue::dense::vram::Tier1Runtime`.
+        tier1_runtime: marlowe_memory::cue::dense::vram::Tier1Runtime,
     ) -> Result<Self, marlowe_memory::MemoryError> {
         let beliefs = {
             let j = journal.lock().expect("the journal lock was poisoned");
@@ -174,7 +177,7 @@ impl DaemonMemory {
                 SHIPPED_THREADS,
                 RerankChoice::Auto,
                 Probe::Device,
-                Reserve::ForTier1(tier1_model),
+                Reserve::ForTier1 { model: tier1_model, runtime: tier1_runtime },
             ) {
                 Ok(e) => (
                     Some(e),

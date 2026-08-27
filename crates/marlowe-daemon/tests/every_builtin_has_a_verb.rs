@@ -59,6 +59,7 @@ fn main_pane_verb(verb: &str) -> String {
             target: "x".into(),
             state: "ok".into(),
             summary: "1 file".into(),
+            detail: None,
         }],
     );
     let Some(Entry::Tools(calls)) = v.transcript.last() else {

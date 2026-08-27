@@ -105,6 +105,241 @@ pub fn unorphan_tool_messages(messages: &mut [Value]) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// The OpenAI dialect, built ONCE — ADR-060 §6
+// ─────────────────────────────────────────────────────────────────────────────────────────
+//
+// # Why these moved here rather than being copied a third time
+//
+// Two drivers already speak this dialect (`marlowe-openrouter`, and now `llamacpp`) and a third
+// builds the Ollama variant beside it. The message builder existed twice
+// (`ollama.rs` / `openrouter/driver.rs`) and the tool-schema builder existed twice, and the two
+// copies of `param_description` **had already drifted**: the Ollama one honours a parameter's own
+// `description` and the OpenRouter one never did, so every hosted request described `run`'s `task`
+// as "text" while the local one described what it is for. Nobody edited a copy wrongly; one copy
+// was improved and the other was not, which is the whole failure mode.
+//
+// A third copy is how three drivers end up with three ideas of what a `tool` message is.
+
+/// Build the `messages` array for an **OpenAI-dialect** endpoint, orphaned tool results already
+/// demoted.
+///
+/// # The four differences from Ollama's `/api/chat`, each one load-bearing
+///
+/// 1. `arguments` is a **JSON string**, not an object. A server given an object here refuses the
+///    request, and the refusal arrives as a 400 on the turn *after* a tool ran, which reads like a
+///    tool bug.
+/// 2. Every assistant tool call carries `"type": "function"`. Omitting it is an HTTP 500 from
+///    `llama-server` — `Failed to parse messages: Missing tool call type` — on **iteration 2 of
+///    every tool-using turn**, measured against the shipped body. The first call succeeds and the
+///    second dies, which is the seam class nothing that tests halves can see.
+/// 3. No `tool_name`; the pairing is `tool_call_id` alone.
+/// 4. No `thinking`. Reasoning is not re-sent in this dialect.
+///
+/// **The shape below is the one BOTH servers accept**, and that is a measured claim rather than an
+/// inference from the specification. ADR-060's probe ran all four candidate shapes against both
+/// servers: today's Ollama shape (id, no type, object arguments) is an HTTP 500 on `llama-server`,
+/// and the full OpenAI shape with string arguments is an HTTP 400 on Ollama
+/// (`Value looks like object, but can't find closing '}' symbol`). So *"just send OpenAI"* is the
+/// wrong instinct for the Ollama adapter and the right one here, and neither adapter may adopt the
+/// other's.
+pub fn openai_messages(view: &marlowe_loop::ContextView) -> Vec<Value> {
+    use marlowe_loop::SourceKind;
+
+    let mut messages: Vec<Value> = Vec::new();
+
+    // ── ONE system message, at position 0. A chat-template constraint, not a preference. ──
+    //
+    // Several newer templates accept exactly one system message and require it first; qwen3.5's
+    // tolerates more, which is why emitting one per block went unnoticed until a qwen3-next model
+    // answered `Jinja Exception: System message must be at the beginning`. Injected memory joins
+    // it rather than sitting mid-conversation: on the wire it is context, not a turn.
+    let system: Vec<&str> = view
+        .stable
+        .iter()
+        .chain(view.context.iter())
+        .chain(view.volatile.iter().filter(|b| b.source == SourceKind::InjectedMemory))
+        .map(|b| b.text.as_str())
+        .filter(|t| !t.trim().is_empty())
+        .collect();
+    if !system.is_empty() {
+        messages.push(serde_json::json!({
+            "role": "system",
+            "content": system.join("\n\n"),
+        }));
+    }
+
+    for block in view.volatile.iter() {
+        let role = match block.source {
+            // See `Engine::spawn`: a child's return is announced by an assistant turn and paired
+            // by id, so it goes out as a tool result, never as the parent's own words.
+            SourceKind::ToolResults | SourceKind::ChildResults => "tool",
+            // See `SourceKind::Brief`: the parent speaking, not the child.
+            SourceKind::Brief => "user",
+            SourceKind::History => match block.trust {
+                marlowe_contract::TrustClass::AgentInferred => "assistant",
+                _ => "user",
+            },
+            SourceKind::InjectedMemory => continue,
+            _ => "user",
+        };
+        let mut msg = serde_json::json!({ "role": role, "content": block.text });
+        if let Some(w) = &block.wire {
+            if !w.tool_calls.is_empty() {
+                msg["tool_calls"] = Value::Array(
+                    w.tool_calls
+                        .iter()
+                        .map(|c| {
+                            serde_json::json!({
+                                "id": c.id,
+                                // Difference 2. See this function's header.
+                                "type": "function",
+                                "function": {
+                                    "name": c.name,
+                                    // Difference 1. See this function's header.
+                                    "arguments": c.arguments.to_string(),
+                                }
+                            })
+                        })
+                        .collect(),
+                );
+            }
+            if let Some(id) = &w.tool_call_id {
+                msg["tool_call_id"] = Value::String(id.clone());
+            }
+        }
+        messages.push(msg);
+    }
+
+    // A `tool` message that answers no call is refused by a strict endpoint, and the quarantined
+    // reader's window is nothing but such messages. See this module's header.
+    unorphan_tool_messages(&mut messages);
+    messages
+}
+
+/// The exposed tools, in the OpenAI function schema. **One definition for every driver.**
+///
+/// Only exposed tools are described — registration is unlimited, exposure is what the model sees
+/// (§7.2).
+///
+/// `required` is not optional: omitting it makes every parameter optional, so a model that leaves
+/// out the one thing the tool needs produces a call that is valid against the schema it was given
+/// and is then refused by the permission layer for "no declared target" — a failure caused by our
+/// own schema and reported as if the model had erred. See ADR-034.
+///
+/// **`required`, not `role`.** These are two questions and they were once one switch:
+/// `ArgumentRole::Target` says what untrusted content may never shape, which is not the same as
+/// what the tool cannot run without.
+pub fn openai_tool_schema(
+    registry: &marlowe_tools::ToolRegistry,
+    exposed: &marlowe_tools::ExposedSet,
+) -> Value {
+    let tools: Vec<Value> = exposed
+        .iter()
+        .filter_map(|id| registry.get(id))
+        .map(|reg| {
+            let properties: serde_json::Map<String, Value> = reg
+                .manifest
+                .params()
+                .iter()
+                .map(|p| {
+                    (
+                        p.name.clone(),
+                        serde_json::json!({
+                            "type": json_type(p.ty),
+                            "description": param_description(p),
+                        }),
+                    )
+                })
+                .collect();
+            let required: Vec<&str> = reg
+                .manifest
+                .params()
+                .iter()
+                .filter(|p| p.required)
+                .map(|p| p.name.as_str())
+                .collect();
+            serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": reg.id.as_str(),
+                    // **ADR-052: this text is TRUSTED, and what the tool returns is not.**
+                    // The user installed the server, which is the authorization decision, and the
+                    // agent cannot install one — so this prose may direct action. Its RESULTS may
+                    // not: they arrive `UntrustedContent` and go through layer 1 like any other
+                    // untrusted result. `Description::new` has already bounded it and run it
+                    // through `marlowe_contract::text`, not as a filter (§8.1 says filtering does
+                    // not work) but so the description cannot render as something other than what
+                    // the user read when they installed it.
+                    "description": reg.description.text(),
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required,
+                    },
+                }
+            })
+        })
+        .collect();
+    Value::Array(tools)
+}
+
+/// The JSON Schema type for a parameter. **Not always `string`.**
+///
+/// Sending `"type": "string"` for an integer invites the model to quote it, and a quoted number
+/// then falls to the trust floor as model-composed text rather than parsing as a number.
+pub fn json_type(ty: marlowe_tools::ParamType) -> &'static str {
+    use marlowe_tools::ParamType;
+    match ty {
+        ParamType::Integer | ParamType::Amount => "integer",
+        ParamType::Boolean => "boolean",
+        // Everything else is a string on the wire. What it MEANS — a path to scope, a URL to
+        // allowlist, an id to resolve — is the permission layer's business, and encoding that in
+        // the JSON type would tell the model about a mechanism it must not be able to address.
+        ParamType::Text
+        | ParamType::Path
+        | ParamType::WritePath
+        | ParamType::Url
+        | ParamType::Identifier => "string",
+    }
+}
+
+/// What a parameter is FOR, in words a model can act on.
+///
+/// **The tool's own words win.** Everything below is generated from `ty` and `required`, which told
+/// a model that `run`'s `task` takes "text" — true, useless, and the reason a spawn delegated a
+/// question its child had no way to answer. A generated sentence is the fallback for a parameter
+/// whose name already says what it is, never a substitute for one that does not.
+///
+/// This branch existed only in the Ollama copy until ADR-060 collapsed the two; the hosted path had
+/// been dropping every tool's own parameter prose since it was written.
+pub fn param_description(p: &marlowe_tools::ParamSpec) -> String {
+    use marlowe_tools::{ArgumentRole, ParamType};
+
+    if let Some(d) = &p.description {
+        let arity = if p.required { "REQUIRED" } else { "Optional" };
+        return format!("{arity}. {d}");
+    }
+    let what = match p.ty {
+        ParamType::Path => "an existing path, relative to the workspace root",
+        ParamType::WritePath => "a path relative to the workspace root; it may not exist yet",
+        ParamType::Url => "a full URL including the scheme, e.g. https://example.com/page",
+        ParamType::Amount => "an amount in micros of the profile's currency",
+        ParamType::Identifier => "an identifier returned by an earlier call",
+        ParamType::Integer => "a whole number",
+        ParamType::Boolean => "true or false",
+        ParamType::Text => "text",
+    };
+    // Arity from `required`, and the role stated only where it changes what the model may do.
+    // Rendering the role AS the arity is the same conflation the schema had, in prose, and it
+    // reached the model a second time through `Engine::expected_params` after a refusal.
+    let arity = if p.required { "REQUIRED" } else { "Optional" };
+    match p.role {
+        ArgumentRole::Target => format!("{arity}. What this acts on: {what}."),
+        ArgumentRole::Payload => format!("{arity}. {what}."),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

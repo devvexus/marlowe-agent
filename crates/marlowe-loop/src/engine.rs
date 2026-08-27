@@ -1793,40 +1793,49 @@ impl<S: PathScope> Engine<S> {
             state,
             result_payload,
         );
+        // -- AND THE SAME REASON THE SCREEN NEVER SAW. §B6's "Enter for full output in place". --
+        //
+        // The line below emitted `outcome.summary` verbatim, and its `detail` is `None` for every
+        // successful call -- so expanding a `read` in the transcript showed the target, a blank
+        // gap, and nothing else. `marlowe-exec` recorded the same gap from the other end:
+        // *"`detail` has no reader in the shipped product."* It had no PRODUCER either.
+        //
+        // `screen_detail` derives it from the body, at this one site. See ADR-062.
+        //
+        // **Ordering, recorded as a decision rather than left as a consequence of statement
+        // order.** This emit precedes the layer-1 branch below, so for an untrusted result the
+        // person sees the fetched page here while the model receives the quarantined summary
+        // there. That is not a breach -- the surface holds no tools and §8.2 binds the component
+        // that does -- but the two now diverge deliberately, and a future reader must not "fix"
+        // it by moving this emit under the branch.
+        let mut screen_summary = outcome.summary.clone();
+        screen_summary.detail = outcome.screen_detail();
         ports.sink.emit(TurnEvent::ToolLine {
             id: call_id,
             verb: tool.to_string(),
             target: adjudication.decision.blast_radius.scope.clone(),
             state: if outcome.failed {
-                ToolLineState::Failed(outcome.summary.clone())
+                ToolLineState::Failed(screen_summary)
             } else {
-                ToolLineState::Ok(outcome.summary.clone())
+                ToolLineState::Ok(screen_summary)
             },
         });
 
         // §2.8's two axes, kept independent: SIZE decides inline vs reference, ORIGIN decides
         // the trust class. A workspace read can inline *and* carry untrusted_content.
-        let text = match &outcome.body {
-            ToolBody::Inline(s) => format!("{} · {}", outcome.summary.render(), s),
-            // **A reference the model cannot dereference is not a result.**
-            //
-            // Observed live: asked to read a 69 KB file, the model received
-            // `983 lines · 69630 B · ref 225bfe8df7bbc044` — a byte count and a hash. `read` has
-            // no parameter that accepts a reference, so there was no way to ask for the text. It
-            // called `read` five times, got the same hash five times, and gave up.
-            //
-            // The content store lands at M2 D and the `read`-a-reference path with it. Until then
-            // the honest thing is to hand over what will fit: head and tail, with the omission
-            // stated in words the model can act on rather than a hash it cannot.
-            ToolBody::Reference { hash, bytes } => match &outcome.preview {
-                Some(p) => format!(
-                    "{} · {} B total, ref {hash}\n{p}",
-                    outcome.summary.render(),
-                    bytes
-                ),
-                None => format!("{} · ref {hash} ({bytes} B)", outcome.summary.render()),
-            },
-        };
+        //
+        // **A reference the model cannot dereference is not a result.**
+        //
+        // Observed live: asked to read a 69 KB file, the model received
+        // `983 lines · 69630 B · ref 225bfe8df7bbc044` — a byte count and a hash. `read`
+        // has no parameter that accepts a reference, so there was no way to ask for the text.
+        // It called `read` five times, got the same hash five times, and gave up.
+        //
+        // The content store lands at M2 D and the `read`-a-reference path with it. Until then
+        // the honest thing is to hand over what will fit: head and tail, with the omission
+        // stated in words the model can act on rather than a hash it cannot. That formatting
+        // is now `ToolOutcome::body_text`, so the screen and the model quote one string.
+        let text = format!("{} · {}", outcome.summary.render(), outcome.body_text());
         // ── AND ON FAILURE, THE REASON. THE MODEL WAS GETTING `"edit · "`. ──────────────────
         //
         // `failed()` builds its outcome with `body: ToolBody::Inline(String::new())` and puts the
@@ -2268,9 +2277,27 @@ impl<S: PathScope> Engine<S> {
             }
         }
 
-        // **The line closes on what actually happened**, in metrics only. A refusal closes it
-        // `Failed` -- §B6 auto-expands those -- carrying the same `QuarantineRefusal` tag the
-        // journal records, so the screen and the log name the cause with one string.
+        // **The line closes on what actually happened.** A refusal closes it `Failed` -- §B6
+        // auto-expands those -- carrying the same `QuarantineRefusal` tag the journal records, so
+        // the screen and the log name the cause with one string.
+        //
+        // ── AND THE REASON, WHICH THE USER WAS THE LAST TO GET ────────────────────────────────
+        //
+        // This said *"in metrics only"*, and the metrics are a TAG: `contract_unmet · 3 sources`.
+        // `QuarantineRefusal::note()` -- which names the cause **and what to do about it**, and
+        // whose own doc says a failure a reader cannot act on is one they will retry unchanged --
+        // went to the model and to the journal and to nothing a person can see. So the one line on
+        // screen for a failed quarantined read was a snake_case identifier.
+        //
+        // **It is not covered by `ToolOutcome::screen_detail`, and that is why it survived the
+        // sweep that added `detail` everywhere else.** `screen_detail` derives an expansion from a
+        // tool's *body*; this line has no `ToolOutcome` behind it at all -- it is composed here,
+        // by the loop, like `refused_line` and `spawn_refused`, and each of those had to be given
+        // its reason by hand for the same reason. A derivation keyed on a type cannot reach a line
+        // that type never produced.
+        //
+        // `note()` is reused rather than reworded: the model and the user disagreeing about why a
+        // read failed is how a transcript stops being readable as an account of one event.
         let read_ok = per_source.iter().any(Option::is_some);
         ports.sink.emit(TurnEvent::ToolLine {
             id: reader_line_id,
@@ -2282,10 +2309,13 @@ impl<S: PathScope> Engine<S> {
                     marlowe_tools::Metric::Count { n: fresh.len() as u64, unit: "sources" },
                 ]))
             } else {
-                ToolLineState::Failed(marlowe_tools::ResultSummary::new(vec![
-                    marlowe_tools::Metric::State(refusal.tag()),
-                    marlowe_tools::Metric::Count { n: fresh.len() as u64, unit: "sources" },
-                ]))
+                ToolLineState::Failed(marlowe_tools::ResultSummary::with_detail(
+                    vec![
+                        marlowe_tools::Metric::State(refusal.tag()),
+                        marlowe_tools::Metric::Count { n: fresh.len() as u64, unit: "sources" },
+                    ],
+                    refusal.note(),
+                ))
             },
         });
 

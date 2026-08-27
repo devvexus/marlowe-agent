@@ -37,7 +37,7 @@ pub const REGISTRY: &[Command] = &[
     Command { name: "status",   args: "",         description: "model, context, spend, connections, degradation" },
     Command { name: "state",    args: "<name>",   description: "drive the status band to a state (listening…idle)" },
     Command { name: "model",    args: "[name]",   description: "show or switch the routed model" },
-    Command { name: "provider", args: "[name]",   description: "show or switch the model provider — ollama / openrouter; changes the model list" },
+    Command { name: "provider", args: "[name]",   description: "show or switch the engine — ollama (stores and runs) / ollama/llama.cpp (Ollama stores, llama.cpp runs; falls back to Ollama and says why) / openrouter" },
     Command { name: "profile",  args: "[name]",   description: "show or switch profile — work / personal" },
     Command { name: "session",  args: "[name]",   description: "show or switch session" },
     Command { name: "workspace", args: "[path]",  description: "show or switch the working directory" },

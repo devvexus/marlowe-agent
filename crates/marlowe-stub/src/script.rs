@@ -91,7 +91,13 @@ impl Session {
                         0,
                     ),
                     autonomy: Picker::new(&["observe", "suggest", "draft", "confirm", "act"], 2),
-                    provider: Picker::new(&["ollama", "openrouter"], 0),
+                    // **The daemon's list, read from the crate both can reach.** This was a
+                    // second literal -- `["ollama", "openrouter"]` -- and it was already a
+                    // provider out of date, because `marlowe-stub` structurally cannot depend on
+                    // `marlowe-daemon` (the C2d acceptance) and so could never have been kept in
+                    // step from either end. The list moved to `marlowe-view`, which both crates
+                    // already depend on.
+                    provider: Picker::new(marlowe_view::provider::PROVIDERS, 0),
                 },
                 status: StatusBand {
                     state: StatusState::Listening,

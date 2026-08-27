@@ -59,6 +59,13 @@ impl LocalEndpoint {
     pub fn authority(&self) -> String {
         format!("{}:{}", self.host, self.port)
     }
+
+    /// The port, without going through `authority()` and back. Added when a second local provider
+    /// needed to print a launch command naming it — parsing it back out of the authority string
+    /// would be a second definition of a field this type already holds.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
 }
 
 impl std::fmt::Display for LocalEndpoint {
@@ -345,17 +352,29 @@ impl<R: BufRead> Read for ChunkedBody<R> {
     }
 }
 
-/// POST a JSON body and read an NDJSON response **incrementally**.
+/// POST a JSON body and hand back the **undecoded response body**, framing already stripped.
+///
+/// # Why this exists rather than two copies of the same eighty lines
+///
+/// Ollama frames its stream as NDJSON and `llama-server` frames its own as SSE, but everything
+/// *below* the framing is identical: connect to a loopback endpoint, write a request head by hand,
+/// read the status line, notice `Transfer-Encoding: chunked`, and decode the chunking
+/// **incrementally** so a caller sees tokens at the rate the model produces them. Duplicating that
+/// for the second local provider would be a second place for `chunked` to be got wrong, and the
+/// first probe run already failed on exactly that.
+///
+/// `accept` is the only thing that differs between the two callers, so it is the only parameter.
 ///
 /// The read timeout applies per read, not to the whole turn — a model that takes two minutes is
 /// working, not hung, and a whole-turn deadline would kill exactly the long turns streaming exists
 /// to make bearable.
-pub fn post_ndjson(
+pub fn post_stream(
     endpoint: &LocalEndpoint,
     path: &str,
     body: &serde_json::Value,
+    accept: &str,
     read_timeout: Duration,
-) -> Result<NdjsonStream, HttpError> {
+) -> Result<Box<dyn BufRead + Send>, HttpError> {
     let unreachable = |detail: String| HttpError::Unreachable {
         endpoint: endpoint.to_string(),
         detail,
@@ -368,8 +387,8 @@ pub fn post_ndjson(
 
     let serialized = body.to_string();
     let head = format!(
-        "POST {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept: application/x-ndjson\r\n\
-         Content-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        "POST {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\
+         Accept: {accept}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
         endpoint.authority(),
         serialized.len()
     );
@@ -416,10 +435,37 @@ pub fn post_ndjson(
         });
     }
 
-    let boxed: Box<dyn BufRead + Send> = if chunked {
+    Ok(if chunked {
         Box::new(BufReader::new(ChunkedBody { inner: reader, remaining: 0, finished: false }))
     } else {
+        // A server that streams without chunking closes the connection at the end, so reading to
+        // EOF is the correct framing there. `llama-server` does this on some builds.
         Box::new(reader)
-    };
-    Ok(NdjsonStream { reader: boxed, endpoint: endpoint.to_string(), done: false })
+    })
+}
+
+/// POST a JSON body and read an NDJSON response **incrementally**. Ollama's `/api/chat`.
+pub fn post_ndjson(
+    endpoint: &LocalEndpoint,
+    path: &str,
+    body: &serde_json::Value,
+    read_timeout: Duration,
+) -> Result<NdjsonStream, HttpError> {
+    let reader = post_stream(endpoint, path, body, "application/x-ndjson", read_timeout)?;
+    Ok(NdjsonStream { reader, endpoint: endpoint.to_string(), done: false })
+}
+
+/// POST a JSON body and read a `text/event-stream` response **incrementally**.
+///
+/// `llama-server`'s `/v1/chat/completions`. The decoder is [`crate::sse`], which is the one
+/// OpenRouter uses — see its header for why it lives in this crate rather than beside the driver
+/// that first needed it.
+pub fn post_sse(
+    endpoint: &LocalEndpoint,
+    path: &str,
+    body: &serde_json::Value,
+    read_timeout: Duration,
+) -> Result<crate::sse::SseStream<Box<dyn BufRead + Send>>, HttpError> {
+    let reader = post_stream(endpoint, path, body, "text/event-stream", read_timeout)?;
+    Ok(crate::sse::SseStream::new(reader))
 }

@@ -257,83 +257,15 @@ impl OllamaDriver {
         Availability::probe(&self.endpoint, &self.routing)
     }
 
-    /// The exposed tools, in Ollama's function schema. Only exposed tools are described —
-    /// registration is unlimited, exposure is what the model sees (§7.2).
+    /// The exposed tools, in Ollama's function schema.
+    ///
+    /// **One definition, in [`crate::wire::openai_tool_schema`].** Ollama's `/api/chat` follows the
+    /// OpenAI function schema for this field, so the array is byte-identical to what the hosted and
+    /// llama.cpp adapters send — and it was written out three times, with the two copies of
+    /// `param_description` already disagreeing about whether a parameter's own words reach the
+    /// model. See that module's header.
     fn tool_schema(&self, exposed: &ExposedSet) -> serde_json::Value {
-        let tools: Vec<serde_json::Value> = exposed
-            .iter()
-            .filter_map(|id| self.registry.get(id))
-            .map(|reg| {
-                let properties: serde_json::Map<String, serde_json::Value> = reg
-                    .manifest
-                    .params()
-                    .iter()
-                    .map(|p| {
-                        (
-                            p.name.clone(),
-                            serde_json::json!({
-                                "type": json_type(p.ty),
-                                "description": param_description(p),
-                            }),
-                        )
-                    })
-                    .collect();
-
-                // **`required` — its absence is why calls arrived with no target.**
-                //
-                // OpenAI-shaped function schemas, which Ollama's `/api/chat` follows, mark
-                // mandatory parameters here. Omitting it makes EVERY parameter optional, so a
-                // model that leaves out the one thing the tool needs is producing a call that is
-                // valid against the schema it was given. It then gets refused by the permission
-                // layer for "no declared target" — a failure caused by our own schema, reported
-                // as if the model had erred.
-                //
-                // Every `Target` is required: a tool call with no target is not a partial call,
-                // it is a different call.
-                // **`required`, not `role`.** These are two questions and they were one switch:
-                // `ArgumentRole::Target` says what untrusted content may never shape, which is not
-                // the same as what the tool cannot run without. See `ParamSpec::required`.
-                let required: Vec<&str> = reg
-                    .manifest
-                    .params()
-                    .iter()
-                    .filter(|p| p.required)
-                    .map(|p| p.name.as_str())
-                    .collect();
-                serde_json::json!({
-                    "type": "function",
-                    "function": {
-                        "name": reg.id.as_str(),
-                        // **ADR-052: this text is TRUSTED, and what the tool returns is not.**
-                        //
-                        // The comment here used to read "containment is the trust class and the
-                        // assembler's tier" — naming two defences, neither of which runs on this
-                        // path. A description never enters a `ContextView`, so no tier applies to
-                        // it and no trust floor sees it; it goes into the `tools` array and
-                        // nowhere else. Two mechanisms cited where zero were operating.
-                        //
-                        // What is actually true: the user installed the server, which is the
-                        // authorization decision, and the agent cannot install one. So this prose
-                        // may direct action. Its RESULTS may not — they arrive
-                        // `UntrustedContent` and go through layer 1 like any other untrusted
-                        // result.
-                        //
-                        // `Description::new` has already bounded it and run it through
-                        // `marlowe_contract::text` — not as a filter, which §8.1 says does not
-                        // work, but so the description cannot render as something other than what
-                        // the user read when they installed it. That inspection is now the only
-                        // control in this path, and an invisible character defeats it.
-                        "description": reg.description.text(),
-                        "parameters": {
-                            "type": "object",
-                            "properties": properties,
-                            "required": required,
-                        },
-                    }
-                })
-            })
-            .collect();
-        serde_json::Value::Array(tools)
+        crate::wire::openai_tool_schema(&self.registry, exposed)
     }
 }
 
@@ -1393,58 +1325,3 @@ fn done_body(args: &Args, message: &serde_json::Value) -> String {
         .unwrap_or_default()
 }
 
-/// The JSON Schema type for a parameter. **Not always `string`.**
-///
-/// Sending `"type": "string"` for an integer invites the model to quote it, and a quoted number
-/// then falls to the trust floor as model-composed text rather than parsing as a number.
-fn json_type(ty: marlowe_tools::ParamType) -> &'static str {
-    use marlowe_tools::ParamType;
-    match ty {
-        ParamType::Integer | ParamType::Amount => "integer",
-        ParamType::Boolean => "boolean",
-        // Everything else is a string on the wire. What it MEANS — a path to scope, a URL to
-        // allowlist, an id to resolve — is the permission layer's business, and encoding that in
-        // the JSON type would tell the model about a mechanism it must not be able to address.
-        ParamType::Text
-        | ParamType::Path
-        | ParamType::WritePath
-        | ParamType::Url
-        | ParamType::Identifier => "string",
-    }
-}
-
-/// What a parameter is FOR, in words a model can act on.
-///
-/// This used to be `format!("{:?} · {:?}", p.role, p.ty)` — the `Debug` rendering of two internal
-/// Rust enums, e.g. `Target · Text`. That names our type system, not the argument's meaning, and a
-/// model reading it learns nothing about what to put there.
-fn param_description(p: &marlowe_tools::ParamSpec) -> String {
-    use marlowe_tools::{ArgumentRole, ParamType};
-
-    // **The tool's own words win.** Everything below is generated from `ty` and `required`, which
-    // told a model that `run`'s `task` takes "text" -- true, useless, and the reason a spawn
-    // delegated a question its child had no way to answer. A generated sentence is the fallback
-    // for a parameter whose name already says what it is, never a substitute for one that does not.
-    if let Some(d) = &p.description {
-        let arity = if p.required { "REQUIRED" } else { "Optional" };
-        return format!("{arity}. {d}");
-    }
-    let what = match p.ty {
-        ParamType::Path => "an existing path, relative to the workspace root",
-        ParamType::WritePath => "a path relative to the workspace root; it may not exist yet",
-        ParamType::Url => "a full URL including the scheme, e.g. https://example.com/page",
-        ParamType::Amount => "an amount in micros of the profile's currency",
-        ParamType::Identifier => "an identifier returned by an earlier call",
-        ParamType::Integer => "a whole number",
-        ParamType::Boolean => "true or false",
-        ParamType::Text => "text",
-    };
-    // Arity from `required`, and the role stated only where it changes what the model may do.
-    // Rendering the role AS the arity is the same conflation the schema had, in prose, and it
-    // reached the model a second time through `Engine::expected_params` after a refusal.
-    let arity = if p.required { "REQUIRED" } else { "Optional" };
-    match p.role {
-        ArgumentRole::Target => format!("{arity}. What this acts on: {what}."),
-        ArgumentRole::Payload => format!("{arity}. {what}."),
-    }
-}

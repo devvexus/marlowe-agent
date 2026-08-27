@@ -57,7 +57,13 @@ pub mod availability;
 pub mod driver;
 pub mod retry;
 pub mod secret;
-pub mod sse;
+/// The SSE decoder, which **lives in `marlowe-provider`** as of ADR-060 §6.
+///
+/// Re-exported rather than duplicated: `marlowe-provider` cannot depend on this crate (TLS would
+/// enter its graph and `no_tls_in_the_default_path.rs` fails the build), and a local `llama-server`
+/// driver needs the same decoder. A crate-root `pub use` participates in path resolution, so
+/// `crate::sse::SseStream` in `driver.rs` still resolves and this crate's public API is unchanged.
+pub use marlowe_provider::sse;
 pub mod transport;
 
 pub use attribution::{CallAttribution, RunAttribution, NOT_REPORTED};

@@ -232,6 +232,24 @@ pub struct ToolCall {
     /// User expanded it with Enter/Tab. Failures start expanded and this is why the field is not
     /// simply derived from the state — a user can also collapse a failure back down.
     pub expanded: bool,
+    /// §B6's right-hand side when it arrived **already rendered**, off the wire.
+    ///
+    /// # Why this is not `state`'s metrics
+    ///
+    /// [`crate::turn::Metric`] is typed and every variant is `&'static str` or a number — by
+    /// construction, so §B6's vocabulary cannot become a free-text escape hatch. A summary that
+    /// crossed a socket is a `String`, and parsing it back into metrics would be a second
+    /// definition of the summary grammar that goes wrong the first time a metric changes.
+    ///
+    /// So the daemon's folds could not put `48 lines` where it belongs, and put
+    /// `Metric::State("ok")` there instead — the §B6 line read **`ok`** on every successful call,
+    /// with the real summary buried in the expansion, which is the field the tool's own output now
+    /// needs. Two things were in one slot; this is the second slot.
+    ///
+    /// `None` means "this producer built real metrics" — the stub, and every in-process view.
+    /// `Some` means "already rendered upstream, render it verbatim". A renderer must prefer this
+    /// when it is set.
+    pub summary_line: Option<String>,
 }
 
 impl ToolCall {
@@ -242,6 +260,7 @@ impl ToolCall {
             target: target.to_string(),
             state: crate::turn::ToolLineState::Ok(crate::turn::ResultSummary::new(metrics)),
             collapsed: Vec::new(),
+            summary_line: None,
             expanded: false,
         }
     }
@@ -261,6 +280,7 @@ impl ToolCall {
                 metrics, detail,
             )),
             collapsed: Vec::new(),
+            summary_line: None,
             expanded: true, // §B6: failures auto-expand.
         }
     }
@@ -272,6 +292,7 @@ impl ToolCall {
             target: target.to_string(),
             state: crate::turn::ToolLineState::Running { elapsed_ms },
             collapsed: Vec::new(),
+            summary_line: None,
             expanded: false,
         }
     }

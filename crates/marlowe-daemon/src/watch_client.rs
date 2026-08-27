@@ -274,15 +274,20 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
     // metrics: parsing a string the harness formatted, to rebuild the values it was formatted from,
     // is a second definition of §B6's summary grammar and would be wrong the first time a metric
     // changed.
-    let summary_line = ResultSummary::with_detail(Vec::new(), summary.to_string());
+    // **It goes in `summary_line`, not in `detail`.** It used to go in `detail`, which is §B6's
+    // EXPANSION — so a window's tool line read `ok` and the summary needed a keystroke. `detail`
+    // is a run's raw tool output now, and ADR-055 keeps that out of a window entirely: `detail`
+    // here is `None` and `to_run_frame` never sends one.
+    let result = ResultSummary::new(Vec::new());
     ToolCall {
         id,
         verb,
         target: target.to_string(),
+        summary_line: Some(summary.to_string()),
         state: match state {
-            "failed" => ToolLineState::Failed(summary_line),
+            "failed" => ToolLineState::Failed(result),
             "running" => ToolLineState::Running { elapsed_ms: 0 },
-            _ => ToolLineState::Ok(summary_line),
+            _ => ToolLineState::Ok(result),
         },
         collapsed: Vec::new(),
         // §B6 auto-expands a failure. The window inherits that rather than deciding it again.

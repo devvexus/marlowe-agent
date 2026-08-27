@@ -68,6 +68,7 @@ fn retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript() {
                 target: "cass lake mn weather".into(),
                 state: "failed".into(),
                 summary: String::new(),
+                detail: None,
             },
             // The model kept reasoning, and it arrived in `content`.
             Event::Text { delta: "I see the tool output shows just \"tool\" -- possibly ".into() },
@@ -119,6 +120,7 @@ fn a_retraction_is_honoured_when_it_is_not_the_last_event() {
                 target: "weather.gov".into(),
                 state: "failed".into(),
                 summary: String::new(),
+                detail: None,
             },
             Event::Text { delta: "including scheme like https://weather.com ".into() },
             Event::Text { delta: "I need to format this properly.".into() },
@@ -418,6 +420,7 @@ fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
                 target: "echo hello marlowe".into(),
                 state: "failed".into(),
                 summary: "blocked".into(),
+                detail: None,
             },
             Event::Text { delta: "But wait - I keep seeing \"[bash blocked]\" responses ".into() },
             Event::Text { delta: "before any of my attempts succeeded.".into() },
@@ -429,6 +432,7 @@ fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
                 target: "echo hello world".into(),
                 state: "failed".into(),
                 summary: "blocked".into(),
+                detail: None,
             },
             // …and the turn finally answers.
             Event::Text { delta: "bash is refused in this build.".into() },
@@ -479,6 +483,7 @@ fn a_blocked_tool_call_reaches_the_transcript() {
                 target: "echo hello marlowe".into(),
                 state: "failed".into(),
                 summary: "blocked".into(),
+                detail: None,
             },
             Event::Approval {
                 decision: 0,
@@ -496,6 +501,7 @@ fn a_blocked_tool_call_reaches_the_transcript() {
                 target: "echo hello marlowe · .".into(),
                 state: "failed".into(),
                 summary: "declined".into(),
+                detail: None,
             },
             Event::Text { delta: "bash is refused here.".into() },
             Event::Done {

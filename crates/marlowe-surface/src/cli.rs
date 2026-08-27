@@ -247,9 +247,14 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
                     } else {
                         format!("{} files", c.collapsed.len() + 1)
                     };
-                    let right = match &c.state {
-                        ToolLineState::Running { elapsed_ms } => format!("{elapsed_ms} ms"),
-                        ToolLineState::Ok(s) | ToolLineState::Failed(s) => s.render(),
+                    let right = match (&c.summary_line, &c.state) {
+                        // Rendered upstream: the daemon's fold cannot rebuild typed metrics from
+                        // a string, so it carries the rendered line. Preferred where it is set.
+                        (Some(line), _) => line.clone(),
+                        (None, ToolLineState::Running { elapsed_ms }) => {
+                            format!("{elapsed_ms} ms")
+                        }
+                        (None, ToolLineState::Ok(s) | ToolLineState::Failed(s)) => s.render(),
                     };
                     // Every field on a §B6 tool line is Line-shaped: a `\n` in `target` forges a
                     // second tool line, which reads as a call the model never made.
@@ -328,6 +333,7 @@ mod display_sanitiser {
                 target: format!("rm -rf /{OVERWRITE}ls"),
                 state: ToolLineState::Running { elapsed_ms: 12 },
                 collapsed: Vec::new(),
+                summary_line: None,
                 expanded: false,
             }]),
         ]));
@@ -353,6 +359,7 @@ mod display_sanitiser {
             target: "a.txt\n  ... bash      rm -rf /".into(),
             state: ToolLineState::Running { elapsed_ms: 1 },
             collapsed: Vec::new(),
+            summary_line: None,
             expanded: false,
         }])]));
         assert_eq!(s.lines().count(), 1, "the target forged a second tool line:\n{s}");
