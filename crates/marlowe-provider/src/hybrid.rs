@@ -80,7 +80,27 @@ use crate::ollama_store::{self, LaunchPlan, ResolvedModel};
 /// server's own last log line attached. This deadline is only ever paid by a server that is
 /// genuinely still loading, and a 5.8 GB blob off a cold page cache is a real 30–60 s. Measured
 /// warm on this machine: **1.59 s**.
-pub const HEALTH_DEADLINE: Duration = Duration::from_secs(90);
+// **30 s, and the number is chosen against what the INTERFACE can survive, not against what a
+// server might conceivably need.**
+//
+// This wait happens on the thread that answers `/provider`, so every second of it is a second the
+// TUI does not repaint. It was 90 s. A start that was going to fail therefore froze the surface for
+// a minute and a half before the fallback — which works, and which the user could have had
+// immediately — got a chance to fire. Matthew hit exactly that and reported it as "TUI frozen".
+//
+// What 30 s has to cover, measured on this machine: a warm start is **1.9–2.3 s** end to end, and a
+// cold one is bounded by reading a 6.7 GB blob off disk — ~34 s at 200 MB/s, faster on anything
+// NVMe. So 30 s covers every warm start with an order of magnitude to spare and most cold ones.
+//
+// **Being wrong here is cheap and being wrong the other way is not.** Expiring early costs a
+// fallback to Ollama with the reason on screen and `/provider ollama/llama.cpp` to retry — the
+// documented, working path. Expiring late costs a frozen interface, which the user cannot
+// distinguish from a hang. The asymmetry is the whole argument.
+//
+// The real fix is that this should not be on the interface thread at all (CLAUDE.md: heavy work
+// never runs on the main daemon thread). That is a restructure of `set_provider`, and it is
+// recorded in STATE.md rather than attempted here.
+pub const HEALTH_DEADLINE: Duration = Duration::from_secs(30);
 
 /// How often the health wait polls. Small enough that a warm start is not rounded up.
 pub const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -309,7 +329,13 @@ pub fn unload_resident_ollama_models() -> Vec<String> {
         // `keep_alive: 0` is Ollama's documented "unload now". An empty prompt means no generation
         // happens; the request exists only to carry the keep-alive.
         let body = serde_json::json!({ "model": name, "prompt": "", "keep_alive": 0 });
-        if crate::http::post_json(&ollama, "/api/generate", &body, Duration::from_secs(30)).is_ok() {
+        // 10 s, not 30, and for the same reason as `HEALTH_DEADLINE`: this runs on the thread
+        // that answers `/provider`, and it is paid ONCE PER RESIDENT MODEL. Three of them at
+        // 30 s was 90 s of frozen interface before `llama-server` had even been asked to
+        // start. An unload that does not answer in 10 s has not failed silently -- the
+        // offload check that follows will find the card still occupied and fall back with a
+        // cause the user can read.
+        if crate::http::post_json(&ollama, "/api/generate", &body, Duration::from_secs(10)).is_ok() {
             unloaded.push(name.to_string());
         }
     }

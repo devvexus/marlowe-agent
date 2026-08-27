@@ -1,0 +1,25 @@
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.94s
+     Running tests\embedder_provider.rs (target\debug\deps\embedder_provider-8c0fde4da9d011c5.exe)
+
+running 8 tests
+test an_absent_device_is_cpu_and_says_so_rather_than_guessing ... ok
+test asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run ... ok
+test a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test the_budget_is_checked_before_a_session_is_attempted_not_after ... ok
+test a_cuda_session_that_loaded_actually_holds_DEVICE_memory ... ok
+test cuda_padding_invariance_is_measured_on_the_shipped_graph ... ok
+test every_session_in_one_embedder_uses_the_same_provider ... ok
+test cuda_determinism_and_worker_invariance_are_measured_not_inherited ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.74s
+
