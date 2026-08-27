@@ -1,6 +1,101 @@
 ﻿# State
 
 
+## 2026-08-27 — ADR-060 BUILT AS THE HYBRID — `ollama/llama.cpp`. WRITTEN, NOT RUN.
+
+**Ollama stores, downloads and lists; a `llama-server` Marlowe starts and owns serves; when it
+cannot, Ollama serves and the reason is on the screen for the session.** One picker entry naming
+both halves. Plain `ollama` remains selectable **and remains the compiled default** — this change
+did not move `DaemonConfig`'s default, and that is left for Matthew rather than taken quietly.
+
+**New, by file.** `marlowe-provider/src/hybrid.rs` (supervisor, `EngineFailure`, the fallback
+sentence); `marlowe-daemon/src/engine.rs` (`HybridEngine`, the session latch, `tier1_runtime_for`);
+`marlowe-view/src/provider.rs` (`PROVIDERS`, moved so `marlowe-stub` can reach it — it was a second,
+unreachable definition); `DegradedPath::EngineFellBackToOllama`; `LaunchPlan` in `ollama_store.rs`;
+`Offload` / `OffloadPolicy` / `ToolSupport` in `llamacpp.rs`.
+
+### Four defects found BY MEASUREMENT during the work, all closed
+
+1. **`Ready` meant "answered `/health`", and a `llama-server` on the CPU answers `/health`.**
+   Complete `/props`, `supports_tools: true`, and it **beat Ollama on TTFT** — 218 vs 426 ms — while
+   being **5x worse per turn**, because TTFT is prompt eval and prompt eval is what a CPU does
+   acceptably. `Ready` now requires an offload reading; a CPU server is `RunningOnCpu` and
+   `is_ready()` is false.
+2. **The printed launch command produced a CPU server.** `GGML_BACKEND_PATH` alone: **0 MiB taken,
+   10.6 tok/s.** Plus the `PATH` prefix: **+5,523 MiB, 107.4 tok/s.** The variable names *which
+   file*; the Windows loader resolves *that file's imports* against `PATH`. **The function's own doc
+   comment said it existed to prevent this.**
+3. **`refuses_tools()` cannot fire for the failure it names.** `supports_tools: true` on a
+   `--no-jinja` server that 500s every tools request. Replaced with a real tools-carrying request.
+4. **Two copies of a 9B do not fit on 16 GB.** A warm Ollama runner (6.7 GB) is enough to push
+   `llama-server` onto the CPU silently. The engine now unloads resident Ollama models before
+   starting, via **documented endpoints** (`/api/ps`, `/api/generate {keep_alive: 0}`), **and prints
+   what it evicted.** It evicts *every* resident model, not only ours — Ollama offers no way to tell
+   whose is whose, and any second model is equally fatal to the offload.
+
+### The standing lesson, and it is the one to carry forward
+
+**`no usable GPU found` — the string this project's own remedy text told users to grep for — was
+ABSENT from one failing launch and PRESENT in another, both on the CPU, an hour apart.** Nothing is
+keyed on it. `offload_from_log` is **structurally forbidden from returning `Gpu` on a quiet log**;
+the deciding signal is `timings.predicted_per_second`; and the VRAM delta may only **confirm** CPU,
+never contradict a slow reading, because another process allocating during our spawn would fake a
+GPU result.
+
+### VERIFICATION STATUS — READ BEFORE TRUSTING ANY OF THE ABOVE
+
+**NONE OF THIS CODE HAS EVER BEEN EXECUTED.** Zero `cargo test`, zero `cargo build`, zero
+`cargo run`. The supervisor has never spawned a process; the fallback has never fired; **no string in
+this section has been seen coming out of a running program.** Every one was read from source.
+
+**Nor is it fully known to compile.** The last successful `cargo check --all-targets` was ~14:05 and
+**predates** the `marlowe_net::age::Mark` change, the `marlowe-net` dependency,
+`unload_resident_ollama_models`, `probe_tool_support`, four string-literal repairs, and every test
+rewrite including the new `hybrid_engine.rs`. **Treat "compiles" as unproven for most of the work.**
+
+**The next session's first four commands, in this order:**
+
+```bash
+cargo check --jobs 4 --all-targets -p marlowe-provider -p marlowe-daemon -p marlowe \
+                                   -p marlowe-view -p marlowe-stub -p marlowe-surface
+cargo test  --jobs 4 -p marlowe-provider --lib
+cargo test  --jobs 4 -p marlowe-provider --test ollama_store_resolution
+cargo test  --jobs 4 -p marlowe-daemon --test hybrid_engine --test llamacpp_is_opt_in --test provider_switching
+```
+
+Then `--release` and one live `--provider ollama/llama.cpp` run, because **three tests in
+`llamacpp_is_opt_in.rs` now assert the INVERSE of what they asserted the day before** — a refusal
+that became a fallback, a one-entry picker that became Ollama's inventory, a `/model` refusal that
+became a restart. Each carries a doc comment saying so. **If any of those is wrong it is wrong about
+the DECISION, not about the code**, and it needs Matthew rather than a fix.
+
+### OPEN: THREE CONSTANTS ENCODE A 16 GB CARD, AND THE TARGET IS "ALL CONSUMER HARDWARE"
+
+Raised by Matthew, not yet designed. The hybrid is intended to become the default, on machines where
+**only one model fits at a time**. Three hardcoded values assume otherwise:
+
+* **`-ngl 99` is all-or-nothing.** Ollama's real advantage on small cards is that it **splits layers
+  between GPU and CPU automatically**. Ours cannot fit → offload check fails → fall back to Ollama —
+  **when a partial offload would have beaten it**, because the ~226 ms scheduler tax does not care how
+  many layers were offloaded. **The offload check must therefore be a DEGREE, not a boolean:** 42/48
+  layers on GPU is healthy, not a failure. Fall back only at genuinely zero.
+* **`-c 32768` is a multi-GB KV allocation**, and on an 8 GB card it is the whole budget. Derive it
+  from measured free VRAM and **say what was chosen and why** — *"32k needs 3.1 GB of KV; 2.4 GB free
+  after weights, opening 16k"* is a sentence a user can act on.
+* **Eviction is the NORMAL path, not an event.** If one model fits, every switch into hybrid unloads
+  Ollama's. It should read as progress, not as a warning.
+
+Two more from the same premise: **decide the fallback BEFORE loading** — free VRAM, blob resolution
+and binary presence are all cheap — because a fallback that costs *two* 6.7 GB model loads is a bad
+experience on exactly the hardware being targeted. And **`/model` should say what fits**:
+*"qwen3.5:9b — fits, 32k. 27b — 4.2 GB short."*
+
+### Incidental, not this session's and not fixed
+
+`crates/marlowe-daemon/src/daemon.rs:3000`, in `governance_prompt`: a collapsed string literal —
+*"You may call tools while      reason…"*, six spaces mid-sentence. **Present at `HEAD`, so it
+predates this session, and it reaches the model on every turn.** Whoever owns prompt text should look.
+
 ## 2026-08-27 — PRODUCT-LEVEL TTFT IS 3.1x, AND A 148-BYTE PREFIX CHANGE COST 1.45 SECONDS
 
 **The canonical product figure is 151.5 ms (llama.cpp, GPU) against 472.5 ms (Ollama) — 3.1x.**
