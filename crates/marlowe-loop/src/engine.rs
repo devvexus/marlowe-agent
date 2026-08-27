@@ -1647,12 +1647,39 @@ impl<S: PathScope> Engine<S> {
         let PreparedCall { tool, args: _, adjudication, call_id, call_ref } = prepared;
         let call_ref = call_ref.as_str();
 
+        // ── WHY IT FAILED GOES IN THE JOURNAL ───────────────────────────────────────────
+        //
+        // `ResultSummary::render` is the §B6 line's right-hand side — **metrics only**. It drops
+        // `detail`, which is where the reason lives, so a failed call was journaled as
+        // `{"tool":"read","summary":"read"}`: the tool's name, twice, and nothing else.
+        //
+        // Observed 2026-08-26, journal seq 4677-4679. The model called `read` with neither `path`
+        // nor `ref`; the executor refused it naming both, the model corrected itself and the run
+        // completed. Everything worked — and **the durable record of it says nothing at all**, so
+        // reading the journal afterwards cannot tell a refused call from a crashed one.
+        //
+        // The detail is added on failure only. A successful `read` has the file in `detail` and
+        // the journal is not the place to keep a copy of every file the agent has opened; a
+        // failure's detail is a sentence, and it is the one thing worth having later.
+        //
+        // **The journal is not model-reachable (invariant 8)**, which is what makes this safe
+        // where the parent's window is not: `Engine::spawn` withholds child-authored prose from
+        // the parent and sends it here instead, for exactly this reason.
+        let mut result_payload = json!({
+            "tool": tool.as_str(),
+            "summary": outcome.summary.render(),
+        });
+        if outcome.failed {
+            if let Some(detail) = &outcome.summary.detail {
+                result_payload["detail"] = json!(detail);
+            }
+        }
         self.record(
             ports,
             if outcome.failed { EventKind::ToolFailed } else { EventKind::ToolCompleted },
             run,
             state,
-            json!({ "tool": tool.as_str(), "summary": outcome.summary.render() }),
+            result_payload,
         );
         ports.sink.emit(TurnEvent::ToolLine {
             id: call_id,

@@ -44,12 +44,27 @@ pub const BUILTIN_TOOLS: [&str; 10] = [
 /// would be a manifest that means something different on another machine.
 const WORKSPACE: &str = "./**";
 
-fn param(name: &str, role: ArgumentRole, ty: ParamType, required: bool) -> RawParamSpec {
-    RawParamSpec { name: name.to_string(), role: Some(role), ty, required, description: None }
-}
-
-/// The same, with the parameter's meaning stated. **Use this wherever the name is not
-/// self-evident** — see [`marlowe_tools::ParamSpec::description`] for what a missing one cost.
+/// **The ONE constructor, and the four undocumented ones are deleted rather than deprecated.**
+///
+/// `param`, `target_req`, `target_opt`, `payload_req` and `payload_opt` all built a `RawParamSpec`
+/// with `description: None`, and a parameter with no description does not reach the model blank --
+/// `param_description` generates a sentence from its type and arity. For a `Text` payload that
+/// sentence is **"Optional. text."**: it looks like documentation, fills the slot documentation
+/// would fill, and says nothing. Fifteen of eighteen builtin parameters were in that state, and
+/// live on 2026-08-26 the model called `read` with neither `path` nor `ref` -- both optional, both
+/// described identically and uselessly.
+///
+/// A test catches that (`every_builtin_parameter_says_what_it_is_for`), and a test is the weaker
+/// half. **Removing the convenient way to declare an undocumented parameter is the stronger one**,
+/// which is the same reasoning `ExposedSet::empty()` and `depth: 0` use: withhold the capability
+/// structurally rather than checking for its misuse afterwards. A `RawParamSpec` literal can still
+/// be written by hand with `description: None`, and that is fine -- it is visibly deliberate,
+/// which "forgot to add a description" never was.
+///
+/// **Role and arity stay two arguments because they are two independent questions.**
+/// `Target`/`Payload` answers *may untrusted content shape this* (§9); `required` answers *does
+/// the executor need it*. They were one switch until M2, and the eleven mismatches that produced
+/// are recorded in [`marlowe_tools::ParamSpec::required`].
 fn documented(
     name: &str,
     role: ArgumentRole,
@@ -64,27 +79,6 @@ fn documented(
         required,
         description: Some(description.to_string()),
     }
-}
-
-/// **Four constructors, because there are two independent questions.**
-///
-/// `target`/`payload` answers *may untrusted content shape this* (§9). `req`/`opt` answers *does
-/// the executor need it*. They were the same switch until this session, and the eleven mismatches
-/// that produced are in [`marlowe_tools::ParamSpec::required`].
-fn target_req(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Target, ty, true)
-}
-
-fn target_opt(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Target, ty, false)
-}
-
-fn payload_req(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Payload, ty, true)
-}
-
-fn payload_opt(name: &str, ty: ParamType) -> RawParamSpec {
-    param(name, ArgumentRole::Payload, ty, false)
 }
 
 fn manifest(
@@ -179,7 +173,22 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `command` is a Target and not a Payload. It is not body content that a tool
             // happens to carry — it *is* the action, and untrusted content choosing it is the
             // whole attack.
-            vec![target_req("command", Text), target_opt("cwd", ParamType::Path)],
+            vec![
+                documented(
+                    "command",
+                    ArgumentRole::Target,
+                    Text,
+                    true,
+                    "The command line, run by the platform shell. One invocation: use the shell's own `&&`, `|` and `;` rather than expecting several calls. Killed after 120 seconds, and a killed command says so at the end of its output.",
+                ),
+                documented(
+                    "cwd",
+                    ArgumentRole::Target,
+                    ParamType::Path,
+                    false,
+                    "Directory to run in, workspace-relative. Defaults to the workspace root, which is usually what you want -- pass this only when the command itself depends on where it starts.",
+                ),
+            ],
         ),
         registration(
             "read",
@@ -221,9 +230,27 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // Left as a documented gap rather than silently widened: changing it is a §13 boundary
             // change and needs a `DECISIONS.md` entry.
             vec![
-                target_opt("path", ParamType::Path),
-                target_opt("ref", Text),
-                payload_opt("range", Text),
+                documented(
+                    "path",
+                    ArgumentRole::Target,
+                    ParamType::Path,
+                    false,
+                    "The file to read, workspace-relative, e.g. `src/main.rs`. Give this OR `ref`. A call that gives neither is refused.",
+                ),
+                documented(
+                    "ref",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "The id of a document `web` already fetched, to read it again without another request. Only ever an id a tool result gave you -- never invent one. Takes precedence over `path` if both are given.",
+                ),
+                documented(
+                    "range",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "Line range as `first-last`, 1-based and inclusive: \"20-60\" is line 20 through line 60. Omit for the whole file. A backwards range returns nothing.",
+                ),
             ],
         ),
         registration(
@@ -242,11 +269,29 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             vec![
                 // WritePath, not Path: `edit` is the one builtin that may create its target.
-                target_req("path", ParamType::WritePath),
+                documented(
+                    "path",
+                    ArgumentRole::Target,
+                    ParamType::WritePath,
+                    true,
+                    "The file to write, workspace-relative. It is created if it does not exist, but its parent directory must already exist.",
+                ),
                 // Content is Payload by design: §9 is explicit that untrusted prose may fill
                 // an inert body freely. The danger is the pair, not the text.
-                payload_req("content", Text),
-                payload_opt("replacing", Text),
+                documented(
+                    "content",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "The replacement text. With `replacing`, this is what that snippet becomes; without it, this becomes the ENTIRE file.",
+                ),
+                documented(
+                    "replacing",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "The exact existing text to replace -- copy it verbatim, including indentation. The FIRST occurrence is replaced and the call FAILS if it is not found, so include enough surrounding lines to be unambiguous. OMITTING THIS OVERWRITES THE WHOLE FILE.",
+                ),
             ],
         ),
         registration(
@@ -267,7 +312,22 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // when it is absent — and the adjudicator only opens a handle for an argument that was
             // supplied. So a call omitting `path` was schema-valid and could never succeed, which
             // is the mismatch ADR-034 separated the two fields to make visible.
-            vec![payload_req("pattern", Text), target_req("path", ParamType::Path)],
+            vec![
+                documented(
+                    "pattern",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "The literal substring to look for. NOT a regular expression and not a glob: `.` and `*` match themselves. Case-sensitive.",
+                ),
+                documented(
+                    "path",
+                    ArgumentRole::Target,
+                    ParamType::Path,
+                    true,
+                    "The DIRECTORY to search, workspace-relative -- not a file. Pass \".\" for the whole workspace.",
+                ),
+            ],
         ),
         registration(
             "web",
@@ -282,7 +342,13 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // mandatory. This build only fetches, so `url` is exactly what the executor cannot
             // run without — and a `query` parameter for an operation that does not exist invites
             // a call that always fails. It returns when search does (ADR-035).
-            vec![target_req("url", Url)],
+            vec![documented(
+                    "url",
+                    ArgumentRole::Target,
+                    Url,
+                    true,
+                    "The full URL to fetch, including `https://`. This tool does not search, so a search phrase here fetches nothing -- it must be an address you already have.",
+                )],
         ),
         registration(
             "recall",
@@ -310,7 +376,13 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `payload_kind: "commitment"` believed it had filtered and got an unfiltered answer.
             // That is worse than `web`'s removed `query`, which at least failed loudly. It comes
             // back when the executor filters on it.
-            vec![payload_req("query", Text)],
+            vec![documented(
+                    "query",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "What to look for. Matching is word-by-word with no stemming, so REUSE THE USER'S OWN WORDS rather than paraphrasing them -- \"deploy script\" finds what was said about a deploy script; \"deployment process\" may not.",
+                )],
         ),
         registration(
             "remember",
@@ -326,11 +398,29 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             &[],
             &[],
             vec![
-                payload_req("text", Text),
+                documented(
+                    "text",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "What to record, as a self-contained sentence. It is read back in a later session with none of this conversation around it, so \"he prefers it\" is useless and \"Matthew prefers X because Y\" is not.",
+                ),
                 // Which memories a claim derives from is a Target: choosing the lineage is how
                 // laundering would launder (§14.6, HP6).
-                target_opt("derived_from", Identifier),
-                target_opt("payload_kind", Text),
+                documented(
+                    "derived_from",
+                    ArgumentRole::Target,
+                    Identifier,
+                    false,
+                    "The id of an existing memory this one was concluded from, if any. It carries that entry's trust class forward, so it is how a conclusion stays as trustworthy as its source and no more.",
+                ),
+                documented(
+                    "payload_kind",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "What kind of thing this is, from a fixed list: `episode`, `fact`, `entity`, `edge`, `procedure`, `commitment`, `person`, `relationship`, `voice_params`, `noticing`. Omitting it means `episode` -- something that happened. Any other value is refused.",
+                ),
             ],
         ),
         registration(
@@ -352,7 +442,22 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             Reversible,
             &[],
             &[],
-            vec![target_opt("name", Text), payload_opt("query", Text)],
+            vec![
+                documented(
+                    "name",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "The skill to load, named exactly as a search reported it. This returns the skill's full instructions -- it is the second of the two steps, and the only one that gives you anything to follow.",
+                ),
+                documented(
+                    "query",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "What to search for. Returns matching skill NAMES and one-line descriptions only, never their contents. Use this when you do not already know a skill's name.",
+                ),
+            ],
         ),
         registration(
             "run",
@@ -406,14 +511,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "The child's ENTIRE brief. It has no other context, so include the background,                      the question, and any text it must work from. `summarise the run tool` fails;                      `summarise this text: <text>` works.",
+                    "The child's ENTIRE brief. It has no other context, so include the background, the question, and any text it must work from. `summarise the run tool` fails; `summarise this text: <text>` works.",
                 ),
                 documented(
                     "output_contract",
                     ArgumentRole::Payload,
                     Text,
                     false,
-                    "Comma-separated field names the child must return, e.g. `findings` or                      `summary,risks`. Defaults to one `findings` field. The child's reply is                      REJECTED if it does not fill every field you name.",
+                    "Comma-separated field names the child must return, e.g. `findings` or `summary,risks`. Defaults to one `findings` field. The child's reply is REJECTED if it does not fill every field you name.",
                 ),
                 // The child's capability profile and budget are Targets. Untrusted content
                 // choosing a child's tool set is the trifecta reassembling itself one level
@@ -431,7 +536,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     Text,
                     true,
-                    "REQUIRED: comma-separated tool names the child may use, drawn from the tools                      you hold — you cannot grant what you do not have. Pass an empty string only                      for a child that reasons from `task` alone and needs nothing; a child with no                      tools cannot look anything up.",
+                    "REQUIRED: comma-separated tool names the child may use, drawn from the tools you hold — you cannot grant what you do not have. Pass an empty string only for a child that reasons from `task` alone and needs nothing; a child with no tools cannot look anything up.",
                 ),
                 // **`budget_micros_usd` -> `budget_tokens`, ADR-057 §6.** `SpawnRequest::grant_tokens`
                 // and `Budget::grant`'s `explicit` are tokens. Wiring the old name to the field it
@@ -443,14 +548,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     Integer,
                     false,
-                    "Tokens the child may spend, taken from yours. OMIT IT to get a share sized                      for the job, which is almost always right. If you do set it, the MINIMUM is                      3601 and anything smaller is refused: a child spends its whole brief on its                      first call before it emits a word. Think tens of thousands, not hundreds.",
+                    "Tokens the child may spend, taken from yours. OMIT IT to get a share sized for the job, which is almost always right. If you do set it, the MINIMUM is 3601 and anything smaller is refused: a child spends its whole brief on its first call before it emits a word. Think tens of thousands, not hundreds.",
                 ),
                 documented(
                     "orphan_policy",
                     ArgumentRole::Target,
                     Text,
                     false,
-                    "`terminate` (default) ends the child when this run ends; `detach` lets it                      outlive this run. Omit unless you specifically want it to survive you.",
+                    "`terminate` (default) ends the child when this run ends; `detach` lets it outlive this run. Omit unless you specifically want it to survive you.",
                 ),
             ],
         ),
@@ -470,7 +575,13 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // (falling back to the message body) and nothing else, and `ModelStep::Ask` carries a
             // single `String` — so a model that listed options had them silently dropped on the way
             // to a user who never saw them.
-            vec![payload_req("question", Text)],
+            vec![documented(
+                    "question",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "What to put to the user, as one plain question. The run STOPS here until they answer, so ask only what you cannot determine yourself. If there are options, put them in this sentence -- there is no separate field for them.",
+                )],
         ),
     ];
 
@@ -527,6 +638,72 @@ mod tests {
                 reg.description.text()
             );
         }
+    }
+
+    /// **Every builtin parameter states its own meaning, where the model reads it.**
+    ///
+    /// A `ParamSpec` with no `description` does not reach the model blank -- `param_description`
+    /// generates a sentence from the type and the arity, and for a `Text` payload that sentence is
+    /// **"Optional. text."** It looks like documentation, occupies the slot documentation would
+    /// occupy, and says nothing. Fifteen of the eighteen builtin parameters were in that state.
+    ///
+    /// Observed live 2026-08-26, journal seq 4677-4679: the model called `read` with neither
+    /// `path` nor `ref`. Both are optional, both described as "Optional. text.", and nothing the
+    /// model could see said what either was for or that one of them was required. The executor
+    /// refused it naming both and the model recovered -- a wasted call, a wasted turn, and the
+    /// journal recorded only `{"tool":"read","summary":"read"}`.
+    ///
+    /// **This is a guard on the drafting, not on the mechanism**, and that is the point: the
+    /// generated fallback means a missing description can never fail loudly on its own. So it has
+    /// to fail here. A new parameter added without one fails the build by name.
+    #[test]
+    fn every_builtin_parameter_says_what_it_is_for() {
+        let r = builtin_registry().unwrap();
+        let mut bare = Vec::new();
+        for reg in r.iter() {
+            for p in reg.manifest.params() {
+                match &p.description {
+                    // Not merely present: a blank or whitespace description is the same silence
+                    // with a field set, and would satisfy an `is_some()` check.
+                    Some(d) if !d.trim().is_empty() => {}
+                    _ => bare.push(format!("{}::{}", reg.id, p.name)),
+                }
+            }
+        }
+        assert!(
+            bare.is_empty(),
+            "these parameters reach the model as a sentence generated from their type and arity              -- \"Optional. text.\" -- which reads as documentation and is not: {bare:?}"
+        );
+    }
+
+    /// **A wrapped string literal that lost its `\\` continuation, which Rust does not warn about.**
+    ///
+    /// A description written across several source lines keeps every leading space of the
+    /// continuation lines unless the line ends with a backslash. Five of `run`'s parameters
+    /// shipped with runs of **22 spaces** inside them for exactly that reason -- the model was
+    /// reading `"drawn from the tools                      you hold"`. Harmless to parse, wasteful
+    /// to send, and it is formatting the model may imitate.
+    ///
+    /// Three rather than two, so an ordinary double space after a full stop is not a failure.
+    #[test]
+    fn no_builtin_description_carries_a_wrapped_literals_indentation() {
+        let r = builtin_registry().unwrap();
+        let mut ragged = Vec::new();
+        for reg in r.iter() {
+            if reg.description.text().contains("   ") {
+                ragged.push(reg.id.to_string());
+            }
+            for p in reg.manifest.params() {
+                if p.description.as_deref().is_some_and(|d| d.contains("   ")) {
+                    ragged.push(format!("{}::{}", reg.id, p.name));
+                }
+            }
+        }
+        assert!(
+            ragged.is_empty(),
+            "these carry a source literal's indentation into the text the model reads; end each \
+             wrapped line with a backslash: {ragged:?}"
+        );
     }
 
     #[test]
