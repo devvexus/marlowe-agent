@@ -294,6 +294,54 @@ Neither is established. Both are cheap and both are in the layer-3 session's pat
 * **An explicit human gesture that lowers the floor.** Strongest usability, and it is a hole by
   construction — it would need to be a trust-ledger decision (M6), not a flag.
 
+### AMENDED 2026-08-27 — THE PERMANENCE FALLS OUT OF E5 ALONE, AND THE DECISION IS NOT THE ONE FRAMED ABOVE
+
+The entry above says three changes *compose* into the capability loss. **That is wrong in a way that
+matters, established from the code by the layer-3 session and not by argument.**
+
+**Both open questions are answered:**
+
+1. **A new `Run` on an existing `SessionState` RE-DERIVES its floor. It does not inherit.**
+   `Run::root` (`run.rs:680`) starts at `UserAsserted` unconditionally, and there is exactly **one**
+   `latch_trust_floor` call site in the workspace — `engine.rs:865`, once per loop iteration, fed
+   `view.trust_floor()`. `Run::restored` carries the floor across a *checkpoint*; nothing carries it
+   across a *turn*.
+2. **No path raises a latched floor within a run.** `latch_trust_floor` is the only mutator and its
+   body only ever lowers. **The turn boundary in (1) is the entire clearing mechanism — and it is not
+   a mechanism, it is the absence of one.**
+
+**So the permanence does NOT require persisting the floor on `SessionState`.** It follows from **E5
+alone**: `SourceKind::Summary` is non-trimmable, E5 gives it a real class, and each later compaction
+takes `min` over a discarded set that now includes the previous summary. **An untrusted page pins the
+session's floor from the first compaction onward whether or not anyone adds a persisted field.** A
+persisted latch would only make explicit what the window already does.
+
+**The question for Matthew is therefore not "should we add this".** It is: *this is now the
+behaviour — do you want a clearing mechanism, and if so, what clears it?* The three options in the
+entry above still stand; only the premise changed.
+
+### AND A GREEN TEST NOW PROVES LESS THAN ITS NAME SAYS
+
+**With E5 and F1 both in, no lever in the assembler raises a view's floor.** Truncation always
+carried `b.trust`; `clear_tool_results` always preserved it; omission now does; `compact` now does.
+The view is monotone-faithful under every shortening path.
+
+That **inverted** a test rather than breaking one.
+`spawn_and_budget.rs::the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view`
+asserted `later.trust_floor() == AgentObserved` — *"the VIEW's floor rose, which is the behaviour
+that made the hole reachable."* Accurate when written, and it was the precondition that made the
+run-level latch necessary. F1 closes that route, so the assertion now reads `UntrustedContent`.
+
+**Consequence, and it is the thing to carry: ADR-023's latch is no longer exercised by the trim it
+was built for.** It is defence in depth now. It has been kept and asserted **directly against
+`blocks_composed_targets`** rather than against "the floor moved" — instance #15's rule applied
+correctly — because a `SessionState` path that *removes* a block rather than shortening one would put
+it straight back on the critical path. **But nobody should read a green `spawn_and_budget` as
+evidence that the latch is load-bearing.** That is the good version of this project's standing
+failure family: a test that still passes, still means something, and no longer means what its name
+suggests.
+
+
 ## 2026-08-27 — BUILT: `read` RETURNS LINE NUMBERS (ADR-061). NOT COMMITTED.
 
 `docs/design/adr/ADR-061-read-returns-line-numbers.md`. Suite run ONCE to
