@@ -2205,7 +2205,7 @@ pub fn memory_recorder() -> MemoryRecorder {
 /// # What it includes, and why each bound is there
 ///
 /// Breadth-first from the root so the top level is always complete before anything deeper is
-/// spent on: a model that knows the top level can `find` or `read` its way down, whereas one that
+/// spent on: a model that knows the top level can `grep` or `read` its way down, whereas one that
 /// got an exhaustive listing of the first directory alphabetically knows almost nothing.
 ///
 /// **`MAP_MAX_ENTRIES` is a cap on the LISTING, not on the workspace.** A truncated map says so in
@@ -2219,9 +2219,14 @@ pub fn memory_recorder() -> MemoryRecorder {
 pub fn workspace_map(root: &std::path::Path) -> Option<String> {
     /// Enough to see a real project's shape; small enough not to dominate the context tier.
     const MAP_MAX_ENTRIES: usize = 200;
-    /// Two levels: the root, and one inside each directory. Deeper is `find`'s job.
+    /// Two levels: the root, and one inside each directory. Deeper is `grep`'s job.
     const MAP_MAX_DEPTH: usize = 2;
-    const SKIP: [&str; 6] = [".git", "target", "node_modules", ".venv", "__pycache__", "dist"];
+    // **The list lives in `marlowe_exec`, because the walk `glob` and `grep` use needs the same
+    // one.** This private copy was correct and the executors' walk had none at all, which is how
+    // `grep(".")` on this checkout filled all 2,000 of its file slots with build artifacts and
+    // never reached `crates/`. One definition, two readers — a second copy is how the map and the
+    // search come to disagree about what a project is.
+    use marlowe_exec::WALK_SKIP as SKIP;
 
     let mut out = Vec::new();
     let mut queue = std::collections::VecDeque::new();
@@ -2265,14 +2270,14 @@ pub fn workspace_map(root: &std::path::Path) -> Option<String> {
     }
     let mut text = format!(
         "<workspace>\nThese paths exist in the workspace, relative to its root. Paths you use in \
-         `read`, `write`, `edit` and `find` are relative to that root -- do NOT prefix them with \
+         `read`, `write`, `edit` and `grep` are relative to that root -- do NOT prefix them with \
          the root's own name.\n\n{}",
         out.join("\n")
     );
     if truncated {
         text.push_str(&format!(
             "\n\n[listing stopped at {MAP_MAX_ENTRIES} entries and at depth {MAP_MAX_DEPTH}; \
-             there are more files than this. Use `find` to look for what is not listed.]"
+             there are more files than this. Use `glob` to see what is not listed, or `grep` \n             to search inside it.]"
         ));
     }
     text.push_str("\n</workspace>");

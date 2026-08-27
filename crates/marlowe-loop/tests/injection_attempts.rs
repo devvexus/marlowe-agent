@@ -6,7 +6,7 @@
 //!
 //! # What "the attack succeeded" would look like
 //!
-//! The orchestrator run holds `bash`, `edit` and `find`. If any fragment of a fetched page appears
+//! The orchestrator run holds `bash`, `edit` and `grep`. If any fragment of a fetched page appears
 //! in **its** context, the reader/doer split has collapsed and the deployment is exploitable
 //! (brief §8.2). So each test asserts on `assembler().assemble(&state).rendered()` — the bytes the
 //! parent would actually send to a model — and pairs it with a control proving the payload did

@@ -83,7 +83,11 @@ fn read_returns_the_file_through_the_adjudicated_handle() {
     let (_, r) = fx.call("read", Args::new().text("path", "src/main.rs"));
     assert!(!r.failed, "{:?}", r.summary);
     assert!(fx.text(&r).contains("println!"));
-    assert_eq!(r.summary.render(), "3 lines · 34 B");
+    // The body is `cat -n`, so the byte count is the file plus one prefix per line. Derived from
+    // the producer rather than typed: a `LINE_NUMBER_WIDTH` that moves must move this number too.
+    let numbered = marlowe_exec::number_lines(&fs::read_to_string(fx.root.join("src/main.rs")).unwrap(), 1);
+    assert_eq!(fx.text(&r), numbered);
+    assert_eq!(r.summary.render(), format!("3 lines · {} B", numbered.len()));
 }
 
 /// **Two tools, one mode each.** `edit` patches an existing file; `write` creates or replaces one.
@@ -153,9 +157,9 @@ fn write_leaves_content_not_an_empty_file() {
 }
 
 #[test]
-fn find_reports_matches_and_how_many_files_it_actually_read() {
-    let fx = Fixture::new("find");
-    let (_, r) = fx.call("find", Args::new().text("pattern", "needle").text("path", "."));
+fn grep_reports_matches_and_how_many_files_it_actually_read() {
+    let fx = Fixture::new("grep");
+    let (_, r) = fx.call("grep", Args::new().text("pattern", "needle").text("path", "."));
     assert!(!r.failed, "{:?}", r.summary);
     assert!(fx.text(&r).contains("notes.md:2"), "{}", fx.text(&r));
     // The second metric is the honest one: how many files were opened THROUGH THE SCOPE. A

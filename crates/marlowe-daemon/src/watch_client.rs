@@ -245,9 +245,21 @@ fn policy_of(s: &str) -> OrphanPolicyLabel {
 fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> ToolCall {
     let verb: &'static str = match verb {
         "read" => "read",
+        // **`write` and `glob` were MISSING from this copy and present in `project.rs`.** Both are
+        // live builtins whose calls reach the wire as `tool.to_string()`, so every `write` and
+        // every `glob` in a `/watch` window rendered as the generic `tool` — the fourth and fifth
+        // instances of the gap `project.rs` already records for `use`. Nothing bound either table
+        // to `BUILTIN_TOOLS`, which is why it kept happening;
+        // `every_builtin_is_in_the_section_b6_verb_vocabulary` now drives both tables from that
+        // constant and fails when a builtin is absent from either.
+        "write" => "write",
         "edit" => "edit",
+        "glob" => "glob",
+        "grep" => "grep",
+        // LEGACY, ADR-059 — see `project.rs` for why an old journal's `find` keeps its arm.
         "find" => "find",
         "run" => "run",
+        "spawn" => "spawn",
         "bash" => "bash",
         "web" => "web",
         "recall" => "recall",

@@ -1518,6 +1518,7 @@ dependencies = [
  "marlowe-net",
  "marlowe-permission",
  "marlowe-tools",
+ "regex",
  "rustix 0.38.44",
  "serde_json",
 ]
@@ -1561,6 +1562,7 @@ dependencies = [
  "marlowe-contract",
  "marlowe-journal",
  "marlowe-permission",
+ "marlowe-provider",
  "marlowe-tools",
  "serde",
  "serde_json",

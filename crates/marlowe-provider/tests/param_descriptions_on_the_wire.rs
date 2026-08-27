@@ -83,7 +83,7 @@ fn every_parameter_the_model_is_offered_carries_a_written_description() {
 /// so a rewrite that keeps the descriptions non-empty but drops their content still fails.
 ///
 /// Each is read off an executor: `write` replaces the whole file, `slice_lines` is 1-based
-/// inclusive, and `find` matches with `line.contains` — no regex.
+/// inclusive, and `grep` compiles its `pattern` with the `regex` crate.
 ///
 /// **The first of these used to be about `edit::replacing` warning that omitting it overwrote
 /// everything.** That warning is gone because the hazard is: `edit` has no whole-file mode any
@@ -144,10 +144,27 @@ fn the_three_facts_that_cost_a_call_are_the_ones_actually_stated() {
         "it must name `task` as the thing that CANNOT grant access, because that is the          alternative the model invented: {tools:?}"
     );
 
-    let pattern = find_desc("find", "pattern");
+    // **INVERTED, ADR-059.** This asserted that `find::pattern` said *"NOT a regular
+    // expression"*, which was true and is now the opposite of the shipped behaviour. Left as it
+    // was, it would have stayed GREEN on a build where the description promised a literal
+    // substring and the executor compiled a regex — a description asserted where it is written,
+    // against an executor that had moved underneath it. What the model now has to know is what
+    // the engine does NOT have, because a backreference fails to compile rather than being
+    // ignored.
+    let pattern = find_desc("grep", "pattern");
+    let lower = pattern.to_lowercase();
     assert!(
-        pattern.to_lowercase().contains("not a regular expression"),
-        "`find::pattern` does not say it is a literal substring, so a model that writes a regex \
-         gets silence rather than an error: {pattern:?}"
+        !lower.contains("not a regular expression"),
+        "`grep::pattern` still claims it is not a regex, which is now false: {pattern:?}"
+    );
+    assert!(
+        pattern.contains("(?i)"),
+        "`grep::pattern` must name `(?i)`, because there is no case-insensitivity parameter and a \
+         model that does not know the spelling cannot ask for it: {pattern:?}"
+    );
+    assert!(
+        lower.contains("lookaround") && lower.contains("fail to compile"),
+        "`grep::pattern` must say lookaround FAILS TO COMPILE — a model told only that it is a \
+         regex will write `(?=` and read the refusal as the tool being broken: {pattern:?}"
     );
 }

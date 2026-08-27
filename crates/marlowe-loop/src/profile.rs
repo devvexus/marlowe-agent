@@ -202,7 +202,7 @@ impl CapabilityProfile {
         // shell instead -- no builtin was named for the verb. Splitting them is only useful if
         // BOTH are exposed, which is this line.
         let tools = [
-            "read", "write", "edit", "glob", "find", "bash", "web", "recall", "use", "ask",
+            "read", "write", "edit", "glob", "grep", "bash", "web", "recall", "use", "ask",
             "remember", "run",
         ]
         .iter()
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn a_child_cannot_be_widened_past_its_parent() {
         let narrow = CapabilityProfile::new(
-            ExposedSet::new(vec![ToolId::new("read"), ToolId::new("find")]).unwrap(),
+            ExposedSet::new(vec![ToolId::new("read"), ToolId::new("grep")]).unwrap(),
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Orchestrator,

@@ -43,9 +43,20 @@ const TRIALS: &[(&str, &str, &str, &str)] = &[
     ("Read the file src/main.rs.", "read", "path", "src/main.rs"),
     ("Show me what is in README.md.", "read", "path", "README.md"),
     ("Open Cargo.toml and tell me what is in it.", "read", "path", "Cargo.toml"),
-    ("Search the project for the word `budget`.", "find", "pattern", "budget"),
-    ("Find every occurrence of TODO.", "find", "pattern", "TODO"),
-    ("Look for the string `invariant` in the code.", "find", "pattern", "invariant"),
+    // **These three used to name `find`, and one of them was measuring a coin flip.** *"Find
+    // every occurrence of TODO"* is the English word that means FILENAMES, used to elicit a
+    // CONTENTS search — see ADR-059. The tool is `grep` now and the prompts say what they want.
+    ("Search the project for the word `budget`.", "grep", "pattern", "budget"),
+    ("Find every occurrence of TODO inside the files.", "grep", "pattern", "TODO"),
+    ("Look for the string `invariant` in the code.", "grep", "pattern", "invariant"),
+    // **The measurement that would overturn `(?i)`-over-a-Boolean.** ADR-059 rejected an
+    // `ignore_case` parameter on the grounds that `ollama.rs` coerces the model's JSON — a real
+    // `Bool` becomes `Boolean`, the string `"true"` becomes `Text("true")` — so a Boolean from a
+    // 9B model is a coin flip on the wire, and `(?i)` costs no schema. That is an argument, and
+    // these two trials are the number that settles it: they pass when the model reaches for
+    // `(?i)` and fail when it invents a parameter, which is exactly what the executor refuses.
+    ("Find `todo` in the code, ignoring case.", "grep", "pattern", "(?i)todo"),
+    ("Case-insensitively search for the word `error`.", "grep", "pattern", "(?i)error"),
     ("Write the text `hello` into notes.txt.", "edit", "path", "notes.txt"),
     ("Create a file called out.txt containing `done`.", "edit", "path", "out.txt"),
     ("Run the command `cargo test`.", "bash", "command", "cargo test"),
@@ -89,7 +100,10 @@ fn measure_tool_call_reliability() {
     let endpoint = LocalEndpoint::default_ollama();
     let registry = builtin_registry().unwrap();
     let exposed = ExposedSet::new(
-        ["read", "edit", "find", "bash", "recall", "done"].iter().map(|t| ToolId::new(*t)).collect(),
+        // **`done` was here and is no longer a builtin** — `ExposedSet::new` checks arity and
+        // duplicates only, so it does not catch a name that is not registered, and this test is
+        // `#[ignore]`d, which is why nobody saw it. Taken from `BUILTIN_TOOLS` names that exist.
+        ["read", "edit", "grep", "bash", "recall"].iter().map(|t| ToolId::new(*t)).collect(),
     )
     .unwrap();
 

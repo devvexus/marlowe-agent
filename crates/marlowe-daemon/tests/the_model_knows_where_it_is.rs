@@ -47,7 +47,7 @@ fn the_map_names_the_top_level_and_skips_the_noise() {
 
     // Depth is bounded: `docs/design/` is named, its contents are not.
     assert!(map.contains("docs/design/"), "the directory should be named: {map}");
-    assert!(!map.contains("deep.md"), "depth three must be left to `find`: {map}");
+    assert!(!map.contains("deep.md"), "depth three must be left to `grep`: {map}");
 
     // The instruction that the 190 seconds were actually spent on.
     assert!(
@@ -94,5 +94,5 @@ fn a_listing_that_hit_its_cap_says_so() {
          truncation: {}",
         &map[map.len().saturating_sub(300)..]
     );
-    assert!(map.contains("`find`"), "a truncated map must name the way to look further: {map}");
+    assert!(map.contains("`grep`"), "a truncated map must name the way to look further: {map}");
 }

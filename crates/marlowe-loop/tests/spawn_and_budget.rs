@@ -839,10 +839,10 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
 fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
     let mut e = engine();
     let mut driver = ScriptDriver::new(vec![
-        // `find` with only `pattern` — Inert, and it declares no path, so the `Unavailable`
+        // `grep` with only `pattern` — Inert, and it declares no path, so the `Unavailable`
         // scope in `engine()` is never consulted. An ordinary workspace read.
         step(
-            ModelStep::one_call(ToolId::new("find"), marlowe_permission::Args::new().text("pattern", "TODO")),
+            ModelStep::one_call(ToolId::new("grep"), marlowe_permission::Args::new().text("pattern", "TODO")),
             100,
         ),
         // Two composed Targets AFTER the result is in view, not one: a second iteration is what
@@ -892,7 +892,7 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
         RunId::from_name("root"),
         SessionId::from_name("s"),
         CapabilityProfile::new(
-            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("bash")]).unwrap(),
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("grep"), ToolId::new("bash")]).unwrap(),
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
@@ -1073,7 +1073,7 @@ fn the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing() {
 
 /// **A partially-failing batch tells the model WHICH call failed.** (M2 C2f.)
 ///
-/// Three calls in one message: two `find`s that run and a `read` that path scoping refuses. The
+/// Three calls in one message: two `grep`s that run and a `read` that path scoping refuses. The
 /// model must be able to tell them apart, and `tool_name` cannot do it — two of the three share a
 /// name. Without `tool_call_id` a partial failure reads as a total one, or the model retries the
 /// call that worked.
@@ -1086,7 +1086,7 @@ fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
                 calls: vec![
                     marlowe_loop::ToolInvocation {
                         id: "call_1".into(),
-                        tool: ToolId::new("find"),
+                        tool: ToolId::new("grep"),
                         args: marlowe_permission::Args::new().text("pattern", "alpha"),
                     },
                     // `Unavailable` path scoping refuses this one, and only this one.
@@ -1097,7 +1097,7 @@ fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
                     },
                     marlowe_loop::ToolInvocation {
                         id: "call_3".into(),
-                        tool: ToolId::new("find"),
+                        tool: ToolId::new("grep"),
                         args: marlowe_permission::Args::new().text("pattern", "beta"),
                     },
                 ],
@@ -1129,7 +1129,7 @@ fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
         RunId::from_name("root"),
         SessionId::from_name("s"),
         CapabilityProfile::new(
-            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("read")]).unwrap(),
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("grep"), ToolId::new("read")]).unwrap(),
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
@@ -1201,7 +1201,7 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
                 calls: vec![
                     marlowe_loop::ToolInvocation {
                         id: "call_1".into(),
-                        tool: ToolId::new("find"),
+                        tool: ToolId::new("grep"),
                         args: marlowe_permission::Args::new().text("pattern", "x"),
                     },
                     marlowe_loop::ToolInvocation {
@@ -1223,7 +1223,7 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
         //
         // `ScriptedTools` returns byte-identical bodies, so only the FIRST condensation is a cache
         // miss; the batch's `bash` and the next turn's `bash` are both hits and cost no model call
-        // at all. (`find` is Inert and `bash` is Irreversible, so they are separate groups — see
+        // at all. (`grep` is Inert and `bash` is Irreversible, so they are separate groups — see
         // `tests/batch_grouping.rs`.)
         //
         // Getting this count wrong does not fail loudly: a child eats the next turn's step and the
@@ -1262,7 +1262,7 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
         RunId::from_name("root"),
         SessionId::from_name("s"),
         CapabilityProfile::new(
-            marlowe_tools::ExposedSet::new(vec![ToolId::new("find"), ToolId::new("bash")]).unwrap(),
+            marlowe_tools::ExposedSet::new(vec![ToolId::new("grep"), ToolId::new("bash")]).unwrap(),
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
@@ -1283,12 +1283,12 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
     // **Asserted as ORDER, not as a count.** This used to read "exactly one bash call in the
     // whole run", which stood in for "the in-batch one ran" only while the next turn's call was
     // refused. Now that both run, a count says nothing about which one this half is about --
-    // the first two executions being `find` then `bash` is the property, and it stays true
+    // the first two executions being `grep` then `bash` is the property, and it stays true
     // whatever happens later in the run.
     let order: Vec<&str> = tools.calls.iter().map(|(t, _)| t.as_str()).collect();
     assert_eq!(
         &order[..2],
-        &["find", "bash"],
+        &["grep", "bash"],
         "the in-batch shell command must run, in batch order: it was composed before the \
          sibling's result existed. Got {order:?}"
     );
@@ -1759,7 +1759,7 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             // closed it.
             // **Fourth time: `write`, when it was split out of `edit`.**
             // **Fifth time: `glob`.**
-            ["read", "write", "edit", "glob", "find", "bash", "web", "recall", "use"]
+            ["read", "write", "edit", "glob", "grep", "bash", "web", "recall", "use"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()

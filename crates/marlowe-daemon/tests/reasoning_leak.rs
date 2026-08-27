@@ -272,6 +272,84 @@ fn the_guard_catches_the_prompt_that_actually_shipped() {
     assert!(unknown_tools_named_in("Call `read` to read a file.").is_empty());
 }
 
+/// Names that WERE tools and are not any more.
+///
+/// **A retired name is worse than an invented one**, because it reads as correct to everyone who
+/// remembers it — including the model, whose memories from earlier sessions can still say "use
+/// `find`". `done` was removed when a small model proved unable to emit a terminator reliably;
+/// `find` became `grep` at ADR-059.
+const RETIRED_TOOLS: [&str; 2] = ["done", "find"];
+
+/// **The guard above is the right instrument pointed at ONE string.**
+///
+/// `the_system_prompt_names_no_tool_that_does_not_exist` runs against `governance_prompt()` only.
+/// The `<workspace>` map named `find` twice, and every tool description is outside its reach —
+/// which is exactly where the ADR-059 mis-cue lived: `SHELL_DESCRIPTION` asserted both readings of
+/// the word `find` in one paragraph, and nothing could see it.
+///
+/// **It is a narrower check than the one above and deliberately so.** Pointing
+/// `unknown_tools_named_in` at descriptions does not work: they are full of backticked lowercase
+/// words that are not tools and never were — `ls`, `head`, `sed`, `awk`, `cwd`, `pattern`, `path`.
+/// A guard that flagged those would be turned off within a week. What is checkable, and what
+/// actually goes wrong, is a RETIRED name surviving in live prose.
+#[test]
+fn no_live_prose_names_a_retired_tool() {
+    let registry = marlowe_tools::builtin_registry().unwrap();
+    let mut surfaces: Vec<(String, String)> =
+        vec![("governance_prompt".into(), marlowe_daemon::governance_prompt().to_string())];
+
+    let dir = std::env::temp_dir().join(format!("marlowe-retired-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("src")).unwrap();
+    std::fs::write(dir.join("README.md"), "hello").unwrap();
+    if let Some(map) = marlowe_daemon::workspace_map(&dir) {
+        surfaces.push(("workspace_map".into(), map));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+
+    for tool in marlowe_tools::BUILTIN_TOOLS {
+        let id = marlowe_tools::ToolId::new(tool);
+        surfaces.push((
+            format!("{tool} description"),
+            registry.get(&id).expect("registered").description.text().to_string(),
+        ));
+        for p in registry.manifest(&id).unwrap().params() {
+            surfaces.push((
+                format!("{tool}.{}", p.name),
+                p.description.clone().unwrap_or_default(),
+            ));
+        }
+    }
+
+    for (where_, text) in &surfaces {
+        for retired in RETIRED_TOOLS {
+            assert!(
+                !text.split('`').skip(1).step_by(2).any(|w| w.trim() == retired),
+                "`{retired}` is not a tool any more and `{where_}` still names it as one:
+{text}"
+            );
+        }
+    }
+    assert!(surfaces.len() > 20, "the sweep must actually have surfaces in it: {}", surfaces.len());
+}
+
+/// The negative control for the sweep above: it must reject the prose that shipped, and it must
+/// not reject prose that names a live tool.
+#[test]
+fn the_retired_name_sweep_rejects_the_description_that_shipped() {
+    let shipped = "`glob` lists files, `find` searches inside them";
+    assert!(RETIRED_TOOLS.iter().any(|r| shipped
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .any(|w| w.trim() == *r)));
+    let fixed = "`glob` lists files by name, `grep` searches inside them";
+    assert!(!RETIRED_TOOLS.iter().any(|r| fixed
+        .split('`')
+        .skip(1)
+        .step_by(2)
+        .any(|w| w.trim() == *r)));
+}
+
 /// **The conversation survives the turn.**
 ///
 /// `ask_streaming` built a fresh `SessionState` on every request, so Marlowe was handed turn 1

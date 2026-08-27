@@ -1,6 +1,6 @@
 //! ADR-006 — the eleven model-visible tools, with their manifests.
 //!
-//! `bash · read · edit · find · web · recall · remember · use · run · ask · done`
+//! `bash · read · write · edit · glob · grep · web · recall · remember · use · run · ask`
 //!
 //! Eleven against a budget of twelve. **The spare slot is for a situational tool a profile
 //! adds, not for a twelfth permanent one.**
@@ -9,7 +9,7 @@
 //!
 //! | Tool | Consequence | Reason |
 //! |---|---|---|
-//! | `read` `find` `recall` `ask` `done` | `Inert` | Pure reads and escalations. §9 exempts `Inert` from *target-provenance* checking on the stated grounds that following a link found on a page is how research works. **Path scoping still applies** — that is a different check, and it applies at every level. |
+//! | `read` `glob` `grep` `recall` `ask` | `Inert` | Pure reads and escalations. §9 exempts `Inert` from *target-provenance* checking on the stated grounds that following a link found on a page is how research works. **Path scoping still applies** — that is a different check, and it applies at every level. |
 //! | `web` | `Inert` | Deliberate, and it is §9's own example. Containment is three non-kernel mechanisms: the result returns `UntrustedContent`, it returns by reference, and egress allowlisting closes the exfiltration leg. ADR-002 records that if any one weakens, this exemption is revisited rather than inherited. |
 //! | `edit` `use` | `Reversible` | §9 checks `Reversible` targets, and both are here for that reason. A workspace write is a durable channel into a later run's context (§8.3's sandbox-boundary-redefinition class); a skill load chosen by untrusted content is supply-chain steering. |
 //! | `remember` `run` | `Consequential` | A memory write is the highest-privilege operation in the system (§8.2). A spawn commits budget and acts through a child. |
@@ -34,7 +34,7 @@ use crate::ArgumentRole;
 /// The eleven ids, in ADR-006's order. Used by the HP10 budget test and by profile
 /// construction, so the list exists once.
 pub const BUILTIN_TOOLS: [&str; 12] = [
-    "bash", "read", "write", "edit", "glob", "find", "web", "recall", "remember", "use", "run",
+    "bash", "read", "write", "edit", "glob", "grep", "web", "recall", "remember", "use", "run",
     "ask",
 ];
 
@@ -136,7 +136,7 @@ fn registration(
 // description naming two shells "makes the model guess which one it has", which was right.
 // The split is gone rather than left as two strings that can drift, because the answer is
 // the same on both: it is bash. See `marlowe_exec::spawn_shell`.
-const SHELL_DESCRIPTION: &str = "Run one command line through bash — really bash, including on Windows, where it is Git Bash. So `ls`, `grep`, `find`, `head`, `sed`, `awk`, `&&`, `|`, `2>/dev/null` and forward slashes all work as you expect. Paths are POSIX: `docs/design`, and the workspace is the working directory. **Reach for a real tool first** — `glob` lists files, `find` searches inside them, `read`, `write` and `edit` handle files, and none of those interrupt the user, whereas EVERY call to this one STOPS AND ASKS THEM for approval, so a wrong guess costs them a prompt. Each call is a fresh shell: no `cd` or variable carries over, use `cwd`. It reaches the network normally. For something the user already told Marlowe, try `recall` first.";
+const SHELL_DESCRIPTION: &str = "Run one command line through bash — really bash, including on Windows, where it is Git Bash. So `ls`, `head`, `tail`, `sed`, `awk`, `sort`, `&&`, `|`, `2>/dev/null` and forward slashes all work as you expect. Paths are POSIX: `docs/design`, and the workspace is the working directory. **Reach for a real tool first** — `glob` lists files by name, `grep` searches inside them, `read`, `write` and `edit` handle files, and none of those interrupt the user, whereas EVERY call to this one STOPS AND ASKS THEM for approval, so a wrong guess costs them a prompt. Each call is a fresh shell: no `cd` or variable carries over, use `cwd`. It reaches the network normally. For something the user already told Marlowe, try `recall` first.";
 
 /// Every builtin, registered. **Registration, not exposure** — a profile still selects ≤12.
 pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
@@ -197,7 +197,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `range`'s format was undocumented anywhere the model could see it: the generated
             // parameter description for a `Text` payload is "Optional. text." `slice_lines` splits
             // on `-`, parses both sides, and takes `skip(a-1).take(b-a+1)` — 1-based and inclusive.
-            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). **A read returns a WINDOW, not always the whole file**: at most the first 2000 lines and at most 32KB. If the file is longer the result says exactly which lines you got and which range to ask for next — so a large file is read in parts, and every part is reachable. `range` picks the window: `first-last`, 1-based and inclusive, e.g. \"20-60\". A file that does not exist is REFUSED with a message saying so, so a result of `0 lines · 0 B` means the file is there and is empty.",
+            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). **Every line of a `path` read comes back prefixed with its line number, right-aligned in 6 characters, followed by a tab, then the line itself.** Those are the file's own line numbers, absolute, whatever window you asked for — so a `grep` hit at `src/x.rs:512` is read with `range` \"500-540\". **The prefix is NOT part of the file**: strip it from any text you hand to `edit`, which matches the file byte for byte. An unnumbered line in square brackets is the harness speaking, not file content. A `ref` read is NOT numbered. **A read returns a WINDOW**: at most 2000 lines, and at most 32KB counted WITH the prefixes, so a numbered window is often fewer than 2000. When more remains, the result says which lines you got and which range to ask for next, in the file's own numbers. `range` is `first-last`, 1-based and inclusive, e.g. \"20-60\". A file that does not exist is REFUSED with a message saying so, so a result of `0 lines · 0 B` means the file is there and is empty.",
             "read",
             8_192,
             Inert,
@@ -251,7 +251,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     false,
-                    "Which window to read: `first-last`, 1-based and inclusive, so \"20-60\" is line 20 through line 60. Omit it for the first window (2000 lines, 32KB). A range is still bounded by that window, and the result says what you got and what to ask for next. Every other shape is REFUSED rather than guessed at — a single number, a range with no `-`, a `0` start, a backwards range, and a range past the end all come back with the reason and the line count.",
+                    "Which window to read: `first-last`, 1-based and inclusive, so \"20-60\" is line 20 through line 60. Omit it for the first window (2000 lines, 32KB). The line numbers printed in the result are the FILE's, not the window's, so \"500-600\" comes back starting at 500 — you can hand any number you see straight back as a range. A range is still bounded by that window, and the result says what you got and what to ask for next. Every other shape is REFUSED rather than guessed at — a single number, a range with no `-`, a `0` start, a backwards range, and a range past the end all come back with the reason and the line count.",
                 ),
             ],
         ),
@@ -295,7 +295,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "The ENTIRE contents of the file. Anything already there is replaced.",
+                    "The ENTIRE contents of the file. Anything already there is replaced. It is written exactly as given, so text carrying `read`'s line-number prefix is stored WITH the numbers in it — that is allowed, because a file may legitimately contain numbered output, and the result says `line-numbered` when it happens so you can tell a deliberate one from a pasted `read`.",
                 ),
             ],
         ),
@@ -307,7 +307,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // directory is the walk's rule, not this tool's — only the LAST component is opened
             // `CreateOrOpen`, so a missing parent is `Unopenable`, which
             // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.
-            "Change ONE snippet inside an existing file, leaving the rest untouched. To create a file, or to replace all of it, use `write` instead — this tool cannot. `read` the file first and copy `replacing` out of what comes back byte for byte, keeping it as SHORT as possible while still unique: `replacing` is DELETED and `content` put in its place, so a large `replacing` with a short `content` silently throws the difference away. The parent directory must already exist.",
+            "Change ONE snippet inside an existing file, leaving the rest untouched. To create a file, or to replace all of it, use `write` instead — this tool cannot. `read` the file first and copy `replacing` out of what comes back, byte for byte, **with `read`'s line-number prefix and its tab removed from every line** — the numbers are not in the file, and a `replacing` that still carries them is refused by name. `replacing` must appear EXACTLY ONCE in the file: if it occurs more than once the call is refused and the result lists the line numbers, so add a neighbouring line to make it unique or edit each site in its own call. Keep it as SHORT as that allows: `replacing` is DELETED and `content` put in its place, so a large `replacing` with a short `content` silently throws the difference away. The parent directory must already exist.",
             "edit",
             2_048,
             Reversible,
@@ -329,14 +329,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "What `replacing` becomes. It must contain everything you still want from the text you put in `replacing`, because that text is gone -- if `replacing` is three lines and only the middle one changes, `content` is all three lines with the middle one edited.",
+                    "What `replacing` becomes. It must contain everything you still want from the text you put in `replacing`, because that text is gone -- if `replacing` is three lines and only the middle one changes, `content` is all three lines with the middle one edited. Write the lines as they belong in the file: `content` carrying `read`'s line-number prefix on 2 or more lines is refused, because writing it would put the numbers into the source. Use `write` if you genuinely mean to store numbered text.",
                 ),
                 documented(
                     "replacing",
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "REQUIRED: the exact existing text to replace, copied verbatim from a `read` including indentation. Keep it SMALL — the smallest snippet that appears only once, usually one line or a few. Do NOT paste the whole file: everything you put here is deleted and replaced by `content`, so a large `replacing` with a short `content` destroys the rest of the file. The FIRST occurrence is replaced; the call FAILS if it is not found, and an empty string is refused rather than inserting at the start.",
+                    "REQUIRED: the exact existing text to replace, copied from a `read` with the indentation kept and **`read`'s line-number prefix and tab removed from every line** — a value that still carries the prefix is REFUSED, and the refusal says where the stripped text really is. It must appear EXACTLY ONCE in the file; more than once is refused with the line numbers of every occurrence. Keep it SMALL — the smallest snippet that is unique, usually one line or a few. Do NOT paste the whole file: everything you put here is deleted and replaced by `content`, so a large `replacing` with a short `content` destroys the rest of the file. The call FAILS if it is not found, and an empty string is refused rather than inserting at the start.",
                 ),
             ],
         ),
@@ -344,7 +344,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             "glob",
             // **There was no way to list a directory, and the model invented what was in one.**
             //
-            // `find` searches file CONTENTS and needs a pattern. `read` needs a path already
+            // `grep` searches file CONTENTS and needs a pattern. `read` needs a path already
             // known. `bash` is `Irreversible`, so every attempt stops and asks the user. Asked
             // what was inside `docs/requirements`, the model made SEVEN shell calls across two
             // sessions -- `dir "docs/requirements" /s`, `dir "docs\*" /b`, `list "docs"`,
@@ -353,11 +353,18 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             //
             // Names only: this opens nothing and reads no bytes, which is what lets it be `Inert`
             // and run without asking while `bash` cannot.
-            "List the files under a directory, by name. This is how you see what EXISTS — `find` \
+            "List the files under a directory, by name. This is how you see what EXISTS — `grep` \
              searches inside files and `read` needs a path you already have. Returns \
-             workspace-relative paths, one per line, sorted. It never reads a file's contents, so \
-             it does not ask for approval.",
-            "find",
+             workspace-relative paths, one per line, sorted. Build output and version-control \
+             directories are not listed; name one as `path` to look inside it. It never reads a \
+             file's contents, so it does not ask for approval.",
+            // **The verb was the literal string `"find"` on the `glob` registration, and nothing
+            // noticed** — because nothing READS `SummarySpec::verb`: a grep for uses outside its
+            // own module returns constructors and one test, and the §B6 verb a user sees comes
+            // from `tool.to_string()` on the wire. Corrected here rather than asserted on —
+            // asserting a dead field's value is the sixteenth-instance family, which is how the
+            // wrong value got here in the first place.
+            "glob",
             8_192,
             Inert,
             &[WORKSPACE],
@@ -387,30 +394,48 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             ],
         ),
         registration(
-            "find",
-            // `line.contains(pattern)` — a literal substring, and the result line is built as
-            // `{relative}:{n+1}: {line}`. `collect` enumerates with `read_dir`, so `path` names a
-            // directory, and it stops at `FIND_FILE_CAP` (2000). `.` is the spelling the scope
-            // accepts for the workspace root — `request::validate` drops `.` components, and
-            // `executors.rs::find_reports_matches_and_how_many_files_it_actually_read` passes it.
-            "Search INSIDE files under a directory for a literal substring, line by line. To list which files exist, use `glob` — this reads their contents and needs something to look for. Not a regex and not a symbol index. `path` is the directory to search: pass \".\" for the whole workspace. Matches come back as `path:line: text`, over at most 2000 files.",
-            "find",
+            "grep",
+            // **RENAMED FROM `find`, ADR-059, and the rename is the bug fix.**
+            //
+            // `SHELL_DESCRIPTION` asserted both readings of the word in one paragraph — the unix
+            // list promising `find` matches NAMES and `grep` matches CONTENTS, and the routing
+            // sentence promising the exact inverse. Two definitions of one word in one request
+            // body is stronger evidence than any appeal to a model's priors, which is why the fix
+            // also DELETED `grep` and `find` from that list rather than only renaming the tool.
+            //
+            // The engine is `regex`, so `\d`, `(?i)` and alternation all work, and backreferences
+            // and lookaround fail to COMPILE rather than being silently ignored. The result grammar
+            // is `path:line:text` for a match and `path-line-text` for a context line, with the
+            // line's own indentation intact so it can be handed straight to `edit`'s `replacing`.
+            //
+            // **No number appears in this text.** The caps are stated in the RESULT, where they are
+            // actionable and where `format!` derives them from the constants — a number typed here
+            // would be a second declaration of a bound, and this repo has that failure six times
+            // over in its test suite alone.
+            "Search the CONTENTS of files under a directory with a regular expression, line by line. `glob` is the tool for finding files by NAME; this one opens them and looks inside. `pattern` is a Rust regular expression — `grep -E` syntax plus `\\d` `\\w` `\\s` and `(?i)`, but with NO backreferences and NO lookaround, which fail to compile rather than being ignored. Matches come back one per line as `path:line:text`, with each line's original indentation intact, so a line can be copied straight into `edit`'s `replacing`. Build output and version-control directories are not searched; name one as `path` if you need it. **Set `glob` whenever you know the file type** — without it the walk opens whatever it reaches first and stops before it has seen everything, and the result says so when that happens. It opens files and changes nothing, so it does not ask for approval.",
+            "grep",
             8_192,
             Inert,
             &[WORKSPACE],
             &[],
             // **`path` is REQUIRED, and that is the executor's demand rather than the role's.**
-            // `find` opens `handle_for(a, "path")` and returns "no adjudicated handle for `path`"
+            // `grep` opens `handle_for(a, "path")` and returns "no adjudicated handle for `path`"
             // when it is absent — and the adjudicator only opens a handle for an argument that was
             // supplied. So a call omitting `path` was schema-valid and could never succeed, which
             // is the mismatch ADR-034 separated the two fields to make visible.
+            //
+            // **Four parameters and no more, and an undeclared one is REFUSED by the executor.**
+            // `-i`, `--type`, `-l`, `output_mode` and `head_limit` are all things a model has in
+            // hand from somewhere else; `recall`'s removed `payload_kind` is the precedent for what
+            // accepting-and-ignoring one costs. `marlowe_exec::GREP_PARAMS` is that list, and
+            // `every_declared_parameter_is_accepted_by_the_executor` pins the two together.
             vec![
                 documented(
                     "pattern",
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "The literal substring to look for inside the files. NOT a regular expression and not a filename pattern: `.` and `*` match themselves. Case-sensitive, and an empty string is refused rather than matching every line.",
+                    "The regular expression to look for inside each line. Rust `regex` syntax: `.` any character, `*` `+` `?` repetition, `[a-z]` a class, `|` alternation, `^` `$` the ends of a line, `\\d` `\\w` `\\s`, `(...)` a group. Backreferences (`\\1`) and lookaround (`(?=`, `(?<=`) do NOT exist here and fail to compile — there is no `\\Q...\\E` either. To search for text containing `. * + ? ( ) [ ] { } | ^ $ \\`, put a backslash before each one: `Cargo\\.toml`, `foo\\(bar\\)`. Unescaped they mean something else and will match text you did not intend. Start the pattern with `(?i)` to ignore case — `(?i)todo`. An invalid pattern is REFUSED with the syntax error and is never quietly searched as plain text. An empty string is refused rather than matching every line.",
                 ),
                 documented(
                     "path",
@@ -418,6 +443,20 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ParamType::Path,
                     true,
                     "The DIRECTORY to search, workspace-relative. Pass \".\" for the whole workspace. A file here is refused — use `read` for one file.",
+                ),
+                documented(
+                    "glob",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "Only search files whose name or path matches this — the same pattern language the `glob` tool takes. `*` matches any run of characters except `/`, `?` matches exactly one, and NOTHING ELSE is special: no `**`, no `[a-z]`, no `{a,b}`. With no `/` it matches the file's NAME anywhere beneath `path`, so `*.rs` searches every Rust file; with a `/` it matches the whole workspace-relative path, so `crates/*/src/*.rs` searches only those. Case-insensitive. An empty string is refused rather than matching nothing. Omit it to search every file — but a large project has more files than one call can open, and this is how you make sure the search reaches the ones you meant.",
+                ),
+                documented(
+                    "context",
+                    ArgumentRole::Payload,
+                    Integer,
+                    false,
+                    "How many lines above AND below each match to return as well, like `grep -C`. Omit it, or pass 0, to get only the matching lines. A context line is written `path-line-text` with hyphens and a match is written `path:line:text` with colons, so the two are never confused. The maximum is 20; a larger number is REFUSED, not quietly reduced. Context counts against the same result limit as matches, so a large value returns fewer matches.",
                 ),
             ],
         ),
@@ -628,7 +667,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     Text,
                     true,
-                    "REQUIRED. **This parameter is the only way a child ever gets a tool.** There is no other mechanism: nothing written in `task` can request, grant or imply access to anything, and the child cannot ask for more once it starts. Give a comma-separated list of names taken from the tools you hold — a name you do not have is refused. A child given an empty string CANNOT read a file, list a directory, search, or run a command no matter what `task` says; it can only think about the text you put in `task` and reply. So if the child must look at anything at all, name the tools here — `read, glob` for reading files, plus `find` to search inside them.",
+                    "REQUIRED. **This parameter is the only way a child ever gets a tool.** There is no other mechanism: nothing written in `task` can request, grant or imply access to anything, and the child cannot ask for more once it starts. Give a comma-separated list of names taken from the tools you hold — a name you do not have is refused. A child given an empty string CANNOT read a file, list a directory, search, or run a command no matter what `task` says; it can only think about the text you put in `task` and reply. So if the child must look at anything at all, name the tools here — `read, glob` for reading files, plus `grep` to search inside them.",
                 ),
                 // **`budget_micros_usd` -> `budget_tokens`, ADR-057 §6.** `SpawnRequest::grant_tokens`
                 // and `Budget::grant`'s `explicit` are tokens. Wiring the old name to the field it

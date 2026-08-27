@@ -12,7 +12,7 @@
 //!
 //! | Missing | Session | Consequence today |
 //! |---|---|---|
-//! | Path scoping | M2 B | `read`/`edit`/`find`/`bash` are blocked at adjudication — see `marlowe_permission::scope` |
+//! | Path scoping | M2 B | `read`/`edit`/`grep`/`bash` are blocked at adjudication — see `marlowe_permission::scope` |
 //! | Tool executors, skills, MCP | M2 C | [`driver::ToolHost`] has no production implementation |
 //! | Memory | M2 D | [`driver::MemoryHost`] is `None`; `remember` reports that it is not wired |
 //! | A provider client | M2 C | [`driver::ModelDriver`] has no production implementation |

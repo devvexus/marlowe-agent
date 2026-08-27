@@ -185,7 +185,15 @@ fn an_ordinary_range_still_selects_the_lines_it_names() {
     let ws = Workspace::new("ordinary");
     let path = ws.write("f.txt", b"a\nb\nc\nd\ne\n");
     let out = read_with(&ws, vec![("path", &path), ("range", "2-4")]);
-    assert_eq!(body(&out).trim(), "b\nc\nd");
+    // **The numbers are the FILE's, not the window's.** Window-relative numbering would print
+    // `1 2 3` here, look authoritative, and be wrong — the one failure that would make numbering
+    // worse than no numbering at all, because a number could no longer be handed back as a range.
+    assert_eq!(body(&out), marlowe_exec::number_lines("b\nc\nd\n", 2));
+    assert!(
+        body(&out).starts_with(&format!("{:>w$}\t", 2, w = marlowe_exec::LINE_NUMBER_WIDTH)),
+        "a range starting at line 2 must print 2: {:?}",
+        body(&out)
+    );
 }
 
 /// **A8.** A file larger than the cap is truncated, and the model is told so in words.

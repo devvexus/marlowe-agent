@@ -528,23 +528,33 @@ Research, voice, coding, automation, unattended triggers, quarantined reading, a
 consolidation are all `CapabilityProfile` values over the loop in §3. The profile varies tool
 exposure, budgets, egress, and interrupt policy. There is no second `while` loop in the design.
 
-### Model-visible tools: 11, one slot spare
+### Model-visible tools: 12 against a budget of 14
+
+**This table was stale in three ways at once and is corrected here rather than annotated.** It
+said 11 with a spare slot when `BUILTIN_TOOLS` holds 12 against `MAX_EXPOSED_TOOLS` = 14; it
+still listed `done`, which was removed when a small model proved unable to emit a terminator
+reliably; and its `find` row promised *"index-backed symbol lookup where available"*, an
+operation that has never existed. ADR-034 §79 records that exact sentence as a description
+promising something the executor cannot do, and STATE.md marks that family CLOSED — it was closed
+in the MANIFEST and left standing here, which is what a design doc drifting from a shipped
+artifact looks like. `BUILTIN_TOOLS` is the definition; this table is a map of it.
 
 | Tool | Purpose |
 |---|---|
-| `bash` | Shell in a persistent session — the universal adapter (§7.2) |
-| `read` | Read a file, blob, or reference |
-| `edit` | Atomic edit / write |
-| `find` | Repo-aware search, index-backed symbol lookup where available |
-| `web` | Search and fetch — always returns references, always `untrusted_content` |
+| `bash` | One command line through bash (Git Bash on Windows) — the universal adapter (§7.2) |
+| `read` | Read a file by path, or a fetched document by `ref` — returns a WINDOW |
+| `write` | Create or overwrite a whole file |
+| `edit` | Replace one exact snippet inside a file; `replacing` is required |
+| `glob` | List files by NAME under a directory |
+| `grep` | Search file CONTENTS with a regular expression (ADR-059; was `find`) |
+| `web` | Fetch one URL — always returns `untrusted_content` |
 | `recall` | Explicit memory search; where recall is recovered (§5.5) |
 | `remember` | **A request**, adjudicated and stamped by the harness |
 | `use` | Find and load a skill or tool — one discriminated return, not two slots |
 | `run` | Spawn, steer, await a child run |
 | `ask` | Escalate with a decision package |
-| `done` | Finish against the run's output contract |
 
-Registration is unlimited; exposure is budgeted. Twenty connected apps still present ≤12
+Registration is unlimited; exposure is budgeted. Twenty connected apps still present ≤14
 (§A2.3) because connectors register and are found by `use`, not front-loaded.
 
 ### Zero-config first run

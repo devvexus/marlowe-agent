@@ -1,4 +1,4 @@
-//! The filesystem and shell executors: `read`, `edit`, `find`, `bash`.
+//! The filesystem and shell executors: `read`, `write`, `edit`, `glob`, `grep`, `bash`, `web`.
 //!
 //! # The one rule this crate exists to obey
 //!
@@ -13,7 +13,7 @@
 //!
 //! # Where a tool touches more than its declared targets
 //!
-//! `find` reads many files, only one of which the model named. Those extra opens are not
+//! `grep` reads many files, only one of which the model named. Those extra opens are not
 //! unchecked: each one is routed back through the same [`PathScope`], so every byte this crate
 //! reads came through the wall. The model's argument is what the `(action, target)` check
 //! adjudicated; the enumeration underneath it is a source of *candidate names*, not a source of
@@ -78,9 +78,54 @@ pub const READ_WINDOW_LINES: usize = 2_000;
 ///
 /// Both bounds are reported when either bites, because a result that stops without saying so is
 /// indistinguishable from a file that ended.
+///
+/// **It measures what is RETURNED, so it is applied AFTER the line numbers are added.** A prefix
+/// costs [`LINE_NUMBER_WIDTH`] + 1 bytes a line, so capping the raw text and then adding ~14 KB of
+/// prefixes would leave this constant describing a quantity that never reaches the model. The
+/// visible consequence is that a numbered window is often fewer than [`READ_WINDOW_LINES`] lines;
+/// nothing becomes unreachable, because the notice names the next range either way.
 pub const READ_WINDOW_BYTES: usize = 32 * 1024;
 
-/// Above this, a truncated read also says what the whole file would cost and names `find`.
+/// How wide the line-number column is, in characters, before the tab.
+///
+/// # `read` returns `cat -n`, and every part of that choice is load-bearing
+///
+/// `grep` reports `path:line:text` and `read` reported neither the line nor a way to compute one,
+/// so a model holding a `grep` hit at `src/x.rs:512` could not turn it into a window without
+/// counting. Numbering closes that, and the format is chosen for what a model reproduces —
+/// **recognising and stripping** a prefix, never emitting one:
+///
+/// * **`cat -n` is the most-seen form.** It is in every shell transcript, it neighbours `grep -n`,
+///   and it is what the reference implementation emits.
+/// * **The tab is what makes detection tight.** Source lines legitimately begin with spaces; they
+///   essentially never begin with `spaces + digits + TAB`. A `: ` or `| ` separator would make
+///   `42: foo` — ordinary log text — indistinguishable from a prefix.
+/// * **Right-alignment to a fixed width keeps the content column constant.** Not cosmetic: the
+///   most common `edit` failure in this executor is a whitespace mismatch, and a left-aligned
+///   number shifts the content column between line 99 and line 100 — the harness itself corrupting
+///   the model's view of indentation, inside one window.
+///
+/// Six digits covers every file under a million lines and degrades by widening, never by dropping
+/// the tab, so [`strip_line_numbers`] still parses past it.
+pub const LINE_NUMBER_WIDTH: usize = 6;
+
+/// How many of a non-unique `replacing`'s sites are named before the message says "and N more".
+///
+/// A refusal that lists ninety line numbers is a context flood inside the sentence that exists to
+/// prevent one — the same defect ADR-059 fixed in `grep`'s truncation notice, which listed 250
+/// paths on one line. The count is always exact; the enumeration is bounded.
+pub const MAX_EDIT_SITES_NAMED: usize = 8;
+
+/// How many consecutive numbered lines make `content` a paste rather than a coincidence.
+///
+/// **Deliberately not 1, and deliberately different from `replacing`'s threshold.** `replacing` is
+/// cross-checked against the file it is being matched into, so its named refusal is verified;
+/// `content` has nothing to check against, so the grammar is all there is. One line that happens to
+/// read `     7\tfoo` is plausible content; two consecutive ones are essentially only produced by
+/// pasting a `read` window.
+pub const NUMBERED_CONTENT_LINES: u32 = 2;
+
+/// Above this, a truncated read also says what the whole file would cost and names `grep`.
 ///
 /// A quarter of `DEFAULT_CONTEXT_TOKENS`. Below it a file is several windows at worst and the
 /// short notice is enough; above it, reading the whole thing is a decision worth making
@@ -105,9 +150,97 @@ fn marlowe_provider_context_default() -> u32 {
     32_768
 }
 
-/// How many files `find` will open in one call. A search is bounded structurally rather than by
+/// How many files one walk will enumerate. A search is bounded structurally rather than by
 /// hoping the pattern is selective.
-pub const FIND_FILE_CAP: usize = 2_000;
+///
+/// **Renamed from `FIND_FILE_CAP`, because the old name was false.** It bounds `glob` exactly as
+/// it bounds `grep` — `glob` has always called `collect` with it — so a name saying it belonged to
+/// one tool sent anyone reading `glob`'s cost model to the wrong constant.
+pub const WALK_FILE_CAP: usize = 2_000;
+
+/// Directories a walk does not descend into, unless the caller names one as `path`.
+///
+/// # This is the difference between `grep` working on a real project and returning zero
+///
+/// [`collect`] is a LIFO walk with a hard cap and, until ADR-059, no skip list. On this very
+/// checkout `target/` holds ~162,000 files, so `grep(pattern, path=".")` filled all
+/// [`WALK_FILE_CAP`] slots with build artifacts, **never reached `crates/` at all**, and reported
+/// `0 results`. Worse, `find` — unlike `glob` — never checked whether the cap had bitten, so the
+/// zero was reported as a fact about the workspace rather than as a walk that stopped.
+///
+/// **The harness already owned this list and did not share it.** `marlowe_daemon::workspace_map`
+/// carried a private `SKIP` with exactly these six names; the walk two tools actually search with
+/// did not. This is the one definition, and the daemon reads it — a second copy is how the two
+/// come to disagree about what a project is.
+///
+/// Naming one of these as `path` still searches it: the check is on directories the walk would
+/// *descend into*, never on the base it was handed. And every walk **states** which of these it
+/// met, because a model that greps `.` and sees nothing from `target/` must be able to tell a
+/// policy from an absence.
+pub const WALK_SKIP: [&str; 6] = [".git", "target", "node_modules", ".venv", "__pycache__", "dist"];
+
+/// How many result lines — matches plus context — `grep` will emit before it stops emitting and
+/// starts counting.
+///
+/// SECURITY-AUDIT finding 8: hit accumulation was unbounded, and a regex makes that materially
+/// worse than a substring did (`.` matches every line of every file). Past this the result
+/// degrades to per-file counts and **says that it did**, which is the budget lever firing at the
+/// moment it is needed rather than at the moment a model guessed a `head_limit`.
+pub const MAX_MATCH_LINES: usize = 200;
+
+/// How much of one emitted line is kept.
+///
+/// A minified bundle is a single two-megabyte line. Without this, one such line is the whole
+/// result. The truncation is marked in the line itself rather than left to be inferred.
+pub const MAX_MATCH_LINE_BYTES: usize = 512;
+
+/// The largest `context` `grep` accepts. A larger value is REFUSED, not quietly reduced — a
+/// silently lowered argument is a model believing it asked for something it did not get.
+pub const MAX_GREP_CONTEXT: i64 = 20;
+
+/// The ceiling on what one regex may compile to, both as an NFA and as a lazy DFA.
+///
+/// The crate's own default is 10 MB. This is 1 MiB, which is far above any pattern a model writes
+/// and far below anything that matters, and over-limit returns a compile **error** the model can
+/// read and fix rather than a hang. Catastrophic *backtracking* needs no bound here at all,
+/// because the engine does not backtrack; the residual cost is compilation, and this is it.
+///
+/// **Public because the test derives its fixture from it, and because the obvious fixture does not
+/// discriminate.** `a{1000}{1000}{1000}` — the canonical example, and the one the design named —
+/// is refused at the crate's 10 MB default too, so a test built on it is GREEN on a build where
+/// this constant is not read at all: the sixteenth-instance family, in the control rather than in
+/// the test. The pattern that separates the two is `a{300}{300}`, which compiles at 10 MB and is
+/// refused at 1 MiB, and `a_pattern_too_large_to_compile_is_refused_and_the_limit_is_named`
+/// asserts on both — one for the behaviour, one for the fact that THIS line is what produced it.
+pub const REGEX_SIZE_LIMIT: usize = 1 << 20;
+
+/// How many paths a result's notice will name before it says "and N more".
+///
+/// **A notice is not exempt from the caps the result is under.** Run against this checkout with
+/// `WALK_SKIP` disabled, the partial-read notice listed 250 `.rlib` and `.pdb` paths on one line —
+/// a context flood inside the sentence that exists to prevent one. Ten names is enough to
+/// recognise a pattern; the count is what carries the magnitude.
+const NAMES_IN_A_NOTICE: usize = 10;
+
+/// Every parameter `grep` declares — and therefore every one it will accept.
+///
+/// **The list is here, in the executor, and the refusal is built from it with `join`.** A refusal
+/// that typed the four names would be a second declaration of the tool's surface, one that goes
+/// stale the day a fifth is added; `grep_refuses_an_argument_it_does_not_declare` reads it from
+/// this constant for the same reason. `every_declared_parameter_is_accepted_by_the_executor`
+/// pins it against the shipped manifest, so the two cannot disagree in either direction.
+pub const GREP_PARAMS: [&str; 4] = ["pattern", "path", "glob", "context"];
+
+/// One emitted line, bounded, with the truncation MARKED rather than left to look like the line.
+///
+/// A minified bundle is one two-megabyte line; without this, that line is the entire result.
+fn clip_line(line: &str) -> String {
+    if line.len() <= MAX_MATCH_LINE_BYTES {
+        return line.to_string();
+    }
+    let cut = floor_boundary(line, MAX_MATCH_LINE_BYTES);
+    format!("{}…[line continues, {} more bytes]", &line[..cut], line.len() - cut)
+}
 
 /// How long `bash` may run before it is killed.
 ///
@@ -150,7 +283,7 @@ const READER_GRACE_MS: u64 = 250;
 
 /// The production [`ToolHost`].
 ///
-/// It holds a scope because `find` needs one (see the header). It does **not** hold a workspace
+/// It holds a scope because `grep` needs one (see the header). It does **not** hold a workspace
 /// path it could use to bypass the scope: the workspace is passed to the scope, which is the only
 /// thing that turns a path into a handle.
 pub struct FileSystemTools<S: PathScope> {
@@ -175,6 +308,24 @@ pub struct FileSystemTools<S: PathScope> {
     /// the daemon passes the number it actually sends as `num_ctx`, which is the same field the
     /// assembler sizes its view from.
     context_tokens: u32,
+    /// ── TWO `edit`s TO ONE FILE IN ONE BATCH RACED, AND THE LOSER WAS SILENT ─────────────
+    ///
+    /// `execute_batch` runs a turn's calls **concurrently**, and `write`/`edit` each do their own
+    /// read-modify-write through their own cloned handle. Two edits to the same file therefore
+    /// both read the original, and the second's `set_len(0)` + `write_all` overwrote the first's
+    /// result. **Both reported success**, with truthful-looking `+n −m` lines, and nothing
+    /// downstream could tell.
+    ///
+    /// It has been reachable since batching landed. What made it urgent is the non-unique
+    /// `replacing` refusal in [`FileSystemTools::edit`]: the remedy that refusal names is *"edit
+    /// each site in a separate call"*, and separate calls in one turn are exactly one batch.
+    /// Closing one hazard by routing the model into another is not a fix.
+    ///
+    /// **One lock for all mutations, not one per path.** A path-keyed map is the tempting shape and
+    /// it buys nothing here: a batch is a turn's worth of calls, a file rewrite is microseconds,
+    /// and the batch's real cost is `web` fetches, which do not take this lock at all. A single
+    /// mutex has no key to get wrong and no map to grow.
+    writes: Mutex<()>,
 }
 
 impl<S: PathScope> FileSystemTools<S> {
@@ -184,6 +335,7 @@ impl<S: PathScope> FileSystemTools<S> {
             workspace: workspace.into(),
             store: marlowe_extract::store::DocumentStore::new(),
             context_tokens: marlowe_provider_context_default(),
+            writes: Mutex::new(()),
         }
     }
 
@@ -233,6 +385,58 @@ fn replacing_miss(existing: &str, replacing: &str) -> String {
     // that routes an empty file back here is caught in the suite instead of shipping a message
     // about a case that has a better answer.
     debug_assert!(!existing.is_empty(), "an empty file is written, not refused");
+
+    // ── THE PREFIX `read` ITSELF PUT THERE, AND THE ONLY MISS THE HARNESS CAUSED ───────────
+    //
+    // `read` returns `cat -n`, `edit` matches byte for byte, and the description tells the model to
+    // copy `replacing` out of a `read`. So the harness now manufactures a miss, and it is the one
+    // miss it can diagnose with certainty rather than with a heuristic.
+    //
+    // **Three conjuncts, and only the first is a guess.** (i) the value parses as numbered;
+    // (ii) `existing.find(replacing)` has ALREADY missed — this function runs only on that path,
+    // so a file that genuinely contains `      42\tfoo` edited with exactly that text matched and
+    // never arrived here; (iii) the stripped form IS in the file. (iii) turns the guess into a
+    // checked diagnosis: the message does not say the text "looks numbered", it says where the
+    // stripped text is, verified against the file this executor is holding.
+    if let Some(stripped) = strip_line_numbers(replacing) {
+        if let Some(at) = existing.find(&stripped) {
+            return format!(
+                "`replacing` carries the line-number prefix `read` printed — {} characters, then a \
+                 tab, in front of every line. `edit` matches the file byte for byte and the file \
+                 does not contain those prefixes, so strip them. Stripped, your text IS in the \
+                 file, starting at line {}.",
+                LINE_NUMBER_WIDTH,
+                line_at(existing, at),
+            );
+        }
+        // Grammar only, no cross-check — so this says both facts and guesses neither.
+        return format!(
+            "`replacing` carries the line-number prefix `read` printed ({} characters then a tab \
+             in front of every line), which `edit` never accepts — strip it. Even stripped the \
+             text was not found, so `read` the file again and copy the snippet from what comes \
+             back, without the prefixes. The file is {} bytes, {} lines.",
+            LINE_NUMBER_WIDTH,
+            existing.len(),
+            existing.lines().count(),
+        );
+    }
+
+    // **CRLF, which this executor could not previously say anything about.** `str::lines` strips a
+    // trailing `\r`, so a windowed read of a CRLF file used to hand back LF and nothing copied out
+    // of it could ever match. `read` preserves terminators now, but a model that *composed* the
+    // snippet rather than copying it still writes LF, and the generic message names the wrong
+    // cause — "including indentation" sends it to look at spaces.
+    if existing.contains("\r\n") && !replacing.contains('\r') && replacing.contains('\n') {
+        let unix = existing.replace("\r\n", "\n");
+        if let Some(at) = unix.find(replacing) {
+            return format!(
+                "`replacing` was not found because the file uses CRLF (`\\r\\n`) line endings and \
+                 your text uses LF (`\\n`). Apart from that it is there, at line {}. `read` the \
+                 file and copy the snippet from what comes back rather than retyping it.",
+                line_at(&unix, at),
+            );
+        }
+    }
 
     // **The overwhelmingly common miss is whitespace**, and saying so turns an unbounded retry
     // into one corrected call. Checked by collapsing runs of whitespace on both sides: if the
@@ -292,7 +496,7 @@ fn failed(verb: &'static str, detail: impl Into<String>) -> ToolOutcome {
 ///
 /// **`read` does not come through here any more** — see [`body_for_window`]. A file bounded by
 /// [`READ_WINDOW_BYTES`] is meant to be READ, and turning it into a hash the model cannot
-/// dereference was the whole defect. This still governs `bash` output and `find` results, where a
+/// dereference was the whole defect. This still governs `bash` output, where a
 /// reference is the honest answer to "more than you asked for".
 fn body_for(text: String) -> (ToolBody, u64, Option<String>) {
     let bytes = text.len() as u64;
@@ -424,20 +628,28 @@ impl<S: PathScope> FileSystemTools<S> {
                 };
             }
         };
-        if capped {
-            text.push_str(&format!(
-                "\n[the harness stopped reading at {MAX_READ_BYTES} bytes. The file is longer than \
-                 this and the text above is a prefix.]"
-            ));
-        }
+        // ── THE `MAX_READ_BYTES` NOTE IS HARNESS SPEECH AND LIVES IN THE TRAILER ───────────
+        //
+        // It used to be pushed into `text` here, BEFORE `range` and before the window. So it was a
+        // range-selectable line, it counted toward `total_lines`, and — once numbering exists — it
+        // would acquire a line number, which stops the numbering being a faithful map of the file.
+        // It is emitted with the window notice instead: column 0, no prefix, after everything.
+        //
+        // `capped` is carried, not the string, so the note is written once at the bottom.
+        //
         // `range` is a Payload: untrusted prose may shape it freely, because it selects nothing
         // outside a file the target check already approved.
+        //
+        // **The file's own length is measured before slicing**, so the notice can speak in
+        // absolute line numbers whether or not a range was given.
+        let total_lines = text.lines().count();
+        let mut first_line = 1usize;
         if let Some(range) = text_arg(args, "range") {
             // **Both failure modes here were SILENT and both produced a result that means
             // something else.** See `slice_lines`.
-            let of = text.lines().count();
+            let of = total_lines;
             match slice_lines(&text, range) {
-                Ok(sliced) if sliced.is_empty() && of > 0 => {
+                Ok((sliced, _)) if sliced.is_empty() && of > 0 => {
                     // `0 lines · 0 B` is the signature `read`'s own description reserves for "the
                     // file is there and is empty". A range that selected nothing rendered
                     // IDENTICALLY, so a model asking for lines 500-600 of a ten-line file was
@@ -450,7 +662,10 @@ impl<S: PathScope> FileSystemTools<S> {
                         ),
                     );
                 }
-                Ok(sliced) => text = sliced,
+                Ok((sliced, start)) => {
+                    text = sliced;
+                    first_line = start;
+                }
                 // `slice_lines` used to swallow this and return the WHOLE FILE. A model that
                 // mistyped a range on a large file got everything back, with nothing to say the
                 // range had been ignored rather than honoured.
@@ -472,52 +687,72 @@ impl<S: PathScope> FileSystemTools<S> {
         // The long form is held back for genuinely large files ([`LARGE_FILE_TOKENS`]) so that
         // routine reads are not dressed as warnings. A model told everything is expensive learns
         // nothing about what actually is.
-        let total_lines = text.lines().count();
         // The same pessimistic three-characters-per-token the assembler budgets with, so the two
         // numbers a run is judged by are computed the same way.
         let est_tokens = marlowe_loop::estimate_tokens(&text);
         // **Large COMPARED TO THIS MODEL'S WINDOW**, not against a constant. The same file is
         // most of a 32k context and a rounding error in a 200k one.
         let expensive = est_tokens > self.context_tokens / LARGE_FILE_SHARE_OF_CONTEXT;
-        let mut clipped: Option<String> = None;
 
-        let mut note = |kept: usize| {
-            let next_end = (kept + READ_WINDOW_LINES).min(total_lines);
+        let selected = text.lines().count();
+        let mut kept = selected;
+        if selected > READ_WINDOW_LINES {
+            text = take_lines(&text, READ_WINDOW_LINES);
+            kept = READ_WINDOW_LINES;
+        }
+
+        // ── NUMBERED HERE: AFTER THE WINDOW, BEFORE THE BYTE CEILING, BEFORE THE TRAILER ──
+        //
+        // After the window so the numbers describe the lines that actually came back; before the
+        // ceiling so `READ_WINDOW_BYTES` counts the bytes the model receives rather than the bytes
+        // on disk; before the trailer so the trailer stays at column 0 as harness speech.
+        //
+        // **This is the `path` branch only.** `read(ref)` returned long before here, and it must:
+        // its result is `UntrustedContent`, so layer 1 routes it to a quarantined reader, and
+        // `condense_chunk` is built on source labels being *"assigned here, never taken from the
+        // content"*. Numbering an attacker-controlled document would hand it a harness-authored
+        // prefix on every line, after which the reader cannot tell a harness prefix from document
+        // text. There is nothing to edit in a fetched page, so the numbers buy nothing and cost
+        // the one property that section rests on.
+        let mut text = number_lines(&text, first_line);
+        if text.len() > READ_WINDOW_BYTES {
+            let (cut, lines) = cut_to_whole_lines(&text, READ_WINDOW_BYTES);
+            text = cut;
+            kept = lines;
+        }
+
+        // ── THE TRAILER: HARNESS SPEECH, UNNUMBERED, AT COLUMN 0 ──────────────────────────
+        //
+        // Appended after truncation so it is never itself cut off, and inside the body so it
+        // survives whatever the body becomes. A model already reads a leading `[` as the harness
+        // speaking; a numbered `[` would read as line 1,993 of the file.
+        if capped {
+            text.push_str(&format!(
+                "\n\n[the harness stopped reading at {MAX_READ_BYTES} bytes. The file is longer \
+                 than this and the text above is a prefix.]"
+            ));
+        }
+        if kept < selected {
+            let last = first_line + kept - 1;
+            let next_end = (last + READ_WINDOW_LINES).min(total_lines);
             let cost = if expensive {
                 format!(
                     " The whole file is about {est_tokens} tokens; to find something specific, \
-                     `find` searches inside files and returns `path:line: text`."
+                     `grep` searches inside files and returns `path:line:text`."
                 )
             } else {
                 String::new()
             };
-            clipped = Some(format!(
-                "\n\n[showing lines 1-{kept} of {total_lines}. Continue with range \
-                 \"{}-{}\".{cost}]",
-                kept + 1,
-                next_end,
+            text.push_str(&format!(
+                "\n\n[showing lines {first_line}-{last} of {total_lines}. Continue with range \
+                 \"{}-{next_end}\".{cost}]",
+                last + 1,
             ));
-        };
-
-        if total_lines > READ_WINDOW_LINES {
-            let first: String =
-                text.lines().take(READ_WINDOW_LINES).collect::<Vec<_>>().join("\n");
-            note(READ_WINDOW_LINES);
-            text = first;
-        }
-        if text.len() > READ_WINDOW_BYTES {
-            let cut = floor_boundary(&text, READ_WINDOW_BYTES);
-            let kept = text[..cut].lines().count();
-            text.truncate(cut);
-            note(kept);
-        }
-        // Appended after truncation so the notice is never itself cut off, and inside the body so
-        // it survives whatever the body becomes.
-        if let Some(n) = &clipped {
-            text.push_str(n);
         }
 
-        let lines = text.lines().count() as u64;
+        // **The line count is the CONTENT's**, not the body's: the trailer is not a line of the
+        // file, and counting it made `read`'s own numbers disagree with the numbers it printed.
+        let lines = kept as u64;
         let (body, bytes, preview) = body_for_window(text);
         let mut metrics =
             vec![Metric::Count { n: lines, unit: "lines" }, Metric::Bytes { n: bytes }];
@@ -558,6 +793,9 @@ impl<S: PathScope> FileSystemTools<S> {
         let Some(content) = text_arg(args, "content") else {
             return failed("write", "`content` is required");
         };
+        // Held across the whole read-modify-write — see [`FileSystemTools::writes`]. Taken after
+        // the argument checks so a malformed call does not queue behind a real one.
+        let _writing = self.writes.lock().unwrap_or_else(|e| e.into_inner());
         let mut file = match scoped.handle().try_clone() {
             Ok(f) => f,
             Err(e) => return failed("write", e.to_string()),
@@ -574,11 +812,32 @@ impl<S: PathScope> FileSystemTools<S> {
         {
             return failed("write", e.to_string());
         }
+        // ── `write` WARNS WHERE `edit` REFUSES, AND THAT ASYMMETRY IS THE ESCAPE HATCH ────────
+        //
+        // Numbered text in `content` is almost always a `read` window pasted back — but a whole
+        // file that legitimately contains `cat -n` output exists (a transcript, a fixture, the
+        // tests for this very feature), and it has to be writable through the tool surface. So
+        // `write` proceeds and SAYS SO: the file is on disk with the prefixes in it, and the model
+        // is told, in the same result, that it just wrote them.
+        let mut metrics = vec![Metric::Diff {
+            added: count_lines(content),
+            removed: count_lines(&existing),
+        }];
+        let mut numbered_warning = None;
+        if count_lines(content) >= NUMBERED_CONTENT_LINES && strip_line_numbers(content).is_some() {
+            metrics.push(Metric::State("line-numbered"));
+            numbered_warning = Some(format!(
+                "the file was written, and its lines carry `read`'s line-number prefix ({} \
+                 characters then a tab). If that came from pasting a `read` result, the numbers \
+                 are now IN the file — write it again without them.",
+                LINE_NUMBER_WIDTH,
+            ));
+        }
         ToolOutcome {
-            summary: ResultSummary::new(vec![Metric::Diff {
-                added: count_lines(content),
-                removed: count_lines(&existing),
-            }]),
+            summary: match numbered_warning {
+                Some(w) => ResultSummary::with_detail(metrics, w),
+                None => ResultSummary::new(metrics),
+            },
             body: ToolBody::Inline(scoped.relative().to_string()),
             trust: TrustClass::AgentObserved,
             failed: false,
@@ -624,6 +883,9 @@ impl<S: PathScope> FileSystemTools<S> {
             );
         };
 
+        // Held across the whole read-modify-write — see [`FileSystemTools::writes`]. Two `edit`s
+        // to one file in one batch both read the original and the second overwrote the first.
+        let _writing = self.writes.lock().unwrap_or_else(|e| e.into_inner());
         let mut file = match scoped.handle().try_clone() {
             Ok(f) => f,
             Err(e) => return failed("edit", e.to_string()),
@@ -647,6 +909,63 @@ impl<S: PathScope> FileSystemTools<S> {
         let Some(at) = existing.find(replacing) else {
             return failed("edit", replacing_miss(&existing, replacing));
         };
+        // ── A `replacing` THAT APPEARS MORE THAN ONCE IS A GUESS, AND IT LOOKED LIKE SUCCESS ──
+        //
+        // `edit` replaced the FIRST occurrence and reported `+1 −1`. A rename whose old name
+        // appears twelve times was therefore edited once, and the summary a model reads back is
+        // indistinguishable from the summary of the edit it meant to make — so it moves on.
+        //
+        // The refusal is only worth making because it can say WHERE. That sentence exists because
+        // `read` numbers now: `grep` already reported `path:line:text`, and the model can turn any
+        // of these numbers into a window. Without the line numbers this would be a refusal with no
+        // next step, which is worse than the wrong edit.
+        let sites: Vec<usize> =
+            existing.match_indices(replacing).map(|(i, _)| line_at(&existing, i)).collect();
+        if sites.len() > 1 {
+            let shown = sites.iter().take(MAX_EDIT_SITES_NAMED).map(usize::to_string)
+                .collect::<Vec<_>>().join(", ");
+            let rest = if sites.len() > MAX_EDIT_SITES_NAMED {
+                format!(" and {} more", sites.len() - MAX_EDIT_SITES_NAMED)
+            } else {
+                String::new()
+            };
+            return failed(
+                "edit",
+                format!(
+                    "`replacing` occurs {} times, at lines {shown}{rest}. `edit` changes ONE \
+                     snippet, so it must appear exactly once — add a neighbouring line to make it \
+                     unique, or edit each site in a separate call. `read` a range around the line \
+                     you want. The file is unchanged.",
+                    sites.len(),
+                ),
+            );
+        }
+        // ── NUMBERED `content` IS THE WORSE HALF: IT SUCCEEDS AND CORRUPTS THE FILE ───────────
+        //
+        // A prefixed `replacing` fails loudly. A prefixed `content` writes `   42\t` into the
+        // source, reports `+n −m`, and nothing downstream can tell. That is the empty-`replacing`
+        // prepend one step worse, at the same call site.
+        //
+        // **The threshold differs from `replacing`'s on purpose.** `replacing` fires at one line
+        // because it is cross-checked against the file, so the named refusal cannot be wrong;
+        // `content` has no file to check against, so the grammar carries the whole burden and two
+        // consecutive numbered lines is the bar — a single one is plausibly genuine.
+        //
+        // **And `edit` refuses where `write` warns.** Splicing prefixes into existing code is never
+        // intended; writing a file that legitimately contains `cat -n` output — a transcript, a
+        // fixture, this crate's own tests — must stay possible, and `write` is where it happens.
+        if count_lines(content) >= NUMBERED_CONTENT_LINES && strip_line_numbers(content).is_some() {
+            return failed(
+                "edit",
+                format!(
+                    "`content` carries `read`'s line-number prefix ({} characters then a tab in \
+                     front of every line). Writing that into the file would put the numbers in the \
+                     source, so it is refused — strip the prefixes and call `edit` again. If you \
+                     really do mean to write numbered text, `write` does that and says so.",
+                    LINE_NUMBER_WIDTH,
+                ),
+            );
+        }
         let mut next = String::with_capacity(existing.len());
         next.push_str(&existing[..at]);
         next.push_str(content);
@@ -675,7 +994,7 @@ impl<S: PathScope> FileSystemTools<S> {
 
     /// **List what is in a directory. There was no way to do this at all.**
     ///
-    /// `find` searches file CONTENTS and needs a pattern. `read` needs a path you already know.
+    /// `grep` searches file CONTENTS and needs a pattern. `read` needs a path you already know.
     /// `bash` is `Irreversible`, so every attempt stops and asks the user. Asked what was inside
     /// `docs/requirements`, the model had exactly one option and it cost a prompt each time:
     /// journal seq 4884-4908 shows four `bash` calls — `dir "docs/requirements" /s`,
@@ -691,7 +1010,7 @@ impl<S: PathScope> FileSystemTools<S> {
     ///
     /// This returns paths. It opens nothing and reads no bytes, so no file content — trusted or
     /// otherwise — passes through it, which is why it can be `Inert` and run without asking while
-    /// `bash` cannot. Enumeration is bounded by [`FIND_FILE_CAP`] exactly as `find`'s is, and the
+    /// `bash` cannot. Enumeration is bounded by [`WALK_FILE_CAP`] exactly as `grep`'s is, and the
     /// cap being hit is **stated**, because a listing that silently stops makes absence
     /// indistinguishable from truncation.
     fn glob(&self, args: &Args, a: &Adjudication) -> ToolOutcome {
@@ -703,7 +1022,7 @@ impl<S: PathScope> FileSystemTools<S> {
         let pattern = text_arg(args, "pattern").unwrap_or("*");
 
         let base = root.resolved().to_path_buf();
-        // Same as `find`: a file here is the mistake the description names, and it must not
+        // Same as `grep`: a file here is the mistake the description names, and it must not
         // look like an empty directory.
         if base.is_file() {
             return failed(
@@ -712,50 +1031,90 @@ impl<S: PathScope> FileSystemTools<S> {
                  it — the file you named is already the answer.",
             );
         }
-        let mut candidates = Vec::new();
-        collect(&base, &mut candidates, FIND_FILE_CAP);
-        let truncated = candidates.len() >= FIND_FILE_CAP;
+        // **The pattern is applied INSIDE the walk, so the cap counts files that could match.**
+        // Filtering afterwards let 2,000 build artifacts fill every slot before the first `.rs`
+        // file was reached, which made `pattern` narrow a set that had already stopped short of
+        // the code. See [`collect`].
+        //
+        // The pattern matches the NAME when it has no slash, and the workspace-relative PATH when
+        // it does — so `*.rs` means "any .rs anywhere under here" and `src/*.rs` means what it
+        // looks like. Stated in the tool's description in full, so nothing is left to infer.
+        let keep = |p: &Path| -> bool {
+            if pattern == "*" {
+                return true;
+            }
+            let subject = if pattern.contains('/') {
+                match p.strip_prefix(&self.workspace) {
+                    Ok(r) => r.to_string_lossy().replace('\\', "/"),
+                    Err(_) => return false,
+                }
+            } else {
+                p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+            };
+            glob_match(pattern, &subject)
+        };
+        let walk = collect(&base, WALK_FILE_CAP, &keep);
+        let truncated = walk.truncated;
 
         let mut hits: Vec<String> = Vec::new();
-        for candidate in &candidates {
+        for candidate in &walk.files {
             let Ok(relative) = candidate.strip_prefix(&self.workspace) else { continue };
-            let relative = relative.to_string_lossy().replace('\\', "/");
-            let name = candidate
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-            // The pattern matches the NAME when it has no slash, and the workspace-relative PATH
-            // when it does — so `*.rs` means "any .rs anywhere under here" and `src/*.rs` means
-            // what it looks like. Stated in the tool's description rather than left to be guessed.
-            let subject = if pattern.contains('/') { relative.as_str() } else { name.as_str() };
-            if glob_match(pattern, subject) {
-                hits.push(relative);
-            }
+            hits.push(relative.to_string_lossy().replace('\\', "/"));
         }
         hits.sort();
 
         let found = hits.len() as u64;
-        let mut listing = hits.join("\n");
-        if truncated {
-            listing.push_str(&format!(
-                "\n[enumeration stopped at {FIND_FILE_CAP} files; there may be more under this \
-                 path than are listed]"
-            ));
-        }
+        // **Bounded before it is joined, and returned as TEXT rather than as a hash.** 2,000 paths
+        // is comfortably past `MAX_INLINE_BYTES`, so `glob(".", "*.rs")` on a real project used to
+        // come back through `body_for` as a `ContentRef` — and a file reference cannot be
+        // dereferenced, because `read`'s `ref` takes ids `web` issued. That is the identical defect
+        // fixed for `read` at `fab045d`, in the tool right next to it. See [`body_for_window`].
+        let mut listing = String::new();
         if found == 0 {
             // **An empty result says which of the two things happened.** "No matches" and "that
             // directory has nothing in it" are different facts, and a model that cannot tell them
             // apart invents one — which is exactly what happened live.
-            listing = if candidates.is_empty() {
+            //
+            // **Built first and then given the same notices as any other result**, because there
+            // is now a THIRD thing an empty listing can mean — the walk declined to enter the
+            // directory the files were in — and that one is invisible unless it is stated. This
+            // used to overwrite `listing`, which would have thrown the skip notice away in exactly
+            // the case it exists for.
+            listing = if walk.seen == 0 {
                 format!("no files under this path at all (`{pattern}` was not the reason)")
             } else {
-                format!(
-                    "{} file(s) are under this path and none matched `{pattern}`",
-                    candidates.len()
-                )
+                // `walk.seen` rather than the kept set, which is empty by construction here. The
+                // two facts an empty listing can carry — "nothing is here" and "things are here
+                // and none matched" — need a count that survives the filter.
+                format!("{} file(s) are under this path and none matched `{pattern}`", walk.seen)
             };
         }
-        let (body, _, preview) = body_for(listing);
+        let mut listed = 0usize;
+        for hit in &hits {
+            if listing.len() + hit.len() + 1 > READ_WINDOW_BYTES {
+                break;
+            }
+            if !listing.is_empty() {
+                listing.push('\n');
+            }
+            listing.push_str(hit);
+            listed += 1;
+        }
+        if listed < hits.len() {
+            listing.push_str(&format!(
+                "\n[{} of {found} matching paths are listed; the rest did not fit. Narrow \
+                 `pattern`, or list a subdirectory.]",
+                listed
+            ));
+        }
+        if truncated {
+            listing.push_str(&format!(
+                "\n[enumeration stopped at {WALK_FILE_CAP} files; there may be more under this \
+                 path than are listed]"
+            ));
+        }
+        listing.push_str(&skipped_notice(&walk.skipped));
+        let (body, _, preview) = body_for_window(listing);
         ToolOutcome {
             summary: ResultSummary::new(vec![Metric::Count { n: found, unit: "paths" }]),
             body,
@@ -766,23 +1125,167 @@ impl<S: PathScope> FileSystemTools<S> {
         }
     }
 
-    fn find(&self, args: &Args, a: &Adjudication, declared: &[PathGlob]) -> ToolOutcome {
+    /// **`grep` — search file CONTENTS with a real regular expression.** ADR-059.
+    ///
+    /// # The rename is a bug fix, not a preference
+    ///
+    /// This was `find`, and `SHELL_DESCRIPTION` told the model both of these in one paragraph:
+    /// *"`ls`, `grep`, `find`, `head`, `sed`, `awk` … all work as you expect"* — asserting unix
+    /// semantics, where `find` matches NAMES — and *"`glob` lists files, `find` searches inside
+    /// them"*, asserting the inverse. Two contradictory definitions of one word, in one request
+    /// body. The repo's own probe corroborates it: `tool_call_probe.rs` elicited a *contents*
+    /// search with the prompt *"Find every occurrence of TODO"*, which is the English word for
+    /// filenames. Renaming the tool without also deleting `grep` and `find` from that unix list
+    /// would have left `grep` appearing twice in one description meaning two different things.
+    ///
+    /// # What it returns, and why each notice exists
+    ///
+    /// `path:line:text` for a match and `path-line-text` for a context line — ripgrep's
+    /// convention. **The line keeps its indentation**, which is not cosmetic: `edit` requires
+    /// `replacing` "copied verbatim from a `read` including indentation", and `find` trimmed every
+    /// line it emitted, so a model that grepped a line and edited with what it got back was told
+    /// *"`replacing` was not found in the file"* with nothing on screen explaining why.
+    ///
+    /// Four things were previously inferable and are now stated: the walk stopping at
+    /// [`WALK_FILE_CAP`], the directories [`WALK_SKIP`] declined to enter, matches truncated at
+    /// [`MAX_MATCH_LINES`], and files that were binary or longer than [`MAX_READ_BYTES`] — the last
+    /// of which `find` discarded outright, so a binary file incremented nothing and the `files`
+    /// denominator was simply wrong.
+    fn grep(&self, args: &Args, a: &Adjudication, declared: &[PathGlob]) -> ToolOutcome {
+        // ── AN ARGUMENT IT DOES NOT DECLARE IS REFUSED, BY NAME ──────────────────────────────
+        //
+        // The precedent is `recall`'s removed `payload_kind`: accepted, ignored, and never
+        // reported, so a model that passed it believed it had filtered and got an unfiltered
+        // answer. `grep` is the tool where that is likeliest, because every model has `-i`,
+        // `--type`, `-l` and `head_limit` in its hands from somewhere else. A refusal naming the
+        // four real parameters and `(?i)` costs one call; a silently case-sensitive answer to a
+        // model that believes it asked for case-insensitive costs the turn.
+        for (name, _) in args.iter() {
+            if !GREP_PARAMS.contains(&name.as_str()) {
+                return failed(
+                    "grep",
+                    format!(
+                        "`{name}` is not a parameter of `grep`, and the search was NOT run with it \
+                         ignored. `grep` takes exactly these: {}. To ignore case, start `pattern` \
+                         with `(?i)` — `(?i)todo`. To restrict which files are opened, use `glob`, \
+                         e.g. `glob: \"*.rs\"`. There is no way to ask for filenames only and no \
+                         way to page through results; narrow the search instead.",
+                        GREP_PARAMS.join(", ")
+                    ),
+                );
+            }
+        }
+
         let Some(pattern) = text_arg(args, "pattern") else {
-            return failed("find", "`pattern` is required");
+            return failed("grep", "`pattern` is required");
         };
-        // **`str::contains("")` is always true**, so an empty pattern reported every line of every
-        // file under `path` as a match — a context-flood standing in for what should have been an
-        // error. A model arrives at an empty pattern the same way it arrives at an empty
-        // `replacing`: a stripped variable, a bad split, never on purpose.
+        // **An empty pattern matched every line of every file** under the old substring engine
+        // (`str::contains("")` is always true), and it does the same as a regex. A model arrives at
+        // an empty pattern the same way it arrives at an empty `replacing`: a stripped variable, a
+        // bad split, never on purpose.
         if pattern.is_empty() {
             return failed(
-                "find",
-                "`pattern` is empty, which matches every line of every file. Give the text to \
-                 search for, or use `glob` to list files without searching inside them.",
+                "grep",
+                "`pattern` is empty, which matches every line of every file. Give the regular \
+                 expression to search for, or use `glob` to list files without searching inside \
+                 them.",
             );
         }
+
+        // ── THE PATTERN COMPILES, OR THE CALL IS REFUSED WITH THE SYNTAX ERROR ───────────────
+        //
+        // **There is deliberately no fallback to a literal search.** That fallback is the
+        // permissive default this project keeps deleting: a model that wrote `foo(bar)` meaning
+        // the literal text would get a *different* answer from the one it asked for, with no
+        // signal at all that its pattern had been reinterpreted. The error names the fix, because
+        // the model cannot see this code.
+        //
+        // `size_limit`/`dfa_size_limit` are the ONLY resource guard needed. Catastrophic
+        // backtracking — `(a+)+$` — is impossible in this engine, which is finite-automata based
+        // and never backtracks; the residual cost is a pattern that is expensive to COMPILE, and
+        // that is what these two bound. Over-limit is an error the model can read and fix, not a
+        // hang and not a kill.
+        let re = match regex::RegexBuilder::new(pattern)
+            .size_limit(REGEX_SIZE_LIMIT)
+            .dfa_size_limit(REGEX_SIZE_LIMIT)
+            .build()
+        {
+            Ok(re) => re,
+            Err(e) => {
+                return failed(
+                    "grep",
+                    format!(
+                        "`pattern` is not a valid regular expression, and it was NOT searched for \
+                         as plain text instead: {e}\nTo search for text that CONTAINS one of \
+                         `. * + ? ( ) [ ] {{ }} | ^ $ \\`, put a backslash before each one — \
+                         `Cargo\\.toml`, `foo\\(bar\\)`. There is no `\\Q...\\E`. Backreferences \
+                         and lookaround do not exist in this engine and always fail here."
+                    ),
+                );
+            }
+        };
+
+        // ── `context`, VALIDATED RATHER THAN CLAMPED ────────────────────────────────────────
+        //
+        // A `Text` arm as well as `Integer`, because the WIRE decides the type and the model does
+        // not: `ollama.rs` maps a JSON number to `Integer` and the JSON string `"3"` to
+        // `Text("3")`, and which of the two a 9B model emits for one intent is a coin flip. `"3"`
+        // means three and nothing else, so reading it is honesty about the transport rather than
+        // inference about intent — anything that is not a number is still refused, by name.
+        let context: usize = match args.get("context") {
+            None => 0,
+            Some(v) => {
+                let n = match v {
+                    ArgValue::Integer(n) => Some(*n),
+                    ArgValue::Text(s) if !s.trim().is_empty() => s.trim().parse::<i64>().ok(),
+                    _ => None,
+                };
+                match n {
+                    // Refused rather than clamped: a silently lowered argument is a model
+                    // believing it asked for something it did not get.
+                    Some(n) if (0..=MAX_GREP_CONTEXT).contains(&n) => n as usize,
+                    Some(n) => {
+                        return failed(
+                            "grep",
+                            format!(
+                                "`context` is {n}, and it must be a whole number from 0 to \
+                                 {MAX_GREP_CONTEXT}. It was NOT reduced to fit — say what you want \
+                                 and call again."
+                            ),
+                        )
+                    }
+                    None => {
+                        return failed(
+                            "grep",
+                            format!(
+                                "`context` must be a whole number from 0 to {MAX_GREP_CONTEXT} — \
+                                 how many lines above and below each match to return as well. Omit \
+                                 it for matching lines only."
+                            ),
+                        )
+                    }
+                }
+            }
+        };
+
+        // An empty `glob` matches no file at all, so it would return a silent zero — the same
+        // shape as the empty `pattern` above, and refused for the same reason.
+        let file_glob = match args.get("glob") {
+            None => None,
+            Some(v) => match v.as_text() {
+                Some(g) if !g.is_empty() => Some(g),
+                _ => {
+                    return failed(
+                        "grep",
+                        "`glob` is empty, which matches no file at all. Give a pattern like \
+                         `*.rs`, or omit `glob` to search every file.",
+                    )
+                }
+            },
+        };
+
         let Some(root) = handle_for(a, "path") else {
-            return failed("find", "no adjudicated handle for `path`");
+            return failed("grep", "no adjudicated handle for `path`");
         };
 
         // Enumeration produces candidate NAMES. Every one is then opened through the scope, so
@@ -791,21 +1294,48 @@ impl<S: PathScope> FileSystemTools<S> {
         // **A file where a directory was asked for produced `0 results · 0 files` — the same
         // answer an empty directory gives.** `collect` swallows `read_dir`'s error on a file
         // (`let Ok(entries) = read_dir(..) else { continue }`), so the walk simply found nothing.
-        // The manifest says "the DIRECTORY to search -- not a file"; nothing enforced it, and the
-        // model that made exactly the mistake the manifest names got no signal at all.
+        // The manifest says "the DIRECTORY to search"; nothing enforced it, and the model that made
+        // exactly the mistake the manifest names got no signal at all.
         if base.is_file() {
             return failed(
-                "find",
-                "`path` is a file, and `find` searches a DIRECTORY. Pass the directory that \
+                "grep",
+                "`path` is a file, and `grep` searches a DIRECTORY. Pass the directory that \
                  contains it, or use `read` to look at this one file.",
             );
         }
-        let mut candidates = Vec::new();
-        collect(&base, &mut candidates, FIND_FILE_CAP);
+        // **The `glob` filter runs INSIDE the walk, and that is what makes it worth having.**
+        // As a filter over the walk's OUTPUT it would be decorative: the cap bounds enumeration,
+        // so 2,000 build artifacts still fill every slot before the first `.rs` file is reached,
+        // and `glob: "*.rs"` would then narrow a set that had already stopped short of the code.
+        //
+        // The same matcher `glob` uses, not a second one — `glob_match` already implements the
+        // exact name-versus-path rule this parameter's description promises, and it is already
+        // tested; a private copy here would be a second definition of a pattern language that
+        // exists to stop exactly that.
+        let keep = |p: &Path| -> bool {
+            let Some(g) = file_glob else { return true };
+            let subject = if g.contains('/') {
+                match p.strip_prefix(&self.workspace) {
+                    Ok(r) => r.to_string_lossy().replace('\\', "/"),
+                    Err(_) => return false,
+                }
+            } else {
+                p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+            };
+            glob_match(g, &subject)
+        };
+        let walk = collect(&base, WALK_FILE_CAP, &keep);
 
-        let mut hits = Vec::new();
+        let mut emitted: Vec<String> = Vec::new();
+        let mut emitted_bytes = 0usize;
+        let mut per_file: Vec<(String, usize)> = Vec::new();
+        let mut total_matches = 0usize;
         let mut scanned = 0u64;
-        for candidate in &candidates {
+        let mut not_text = 0usize;
+        let mut part_read: Vec<String> = Vec::new();
+        let mut budget_spent = false;
+
+        for candidate in &walk.files {
             let Ok(relative) = candidate.strip_prefix(&self.workspace) else { continue };
             let relative = relative.to_string_lossy().replace('\\', "/");
             let Ok(scoped) = self.scope.open(declared, &self.workspace, &relative, Access::Read)
@@ -815,19 +1345,143 @@ impl<S: PathScope> FileSystemTools<S> {
                 continue;
             };
             let mut text = String::new();
-            if clone_and_read(&scoped, &mut text).is_err() {
-                continue;
+            // **`ReadOutcome` is read rather than discarded, and that is a defect fix.** `find`
+            // dropped it, so a file capped at `MAX_READ_BYTES` was searched in its first 4 MiB
+            // silently, and a BINARY file pushed no text yet still incremented `scanned` — the
+            // denominator in `N results · M files` counted files nobody had searched.
+            let outcome = match clone_and_read(&scoped, &mut text) {
+                Ok(o) => o,
+                Err(_) => continue,
+            };
+            match outcome {
+                ReadOutcome::NotText { .. } => {
+                    not_text += 1;
+                    continue;
+                }
+                ReadOutcome::Capped => part_read.push(relative.clone()),
+                ReadOutcome::Whole => {}
             }
             scanned += 1;
-            for (n, line) in text.lines().enumerate() {
-                if line.contains(pattern) {
-                    hits.push(format!("{relative}:{}: {}", n + 1, line.trim()));
+
+            let lines: Vec<&str> = text.lines().collect();
+            let matched: Vec<usize> =
+                lines.iter().enumerate().filter(|(_, l)| re.is_match(l)).map(|(i, _)| i).collect();
+            if matched.is_empty() {
+                continue;
+            }
+            total_matches += matched.len();
+            per_file.push((relative.clone(), matched.len()));
+            if budget_spent {
+                // Still COUNTED, no longer emitted. That is what makes the degraded result a count
+                // of everything rather than a count of whatever happened to fit.
+                continue;
+            }
+
+            // `context` expands each match into a window; overlapping windows are merged so a line
+            // is emitted once, in order, with matches still distinguishable from their
+            // surroundings by the separator.
+            let mut wanted: Vec<(usize, bool)> = Vec::new();
+            let mut next = 0usize;
+            for &m in &matched {
+                let from = m.saturating_sub(context).max(next);
+                let to = (m + context).min(lines.len().saturating_sub(1));
+                for i in from..=to {
+                    wanted.push((i, matched.binary_search(&i).is_ok()));
                 }
+                next = to + 1;
+            }
+            for (i, is_match) in wanted {
+                if emitted.len() >= MAX_MATCH_LINES || emitted_bytes >= READ_WINDOW_BYTES {
+                    budget_spent = true;
+                    break;
+                }
+                let sep = if is_match { ':' } else { '-' };
+                let line = clip_line(lines[i]);
+                let rendered = format!("{relative}{sep}{}{sep}{line}", i + 1);
+                emitted_bytes += rendered.len() + 1;
+                emitted.push(rendered);
             }
         }
 
-        let found = hits.len() as u64;
-        let (body, _, preview) = body_for(hits.join("\n"));
+        let found = total_matches as u64;
+        let mut body = emitted.join("\n");
+        if found == 0 {
+            // Three different facts, and a model that cannot tell them apart invents one.
+            body = if walk.seen == 0 {
+                format!("no files under this path at all (`{pattern}` was not the reason)")
+            } else if scanned == 0 {
+                // Nothing was READ, and the two reasons are different actions for the model:
+                // `glob` matched no file, or every file that matched was not text.
+                match file_glob {
+                    Some(g) => format!(
+                        "no file was searched: {} file(s) are under this path, and none of them \
+                         matched `glob: \"{g}\"` or could be read as text",
+                        walk.seen
+                    ),
+                    None => format!(
+                        "no file was searched: {} file(s) are under this path and none of them \
+                         could be read as text",
+                        walk.seen
+                    ),
+                }
+            } else {
+                format!("no line matched `{pattern}` in the {scanned} file(s) searched")
+            };
+        }
+        if budget_spent {
+            let mut worst = per_file.clone();
+            worst.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            worst.truncate(NAMES_IN_A_NOTICE);
+            body.push_str(&format!(
+                "\n[{found} matches in {} file(s); the first {} lines are shown and the rest were \
+                 counted, not returned. Most matches: {}. Tighten `pattern`, set `glob`, or search \
+                 a subdirectory to see the rest.]",
+                per_file.len(),
+                emitted.len(),
+                worst.iter().map(|(p, n)| format!("{p} ({n})")).collect::<Vec<_>>().join(", ")
+            ));
+        }
+        if !part_read.is_empty() {
+            part_read.sort();
+            // **The list is bounded, and finding that out took running it on a real tree.** With
+            // `WALK_SKIP` disabled as a control, this notice listed 250 `.rlib` and `.pdb` paths in
+            // one line — a context flood in the notice that exists to prevent one. A notice is not
+            // exempt from the caps the result is under.
+            let total = part_read.len();
+            part_read.truncate(NAMES_IN_A_NOTICE);
+            let more = if total > NAMES_IN_A_NOTICE {
+                format!(" and {} more", total - NAMES_IN_A_NOTICE)
+            } else {
+                String::new()
+            };
+            body.push_str(&format!(
+                "\n[{total} file(s) were searched only as far as {MAX_READ_BYTES} bytes, so \
+                 anything later in them was not looked at: {}{more}]",
+                part_read.join(", ")
+            ));
+        }
+        if not_text > 0 {
+            body.push_str(&format!(
+                "\n[{not_text} file(s) were not text and were not searched; they are excluded from \
+                 the file count.]"
+            ));
+        }
+        if walk.truncated {
+            // **`find` never had this**, and `glob` did — so `find`'s zero on a real repository was
+            // reported as a fact about the workspace. The number is `format!`ed from the constant
+            // so the sentence cannot drift from the cap that produced it.
+            body.push_str(&format!(
+                "\n[the search stopped after {WALK_FILE_CAP} files and there is more under this \
+                 path. It did not reach everything — narrow it with `glob`, e.g. `glob: \"*.rs\"`, \
+                 or search a subdirectory instead of \".\".]"
+            ));
+        }
+        body.push_str(&skipped_notice(&walk.skipped));
+
+        // `body_for_window`, not `body_for`: this is already bounded above, and `body_for` would
+        // hand back a `ContentRef` whose hash the model cannot dereference — with a preview saying
+        // "the tool read the whole file", which is not even true of a search.
+        let (body, _, preview) = body_for_window(body);
         ToolOutcome {
             summary: ResultSummary::new(vec![
                 Metric::Count { n: found, unit: "results" },
@@ -936,7 +1590,7 @@ impl<S: PathScope> FileSystemTools<S> {
         if let Some(range) = text_arg(args, "range") {
             let of = text.lines().count();
             match slice_lines(&text, range) {
-                Ok(sliced) if sliced.is_empty() && of > 0 => {
+                Ok((sliced, _)) if sliced.is_empty() && of > 0 => {
                     return failed(
                         "read",
                         format!(
@@ -944,7 +1598,10 @@ impl<S: PathScope> FileSystemTools<S> {
                         ),
                     );
                 }
-                Ok(sliced) => text = sliced,
+                // **Deliberately dropped: the start line.** `number_lines` is not called on this
+                // path and must not be — see the note in `read`. Binding it here would make the
+                // ingredient available at the one call site that must not have it.
+                Ok((sliced, _)) => text = sliced,
                 Err(why) => return failed("read", why),
             }
         }
@@ -1177,7 +1834,7 @@ impl<S: PathScope> ToolHost for FileSystemTools<S> {
     /// **The five this host actually has arms for.** Kept beside the match below so the two
     /// cannot drift; `every_declared_tool_has_a_match_arm` asserts they agree.
     fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-        ["read", "write", "edit", "glob", "find", "bash", "web"]
+        ["read", "write", "edit", "glob", "grep", "bash", "web"]
             .iter()
             .map(|t| marlowe_tools::ToolId::new(*t))
             .collect()
@@ -1278,14 +1935,14 @@ impl<S: PathScope> FileSystemTools<S> {
     /// and concurrent paths cannot come to disagree about what a tool name means.
     fn dispatch(&self, tool: &ToolId, args: &Args, adjudication: &Adjudication) -> ToolOutcome {
         // The declared globs are the manifest's; the adjudicator already matched the model's
-        // argument against them. `find` needs them again for its own opens.
+        // argument against them. `grep` needs them again for its own opens.
         let declared = [PathGlob::new("./**")];
         match tool.as_str() {
             "read" => self.read(args, adjudication),
             "write" => self.write(args, adjudication),
             "edit" => self.edit(args, adjudication),
             "glob" => self.glob(args, adjudication),
-            "find" => self.find(args, adjudication, &declared),
+            "grep" => self.grep(args, adjudication, &declared),
             "bash" => self.bash(args, adjudication),
             "web" => self.web(args),
             other => failed("tool", format!("`{other}` has no executor in this build")),
@@ -1295,8 +1952,8 @@ impl<S: PathScope> FileSystemTools<S> {
 
 /// How much of a file `read` will hold in memory.
 ///
-/// Audit finding A8: `read_to_string` had no cap, `find` did the same for up to
-/// [`FIND_FILE_CAP`] files, and `MAX_INLINE_BYTES` gates only what reaches the model — the whole
+/// Audit finding A8: `read_to_string` had no cap, `grep` does the same for up to
+/// [`WALK_FILE_CAP`] files, and `MAX_INLINE_BYTES` gates only what reaches the model — the whole
 /// file was already resident by then. Sized well above any source file and well below anything that
 /// threatens the process.
 pub const MAX_READ_BYTES: u64 = 4 * 1024 * 1024;
@@ -1397,6 +2054,110 @@ fn glob_match(pattern: &str, subject: &str) -> bool {
     go(&p, &s)
 }
 
+/// Put `{:>6}\t` in front of every line, counting from `first_line` — the ABSOLUTE file line.
+///
+/// **Absolute is the whole feature.** `read(range: "500-600")` returns `   500\t…`; window-relative
+/// numbering would look authoritative and be wrong, which is worse than no numbering at all,
+/// because a `grep` hit could then not be turned into a location.
+///
+/// **Line terminators are re-emitted verbatim**, which is why this walks `split_inclusive('\n')`
+/// rather than `lines()`. `str::lines` strips a trailing `\r`, so a CRLF file routed through it
+/// comes back LF — and a `replacing` copied out of that read can never match the file it came
+/// from. That defect pre-dates numbering (`read`'s window path did exactly this) and numbering
+/// would have made it universal, since every read now decomposes into lines.
+pub fn number_lines(text: &str, first_line: usize) -> String {
+    if text.is_empty() {
+        return String::new();
+    }
+    let mut out = String::with_capacity(text.len() + text.len() / 8);
+    for (i, line) in text.split_inclusive('\n').enumerate() {
+        out.push_str(&format!("{:>width$}\t", first_line + i, width = LINE_NUMBER_WIDTH));
+        out.push_str(line);
+    }
+    out
+}
+
+/// The inverse: `Some(text)` iff **every** line carries a well-formed prefix and the numbers run
+/// consecutively; `None` otherwise.
+///
+/// # Both conjuncts are what keep this from being a guess
+///
+/// The grammar alone has false positives — a terminal transcript, a fixed-width report, a fixture
+/// in this very crate. Requiring *every* line to match, and the numbers to be strictly
+/// consecutive, is what bounds them. The rest of the bound is structural and lives at the call
+/// site: [`replacing_miss`] runs this only **after** `existing.find(replacing)` has already missed,
+/// and then re-searches for the stripped form. So the named refusal is never a guess about what
+/// the text looks like — it is a statement that the stripped text *is in the file*, checked
+/// against the file the executor is holding.
+///
+/// A file that genuinely contains `      42\tfoo` and is edited with exactly that snippet matches
+/// on the first search and never reaches here at all.
+pub fn strip_line_numbers(text: &str) -> Option<String> {
+    if text.is_empty() {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut expected: Option<usize> = None;
+    for line in text.split_inclusive('\n') {
+        let spaces = line.len() - line.trim_start_matches(' ').len();
+        let rest = &line[spaces..];
+        let digits = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+        if digits == 0 {
+            return None;
+        }
+        let after = &rest[digits..];
+        if !after.starts_with('\t') {
+            return None;
+        }
+        // The width is fixed, so a number that has NOT been padded to it is not this harness's
+        // prefix — except above a million lines, where the column widens and the padding is gone.
+        let padded_to_width = spaces + digits == LINE_NUMBER_WIDTH;
+        let overflowed_the_column = spaces == 0 && digits > LINE_NUMBER_WIDTH;
+        if !padded_to_width && !overflowed_the_column {
+            return None;
+        }
+        let n: usize = rest[..digits].parse().ok()?;
+        if let Some(e) = expected {
+            if n != e {
+                return None;
+            }
+        }
+        expected = Some(n.checked_add(1)?);
+        out.push_str(&after[1..]);
+    }
+    Some(out)
+}
+
+/// The 1-based line `offset` falls on, counting `\n` before it.
+fn line_at(text: &str, offset: usize) -> usize {
+    text[..offset].matches('\n').count() + 1
+}
+
+/// The first `n` lines, terminators intact. `lines().take(n).join("\n")` was the old shape and it
+/// silently rewrote CRLF to LF — see [`number_lines`].
+fn take_lines(text: &str, n: usize) -> String {
+    text.split_inclusive('\n').take(n).collect()
+}
+
+/// Cut to at most `cap` bytes, on a LINE boundary, and report how many whole lines survived.
+///
+/// The old cut was `floor_boundary`, a *char* boundary — so a window that hit the byte ceiling
+/// mid-line kept the fragment, counted it as a line, and then told the model to continue from the
+/// line **after** it. The remainder of that line was unreachable by any range. Cutting at the last
+/// newline makes the notice's arithmetic true.
+///
+/// A single line longer than `cap` has no newline to fall back to; the fragment is kept, because
+/// returning nothing at all is worse than returning a prefix.
+fn cut_to_whole_lines(text: &str, cap: usize) -> (String, usize) {
+    let hard = floor_boundary(text, cap);
+    let end = match text[..hard].rfind('\n') {
+        Some(i) => i + 1,
+        None => hard,
+    };
+    let end = if end == 0 { hard } else { end };
+    (text[..end].to_string(), text[..end].lines().count())
+}
+
 /// `first-last`, 1-based and inclusive — and **every way of getting it wrong is now an error**.
 ///
 /// # It used to fall back to the whole file, silently, for anything it could not parse
@@ -1409,7 +2170,11 @@ fn glob_match(pattern: &str, subject: &str) -> bool {
 ///
 /// A caller that wants the whole file omits `range`. There is no reading of a malformed range
 /// under which returning everything is what was asked for.
-fn slice_lines(text: &str, range: &str) -> Result<String, String> {
+///
+/// **It returns the first line's ABSOLUTE number with the text**, because that number is what
+/// [`number_lines`] counts from. Recomputing it at the call site is how the two come to disagree,
+/// and a disagreement here is a numbered window that lies about where it is in the file.
+fn slice_lines(text: &str, range: &str) -> Result<(String, usize), String> {
     let malformed = |detail: &str| {
         Err(format!(
             "`range` must be `first-last`, 1-based and inclusive, e.g. \"20-60\" — {detail}. Omit \
@@ -1431,28 +2196,75 @@ fn slice_lines(text: &str, range: &str) -> Result<String, String> {
     if b < a {
         return malformed(&format!("\"{range}\" runs backwards; did you mean \"{b}-{a}\"?"));
     }
-    Ok(text
-        .lines()
-        .skip(a.saturating_sub(1))
-        .take(b.saturating_sub(a).saturating_add(1))
-        .collect::<Vec<_>>()
-        .join("\n"))
+    Ok((
+        text.split_inclusive('\n')
+            .skip(a.saturating_sub(1))
+            .take(b.saturating_sub(a).saturating_add(1))
+            .collect::<String>(),
+        a,
+    ))
 }
 
-/// Enumerate regular files under `base`, breadth-first, to a hard cap.
+/// What one enumeration found, and what it did not.
+///
+/// **A `Vec<PathBuf>` was the wrong return type and that is the whole of ADR-059's measured
+/// defect.** Four facts come out of a walk — the files kept, how many were seen at all, the fact
+/// that it stopped early, and the directories it declined to enter — and only the first had
+/// anywhere to go. `glob` recomputed the third at its call site and `find` did not compute it at
+/// all, so `find`'s zero on this repository was indistinguishable from an empty workspace. They
+/// are returned together now, because a caller cannot forget to look at a field it destructures.
+pub(crate) struct Walk {
+    /// The files that passed `keep`, sorted.
+    files: Vec<PathBuf>,
+    /// Every regular file the walk reached, whether or not `keep` took it. This is what lets an
+    /// empty result say *"N files are here and none matched"* rather than *"there is nothing
+    /// here"* — two different facts, and a model that cannot tell them apart invents one.
+    seen: usize,
+    /// Which [`WALK_SKIP`] names were actually met, deduplicated and sorted. Empty when none were,
+    /// so a result never claims to have skipped a directory that was not there.
+    skipped: Vec<String>,
+    /// The cap stopped the walk before it had seen everything.
+    truncated: bool,
+}
+
+/// Enumerate regular files under `base` that satisfy `keep`, to a hard cap, skipping
+/// [`WALK_SKIP`] directories.
 ///
 /// Symlinked directories are **not** descended — `read_dir` reports them, and following one here
 /// would walk outside the workspace before the scope ever saw the path. The scope refuses them
 /// anyway on the way back in; not descending is the cheaper half of the same refusal.
-fn collect(base: &Path, out: &mut Vec<PathBuf>, cap: usize) {
+///
+/// **The skip is on directories this walk would DESCEND into, never on `base`.** So `path:
+/// "target"` searches `target`, and `path: "."` does not — which is the behaviour both tools'
+/// descriptions promise, and it is enforced here rather than restated at two call sites.
+///
+/// # `keep` is applied HERE, and applying it later would have been useless
+///
+/// The obvious shape for `grep`'s new `glob` argument is a filter over the walk's output. It does
+/// not work, and the reason is the whole point of the argument: the cap bounds how many files the
+/// walk ENUMERATES, so a filter applied afterwards still lets 2,000 irrelevant files consume every
+/// slot before the first `.rs` file is reached. `glob: "*.rs"` would then narrow a set that had
+/// already stopped short of the code. Filtering inside the walk is what makes the cap count files
+/// that could actually match, and `a_glob_filter_reaches_source_that_the_cap_would_otherwise_hide`
+/// is the test that fails if it moves back out.
+pub(crate) fn collect(base: &Path, cap: usize, keep: &dyn Fn(&Path) -> bool) -> Walk {
+    let mut files = Vec::new();
+    let mut seen = 0usize;
+    let mut skipped: Vec<String> = Vec::new();
+    let mut truncated = false;
     let mut queue = vec![base.to_path_buf()];
     while let Some(dir) = queue.pop() {
         // LOOP-EXEMPT: a breadth-first enumeration, not a driving loop. The crate has no agent
         // loop in it; HP10's check is scoped to `marlowe-loop`.
         let Ok(entries) = std::fs::read_dir(&dir) else { continue };
         for entry in entries.flatten() {
-            if out.len() >= cap {
-                return;
+            if files.len() >= cap {
+                truncated = true;
+                // Not `return`: the remaining queue is not walked, but the skip names already
+                // found stay in the result. A truncated walk that also declined to enter `target/`
+                // has to be able to say both things at once.
+                queue.clear();
+                break;
             }
             let Ok(meta) = entry.metadata() else { continue };
             let Ok(link_meta) = entry.path().symlink_metadata() else { continue };
@@ -1460,12 +2272,45 @@ fn collect(base: &Path, out: &mut Vec<PathBuf>, cap: usize) {
                 continue;
             }
             if meta.is_dir() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if WALK_SKIP.contains(&name.as_str()) {
+                    if !skipped.contains(&name) {
+                        skipped.push(name);
+                    }
+                    continue;
+                }
                 queue.push(entry.path());
             } else if meta.is_file() {
-                out.push(entry.path());
+                seen += 1;
+                let path = entry.path();
+                if keep(&path) {
+                    files.push(path);
+                }
             }
         }
     }
+    skipped.sort();
+    // **Sorted here rather than at each call site.** `read_dir` order is OS-defined, `glob` sorted
+    // its hits and `find` did not, and two identical searches returning two orderings in a project
+    // whose scoreboard is a reproduction hash is not a cosmetic difference.
+    files.sort();
+    Walk { files, seen, skipped, truncated }
+}
+
+/// The sentence a result uses to say a walk declined to enter a directory.
+///
+/// One definition, called by `glob` and by `grep`, so the two cannot describe the same policy
+/// differently — and built with `format!` from [`WALK_SKIP`] so the names cannot drift from the
+/// constant that produced them.
+fn skipped_notice(skipped: &[String]) -> String {
+    if skipped.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\n[not searched, because they are build output or version control: {}. Name one as \
+         `path` to look inside it.]",
+        skipped.join(", ")
+    )
 }
 
 /// The two bounds a shell run is held to.
@@ -1522,7 +2367,7 @@ pub fn shell_command() -> std::io::Result<std::process::Command> {
                 std::io::ErrorKind::NotFound,
                 "the `bash` tool needs Git Bash and it is not installed. Install Git for Windows \
                  (https://git-scm.com/download/win), or set MARLOWE_BASH to a bash.exe. The \
-                 `read`, `write`, `edit`, `glob` and `find` tools do not need it.",
+                 `read`, `write`, `edit`, `glob` and `grep` tools do not need it.",
             ));
         };
         let mut c = std::process::Command::new(bash);

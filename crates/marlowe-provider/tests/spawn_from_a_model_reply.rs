@@ -430,12 +430,12 @@ fn a_model_cannot_hand_its_child_a_tool_the_parent_does_not_hold() {
     // **The control.** A list of tools the parent DOES hold spawns, so the refusal above is about
     // the widening and not about `exposed_tools` being unparseable.
     let parsed = parse_step(&run_call(
-        serde_json::json!({ "task": "t", "exposed_tools": "read, find" }),
+        serde_json::json!({ "task": "t", "exposed_tools": "read, grep" }),
     ));
     match parsed {
         ModelStep::Spawn(req) => assert_eq!(
             req.tools,
-            vec![ToolId::new("read"), ToolId::new("find")],
+            vec![ToolId::new("read"), ToolId::new("grep")],
             "the list the model wrote must parse to the ids it named"
         ),
         other => panic!("expected a spawn, got {other:?}"),
@@ -447,7 +447,7 @@ fn a_model_cannot_hand_its_child_a_tool_the_parent_does_not_hold() {
 /// gate that could disagree with the first.
 #[test]
 fn a_tool_list_parses_in_the_shapes_a_model_writes_it() {
-    for form in ["read,find", "read, find", "read find", "[\"read\",\"find\"]", "['read', 'find']"]
+    for form in ["read,grep", "read, grep", "read grep", "[\"read\",\"grep\"]", "['read', 'grep']"]
     {
         let parsed = parse_step(&run_call(
             serde_json::json!({ "task": "t", "exposed_tools": form }),
@@ -455,7 +455,7 @@ fn a_tool_list_parses_in_the_shapes_a_model_writes_it() {
         match parsed {
             ModelStep::Spawn(req) => assert_eq!(
                 req.tools,
-                vec![ToolId::new("read"), ToolId::new("find")],
+                vec![ToolId::new("read"), ToolId::new("grep")],
                 "{form:?} did not parse to two ids"
             ),
             other => panic!("expected a spawn, got {other:?}"),

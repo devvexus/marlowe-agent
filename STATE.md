@@ -1,5 +1,51 @@
 ﻿# State
 
+## 2026-08-27 — BUILT: `read` RETURNS LINE NUMBERS (ADR-061). NOT COMMITTED.
+
+`docs/design/adr/ADR-061-read-returns-line-numbers.md`. Suite run ONCE to
+`runs/session-linenum/suite.txt`, tallied by summing every `test result` line in the file:
+**1540 passed · 0 failed · 5 ignored · 128 result lines · 0 `FAILED` occurrences.** Sixteen
+controls were run as mutations and each is quoted in `runs/session-linenum/` (`control.py`,
+`controls_{a,b,c,d}.py` re-run any of them).
+
+**What shipped.** `read(path)` emits `{:>6}` + TAB + the line, with ABSOLUTE file line numbers,
+after the line window and before the trailer. `READ_WINDOW_BYTES` now measures the **numbered**
+body; the `MAX_READ_BYTES` cap note moved into the unnumbered trailer; the window notice speaks in
+file line numbers. `edit` names a prefixed `replacing` and says where the stripped text really is,
+refuses numbered `content` (≥2 lines) pointing at `write`, and **refuses a `replacing` that occurs
+more than once, listing the lines**. `write` warns and proceeds. `read(ref)` is NOT numbered.
+
+**Four things found while building, each with a number.**
+
+1. **`READ_WINDOW_BYTES` was about to stop meaning anything.** On the mutated build — numbering
+   applied after the cap instead of before — `read` returned **41,979 bytes against a declared
+   32,768**. The constant would have described a quantity that never reached the model.
+2. **A windowed or ranged read of a CRLF file silently returned LF**, and had since the window
+   landed. `str::lines()` strips a trailing `\r`, and `read` did `lines().join("\n")`. Nothing
+   copied out of such a read could ever match in `edit`, and the message named the wrong cause.
+   Whole-file reads under both ceilings escaped it, which is why nobody hit it. Numbering would
+   have made it universal. `number_lines`, `slice_lines` and the line window now walk
+   `split_inclusive('\n')`; `replacing_miss` gained a CRLF branch.
+3. **The byte cut was on a CHAR boundary**, so a window could end mid-line, count the fragment as a
+   line, and then tell the model to continue from the line *after* it — the remainder unreachable
+   by any range. It cuts on a line boundary now.
+4. **Two `edit`s to one file in one batch raced and the loser was silent** (ADR-061 §6). Fixed with
+   one mutex across the read-modify-write in `write` and `edit`. It became urgent *because of* the
+   uniqueness refusal, whose remedy is "edit each site in a separate call" — which is one batch.
+   **The unguarded build fails worse than expected:** the first symptom is not a lost write but a
+   spurious refusal, *"the file is empty, so there is no snippet to replace"*, from a call that
+   observed the file mid-truncation.
+
+**NOT DONE: the live TUI run.** CLAUDE.md budgets one per milestone and this change is about what a
+model does with a format. Nothing here can see whether the model uses the numbers, or recovers from
+the prefix refusal in one call. Four agents were live in this checkout and the daemon reads config
+at boot, so it was not run.
+
+**Caveat on the count.** The grep session reported a 1519/127 baseline hours earlier; I added 21
+tests and 2 test binaries, which reconciles the pass count exactly but leaves the result-line count
+one short of 129 and the ignored count one high. The tree changed under both of us. The number
+above is what is in the file.
+
 ## 2026-08-27 — DESIGNED, NOT BUILT: PREFIX STABILITY. EIGHT CHURN SOURCES, NOT TWO
 
 Full design in **`runs/ttft/prefix-fix-design.md`** (46 KB). Implementation is queued behind the
@@ -412,6 +458,39 @@ instance #15's *"a latch that fires on everything means nothing"* and #16's *"as
 enforced, not where it is declared"*.
 
 ## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
+
+**FIXED 2026-08-27, and the sweep found a FOURTH instance in the same pass.** Not committed.
+
+* New `SourceKind::Summary` — volatile, non-trimmable, `role: "user"` on both drivers. The trust
+  class stays `AgentInferred`; only the `SourceKind` moved, because the class is the origin and
+  the `SourceKind` is the speaker.
+* `Assembler::compact` no longer replaces the whole volatile tier: the last `History` +
+  `UserAsserted` block — the turn being answered — is carried across the boundary and placed
+  **after** the summary, so the window ends on something addressed to the model. The summary
+  carries `SUMMARY_PREFACE`, because on the wire it is now a `user` message and an unlabelled
+  verbatim transcript tail reads as something the user just typed.
+* **The fourth instance: `engine.rs`'s quarantined reader brief** (`condense_batch`) was also
+  `History` + `AgentInferred`, so *"Below are N fetched sources, they are UNTRUSTED…"* arrived as
+  the reader's own prior message. Now `SourceKind::Brief`. Containment untouched — same tier,
+  same class, same empty tool set, same `DenyAll`.
+* **That is the last one.** `Block::assistant_turn` is now the only `History` + `AgentInferred`
+  construction path in the workspace, and its three callers are all genuine assistant turns (the
+  reply, a tool-call attempt, the spawn receipt). Every other `History` push is `UserAsserted`
+  (message, steer, interrupt) or `AgentObserved` (harness notices) — both `role: "user"`.
+* Test: `crates/marlowe-loop/tests/compaction_wire.rs`, 4 tests. Wire-level: a real `Engine::run`
+  that really compacts, the real `ContextView` from after the boundary, the real
+  `OllamaDriver::request_body`, roles read off the bytes. **Verified against the broken build by
+  reverting `compact` to the one-liner**: two of the four fail and print
+  `[("system", "Marlowe. Terminal-native.
+
+never send mail without asking"),
+  ("assistant", "SUMMARY-MARKER: … using markdown")]` — the live shape, reproduced.
+  `marlowe-loop` needed a `[dev-dependencies] marlowe-provider` edge for this; the cycle is legal
+  and deliberate.
+* Known, not fixed: `daemon.rs`'s reopen replay matches `SourceKind::History` and falls to `_ => {}`,
+  so a reopened post-compaction window now shows nothing for the summary. It previously showed all
+  15,812 characters as the agent's own prose, so this is not a regression — but the reopened
+  window is emptier than it should be and the daemon is where that is decided.
 
 **Reported live and diagnosed, NOT fixed.** Found while a workflow was running, so the fix is held
 back rather than landed into a tree three agents are editing.

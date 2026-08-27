@@ -72,6 +72,20 @@ ratatui = "0.30"
 # choosing it would make the primary development platform the unsupported one.
 crossterm = "0.29"
 
+# ADR-059. `grep`'s engine. **`regex`, NOT `fancy-regex`** — which is also in the lockfile and is a
+# BACKTRACKING engine (that is why it has lookaround). `regex` is finite-automata based with a
+# documented worst case linear in the haystack, so catastrophic backtracking cannot occur: it is a
+# property of the crate, not of a timeout we would have to write and test. The two ways a pattern
+# can still cost anything are bounded structurally — `RegexBuilder::size_limit` refuses a pattern
+# that would explode at COMPILE time (and the model sees the error and can fix it), and the walk's
+# own file cap bounds the bytes scanned.
+#
+# **It is new compiled code in the shipped binary even though it is already in `Cargo.lock`.**
+# `cargo tree -p marlowe -i regex` printed "nothing to print" before this line: the existing
+# lockfile entries come from `marlowe-embed-spike` (marked TEMPORARY) and from an unbuilt ratatui
+# backend. Zero new registry sources, but not zero new code — said plainly rather than claimed away.
+regex = "1"
+
 serde = { version = "1", features = ["derive"] }
 # NOT `preserve_order`. That feature backs serde_json's Map with an IndexMap, making key
 # order depend on construction order; the default is a BTreeMap, so keys serialize sorted.

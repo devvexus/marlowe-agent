@@ -364,8 +364,18 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
         "write" => "write",
         "edit" => "edit",
         "glob" => "glob",
+        "grep" => "grep",
+        // **LEGACY, ADR-059.** `grep` was called `find` until this session, and the daemon seeds
+        // runs from the JOURNAL on restart — so an old journal's tool events still carry `find`.
+        // Dropping the arm would render every pre-rename tool line as the generic `tool`: a wall
+        // of them, in the pane a user goes to to read what happened. One line, kept deliberately,
+        // and `an_old_journals_find_still_renders_as_a_verb` is what stops it being tidied away.
         "find" => "find",
         "bash" => "bash",
+        // `run` never reaches the wire as itself -- a spawn emits `"spawn"`, which is above --
+        // but it is a builtin, and `every_builtin_is_in_the_section_b6_verb_vocabulary` checks
+        // the whole of `BUILTIN_TOOLS` rather than the subset somebody remembered.
+        "run" => "run",
         "recall" => "recall",
         "remember" => "remember",
         "web" => "web",

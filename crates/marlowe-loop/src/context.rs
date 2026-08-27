@@ -88,6 +88,37 @@ pub enum SourceKind {
     ///
     /// Non-trimmable, like `History`: a child evicted of its brief has no reason to exist.
     Brief,
+    /// **A compacted conversation, and it exists for the THIRD instance of the reason `Brief`
+    /// does.**
+    ///
+    /// [`Assembler::compact`] pushed the summarizer's output as `History` at
+    /// `TrustClass::AgentInferred`, which both drivers map to `role: "assistant"`, and it
+    /// replaced the whole volatile tier. So the first compaction in a real profile produced a
+    /// window of exactly two messages:
+    ///
+    /// ```text
+    /// system:    <identity, governance>
+    /// assistant: <15,812 characters of summary>
+    /// ```
+    ///
+    /// **No user turn at all**, and the summary was a verbatim tail of the conversation because
+    /// `PassthroughSummarizer` returns the last three volatile blocks rather than inventing a
+    /// summary. The model was handed a sentence it had supposedly been in the middle of writing
+    /// and did the only thing a chat model can do with one — it continued it. The entire reply
+    /// was `", using markdown"`, a fragment beginning with a comma (journal seq 5196-5201,
+    /// 2026-08-27).
+    ///
+    /// **The fix is not a trust class**, for the same reason it was not one for `Brief`:
+    /// `AgentInferred` is right — a model composed this text — and promoting it to
+    /// `UserAsserted` to get a role would be a laundering step, which is layer 2. Trust class
+    /// answers *how much may this authorize*; it does not name a speaker. A summary is context
+    /// **about** the conversation, not a turn **in** it, and the origin of a summary is the
+    /// harness's summarizer rather than the run itself.
+    ///
+    /// Non-trimmable, like `History` and `Brief`: it is the compacted conversation, and a run
+    /// evicted of it has forgotten everything before the boundary with no durable append behind
+    /// the eviction — invariant 1's failure, arrived at from the other side.
+    Summary,
 }
 
 impl SourceKind {
@@ -103,7 +134,8 @@ impl SourceKind {
             | SourceKind::ToolResults
             | SourceKind::InjectedMemory
             | SourceKind::ChildResults
-            | SourceKind::Brief => Tier::Volatile,
+            | SourceKind::Brief
+            | SourceKind::Summary => Tier::Volatile,
         }
     }
 
@@ -126,7 +158,8 @@ impl SourceKind {
             SourceKind::Identity
             | SourceKind::Governance
             | SourceKind::History
-            | SourceKind::Brief => false,
+            | SourceKind::Brief
+            | SourceKind::Summary => false,
             SourceKind::ProjectFiles
             | SourceKind::Skills
             | SourceKind::ToolSchemas
@@ -136,7 +169,7 @@ impl SourceKind {
         }
     }
 
-    pub const ALL: [SourceKind; 10] = [
+    pub const ALL: [SourceKind; 11] = [
         SourceKind::Identity,
         SourceKind::Governance,
         SourceKind::ProjectFiles,
@@ -147,6 +180,7 @@ impl SourceKind {
         SourceKind::InjectedMemory,
         SourceKind::ChildResults,
         SourceKind::Brief,
+        SourceKind::Summary,
     ];
 }
 
@@ -476,6 +510,17 @@ pub const MEMORY_TOKEN_BUDGET: u32 = 7_000;
 /// §6's compaction trigger. **Never at exhaustion.**
 pub const COMPACTION_TRIGGER: f32 = 0.70;
 
+/// What the compacted conversation is labelled as, in the model's window.
+///
+/// **A label, not decoration.** The summary goes out as a `user`-role message — it is context
+/// about the conversation rather than a turn in it, and `assistant` is what produced the bug
+/// [`SourceKind::Summary`] documents. An unlabelled `user` message carrying a verbatim tail of
+/// the transcript reads as something the user just said, which is a second attribution error in
+/// place of the first. This says what it is and says the turn after it is the live one.
+pub const SUMMARY_PREFACE: &str = "[The conversation so far, condensed by the harness \
+     because the context window filled. This is a record, not a turn anyone took. \
+     Anything after it is current.]";
+
 /// Below this much room, a truncated block would be a marker and nothing else, so the block is
 /// omitted with a count instead. Keeps a view from filling with stubs.
 const MIN_TRUNCATED_TOKENS: u32 = 24;
@@ -512,6 +557,10 @@ impl SourceBudgets {
         // is the single most important block there is, and it is not trimmable, so the figure is
         // a reporting line rather than a limit that can bite.
         by_source.insert(SourceKind::Brief, pct(10));
+        // The compacted conversation IS the history, so it takes history's line rather than a
+        // second one that could drift from it. Not trimmable either, for the same reason
+        // `History` is not: dropping it is eviction with no durable append behind it.
+        by_source.insert(SourceKind::Summary, pct(30));
         Self { by_source }
     }
 }
@@ -732,6 +781,25 @@ impl Assembler {
     /// invariant 1 is that `SessionSummarized` and `SessionSpawned` are durable before any
     /// parent volatile state is discarded, and this function is the discard. It is not
     /// idempotent and it is not concurrent with the appends.
+    ///
+    /// # Two defects lived in this function's first line, and either alone was fatal
+    ///
+    /// It was
+    ///
+    /// ```ignore
+    /// state.volatile = vec![Block::new(SourceKind::History, summary, TrustClass::AgentInferred)];
+    /// ```
+    ///
+    /// **1. The tier was REPLACED, and the user's live turn is in it.** The daemon pushes the
+    /// triggering message as a volatile block before the loop starts; compaction fires at the
+    /// TOP of the loop, before the first model call. So the question being answered was deleted
+    /// before the model had ever seen it — data loss independent of any role.
+    ///
+    /// **2. `History` + `AgentInferred` is `role: "assistant"` on both drivers.** The summary —
+    /// by then the only block left — went out as the model's own words.
+    ///
+    /// Together: a system message, then 15,812 characters of assistant turn, and nothing to
+    /// answer. The whole reply was `", using markdown"`. See [`SourceKind::Summary`].
     pub fn compact(
         &mut self,
         state: &mut SessionState,
@@ -741,17 +809,52 @@ impl Assembler {
     ) {
         let parent = state.session;
 
+        // **The turn the run is answering is not the summarizer's to replace.** Compaction
+        // discards what the summarizer was SHOWN; the user's own words are the one thing in the
+        // volatile tier that a summary cannot stand in for, because a conversation that ends on
+        // a recap has nothing addressed to the model in it.
+        //
+        // The LAST such block, and only that one. Keeping every user turn ever spoken would grow
+        // without bound across a long dialogue and would eventually make the post-compaction
+        // window still exceed the trigger — which the loop treats as unrecoverable and fails the
+        // run on. One turn is what the loop is mid-way through answering.
+        let live_turn = state
+            .volatile
+            .iter()
+            .rev()
+            .find(|b| b.source == SourceKind::History && b.trust == TrustClass::UserAsserted)
+            .cloned();
+
         // The summarizer's output replaces the VOLATILE tier and nothing else. Governance is
         // not passed to it, is not returned by it, and is therefore not something it can drop.
-        state.volatile = vec![Block::new(
-            SourceKind::History,
-            summary,
+        let mut next = vec![Block::new(
+            // **Not `History`.** See the note on this function and on [`SourceKind::Summary`]:
+            // that pairing is `role: "assistant"`, so the summary arrived as a turn the model
+            // had supposedly just taken.
+            SourceKind::Summary,
+            // Labelled, because on the wire this is a `user`-role message and an unlabelled one
+            // reads as something the user just typed. `PassthroughSummarizer` returns a verbatim
+            // tail of the conversation, so without a label the model is handed several thousand
+            // characters of its own prior transcript attributed to whoever spoke last.
+            if summary.trim().is_empty() {
+                format!("{SUMMARY_PREFACE}\n\n[the summarizer returned nothing]")
+            } else {
+                format!("{SUMMARY_PREFACE}\n\n{summary}")
+            },
             // A summary of the conversation is the model's own reading of it. Worst-case
             // propagation would be wrong here for the same reason §3.3 draws the line at
             // origin: the harness produced this call, so it is agent-inferred, and any
             // untrusted text it summarised is still gone from the window.
+            //
+            // **And it stays `AgentInferred` even though that is half of what produced the bug.**
+            // Promoting it to `UserAsserted` would fix the role and launder a class, which is
+            // layer 2 and is not negotiable. The speaker is the `SourceKind`; the class is the
+            // origin.
             TrustClass::AgentInferred,
         )];
+        // After the summary, so the conversation ends on a turn addressed to the model.
+        next.extend(live_turn);
+        state.volatile = next;
         state.session = child;
         state.lineage += 1;
         state.compactions += 1;
@@ -783,7 +886,10 @@ mod tests {
         let mut a = Assembler::new(100_000, 10_000);
         let mut cache = PrefixCache::default();
         let mut s = state();
-        s.push(Block::new(SourceKind::History, "a long conversation", TrustClass::UserAsserted));
+        // What the summarizer replaces is the AGENT's side of the conversation. The user's live
+        // turn is the one thing it does not stand in for -- see `compact`.
+        s.push(Block::assistant_turn("a long conversation", None, vec![]));
+        s.push(Block::new(SourceKind::History, "and my actual question", TrustClass::UserAsserted));
 
         let before = a.assemble(&s);
         assert_eq!(before.stable.len(), 3, "identity + two constraints");
@@ -796,6 +902,20 @@ mod tests {
         assert!(rendered.contains("never send mail without asking"));
         assert!(rendered.contains("the workspace is ./project"));
         assert!(!rendered.contains("a long conversation"), "the volatile tier was replaced");
+        assert!(
+            rendered.contains("and my actual question"),
+            "compaction deleted the turn being answered:\n{rendered}"
+        );
+        assert_eq!(
+            s.volatile.last().map(|b| b.source),
+            Some(SourceKind::History),
+            "the window must not end on the summary; it ends on the live turn"
+        );
+        assert_eq!(
+            s.volatile[0].source,
+            SourceKind::Summary,
+            "and never on `History`, which both drivers read as the model own voice"
+        );
     }
 
     #[test]

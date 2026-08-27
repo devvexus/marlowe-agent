@@ -166,7 +166,7 @@ fn parse_grant(args: &Args) -> Option<u64> {
     Some(n as u64)
 }
 
-/// A tool list as a model actually writes it: `read, find`, `["read","find"]`, `read find`.
+/// A tool list as a model actually writes it: `read, grep`, `["read","grep"]`, `read grep`.
 ///
 /// **Nothing here decides whether a tool may be given away.** `Engine::spawn` checks every id
 /// against the parent's exposed set and refuses by name; this only turns a string into ids. A
@@ -350,6 +350,61 @@ pub struct ToolOutcome {
     ///
     /// `None` when the body was inlined whole — there is nothing to preview.
     pub preview: Option<String>,
+}
+
+impl ToolOutcome {
+    /// The body as the model receives it, without the §B6 summary in front of it.
+    ///
+    /// Hoisted out of `Engine::finish_call` so that **one** expression produces both the text
+    /// that goes to the model and the text that goes to the screen. They were two expressions and
+    /// only one of them existed: the screen's was `ResultSummary::render()`, which is metrics.
+    pub fn body_text(&self) -> String {
+        match &self.body {
+            ToolBody::Inline(s) => s.clone(),
+            // A reference the model cannot dereference is not a result — see `finish_call`, where
+            // this wording was written and where the live failure that produced it is recorded.
+            ToolBody::Reference { hash, bytes } => match &self.preview {
+                Some(p) => format!("{bytes} B total, ref {hash}
+{p}"),
+                None => format!("ref {hash} ({bytes} B)"),
+            },
+        }
+    }
+
+    /// What §B6's *"Enter for full output in place"* shows when a person opens this call's line.
+    ///
+    /// # Derived here, at one site, rather than set by each executor
+    ///
+    /// `ResultSummary::detail` is `None` at 24 of the 38 construction sites under `crates/*/src`,
+    /// and where it is set at all it holds a harness constant — `"html · id"`, `"400 -> host"` —
+    /// never the bytes. So a wire field alone would have carried nothing: expanding a `read` would
+    /// still have shown an empty pane, which is the reported symptom, unchanged.
+    ///
+    /// The detail a person wants is the **body**. Deriving it from the outcome means a thirteenth
+    /// tool cannot forget to opt in, which is the argument ADR-039 makes for keying the quarantine
+    /// on the trust class rather than on a list of tool names.
+    ///
+    /// **The reason and the body are both kept when both exist.** `bash` sets `failed: code != 0`
+    /// with a full stdout body and no `detail`; `failed()` sets a `detail` and an empty body. A
+    /// rule that took one or the other would be right for one of those and silent for the other.
+    pub fn screen_detail(&self) -> Option<String> {
+        let body = self.body_text();
+        let reason = self
+            .summary
+            .detail
+            .as_deref()
+            .map(str::trim)
+            .filter(|d| !d.is_empty());
+        match (reason, body.trim().is_empty()) {
+            (Some(r), true) => Some(r.to_string()),
+            // Already quoted inside the body: `web`'s detail is a description of the same bytes.
+            (Some(r), false) if body.contains(r) => Some(body),
+            (Some(r), false) => Some(format!("{r}
+{body}")),
+            (None, true) => None,
+            (None, false) => Some(body),
+        }
+    }
 }
 
 /// §2.8's first axis: inline vs. reference, driven by **size**. Independent of trust.

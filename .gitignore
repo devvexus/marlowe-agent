@@ -38,3 +38,6 @@ runs/**/run.jsonl
 runs/**/scored-candidates.ndjson
 .cold-cache-probe/
 runs/session-d-coldprobe/
+
+# ORT profiling dumps: ~170 MB each, over GitHub's 100 MB limit. Kept on disk, never committed.
+runs/**/ort-profiles/

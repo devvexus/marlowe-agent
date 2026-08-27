@@ -125,7 +125,7 @@ pub enum ScopeError {
         "`{requested}` could not be opened: {detail}. \
          This is NOT a scoping refusal and NOT a permission denial — an undeclared path says so in \
          those words. If the detail above says the file does not exist, then it does not exist: \
-         confirm with `find` before concluding that access was blocked"
+         confirm with `glob` before concluding that access was blocked"
     )]
     Unopenable { requested: String, detail: String },
 
@@ -302,7 +302,7 @@ mod tests {
         let m = e.to_string();
         assert!(m.contains("NOT a scoping refusal"), "{m}");
         assert!(m.contains("NOT a permission denial"), "{m}");
-        assert!(m.contains("`find`"), "the remedy must be named, not implied: {m}");
+        assert!(m.contains("`glob`"), "the remedy must be named, not implied: {m}");
         assert!(m.contains("docs/memory.md"), "the path must survive: {m}");
         assert!(m.contains("cannot find the file"), "the OS detail must survive: {m}");
     }
