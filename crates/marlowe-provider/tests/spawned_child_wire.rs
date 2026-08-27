@@ -346,3 +346,105 @@ fn after_a_child_returns_the_parent_has_something_to_answer() {
         );
     }
 }
+
+/// **What the SURFACE was told, in order.** Audit finding E4 and §10.2: a subagent returns
+/// findings, not a transcript, and prose composed in a child's window must not reach a terminal.
+///
+/// Watched live 2026-08-26, the user's report: *"I saw the result of the subagent first and then I
+/// saw it get overridden by the main agent."* On the wire the child really does stream its answer
+/// — 18 content frames in the `--dev` dump — so the only question that matters is whether those
+/// deltas reach the sink. This reads the sink.
+///
+/// The control is the second half: the child must actually have SAID the thing, or an assertion
+/// that the parent's screen lacks it passes because nothing ever produced it.
+///
+/// **And the control took two attempts, which is the part worth keeping.** The first replaced
+/// `QuarantinedSink` at the first of its TWO construction sites — line 1998 is layer 1's
+/// quarantined reader, line 2587 is the spawn — so it removed a guard this test does not exercise
+/// and the test stayed green. A passing control reads exactly like a passing test. Pointed at the
+/// spawn's sink it fails with the surface having seen
+/// the child's answer followed by the parent's, which is the user's report verbatim.
+#[test]
+fn a_childs_prose_never_reaches_the_surface_but_the_parents_answer_does() {
+    const CHILD_SAID: &str = "A fox jumped over a dog.";
+    const PARENT_SAID: &str = "Done, and here is what came back.";
+
+    let registry = builtin_registry().expect("the builtin manifests load");
+    let mut e = Engine::new(
+        registry,
+        Unavailable,
+        100_000,
+        10_000,
+        std::path::PathBuf::from("/ws"),
+        Tier::Act,
+    );
+    let mut driver = ViewRecorder {
+        steps: VecDeque::from(vec![
+            reply(
+                serde_json::json!({
+                    "content": "",
+                    "tool_calls": [{ "function": { "name": "run", "arguments": {
+                        "task": TASK, "exposed_tools": "", "output_contract": "a one-line summary",
+                    }}}],
+                }),
+                100,
+            ),
+            reply(serde_json::json!({ "content": CHILD_SAID }), 100),
+            reply(serde_json::json!({ "content": PARENT_SAID }), 100),
+        ]),
+        views: Vec::new(),
+    };
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+    let mut run = Run::root(
+        RunId::from_name("root"),
+        SessionId::from_name("root-session"),
+        CapabilityProfile::interactive(),
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    state.push(Block::new(
+        SourceKind::History,
+        "summarise something for me".to_string(),
+        TrustClass::UserAsserted,
+    ));
+    let mut prov = Provenance::new();
+    e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    // THE CONTROL FIRST. The child's words have to exist somewhere, or the absence below is
+    // vacuous — the same reason `CollectingSink::text` was given a doc comment saying so.
+    let parent_view = driver
+        .views
+        .iter()
+        .find(|v| v.volatile.iter().any(|b| b.text.contains(CHILD_SAID)))
+        .expect("the child's answer reached the PARENT'S CONTEXT, which is where it belongs");
+    let _ = parent_view;
+
+    let on_screen = sink.text();
+    assert!(
+        on_screen.contains(PARENT_SAID),
+        "the parent's own answer never reached the surface: {on_screen:?}"
+    );
+    assert!(
+        !on_screen.contains(CHILD_SAID),
+        "a child's prose reached the terminal. §10.2: a subagent returns findings, not a \
+         transcript, and audit finding E4 forbids exactly this. What the surface saw: {on_screen:?}"
+    );
+}
