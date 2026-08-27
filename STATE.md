@@ -1,5 +1,86 @@
 ﻿# State
 
+## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
+
+**Reported live and diagnosed, NOT fixed.** Found while a workflow was running, so the fix is held
+back rather than landed into a tree three agents are editing.
+
+### What was seen
+
+After a compaction the reply was, in its entirety, `", using markdown"` — a fragment beginning with
+a comma. The user's description was *"the agent doesn't get a proper handoff and some weird
+streaming artifacts"*, and the first half of that is literally true.
+
+### The journal, which is unambiguous
+
+```text
+5196  03:06:46  session_summarized  {"chars":15812}     <- the FIRST compaction in this profile
+5197  03:06:46  session_spawned
+5199  03:06:49  model_step  11533
+5200  03:06:52  model_step  11560
+5201  03:06:52  run_completed  {"answer": ", using markdown"}   <- the WHOLE reply
+```
+
+### The cause, and it is the same one three times
+
+`Assembler::compact` is four lines and the first is the defect:
+
+```rust
+state.volatile = vec![Block::new(SourceKind::History, summary, TrustClass::AgentInferred)];
+```
+
+**Two things happen at once, and each alone would be enough.**
+
+1. **The volatile tier is REPLACED, and the user's live turn is in it.** The message that triggered
+   the turn was pushed as a volatile block before the loop started; compaction fires at the top of
+   the loop, before the model call, and wipes it. The question the user actually asked is gone.
+2. **`History` + `AgentInferred` is `role: "assistant"`** on both drivers. So the summary — the only
+   block left — goes out as the model's OWN words.
+
+The model therefore receives:
+
+```text
+system:     identity, governance, workspace
+assistant:  <15,812 characters of summary>
+```
+
+**No user turn at all.** It was handed a summary ending "…, using markdown" and continued it, which
+is the only thing a chat model can do with a conversation that ends on its own message.
+
+### This is the THIRD instance of one root cause
+
+The same pair — `History` + `AgentInferred` → `assistant` — produced:
+
+| where | symptom | fixed |
+|---|---|---|
+| a spawned child's brief | child returned nothing 3× and the run failed | `SourceKind::Brief` (342c47c) |
+| a child's result in the parent | parent produced nothing 4× and the run failed | assistant turn + paired `tool` message (342c47c) |
+| **a compacted summary** | **reply was a sentence fragment** | **OPEN** |
+
+Each was found separately, by using it. The mapping is correct for what it was written for — the
+run's own prior replies — and wrong everywhere a block is *about* the conversation rather than *in*
+it. **Check the remaining `History` + `AgentInferred` push sites before assuming this is the last
+one.**
+
+### What a fix has to do, and what it must not
+
+* The summary must not go out as `assistant`. It is context about the conversation, not a turn in
+  it — the same argument `SourceKind::Brief` settles for a child's brief. A new source kind, or the
+  context tier, rather than a trust-class change: `AgentInferred` is CORRECT (the summarizer's
+  model composed it), and promoting it to `UserAsserted` to fix the role would launder a class.
+* **The user's live turn must survive compaction**, or be re-pushed after it. Compacting away the
+  message that is being answered is a data-loss bug independent of the role.
+* Invariant 1 is not in question: `SessionSummarized` and `SessionSpawned` are journaled BEFORE the
+  discard, and both fired here.
+
+### The test that would have caught it
+
+Not a unit test on `compact` — one asserting the volatile tier holds a summary afterwards passes on
+exactly this build. It has to be the assembled view on the WIRE, after a compaction, asserting the
+conversation does not end on an `assistant` turn and that the user's message is still present.
+`crates/marlowe-provider/tests/spawned_child_wire.rs` is the pattern: drive the real loop, capture
+the real `ContextView`, hand it to the real `request_body`, read the roles off the bytes.
+
 ## 2026-08-27 — M3 SESSION B1.5: THE TOOLS. NINE DEFECTS, AND SEVEN WERE THE SAME ONE
 
 Follows B1 directly and carries no separate brief: B1 made `run` spawn, using it live found
