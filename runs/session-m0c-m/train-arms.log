@@ -1,0 +1,306 @@
+===== ARM B : pairs=v2 loss=marginmse classes=all =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 5563 of 6887  (classes: ['cross_session', 'deployed_top_k', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 5.7486  fit-val R@1 0.7234  (+0.0426)
+  epoch 2: loss 2.7436  fit-val R@1 0.7447  (+0.0638)
+  epoch 3: loss 2.0420  fit-val R@1 0.8085  (+0.1277)
+
+best epoch: 3  fit-val R@1 0.8085
+WROTE runs\session-m0c-m\retrain-train-B.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-B in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-B": {
+        "digest": "9b841f6babb63d3e7e02bf2efad4dabe230609d3c2806a4ab21b4979b973a5b9",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM C : pairs=sessionj loss=bce classes=all =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-j\training-pairs.jsonl
+training pairs: 5612 of 6898  (classes: ['entity_overlap', 'long_assistant', 'opposite_role', 'temporal_adjacency'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 0.4569  fit-val R@1 0.7447  (+0.0638)
+  epoch 2: loss 0.1795  fit-val R@1 0.7234  (+0.0426)
+  epoch 3: loss 0.1263  fit-val R@1 0.7447  (+0.0638)
+
+best epoch: 1  fit-val R@1 0.7447
+WROTE runs\session-m0c-m\retrain-train-C.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-C in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-C": {
+        "digest": "047a861fe64c40ef92c3e94a7de2398f29bd5fbdde2922cded8915fe19cbcd33",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM D : pairs=v2 loss=bce classes=all =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 5563 of 6887  (classes: ['cross_session', 'deployed_top_k', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 0.5894  fit-val R@1 0.7660  (+0.0851)
+  epoch 2: loss 0.2760  fit-val R@1 0.7447  (+0.0638)
+  epoch 3: loss 0.1830  fit-val R@1 0.7234  (+0.0426)
+
+best epoch: 1  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-D.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-D in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-D": {
+        "digest": "1ba0495b98bb0605719b6bfff33a13c5ae4c0c6ccdb56893490f752ee00c71aa",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM D-no-deployed : pairs=v2 loss=bce classes=cross_session question_echo =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 3088 of 3784  (classes: ['cross_session', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 0.7268  fit-val R@1 0.7447  (+0.0638)
+  epoch 2: loss 0.2987  fit-val R@1 0.7660  (+0.0851)
+  epoch 3: loss 0.2284  fit-val R@1 0.7234  (+0.0426)
+
+best epoch: 2  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-D-no-deployed.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-D-no-deployed in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-deployed": {
+        "digest": "269bf2ac5bd8acf8bbe35f07e98ce9645ae1db5c0eff95f2714726637dd17b6c",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM D-no-cross : pairs=v2 loss=bce classes=deployed_top_k question_echo =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 4019 of 4995  (classes: ['deployed_top_k', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 0.7298  fit-val R@1 0.7660  (+0.0851)
+  epoch 2: loss 0.3599  fit-val R@1 0.7234  (+0.0426)
+  epoch 3: loss 0.2668  fit-val R@1 0.7660  (+0.0851)
+
+best epoch: 1  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-D-no-cross.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-D-no-cross in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-cross": {
+        "digest": "a665342a43b89cca3f0ea20bf428ad01e8d8820907dcd6f364c20bf3ab7d8160",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM D-no-echo : pairs=v2 loss=bce classes=deployed_top_k cross_session =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 4019 of 4995  (classes: ['cross_session', 'deployed_top_k'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 0.6597  fit-val R@1 0.7660  (+0.0851)
+  epoch 2: loss 0.3248  fit-val R@1 0.7660  (+0.0851)
+  epoch 3: loss 0.2408  fit-val R@1 0.7660  (+0.0851)
+
+best epoch: 1  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-D-no-echo.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-D-no-echo in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-D-no-echo": {
+        "digest": "81108ced703942953eeb9f12940b0fc158abca00da02f248aa9cacfde2fbd3af",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM B-no-deployed : pairs=v2 loss=marginmse classes=cross_session question_echo =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 3088 of 3784  (classes: ['cross_session', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 7.1134  fit-val R@1 0.7447  (+0.0638)
+  epoch 2: loss 3.1586  fit-val R@1 0.7234  (+0.0426)
+  epoch 3: loss 2.3555  fit-val R@1 0.7660  (+0.0851)
+
+best epoch: 3  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-B-no-deployed.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-B-no-deployed in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-deployed": {
+        "digest": "4a007a5accf65e61f70a3d5c03615d3fefc529126d86f492a82bdd1d9bbac7e0",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM B-no-cross : pairs=v2 loss=marginmse classes=deployed_top_k question_echo =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 4019 of 4995  (classes: ['deployed_top_k', 'question_echo'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 7.0707  fit-val R@1 0.7234  (+0.0426)
+  epoch 2: loss 3.5352  fit-val R@1 0.7660  (+0.0851)
+  epoch 3: loss 2.6310  fit-val R@1 0.7447  (+0.0638)
+
+best epoch: 2  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-B-no-cross.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-B-no-cross in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-cross": {
+        "digest": "8d9a31974720b2eb73490bea261701d051433b705e098512edd40567c4b2d06d",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0
+===== ARM B-no-echo : pairs=v2 loss=marginmse classes=deployed_top_k cross_session =====
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\masking_utils.py:191: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  if (padding_length := kv_length + kv_offset - attention_mask.shape[-1]) > 0:
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\transformers\integrations\sdpa_attention.py:77: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+  is_causal = query.shape[2] > 1 and attention_mask is None and is_causal
+C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\onnx\symbolic_opset9.py:5385: UserWarning: Exporting aten::index operator of advanced indexing in opset 14 is achieved by combination of multiple ONNX operators, including Reshape, Transpose, Concat, and Gather. If indices include negative values, the exported graph will produce incorrect results.
+  warnings.warn(
+device: cuda  (NVIDIA GeForce RTX 4080 SUPER)
+target margin delta = 2.926574  (median over 137 fit cases the base model already ranks correctly — NOT chosen against the outcome)
+
+base checkpoint: cross-encoder/ms-marco-MiniLM-L-2-v2
+
+pairs file: runs\session-m0c-m\training-pairs-v2.jsonl
+training pairs: 4019 of 4995  (classes: ['cross_session', 'deployed_top_k'])
+validation: 47 fit queries held apart BY CONVERSATION, 47 with a reconstructed slate
+
+comparability: Xenova ONNX R@1 0.5983   this PyTorch checkpoint R@1 0.5983   pearson 1.000000   max |delta| 0.000050
+  Session J recorded 0.5983 / 0.5983 / 1.0 / 5e-05  -> SAME STARTING POINT
+  base model, fit-val R@1: 0.6809
+  epoch 1: loss 6.4523  fit-val R@1 0.7234  (+0.0426)
+  epoch 2: loss 3.1998  fit-val R@1 0.7447  (+0.0638)
+  epoch 3: loss 2.3900  fit-val R@1 0.7660  (+0.0851)
+
+best epoch: 3  fit-val R@1 0.7660
+WROTE runs\session-m0c-m\retrain-train-B-no-echo.json
+pinned ms-marco-MiniLM-L-2-v2-ft-m-B-no-echo in runs\session-m0c-m\retrain-manifest.json
+
+register it in session_i_rerankers.FINETUNES to make it scoreable:
+    "ms-marco-MiniLM-L-2-v2-ft-m-B-no-echo": {
+        "digest": "5fe74fbc5933bcd8b9d707c897a56a8084b703b747a967b8fa67ae53bd19a21f",
+        "params_m": 15, "arch": "BERT", "max_seq": 512,
+    },
+exit=0

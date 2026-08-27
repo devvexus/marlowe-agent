@@ -1,0 +1,106 @@
+   Compiling marlowe-extract v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract)
+warning: field `block_chars` is never read
+   --> crates\marlowe-extract\src\html.rs:185:5
+    |
+176 | struct Parser<'a> {
+    |        ------ field in this struct
+...
+185 |     block_chars: usize,
+    |     ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-extract` (lib) generated 1 warning
+warning: `marlowe-extract` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.41s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_extract-2d624d0f2df7cb07.exe)
+
+running 72 tests
+test charset::tests::undeclared_utf8_is_not_mangled_into_windows_1252 ... ok
+test charset::tests::a_bom_outranks_a_contradicting_header ... ok
+test charset::tests::meta_charset_is_read_when_no_header_says_otherwise ... ok
+test charset::tests::the_header_outranks_the_meta_tag ... ok
+test charset::tests::http_equiv_content_type_is_also_read ... ok
+test charset::tests::an_unknown_declared_charset_is_reported_not_silently_replaced ... ok
+test charset::tests::lossy_decoding_counts_replacements_rather_than_flagging_a_boolean ... ok
+test charset::tests::windows_1252_bytes_declared_as_latin1_decode_as_windows_1252 ... ok
+test html::tests::comments_contain_no_elements ... ok
+test html::tests::block_elements_become_line_breaks_not_run_on_prose ... ok
+test html::tests::a_less_than_inside_a_script_does_not_open_a_tag ... ok
+test html::tests::boilerplate_removal_never_returns_an_empty_document ... ok
+test html::tests::a_short_but_complete_page_is_not_reported_as_client_rendered ... ok
+test html::tests::image_alt_text_is_content ... ok
+test html::tests::a_greater_than_inside_a_quoted_attribute_does_not_end_the_tag ... ok
+test html::tests::entities_decode_including_numeric_and_hex ... ok
+test html::tests::javascript_and_mailto_hrefs_are_not_offered_as_places_to_go ... ok
+test html::tests::a_client_rendered_page_says_so_rather_than_reading_as_empty ... ok
+test html::tests::nav_and_footer_are_stripped_when_an_article_carries_the_text ... ok
+test html::tests::relative_links_resolve_against_the_document_url ... ok
+test html::tests::script_and_style_bodies_do_not_reach_the_text ... ok
+test html::tests::title_headings_lang_and_description_are_captured ... ok
+test html::tests::reduction_is_large_on_a_realistic_page ... ok
+test html::tests::unclosed_and_misnested_tags_still_yield_their_text ... ok
+test office::tests::an_epub_spine_orders_chapters_by_idref_not_manifest_order ... ok
+test office::tests::docx_paragraphs_become_lines ... ok
+test office::tests::malformed_xml_keeps_what_was_read_and_says_so ... ok
+test office::tests::generic_xml_yields_its_character_data ... ok
+test office::tests::namespace_prefixes_are_ignored_when_matching_element_names ... ok
+test pdf::tests::an_encrypt_dictionary_is_noticed ... ok
+test office::tests::xlsx_resolves_shared_string_indices ... ok
+test pdf::tests::utf16_titles_decode ... ok
+test plain::tests::a_hash_inside_a_code_fence_is_not_a_heading ... ok
+test plain::tests::a_tab_separated_file_is_detected_by_delimiter_frequency ... ok
+test plain::tests::csv_uses_headers_and_honours_quoting ... ok
+test plain::tests::json_flattens_to_readable_pairs ... ok
+test plain::tests::malformed_json_still_yields_its_content ... ok
+test plain::tests::markdown_keeps_its_text_and_lifts_an_outline ... ok
+test sniff::tests::a_doctype_beats_a_lying_content_type_in_the_other_direction ... ok
+test sniff::tests::a_query_string_is_not_an_extension ... ok
+test sniff::tests::a_zip_is_classified_by_its_parts_not_its_extension ... ok
+test sniff::tests::an_epub_states_its_own_type ... ok
+test pdf::tests::a_pdf_with_no_text_layer_is_reported_not_returned_as_an_empty_success ... ok
+test pdf::tests::garbage_claiming_to_be_a_pdf_errors_rather_than_taking_the_batch_down ... ok
+test sniff::tests::consistent_columns_are_csv ... ok
+test sniff::tests::magic_bytes_beat_a_lying_content_type ... ok
+test sniff::tests::nul_bytes_mean_binary_not_a_page_of_replacement_characters ... ok
+test sniff::tests::prose_with_commas_is_not_csv ... ok
+test sniff::tests::xhtml_declared_as_xml_reads_as_html ... ok
+test store::tests::a_reference_contains_no_text_from_the_document ... ok
+test store::tests::different_content_gets_different_hashes ... ok
+test store::tests::granted_a_collision_the_first_document_still_owns_the_address ... ok
+test store::tests::identical_content_is_stored_once_under_one_hash ... ok
+test plain::tests::parse_csv_bounds_the_width_of_a_single_row ... ok
+test store::tests::only_the_existence_of_a_title_crosses_not_its_text ... ok
+test store::tests::the_store_is_shareable_across_threads ... ok
+test store::tests::the_unguarded_behaviour_would_have_substituted_the_document ... ok
+test store::tests::warning_kinds_are_fixed_strings_and_carry_no_attacker_text ... ok
+test tests::an_empty_input_is_a_document_not_an_error ... ok
+test tests::normalize_collapses_blank_runs_and_trims ... ok
+test zip::tests::a_non_zip_is_refused_rather_than_misparsed ... ok
+test zip::tests::a_stored_entry_round_trips ... ok
+test zip::tests::slide_names_sort_numerically_so_a_deck_reads_in_order ... ok
+test zip::tests::a_deflated_entry_round_trips ... ok
+test plain::tests::parse_csv_retains_a_bounded_number_of_rows_and_still_counts_them_all ... ok
+test plain::tests::the_truncation_notice_states_the_real_row_count ... ok
+test tests::oversized_input_is_refused_by_size_not_walked ... ok
+test office::tests::a_single_row_cannot_amplify_a_shared_string_without_bound ... ok
+test plain::tests::parse_csv_bounds_a_single_enormous_field ... ok
+test tests::normalize_reports_truncation_rather_than_silently_cutting ... ok
+test office::tests::the_shared_string_table_is_bounded_on_count_and_on_bytes ... ok
+test html::tests::the_block_buffer_is_bounded_before_normalize_ever_sees_it ... FAILED
+
+failures:
+
+---- html::tests::the_block_buffer_is_bounded_before_normalize_ever_sees_it stdout ----
+
+thread 'html::tests::the_block_buffer_is_bounded_before_normalize_ever_sees_it' (116704) panicked at crates\marlowe-extract\src\html.rs:844:9:
+blocks retained 25164000 chars; the cap is 8388608 and the input was 25164000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    html::tests::the_block_buffer_is_bounded_before_normalize_ever_sees_it
+
+test result: FAILED. 71 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+error: test failed, to rerun pass `-p marlowe-extract --lib`

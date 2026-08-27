@@ -1,0 +1,21 @@
+########## 1) control_plane: the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent
+
+running 1 test
+test the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.07s
+
+########## 2) control_plane: two_daemons_never_collide_and_the_derived_port_would_have
+
+running 1 test
+test two_daemons_never_collide_and_the_derived_port_would_have ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.12s
+
+########## 3) socket_auth: a_silent_peer_does_not_wedge_the_daemon
+
+running 1 test
+test a_silent_peer_does_not_wedge_the_daemon ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.58s
+

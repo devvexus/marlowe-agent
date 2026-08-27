@@ -1,0 +1,22 @@
+    Blocking waiting for file lock on build directory
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+warning: unused variable: `reference_order`
+   --> crates\marlowe-memory\tests\rerank_provider.rs:294:9
+    |
+294 |     let reference_order = order_of(&alone);
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_order`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-memory` (test "rerank_provider") generated 1 warning (run `cargo fix --test "rerank_provider" -p marlowe-memory` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.35s
+     Running tests\rerank_provider.rs (target\debug\deps\rerank_provider-246494b037d4372d.exe)
+
+running 3 tests
+test a_reserve_for_an_uninstalled_model_is_zero_and_says_why ... ok
+test the_reserve_can_push_the_rerank_off_a_card_that_looks_free ... FAILED
+error: test failed, to rerun pass `-p marlowe-memory --test rerank_provider`
+
+Caused by:
+  process didn't exit successfully: `C:\Users\matth\Projects\Marlowe_Harness\target\debug\deps\rerank_provider-246494b037d4372d.exe --skip the_measurement_arm --skip a_full_card --skip an_explicit_cpu --skip scoring_is_det --skip batch_invariance --skip the_batch_invariance --skip a_loaded_cuda` (exit code: 0xffffffff)
+note: test exited abnormally; to see the full output pass --no-capture to the harness.

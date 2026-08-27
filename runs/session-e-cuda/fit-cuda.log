@@ -1,0 +1,7 @@
+marlowe: embedder on CUDAExecutionProvider with 8 of 8 worker session(s) -- CUDA was asked for explicitly; no VRAM budget was applied
+cuda libs: MARLOWE_CUDA_LIB_DIR -> PATH (1 dir(s)): C:\Users\matth\AppData\Local\Programs\Python\Python311\Lib\site-packages\torch\lib
+scoring fit (251 cases) ...
+  -> runs\session-e-cuda\fit-cuda\fit
+
+reranking: models/ms-marco-MiniLM-L-2-v2-ft-session-j
+No summary.json written -- this pass produces the fit-split dump only.

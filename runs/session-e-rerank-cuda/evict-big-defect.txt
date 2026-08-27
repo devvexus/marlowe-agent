@@ -1,0 +1,12 @@
+=== ARM=bigdefect  --tier1-model definitely-not-installed:0b  then load gpt-oss:20b ===
+--- card before marlowe ---
+1800 MiB, 14246 MiB
+--- holder stderr ---
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 8 of 8 worker session(s) -- CUDA, all 8 requested sessions opened; definitely-not-installed:0b is not installed, so tier 1 cannot run here either
+--- card WITH marlowe holding it ---
+6376 MiB, 9670 MiB
+--- loading gpt-oss:20b ---
+NAME    ID    SIZE    PROCESSOR    CONTEXT    UNTIL 
+6376 MiB, 9670 MiB
+--- after marlowe exits ---
+1808 MiB, 14238 MiB

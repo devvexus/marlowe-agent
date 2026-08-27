@@ -1,0 +1,28 @@
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.42s
+     Running tests\cross_encoder_reference.rs (target\debug\deps\cross_encoder_reference-d7fb1730eaf0dfa1.exe)
+
+running 10 tests
+test a_batch_larger_than_the_measured_envelope_is_refused ... ok
+test batched_and_single_scoring_are_bit_identical ... ok
+test scoring_the_same_pair_twice_gives_the_same_logit ... ok
+test the_longest_first_case_actually_exercises_the_strategy ... ok
+test the_pair_encoder_reproduces_huggingface_exactly ... pair encoder checked against 2 of 2 vocabularies
+ok
+test the_rerank_budget_never_exceeds_what_invariance_was_measured_at ... ok
+test the_rust_graph_reproduces_the_reference_logits ... ok
+test the_rust_graph_reproduces_the_reference_on_cuda_too ... CUDA vs the CPU reference fixture, 8 cases: median 0.000554085, max 0.001039505, 1 over LOGIT_TOLERANCE 1e-3
+  0.000391006  "short pair"  reference -8.129904  cuda -8.130295
+  0.000554085  "empty document"  reference -9.555824  cuda -9.55527
+  0.000047207  "long document, short query"  reference -5.6351824  cuda -5.635135
+  0.000070572  "long query AND long document"  reference -6.0012035  cuda -6.001274
+  0.000074387  "long query, short document"  reference -8.098808  cuda -8.098734
+  0.000892639  "unicode line separators"  reference -4.650605  cuda -4.6497126
+  0.001039505  "special literal in the document"  reference -10.059342  cuda -10.058303
+  0.000854492  "accents kept not stripped"  reference -2.1387177  cuda -2.1378632
+ok
+test the_superseded_int8_directory_is_refused_by_name ... ok
+test the_two_vocabularies_encode_identically ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.54s
+

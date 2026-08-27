@@ -1,0 +1,409 @@
+   Compiling marlowe-tools v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-tools)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+   Compiling marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+   Compiling marlowe-mcp v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-mcp)
+warning: method `name` is never used
+  --> crates\marlowe-embed-spike\src\main.rs:43:8
+   |
+42 | trait Engine {
+   |       ------ method in this trait
+43 |     fn name(&self) -> &'static str;
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-embed-spike` (bin "marlowe-embed-spike" test) generated 1 warning
+warning: variable does not need to be mutable
+  --> crates\marlowe-surface\tests\window_render.rs:92:9
+   |
+92 |     let mut app = common::window();
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:128:9
+    |
+128 |     let mut c1 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:129:9
+    |
+129 |     let mut c2 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_render") generated 3 warnings (run `cargo fix --test "window_render" -p marlowe-surface` to apply 3 suggestions)
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:158:9
+    |
+158 |     let mut a = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:159:9
+    |
+159 |     let mut b = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_flicker") generated 2 warnings (run `cargo fix --test "window_flicker" -p marlowe-surface` to apply 2 suggestions)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+warning: unused variable: `reference_order`
+   --> crates\marlowe-memory\tests\rerank_provider.rs:312:9
+    |
+312 |     let reference_order = order_of(&alone);
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_order`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-memory` (test "rerank_provider") generated 1 warning (run `cargo fix --test "rerank_provider" -p marlowe-memory` to apply 1 suggestion)
+warning: function `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key` should have a snake case name
+   --> crates\marlowe-memory\src\gate\features.rs:448:8
+    |
+448 |     fn z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_rank_key`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `declaring_a_RANK_feature_inert_is_refused` should have a snake case name
+   --> crates\marlowe-memory\src\gate\mod.rs:954:8
+    |
+954 |     fn declaring_a_RANK_feature_inert_is_refused() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `declaring_a_rank_feature_inert_is_refused`
+
+warning: function `the_calibration_reads_MARGIN_and_nothing_else` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1056:8
+     |
+1056 |     fn the_calibration_reads_MARGIN_and_nothing_else() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `the_calibration_reads_margin_and_nothing_else`
+
+warning: function `the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1066:8
+     |
+1066 |     fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `the_ranking_score_is_the_winning_cues_z_not_its_calibrated_value`
+
+warning: function `an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index` should have a snake case name
+    --> crates\marlowe-memory\src\retrieve.rs:1619:8
+     |
+1619 |     fn an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `an_adjacent_rank_swap_is_an_exact_tie_and_breaks_by_candidate_index`
+
+warning: `marlowe-memory` (lib test) generated 5 warnings
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+warning: unused import: `super::*`
+   --> crates\marlowe-loop\src\run.rs:799:9
+    |
+799 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-exec v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec)
+warning: `marlowe-loop` (lib test) generated 1 warning (run `cargo fix --lib -p marlowe-loop --tests` to apply 1 suggestion)
+   Compiling marlowe-openrouter v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-openrouter)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> crates\marlowe-exec\src\lib.rs:427:9
+    |
+427 |         drop(cwd);
+    |         ^^^^^---^
+    |              |
+    |              argument has type `Option<&ScopedPath>`
+    |
+    = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+    |
+427 -         drop(cwd);
+427 +         let _ = cwd;
+    |
+
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1064:9
+     |
+1064 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:2179:9
+     |
+2179 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+   Compiling marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:700:13
+    |
+634 | /             Event::RunDetail {
+635 | |                 id,
+636 | |                 status,
+637 | |                 parent,
+...   |
+648 | |                 subagents,
+649 | |             } => {
+    | |_____________- matches all the relevant values
+...
+700 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe` (bin "marlowe" test) generated 1 warning
+warning: `marlowe` (bin "marlowe") generated 1 warning (1 duplicate)
+warning: unused import: `Ipv4Addr`
+  --> crates\marlowe-daemon\tests\socket_auth.rs:21:16
+   |
+21 | use std::net::{Ipv4Addr, TcpListener, TcpStream};
+   |                ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (test "socket_auth") generated 1 warning (run `cargo fix --test "socket_auth" -p marlowe-daemon` to apply 1 suggestion)
+warning: unused variable: `registry`
+  --> crates\marlowe-provider\tests\tool_call_probe.rs:90:9
+   |
+90 |     let registry = builtin_registry().unwrap();
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_registry`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (test "tool_call_probe") generated 1 warning (run `cargo fix --test "tool_call_probe" -p marlowe-provider` to apply 1 suggestion)
+warning: field `model_calls` is never read
+  --> crates\marlowe-loop\tests\quarantine_batch.rs:93:5
+   |
+89 | struct Harness {
+   |        ------- field in this struct
+...
+93 |     model_calls: Arc<Mutex<usize>>,
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib test) generated 1 warning (1 duplicate)
+warning: `marlowe-loop` (test "quarantine_batch") generated 1 warning
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-loop\tests\compaction.rs:19:39
+   |
+19 |     Block, Budget, CapabilityProfile, CondensedResult, Engine, GovernanceConstraint, LoopOutcome,
+   |                                       ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `turn`
+  --> crates\marlowe-loop\tests\compaction.rs:75:9
+   |
+75 |     let turn = |i: usize| format!("TURN-{i} {}", "x".repeat(2_400)); // ~800 tokens
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_turn`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (test "compaction") generated 2 warnings (run `cargo fix --test "compaction" -p marlowe-loop` to apply 2 suggestions)
+warning: `marlowe-exec` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 48.00s
+  Executable unittests src\main.rs (target\debug\deps\marlowe-2f2836bad0f135ed.exe)
+  Executable tests\alternate_screen.rs (target\debug\deps\alternate_screen-6648dee5a76e802e.exe)
+  Executable tests\determinism_guard.rs (target\debug\deps\determinism_guard-f7ac2c894d665169.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_contract-56786879d4a5b677.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_daemon-2f41d252bd24b11c.exe)
+  Executable tests\a_description_cannot_forge_its_own_rendering.rs (target\debug\deps\a_description_cannot_forge_its_own_rendering-8e4488599bb9edb9.exe)
+  Executable tests\a_spawned_child_is_listed_in_runs.rs (target\debug\deps\a_spawned_child_is_listed_in_runs-3c8d90e9f9ebbf27.exe)
+  Executable tests\approval_round_trip.rs (target\debug\deps\approval_round_trip-3454de497de5738c.exe)
+  Executable tests\composition_root.rs (target\debug\deps\composition_root-489ba04f718f0cb6.exe)
+  Executable tests\context_window.rs (target\debug\deps\context_window-1ef5910d719b84d8.exe)
+  Executable tests\control_plane.rs (target\debug\deps\control_plane-64939059efc58cca.exe)
+  Executable tests\mcp_output_is_untrusted.rs (target\debug\deps\mcp_output_is_untrusted-cbfa550118cd521d.exe)
+  Executable tests\memory_durability.rs (target\debug\deps\memory_durability-27dabf6785f1eec0.exe)
+  Executable tests\provider_switching.rs (target\debug\deps\provider_switching-a15b0979cbf1ecc8.exe)
+  Executable tests\reasoning_leak.rs (target\debug\deps\reasoning_leak-44306c025a8b894e.exe)
+  Executable tests\socket_auth.rs (target\debug\deps\socket_auth-4454bbf221a58d9d.exe)
+  Executable tests\split.rs (target\debug\deps\split-a3b8068972043cea.exe)
+  Executable tests\zero_config_is_unchanged.rs (target\debug\deps\zero_config_is_unchanged-abdd3036723bab59.exe)
+  Executable unittests src\main.rs (target\debug\deps\marlowe_embed_spike-44781d07451875ff.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_exec-87068a1d59a66232.exe)
+  Executable tests\adr023_live.rs (target\debug\deps\adr023_live-229b06148da04573.exe)
+  Executable tests\bash_cwd.rs (target\debug\deps\bash_cwd-03cdc7a09aec1d05.exe)
+  Executable tests\executors.rs (target\debug\deps\executors-a9c37df63b9c2673.exe)
+  Executable tests\read_bounds.rs (target\debug\deps\read_bounds-3966e27a1ffa6f20.exe)
+  Executable tests\shell_bounds.rs (target\debug\deps\shell_bounds-b6d4cdc2fd65da35.exe)
+  Executable tests\web_returns_a_reference.rs (target\debug\deps\web_returns_a_reference-317b0ccf8544ee95.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_extract-7dfd0a63934cd1f6.exe)
+  Executable tests\adversarial.rs (target\debug\deps\adversarial-eb1f7f6a130e56dd.exe)
+  Executable tests\injector.rs (target\debug\deps\injector-faac2eabf3abcd45.exe)
+  Executable tests\multibyte.rs (target\debug\deps\multibyte-8a436ca74dd139f4.exe)
+  Executable tests\title_cap.rs (target\debug\deps\title_cap-3cd3bca7e33ed89c.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_journal-236f329c2a8d7ecd.exe)
+  Executable tests\integrity.rs (target\debug\deps\integrity-d3d125c5e60effb3.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_loop-282272a3b13c4645.exe)
+  Executable tests\batch_grouping.rs (target\debug\deps\batch_grouping-b5bcdd95059a3dfa.exe)
+  Executable tests\compaction.rs (target\debug\deps\compaction-bd2932dd33e4c8aa.exe)
+  Executable tests\condense_integrity.rs (target\debug\deps\condense_integrity-a2e39d11ba28103e.exe)
+  Executable tests\durable_resume.rs (target\debug\deps\durable_resume-9370f731cd33fafb.exe)
+  Executable tests\egress_grant.rs (target\debug\deps\egress_grant-c6e1b2fe8ee72d3a.exe)
+  Executable tests\hp10_budgets.rs (target\debug\deps\hp10_budgets-ddf40be059cd1114.exe)
+  Executable tests\injection_attempts.rs (target\debug\deps\injection_attempts-43ca3cf23645d52c.exe)
+  Executable tests\memory_write_ownership.rs (target\debug\deps\memory_write_ownership-142da16e152a43bb.exe)
+  Executable tests\quarantine_batch.rs (target\debug\deps\quarantine_batch-989c9d5c653454d6.exe)
+  Executable tests\quarantine_refusal.rs (target\debug\deps\quarantine_refusal-44ee0fed4ed3da8b.exe)
+  Executable tests\spawn_and_budget.rs (target\debug\deps\spawn_and_budget-c6a725103d4f9823.exe)
+  Executable tests\steer_admission.rs (target\debug\deps\steer_admission-6bddf18fa5975357.exe)
+  Executable tests\steer_has_one_door.rs (target\debug\deps\steer_has_one_door-0dfc352b24b230dc.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_mcp-49246ecd2d099e7d.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_memory-e836e84257ce92c3.exe)
+  Executable tests\claim.rs (target\debug\deps\claim-246b69e09016acff.exe)
+  Executable tests\cross_encoder_reference.rs (target\debug\deps\cross_encoder_reference-6657ce7f3b45925a.exe)
+  Executable tests\cuda_libs_hint.rs (target\debug\deps\cuda_libs_hint-02aed0c4297cdd26.exe)
+  Executable tests\cuda_libs_wiring.rs (target\debug\deps\cuda_libs_wiring-0bdbf9313834de9c.exe)
+  Executable tests\embedder_provider.rs (target\debug\deps\embedder_provider-a201c62a29d43ec2.exe)
+  Executable tests\embedding_reference.rs (target\debug\deps\embedding_reference-9bf4abe80dc47670.exe)
+  Executable tests\ingest.rs (target\debug\deps\ingest-00547ddbf666ea91.exe)
+  Executable tests\rerank_provider.rs (target\debug\deps\rerank_provider-fb9d01e6402e1c6a.exe)
+  Executable tests\session_footprint.rs (target\debug\deps\session_footprint-488c0ef071afe9f5.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_net-812367fe0b2c43ea.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_openrouter-33b696d6ef933227.exe)
+  Executable tests\instrument.rs (target\debug\deps\instrument-137936587bd1d9de.exe)
+  Executable tests\key_containment.rs (target\debug\deps\key_containment-2214132d3cd94868.exe)
+  Executable tests\quarantined_reader_wire_shape.rs (target\debug\deps\quarantined_reader_wire_shape-013e0a0001d9f454.exe)
+  Executable tests\streaming_and_tool_calls.rs (target\debug\deps\streaming_and_tool_calls-f7609b103056885f.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_permission-4394cb23f6bcaa1d.exe)
+  Executable tests\boundary_hook.rs (target\debug\deps\boundary_hook-8575b91b08b14669.exe)
+  Executable tests\toctou.rs (target\debug\deps\toctou-b11d7dacab51aa56.exe)
+  Executable tests\traversal.rs (target\debug\deps\traversal-c906fc018dffbf21.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_provider-8a89c5ec2a553e82.exe)
+  Executable tests\no_tls_in_the_default_path.rs (target\debug\deps\no_tls_in_the_default_path-2a2602b1e671ae23.exe)
+  Executable tests\persona_emission.rs (target\debug\deps\persona_emission-ddd1aaf8d05b47bb.exe)
+  Executable tests\spawn_from_a_model_reply.rs (target\debug\deps\spawn_from_a_model_reply-a2f5369ee648a551.exe)
+  Executable tests\system_message_shape.rs (target\debug\deps\system_message_shape-1e9f82ca5ff243fa.exe)
+  Executable tests\tool_call_probe.rs (target\debug\deps\tool_call_probe-09fe09a1c5ed7d33.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_stub-354226ccb4a610a7.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_surface-8b89279d4318d7d5.exe)
+  Executable tests\accent_legibility.rs (target\debug\deps\accent_legibility-1d758a2acfc01c11.exe)
+  Executable tests\b13_keyboard.rs (target\debug\deps\b13_keyboard-ea04ba26e8265b4e.exe)
+  Executable tests\b13_memory_surface.rs (target\debug\deps\b13_memory_surface-40306368ce69b159.exe)
+  Executable tests\b13_parity.rs (target\debug\deps\b13_parity-b12ca2e1b347216b.exe)
+  Executable tests\b13_region_contract.rs (target\debug\deps\b13_region_contract-e2cf2406318933ba.exe)
+  Executable tests\b13_rendering.rs (target\debug\deps\b13_rendering-f4d55715f64bf720.exe)
+  Executable tests\c2d_boundary.rs (target\debug\deps\c2d_boundary-3ac951f4e11d05d0.exe)
+  Executable tests\composer.rs (target\debug\deps\composer-dd778b4646b219de.exe)
+  Executable tests\diagnostic_bound.rs (target\debug\deps\diagnostic_bound-aec50900548e9629.exe)
+  Executable tests\display_sanitiser.rs (target\debug\deps\display_sanitiser-ba0684bce52e435e.exe)
+  Executable tests\live_approval_window.rs (target\debug\deps\live_approval_window-2f501fbe30d948dd.exe)
+  Executable tests\markdown_cost.rs (target\debug\deps\markdown_cost-2e338c368cf3f9f0.exe)
+  Executable tests\markdown_forgery.rs (target\debug\deps\markdown_forgery-04012743e67a977d.exe)
+  Executable tests\markdown_render.rs (target\debug\deps\markdown_render-10d45466565ee896.exe)
+  Executable tests\palette_subset.rs (target\debug\deps\palette_subset-912b44643f74d91c.exe)
+  Executable tests\provider_command.rs (target\debug\deps\provider_command-a33e58edcb7121ab.exe)
+  Executable tests\runs_pane.rs (target\debug\deps\runs_pane-c94de35f734e4311.exe)
+  Executable tests\snapshot.rs (target\debug\deps\snapshot-3dd74023d51c4ae8.exe)
+  Executable tests\window_b13.rs (target\debug\deps\window_b13-1869cb6ea6cb7d5e.exe)
+  Executable tests\window_flicker.rs (target\debug\deps\window_flicker-9c49907e60bece8f.exe)
+  Executable tests\window_render.rs (target\debug\deps\window_render-43d2245c666c1b41.exe)
+  Executable tests\window_sanitiser.rs (target\debug\deps\window_sanitiser-97896242e8c2d9e4.exe)
+  Executable tests\window_steer.rs (target\debug\deps\window_steer-130acabceed2e780.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_tools-bd1efd4ac09709ab.exe)
+  Executable unittests src\lib.rs (target\debug\deps\marlowe_view-e60194b4cfa4d302.exe)
+  Executable tests\vocabulary.rs (target\debug\deps\vocabulary-a43853e9ad4ef5c2.exe)

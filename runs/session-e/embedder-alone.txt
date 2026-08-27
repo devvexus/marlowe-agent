@@ -1,0 +1,37 @@
+   Compiling marlowe-contract v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-contract)
+   Compiling marlowe-journal v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-journal)
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.21s
+     Running tests\embedding_reference.rs (target\debug\deps\embedding_reference-07c9972612d441a5.exe)
+
+running 8 tests
+test a_vocabulary_of_the_wrong_size_is_refused_rather_than_used ... ok
+test a_vocabulary_missing_a_special_token_is_refused ... ok
+test a_crlf_checkout_does_not_shift_every_token_id ... ok
+test truncation_matches_huggingface_including_which_cases_truncate ... ok
+test the_tokenizer_reproduces_huggingface_exactly ... ok
+test the_embedder_reproduces_the_reference_within_a_measured_tolerance ... FAILED
+test embedding_is_bit_identical_across_calls_and_worker_counts ... FAILED
+test the_cache_returns_exactly_what_the_model_computed ... ok
+
+failures:
+
+---- the_embedder_reproduces_the_reference_within_a_measured_tolerance stdout ----
+
+thread 'the_embedder_reproduces_the_reference_within_a_measured_tolerance' (99588) panicked at crates\marlowe-memory\tests\embedding_reference.rs:247:43:
+embeds: Run { source: Error { code: RuntimeException, msg: "Non-zero status code returned while running Sub node. Name:'/encoder/Sub' Status Message: D:\\a\\ort-artifacts\\ort-artifacts\\onnxruntime\\onnxruntime\\core\\framework\\bfc_arena.cc:376 onnxruntime::BFCArena::AllocateRawInternal Failed to allocate memory for requested buffer of size 536870912\n" } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- embedding_is_bit_identical_across_calls_and_worker_counts stdout ----
+
+thread 'embedding_is_bit_identical_across_calls_and_worker_counts' (128564) panicked at crates\marlowe-memory\tests\embedding_reference.rs:295:41:
+embeds: Run { source: Error { code: RuntimeException, msg: "Non-zero status code returned while running Sub node. Name:'/encoder/Sub' Status Message: bad allocation" } }
+
+
+failures:
+    embedding_is_bit_identical_across_calls_and_worker_counts
+    the_embedder_reproduces_the_reference_within_a_measured_tolerance
+
+test result: FAILED. 6 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 23.46s
+
+error: test failed, to rerun pass `-p marlowe-memory --test embedding_reference`

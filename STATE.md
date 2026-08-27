@@ -1,21 +1,13 @@
 ﻿# State
 
-## 2026-08-27 — TOOL HARDENING (UNPLANNED). NINE DEFECTS, AND SEVEN WERE THE SAME ONE
+## 2026-08-27 — M3 SESSION B1.5: THE TOOLS. NINE DEFECTS, AND SEVEN WERE THE SAME ONE
 
-> **THIS IS NOT M3 SESSION B2, AND AN EARLIER VERSION OF THIS HEADING SAID IT WAS.** B2 is
-> layer 3: fix the compaction stamp and the trim marker, wire `ingest`, and prove the boundary can
-> go red. **None of that is done.** `ingest` still has exactly one production caller
-> (`crates/marlowe/src/adapter.rs:346`, the `--eval-adapter`) and `Channel::` still appears **zero**
-> times in `crates/marlowe-daemon/src` — both re-checked at the end of this session.
->
-> This session started as "make `run` work live" and became an audit of every builtin, because
-> using it kept finding defects. It is worth reading before B2 only because B2 will write probes
-> that call these tools, and the tool surface changed underneath it: see **what B2 needs to know**
-> at the end.
+Follows B1 directly and carries no separate brief: B1 made `run` spawn, using it live found
+that the tools underneath it were not usable, and this is that work.
 
 Started as "make `run` work", became an audit of every builtin. Commits `342c47c`, `485c76a`,
 `04742c6`, `e7bf6af`, `928052f`, `a8b5ba8`, `5a876a3`, `fab045d`. Suite **1496 passed, 0 failed,
-4 ignored, 125 binaries** (`runs/session-b2-window/suite.txt`).
+4 ignored, 125 binaries** (`runs/session-b1.5-window/suite.txt`).
 
 ### THE SHAPE OF THE WHOLE SESSION, IN ONE SENTENCE
 
@@ -174,19 +166,18 @@ manifest and makes the call it describes.
    than broken.
 7. A failed child's reason reaches the journal but is not recorded beside its result.
 
-### WHAT M3 SESSION B2 NEEDS TO KNOW FROM THIS SESSION
+### WHAT THE NEXT SESSION NEEDS TO KNOW
 
-B2's brief is unchanged and none of it is done. What changed is the ground it stands on, and every
-item here bears on a probe that calls a tool or asserts on a refusal.
+Every item here bears on a test that calls a tool or asserts on a refusal, which is most of them.
 
-**The tool surface moved.** `BUILTIN_TOOLS` is **twelve**, not ten: `write` and `glob` were added
+**The builtins changed.** `BUILTIN_TOOLS` is **twelve**, not ten: `write` and `glob` were added
 (ADR-058 and its follow-on), `MAX_EXPOSED_TOOLS` is **14**, and the interactive profile exposes all
 twelve — so an MCP fleet has exactly two slots and `composition_root.rs` asserts the two slots
 rather than the total. `edit` now REQUIRES `replacing`; creating or overwriting a file is `write`.
 `bash` is Git Bash on Windows, not `cmd /C`. A test that spells a shell command the `cmd` way, or
 calls `edit` with only `path` and `content`, will fail.
 
-**A refusal's text moved, and B2 asserts on refusal text.** `marlowe_exec::failed` now puts the
+**A refusal's text moved, and refusal text is what boundary tests assert on.** `marlowe_exec::failed` now puts the
 reason in **both** `summary.detail` and the body, and `Engine::finish` appends `detail` to the
 model's window on failure. So a probe can read the reason from either — but it must not assert that
 `detail` is EMPTY, which one test did and which was the defect.
@@ -196,8 +187,8 @@ sentence from one outside the workspace. A probe asserting on scope-refusal pros
 branch it means.
 
 **A spawn refusal is now VISIBLE.** `Engine::spawn_refused` emits a `ToolLine` in the
-`Failed` state as well as telling the model, so B2's parent/child probe can assert on the emitted
-event and not only on the window. That is a third observable for the spawn refusal site B1 created.
+`Failed` state as well as telling the model, so a test can assert on the emitted event and not
+only on the window. That is a third observable at the spawn refusal site B1 created.
 
 **`read` returns a WINDOW** — 2000 lines, 32 KB — with a notice naming the next range. A probe that
 reads a large fixture and expects the whole file will see a truncated one, and the notice is part of
@@ -206,17 +197,19 @@ the body.
 **`exclusive` has an in-process sibling.** `control_plane.rs` now holds a `static START: Mutex<()>`
 across `Daemon::open` and the advertise wait, because cargo runs tests WITHIN a binary on parallel
 threads and a dozen daemons constructing at once was the real cause of a flake three timeout raises
-had blamed on machine load. If B2 stands up daemons in a test binary, take that pattern rather than
-raising a timeout.
+had blamed on machine load. A session standing up daemons in a test binary should take that
+pattern rather than raising a timeout.
 
 **Numbers to carry forward, and re-measure rather than cite:** master is `a240c52`; suite **1496
-passed, 0 failed, 4 ignored over 125 result lines**, from `runs/session-b2-window/suite.txt`. The
+passed, 0 failed, 4 ignored over 125 result lines**, from `runs/session-b1.5-window/suite.txt`. The
 highest ADR on disk is **058**, not 057.
 
-**One thing B2 should NOT inherit from this session.** Nothing here touched the compaction stamp,
-the trim marker, `ingest`, `trust_for_channel`, or any layer-3 path. The `TrustFloorLatched` trap in
-B2's brief — instance #15, assert on `blocks_composed_targets` and never on "the floor moved" —
-stands exactly as written.
+**Nothing here went near layer 3.** The compaction stamp, the trim marker, `ingest`,
+`trust_for_channel` — all untouched. Re-checked at the end of this session rather than
+assumed: `ingest` has exactly one production caller, `crates/marlowe/src/adapter.rs:346`, the
+`--eval-adapter`; and `Channel::` appears **zero** times in `crates/marlowe-daemon/src`. The
+`TrustFloorLatched` reading recorded in `CLAUDE.md` — instance #15, assert on
+`blocks_composed_targets` and never on "the floor moved" — is unchanged and still applies.
 
 ### ONE PROCESS NOTE, BECAUSE IT COST THE USER TIME
 

@@ -1,0 +1,7 @@
+=== CONTROL: no Marlowe on the card. Load marlowe-red:9b and read placement ===
+Mon Aug 17 22:38:34 CDT 2026
+2293 MiB, 13753 MiB
+--- ollama ps ---
+NAME              ID              SIZE      PROCESSOR    CONTEXT    UNTIL              
+marlowe-red:9b    c0aeab81cbf2    6.6 GB    100% GPU     32768      9 minutes from now    
+8798 MiB, 7248 MiB

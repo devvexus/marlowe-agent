@@ -1,0 +1,6 @@
+{
+  "_what": "what this process did to the environment the harness hands the target. Section 4.0.9's minimal environment is an allowlist and MARLOWE_CUDA_LIB_DIR is not on it, so a CUDA run reaches the binary through PATH or it does not reach it at all.",
+  "cuda_lib_dirs": "MARLOWE_CUDA_LIB_DIR -> PATH (1 dir(s)): C:\\Users\\matth/AppData/Local/Programs/Python/Python311/Lib/site-packages/torch/lib",
+  "embedder_provider": "cpu",
+  "rerank_provider": "cpu"
+}

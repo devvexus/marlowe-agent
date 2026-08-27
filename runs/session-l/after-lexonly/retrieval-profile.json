@@ -1,0 +1,205 @@
+{
+  "label": "AFTER: lexical only (batching reverted), WARM 249",
+  "run": "C:\\Users\\matth\\OneDrive\\Desktop\\Projects\\Marlowe_Harness\\runs\\session-l\\after-lexonly",
+  "split": "heldout",
+  "queries": 249,
+  "queries_with_no_candidates_in_scope": 4,
+  "queries_served_from_the_embedding_cache": 249,
+  "cache_state": "WARM",
+  "cache_state_note": "a warm cache removes the query's forward pass from the timed span. A MIXED profile is two populations and its percentiles belong to neither.",
+  "reconciliation": {
+    "residual_share_of_span": 0.000147,
+    "max_residual_share": 0.05,
+    "verdict": "OK",
+    "residual_ms": {
+      "p50": 0.033,
+      "p90": 0.041,
+      "p95": 0.043,
+      "p99": 0.074,
+      "max": 0.213,
+      "mean": 0.03
+    },
+    "unattributed_ms": {
+      "p50": 1.821,
+      "p90": 2.509,
+      "p95": 2.689,
+      "p99": 3.047,
+      "max": 542.577,
+      "mean": 5.726
+    },
+    "unattributed_is": "total - span - embed: response serialization and the gate-feature dump, both inside `cost.latency_ms` and outside every stage. Named rather than folded into a stage.",
+    "unknown_stage_columns": []
+  },
+  "total_ms": {
+    "p50": 211.593,
+    "p90": 219.949,
+    "p95": 221.509,
+    "p99": 229.63,
+    "max": 757.798,
+    "mean": 209.612
+  },
+  "embed_ms": {
+    "p50": 0.004,
+    "p90": 0.005,
+    "p95": 0.005,
+    "p99": 0.006,
+    "max": 0.007,
+    "mean": 0.004
+  },
+  "span_ms": {
+    "p50": 209.649,
+    "p90": 217.337,
+    "p95": 219.066,
+    "p99": 223.56,
+    "max": 226.631,
+    "mean": 203.882
+  },
+  "stages_ms": {
+    "candidates": {
+      "p50": 2.632,
+      "p90": 2.948,
+      "p95": 3.036,
+      "p99": 3.426,
+      "max": 3.778,
+      "mean": 2.675
+    },
+    "scope": {
+      "p50": 1.249,
+      "p90": 1.923,
+      "p95": 2.031,
+      "p99": 2.286,
+      "max": 2.431,
+      "mean": 1.178
+    },
+    "lexical": {
+      "p50": 3.216,
+      "p90": 4.059,
+      "p95": 4.169,
+      "p99": 4.635,
+      "max": 5.073,
+      "mean": 3.238
+    },
+    "dense": {
+      "p50": 0.306,
+      "p90": 0.372,
+      "p95": 0.384,
+      "p99": 0.482,
+      "max": 0.541,
+      "mean": 0.309
+    },
+    "features": {
+      "p50": 0.037,
+      "p90": 0.048,
+      "p95": 0.051,
+      "p99": 0.094,
+      "max": 0.351,
+      "mean": 0.04
+    },
+    "gate": {
+      "p50": 0.019,
+      "p90": 0.028,
+      "p95": 0.029,
+      "p99": 0.038,
+      "max": 0.341,
+      "mean": 0.022
+    },
+    "prune": {
+      "p50": 0.039,
+      "p90": 0.051,
+      "p95": 0.055,
+      "p99": 0.065,
+      "max": 0.075,
+      "mean": 0.04
+    },
+    "rerank": {
+      "p50": 201.301,
+      "p90": 209.217,
+      "p95": 211.098,
+      "p99": 214.234,
+      "max": 218.76,
+      "mean": 196.301
+    },
+    "assemble": {
+      "p50": 0.047,
+      "p90": 0.062,
+      "p95": 0.065,
+      "p99": 0.083,
+      "max": 0.232,
+      "mean": 0.048
+    }
+  },
+  "at_the_p95_query": {
+    "query_id": "603deb26",
+    "total_ms": 221.509,
+    "embed_ms": 0.004,
+    "considered": 120587,
+    "scoped": 468,
+    "reranked": 10,
+    "stages_ms": {
+      "candidates": 2.985,
+      "scope": 2.286,
+      "lexical": 4.052,
+      "dense": 0.35,
+      "features": 0.045,
+      "gate": 0.027,
+      "prune": 0.056,
+      "rerank": 209.169,
+      "assemble": 0.052
+    },
+    "residual_ms": 0.044,
+    "unattributed_ms": 2.439,
+    "share_of_total": {
+      "candidates": 0.0135,
+      "scope": 0.0103,
+      "lexical": 0.0183,
+      "dense": 0.0016,
+      "features": 0.0002,
+      "gate": 0.0001,
+      "prune": 0.0003,
+      "rerank": 0.9443,
+      "assemble": 0.0002,
+      "embed": 0.0,
+      "residual": 0.0002,
+      "unattributed": 0.011
+    }
+  },
+  "mean_share_of_total": {
+    "candidates": 0.0258,
+    "scope": 0.0082,
+    "lexical": 0.0154,
+    "dense": 0.0015,
+    "features": 0.0002,
+    "gate": 0.0001,
+    "prune": 0.0002,
+    "rerank": 0.9336,
+    "assemble": 0.0002,
+    "embed": 0.0
+  },
+  "pool_sizes": {
+    "considered": {
+      "p50": 113000.0,
+      "p90": 115394.0,
+      "p95": 120587.0,
+      "p99": 121002.0,
+      "max": 121470.0,
+      "mean": 94286.948
+    },
+    "scoped": {
+      "p50": 487.0,
+      "p90": 524.0,
+      "p95": 540.0,
+      "p99": 581.0,
+      "max": 599.0,
+      "mean": 480.173
+    },
+    "reranked": {
+      "p50": 10.0,
+      "p90": 10.0,
+      "p95": 10.0,
+      "p99": 10.0,
+      "max": 10.0,
+      "mean": 9.839
+    }
+  },
+  "why_stage_p95s_do_not_sum": "each stage's P95 is taken over a different query. The only breakdown that sums is `at_the_p95_query`, which decomposes one real request."
+}

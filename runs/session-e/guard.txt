@@ -1,0 +1,142 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-loop\src\driver.rs:18:18
+   |
+18 | use crate::run::{CondensedResult, OrphanPolicy, OutputContract};
+   |                  ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `BudgetShare`
+   --> crates\marlowe-loop\src\engine.rs:121:29
+    |
+121 | use crate::budget::{Budget, BudgetShare};
+    |                             ^^^^^^^^^^^
+
+warning: `marlowe-loop` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-loop` to apply 2 suggestions)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> crates\marlowe-exec\src\lib.rs:427:9
+    |
+427 |         drop(cwd);
+    |         ^^^^^---^
+    |              |
+    |              argument has type `Option<&ScopedPath>`
+    |
+    = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+    |
+427 -         drop(cwd);
+427 +         let _ = cwd;
+    |
+
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: unused import: `JournalRecorder`
+  --> crates\marlowe-daemon\src\daemon.rs:16:5
+   |
+16 |     JournalRecorder, LoopOutcome, MemoryRecorder, NoControl, OutputContract, Ports, Provenance,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-daemon\src\daemon.rs:548:9
+    |
+548 |         mut on_event: impl FnMut(Event),
+    |         ----^^^^^^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 3 suggestions)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1001:21
+     |
+1001 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s
+     Running tests\determinism_guard.rs (target\debug\deps\determinism_guard-6698abdd77041b74.exe)
+
+running 3 tests
+test no_hash_map_in_crate_sources ... FAILED
+test the_only_real_clock_read_is_the_latency_fence ... FAILED
+test memory_ids_are_not_built_from_timestamps ... ok
+
+failures:
+
+---- no_hash_map_in_crate_sources stdout ----
+
+thread 'no_hash_map_in_crate_sources' (48880) panicked at crates\marlowe\tests\determinism_guard.rs:103:5:
+hash-ordered collections found. Their iteration order is randomised per process, so anything reaching the wire from one makes `marlowe-eval repro` fail with two different hashes and no clue why. Use BTreeMap/BTreeSet:
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\src\store.rs:35: use std::collections::HashMap;
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\src\store.rs:112: inner: Arc<Mutex<HashMap<String, Document>>>,
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\src\store.rs:269: use std::collections::HashMap;
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\src\store.rs:270: let mut naive: HashMap<String, String> = HashMap::new();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\tests\injector.rs:73: let mut seen = std::collections::HashSet::new();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop\src\engine.rs:292: condensed: std::collections::HashMap<String, String>,
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop\src\engine.rs:381: condensed: std::collections::HashMap::new(),
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:48: use std::collections::HashMap;
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:208: pool: Mutex<HashMap<(String, u16), Vec<Pooled>>>,
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:209: dns: Mutex<HashMap<String, (Vec<SocketAddr>, Instant)>>,
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:236: pool: Mutex::new(HashMap::new()),
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:237: dns: Mutex::new(HashMap::new()),
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_only_real_clock_read_is_the_latency_fence stdout ----
+
+thread 'the_only_real_clock_read_is_the_latency_fence' (125780) panicked at crates\marlowe\tests\determinism_guard.rs:248:5:
+a real clock is read outside the fences ["elapsed.rs", "frame_clock.rs", "clock.rs"]. Section 4.5 is binding on every path reachable from sections 4.1/4.6/4.7, and a stray read makes staleness half-life unmeasurable and every decay-dependent result irreproducible. If this is a latency measurement, route it through the fence:
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon\tests\socket_auth.rs:226: let started = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\batch_parallelism.rs:44: let start = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\batch_parallelism.rs:48: let end = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\batch_parallelism.rs:228: let t0 = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:65: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:77: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:114: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:118: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:143: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\corpus_bench.rs:148: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\deep_research.rs:51: let t = Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\examples\deep_research_attack.rs:231: let t = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\src\corpus.rs:313: let t = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec\src\corpus.rs:343: let t = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\tests\injector.rs:235: let before = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\tests\injector.rs:244: let t = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract\tests\injector.rs:248: let t = std::time::Instant::now();
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:425: .insert(key, (addrs.clone(), Instant::now()));
+  C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net\src\lib.rs:445: bucket.push(Pooled { reader, idle_since: Instant::now() });
+
+
+failures:
+    no_hash_map_in_crate_sources
+    the_only_real_clock_read_is_the_latency_fence
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p marlowe --test determinism_guard`

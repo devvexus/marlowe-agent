@@ -1,0 +1,207 @@
+{
+  "benchmark_coverage": [
+    {
+      "key": "longmemeval-s",
+      "note": "K2: >=90% overall, >=85% on the abstention subset",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LongMemEval-S (500 q)"
+    },
+    {
+      "key": "longmemeval-s-abstention",
+      "note": "Correctly declining on events that never happened",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LongMemEval-S abstention subset"
+    },
+    {
+      "key": "locomo",
+      "note": "Baseline only; the brief is explicit that it is not sufficient",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LoCoMo (1,540 q)"
+    },
+    {
+      "key": "longmemeval-m",
+      "note": "The regime where context-stuffing fails entirely",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "reported",
+      "status": "not_run",
+      "title": "LongMemEval-M"
+    },
+    {
+      "key": "longmemeval-v2",
+      "note": "100M+ token multimodal agent histories; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "LongMemEval-V2"
+    },
+    {
+      "key": "beam-1m",
+      "note": "Deliberately unsaturated; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "BEAM-1M"
+    },
+    {
+      "key": "beam-10m",
+      "note": "Deliberately unsaturated; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "BEAM-10M"
+    }
+  ],
+  "benchmarks": {
+    "longmemeval-s-heldout": {
+      "abstention_accuracy": {
+        "cost": {
+          "generation_tokens": {
+            "mean": 0.0
+          },
+          "latency_ms": {
+            "budget": 300,
+            "max": 233,
+            "over_budget": 0,
+            "p50": 201.0,
+            "p95": 215.0
+          },
+          "prompt_tokens": {
+            "mean": 0.0
+          },
+          "queries": 249,
+          "retrieval_tokens": {
+            "budget": 7000,
+            "max": 0,
+            "mean": 0.0,
+            "over_budget": 0,
+            "p95": 0.0
+          }
+        },
+        "detail": {
+          "correct_refusals": 15,
+          "fabrications": 0,
+          "note": "an answered question here is a confident fabrication about an event that never happened"
+        },
+        "metric": "abstention_accuracy",
+        "n": 15,
+        "value": 1.0
+      },
+      "answer_accuracy": {
+        "cost": {
+          "generation_tokens": {
+            "mean": 0.0
+          },
+          "latency_ms": {
+            "budget": 300,
+            "max": 233,
+            "over_budget": 0,
+            "p50": 201.0,
+            "p95": 215.0
+          },
+          "prompt_tokens": {
+            "mean": 0.0
+          },
+          "queries": 249,
+          "retrieval_tokens": {
+            "budget": 7000,
+            "max": 0,
+            "mean": 0.0,
+            "over_budget": 0,
+            "p95": 0.0
+          }
+        },
+        "detail": {
+          "abstained_when_answerable": 234,
+          "by_category": {
+            "knowledge-update": {
+              "accuracy": 0.0,
+              "n": 36.0
+            },
+            "multi-session": {
+              "accuracy": 0.0,
+              "n": 60.0
+            },
+            "single-session-assistant": {
+              "accuracy": 0.0,
+              "n": 28.0
+            },
+            "single-session-preference": {
+              "accuracy": 0.0,
+              "n": 15.0
+            },
+            "single-session-user": {
+              "accuracy": 0.0,
+              "n": 32.0
+            },
+            "temporal-reasoning": {
+              "accuracy": 0.0,
+              "n": 63.0
+            }
+          },
+          "comparability_note": "graded deterministically; LongMemEval's published protocol uses an LLM judge, so this figure is a regression signal and not a comparable score",
+          "comparable_to_published": false,
+          "correct": 0,
+          "grader": "containment-v1",
+          "temporally_clean_subset": {
+            "accuracy": 0.0,
+            "excluded": 33,
+            "n": 201,
+            "note": "diagnostic, not the headline. Excluded cases hold memories dated after their own question, so a clock-honouring system is penalised relative to one that ignores the clock. A large gap between this and the headline is a signal about clock handling"
+          },
+          "wrong": 0
+        },
+        "metric": "answer_accuracy",
+        "n": 234,
+        "value": 0.0
+      },
+      "corpus_variant": {
+        "note": "LongMemEval-S variants differ by roughly 0.5-2 pp; a published number that does not state its variant is not comparable to this one",
+        "sha256_pinned": false,
+        "variant": "unknown"
+      },
+      "effective_trust_of_injected": {},
+      "evidence_precision": {
+        "answerable_queries": 234,
+        "by_category": {},
+        "by_decile": {},
+        "distractor": 0,
+        "gold": 0,
+        "injections_on_abstention_cases": 0,
+        "metric": "evidence_precision",
+        "note": "precision against benchmark gold evidence. NOT the K1 headline, which is human-judged injection precision.",
+        "unattributable": 0,
+        "value": 0.0
+      },
+      "run": {
+        "corpus": "longmemeval-s-heldout",
+        "failed_queries": 0,
+        "ingest_rejections": [],
+        "queries": 249
+      }
+    }
+  },
+  "harness": {
+    "contract_scope": "CONTRACTS.md section 4 only",
+    "contract_version": "1.0"
+  },
+  "notes": [],
+  "protocol": {
+    "errors": []
+  },
+  "run": {
+    "clock_ms": 1780000000000,
+    "latency_budget_ms": 300,
+    "seed": 7,
+    "suites": [
+      "benchmark"
+    ],
+    "target": "exec://C:\\Users\\matth\\OneDrive\\Desktop\\Projects\\Marlowe_Harness\\target\\release\\marlowe.exe --eval-adapter --profile-root {profile_root} --embedder-model C:\\Users\\matth\\OneDrive\\Desktop\\Projects\\Marlowe_Harness\\models\\jina-embeddings-v2-small-en --embedding-cache .embedding-cache --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j --profile-retrieval runs\\session-l\\ab-before-2\\heldout\\retrieval-profile.ndjson --dump-gate-features runs\\session-l\\ab-before-2\\heldout\\scored-candidates.ndjson",
+    "token_budget": 7000
+  }
+}

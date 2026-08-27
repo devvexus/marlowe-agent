@@ -1,0 +1,2461 @@
+   Compiling marlowe-tools v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-tools)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: method `name` is never used
+  --> crates\marlowe-embed-spike\src\main.rs:43:8
+   |
+42 | trait Engine {
+   |       ------ method in this trait
+43 |     fn name(&self) -> &'static str;
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-embed-spike` (bin "marlowe-embed-spike" test) generated 1 warning
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+warning: variable does not need to be mutable
+  --> crates\marlowe-surface\tests\window_render.rs:92:9
+   |
+92 |     let mut app = common::window();
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:128:9
+    |
+128 |     let mut c1 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:129:9
+    |
+129 |     let mut c2 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_render") generated 3 warnings (run `cargo fix --test "window_render" -p marlowe-surface` to apply 3 suggestions)
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:158:9
+    |
+158 |     let mut a = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:159:9
+    |
+159 |     let mut b = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_flicker") generated 2 warnings (run `cargo fix --test "window_flicker" -p marlowe-surface` to apply 2 suggestions)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+warning: unused variable: `reference_order`
+   --> crates\marlowe-memory\tests\rerank_provider.rs:336:9
+    |
+336 |     let reference_order = order_of(&alone);
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_order`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-memory` (test "rerank_provider") generated 1 warning (run `cargo fix --test "rerank_provider" -p marlowe-memory` to apply 1 suggestion)
+warning: function `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key` should have a snake case name
+   --> crates\marlowe-memory\src\gate\features.rs:448:8
+    |
+448 |     fn z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_rank_key`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `declaring_a_RANK_feature_inert_is_refused` should have a snake case name
+   --> crates\marlowe-memory\src\gate\mod.rs:954:8
+    |
+954 |     fn declaring_a_RANK_feature_inert_is_refused() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `declaring_a_rank_feature_inert_is_refused`
+
+warning: function `the_calibration_reads_MARGIN_and_nothing_else` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1056:8
+     |
+1056 |     fn the_calibration_reads_MARGIN_and_nothing_else() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `the_calibration_reads_margin_and_nothing_else`
+
+warning: function `the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1066:8
+     |
+1066 |     fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `the_ranking_score_is_the_winning_cues_z_not_its_calibrated_value`
+
+warning: function `an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index` should have a snake case name
+    --> crates\marlowe-memory\src\retrieve.rs:1619:8
+     |
+1619 |     fn an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `an_adjacent_rank_swap_is_an_exact_tie_and_breaks_by_candidate_index`
+
+warning: `marlowe-memory` (lib test) generated 5 warnings
+   Compiling marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+   Compiling marlowe-mcp v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-mcp)
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> crates\marlowe-loop\src\run.rs:799:9
+    |
+799 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-exec v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec)
+   Compiling marlowe-openrouter v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-openrouter)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+   --> crates\marlowe-exec\src\lib.rs:427:9
+    |
+427 |         drop(cwd);
+    |         ^^^^^---^
+    |              |
+    |              argument has type `Option<&ScopedPath>`
+    |
+    = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+    |
+427 -         drop(cwd);
+427 +         let _ = cwd;
+    |
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-exec` (lib) generated 1 warning
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: `marlowe-loop` (lib test) generated 1 warning (run `cargo fix --lib -p marlowe-loop --tests` to apply 1 suggestion)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1064:9
+     |
+1064 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:2179:9
+     |
+2179 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+   Compiling marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: unused import: `Ipv4Addr`
+  --> crates\marlowe-daemon\tests\socket_auth.rs:25:16
+   |
+25 | use std::net::{Ipv4Addr, TcpListener, TcpStream};
+   |                ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:700:13
+    |
+634 | /             Event::RunDetail {
+635 | |                 id,
+636 | |                 status,
+637 | |                 parent,
+...   |
+648 | |                 subagents,
+649 | |             } => {
+    | |_____________- matches all the relevant values
+...
+700 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (test "socket_auth") generated 1 warning (run `cargo fix --test "socket_auth" -p marlowe-daemon` to apply 1 suggestion)
+warning: `marlowe` (bin "marlowe") generated 1 warning
+warning: `marlowe` (bin "marlowe" test) generated 1 warning (1 duplicate)
+warning: unused import: `ModelStep`
+  --> crates\marlowe-provider\tests\spawned_child_wire.rs:34:29
+   |
+34 |     ModelCall, ModelDriver, ModelStep, OutputContract, Ports, Provenance, ProviderError, Run, RunId,
+   |                             ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `registry`
+  --> crates\marlowe-provider\tests\tool_call_probe.rs:90:9
+   |
+90 |     let registry = builtin_registry().unwrap();
+   |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_registry`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (test "spawned_child_wire") generated 1 warning (run `cargo fix --test "spawned_child_wire" -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-provider` (test "tool_call_probe") generated 1 warning (run `cargo fix --test "tool_call_probe" -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-provider` (lib test) generated 1 warning (1 duplicate)
+warning: field `model_calls` is never read
+  --> crates\marlowe-loop\tests\quarantine_batch.rs:93:5
+   |
+89 | struct Harness {
+   |        ------- field in this struct
+...
+93 |     model_calls: Arc<Mutex<usize>>,
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (test "quarantine_batch") generated 1 warning
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-loop\tests\compaction.rs:19:39
+   |
+19 |     Block, Budget, CapabilityProfile, CondensedResult, Engine, GovernanceConstraint, LoopOutcome,
+   |                                       ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `turn`
+  --> crates\marlowe-loop\tests\compaction.rs:75:9
+   |
+75 |     let turn = |i: usize| format!("TURN-{i} {}", "x".repeat(2_400)); // ~800 tokens
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_turn`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (test "compaction") generated 2 warnings (run `cargo fix --test "compaction" -p marlowe-loop` to apply 2 suggestions)
+warning: `marlowe-exec` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.19s
+     Running unittests src\main.rs (target\debug\deps\marlowe-2f2836bad0f135ed.exe)
+
+running 45 tests
+test elapsed::tests::elapsed_cannot_masquerade_as_a_timestamp ... ok
+test agent::display_sanitiser::the_approval_prompt_never_prints_an_escape_the_model_composed ... ok
+test agent::display_sanitiser::no_rendered_event_carries_a_control_sequence_to_the_terminal ... ok
+test agent::display_sanitiser::prose_keeps_its_newlines_and_a_tool_line_does_not ... ok
+test embedder_provider_flag::the_announcement_names_what_was_asked_and_what_was_obtained ... ok
+test elapsed::tests::elapsed_is_reportable_as_cost ... ok
+test elapsed::tests::finish_is_what_closes_the_last_stage ... ok
+test elapsed::tests::finish_on_a_timer_with_nothing_open_banks_nothing ... ok
+test elapsed::tests::stage_totals_never_exceed_the_span_they_were_taken_inside ... ok
+test embedder_provider_flag::a_flag_with_no_value_takes_the_default_and_that_is_recorded_not_discovered ... ok
+test embedder_provider_flag::an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu ... ok
+test embedder_provider_flag::an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu ... ok
+test embedder_provider_flag::an_unknown_value_is_refused_rather_than_defaulted ... ok
+test elapsed::tests::a_stage_entered_twice_accumulates_rather_than_restarts ... ok
+test agent::display_sanitiser::status_shows_which_provider_answers_and_the_two_providers_do_not_render_alike ... ok
+test embedder_provider_flag::the_default_is_auto ... ok
+test embedder_provider_flag::the_explicit_arms_still_reach_the_loader ... ok
+test keyburst::tests::a_burst_containing_a_non_text_key_is_not_a_paste ... ok
+test keyburst::tests::a_burst_carrying_a_newline_is_a_paste_however_short ... ok
+test keyburst::tests::a_long_burst_with_no_newline_is_a_paste ... ok
+test keyburst::tests::a_short_burst_with_no_newline_stays_keystrokes ... ok
+test keyburst::tests::one_keystroke_is_never_a_paste ... ok
+test launcher::profile_commandline_tests::a_key_can_never_reach_the_profile ... ok
+test launcher::profile_commandline_tests::a_plain_launch_writes_exactly_what_it_always_did ... ok
+test launcher::profile_commandline_tests::the_shortcut_carries_the_provider_it_was_launched_with ... ok
+test launcher::profile_commandline_tests::an_argument_with_a_space_is_quoted ... ok
+test launcher::tests::a_settings_file_with_comments_is_refused_rather_than_rewritten ... ok
+test launcher::tests::upsert_appends_when_we_are_not_there_yet ... ok
+test launcher::tests::upsert_replaces_our_entry_and_leaves_every_other_one_alone ... ok
+test rerank_provider_flag::an_auto_run_that_got_cuda_reads_differently_from_one_that_got_cpu ... ok
+test rerank_provider_flag::an_explicit_cpu_run_is_distinguishable_from_a_fallback_to_cpu ... ok
+test rerank_provider_flag::an_unknown_value_is_refused_rather_than_defaulted ... ok
+test rerank_provider_flag::the_announcement_names_what_was_asked_and_what_was_obtained ... ok
+test rerank_provider_flag::the_batching_follows_the_resolution_and_the_announcement_shows_it ... ok
+test rerank_provider_flag::the_default_is_auto ... ok
+test rerank_provider_flag::the_explicit_arms_still_reach_the_loader ... ok
+test tui::spawn_argv::a_scratch_port_and_a_provider_both_survive ... ok
+test tui::spawn_argv::an_ollama_spawn_carries_no_provider_flags_at_all ... ok
+test tui::spawn_argv::no_spawn_argv_can_contain_a_key ... ok
+test tui::spawn_argv::the_tui_forwards_the_provider_to_a_daemon_it_spawns ... ok
+test watch::tests::a_notice_survives_a_single_tick ... ok
+test watch::tests::a_notice_disappears_on_its_own_after_about_three_seconds_of_not_typing ... ok
+test watch::tests::an_absent_notice_keeps_the_counter_at_zero ... ok
+test launcher::window_tests::a_command_is_always_offered_whether_or_not_a_window_opened ... ok
+test launcher::window_tests::the_fallback_command_survives_a_path_with_spaces ... ok
+
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\alternate_screen.rs (target\debug\deps\alternate_screen-6648dee5a76e802e.exe)
+
+running 3 tests
+test the_scan_would_catch_a_print_inside_the_region ... ok
+test nothing_prints_to_the_terminal_while_the_alternate_screen_is_up ... ok
+test the_file_under_test_does_print_elsewhere ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\determinism_guard.rs (target\debug\deps\determinism_guard-f7ac2c894d665169.exe)
+
+running 3 tests
+test no_hash_map_in_crate_sources ... ok
+test memory_ids_are_not_built_from_timestamps ... ok
+test the_only_real_clock_read_is_the_latency_fence ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_contract-56786879d4a5b677.exe)
+
+running 17 tests
+test common::tests::trust_ordering_is_the_propagation_rule ... ok
+test common::tests::wire_spellings_are_snake_case ... ok
+test common::tests::unknown_channel_is_an_error_not_a_default ... ok
+test frame::tests::extra_frame_level_key_is_rejected ... ok
+test text::tests::a_newline_is_an_attack_on_a_line_and_prose_on_prose ... ok
+test frame::tests::unknown_op_fails_to_parse ... ok
+test wire::tests::an_honest_abstention_passes ... ok
+test wire::tests::contract_version_cannot_hold_a_wrong_value ... ok
+test frame::tests::frames_are_single_line ... ok
+test text::tests::marking_is_not_provenance_and_the_doc_says_so ... ok
+test text::tests::the_escape_that_overwrites_the_approval_line_is_marked_not_dropped ... ok
+test text::tests::the_three_invisible_families_are_all_marked ... ok
+test wire::tests::absent_latency_stages_are_omitted_not_zeroed ... ok
+test text::tests::a_clean_string_is_borrowed_not_rebuilt ... ok
+test wire::tests::empty_injection_without_abstention_is_rejected_on_the_way_out ... ok
+test frame::tests::body_and_error_frames_are_mutually_exclusive_by_construction ... ok
+test wire::tests::hedged_abstention_is_rejected_on_the_way_out ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_daemon-2f41d252bd24b11c.exe)
+
+running 73 tests
+test client::tests::the_client_holds_no_run_state ... ok
+test control_plane::resolve_tests::a_full_uuid_resolves_even_when_this_daemon_has_never_heard_of_it ... ok
+test control_plane::resolve_tests::a_mnemonic_resolves_to_its_run ... ok
+test control_plane::resolve_tests::a_typed_token_cannot_carry_an_escape_sequence_into_the_refusal ... ok
+test control_plane::resolve_tests::an_ambiguous_name_is_refused_by_name_and_lists_what_it_matched ... ok
+test control_plane::resolve_tests::an_id_prefix_resolves_from_four_characters_and_not_from_three ... ok
+test control_plane::resolve_tests::an_unknown_token_says_how_a_run_is_addressed ... ok
+test daemon::approval_gate_tests::the_model_is_told_the_surface_renders_markdown_and_latex ... ok
+test auth::tests::no_token_means_no_daemon_has_run_here ... ok
+test auth::tests::comparison_rejects_every_near_miss ... ok
+test onboarding::tests::a_tool_is_disclosed_as_always_asking_exactly_when_its_manifest_is_irreversible ... ok
+test onboarding::tests::the_journal_filename_this_depends_on_is_the_journals_own ... ok
+test daemon::approval_gate_tests::a_declined_decision_is_denied ... ok
+test daemon::approval_gate_tests::each_prompt_in_a_turn_gets_its_own_decision_id ... ok
+test daemon::approval_gate_tests::a_granted_decision_is_approved_and_the_prompt_names_the_blast_radius ... ok
+test onboarding::tests::a_fresh_profile_root_is_a_first_run_and_one_with_a_journal_is_not ... ok
+test auth::tests::a_truncated_token_file_is_replaced_rather_than_accepted ... ok
+test onboarding::tests::bash_is_disclosed_as_always_asking ... ok
+test project::tests::a_daemon_with_no_amplitude_source_reports_no_reading_rather_than_silence ... ok
+test project::tests::a_degraded_report_reaches_the_band_even_when_the_remedy_is_unrecognised ... ok
+test project::tests::a_failed_tool_call_arrives_expanded ... ok
+test daemon::approval_gate_tests::silence_a_malformed_reply_and_a_stale_decision_id_are_all_denials ... ok
+test project::tests::a_refresh_keeps_each_rows_hotkey_where_the_user_last_saw_it ... ok
+test auth::tests::two_profiles_get_different_tokens ... ok
+test project::key_tests::no_projected_pane_item_collides_with_a_region_key_or_a_tab_digit ... ok
+test project::tests::a_pane_that_runs_out_of_letters_hands_out_none_rather_than_a_duplicate ... ok
+test onboarding::tests::the_screen_never_claims_a_tool_runs_silently ... ok
+test project::tests::a_running_run_carries_no_state_colour_and_a_stopped_one_recedes ... ok
+test onboarding::tests::the_workspace_path_is_stated_literally ... ok
+test project::tests::a_row_is_labelled_by_its_mnemonic_and_still_shows_the_id ... ok
+test project::tests::asking_for_the_runs_twice_does_not_double_the_rows ... ok
+test project::tests::text_deltas_coalesce_into_one_turn_rather_than_one_entry_per_token ... ok
+test project::tests::an_unrecognised_verb_does_not_leak_an_arbitrary_string_into_the_frame ... ok
+test project::tests::the_band_reads_the_daemons_own_report_rather_than_a_second_source ... ok
+test project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed ... ok
+test project::tests::watching_one_run_twice_updates_its_row_rather_than_adding_another ... ok
+test protocol::tests::a_degraded_event_carries_its_remedy ... ok
+test project::tests::two_runs_sharing_a_mnemonic_stay_two_rows ... ok
+test protocol::tests::frames_round_trip_as_ndjson ... ok
+test protocol::tests::no_request_or_event_hands_the_client_run_state ... ok
+test protocol::tests::the_status_report_announces_the_provider_rather_than_implying_it ... ok
+test recall::batch_forwarding_tests::a_batch_of_web_calls_reaches_the_inner_host_as_a_batch ... ok
+test recall::batch_forwarding_tests::recall_is_served_locally_without_breaking_the_order_of_the_rest ... ok
+test roster::tests::a_status_word_is_read_from_both_shapes_and_never_guessed ... ok
+test roster::tests::a_terminal_word_matches_run_status_and_a_live_one_does_not ... ok
+test skills::tests::something_actually_produces_a_skills_block ... ok
+test skills::tests::a_profile_with_no_skills_says_so_rather_than_failing ... ok
+test skills::tests::a_name_that_is_not_installed_says_what_is ... ok
+test skills::tests::surfacing_is_silent_when_no_skills_are_installed ... ok
+test skills::tests::disclosure_returns_the_body_and_only_when_asked_by_name ... ok
+test watch_client::tests::a_finished_run_does_not_show_thinking_forever ... ok
+test skills::tests::use_is_in_the_executed_set_alongside_whatever_is_wrapped ... ok
+test skills::tests::surfacing_never_carries_one_word_of_a_body ... ok
+test watch_client::tests::a_projection_with_no_answer_yet_has_no_view_rather_than_an_invented_one ... ok
+test skills::tests::surfacing_names_the_library_even_when_nothing_matches ... ok
+test watch_client::tests::an_adopted_runs_policy_names_the_run_that_adopted_it ... ok
+test skills::tests::name_wins_over_query_when_both_are_supplied ... ok
+test watch_client::tests::a_re_sent_tail_overwrites_rather_than_appending ... ok
+test watch_client::tests::retracted_speech_becomes_a_finished_thought_rather_than_staying_an_answer ... ok
+test watch_client::tests::the_next_poll_asks_from_the_highest_sequence_not_one_past_it ... ok
+test watch_client::tests::a_status_the_window_does_not_know_is_shown_rather_than_defaulted_away ... ok
+test watch_client::tests::sessions_a_own_status_words_survive_the_projection ... ok
+test watch_client::tests::the_checkpoint_comes_through_as_the_two_facts_it_is ... ok
+test auth::tests::a_token_is_minted_once_and_reread_thereafter ... ok
+test skills::tests::the_body_crosses_on_disclosure_and_not_on_discovery ... ok
+test skills::tests::surfacing_puts_a_matching_skill_in_front_of_the_model ... ok
+test skills::tests::discovery_returns_names_and_descriptions_and_not_one_word_of_a_body ... ok
+test live::tests::selecting_the_value_that_is_already_live_is_not_an_error ... ok
+test live::tests::every_intent_the_surface_can_form_is_answered_or_refused_by_name ... ok
+test live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted ... ok
+test live::tests::an_absent_daemon_degrades_visibly_rather_than_refusing_to_start ... ok
+test live::tests::approving_when_nothing_is_pending_refuses_rather_than_dropping_the_answer ... ok
+test client::tests::an_absent_daemon_is_a_named_error_not_a_hang ... ok
+
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\a_description_cannot_forge_its_own_rendering.rs (target\debug\deps\a_description_cannot_forge_its_own_rendering-8e4488599bb9edb9.exe)
+
+running 2 tests
+test the_probe_characters_reach_the_body_when_the_sanitiser_is_absent ... ok
+test no_invisible_character_reaches_either_adapters_request_body ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\a_spawned_child_is_listed_in_runs.rs (target\debug\deps\a_spawned_child_is_listed_in_runs-3c8d90e9f9ebbf27.exe)
+
+running 4 tests
+test the_daemon_installs_this_recorder_at_the_composition_root ... ok
+test a_run_windows_roster_names_the_children_and_a_childless_run_names_none ... ok
+test a_child_spawned_from_a_model_reply_is_listed_in_runs ... ok
+test a_finished_childs_elapsed_is_final_rather_than_growing ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests\approval_round_trip.rs (target\debug\deps\approval_round_trip-3454de497de5738c.exe)
+
+running 3 tests
+test the_client_answers_the_prompt_on_the_same_connection_and_names_the_decision ... ok
+test a_declined_prompt_is_sent_as_declined_rather_than_dropped ... ok
+test the_render_only_prompt_is_not_answered ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests\composition_root.rs (target\debug\deps\composition_root-489ba04f718f0cb6.exe)
+
+running 5 tests
+test two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name ... ok
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... ok
+test widening_a_top_level_profile_does_not_weaken_the_narrowing_rule_for_children ... ok
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... ok
+test a_malformed_mcp_config_is_an_error_and_an_absent_one_is_not ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\context_window.rs (target\debug\deps\context_window-1ef5910d719b84d8.exe)
+
+running 6 tests
+test a_completed_turn_does_not_repeat_its_reply_in_the_done_frame ... ok
+test the_declared_default_is_well_under_the_recorded_ceiling ... ok
+test every_request_carries_num_ctx ... ok
+test the_daemons_thinking_setting_is_the_one_the_driver_uses ... ok
+test the_assembler_window_and_num_ctx_come_from_the_same_field ... ok
+test every_request_declares_whether_the_model_should_think ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\control_plane.rs (target\debug\deps\control_plane-64939059efc58cca.exe)
+
+running 10 tests
+test an_empty_steer_is_refused_rather_than_queued ... ok
+test the_control_port_refuses_what_needs_the_model_and_says_where_it_lives ... ok
+test a_steer_for_a_stopped_run_is_refused_and_nothing_is_queued ... ok
+test the_control_port_refuses_a_wrong_token ... ok
+test a_steer_cannot_carry_an_escape_sequence_onto_a_terminal ... ok
+test a_steer_sent_on_one_connection_is_visible_on_another ... ok
+test an_oversized_steer_is_refused_by_the_door_and_never_queued ... ok
+test the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent ... ok
+test two_daemons_never_collide_and_the_derived_port_would_have ... ok
+test the_control_port_answers_while_the_main_port_is_wedged ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.53s
+
+     Running tests\mcp_output_is_untrusted.rs (target\debug\deps\mcp_output_is_untrusted-cbfa550118cd521d.exe)
+
+running 3 tests
+test a_real_server_answers_and_its_result_is_untrusted_content ... ok
+test the_probe_token_reaches_the_parent_when_the_result_is_TRUSTED ... ok
+test the_hostile_response_does_not_reach_the_parents_window ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\memory_durability.rs (target\debug\deps\memory_durability-27dabf6785f1eec0.exe)
+
+running 5 tests
+test retrieval_is_announced_as_write_only_when_no_graph_is_loaded ... ok
+test a_write_only_daemon_still_remembers ... ok
+test an_unrecognised_payload_kind_is_refused_and_an_absent_one_is_not ... ok
+test the_run_floor_reaches_the_daemons_write_path ... ok
+test a_claim_written_today_is_still_there_after_the_daemon_restarts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests\provider_switching.rs (target\debug\deps\provider_switching-a15b0979cbf1ecc8.exe)
+
+running 6 tests
+test the_provider_picker_is_built_from_the_daemons_own_report ... ok
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... ok
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests\reasoning_leak.rs (target\debug\deps\reasoning_leak-44306c025a8b894e.exe)
+
+running 12 tests
+test a_retraction_with_nothing_outstanding_is_harmless ... ok
+test a_blocked_tool_call_reaches_the_transcript ... ok
+test a_retraction_is_honoured_when_it_is_not_the_last_event ... ok
+test a_turn_that_was_entirely_reasoning_yields_no_prose_for_the_loop ... ok
+test shutdown_is_reachable_and_the_wire_carries_it ... ok
+test retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript ... ok
+test speech_after_a_retraction_is_kept ... ok
+test narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript ... ok
+test the_system_prompt_names_no_tool_that_does_not_exist ... ok
+test the_guard_catches_the_prompt_that_actually_shipped ... ok
+test a_second_turn_on_the_same_session_can_see_the_first ... ok
+test shutting_down_an_absent_daemon_fails_quietly ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests\socket_auth.rs (target\debug\deps\socket_auth-4454bbf221a58d9d.exe)
+
+running 5 tests
+test a_client_from_another_profile_gets_a_named_refusal_not_a_silence ... ok
+test the_right_token_is_served ... ok
+test a_wrong_token_is_refused_before_the_request_is_dispatched ... ok
+test an_empty_a_truncated_and_a_one_character_wrong_token_are_all_refused ... ok
+test a_silent_peer_does_not_wedge_the_daemon ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.63s
+
+     Running tests\split.rs (target\debug\deps\split-a3b8068972043cea.exe)
+
+running 4 tests
+test the_client_can_render_before_a_daemon_exists ... ok
+test a_turn_with_no_model_degrades_with_a_remedy_rather_than_failing ... ok
+test a_status_request_answers_without_touching_a_model ... ok
+test the_daemon_owns_the_run_across_a_client_disconnect ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.64s
+
+     Running tests\zero_config_is_unchanged.rs (target\debug\deps\zero_config_is_unchanged-abdd3036723bab59.exe)
+
+running 3 tests
+test status_names_the_provider_it_selected ... ok
+test no_environment_variable_can_move_the_default_provider ... ok
+test the_default_daemon_still_routes_to_the_pinned_local_model ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\debug\deps\marlowe_embed_spike-44781d07451875ff.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_exec-87068a1d59a66232.exe)
+
+running 13 tests
+test corpus::round_two::a_non_ascii_host_is_not_echoed ... ok
+test corpus::round_two::a_hostname_made_of_prose_is_not_echoed ... ok
+test corpus::round_two::separator_encoded_prose_in_a_path_is_not_echoed ... ok
+test corpus::round_two::real_redirect_targets_still_survive_whole ... ok
+test corpus::tests::a_location_header_carrying_prose_does_not_come_back_as_text ... ok
+test corpus::tests::ordinary_redirect_paths_still_come_back_whole ... ok
+test corpus::tests::a_redirect_is_reported_and_never_followed ... ok
+test corpus::tests::an_empty_corpus_is_empty_rather_than_a_panic ... ok
+test corpus::round_two::a_traversal_path_is_not_echoed ... ok
+test corpus::tests::a_fetched_page_is_extracted_not_handed_over_raw ... ok
+test corpus::tests::newlines_control_characters_length_and_unparseable_locations_are_all_stripped ... ok
+test corpus::tests::warnings_reach_the_rendered_text_where_they_cannot_be_dropped ... ok
+test corpus::tests::a_malformed_url_fails_alone_and_in_place ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\adr023_live.rs (target\debug\deps\adr023_live-229b06148da04573.exe)
+
+running 1 test
+test a_real_fetched_page_latches_the_floor_and_it_holds_after_the_page_is_trimmed_away ... ignored, reaches the network; run explicitly as the milestone's one real end-to-end run
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\bash_cwd.rs (target\debug\deps\bash_cwd-03cdc7a09aec1d05.exe)
+
+running 2 tests
+test the_cwd_directory_cannot_be_swapped_while_bash_holds_it ... ok
+test the_child_starts_in_the_verified_directory ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\executors.rs (target\debug\deps\executors-a9c37df63b9c2673.exe)
+
+running 5 tests
+test an_escape_never_reaches_an_executor_at_all ... ok
+test read_returns_the_file_through_the_adjudicated_handle ... ok
+test find_reports_matches_and_how_many_files_it_actually_read ... ok
+test edit_writes_through_the_handle_and_can_create ... ok
+test bash_runs_in_the_verified_directory ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\read_bounds.rs (target\debug\deps\read_bounds-3966e27a1ffa6f20.exe)
+
+running 8 tests
+test a_binary_file_is_named_rather_than_decoded_or_refused ... ok
+test the_range_that_overflowed_returns_a_result ... ok
+test an_ordinary_range_still_selects_the_lines_it_names ... ok
+test an_inverted_range_selects_nothing ... ok
+test a_text_file_is_still_returned_whole ... ok
+test no_range_argument_can_unwind_the_executor ... ok
+test a_file_at_exactly_the_cap_is_not_reported_as_truncated ... ok
+test an_oversized_file_is_capped_and_the_truncation_is_stated ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\shell_bounds.rs (target\debug\deps\shell_bounds-b6d4cdc2fd65da35.exe)
+
+running 6 tests
+test an_ordinary_command_finishes_normally_and_is_reported_as_finished ... ok
+test stderr_and_a_failing_exit_code_both_survive_the_bounded_path ... ok
+test a_command_that_floods_is_capped_and_says_so ... ok
+test a_command_that_never_exits_is_stopped_and_the_call_returns ... ok
+test a_command_that_backgrounds_a_child_still_returns_promptly ... ok
+test three_unbounded_commands_in_a_row_all_return ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.27s
+
+     Running tests\web_returns_a_reference.rs (target\debug\deps\web_returns_a_reference-317b0ccf8544ee95.exe)
+
+running 17 tests
+test an_extraction_failure_reports_a_kind_not_the_parsers_own_words ... ok
+test a_hostile_location_header_reaches_the_model_as_nothing_but_a_host ... ok
+test the_reference_is_agent_observed_and_the_content_is_untrusted ... ok
+test a_warning_on_a_reference_names_a_kind_and_never_quotes_the_document ... ok
+test an_ordinary_redirect_still_names_the_destination ... ok
+test an_unknown_ref_resolves_to_nothing ... ok
+test a_round_trip_through_the_store_does_not_change_what_the_content_is ... ok
+test a_reference_is_made_only_of_numbers_urls_and_harness_constants ... ok
+test identical_documents_from_different_urls_share_one_ref ... ok
+test a_redirect_carries_no_page_content ... ok
+test an_http_error_status_is_distinguishable_from_a_document ... ok
+test dereferencing_returns_the_content_and_it_is_untrusted_again ... ok
+test an_http_error_body_is_still_only_measured_not_quoted ... ok
+test the_counts_that_do_cross_are_enough_to_plan_with ... ok
+test a_reference_carries_no_byte_the_page_authored ... ok
+test the_size_of_a_document_crosses_even_when_the_status_cannot_help ... ok
+test a_page_that_is_nothing_but_payload_still_produces_a_clean_reference ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_extract-7dfd0a63934cd1f6.exe)
+
+running 72 tests
+test charset::tests::a_bom_outranks_a_contradicting_header ... ok
+test charset::tests::http_equiv_content_type_is_also_read ... ok
+test charset::tests::an_unknown_declared_charset_is_reported_not_silently_replaced ... ok
+test charset::tests::lossy_decoding_counts_replacements_rather_than_flagging_a_boolean ... ok
+test charset::tests::meta_charset_is_read_when_no_header_says_otherwise ... ok
+test html::tests::a_short_but_complete_page_is_not_reported_as_client_rendered ... ok
+test html::tests::a_greater_than_inside_a_quoted_attribute_does_not_end_the_tag ... ok
+test charset::tests::the_header_outranks_the_meta_tag ... ok
+test html::tests::entities_decode_including_numeric_and_hex ... ok
+test charset::tests::undeclared_utf8_is_not_mangled_into_windows_1252 ... ok
+test html::tests::block_elements_become_line_breaks_not_run_on_prose ... ok
+test html::tests::boilerplate_removal_never_returns_an_empty_document ... ok
+test charset::tests::windows_1252_bytes_declared_as_latin1_decode_as_windows_1252 ... ok
+test html::tests::comments_contain_no_elements ... ok
+test html::tests::a_client_rendered_page_says_so_rather_than_reading_as_empty ... ok
+test html::tests::a_less_than_inside_a_script_does_not_open_a_tag ... ok
+test html::tests::javascript_and_mailto_hrefs_are_not_offered_as_places_to_go ... ok
+test html::tests::image_alt_text_is_content ... ok
+test html::tests::nav_and_footer_are_stripped_when_an_article_carries_the_text ... ok
+test html::tests::relative_links_resolve_against_the_document_url ... ok
+test html::tests::script_and_style_bodies_do_not_reach_the_text ... ok
+test html::tests::title_headings_lang_and_description_are_captured ... ok
+test html::tests::unclosed_and_misnested_tags_still_yield_their_text ... ok
+test html::tests::reduction_is_large_on_a_realistic_page ... ok
+test office::tests::docx_paragraphs_become_lines ... ok
+test office::tests::an_epub_spine_orders_chapters_by_idref_not_manifest_order ... ok
+test office::tests::generic_xml_yields_its_character_data ... ok
+test office::tests::malformed_xml_keeps_what_was_read_and_says_so ... ok
+test office::tests::namespace_prefixes_are_ignored_when_matching_element_names ... ok
+test office::tests::xlsx_resolves_shared_string_indices ... ok
+test pdf::tests::an_encrypt_dictionary_is_noticed ... ok
+test pdf::tests::utf16_titles_decode ... ok
+test plain::tests::a_hash_inside_a_code_fence_is_not_a_heading ... ok
+test pdf::tests::a_pdf_with_no_text_layer_is_reported_not_returned_as_an_empty_success ... ok
+test pdf::tests::garbage_claiming_to_be_a_pdf_errors_rather_than_taking_the_batch_down ... ok
+test plain::tests::a_tab_separated_file_is_detected_by_delimiter_frequency ... ok
+test plain::tests::csv_uses_headers_and_honours_quoting ... ok
+test plain::tests::json_flattens_to_readable_pairs ... ok
+test plain::tests::malformed_json_still_yields_its_content ... ok
+test plain::tests::markdown_keeps_its_text_and_lifts_an_outline ... ok
+test sniff::tests::a_doctype_beats_a_lying_content_type_in_the_other_direction ... ok
+test sniff::tests::a_query_string_is_not_an_extension ... ok
+test sniff::tests::a_zip_is_classified_by_its_parts_not_its_extension ... ok
+test sniff::tests::an_epub_states_its_own_type ... ok
+test sniff::tests::consistent_columns_are_csv ... ok
+test sniff::tests::nul_bytes_mean_binary_not_a_page_of_replacement_characters ... ok
+test sniff::tests::prose_with_commas_is_not_csv ... ok
+test sniff::tests::magic_bytes_beat_a_lying_content_type ... ok
+test sniff::tests::xhtml_declared_as_xml_reads_as_html ... ok
+test store::tests::a_reference_contains_no_text_from_the_document ... ok
+test store::tests::different_content_gets_different_hashes ... ok
+test store::tests::granted_a_collision_the_first_document_still_owns_the_address ... ok
+test store::tests::identical_content_is_stored_once_under_one_hash ... ok
+test store::tests::only_the_existence_of_a_title_crosses_not_its_text ... ok
+test store::tests::the_store_is_shareable_across_threads ... ok
+test store::tests::the_unguarded_behaviour_would_have_substituted_the_document ... ok
+test store::tests::warning_kinds_are_fixed_strings_and_carry_no_attacker_text ... ok
+test tests::an_empty_input_is_a_document_not_an_error ... ok
+test plain::tests::parse_csv_bounds_the_width_of_a_single_row ... ok
+test tests::normalize_collapses_blank_runs_and_trims ... ok
+test zip::tests::a_non_zip_is_refused_rather_than_misparsed ... ok
+test zip::tests::a_stored_entry_round_trips ... ok
+test zip::tests::slide_names_sort_numerically_so_a_deck_reads_in_order ... ok
+test zip::tests::a_deflated_entry_round_trips ... ok
+test plain::tests::parse_csv_retains_a_bounded_number_of_rows_and_still_counts_them_all ... ok
+test plain::tests::the_truncation_notice_states_the_real_row_count ... ok
+test tests::oversized_input_is_refused_by_size_not_walked ... ok
+test office::tests::a_single_row_cannot_amplify_a_shared_string_without_bound ... ok
+test plain::tests::parse_csv_bounds_a_single_enormous_field ... ok
+test tests::normalize_reports_truncation_rather_than_silently_cutting ... ok
+test office::tests::the_shared_string_table_is_bounded_on_count_and_on_bytes ... ok
+test html::tests::the_block_buffer_is_bounded_before_normalize_ever_sees_it ... ok
+
+test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests\adversarial.rs (target\debug\deps\adversarial-eb1f7f6a130e56dd.exe)
+
+running 54 tests
+test a_bidi_override_is_preserved_rather_than_silently_rewriting_the_text ... ok
+test a_less_than_inside_a_script_does_not_swallow_the_document ... ok
+test a_csv_formula_cell_is_data_and_is_never_evaluated ... ok
+test a_malformed_zip_is_refused_rather_than_misparsed ... ok
+test a_lying_meta_charset_cannot_smuggle_a_script_body_through ... ok
+test a_pdf_served_as_html_is_still_detected_as_a_pdf ... ok
+test a_reference_leaks_no_body_text ... ok
+test a_document_whose_every_field_is_hostile_still_produces_a_clean_reference ... ok
+test a_quoted_attribute_containing_a_gt_does_not_expose_markup_as_text ... ok
+test a_reference_hash_is_hex_only_and_cannot_carry_a_payload ... ok
+test a_reference_leaks_no_description_text ... ok
+test a_reference_leaks_no_heading_text ... ok
+test a_reference_leaks_no_link_urls ... ok
+test a_reference_leaks_no_title_text ... ok
+test a_relative_link_cannot_escape_to_another_origin ... ok
+test a_deeply_nested_json_document_is_flattened_without_unbounded_recursion ... ok
+test a_script_containing_its_own_closing_tag_in_a_string_does_not_leak_the_tail ... ok
+test a_utf16_payload_is_decoded_and_still_contained_by_shape_rules ... ok
+test a_zip_claiming_to_be_a_document_is_classified_by_its_own_parts ... ok
+test a_zip_entry_named_with_traversal_is_data_and_nothing_is_written ... ok
+test alt_text_is_content_and_is_deliberately_kept ... ok
+test an_unknown_declared_charset_is_reported_rather_than_silently_substituted ... ok
+test an_unknown_entity_is_left_verbatim_rather_than_silently_dropped ... ok
+test an_unterminated_ampersand_does_not_consume_the_document ... ok
+test an_unterminated_comment_does_not_leak_its_contents ... ok
+test an_xml_bomb_style_entity_reference_is_not_expanded ... ok
+test entities_cannot_reconstruct_a_tag_after_parsing ... ok
+test every_warning_kind_is_a_fixed_constant_carrying_no_attacker_text ... ok
+test extraction_is_deterministic_for_the_same_bytes ... ok
+test html_served_as_pdf_is_still_detected_as_html ... ok
+test invalid_byte_sequences_are_counted_not_silently_dropped ... ok
+test mailto_and_tel_are_not_pages ... ok
+test non_navigational_schemes_are_never_offered_as_links ... ok
+test nul_bytes_make_a_document_unsupported_rather_than_replacement_soup ... ok
+test extraction_never_panics_on_adversarial_input ... ok
+test ordinary_attribute_values_do_not_become_text ... ok
+test payload_in_a_comment_is_dropped ... ok
+test payload_in_a_noscript_is_dropped ... ok
+test payload_in_a_script_body_is_dropped ... ok
+test payload_in_a_style_body_is_dropped ... ok
+test payload_in_a_template_is_dropped ... ok
+test payload_in_a_textarea_is_dropped ... ok
+test payload_in_an_iframe_is_dropped ... ok
+test payload_in_an_object_is_dropped ... ok
+test payload_in_an_svg_is_dropped ... ok
+test payload_in_math_is_dropped ... ok
+test the_url_on_a_reference_is_the_callers_not_one_taken_from_content ... ok
+test truncated_json_still_yields_its_readable_content ... ok
+test zero_width_characters_do_not_break_container_detection ... ok
+test an_enormous_single_tag_does_not_hang_extraction ... ok
+test an_oversized_input_is_refused_by_size_before_it_is_walked ... ok
+test link_capture_is_bounded_so_a_link_farm_cannot_exhaust_memory ... ok
+test deeply_nested_markup_does_not_exhaust_the_stack ... ok
+test a_generated_document_far_over_the_text_cap_is_truncated_and_says_so ... ok
+
+test result: ok. 54 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests\injector.rs (target\debug\deps\injector-faac2eabf3abcd45.exe)
+
+running 13 tests
+test a_zip_declaring_a_huge_member_is_bounded ... ok
+test a_second_document_can_never_replace_the_first_at_one_address ... ok
+test documents_differing_by_one_byte_get_different_addresses ... ok
+test a_page_cannot_choose_any_harness_authored_token_on_a_reference ... ok
+test the_content_address_is_a_cryptographic_digest ... ok
+test the_same_document_twice_is_still_one_slot ... ok
+test no_format_can_panic_the_extractor ... ok
+test the_url_echoed_is_the_callers_and_never_one_learned_from_the_page ... ok
+test one_hostile_document_cannot_take_down_the_batch ... ok
+test distinct_documents_never_share_an_address ... ok
+test the_store_survives_concurrent_writers ... ok
+test every_count_on_a_reference_stays_a_number_however_the_page_is_shaped ... ok
+test pathological_markup_stays_linear ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests\multibyte.rs (target\debug\deps\multibyte-8a436ca74dd139f4.exe)
+
+running 11 tests
+test a_json_escape_of_a_multibyte_character_does_not_panic ... ok
+test fields_after_a_non_ascii_json_string_are_not_swallowed ... ok
+test a_stray_closing_tag_cannot_reopen_a_skipped_container ... ok
+test a_script_does_not_end_at_a_lookalike_closing_tag ... ok
+test a_heading_after_a_flush_does_not_panic_on_a_multibyte_character ... ok
+test an_entity_scan_window_landing_mid_character_does_not_panic ... ok
+test an_anchor_spanning_a_flush_does_not_panic_on_a_multibyte_character ... ok
+test multibyte_hostile_input_never_unwinds_into_the_caller ... ok
+test no_error_detail_ever_quotes_the_document ... ok
+test an_unclosed_title_does_not_become_the_whole_document ... ok
+test the_entity_scan_window_is_safe_at_every_nearby_offset ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\title_cap.rs (target\debug\deps\title_cap-3cd3bca7e33ed89c.exe)
+
+running 4 tests
+test the_html_path_is_still_capped_after_the_cap_moved ... ok
+test a_multibyte_title_is_cut_on_a_character_boundary ... ok
+test a_markdown_heading_title_is_capped_too ... ok
+test an_rss_title_is_capped_and_rss_is_not_html ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_journal-236f329c2a8d7ecd.exe)
+
+running 11 tests
+test event::tests::only_permission_may_grant_a_tier ... ok
+test event::tests::the_model_is_not_an_actor ... ok
+test signature::tests::chaining_detects_a_removed_predecessor ... ok
+test signature::tests::field_framing_is_unambiguous ... ok
+test signature::tests::key_hex_round_trips ... ok
+test profile::tests::there_is_no_open_or_init ... ok
+test signature::tests::signature_detects_a_changed_payload ... ok
+test profile::tests::init_refuses_a_non_empty_root ... ok
+test profile::tests::open_refuses_an_incomplete_profile ... ok
+test profile::tests::a_second_process_cannot_open_a_profile_that_is_already_held ... ok
+test profile::tests::init_then_open_round_trips ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\integrity.rs (target\debug\deps\integrity-d3d125c5e60effb3.exe)
+
+running 7 tests
+test a_tier_grant_from_the_wrong_actor_is_refused ... ok
+test ts_comes_from_the_supplied_clock_and_nowhere_else ... ok
+test replay_reads_back_what_was_appended ... ok
+test seq_is_monotonic_and_gapless ... ok
+test a_deleted_event_breaks_the_chain_on_reopen ... ok
+test an_edited_payload_breaks_the_chain_on_reopen ... ok
+test reopening_an_intact_journal_verifies_and_resumes ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_loop-282272a3b13c4645.exe)
+
+running 52 tests
+test budget::tests::a_child_never_receives_the_whole_remaining_budget ... ok
+test budget::tests::a_leaf_at_depth_four_is_inside_the_declared_band ... ok
+test budget::tests::a_granted_child_can_always_make_at_least_one_call ... ok
+test budget::tests::every_dimension_can_be_the_one_that_fires ... ok
+test budget::tests::there_is_a_floor_below_which_a_call_is_not_worth_issuing ... ok
+test budget::tests::a_parent_below_the_floor_refuses_to_delegate_rather_than_starving_a_child ... ok
+test budget::tests::depth_bounds_the_tree_rather_than_accumulating ... ok
+test budget::tests::an_explicit_grant_inside_the_pool_is_honoured_exactly ... ok
+test budget::tests::the_call_cap_is_what_is_left_not_a_default ... ok
+test context::tests::a_tool_description_cannot_reach_the_stable_tier ... ok
+test context::tests::tool_results_are_masked_before_compaction_is_reached ... ok
+test budget::tests::a_second_sibling_is_offered_the_same_allocation_as_the_first ... ok
+test context::tests::compaction_triggers_at_seventy_percent_not_at_exhaustion ... ok
+test control::tests::a_cancelled_run_refuses_to_resume_and_says_the_policy_did_it ... ok
+test budget::tests::an_explicit_grant_larger_than_the_pool_is_refused_with_both_numbers ... ok
+test context::tests::governance_survives_a_summarizer_that_returns_nothing ... ok
+test context::tests::a_trimmable_source_over_its_cap_is_shortened_oldest_first_and_says_so ... ok
+test context::tests::the_trust_floor_is_the_worst_class_in_view ... ok
+test context::tests::compaction_invalidates_the_cache_in_both_directions ... ok
+test context::tests::history_is_not_trimmable_so_a_long_dialogue_compacts_instead_of_forgetting ... ok
+test control::tests::a_durable_resume_with_no_checkpoint_names_the_absence_not_the_feature ... ok
+test control::tests::a_checkpoint_of_an_unknown_version_is_refused_rather_than_read_with_defaults ... ok
+test control::tests::a_steer_addressed_to_a_child_is_not_taken_by_the_parent ... ok
+test control::tests::cancelling_one_run_does_not_cancel_its_sibling ... ok
+test control::tests::resume_refuses_by_name_rather_than_succeeding_quietly ... ok
+test control::tests::resume_stages_a_real_checkpoint_and_hands_it_over_exactly_once ... ok
+test control::tests::steering_is_ordered ... ok
+test profile::tests::a_child_cannot_be_widened_past_its_parent ... ok
+test profile::tests::a_spawn_that_reads_untrusted_with_any_tool_fails_at_load_time ... ok
+test profile::tests::deserialization_cannot_bypass_the_invariant ... ok
+test profile::tests::the_empty_tool_set_is_the_only_quarantined_shape ... ok
+test profile::tests::the_named_profiles_are_the_capability_profiles_not_variants ... ok
+test provenance::tests::a_numeric_argument_has_no_attribution_path ... ok
+test provenance::tests::a_path_the_user_typed_is_user_asserted ... ok
+test provenance::tests::a_value_the_model_composed_carries_the_windows_floor ... ok
+test provenance::tests::an_argument_the_model_supplied_that_nobody_attributed_is_not_trusted_by_default ... ok
+test provenance::tests::attribution_is_exact_and_a_near_miss_does_not_match ... ok
+test run::tests::a_contract_refuses_a_field_it_did_not_name ... ok
+test run::tests::a_contract_refuses_a_transcript_stuffed_into_a_named_field ... ok
+test run::tests::a_missing_field_is_a_violation_not_an_empty_string ... ok
+test run::tests::a_mnemonic_is_the_same_every_time_for_the_same_id ... ok
+test run::tests::condensed_result_has_no_transcript_field ... ok
+test run::tests::naming_a_run_did_not_change_what_a_run_id_is ... ok
+test run::tests::run_ids_are_reproducible_when_named ... ok
+test steer::tests::an_ordinary_correction_is_admitted_unchanged ... ok
+test run::tests::different_ids_get_different_names ... ok
+test steer::tests::emptiness_is_judged_on_the_sanitised_text_not_the_raw_input ... ok
+test run::tests::a_mnemonic_is_typeable_without_looking_twice ... ok
+test steer::tests::the_cap_is_counted_in_characters_not_bytes ... ok
+test steer::tests::the_display_predicate_runs_before_the_text_is_ever_attributed ... ok
+test turn::tests::the_variant_set_carries_nothing_about_memory ... ok
+test steer::tests::an_oversized_steer_is_refused_by_name_and_never_truncated ... ok
+
+test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\batch_grouping.rs (target\debug\deps\batch_grouping-b5bcdd95059a3dfa.exe)
+
+running 6 tests
+test one_call_is_still_one_batch_of_one ... ok
+test a_refused_mutating_call_still_splits_the_batch_around_it ... ok
+test a_mutating_call_is_never_batched_with_the_reads_around_it ... ok
+test bash_is_never_batched ... ok
+test consecutive_mutating_calls_are_not_merged_with_each_other ... ok
+test a_run_of_inert_calls_is_delivered_as_a_single_batch ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\compaction.rs (target\debug\deps\compaction-bd2932dd33e4c8aa.exe)
+
+running 5 tests
+test a_tool_description_never_reaches_the_stable_tier_even_when_it_asks_to ... ok
+test governance_survives_compaction_with_a_summarizer_that_preserves_nothing ... ok
+test compaction_invalidates_the_cache_and_a_stale_prefix_is_unreachable ... ok
+test the_model_sees_its_governance_on_the_turn_after_compaction ... ok
+test tool_results_are_masked_before_the_window_reaches_the_compaction_trigger ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\condense_integrity.rs (target\debug\deps\condense_integrity-a2e39d11ba28103e.exe)
+
+running 8 tests
+test a_labelled_reply_is_attributed_to_the_slots_it_names ... ok
+test a_rendered_value_can_never_start_a_line_at_column_zero ... ok
+test a_repeated_header_cannot_overwrite_an_earlier_attribution ... ok
+test the_character_class_refuses_what_defeats_the_indentation_defence ... ok
+test an_unlabelled_reply_yields_no_attribution_at_all ... ok
+test ordinary_text_in_any_language_still_passes ... ok
+test an_indented_field_header_inside_a_value_does_not_open_a_field ... ok
+test a_structured_contract_can_be_satisfied_by_filling_it ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\durable_resume.rs (target\debug\deps\durable_resume-9370f731cd33fafb.exe)
+
+running 18 tests
+test a_child_that_already_finished_is_not_settled ... ok
+test detach_leaves_a_child_that_resumes_with_no_parent ... ok
+test a_clean_run_resumes_with_a_clean_floor ... ok
+test adopt_leaves_a_child_that_resumes_under_the_named_run ... ok
+test every_resumable_run_is_enumerable_and_the_finished_ones_are_distinguishable ... ok
+test a_quarantined_reader_cannot_come_back_holding_tools ... ok
+test spend_and_the_step_counter_survive_a_restart ... ok
+test terminate_leaves_a_child_that_refuses_to_resume ... ok
+test a_run_that_completed_leaves_a_terminal_checkpoint_and_refuses_to_resume ... ok
+test the_trust_floor_survives_a_restart ... ok
+test the_three_policies_are_distinguishable_from_the_child_alone ... ok
+test a_parent_completing_settles_its_children_through_the_loop ... ok
+test steering_a_latched_run_does_not_restore_composed_targets ... ok
+test a_running_child_takes_a_steer_addressed_to_it_without_restarting ... ok
+test a_checkpoint_is_bounded_by_the_window_not_by_the_run ... ok
+test a_pre_m3_checkpoint_payload_is_skipped_rather_than_fatal ... ok
+test a_checkpoint_round_trips_through_the_signed_log ... ok
+test a_run_that_died_mid_flight_resumes_from_its_last_completed_step ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests\egress_grant.rs (target\debug\deps\egress_grant-c6e1b2fe8ee72d3a.exe)
+
+running 2 tests
+test after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs ... ok
+test a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\hp10_budgets.rs (target\debug\deps\hp10_budgets-ddf40be059cd1114.exe)
+
+running 6 tests
+test every_user_facing_command_is_a_view_over_one_of_seven_nouns ... ok
+test every_capability_profile_exposes_at_most_twelve_tools ... ok
+test the_registry_can_hold_more_than_it_exposes ... ok
+test the_loop_starts_with_no_configuration_file_anywhere ... ok
+test the_command_registry_has_not_grown_a_command_with_no_noun ... ok
+test there_is_exactly_one_driving_loop_in_this_crate ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\injection_attempts.rs (target\debug\deps\injection_attempts-43ca3cf23645d52c.exe)
+
+running 10 tests
+test a_page_impersonating_the_quarantine_banner_is_still_quarantined ... ok
+test ansi_escapes_from_a_page_never_reach_the_parent ... ok
+test a_page_cannot_forge_a_field_header_through_the_reader ... ok
+test an_instruction_inside_a_script_tag_does_not_reach_the_parent ... ok
+test even_a_fully_compromised_reader_cannot_make_the_parent_run_a_tool ... ok
+test a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash ... ok
+test an_instruction_inside_an_html_comment_does_not_reach_the_parent ... ok
+test a_reader_emitting_control_characters_is_refused_by_the_contract ... ok
+test no_hostile_page_moves_the_parents_trust_floor ... ok
+test an_enormous_hostile_page_is_still_contained ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\journal_records_why.rs (target\debug\deps\journal_records_why-d140e5138157caa2.exe)
+
+running 1 test
+test a_failed_tool_calls_reason_is_in_the_journal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\memory_write_ownership.rs (target\debug\deps\memory_write_ownership-142da16e152a43bb.exe)
+
+running 3 tests
+test a_successful_remember_produces_no_memory_written_event_from_the_loop ... ok
+test the_loop_hands_the_host_the_runs_latched_floor_and_its_session ... ok
+test a_refused_remember_is_still_recorded_by_the_loop ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\quarantine_batch.rs (target\debug\deps\quarantine_batch-989c9d5c653454d6.exe)
+
+running 11 tests
+test with_no_budget_for_a_reader_the_page_is_not_placed_in_the_window ... ok
+test a_running_quarantined_reader_is_visible_as_a_subagent_on_the_surface ... ok
+test each_source_is_reported_under_its_own_harness_assigned_label ... ok
+test a_value_cannot_forge_a_source_header ... ok
+test an_unattributed_reply_does_not_appear_under_any_sources_label ... ok
+test the_subagent_line_carries_no_word_the_reader_or_the_page_wrote ... ok
+test nothing_the_quarantined_reader_says_reaches_the_surface ... ok
+test no_fetched_bytes_reach_the_parent_and_the_floor_does_not_move ... ok
+test identical_documents_are_read_once ... ok
+test a_group_of_fetches_is_read_by_exactly_one_quarantined_child ... ok
+test a_group_larger_than_the_cap_is_split_across_readers ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\quarantine_refusal.rs (target\debug\deps\quarantine_refusal-44ee0fed4ed3da8b.exe)
+
+running 5 tests
+test the_five_refusals_say_five_different_things ... ok
+test a_reader_whose_provider_refused_is_not_reported_as_a_contract_failure ... ok
+test a_successful_read_still_produces_a_condensed_note_and_no_refusal ... ok
+test a_reader_that_could_not_satisfy_the_contract_is_not_reported_as_a_harness_fault ... ok
+test a_contract_failure_is_classified_as_a_contract_failure ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spawn_and_budget.rs (target\debug\deps\spawn_and_budget-c6a725103d4f9823.exe)
+
+running 32 tests
+test a_declared_amount_is_rendered_as_money_in_the_scope_line ... ok
+test a_child_that_returns_a_transcript_shaped_result_is_refused_by_its_contract ... ok
+test a_child_cannot_be_less_tainted_than_the_run_that_spawned_it ... ok
+test a_negative_amount_is_not_quietly_turned_into_a_valid_one ... ok
+test a_model_that_returns_nothing_fails_the_run_rather_than_completing_it ... ok
+test a_child_cannot_be_given_a_tool_its_parent_does_not_have ... ok
+test a_blocked_tool_call_still_emits_a_tool_line ... ok
+test a_childs_spend_counts_against_its_parent ... ok
+test a_refusal_tells_the_model_what_happened_and_whether_to_retry ... ok
+test a_driver_that_ignores_its_cap_is_stopped_at_the_next_iteration ... ok
+test a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts ... ok
+test a_quarantined_child_runs_and_returns_findings ... ok
+test an_empty_turn_is_nudged_before_it_is_failed ... ok
+test a_child_does_not_inherit_its_parents_provenance_attributions ... ok
+test a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop ... ok
+test a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it ... ok
+test the_empty_tool_set_with_reads_untrusted_is_the_valid_quarantined_reader ... ok
+test an_integer_declared_as_an_integer_is_not_turned_into_money ... ok
+test a_budget_ceiling_pauses_and_never_spends_past_the_line ... ok
+test the_guard_names_a_tool_that_has_no_executor ... ok
+test a_batch_cannot_launder_a_target_through_its_own_sibling ... ok
+test the_interactive_profile_exposes_nothing_the_tool_host_cannot_run ... ok
+test a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name ... ok
+test a_childs_transcript_never_reaches_the_parents_context ... ok
+test the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing ... ok
+test the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view ... ok
+test every_result_in_a_batch_is_attributable_to_the_call_that_produced_it ... ok
+test a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked ... ok
+test the_spawn_tree_is_bounded_by_depth ... ok
+test every_budget_dimension_can_be_the_one_that_pauses ... ok
+test an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once ... ok
+test the_latch_announces_exactly_when_a_composed_target_is_actually_blocked ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\steer_admission.rs (target\debug\deps\steer_admission-6bddf18fa5975357.exe)
+
+running 4 tests
+test a_steer_does_not_restore_composed_targets_in_a_latched_run ... ok
+test a_target_the_user_typed_in_a_steer_is_theirs_and_runs ... ok
+test the_sanitiser_runs_before_the_steer_is_attributed ... ok
+test in_the_same_latched_run_a_target_the_user_named_is_still_theirs ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\steer_has_one_door.rs (target\debug\deps\steer_has_one_door-0dfc352b24b230dc.exe)
+
+running 1 test
+test steer_message_is_constructed_in_exactly_one_place_and_it_is_the_door ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_mcp-49246ecd2d099e7d.exe)
+
+running 6 tests
+test deadline::tests::a_deadline_in_the_past_has_passed_and_one_in_the_future_has_not ... ok
+test tests::the_spawn_path_still_detaches_the_console ... ok
+test deadline::tests::nothing_but_a_bool_comes_out_of_this_module ... ok
+test tests::no_socket_reaches_this_crate ... ok
+test tests::a_json_type_maps_to_a_param_type_and_the_unknown_case_is_text ... ok
+test tests::a_server_that_cannot_be_started_says_so_by_name ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_memory-e836e84257ce92c3.exe)
+
+running 162 tests
+test consolidate::tests::another_session_is_never_touched ... ok
+test consolidate::tests::a_superseded_member_leaves_the_injection_candidate_set ... ok
+test cue::dense::cache::tests::every_identity_field_participates_in_the_key ... ok
+test consolidate::tests::the_applied_linkage_is_complete ... ok
+test consolidate::tests::single_link_chains_a_transitive_run_and_complete_link_does_not ... ok
+test consolidate::tests::consolidation_is_deterministic_across_runs ... ok
+test consolidate::tests::the_survivor_is_the_latest_not_the_earliest ... ok
+test consolidate::tests::the_histogram_makes_a_badly_chosen_dump_floor_visible ... ok
+test consolidate::tests::a_dry_run_sweeps_every_threshold_and_marks_itself_unapplied ... ok
+test consolidate::tests::an_entry_with_no_vector_is_kept_rather_than_merged_away ... ok
+test consolidate::tests::dissimilar_entries_are_never_merged ... ok
+test cue::dense::cuda_libs::tests::an_empty_variable_is_refused_rather_than_read_as_unset ... ok
+test cue::dense::cuda_libs::tests::an_unset_variable_is_not_a_failure_and_not_a_promise ... ok
+test cue::dense::cuda_libs::tests::a_directory_that_does_not_exist_is_named_rather_than_left_to_error_126 ... ok
+test cue::dense::embedder::tests::a_missing_model_names_the_fetch_command_rather_than_defaulting ... ok
+test cue::dense::hostmem::tests::the_quadratic_term_is_the_one_that_moved ... ok
+test cue::dense::hostmem::tests::the_shipped_cap_predicts_a_footprint_in_megabytes_not_gigabytes ... ok
+test cue::dense::tests::an_all_zero_hidden_state_does_not_divide_by_zero ... ok
+test cue::dense::tests::an_opposed_vector_scores_zero_rather_than_negative ... ok
+test cue::dense::tests::cosine_of_a_vector_with_itself_is_one ... ok
+test cue::dense::tests::pooling_and_cosine_are_deterministic ... ok
+test cue::dense::tests::pooling_averages_over_tokens_then_normalizes_to_unit_length ... ok
+test cue::dense::tests::similarity_is_absolute_not_relative_to_the_candidate_set ... ok
+test cue::dense::tokenizer::tests::an_empty_text_is_just_the_special_tokens ... ok
+test cue::dense::tokenizer::tests::an_overlong_word_is_a_single_unk ... ok
+test cue::dense::tokenizer::tests::accents_are_stripped_because_strip_accents_null_means_derive_from_do_lower_case ... ok
+test cue::dense::tokenizer::tests::basic_tokenize_lowercases_and_splits_punctuation ... ok
+test cue::dense::tokenizer::tests::cjk_characters_each_become_their_own_token ... ok
+test cue::dense::tokenizer::tests::encode_wraps_in_cls_and_sep ... ok
+test cue::dense::tokenizer::tests::special_token_literals_in_the_text_are_split_out_case_sensitively ... ok
+test cue::dense::tokenizer::tests::separators_split_but_control_characters_weld ... ok
+test cue::dense::tokenizer::tests::wordpiece_uses_continuations_and_falls_back_to_unk_for_the_whole_word ... ok
+test cue::dense::vectors::tests::an_empty_store_returns_nothing_rather_than_a_zero_vector ... ok
+test cue::dense::tokenizer::tests::tokenizing_is_deterministic ... ok
+test cue::dense::vram::tests::a_fixed_probe_reports_exactly_what_it_was_given ... ok
+test cue::dense::vectors::tests::retain_live_drops_vectors_for_memories_that_are_gone ... ok
+test cue::dense::cache::tests::hits_and_misses_are_counted_so_a_dead_cache_is_visible ... ok
+test cue::dense::vram::tests::no_external_command_in_this_module_waits_forever ... ok
+test cue::dense::tokenizer::tests::truncation_keeps_sep_last_and_says_so ... ok
+test cue::dense::cache::tests::a_truncated_file_is_refused_rather_than_partially_served ... ok
+test cue::dense::cache::tests::different_texts_do_not_collide ... ok
+test cue::dense::cache::tests::a_hit_and_a_miss_produce_byte_identical_vectors ... ok
+test cue::dense::vram::tests::zero_free_and_no_device_are_different_answers ... ok
+test cue::lexical::tests::a_matching_document_outscores_a_non_matching_one ... ok
+test cue::dense::cache::tests::a_different_model_digest_cannot_read_the_previous_models_vectors ... ok
+test cue::lexical::tests::a_query_sharing_no_vocabulary_scores_zero_everywhere ... ok
+test cue::lexical::tests::an_empty_candidate_set_scores_nothing_rather_than_dividing_by_zero ... ok
+test cue::dense::cuda_libs::tests::a_partial_runtime_is_refused_and_the_refusal_names_every_missing_library ... ok
+test cue::dense::cache::tests::putting_the_same_text_twice_does_not_duplicate_the_record ... ok
+test cue::lexical::tests::no_stemming_and_no_stop_list ... ok
+test cue::dense::embedder::tests::a_swapped_model_file_is_refused_at_load ... ok
+test cue::lexical::tests::idf_is_never_negative ... ok
+test cue::lexical::tests::saturation_is_monotone ... ok
+test cue::lexical::tests::scoring_is_deterministic_across_calls ... ok
+test cue::lexical::tests::saturation_is_absolute_not_relative_to_the_candidate_set ... ok
+test cue::lexical::tests::the_tokenizer_does_what_it_says ... ok
+test entry::tests::all_three_exclusions_bite_independently ... ok
+test cue::lexical::tests::the_belief_path_and_the_text_path_are_the_same_arithmetic ... ok
+test entry::tests::an_unmatured_entry_is_not_an_injection_candidate ... ok
+test entry::tests::memory_ids_do_not_contain_a_timestamp ... ok
+test cue::dense::cuda_libs::tests::pointing_at_the_library_instead_of_its_directory_is_refused ... ok
+test gate::features::tests::a_lone_candidate_competes_against_nothing_worth_zero ... ok
+test gate::features::tests::a_tie_at_the_top_gives_both_candidates_zero_margin ... ok
+test gate::features::tests::an_empty_candidate_set_extracts_nothing_rather_than_panicking ... ok
+test gate::features::tests::cue_agreement_counts_how_many_of_the_two_cues_fired ... ok
+test gate::features::tests::feature_names_are_unique ... ok
+test gate::features::tests::margin_preserves_absolute_magnitude_which_is_why_it_is_the_calibrated_feature ... ok
+test gate::features::tests::margin_is_the_lead_over_the_runner_up_and_is_negative_for_everyone_else ... ok
+test gate::features::tests::extraction_is_bit_identical_across_calls ... ok
+test gate::features::tests::names_and_values_stay_aligned ... ok
+test gate::features::tests::no_feature_takes_two_roles ... ok
+test gate::features::tests::reciprocal_rank_is_a_total_order_even_under_ties ... ok
+test gate::features::tests::ordinals_span_zero_to_one ... ok
+test gate::features::tests::sigma_zero_yields_zero_not_a_division ... ok
+test gate::features::tests::the_gate_scores_effective_trust_not_declared_trust ... ok
+test gate::features::tests::the_raw_scores_are_retained_because_number_3_sweeps_them ... ok
+test gate::features::tests::the_role_arrays_agree_with_the_cue_specs ... ok
+test gate::features::tests::z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key ... ok
+test gate::features::tests::z_sums_to_zero_and_has_unit_spread ... ok
+test cue::dense::cuda_libs::tests::a_complete_runtime_in_one_directory_is_applied ... ok
+test gate::tests::a_disagreeing_ranking_key_is_refused ... ok
+test gate::tests::a_cue_without_a_curve_is_refused ... ok
+test gate::tests::a_curve_that_is_never_read_is_refused ... ok
+test gate::tests::a_duplicate_breakpoint_is_refused ... ok
+test gate::tests::a_failed_floor_loads_while_it_cannot_inject ... ok
+test gate::tests::a_failed_floor_that_would_inject_is_refused ... ok
+test gate::tests::a_feature_in_no_role_with_no_stated_reason_is_refused ... ok
+test gate::tests::a_missing_field_names_itself ... ok
+test gate::tests::a_missing_rank_features_declaration_is_refused ... ok
+test gate::tests::a_moved_threshold_is_refused ... ok
+test gate::tests::a_non_monotone_curve_is_refused_and_names_its_cue ... ok
+test gate::tests::a_passing_floor_that_would_inject_loads ... ok
+test gate::tests::a_precision_above_one_is_refused ... ok
+test gate::tests::a_v3_artifact_is_refused_by_its_own_missing_role ... ok
+test gate::tests::a_v3_fusion_declared_on_a_v4_schema_is_refused_by_name ... ok
+test gate::tests::a_wrong_version_is_refused ... ok
+test gate::tests::an_empty_curve_is_refused ... ok
+test gate::tests::an_inert_feature_cannot_move_the_verdict ... ok
+test gate::tests::an_unfitted_artifact_is_refused_rather_than_defaulted ... ok
+test gate::tests::an_unrecognised_floor_verdict_is_refused ... ok
+test gate::tests::an_unsorted_curve_is_refused ... ok
+test gate::tests::an_unmeasured_floor_loads_because_refusing_it_would_deadlock ... ok
+test cue::dense::cuda_libs::tests::the_requirement_is_on_the_union_of_the_directories_not_on_each_one ... ok
+test gate::tests::declaring_a_RANK_feature_inert_is_refused ... ok
+test gate::tests::declaring_an_unknown_feature_inert_is_refused ... ok
+test gate::tests::dropping_a_cue_is_refused_rather_than_silently_calibrating_one ... ok
+test gate::tests::either_cue_alone_can_carry_a_candidate ... ok
+test gate::tests::declaring_a_cue_inert_is_refused ... ok
+test gate::tests::max_calibrated_precision_is_the_best_cues_top_block ... ok
+test gate::tests::reordered_feature_names_are_refused ... ok
+test gate::tests::scoring_is_deterministic ... ok
+test gate::tests::the_calibration_reads_MARGIN_and_nothing_else ... ok
+test gate::tests::the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value ... ok
+test gate::tests::the_threshold_is_read_in_calibrated_units_not_score_units ... ok
+test gate::tests::the_two_stamps_are_distinguishable ... ok
+test gate::tests::the_weaker_cue_cannot_drag_the_verdict_down ... ok
+test gate::tests::two_candidates_in_the_same_calibration_block_are_still_ordered ... ok
+test operating_point::tests::a_margin_at_or_above_the_cut_point_admits_and_below_it_abstains ... ok
+test operating_point::tests::admission_is_rank_one_alone_and_the_type_cannot_express_a_slate ... ok
+test operating_point::tests::every_abstention_reason_is_distinguishable_from_the_others ... ok
+test operating_point::tests::the_measurement_arm_is_recorded_rather_than_left_to_a_command_line_nobody_kept ... ok
+test operating_point::tests::full_coverage_admits_exactly_where_declared_abstains_on_the_margin_and_nowhere_else ... ok
+test operating_point::tests::an_artifact_measured_on_another_graph_is_refused_by_name ... ok
+test operating_point::tests::nothing_the_operating_point_can_say_mentions_precision ... ok
+test operating_point::tests::the_margin_is_recorded_even_when_it_falls_short ... ok
+test probe::tests::every_stage_has_a_distinct_index_and_name ... ok
+test gate::tests::the_committed_artifact_is_whatever_it_says_it_is ... ok
+test operating_point::tests::the_shipped_artifact_loads_and_declares_the_published_cut_point ... ok
+test retrieve::tests::a_gap_exactly_at_the_threshold_does_not_split ... ok
+test operating_point::tests::without_a_reranker_nothing_injects_however_good_the_scores_look ... ok
+test retrieve::tests::a_single_candidate_passes_through_with_rank_zero ... ok
+test retrieve::tests::an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index ... ok
+test retrieve::tests::contiguous_turns_form_one_session_and_a_gap_starts_another ... ok
+test retrieve::tests::equal_secondary_logits_get_secondary_ranks_by_index_then_still_fuse ... ok
+test retrieve::tests::a_margin_calibrated_gate_can_pass_at_most_one_candidate_per_cue ... ok
+test retrieve::tests::a_query_matching_nothing_clears_no_candidate ... ok
+test retrieve::tests::keys_follow_the_candidates_own_order_not_time_order ... ok
+test retrieve::tests::max_aggregation_cannot_displace_a_cues_top_1_candidate ... ok
+test retrieve::tests::an_unreranked_candidate_never_outranks_a_reranked_one ... ok
+test retrieve::tests::nothing_is_injected_before_maturation ... ok
+test retrieve::tests::pruning_does_not_apply_when_there_is_nothing_to_prune ... ok
+test retrieve::tests::only_the_requested_session_is_scoped ... ok
+test retrieve::tests::every_scored_candidate_is_retained_including_the_rejects ... ok
+test retrieve::tests::pruning_keeps_the_union_of_each_cues_top_sessions ... ok
+test retrieve::tests::rrf_fusion_orders_by_reciprocal_rank_sum ... ok
+test retrieve::tests::simultaneous_turns_share_a_session_whatever_their_ids ... ok
+test retrieve::tests::the_dump_order_is_stable ... ok
+test retrieve::tests::the_token_estimate_is_pessimistic ... ok
+test retrieve::tests::under_the_cascade_rerank_score_stays_the_SHIPPED_graphs_logit ... ok
+test retrieve::tests::the_budget_cuts_after_the_gate_and_says_so ... ok
+test trust::tests::derivation_depth_does_not_launder ... ok
+test retrieve::tests::the_gate_drops_what_it_does_not_believe_in ... ok
+test retrieve::tests::ranking_is_deterministic ... ok
+test trust::tests::no_parents_means_own_trust ... ok
+test trust::tests::one_untrusted_parent_drags_the_whole_derivation_down ... ok
+test trust::tests::ordinary_actors_pass ... ok
+test trust::tests::reserved_actors_are_refused ... ok
+test trust::tests::the_actor_check_cannot_elevate ... ok
+test trust::tests::web_is_untrusted_no_matter_what ... ok
+test cue::dense::vram::tests::the_device_reading_is_either_absent_or_plausible ... ok
+test cue::dense::hostmem::tests::a_reading_is_either_absent_or_plausible ... ok
+test cue::dense::embedder::tests::the_pinned_digests_match_the_fetched_model ... ok
+
+test result: ok. 162 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.88s
+
+     Running tests\claim.rs (target\debug\deps\claim-246b69e09016acff.exe)
+
+running 12 tests
+test correcting_or_forgetting_something_that_does_not_exist_is_refused ... ok
+test a_fresh_claim_is_withheld_from_injection_until_it_matures ... ok
+test a_parents_worse_trust_drags_the_derived_claim_down_with_it ... ok
+test an_unknown_parent_is_refused_and_the_refusal_is_in_the_log ... ok
+test the_run_floor_decides_a_claims_trust_class_and_a_clean_run_writes_higher ... ok
+test a_correction_may_not_lower_a_beliefs_authority_but_an_equal_one_may ... ok
+test successive_claims_in_a_session_get_distinct_ids ... ok
+test an_empty_claim_is_refused_rather_than_written ... ok
+test no_floor_however_high_lets_a_model_claim_reach_the_harness_tier ... ok
+test forgetting_clears_the_text_and_a_rebuild_reproduces_exactly_that ... ok
+test a_correction_supersedes_the_old_belief_without_deleting_it ... ok
+test the_same_write_against_the_same_store_gets_the_same_id_at_any_clock ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests\cross_encoder_reference.rs (target\debug\deps\cross_encoder_reference-6657ce7f3b45925a.exe)
+
+running 12 tests
+test the_rerank_budget_never_exceeds_what_invariance_was_measured_at ... ok
+test the_superseded_int8_directory_is_refused_by_name ... ok
+test the_longest_first_case_actually_exercises_the_strategy ... ok
+test the_two_vocabularies_encode_identically ... ok
+test the_pair_encoder_reproduces_huggingface_exactly ... ok
+test the_rust_graph_reproduces_the_reference_on_cuda_too ... ok
+test a_batch_larger_than_the_measured_envelope_is_refused ... ok
+test scoring_the_same_pair_twice_gives_the_same_logit ... ok
+test the_rust_graph_reproduces_the_reference_logits ... ok
+test batched_and_single_scoring_are_bit_identical ... ok
+test the_cascade_fuse_graph_reproduces_its_own_reference_logits ... ok
+test batched_and_single_scoring_are_bit_identical_on_the_cascade_fuse_graph ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.43s
+
+     Running tests\cuda_libs_hint.rs (target\debug\deps\cuda_libs_hint-02aed0c4297cdd26.exe)
+
+running 1 test
+test a_cuda_load_failure_with_nothing_configured_names_the_variable_that_would_fix_it ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.90s
+
+     Running tests\cuda_libs_wiring.rs (target\debug\deps\cuda_libs_wiring-0bdbf9313834de9c.exe)
+
+running 1 test
+test both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.56s
+
+     Running tests\embedder_provider.rs (target\debug\deps\embedder_provider-a201c62a29d43ec2.exe)
+
+running 8 tests
+test asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run ... ok
+test cuda_determinism_and_worker_invariance_are_measured_not_inherited ... ok
+test cuda_padding_invariance_is_measured_on_the_shipped_graph ... ok
+test a_cuda_session_that_loaded_actually_holds_DEVICE_memory ... ok
+test the_budget_is_checked_before_a_session_is_attempted_not_after ... ok
+test an_absent_device_is_cpu_and_says_so_rather_than_guessing ... ok
+test a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test every_session_in_one_embedder_uses_the_same_provider ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.13s
+
+     Running tests\embedding_reference.rs (target\debug\deps\embedding_reference-9bf4abe80dc47670.exe)
+
+running 9 tests
+test a_vocabulary_of_the_wrong_size_is_refused_rather_than_used ... ok
+test a_vocabulary_missing_a_special_token_is_refused ... ok
+test a_crlf_checkout_does_not_shift_every_token_id ... ok
+test truncation_matches_huggingface_including_which_cases_truncate ... ok
+test the_tokenizer_reproduces_huggingface_exactly ... ok
+test the_embedder_reproduces_the_reference_on_cuda_too ... ok
+test the_embedder_reproduces_the_reference_within_a_measured_tolerance ... ok
+test the_cache_returns_exactly_what_the_model_computed ... ok
+test embedding_is_bit_identical_across_calls_and_worker_counts ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.48s
+
+     Running tests\ingest.rs (target\debug\deps\ingest-00547ddbf666ea91.exe)
+
+running 10 tests
+test a_wrong_derivation_version_refuses_to_rebuild ... ok
+test a_web_claim_comes_back_untrusted ... ok
+test a_forged_privileged_actor_is_visibly_refused_and_not_written ... ok
+test a_written_memory_is_silent_until_it_matures ... ok
+test a_terminal_claim_is_user_asserted ... ok
+test the_belief_store_rebuilds_from_the_log_alone ... ok
+test two_fresh_profiles_ingesting_the_same_history_agree_exactly ... ok
+test apply_refuses_a_dry_run_report ... ok
+test consolidation_ran_is_journaled_even_when_nothing_merged ... ok
+test a_merge_is_journaled_and_survives_a_rebuild ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.59s
+
+     Running tests\rerank_provider.rs (target\debug\deps\rerank_provider-fb9d01e6402e1c6a.exe)
+
+running 10 tests
+test the_measurement_arm_reserves_nothing_and_admits_it ... ok
+test a_reserve_for_an_uninstalled_model_is_zero_and_says_why ... ok
+test an_explicit_cpu_request_never_touches_the_card ... ok
+test a_full_card_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test the_batch_invariance_check_can_actually_see_a_reordering ... ok
+test batch_invariance_on_cuda_is_measured_here_and_never_inherited_from_cpu ... ok
+test a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph ... ok
+test the_reserve_can_push_the_rerank_off_a_card_that_looks_free ... ok
+test scoring_is_deterministic_on_cuda_within_one_process ... ok
+test a_loaded_cuda_rerank_session_holds_device_memory ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.54s
+
+     Running tests\session_footprint.rs (target\debug\deps\session_footprint-488c0ef071afe9f5.exe)
+
+running 1 test
+test one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.93s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_net-812367fe0b2c43ea.exe)
+
+running 17 tests
+test age::tests::a_mark_measures_forward_and_offers_nothing_else ... ok
+test post_streaming_tests::chunked_framing_is_decoded_incrementally ... ok
+test post_streaming_tests::a_header_value_carrying_crlf_is_refused_rather_than_stripped ... ok
+test tests::a_missing_path_becomes_root ... ok
+test tests::a_url_with_no_scheme_is_refused ... ok
+test tests::plaintext_http_is_refused_and_not_upgraded ... ok
+test tests::an_unrequested_encoding_errors_rather_than_returning_binary_garbage ... ok
+test tests::identity_passes_through_untouched ... ok
+test tests::only_transport_faults_are_retried ... ok
+test tests::fetch_many_of_nothing_is_empty_rather_than_a_panic ... ok
+test tests::an_explicit_port_is_kept ... ok
+test tests::the_host_is_lowercased_so_an_allowlist_compares_one_spelling ... ok
+test tests::the_client_is_send_and_sync_so_the_pool_can_be_shared ... ok
+test tests::userinfo_is_refused_because_it_hides_the_real_host ... ok
+test tests::gzip_is_removed_so_a_caller_never_sees_transport_compression ... ok
+test tests::raw_deflate_is_accepted_as_well_as_zlib_wrapped ... ok
+test tests::a_gzip_bomb_is_bounded_by_the_decompressed_ceiling_not_the_wire_size ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_openrouter-33b696d6ef933227.exe)
+
+running 24 tests
+test attribution::tests::one_upstream_throughout_is_not_flagged ... ok
+test attribution::tests::an_unreported_upstream_says_so_rather_than_defaulting_to_the_requested_model ... ok
+test attribution::tests::a_run_served_by_two_upstreams_says_so ... ok
+test retry::tests::retrying_cannot_stall_a_turn_for_longer_than_the_stated_ceiling ... ok
+test catalogue::tests::an_entry_with_no_usable_id_is_skipped_rather_than_rendered_blank ... ok
+test availability::tests::an_error_body_is_bounded_and_attributed ... ok
+test retry::tests::the_backoff_is_exponential_and_capped ... ok
+test catalogue::tests::an_unreadable_catalogue_is_an_error_and_not_an_empty_list ... ok
+test catalogue::tests::ids_are_taken_sorted_and_deduplicated ... ok
+test retry::tests::a_server_supplied_wait_is_clamped_rather_than_obeyed ... ok
+test attribution::tests::an_upstream_name_carrying_a_control_sequence_is_sanitised_where_it_arrives ... ok
+test retry::tests::only_the_transient_statuses_are_retried ... ok
+test availability::tests::each_failure_names_a_different_remedy ... ok
+test availability::tests::a_missing_model_is_checked_before_the_key ... ok
+test secret::tests::an_empty_variable_is_absent_rather_than_a_key ... ok
+test availability::tests::a_status_explanation_names_the_action_not_the_number ... ok
+test secret::tests::debug_cannot_print_the_key_and_neither_can_a_struct_that_holds_one ... ok
+test secret::tests::redaction_removes_a_key_an_upstream_echoed_back ... ok
+test secret::tests::the_fingerprint_is_not_a_prefix_of_the_key ... ok
+test sse::tests::a_keepalive_comment_is_not_a_frame_and_not_an_error ... ok
+test sse::tests::a_multi_line_data_field_is_joined_with_newlines ... ok
+test sse::tests::a_stream_cut_short_yields_what_arrived_rather_than_nothing ... ok
+test sse::tests::nothing_after_done_is_read ... ok
+test sse::tests::the_done_sentinel_is_a_sentinel_and_not_malformed_json ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\instrument.rs (target\debug\deps\instrument-137936587bd1d9de.exe)
+
+running 9 tests
+test an_unreported_upstream_is_recorded_as_unreported_rather_than_guessed ... ok
+test the_serving_upstream_and_the_resolved_model_reach_the_run_record ... ok
+test cost_and_tokens_come_from_the_providers_own_fields_and_reach_usage ... ok
+test a_rate_limit_is_retried_and_the_run_record_says_how_many_attempts_it_took ... ok
+test a_credential_failure_is_not_retried ... ok
+test retrying_is_bounded_and_the_bound_is_the_named_constant ... ok
+test the_attribution_sink_fires_once_per_call_so_a_harness_can_stream_it ... ok
+test a_run_whose_upstream_changes_between_calls_says_so ... ok
+test a_transport_fault_is_retried_and_then_reported_with_a_remedy_rather_than_a_panic ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.50s
+
+     Running tests\key_containment.rs (target\debug\deps\key_containment-2214132d3cd94868.exe)
+
+running 6 tests
+test a_key_an_upstream_echoes_back_is_redacted_before_it_becomes_an_error ... ok
+test the_rate_limited_error_path_redacts_too ... ok
+test the_credential_is_actually_sent_or_none_of_the_above_means_anything ... ok
+test the_dev_request_dump_never_sees_the_key ... ok
+test the_key_is_in_exactly_one_header_and_in_no_part_of_the_model_s_context ... ok
+test nothing_the_driver_returns_can_carry_the_key ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\quarantined_reader_wire_shape.rs (target\debug\deps\quarantined_reader_wire_shape-013e0a0001d9f454.exe)
+
+running 4 tests
+test a_genuine_tool_reply_in_the_parent_keeps_its_role_and_its_pairing ... ok
+test the_readers_request_contains_no_reply_to_a_call_it_never_made ... ok
+test the_quarantined_reader_is_still_offered_no_tool_by_any_spelling ... ok
+test the_page_reached_the_reader_and_did_not_reach_the_parent ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\streaming_and_tool_calls.rs (target\debug\deps\streaming_and_tool_calls-f7609b103056885f.exe)
+
+running 9 tests
+test the_request_carries_the_output_cap_the_window_and_the_determinism_controls ... ok
+test reasoning_goes_to_the_reasoning_channel_and_never_to_the_reply ... ok
+test an_error_object_inside_a_200_stream_fails_the_call_rather_than_returning_an_empty_reply ... ok
+test a_replayed_assistant_tool_call_serialises_its_arguments_as_a_string ... ok
+test the_loop_control_tools_are_routed_through_the_one_parse_step_that_exists ... ok
+test a_tool_call_split_across_chunks_reassembles_into_one_call ... ok
+test two_calls_in_one_message_stay_two_calls_and_keep_their_order ... ok
+test text_arrives_in_pieces_rather_than_in_one_lump_at_the_end ... ok
+test the_streamed_deltas_are_exactly_the_text_of_the_returned_step ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_permission-4394cb23f6bcaa1d.exe)
+
+running 54 tests
+test adjudicate::tests::granting_a_host_does_nothing_to_a_policy_that_may_not_be_widened ... ok
+test decision::tests::blast_radius_has_no_field_for_the_command ... ok
+test adjudicate::tests::every_arg_value_variant_renders_to_something_a_human_can_read ... ok
+test adjudicate::tests::an_action_class_is_stable_across_values_and_splits_on_shape ... ok
+test adjudicate::tests::an_undeclared_argument_is_treated_as_a_target ... ok
+test adjudicate::tests::egress_is_denied_by_default_even_for_an_inert_read ... ok
+test adjudicate::tests::a_numeric_target_appears_in_the_scope_line_a_human_approves ... ok
+test adjudicate::tests::a_tool_not_exposed_to_this_run_is_blocked_before_anything_else ... ok
+test adjudicate::tests::a_reversible_tool_is_checked_and_an_inert_one_is_not ... ok
+test adjudicate::tests::every_path_argument_is_blocked_while_scoping_is_unavailable ... ok
+test adjudicate::tests::an_ungranted_host_asks_under_allow_approved_and_is_refused_under_the_others ... ok
+test adjudicate::tests::an_irreversible_tool_always_asks ... ok
+test adjudicate::tests::novelty_drops_one_tier ... ok
+test decision::tests::risk_tier_follows_consequence ... ok
+test adjudicate::tests::untrusted_content_may_fill_a_payload_freely ... ok
+test adjudicate::tests::untrusted_content_may_not_choose_a_shell_command ... ok
+test decision::tests::the_tier_ladder_is_ordered ... ok
+test egress::tests::a_wildcard_does_not_match_the_apex ... ok
+test egress::tests::allow_any_host_is_a_named_variant_not_a_pattern ... ok
+test egress::tests::confusing_url_forms_are_refused_not_normalized ... ok
+test egress::tests::ordinary_urls_parse_to_their_host ... ok
+test egress::tests::the_decision_is_the_intersection_of_grant_and_declaration ... ok
+test egress::tests::the_default_is_deny_all ... ok
+test scope::glob::tests::a_narrower_glob_admits_only_its_subtree ... ok
+test scope::glob::tests::a_single_star_never_crosses_a_separator ... ok
+test scope::glob::tests::a_star_in_the_middle_anchors_at_both_ends ... ok
+test scope::glob::tests::an_empty_declaration_admits_nothing ... ok
+test scope::glob::tests::double_star_matches_zero_segments ... ok
+test scope::glob::tests::normalization_applies_to_both_sides ... ok
+test scope::glob::tests::the_workspace_glob_admits_everything_under_it ... ok
+test scope::request::tests::a_backslash_is_a_separator_on_every_platform ... ok
+test scope::request::tests::alternate_data_streams_are_refused ... ok
+test scope::request::tests::control_characters_are_refused ... ok
+test scope::request::tests::every_rooted_form_is_refused_on_every_platform ... ok
+test scope::request::tests::ordinary_relative_paths_are_accepted ... ok
+test scope::request::tests::overlong_utf8_cannot_reach_this_function_at_all ... ok
+test scope::request::tests::relative_traversal_is_refused_not_collapsed ... ok
+test scope::request::tests::reserved_device_names_are_refused_anywhere_in_the_path ... ok
+test scope::request::tests::separator_homoglyphs_are_refused ... ok
+test scope::request::tests::short_names_are_refused_and_the_false_positive_is_accepted ... ok
+test scope::request::tests::unicode_is_normalized_to_nfc_on_both_sides_rather_than_refused ... ok
+test scope::request::tests::win32_name_munging_is_refused ... ok
+test scope::tests::a_malformed_request_is_refused_before_the_declaration_is_consulted ... ok
+test scope::tests::a_missing_file_says_it_is_not_a_refusal_and_names_the_check ... ok
+test scope::tests::a_refusal_and_a_missing_file_do_not_read_alike ... ok
+test adjudicate::tests::with_a_real_scope_a_declared_path_is_allowed_and_the_handle_comes_back_with_the_decision ... ok
+test scope::tests::a_scoped_path_cannot_be_built_without_a_handle ... ok
+test scope::tests::construction_succeeds_only_on_a_platform_whose_suite_has_been_executed ... ok
+test scope::tests::macos_is_not_verified_and_the_refusal_says_why ... ok
+test scope::tests::the_declaration_is_checked_before_the_filesystem_is_touched ... ok
+test scope::tests::the_refusing_scope_still_refuses_and_says_why ... ok
+test taint::tests::a_value_from_two_sources_carries_the_worse_one ... ok
+test taint::tests::an_untracked_argument_is_untrusted ... ok
+test taint::tests::tracked_is_diagnostic_only ... ok
+
+test result: ok. 54 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\boundary_hook.rs (target\debug\deps\boundary_hook-8575b91b08b14669.exe)
+
+running 2 tests
+test the_hook_actually_fires_on_a_guarded_path ... ok
+test every_guarded_path_in_the_boundary_hook_still_exists ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\toctou.rs (target\debug\deps\toctou-b11d7dacab51aa56.exe)
+
+running 4 tests
+test on_windows_the_swap_is_refused_by_the_share_mode_and_the_error_says_so ... ok
+test the_observer_is_a_no_op_in_production ... ok
+test the_real_implementation_does_not_escape ... ok
+test the_naive_implementation_escapes_which_is_what_makes_this_a_race ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\traversal.rs (target\debug\deps\traversal-c906fc018dffbf21.exe)
+
+running 12 tests
+test a_legitimate_in_scope_read_succeeds ... ok
+test rooted_and_windows_path_forms_are_refused ... ok
+test alternate_data_streams_and_device_names_are_refused ... ok
+test a_case_variation_cannot_dodge_a_narrow_declaration ... ok
+test an_undeclared_subtree_is_refused_even_though_it_exists_and_is_in_the_workspace ... ok
+test relative_traversal_is_refused ... ok
+test win32_munging_and_short_names_are_refused ... ok
+test unicode_normalization_is_matched_not_dodged ... ok
+test a_name_that_merely_looks_dangerous_still_opens ... ok
+test a_junction_out_of_the_workspace_is_refused ... ok
+test a_write_target_may_be_created_inside_the_verified_parent ... ok
+test every_traversal_class_is_accounted_for ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_provider-8a89c5ec2a553e82.exe)
+
+running 41 tests
+test capability::tests::an_unmeasured_model_says_so_rather_than_implying_a_number ... ok
+test capability::tests::the_default_bar_is_about_tool_calls_and_has_a_floor_on_trials ... ok
+test capability::tests::a_disclosure_always_carries_its_denominator ... ok
+test ollama::control_text_tests::a_bare_done_is_just_a_reply_and_a_reply_ends_the_turn ... ok
+test ollama::leaked_call_tests::a_tool_call_written_as_markup_is_recovered ... ok
+test ollama::control_text_tests::a_structured_tool_call_is_unaffected ... ok
+test http::tests::only_loopback_endpoints_can_be_constructed ... ok
+test ollama::tests::a_recoverable_call_is_still_recovered_and_never_defanged ... ok
+test ollama::leaked_call_tests::prose_about_tools_is_not_a_tool_call ... ok
+test ollama::tests::a_malformed_tool_call_falls_back_to_prose_rather_than_inventing_a_call ... ok
+test ollama::tests::a_tool_call_parses_into_a_step_with_no_taint_field_to_fill ... ok
+test ollama::tests::done_with_an_unexpected_field_name_still_ends_the_run ... ok
+test ollama::control_text_tests::prose_that_merely_mentions_a_control_word_stays_prose ... ok
+test ollama::tests::each_unavailability_names_a_different_remedy ... ok
+test ollama::tests::markup_the_recovery_declined_cannot_reach_the_provider_as_tags ... ok
+test ollama::tests::ordinary_prose_passes_through_the_defang_unchanged ... ok
+test ollama::tests::prose_parses_as_say ... ok
+test ollama::tests::the_control_tools_become_loop_steps_not_tool_calls ... ok
+test think::streaming_rule::the_reply_streams_chunk_by_chunk_once_the_provider_separates_the_channels ... ok
+test think::streaming_rule::with_thinking_off_the_reply_streams_immediately ... ok
+test ollama::tests::the_recorded_capability_describes_the_model_that_is_actually_default ... ok
+test routing::tests::cloud_tags_are_refused_by_name ... ok
+test routing::tests::ordinary_local_tags_are_accepted ... ok
+test routing::tests::routing_is_by_role_and_the_table_is_the_only_place_a_model_is_named ... ok
+test think::hold_rule::an_unclosed_block_that_ends_in_a_tool_call_yields_no_speech ... ok
+test think::hold_rule::content_with_no_tag_and_no_tool_call_is_the_answer ... ok
+test think::hold_rule::nothing_before_the_closing_tag_is_ever_speech ... ok
+test think::streaming_rule::content_with_no_native_thinking_is_held_until_the_tag ... ok
+test think::tests::a_closing_tag_with_no_opening_tag_retracts_the_speech_before_it ... ok
+test think::tests::a_fragment_that_never_becomes_a_tag_is_released_at_the_end ... ok
+test think::tests::a_nested_block_is_reasoning_and_the_tags_never_reach_the_caller ... ok
+test think::tests::a_tag_split_across_chunks_is_never_emitted_in_pieces ... ok
+test think::tests::content_without_tags_is_speech_and_streams_unchanged ... ok
+test think::tests::retraction_applies_only_to_speech_that_is_still_outstanding ... ok
+test wire::tests::a_reply_that_precedes_its_call_is_not_linked ... ok
+test wire::tests::a_result_whose_call_was_trimmed_away_is_demoted_and_loses_its_pairing ... ok
+test wire::tests::a_tool_message_that_answers_a_real_call_keeps_its_role ... ok
+test wire::tests::a_tool_message_with_no_preceding_call_becomes_a_user_message ... ok
+test wire::tests::an_empty_tool_array_is_omitted_and_a_populated_one_is_kept ... ok
+test http::tests::an_absent_endpoint_is_unreachable_rather_than_a_panic ... ok
+test ollama::tests::an_absent_endpoint_degrades_with_a_remedy_rather_than_crashing ... ok
+
+test result: ok. 41 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.05s
+
+     Running tests\child_brief_role.rs (target\debug\deps\child_brief_role-d93bd75e2eabbf04.exe)
+
+running 2 tests
+test a_child_is_asked_its_task_rather_than_shown_it_as_its_own_words ... ok
+test the_parents_own_prior_reply_is_still_its_own ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\no_tls_in_the_default_path.rs (target\debug\deps\no_tls_in_the_default_path-2a2602b1e671ae23.exe)
+
+running 2 tests
+test marlowe_provider_reaches_no_tls_crate ... ok
+test the_walk_actually_finds_tls_where_tls_is ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\param_descriptions_on_the_wire.rs (target\debug\deps\param_descriptions_on_the_wire-ad31ee58c97f36d3.exe)
+
+running 2 tests
+test the_three_facts_that_cost_a_call_are_the_ones_actually_stated ... ok
+test every_parameter_the_model_is_offered_carries_a_written_description ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\persona_emission.rs (target\debug\deps\persona_emission-ddd1aaf8d05b47bb.exe)
+
+running 8 tests
+test the_persona_is_in_the_stable_tier_and_not_a_user_turn ... ok
+test history_roles_follow_who_actually_said_it ... ok
+test the_persona_reaches_the_outbound_request_body ... ok
+test every_tool_with_a_target_declares_it_required ... ok
+test parameter_types_are_not_all_string ... ok
+test the_web_tool_requires_its_url_and_offers_no_search ... ok
+test parameter_descriptions_do_not_leak_internal_rust_type_names ... ok
+test the_persona_text_exists_in_exactly_one_place ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\spawn_from_a_model_reply.rs (target\debug\deps\spawn_from_a_model_reply-a2f5369ee648a551.exe)
+
+running 18 tests
+test a_grant_of_zero_is_no_grant_rather_than_a_child_that_cannot_think ... ok
+test a_tool_list_parses_in_the_shapes_a_model_writes_it ... ok
+test adopt_is_withheld_rather_than_given_an_invented_parent ... ok
+test a_spawn_with_no_task_is_refused_and_no_child_is_created ... ok
+test a_model_cannot_hand_its_child_a_tool_the_parent_does_not_hold ... ok
+test a_grant_larger_than_the_pool_is_refused_with_both_numbers ... ok
+test an_unrecognised_orphan_policy_takes_the_safe_value_and_the_receipt_names_it ... ok
+test a_model_reply_naming_run_spawns_a_child_that_works_and_returns ... ok
+test a_latched_run_may_still_spawn_at_the_defaults ... ok
+test a_contract_description_cannot_forge_a_second_line_of_the_receipt ... ok
+test a_long_contract_description_does_not_push_the_grant_off_the_receipt ... ok
+test a_child_left_at_the_default_policy_is_terminated_with_its_parent ... ok
+test a_detached_child_that_outlives_its_parent_is_recorded_as_detached ... ok
+test a_latched_run_cannot_compose_a_childs_tool_set ... ok
+test a_declared_empty_tool_set_gets_terminate_and_a_receipt_saying_so ... ok
+test the_depth_bound_refuses_the_level_past_it_under_real_spawns ... ok
+test a_leaf_at_depth_four_is_inside_the_declared_band_under_real_spawns ... ok
+test a_latched_run_cannot_compose_a_childs_budget_or_lifetime ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spawned_child_wire.rs (target\debug\deps\spawned_child_wire-cd2c39e5ccb4a1c3.exe)
+
+running 3 tests
+test a_childs_prose_never_reaches_the_surface_but_the_parents_answer_does ... ok
+test a_real_spawn_puts_the_brief_on_the_wire_as_a_turn_the_child_can_answer ... ok
+test after_a_child_returns_the_parent_has_something_to_answer ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\system_message_shape.rs (target\debug\deps\system_message_shape-1e9f82ca5ff243fa.exe)
+
+running 3 tests
+test there_is_exactly_one_system_message_and_it_is_first ... ok
+test the_identity_still_leads_the_system_message ... ok
+test an_injected_memory_reaches_the_model_without_starting_a_second_system_message ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\tool_call_probe.rs (target\debug\deps\tool_call_probe-09fe09a1c5ed7d33.exe)
+
+running 2 tests
+test measure_tool_call_reliability ... ignored, needs a live Ollama endpoint; run with --ignored
+test the_probe_refuses_to_report_a_rate_it_did_not_measure ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_stub-354226ccb4a610a7.exe)
+
+running 16 tests
+test amplitude::tests::progress_past_the_expected_duration_stays_full_rather_than_wrapping ... ok
+test amplitude::tests::waiting_reports_nothing_so_the_indicator_freezes ... ok
+test amplitude::tests::running_progress_fills_left_to_right_and_completes ... ok
+test amplitude::tests::idle_reports_a_flat_baseline_which_is_a_reading_not_an_absence ... ok
+test frame_clock::tests::virtual_clock_moves_only_when_advanced ... ok
+test amplitude::tests::the_same_moment_always_produces_the_same_frame ... ok
+test frame_clock::tests::advancing_a_real_clock_panics - should panic ... ok
+test script::tests::interrupt_keeps_partial_output ... ok
+test script::tests::a_failure_auto_expands_and_never_collapses_into_a_group ... ok
+test script::tests::consecutive_same_verb_calls_collapse ... ok
+test script::tests::driving_waiting_raises_the_overlay_because_they_are_one_situation ... ok
+test script::tests::every_state_is_reachable_by_cycling ... ok
+test script::tests::idle_reports_a_flat_frame_and_waiting_reports_no_frame_at_all ... ok
+test script::tests::waiting_holds_the_last_meter_frame_rather_than_clearing_it ... ok
+test script::tests::a_session_replays_identically_on_a_fixed_schedule ... ok
+test amplitude::tests::every_sample_is_within_the_meters_range ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_surface-8b89279d4318d7d5.exe)
+
+running 70 tests
+test chrome::tests::a_clean_string_is_borrowed_not_rebuilt ... ok
+test chrome::tests::blocking_one_rule_glyph_would_leave_sixty_others ... ok
+test chrome::tests::every_declared_marker_is_reserved_and_named_rather_than_dropped ... ok
+test chrome::tests::every_tone_a_producer_can_send_has_an_ink ... ok
+test chrome::tests::every_role_has_a_distinct_colour_so_a_drawn_cell_maps_back_to_one ... ok
+test clipboard::tests::a_collapsed_group_copies_every_target_it_hid ... ok
+test clipboard::tests::base64_matches_the_rfc_examples ... ok
+test cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence ... ok
+test chrome::tests::the_pipeline_closes_the_three_families_ratatui_does_not ... ok
+test cli::display_sanitiser::a_model_reply_keeps_its_paragraphs ... ok
+test cli::display_sanitiser::a_tool_target_cannot_forge_a_second_b6_line ... ok
+test cli::display_sanitiser::the_classic_surface_never_writes_a_control_sequence_to_the_terminal ... ok
+test clipboard::tests::a_failed_tool_call_copies_its_detail_not_its_summary ... ok
+test chrome::tests::the_window_vocabulary_is_a_subset_of_the_conversation_one ... ok
+test chrome::tests::ordinary_prose_punctuation_is_not_reserved ... ok
+test clipboard::tests::osc52_is_well_formed_and_carries_utf8 ... ok
+test commands::tests::a_bad_argument_is_rejected_out_loud_and_changes_nothing ... ok
+test clipboard::tests::copied_text_carries_no_frame ... ok
+test commands::tests::a_command_cannot_return_prose_because_the_type_has_nowhere_to_put_it ... ok
+test commands::tests::a_command_that_changes_the_session_asks_rather_than_acts ... ok
+test commands::tests::a_request_carries_no_narration_of_its_own ... ok
+test commands::tests::autocomplete_carries_descriptions ... ok
+test doctor::tests::the_shipped_accent_is_measured_and_the_numbers_are_recorded_here ... ok
+test inspector::tests::every_tab_renders_at_least_one_region ... ok
+test commands::tests::every_registered_command_dispatches_to_something_other_than_unknown ... ok
+test inspector::tests::the_four_deferred_panes_say_so_rather_than_showing_invented_data ... ok
+test doctor::tests::the_report_states_both_backgrounds_and_the_braille_row ... ok
+test keys::tests::a_conflict_names_both_claimants ... ok
+test keys::tests::item_keys_are_pane_scoped_and_globals_win_everywhere ... ok
+test latex::function_table_agreement::every_function_name_has_a_symbol_row ... ok
+test keys::tests::the_shipped_key_set_has_no_conflicts ... ok
+test latex::tests::a_chrome_glyph_reaching_the_output_refuses_the_whole_expression ... ok
+test latex::tests::a_dollar_sign_in_prose_is_not_maths ... ok
+test latex::tests::a_partial_translation_would_be_a_different_integral ... ok
+test latex::tests::every_glyph_the_table_can_emit_passes_the_projects_display_predicate ... ok
+test latex::tests::relations_are_spaced_and_signs_are_not ... ok
+test latex::tests::what_cannot_be_shown_is_refused_whole ... ok
+test latex::tests::the_common_cases_read_as_maths ... ok
+test markdown::tests::a_heading_loses_its_hashes_and_takes_the_accent ... ok
+test markdown::tests::a_block_quote_takes_the_rule_and_the_second_weight ... ok
+test markdown::tests::a_horizontal_rule_is_not_the_compaction_marker ... ok
+test markdown::tests::a_link_always_shows_where_it_goes ... ok
+test markdown::tests::a_list_keeps_its_items_apart_and_nests ... ok
+test markdown::tests::a_paragraph_wraps_and_the_line_count_is_the_renderers_answer ... ok
+test markdown::tests::a_price_is_not_an_equation ... ok
+test markdown::tests::a_table_is_columns_and_carries_no_box_drawing ... ok
+test markdown::tests::a_table_too_wide_for_the_pane_is_shown_as_source_not_squashed ... ok
+test markdown::tests::an_ordered_list_counts_from_where_it_started ... ok
+test markdown::tests::code_is_hard_wrapped_and_never_reflowed ... ok
+test markdown::tests::a_very_long_word_is_split_rather_than_overflowing_the_pane ... ok
+test markdown::tests::emphasis_and_strong_become_attributes_not_colours ... ok
+test markdown::tests::maths_renders_when_it_can_and_stays_source_when_it_cannot ... ok
+test markdown::tests::no_span_this_module_produces_carries_a_background_or_reverse_video ... ok
+test markdown::tests::plain_prose_survives_untouched ... ok
+test markdown::tests::rendering_is_a_pure_function_of_its_arguments ... ok
+test markdown::tests::snake_case_and_arithmetic_are_not_emphasis ... ok
+test meter::tests::a_full_frame_raises_every_dot ... ok
+test meter::tests::a_silent_frame_is_all_blank_braille_cells ... ok
+test meter::tests::every_column_is_independent ... ok
+test meter::tests::every_glyph_is_inside_the_braille_block ... ok
+test meter::tests::levels_fill_from_the_bottom_up ... ok
+test meter::tests::one_level_lights_only_the_lowest_dot_row ... ok
+test meter::tests::the_meter_is_always_exactly_six_cells_wide ... ok
+test theme::tests::a_malformed_accent_refuses_rather_than_falling_back ... ok
+test theme::tests::no_color_is_reported_rather_than_swallowed ... ok
+test theme::tests::no_style_this_module_produces_has_a_background ... ok
+test theme::tests::the_accent_is_measured_against_both_backgrounds ... ok
+test theme::tests::the_depth_rule_reports_why_it_chose ... ok
+test window::tests::a_placeholder_names_the_panel_and_says_none ... ok
+test window::tests::the_window_title_cannot_carry_a_byte_the_run_chose_except_its_id ... ok
+
+test result: ok. 70 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\accent_legibility.rs (target\debug\deps\accent_legibility-1d758a2acfc01c11.exe)
+
+running 4 tests
+test both_floors_are_satisfiable_but_the_window_is_under_one_percent ... ok
+test light_is_the_binding_direction_and_its_margin_is_small ... ok
+test the_default_accent_clears_its_floor_on_both_reference_backgrounds ... ok
+test contrast_is_measured_on_the_resolved_colour_not_the_default ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_keyboard.rs (target\debug\deps\b13_keyboard-ea04ba26e8265b4e.exe)
+
+running 12 tests
+test the_footer_advertises_alt_v_because_the_terminal_eats_ctrl_v ... ok
+test every_inspector_tab_is_reachable_by_its_digit ... ok
+test ctrl_c_is_advertised_and_needs_two_presses ... ok
+test the_overlay_swallows_unrelated_keys_rather_than_letting_them_through ... ok
+test ctrl_v_does_not_walk_past_a_pending_approval ... ok
+test ctrl_keys_work_even_from_inside_a_text_field ... ok
+test tab_and_shift_tab_cycle_every_region_in_reading_order ... ok
+test the_composers_editing_chords_are_reachable_from_the_default_focus ... ok
+test esc_backs_out_one_level_and_interrupt_is_the_outermost ... ok
+test a_multiline_message_is_composable_and_scrollable_by_key_alone ... ok
+test every_region_is_reachable_from_the_default_focus ... ok
+test no_keystroke_is_dropped_while_the_stub_is_streaming ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_memory_surface.rs (target\debug\deps\b13_memory_surface-40306368ce69b159.exe)
+
+running 3 tests
+test no_inspector_item_reports_a_score_a_count_or_a_provenance ... ok
+test turn_event_has_no_injection_variant_and_must_never_gain_one ... ok
+test no_region_in_any_pane_has_memory_as_its_subject ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_parity.rs (target\debug\deps\b13_parity-b12ca2e1b347216b.exe)
+
+running 8 tests
+test slash_autocomplete_offers_every_matching_command_with_its_description ... ok
+test an_approval_raised_by_a_command_surfaces_in_the_classic_cli_too ... ok
+test the_classic_cli_runs_from_a_pipe_with_no_terminal_at_all ... ok
+test the_two_surfaces_produce_the_same_data_for_a_pane ... ok
+test approvals_reach_the_classic_cli_too ... ok
+test the_classic_cli_never_lies_about_an_unbuilt_pane ... ok
+test the_registry_is_the_only_dispatcher ... ok
+test every_command_in_the_registry_is_reachable_in_both_surfaces ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\b13_region_contract.rs (target\debug\deps\b13_region_contract-e2cf2406318933ba.exe)
+
+running 7 tests
+test a_windows_region_tree_does_not_depend_on_what_the_run_holds ... ok
+test every_region_in_a_run_window_has_a_label_and_a_hotkey ... ok
+test no_two_regions_in_a_run_window_claim_the_same_key ... ok
+test no_two_regions_visible_together_claim_the_same_key ... ok
+test every_region_in_the_tree_has_a_label_and_a_hotkey ... ok
+test no_border_is_drawn_outside_the_region_contract ... ok
+test the_conversation_never_drops_below_55_percent_of_the_split ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\b13_rendering.rs (target\debug\deps\b13_rendering-f4d55715f64bf720.exe)
+
+running 13 tests
+test a_settled_tool_call_occupies_exactly_one_line ... ok
+test below_the_minimum_it_refuses_and_draws_no_grid ... ok
+test the_user_the_reasoning_and_marlowe_do_not_share_a_colour ... ok
+test the_indicator_freezes_in_waiting_and_moves_in_every_other_live_state ... ok
+test no_label_hotkey_pager_or_tab_bar_falls_inside_a_scroll_area ... ok
+test a_resize_round_trip_returns_the_identical_frame ... ok
+test the_scrollbar_thumb_is_contiguous_full_blocks_with_no_fill ... ok
+test every_inspector_tab_rect_covers_its_own_label_in_the_rendered_frame ... ok
+test a_streaming_text_delta_touches_the_conversation_and_the_status_band_only ... ok
+test a_focus_change_repaints_borders_only_and_never_a_region_interior ... ok
+test every_colour_emitted_is_one_of_the_declared_values ... ok
+test not_one_cell_in_any_screen_carries_a_background ... ok
+test every_size_in_the_supported_range_renders ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running tests\c2d_boundary.rs (target\debug\deps\c2d_boundary-3ac951f4e11d05d0.exe)
+
+running 2 tests
+test the_surface_depends_on_no_producer ... ok
+test the_surface_reads_no_clock_and_takes_time_as_an_argument ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\composer.rs (target\debug\deps\composer-dd778b4646b219de.exe)
+
+running 30 tests
+test alt_v_carries_the_state_cycle_that_ctrl_v_used_to ... ok
+test copying_a_draft_puts_the_pasted_text_on_the_clipboard_and_not_the_chip ... ok
+test ctrl_c_does_not_quit_on_one_press ... ok
+test a_keystroke_between_them_disarms_the_quit ... ok
+test a_marker_the_user_typed_before_any_paste_is_left_alone ... ok
+test ctrl_c_over_a_draft_copies_it_and_does_not_arm_a_quit ... ok
+test ctrl_v_no_longer_cycles_the_status_band ... ok
+test ctrl_v_reaching_the_app_names_the_fallback_rather_than_doing_nothing ... ok
+test the_footer_advertises_the_chord_that_actually_works ... ok
+test the_run_window_answers_ctrl_c_too_rather_than_ignoring_it ... ok
+test an_empty_composer_is_one_row_so_the_resting_layout_is_unchanged ... ok
+test a_steer_field_that_grew_leaves_the_output_panel_smaller_rather_than_overlapping_it ... ok
+test the_windows_ctrl_c_detaches_only_on_the_second_press_and_never_cancels ... ok
+test a_short_paste_goes_in_literally_because_a_chip_would_be_longer_than_it ... ok
+test ctrl_a_does_not_survive_the_keystroke_that_acted_on_it ... ok
+test ctrl_a_then_typing_replaces_the_whole_message ... ok
+test ctrl_backspace_takes_a_whole_paste_chip_because_a_chip_is_one_word_to_the_eye ... ok
+test two_consecutive_ctrl_c_presses_quit ... ok
+test a_pasted_wall_is_represented_in_the_composer_and_sent_in_full ... ok
+test esc_lets_go_of_a_selection_rather_than_backing_out_of_the_field ... ok
+test a_message_longer_than_the_field_wraps_instead_of_vanishing_off_the_edge ... ok
+test the_run_windows_steer_field_grows_and_scrolls_exactly_as_the_message_field_does ... ok
+test a_shift_enter_newline_is_a_line_break_rather_than_a_glyph ... ok
+test ctrl_backspace_deletes_a_word_and_the_space_before_it ... ok
+test backspace_deletes_a_whole_chip_rather_than_breaking_it ... ok
+test the_steer_field_answers_the_same_three_chords ... ok
+test scrolling_past_the_top_clamps_rather_than_rendering_out_of_range ... ok
+test the_field_grows_only_to_the_cap_and_then_scrolls_to_what_is_being_typed ... ok
+test up_walks_back_through_a_paste_too_long_to_show ... ok
+test typing_snaps_the_composer_back_to_what_is_being_typed ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\diagnostic_bound.rs (target\debug\deps\diagnostic_bound-aec50900548e9629.exe)
+
+running 2 tests
+test diagnostics_are_reachable_from_exactly_two_entry_points ... ok
+test a_diagnostic_never_enters_the_transcript ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\display_sanitiser.rs (target\debug\deps\display_sanitiser-ba0684bce52e435e.exe)
+
+running 4 tests
+test the_hostile_text_actually_reached_the_screen ... ok
+test ratatui_does_not_filter_the_tag_block_and_the_project_predicate_does ... ok
+test a_tag_character_reaches_the_grid_from_the_user_and_never_from_the_model ... ok
+test ratatui_is_the_layer_that_stops_an_escape_reaching_the_grid ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\live_approval_window.rs (target\debug\deps\live_approval_window-2f501fbe30d948dd.exe)
+
+running 7 tests
+test an_unrelated_key_neither_answers_nor_dismisses ... ok
+test o_collects_a_reason_and_sends_it_with_the_decline ... ok
+test escaping_the_reason_editor_returns_to_the_question_without_answering ... ok
+test y_approves_and_n_declines ... ok
+test an_irreversible_call_says_so ... ok
+test the_whole_target_is_on_screen_however_long_it_is ... ok
+test the_window_does_not_report_which_subsystems_are_missing ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\markdown_cost.rs (target\debug\deps\markdown_cost-2e338c368cf3f9f0.exe)
+
+running 3 tests
+test a_typical_transcript_lays_out_in_under_a_millisecond ... ok
+test a_pathological_reply_costs_no_more_than_a_long_one ... ok
+test laying_out_a_heavy_transcript_stays_inside_the_first_frame_budget ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+
+     Running tests\markdown_forgery.rs (target\debug\deps\markdown_forgery-04012743e67a977d.exe)
+
+running 8 tests
+test a_reply_cannot_draw_a_disclosure_affordance ... ok
+test a_tool_target_carries_no_invisible_text ... ok
+test harness_notices_are_not_subject_to_the_reservation ... ok
+test a_reply_cannot_forge_the_compaction_marker ... ok
+test every_reserved_glyph_is_one_the_harness_actually_draws ... ok
+test a_reply_cannot_draw_a_tool_line ... ok
+test a_reply_cannot_draw_a_bordered_region ... ok
+test a_reply_writes_nowhere_but_the_conversation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\markdown_render.rs (target\debug\deps\markdown_render-10d45466565ee896.exe)
+
+running 26 tests
+test a_script_unicode_can_express_still_uses_the_real_glyph ... ok
+test collapsed_reasoning_parses_nothing_and_reports_a_count ... ok
+test conditional_and_norm_bars_render_and_are_spaced ... ok
+test a_closed_expression_that_cannot_render_is_not_silently_truncated ... ok
+test display_maths_after_a_label_on_the_same_line_renders ... ok
+test display_maths_on_its_own_line_still_renders ... ok
+test expanded_reasoning_renders_maths_and_it_is_lighter_than_the_reasoning ... ok
+test an_unclosed_equation_renders_while_it_is_still_arriving ... ok
+test an_accent_with_a_precomposed_form_renders_and_one_without_still_refuses ... ok
+test a_subscript_with_no_unicode_form_degrades_rather_than_refusing ... ok
+test deliberate_spacing_between_equations_survives ... ok
+test an_unclosed_dollar_in_prose_is_still_not_maths ... ok
+test display_maths_stands_out_the_same_way_inline_maths_does ... ok
+test rendered_maths_is_lighter_than_the_prose_around_it ... ok
+test plain_prose_reaches_the_grid_exactly_as_written ... ok
+test the_attributes_reach_the_grid_and_the_source_markers_do_not ... ok
+test transpose_renders_so_the_attention_formula_does ... ok
+test a_resize_round_trip_with_markdown_returns_the_identical_frame ... ok
+test y_still_copies_the_source_markdown_and_not_the_rendered_form ... ok
+test markdown_never_paints_over_the_pager_or_the_border ... ok
+test markdown_emits_no_colour_outside_the_declared_palette ... ok
+test not_one_cell_carries_a_background_or_reverse_video ... ok
+test a_second_render_of_the_same_state_changes_not_one_cell ... ok
+test the_scroll_extent_agrees_with_what_markdown_actually_drew ... ok
+test a_focus_change_repaints_no_markdown_cell ... ok
+test no_frame_of_a_streaming_equation_shows_raw_latex ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests\palette_subset.rs (target\debug\deps\palette_subset-912b44643f74d91c.exe)
+
+running 4 tests
+test the_windows_declared_palette_is_exactly_what_it_draws ... ok
+test the_status_band_is_the_only_place_the_conversation_spends_green ... ok
+test the_run_window_paints_no_colour_the_conversation_pane_does_not ... ok
+test the_window_spends_strictly_less_colour_than_the_conversation ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.48s
+
+     Running tests\provider_command.rs (target\debug\deps\provider_command-a33e58edcb7121ab.exe)
+
+running 4 tests
+test adding_the_provider_control_did_not_widen_the_control_strip ... ok
+test provider_is_a_registered_command_whose_description_names_both_options ... ok
+test provider_with_no_argument_lists_rather_than_changing_anything ... ok
+test naming_a_provider_asks_the_producer_to_select_it ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\runs_pane.rs (target\debug\deps\runs_pane-c94de35f734e4311.exe)
+
+running 15 tests
+test pressing_slash_runs_switches_the_tab_at_once_and_queues_the_request ... ok
+test slash_runs_asks_the_daemon_rather_than_re_reading_the_cache ... ok
+test the_same_key_does_nothing_when_the_pane_is_empty ... ok
+test enter_opens_the_run_the_row_names_rather_than_the_first_one ... ok
+test enter_on_a_focused_run_opens_its_window ... ok
+test the_arrows_stop_at_the_ends_rather_than_wrapping ... ok
+test the_request_carries_no_summary_because_there_is_nothing_to_summarise_yet ... ok
+test a_run_that_arrived_after_startup_answers_to_the_key_on_its_border ... ok
+test the_pane_summary_is_said_once_the_producer_has_answered ... ok
+test the_arrows_step_from_one_run_to_the_next ... ok
+test every_visible_run_has_a_rect_the_pointer_can_land_on ... ok
+test the_rect_of_a_row_is_where_that_row_is_actually_drawn ... ok
+test the_focused_run_shows_that_enter_opens_it ... ok
+test a_run_below_the_fold_is_reachable_and_then_openable ... ok
+test stepping_past_the_fold_scrolls_the_pane_to_keep_the_selection_visible ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\snapshot.rs (target\debug\deps\snapshot-3dd74023d51c4ae8.exe)
+
+running 3 tests
+test a_dropdown_draws_over_the_frame_without_a_fill ... ok
+test a_markdown_reply_can_be_read ... ok
+test the_frame_renders_and_can_be_read ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\window_b13.rs (target\debug\deps\window_b13-1869cb6ea6cb7d5e.exe)
+
+running 5 tests
+test every_window_region_is_reachable_by_its_hotkey_and_by_tab ... ok
+test the_frame_is_whole_at_the_minimum_and_refused_one_column_below_it ... ok
+test a_healthy_run_carries_no_state_colour_anywhere ... ok
+test not_one_cell_in_any_window_carries_a_background_or_reverse_video ... ok
+test every_colour_a_window_emits_is_one_of_the_declared_values ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests\window_flicker.rs (target\debug\deps\window_flicker-9c49907e60bece8f.exe)
+
+running 6 tests
+test the_diff_does_see_a_change_when_the_run_advances ... ok
+test moving_focus_repaints_borders_and_not_the_inside_of_a_region ... ok
+test the_diff_does_see_a_change_when_output_arrives ... ok
+test two_windows_at_the_same_instant_are_the_same_frame ... ok
+test scrolling_moves_only_the_scroll_area ... ok
+test a_second_render_of_the_same_state_changes_not_one_cell ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\window_render.rs (target\debug\deps\window_render-43d2245c666c1b41.exe)
+
+running 13 tests
+test below_the_minimum_it_refuses_honestly_and_names_both_sizes ... ok
+test status_elapsed_and_spend_against_the_ceiling_all_render ... ok
+test the_checkpoint_panel_carries_both_the_last_step_and_what_a_resume_would_do ... ok
+test a_run_with_no_checkpoint_says_so_rather_than_printing_step_zero ... ok
+test the_cancel_confirmation_states_the_cost_and_what_it_cannot_undo ... ok
+test spend_takes_a_state_colour_only_at_the_ceiling ... ok
+test an_empty_panel_draws_one_honest_line_and_no_example_rows ... ok
+test no_panel_names_a_milestone_a_session_or_a_future ... ok
+test elapsed_renders_what_the_daemon_reported_and_tracks_it ... ok
+test a_run_that_cannot_be_resumed_says_so_without_inventing_a_reason ... ok
+test the_cancel_confirmation_states_the_orphan_policy_in_words ... ok
+test a_filled_panel_uses_the_space_the_empty_one_reserved_and_moves_nothing_else ... ok
+test every_placeholder_panel_is_present_at_every_size_and_states_a_fact ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests\window_sanitiser.rs (target\debug\deps\window_sanitiser-97896242e8c2d9e4.exe)
+
+running 7 tests
+test without_the_windows_preparation_the_tag_block_survives_into_the_rendered_line ... ok
+test a_runs_output_cannot_forge_chrome_inside_the_window ... ok
+test the_harness_own_speech_is_not_mangled_by_the_reservation ... ok
+test no_hostile_character_in_a_runs_prose_reaches_a_cell ... ok
+test no_hostile_character_in_a_tool_target_reaches_a_cell ... ok
+test no_hostile_character_in_an_expanded_failure_detail_reaches_a_cell ... ok
+test no_hostile_character_in_a_runs_reasoning_reaches_a_cell_when_expanded ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\window_steer.rs (target\debug\deps\window_steer-130acabceed2e780.exe)
+
+running 11 tests
+test backing_out_of_the_cancel_confirmation_leaves_the_run_alone ... ok
+test cancel_asks_for_nothing_until_it_is_confirmed ... ok
+test closing_the_window_detaches_and_never_cancels ... ok
+test escaping_the_field_keeps_the_draft_and_sends_nothing ... ok
+test resume_is_one_key_and_asks_once ... ok
+test shift_enter_adds_a_line_and_does_not_send ... ok
+test the_cancel_confirmation_swallows_every_other_key ... ok
+test typing_and_pressing_enter_produces_exactly_one_steer_request ... ok
+test an_oversized_steer_leaves_the_window_unmodified_and_is_refused_by_the_door ... ok
+test an_empty_steer_asks_for_nothing ... ok
+test a_refusal_is_rendered_in_the_control_planes_own_words ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_tools-bd1efd4ac09709ab.exe)
+
+running 52 tests
+test exposure::tests::deserialization_runs_the_same_constructor ... ok
+test frontmatter::tests::every_construct_outside_the_subset_refuses_and_says_which ... ok
+test builtin::tests::no_builtin_description_is_silently_truncated ... ok
+test builtin::tests::every_builtin_parameter_has_a_role ... ok
+test builtin::tests::ten_tools_against_a_budget_of_twelve ... ok
+test exposure::tests::duplicates_are_refused ... ok
+test builtin::tests::every_builtin_parameter_says_what_it_is_for ... ok
+test exposure::tests::twelve_is_allowed_and_thirteen_is_not ... ok
+test builtin::tests::the_child_capability_arguments_are_targets ... ok
+test builtin::tests::the_shell_command_is_a_target ... ok
+test frontmatter::tests::a_block_sequence_is_read_as_a_list ... ok
+test frontmatter::tests::a_hash_inside_a_quoted_value_is_not_a_comment ... ok
+test frontmatter::tests::escapes_in_a_double_quoted_scalar ... ok
+test frontmatter::tests::the_pinned_example_parses_to_the_pinned_shape ... ok
+test frontmatter::tests::a_file_with_no_front_matter_is_an_error_rather_than_an_empty_manifest ... ok
+test builtin::tests::web_is_inert_and_never_inlines ... ok
+test frontmatter::tests::the_subset_itself_still_parses ... ok
+test manifest::tests::a_parameter_without_a_role_is_a_load_error ... ok
+test manifest::tests::a_manifest_cannot_declare_its_own_provenance ... ok
+test manifest::tests::an_absent_consequence_loads_as_the_maximum ... ok
+test manifest::tests::an_undeclared_parameter_has_no_role ... ok
+test manifest::tests::consequence_ordering_is_the_one_the_checks_read ... ok
+test manifest::tests::deserializing_a_manifest_is_third_party ... ok
+test manifest::tests::third_party_cannot_self_declare_below_consequential ... ok
+test pin::tests::a_change_outranks_an_addition ... ok
+test pin::tests::a_description_that_changed_after_install_re_asks_and_names_the_tool ... ok
+test pin::tests::a_pin_survives_a_round_trip_through_the_profile ... ok
+test pin::tests::a_tool_that_was_not_in_the_pin_is_new_rather_than_changed ... ok
+test pin::tests::an_empty_pin_treats_every_tool_as_new_rather_than_as_approved ... ok
+test pin::tests::an_unchanged_list_asks_nothing ... ok
+test pin::tests::the_pin_is_over_what_the_user_can_see ... ok
+test registry::tests::a_manifest_must_name_its_own_tool ... ok
+test registry::tests::a_third_party_description_is_kept_verbatim_and_its_manifest_stays_third_party ... ok
+test registry::tests::an_unregistered_tool_cannot_be_exposed ... ok
+test registry::tests::a_description_is_bounded_at_registration ... ok
+test registry::tests::no_invisible_or_direction_changing_character_survives_into_a_tool_list ... ok
+test skill::tests::a_description_from_a_skill_is_sanitised_like_any_other ... ok
+test registry::tests::registration_is_unlimited_and_exposure_is_not ... ok
+test skill::tests::a_profile_with_no_skills_directory_is_not_a_fault ... ok
+test skill::tests::a_skill_from_another_harness_loads_with_the_strictest_capability ... ok
+test skill::tests::a_trigger_phrase_is_sanitised_too ... ok
+test skill::tests::an_oversized_body_refuses_rather_than_truncating ... ok
+test skill::tests::an_unknown_key_inside_the_marlowe_block_refuses ... ok
+test skill::tests::the_discovery_text_contains_no_word_of_the_body ... ok
+test skill::tests::the_pinned_example_loads_including_its_reversible_consequence ... ok
+test skill::tests::the_required_standard_fields_are_required ... ok
+test summary::tests::metrics_render_the_way_b6_specifies ... ok
+test skill::tests::two_skills_with_one_name_collide_by_name ... ok
+test summary::tests::there_is_no_free_text_metric ... ok
+test skill::tests::signature_is_declared_but_never_verified ... ok
+test skill::tests::the_body_is_a_reference_and_reading_it_returns_the_instructions_without_the_header ... ok
+test skill::tests::a_scan_reports_the_bad_skill_and_keeps_the_good_ones ... ok
+
+test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_view-e60194b4cfa4d302.exe)
+
+running 22 tests
+test approval::tests::routine_is_a_stated_claim_rather_than_an_absent_one ... ok
+test approval::tests::the_delegation_hatch_can_be_withheld_and_the_answer_keys_never_can ... ok
+test approval::tests::the_accept_label_follows_the_effect_rather_than_always_saying_send ... ok
+test approval::tests::the_novelty_reason_and_the_ceiling_both_reach_the_one_line ... ok
+test meter::tests::a_flat_reading_and_no_reading_are_not_the_same_value ... ok
+test notice::tests::not_built_is_not_the_same_speech_act_as_an_unknown_command ... ok
+test run::tests::a_tenth_of_a_cent_does_not_render_as_zero_beside_a_three_dollar_ceiling ... ok
+test approval::tests::a_promotable_class_states_how_far_off_promotion_is ... ok
+test notice::tests::a_listing_without_its_data_says_so_rather_than_printing_nothing ... ok
+test approval::tests::the_overlay_states_blast_radius_and_has_no_way_to_state_a_command ... ok
+test notice::tests::a_pane_with_nothing_in_it_says_so_rather_than_rendering_an_empty_sentence ... ok
+test notice::tests::money_renders_from_cents_rather_than_from_a_preformatted_string ... ok
+test meter::tests::an_absent_source_holds_the_last_frame_rather_than_flattening_it ... ok
+test run::tests::elapsed_never_prints_a_bare_seconds_count_for_a_long_run ... ok
+test run::tests::every_state_that_has_stopped_reports_itself_as_not_live ... ok
+test notice::tests::an_echo_is_quoted_and_never_reworded ... ok
+test run::tests::no_ceiling_is_not_a_full_bar ... ok
+test run::tests::the_orphan_policy_is_stated_plainly_and_never_as_its_variant_name ... ok
+test view::tests::a_degraded_band_carries_the_specific_path_not_the_word_degraded ... ok
+test view::tests::a_pending_line_is_retired_by_the_producer_and_by_nothing_else ... ok
+test view::tests::every_control_is_reachable_read_only_and_none_is_writable ... ok
+test view::tests::there_is_no_way_to_turn_a_pending_line_into_transcript ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\vocabulary.rs (target\debug\deps\vocabulary-a43853e9ad4ef5c2.exe)
+
+running 3 tests
+test every_notice_variant_passes_the_persona_probes ... ok
+test no_notice_field_is_a_free_text_string ... ok
+test no_produce_impl_has_a_catch_all_arm ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests marlowe_contract
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_daemon
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_exec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_extract
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_journal
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_loop
+
+running 2 tests
+test crates\marlowe-loop\src\steer.rs - steer (line 17) ... ignored
+test crates\marlowe-loop\src\steer.rs - steer (line 7) ... ignored
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_mcp
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_memory
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_net
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_openrouter
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_permission
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_provider
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_stub
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_surface
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_tools
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_view
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

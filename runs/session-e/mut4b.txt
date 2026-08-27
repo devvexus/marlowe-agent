@@ -1,0 +1,62 @@
+   Compiling marlowe-surface v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-surface)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1001:21
+     |
+1001 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.24s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_surface-e4b2e95a08ce1dad.exe)
+
+running 4 tests
+test cli::display_sanitiser::a_model_reply_keeps_its_paragraphs ... ok
+test cli::display_sanitiser::the_classic_surface_never_writes_a_control_sequence_to_the_terminal ... ok
+test cli::display_sanitiser::a_tool_target_cannot_forge_a_second_b6_line ... ok
+test cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence ... FAILED
+
+failures:
+
+---- cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence stdout ----
+
+thread 'cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence' (96444) panicked at crates\marlowe-surface\src\cli.rs:370:9:
+ESC reached the approval prompt:
+"\n  approval — Run a process over 4 files in /work/src\u{1b}[2K\r/etc\n  can reach the network · not recoverable\n  routine for this class · this class sits at its ceiling and cannot be promoted\n  enter run · esc deny\n\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    cli::display_sanitiser::the_classic_approval_prompt_never_writes_a_control_sequence
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe-surface --lib`

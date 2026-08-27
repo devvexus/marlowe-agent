@@ -1,0 +1,20 @@
+===== RUN 1 =====
+test a_silent_peer_does_not_wedge_the_daemon ... FAILED
+the silent peer was still holding the daemon after 7.0849139s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.62s
+===== RUN 2 =====
+test a_silent_peer_does_not_wedge_the_daemon ... FAILED
+the silent peer was still holding the daemon after 7.0636537s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.60s
+===== RUN 3 =====
+test a_silent_peer_does_not_wedge_the_daemon ... FAILED
+the silent peer was still holding the daemon after 7.0529475s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.59s
+===== RUN 4 =====
+test a_silent_peer_does_not_wedge_the_daemon ... FAILED
+the silent peer was still holding the daemon after 7.0631492s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.60s
+===== RUN 5 =====
+test a_silent_peer_does_not_wedge_the_daemon ... FAILED
+the silent peer was still holding the daemon after 7.0575363s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 7.59s

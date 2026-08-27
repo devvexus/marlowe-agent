@@ -1,0 +1,86 @@
+{
+  "benchmark_coverage": [
+    {
+      "key": "longmemeval-s",
+      "note": "K2: >=90% overall, >=85% on the abstention subset",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LongMemEval-S (500 q)"
+    },
+    {
+      "key": "longmemeval-s-abstention",
+      "note": "Correctly declining on events that never happened",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LongMemEval-S abstention subset"
+    },
+    {
+      "key": "locomo",
+      "note": "Baseline only; the brief is explicit that it is not sufficient",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "gated",
+      "status": "not_run",
+      "title": "LoCoMo (1,540 q)"
+    },
+    {
+      "key": "longmemeval-m",
+      "note": "The regime where context-stuffing fails entirely",
+      "reason": "corpus not present; run `marlowe-eval verify-corpus` after downloading it",
+      "role": "reported",
+      "status": "not_run",
+      "title": "LongMemEval-M"
+    },
+    {
+      "key": "longmemeval-v2",
+      "note": "100M+ token multimodal agent histories; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "LongMemEval-V2"
+    },
+    {
+      "key": "beam-1m",
+      "note": "Deliberately unsaturated; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "BEAM-1M"
+    },
+    {
+      "key": "beam-10m",
+      "note": "Deliberately unsaturated; no adapter yet",
+      "reason": "no adapter in M0a; the corpus shape is not pinned in this repo",
+      "role": "reported",
+      "status": "not_run",
+      "title": "BEAM-10M"
+    }
+  ],
+  "benchmarks": {},
+  "harness": {
+    "contract_scope": "CONTRACTS.md section 4 only",
+    "contract_version": "1.0"
+  },
+  "notes": [],
+  "protocol": {
+    "errors": [
+      {
+        "detail": "the target closed stdin or exited before the request was written; section 4.0.7 forbids a retry, because a retry makes the outcome depend on timing",
+        "interface": "ingest",
+        "kind": "implementation_crashed",
+        "location": ""
+      }
+    ]
+  },
+  "run": {
+    "clock_ms": 1780000000000,
+    "latency_budget_ms": 300,
+    "seed": 7,
+    "suites": [
+      "benchmark"
+    ],
+    "target": "exec://C:\\Users\\matth\\OneDrive\\Desktop\\Projects\\Marlowe_Harness\\target\\release\\marlowe.exe --eval-adapter --profile-root {profile_root} --embedder-model C:\\Users\\matth\\OneDrive\\Desktop\\Projects\\Marlowe_Harness\\models\\jina-embeddings-v2-small-en --embedding-cache .embedding-cache --reranking models/ms-marco-MiniLM-L-2-v2-ft-session-j --profile-retrieval runs\\session-l\\r2-cuda\\heldout\\retrieval-profile.ndjson --rerank-provider cuda --dump-gate-features runs\\session-l\\r2-cuda\\heldout\\scored-candidates.ndjson",
+    "token_budget": 7000
+  }
+}

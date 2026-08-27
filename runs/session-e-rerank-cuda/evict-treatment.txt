@@ -1,0 +1,13 @@
+=== TREATMENT. Card emptied of Ollama, then 8 embedder sessions taken by the SHIPPED binary ===
+[?25l[?2026h[?25l[1G[K[?25h[?2026l[2K[1G[?25h--- card before marlowe ---
+2289 MiB, 13757 MiB
+NAME    ID    SIZE    PROCESSOR    CONTEXT    UNTIL 
+--- holder stderr ---
+marlowe: embedder asked for auto, running on CUDAExecutionProvider with 7 of 8 worker session(s) -- CUDA, 7 of 8 sessions; device memory: 1310 MB usable would not hold another session plus a spare (813 MB each); reserving 6758 MB for tier 1 (qwen3.5:9b), which is not resident and has no CPU fallback
+--- card WITH marlowe holding it ---
+2265 MiB, 13781 MiB
+--- now ask Ollama for tier 1 ---
+NAME              ID              SIZE      PROCESSOR    CONTEXT    UNTIL              
+marlowe-red:9b    c0aeab81cbf2    6.6 GB    100% GPU     32768      9 minutes from now    
+8797 MiB, 7249 MiB
+--- holder killed ---

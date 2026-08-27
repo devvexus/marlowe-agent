@@ -1,0 +1,5 @@
+scoring fit (251 cases) ...
+  -> runs\session-e-maxseq\fit-1024\fit
+
+reranking: models/ms-marco-MiniLM-L-2-v2-ft-session-j
+No summary.json written -- this pass produces the fit-split dump only.
