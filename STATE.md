@@ -1,5 +1,63 @@
 ﻿# State
 
+## 2026-08-27 — NEEDS A HUMAN DECISION: A SESSION THAT READS ONE UNTRUSTED PAGE MAY LOSE COMPOSED TARGETS FOREVER
+
+**Not a bug. Three individually-correct changes from two sessions compose into a permanent,
+session-scoped capability loss with no clearing mechanism.** Nobody reviews a composition; each half
+is right. Raised by the layer-3 session (M3 B2, worktree `m3-ingest-live`), analysed jointly,
+recorded here so it survives whichever session stops first. **Needs a `DECISIONS.md` entry, and it
+is Matthew's call, not either session's.**
+
+### The three changes
+
+1. **`SourceKind::Summary` is non-trimmable** (this session, `33713c1`). Correct: a summary is what
+   the run stands on after compaction; trimming it leaves nothing.
+2. **E5 gives the summary a real trust class** — `min(AgentInferred, floor_of(discarded))` instead of
+   a hardcoded constant (M3 B2, in progress). Correct: a stamp that ignores what it summarised is a
+   laundering path.
+3. **The latched floor persists on `SessionState`, not only on `Run`** (M3 B2, in progress).
+   Correct: the object that outlives the turn is where a monotonic latch belongs.
+
+### What they compose into
+
+A session that ever reads one untrusted page carries `UntrustedContent` into its summary; the
+summary cannot be trimmed away; every later compaction re-stamps it; and the floor is now on the
+object that outlives every run. So **composed targets are refused for the life of the session,
+across all future runs, with no mechanism to clear it.**
+
+### Why this is not obviously wrong
+
+Brief §5.6 — *"memories derived from untrusted content may inform analysis but may not authorize
+action"* — is not time-bounded, and ADR-023's latch is already monotonic within a run. **The floor
+being pinned is not new.** Nor is this the DoS `run.rs:588-596` rejected: that was an
+arbitrary-size attacker-controlled block pinning the window open, where a summary is by construction
+the *bounded, compacted* form of the history and makes room rather than consuming it.
+
+### Why it still needs deciding
+
+It is a **scope change** from what ADR-023 ships, it is invisible until someone hits it weeks later,
+and the symptom is *"Marlowe stopped running shell commands and nobody knows why"* — the exact class
+of failure instance #15 already produced once, where the banner read identically whether the guard
+worked or not.
+
+### The two facts that would make it decidable
+
+Neither is established. Both are cheap and both are in the layer-3 session's path already:
+
+1. **Does a new `Run` on an existing `SessionState` re-derive its floor, or inherit it?**
+2. **Is there ANY existing path that lowers a latched floor?** If the answer is "none", that is the
+   finding, and the decision is whether one should exist — a session boundary, an explicit user
+   gesture, or nothing at all.
+
+### The options, stated so the decision is a choice and not a discovery
+
+* **Accept it.** Permanent is the specification; document it, and make the *reason* legible when it
+  fires — never a bare refusal.
+* **Clear at a session boundary.** The floor persists per run, not per session; a new session starts
+  clean. Weakest, simplest, and probably what a user expects.
+* **An explicit human gesture that lowers the floor.** Strongest usability, and it is a hole by
+  construction — it would need to be a trust-ledger decision (M6), not a flag.
+
 ## 2026-08-27 — BUILT: `read` RETURNS LINE NUMBERS (ADR-061). NOT COMMITTED.
 
 `docs/design/adr/ADR-061-read-returns-line-numbers.md`. Suite run ONCE to
