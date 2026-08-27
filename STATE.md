@@ -1,5 +1,94 @@
 ﻿# State
 
+## 2026-08-26 — "HE CAN'T EVEN WRITE A FILE, AND HE DOESN'T EVEN KNOW WHY"
+
+The user's words, and both halves were literally true. Journal seq 4806–4864 and the handoff
+document the run produced are the evidence; the handoff is worth reading precisely because it is
+**wrong about everything that happened to it**, and it could not have been otherwise.
+
+### THE ONE THAT MATTERS: A FAILED TOOL CALL REACHED THE MODEL AS `"edit · "`
+
+`marlowe_exec::failed` builds its outcome with `body: ToolBody::Inline(String::new())` and the
+reason in `summary.detail`. The block `Engine::finish` pushes was built from `summary.render()` —
+the §B6 line's **metrics** — and the body. **Neither of those is the detail.** So every executor
+failure arrived in the model's own context as its verb and a separator, and nothing else.
+
+**A REFUSAL was never affected, and that is why this survived.** `tool_error` formats
+`[{tool} blocked] {why}` and has always carried its reason, so the paths anybody thought to check
+were fine. Only *executor* failures were silent — and those are exactly the ones a model is
+supposed to correct and retry rather than abandon.
+
+Fixed at the one site that builds the block. Controlled: remove the append and the regression
+fails with the live string quoted in it.
+
+**The first version of that test measured the wrong path entirely.** It used `Unavailable` as the
+scope, so every call was refused at adjudication and never reached an executor — and the refusal
+path is the half that always worked. It passes a real `WorkspaceScope` now. Same shape as the
+`QuarantinedSink` control that edited the wrong one of two construction sites: *a control that
+passes reads exactly like a test that works.*
+
+### THE PROXIMATE BUG: `edit` CREATES THE FILE, THEN REFUSES TO WRITE IT
+
+`path` is a `WritePath`, so path scoping opens it `CreateOrOpen` **before the executor runs**. A
+model writing a NEW file and supplying `replacing` therefore searched an empty string, and got
+*"`replacing` was not found in the file"* — a true sentence describing a situation that does not
+exist, about a file that call had created one line earlier.
+
+The observed loop: `edit` → refusal → `read` (**`0 lines · 0 B`**, which an empty file and a
+missing one both produce) → `edit` → `read` → `read` → `bash` to run `dir`. **Six calls, three
+minutes.** `Session Handoff - 2087.md` is still in the workspace at **0 bytes** — the corpse.
+
+`replacing_miss` now separates three cases and each names its remedy: the file is empty *because
+`edit` created it*; the text is present apart from whitespace (the commonest real miss, and the
+one where a generic message sends the model round the same loop); or it is genuinely absent, with
+the file's size stated so "wrong file" and "wrong snippet" can be told apart.
+
+### `RunCompleted` WAS JOURNALED AS `{}`
+
+It fired before the result existed. For a **child** that is the entire output, and `spawn` drops
+`child_state` by design (§10.2), so the journal was the only place a child's answer could survive
+— and it held an empty object. What remained was the parent's *account* of the child, which is
+backwards: a model's summary of a thing is not the thing.
+
+Now recorded after `validate`, with the fields, the spend and the retry count. Capped per field at
+4,000 chars, stated in the payload when it bites, because a root contract declares `answer` at
+`usize::MAX` and the journal is not a transcript store.
+
+### THE HANDOFF, AND WHY IT IS EVIDENCE RATHER THAN AN EMBARRASSMENT
+
+Asked to write a full-depth debug log, the run produced a document claiming *"no truncation,
+errors or refusals occurred anywhere along execution path"* — with two failed `edit`s, four
+zero-byte reads and a dead file behind it. It then **invented a cause**: that Windows mishandles
+filenames containing `" -"`. Nothing of the kind happened.
+
+**This is the third instance of the same shape in one day, and each had a different cause:**
+
+| what it invented | what was actually true |
+|---|---|
+| *"I did not have access to its documentation"* | the child was granted 500 tokens and paused before its first call |
+| *"Windows mishandles ` -` in filenames"* | `edit` searched a file it had just created empty |
+| *"no errors occurred anywhere"* | the tool result in its window was `"edit · "` |
+
+In all three the harness knew exactly what had happened and **did not tell the model**. The model
+is not lying; it is filling a gap with the most plausible story available, which is what any model
+does with no information. **So the fix is never "make the model more careful" — it is the channel.**
+Three are now closed: the parent's window (child failures), the model's window (executor failures),
+and the journal (both). The fourth, the **surface**, is still open — `Event::Tool` carries no
+detail, 34 sites, so §B6's *"Enter or Tab for full output in place"* has never been true.
+
+**Two things in that handoff are the model and are recorded as such**, because inventing a harness
+cause for them would be the same error it made: severe degenerate repetition (one run-on sentence
+repeated three times in a table row), and a claim to have read a 482 KB `STATE.md` whole on a
+75,000-token budget.
+
+### The tool descriptions the failure named
+
+`bash` now says **use `edit` to write a file** — heredocs and `>` do not work under `cmd /C` and
+fail with a bare exit code, which is what `cat > f << 'EOF'` did at 23:39:59. The description had
+warned about single quotes, `&&` and `grep`, and said nothing about the thing the model actually
+reached for. `read` now says a missing file is *refused*, so `0 lines · 0 B` means the file exists
+and is empty. `edit` says never to pass `replacing` for a file that does not exist yet.
+
 ## 2026-08-26 — THE CHILD WAS NEVER ASKED ANYTHING. TWO DEFECTS, AND ONE WRONG DIAGNOSIS RETRACTED
 
 A second live spawn, same session. Both of the failures logged in OPEN 2 below have causes, and

@@ -448,3 +448,106 @@ fn a_childs_prose_never_reaches_the_surface_but_the_parents_answer_does() {
          transcript, and audit finding E4 forbids exactly this. What the surface saw: {on_screen:?}"
     );
 }
+
+/// **A child's result is in the durable record.**
+///
+/// `RunCompleted` was journaled as `{}`. Every run in this project's history recorded that it had
+/// finished and nothing about what it finished with — and for a CHILD that is the whole output.
+/// `Engine::spawn` drops `child_state` by design (§10.2: the orchestrator's context must never
+/// accumulate raw worker history), so the journal was the only place a child's answer could have
+/// survived, and it held an empty object.
+///
+/// What remained was the PARENT's account of the child, which is exactly backwards: this project's
+/// standing rule is that a model's summary of a thing is not the thing. The handoff document of
+/// 2026-08-26 is the case in point — it reported a spawn that "returned complete content without
+/// any failure conditions" and there was no record to check it against.
+#[test]
+fn a_childs_result_survives_in_the_journal() {
+    const CHILD_SAID: &str = "Seventeen crows, one fox, one dog.";
+    let registry = builtin_registry().expect("the builtin manifests load");
+    let mut e = Engine::new(
+        registry,
+        Unavailable,
+        100_000,
+        10_000,
+        std::path::PathBuf::from("/ws"),
+        Tier::Act,
+    );
+    let mut driver = ViewRecorder {
+        steps: VecDeque::from(vec![
+            reply(
+                serde_json::json!({
+                    "content": "",
+                    "tool_calls": [{ "function": { "name": "run", "arguments": {
+                        "task": TASK, "exposed_tools": "", "output_contract": "a one-line summary",
+                    }}}],
+                }),
+                100,
+            ),
+            reply(serde_json::json!({ "content": CHILD_SAID }), 100),
+            reply(serde_json::json!({ "content": "Done." }), 100),
+        ]),
+        views: Vec::new(),
+    };
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    {
+        let mut ports = Ports {
+            driver: &mut driver,
+            summarizer: &mut summarizer,
+            tools: &mut tools,
+            memory: None,
+            approvals: &mut approvals,
+            sink: &mut sink,
+            control: &mut control,
+            clock: &mut clock,
+            recorder: &mut recorder,
+        };
+        let mut run = Run::root(
+            RunId::from_name("root"),
+            SessionId::from_name("root-session"),
+            CapabilityProfile::interactive(),
+            Budget::interactive(),
+            OutputContract::answer(),
+        );
+        let mut state = SessionState::new(run.session, "Marlowe.");
+        state.push(Block::new(
+            SourceKind::History,
+            "summarise something".to_string(),
+            TrustClass::UserAsserted,
+        ));
+        let mut prov = Provenance::new();
+        e.run(&mut run, &mut state, &mut prov, &mut ports);
+    }
+
+    let completions = recorder.payloads(marlowe_journal::EventKind::RunCompleted);
+    assert!(!completions.is_empty(), "nothing recorded a completion at all");
+
+    let carried: Vec<&serde_json::Value> = completions
+        .iter()
+        .copied()
+        .filter(|p| p.get("fields").is_some())
+        .collect();
+    assert!(
+        !carried.is_empty(),
+        "every RunCompleted is still shapeless. Live, they were all `{{}}`: {completions:?}"
+    );
+
+    let text = serde_json::to_string(&carried).unwrap();
+    assert!(
+        text.contains(CHILD_SAID),
+        "the CHILD's own answer is not in the durable record, so a spawn that returned the wrong \
+         thing cannot be examined afterwards -- only the parent's account of it: {carried:?}"
+    );
+
+    // Spend travels with it: a result with no cost beside it cannot be judged for value.
+    assert!(
+        carried.iter().any(|p| p.get("spent_tokens").is_some()),
+        "a completion records what was produced but not what it cost: {carried:?}"
+    );
+}

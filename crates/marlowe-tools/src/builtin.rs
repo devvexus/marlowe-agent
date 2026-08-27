@@ -131,10 +131,10 @@ fn registration(
 /// statement was read by a live session as evidence that there was none, and it reported a
 /// non-existent egress boundary rather than a quoting problem.
 #[cfg(windows)]
-const SHELL_DESCRIPTION: &str = "Run a command through the Windows shell, `cmd /C` — NOT bash, despite the name. Quote with double quotes, not single. No `grep`/`sed`/`awk`, no `&&`, no `2>/dev/null`. It reaches the network normally. Each call is a fresh shell and asks the user to approve it first. For something the user already told Marlowe, try `recall` first.";
+const SHELL_DESCRIPTION: &str = "Run a command through the Windows shell, `cmd /C` — NOT bash, despite the name. Quote with double quotes, not single. No `grep`/`sed`/`awk`, no `&&`, no `2>/dev/null`. **To write or change a file use `edit`, never this**: heredocs (`<< EOF`) and output redirection (`>`) do not work in `cmd` and fail with a bare exit code. To search file contents use `find`; to list files, `dir`. It reaches the network normally. Each call is a fresh shell and asks the user to approve it first. For something the user already told Marlowe, try `recall` first.";
 
 #[cfg(not(windows))]
-const SHELL_DESCRIPTION: &str = "Run a command through `sh -c`. It reaches the network normally. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.";
+const SHELL_DESCRIPTION: &str = "Run a command through `sh -c`. **To write or change a file use `edit`, not shell redirection**: `edit` reports what changed and this does not. It reaches the network normally. Each call is a fresh shell: nothing persists between calls, and every call asks the user to approve it first. For something the user already told Marlowe, try `recall` before the filesystem.";
 
 /// Every builtin, registered. **Registration, not exposure** — a profile still selects ≤12.
 pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
@@ -195,7 +195,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // `range`'s format was undocumented anywhere the model could see it: the generated
             // parameter description for a `Text` payload is "Optional. text." `slice_lines` splits
             // on `-`, parses both sides, and takes `skip(a-1).take(b-a+1)` — 1-based and inclusive.
-            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). `range` selects lines by 1-based inclusive number, e.g. \"20-60\".",
+            "Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns). `range` selects lines by 1-based inclusive number, e.g. \"20-60\". A file that does not exist is REFUSED with a message saying so, so a result of `0 lines · 0 B` means the file is there and is empty — reading it again will not change that.",
             "read",
             8_192,
             Inert,
@@ -261,7 +261,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // directory is the walk's rule, not this tool's — only the LAST component is opened
             // `CreateOrOpen`, so a missing parent is `Unopenable`, which
             // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.
-            "Replace a file's contents, or write a new file. With `replacing`, the first exact occurrence of that text is replaced, and the call fails if it is not found; without it the whole file is overwritten. The parent directory must already exist.",
+            "Replace a file's contents, or write a new file. Without `replacing`, `content` becomes the whole file — **this is how you create one**. With `replacing`, the first exact occurrence of that text is replaced and the call FAILS if it is not found, so never pass `replacing` for a file that does not exist yet: there is nothing in it to match. Read a file before replacing part of it, and copy the snippet byte for byte. The parent directory must already exist.",
             "edit",
             2_048,
             Reversible,

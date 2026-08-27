@@ -136,6 +136,68 @@ impl<S: PathScope> FileSystemTools<S> {
     }
 }
 
+/// Why `replacing` did not match, told so the model can act on it.
+///
+/// # The loop this ends
+///
+/// `path` is a `WritePath`, so the scoping layer opens it `CreateOrOpen` — **the file exists,
+/// empty, by the time this executor runs.** A model writing a NEW file and supplying `replacing`
+/// therefore searched an empty string, and got back *"`replacing` was not found in the file"*: a
+/// true sentence describing a situation that does not exist, since the file it names had been
+/// created by that same call one line earlier.
+///
+/// Watched live 2026-08-26, journal seq 4813-4839. The model tried `edit`, was told that, `read`
+/// the file, got **"0 lines · 0 B"** — which is what an empty file and a file that was never
+/// there both look like — tried `edit` again, read again, read again, and finally fell back to
+/// `bash` to run `dir`. **Six calls, two minutes, one zero-byte file, and no way to learn why.**
+/// The user's summary was "he can't even write a file, and he doesn't even know why".
+///
+/// Nothing was broken. `existing.find` was correct, the refusal was honest, and the message was
+/// about the wrong thing. So the three cases are separated and each says what to do next.
+fn replacing_miss(existing: &str, replacing: &str) -> String {
+    if existing.is_empty() {
+        // **The side effect is stated rather than hidden.** Path scoping opened this
+        // `CreateOrOpen`, so the file is on disk at zero bytes whatever happens next, and
+        // nothing in this executor can safely undo that: it cannot tell a file it has just
+        // created from one the user already had empty, and `ScopedPath` does not carry the
+        // distinction -- `scope/mod.rs` is a section 13 path and adding it there is a
+        // DECISIONS entry, not a passing edit.
+        //
+        // So the message says the file is now there. Live, the model was told the cause,
+        // understood it, and then reported "my first attempt wrote it anyway" about a
+        // zero-byte file -- and the next `read` returning `0 lines` looked like a second,
+        // unrelated mystery. That is how the original loop sustained itself.
+        return "the file is empty, so there is nothing to replace — and it is empty because \
+                `edit` CREATES the file it is given. IT NOW EXISTS, AT ZERO BYTES, so reading \
+                it will report `0 lines` until something is written to it. To write it, call \
+                `edit` again with the same `path`, your `content`, and NO `replacing` at all."
+            .to_string();
+    }
+
+    // **The overwhelmingly common miss is whitespace**, and saying so turns an unbounded retry
+    // into one corrected call. Checked by collapsing runs of whitespace on both sides: if the
+    // snippet is there apart from spacing, the model copied the text and not the indentation.
+    let squash = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ");
+    if !replacing.trim().is_empty() && squash(existing).contains(&squash(replacing)) {
+        return format!(
+            "`replacing` was not found. The file DOES contain that text apart from whitespace, so \
+             the indentation or line breaks differ — `replacing` must match byte for byte. `read` \
+             the file and copy the snippet exactly as it comes back. The file is {} bytes, {} \
+             lines.",
+            existing.len(),
+            existing.lines().count(),
+        );
+    }
+
+    format!(
+        "`replacing` was not found in the file, which is {} bytes and {} lines. It must match byte \
+         for byte, including indentation. `read` the file first and copy the snippet from what it \
+         returns — or omit `replacing` entirely to overwrite the whole file with `content`.",
+        existing.len(),
+        existing.lines().count(),
+    )
+}
+
 fn failed(verb: &'static str, detail: impl Into<String>) -> ToolOutcome {
     ToolOutcome {
         summary: ResultSummary::with_detail(vec![Metric::State(verb)], detail),
@@ -319,7 +381,7 @@ impl<S: PathScope> FileSystemTools<S> {
                 return failed("edit", e.to_string());
             }
             let Some(at) = existing.find(replacing) else {
-                return failed("edit", "`replacing` was not found in the file");
+                return failed("edit", replacing_miss(&existing, replacing));
             };
             let mut next = String::with_capacity(existing.len());
             next.push_str(&existing[..at]);

@@ -143,6 +143,13 @@ use crate::turn::{ToolLineState, TurnEvent};
 /// meaningless id, and it keeps the wire shape uniform.
 pub const CONTROL_CALL_ID: &str = "control";
 
+/// How much of each field of a completed run's result the journal keeps.
+///
+/// A root run's contract declares `answer` with `max_chars: usize::MAX`, so an uncapped copy
+/// would make the journal a transcript store. Generous enough that a subagent's findings -- which
+/// `OutputContract::new` caps at 2,000 -- are kept whole, which is the case this exists for.
+const JOURNALED_RESULT_MAX_CHARS: usize = 4_000;
+
 /// How much of a failed child's reason crosses into the parent's window.
 ///
 /// Long enough for an HTTP status and a refused model slug, short enough that a reason cannot
@@ -999,7 +1006,10 @@ impl<S: PathScope> Engine<S> {
                     // emitted it at all and simply kept chatting. A control token the model must
                     // remember in order for the loop to stop makes forgetting it look identical
                     // to working.
-                    self.record(ports, EventKind::RunCompleted, run, state, json!({}));
+                    // **`RunCompleted` used to be recorded HERE, as `{}`.** It fired before the
+                    // result existed, so the one thing a completed run produces was the one thing
+                    // its completion event did not carry. It is now recorded below, once the
+                    // contract has validated -- see the note there.
                     run.status = RunStatus::Completed;
                     ports.sink.emit(TurnEvent::Done {
                         spend_micros_usd: run.spent.micros_usd,
@@ -1106,6 +1116,56 @@ impl<S: PathScope> Engine<S> {
                         run.status = RunStatus::Running;
                         continue;
                     }
+                    // ── WHAT THE RUN PRODUCED, IN THE DURABLE RECORD ────────────────────
+                    //
+                    // **`RunCompleted` was journaled as `{}`.** Every run in this profile's
+                    // history -- and every CHILD run, which is the case that hurts -- recorded
+                    // that it had finished and nothing about what it finished with. A spawn's
+                    // whole output is a `CondensedResult` that crosses into the parent's window
+                    // and is then dropped with the child's session; the journal was the only
+                    // place it could have survived, and it held an empty object.
+                    //
+                    // So a child that returned the wrong thing could not be examined afterwards.
+                    // The parent's account of it could, which is exactly backwards: CLAUDE.md's
+                    // standing rule is that a model's summary of a thing is not the thing.
+                    //
+                    // Recorded HERE rather than where the old empty one was, because there the
+                    // result did not exist yet and had not been validated. `fields` is the
+                    // validated shape -- what a parent would have received.
+                    //
+                    // Length-capped per field, because a root run's `answer` field is
+                    // `usize::MAX` by contract and the journal is not a transcript store. The cap
+                    // is stated in the payload when it bites, so a truncated value is never
+                    // mistaken for a short one.
+                    self.record(
+                        ports,
+                        EventKind::RunCompleted,
+                        run,
+                        state,
+                        json!({
+                            "fields": result
+                                .fields
+                                .iter()
+                                .map(|(k, v)| {
+                                    let clipped = match v
+                                        .char_indices()
+                                        .nth(JOURNALED_RESULT_MAX_CHARS)
+                                    {
+                                        Some((cut, _)) => format!(
+                                            "{}… [{} chars, journal keeps {}]",
+                                            &v[..cut],
+                                            v.chars().count(),
+                                            JOURNALED_RESULT_MAX_CHARS,
+                                        ),
+                                        None => v.clone(),
+                                    };
+                                    (k.clone(), clipped)
+                                })
+                                .collect::<std::collections::BTreeMap<_, _>>(),
+                            "spent_tokens": run.spent.tokens,
+                            "contract_retries": contract_retries,
+                        }),
+                    );
                     return LoopOutcome::Completed(result);
                 }
 
@@ -1715,6 +1775,42 @@ impl<S: PathScope> Engine<S> {
                 None => format!("{} · ref {hash} ({bytes} B)", outcome.summary.render()),
             },
         };
+        // ── AND ON FAILURE, THE REASON. THE MODEL WAS GETTING `"edit · "`. ──────────────────
+        //
+        // `failed()` builds its outcome with `body: ToolBody::Inline(String::new())` and puts the
+        // reason in `summary.detail`. The match above reads `summary.render()` — the §B6 line's
+        // metrics — and the body. **Neither is the detail.** So a failed `edit` reached the model
+        // as its own verb and a separator, and a failed anything-else the same way.
+        //
+        // Watched live 2026-08-26, journal seq 4813-4859. `edit` on a new file with `replacing`
+        // set: `path` is a `WritePath`, so scoping had already created the file, `"".find(..)`
+        // missed, and the call failed. The model was told `"edit · "`. It read the file back
+        // (`0 lines · 0 B`, which an empty file and a missing one both produce), tried the same
+        // call again, read again, read again, and fell back to `bash` to run `dir`. **Six calls
+        // and three minutes**, and the handoff it then wrote said *"no truncation, errors or
+        // refusals occurred anywhere along execution path"* and invented a cause — a Windows
+        // filename-parsing theory that is not true of anything that happened.
+        //
+        // **A refusal was never affected**, which is why this survived: `tool_error` formats
+        // `[{tool} blocked] {why}` and always carried its reason. Only EXECUTOR failures were
+        // silent, and those are the ones a model must correct rather than abandon.
+        //
+        // Third place the same `detail` gap has appeared: the journal (fixed the same day), the
+        // surface's `Event::Tool` (still open, 34 sites), and here. Here is the one that changes
+        // what the model does next.
+        let text = if outcome.failed {
+            match &outcome.summary.detail {
+                Some(d) if !d.trim().is_empty() && !text.contains(d.trim()) => {
+                    // `render()` for a `failed()` outcome is just the verb, leaving a dangling
+                    // separator; anything richer keeps its metrics and gains the reason.
+                    format!("{} — {}", text.trim_end().trim_end_matches('·').trim_end(), d.trim())
+                }
+                _ => text,
+            }
+        } else {
+            text
+        };
+
         // ── LAYER 1. Raw untrusted bytes do not reach the parent's attention ─────────────────
         //
         // Brief §8.2 has two sentences. The first — a reader with `reads_untrusted` and an empty

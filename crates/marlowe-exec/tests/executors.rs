@@ -157,3 +157,92 @@ fn an_escape_never_reaches_an_executor_at_all() {
         r.summary
     );
 }
+
+/// **The loop a model could not escape: `edit` creates the file, then refuses to write it.**
+///
+/// `path` is a `WritePath`, so path scoping opens it `CreateOrOpen` before the executor runs. A
+/// model writing a NEW file and supplying `replacing` therefore searched an empty string and was
+/// told *"`replacing` was not found in the file"* — a true sentence about a situation that did not
+/// exist, since the file it named had been created by that same call.
+///
+/// Watched live 2026-08-26, journal seq 4813-4859: `edit`, refusal, `read` (`0 lines · 0 B`, which
+/// an empty file and a missing one both produce), `edit` again, `read`, `read`, then `bash` to run
+/// `dir`. **Six calls, three minutes, and a zero-byte file left on disk.**
+///
+/// Each branch is asserted separately, because one message covering all three is what the old one
+/// was.
+#[test]
+fn a_failed_replace_says_which_of_the_three_things_went_wrong() {
+    let fx = Fixture::new("edit-miss");
+
+    // 1. A NEW file. This is the live case.
+    let (_, r) = fx.call(
+        "edit",
+        Args::new()
+            .text("path", "brand-new.md")
+            .text("replacing", "anything at all")
+            .text("content", "hello"),
+    );
+    assert!(r.failed);
+    let d = r.summary.detail.clone().unwrap_or_default();
+    assert!(
+        d.contains("empty") && d.contains("CREATES"),
+        "a model writing a new file must be told the file is empty BECAUSE `edit` made it, and \
+         that omitting `replacing` is the fix: {d:?}"
+    );
+    assert!(
+        d.contains("NO `replacing`"),
+        "the remedy has to be named, not implied: {d:?}"
+    );
+    // The side effect, which nothing can undo and which the next `read` will otherwise present
+    // as a second unrelated mystery.
+    assert!(
+        d.contains("ZERO BYTES"),
+        "the call left a zero-byte file on disk and did not say so, so `0 lines` from a later          `read` looks like a new problem: {d:?}"
+    );
+
+    // 2. A whitespace-only mismatch — the commonest miss in a real file, and the one where a
+    //    generic message sends the model round the same loop.
+    let (_, r) = fx.call(
+        "edit",
+        Args::new()
+            .text("path", "src/main.rs")
+            .text("replacing", "println!(\"hi\");")
+            .text("content", "println!(\"bye\");"),
+    );
+    assert!(!r.failed, "that snippet IS in the file verbatim, so this must succeed: {:?}", r.summary);
+
+    let (_, r) = fx.call(
+        "edit",
+        Args::new()
+            .text("path", "notes.md")
+            // `notes.md` is "alpha\nbeta needle\ngamma\n" — same words, wrong spacing.
+            .text("replacing", "beta    needle")
+            .text("content", "x"),
+    );
+    assert!(r.failed);
+    let d = r.summary.detail.clone().unwrap_or_default();
+    assert!(
+        d.contains("apart from whitespace"),
+        "the file contains that text apart from spacing, and saying so turns an unbounded retry \
+         into one corrected call: {d:?}"
+    );
+
+    // 3. Genuinely absent, in a file with content. The message must carry the file's size, or
+    //    the model cannot tell "wrong file" from "wrong snippet".
+    let (_, r) = fx.call(
+        "edit",
+        Args::new().text("path", "notes.md").text("replacing", "no such text").text("content", "x"),
+    );
+    assert!(r.failed);
+    let d = r.summary.detail.clone().unwrap_or_default();
+    assert!(
+        d.contains("bytes") && d.contains("lines"),
+        "a miss in a non-empty file must state what the file actually is: {d:?}"
+    );
+    assert!(
+        !d.contains("apart from whitespace"),
+        "**THE CONTROL.** If the whitespace branch fired here it fires on everything, and \
+         branch 2 proves nothing: {d:?}"
+    );
+}
