@@ -1,5 +1,88 @@
 ﻿# State
 
+
+## 2026-08-27 — PRODUCT-LEVEL TTFT IS 3.1x, AND A 148-BYTE PREFIX CHANGE COST 1.45 SECONDS
+
+**The canonical product figure is 151.5 ms (llama.cpp, GPU) against 472.5 ms (Ollama) — 3.1x.**
+Measured through the **daemon's own `--dev` stderr**, not a client script and not a test process:
+llama.cpp cold 1,871.8 then warm 151.5 / 159.2 / 131.2; Ollama cold 10,484.9 (model load) then warm
+472.5 / 478.6 / 465.9. Medians of three warm reps, rep 1 discarded, back to back, fresh profile root
+and distinct daemon port per arm, process list checked before each arm rather than remembered.
+
+**Quote 151/472, not ADR-060's 52/275 and not 71/382.** The instrument figures were taken on a
+two-message prefix with no tools. The product sends **`system 17381 chars` and 12 tools on every
+call**, verified from both daemons' outbound dumps on every measured call rather than assumed — the
+same byte count and the same tool list on both arms, so the 3.1x is **not** a prompt-size artefact.
+A pair that does not carry those two facts is measuring a prompt the product never sends.
+
+*(A 71/382 pair produced by a different agent circulated briefly and is superseded; it was never
+reconciled against the 17.4 kB prefix.)*
+
+### The finding inside the measurement: prefix churn happened spontaneously and cost 1.45 s
+
+The Ollama arm's **fifth** model call read **1,929.3 ms — four times its own warm figure.** It is the
+only call on either arm whose system message changed size: **17,381 → 17,529 characters**, because
+injected memory changed between turns.
+
+**A 148-byte change at the FRONT of the prefix cost about 1.45 seconds**, in an ordinary product run
+that nobody was provoking. That is ADR-060 §1's cold-prefix cell occurring by itself.
+
+**So the prefix-stability work is ADDITIVE to the runtime choice, not an alternative to it.**
+llama.cpp lowers the floor; prefix churn is what lifts you off it. A run that fixes only the runtime
+still pays this, and the eight churn sources in `runs/ttft/prefix-fix-design.md` are each a chance to
+pay it every turn.
+
+
+## 2026-08-27 — TWO METHOD FINDINGS WORTH PROMOTING TO CLAUDE.md
+
+Both came out of verifying `Event::Tool`'s `detail` field. Neither is about that feature. **Candidates
+for the CLAUDE.md ledger rather than a session note — flagged for Matthew, not moved unilaterally.**
+
+### 1. A NEGATIVE CONTROL CAN ITSELF BE VACUOUS, AND THE TEST FOR THAT IS TO MUTATE THE ARM IT GUARDS
+
+This project's standing rule is *assert the property, not a proxy* — and the standard remedy is a
+negative control: a case where the feature must be **absent**. That remedy has its own failure mode,
+and it is the same shape one level up.
+
+**A success control passes by default on any build where the success path was simply never touched.**
+So *"a successful read carries no failure reason"* is green on a correct build, green on a broken
+build, and green on a build where nobody ever wrote to that arm. It looks like a control and is
+evidence of nothing.
+
+**The discriminator: mutate the arm the control guards.** Verified live here — attaching
+`refusal.note()` to the **Ok** arm, so a success carried a refusal reason, made the control fail with
+*"a successful quarantined read reported a refusal reason it does not have."* That failure is what
+distinguishes *"this control works"* from *"this control has never been exercised."*
+
+Both halves were mutation-checked, and neither passes alone: an implementation attaching **nothing**
+fails the positive test; one attaching the reason to **everything** fails the control. `engine.rs`
+restored byte-identically after each, md5 `3d6dfea6035af433dbc6d1bb0c3e186e` confirmed both times.
+
+### 2. IDENTIFY AN ARTIFACT BY A CLAIM THAT CAN BE CHECKED AGAINST THE WORLD, NOT BY A FILESYSTEM ATTRIBUTE
+
+Two files shared the name `tool_detail_reaches_the_screen.rs` and were **not versions of each other**
+— 15,022 bytes / 20 tests, and 9,796 bytes / 4 tests. **mtime failed to separate them for two
+sessions**, because a scratchpad sweep and a third session's edits interleaved in the same minutes.
+Byte size and test count were suggestive and could equally have been two versions of one file.
+
+**What settled it: one file cites `ADR-062`, a decision record that does not exist.** Highest real
+number is 061. That is a claim its author could only have made from a context neither session shares
+— falsifiable against the world, where metadata is only correlated with authorship.
+
+Same question as the mutation checks, applied to authorship: **ask what the artifact would look like
+if the thing you believe about it were false.**
+
+### The sibling pair that motivated it, because the two failures are mirror images
+
+| | claim | why it survived |
+|---|---|---|
+| a reported syntax error at `ollama_store.rs:334` | **stale** — true once, false 20 minutes later | observed in a shared tree, never re-checked |
+| an invented `ReaderEnds::ContractUnmetTwice` | **plausible** — never true, but well-formed | it is the phrase the enum's own doc comment uses |
+
+**Both are a claim about the tree that was never checked against the tree, and the cheap fix is the
+same: read the definition, not your memory of it.** In a four-session checkout, a name that reads
+right is evidence of nothing.
+
 ## 2026-08-27 — NEEDS A HUMAN DECISION: A SESSION THAT READS ONE UNTRUSTED PAGE MAY LOSE COMPOSED TARGETS FOREVER
 
 **Not a bug. Three individually-correct changes from two sessions compose into a permanent,
