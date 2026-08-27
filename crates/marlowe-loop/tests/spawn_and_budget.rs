@@ -1681,10 +1681,25 @@ fn the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view() 
          exists for:\n{}",
         later.rendered()
     );
+    // ── WHY THIS ASSERTION IS NOW THE OPPOSITE OF WHAT IT WAS ───────────────────────────
+    //
+    // It read `assert_eq!(later.trust_floor(), AgentObserved)`, with the message *"the VIEW's
+    // floor rose, which is the behaviour that made the hole reachable"* — and that was accurate
+    // when it was written. **Audit finding F1 closed the route.** `trim_to_budget`'s omission
+    // branch used to stamp its marker at a hardcoded `AgentObserved`; it now carries the `min`
+    // of the classes it swallowed, so evicting an untrusted block to stay inside a per-source
+    // budget no longer un-taints the view.
+    //
+    // The view's floor is therefore monotone-faithful under every lever that shortens it:
+    // truncation always carried `b.trust`, `clear_tool_results` always preserved it, omission
+    // now does, and `Assembler::compact` does too (E5). **The taint survives its own eviction.**
     assert_eq!(
         later.trust_floor(),
-        TrustClass::AgentObserved,
-        "the VIEW's floor rose, which is the behaviour that made the hole reachable"
+        TrustClass::UntrustedContent,
+        "F1: the omission marker stands in for an untrusted block and carries its class, so the \
+         view's floor must NOT rise when the per-source budget evicts the taint. If this reads \
+         AgentObserved the marker is a constant again, and the budget — not the content — is \
+         deciding when a run stops being tainted."
     );
 
     // ...and the run's floor did not move with it.
@@ -1699,6 +1714,30 @@ fn the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view() 
         "the run regained privileges it read untrusted content to lose. ADR-023: once a run has \
          read untrusted content, every model-composed target in that run is blocked — `once has` \
          is a property of the run, not of whatever survived the last trim"
+    );
+
+    // ── THE LATCH, NOW THAT THE ASSEMBLER CANNOT PRODUCE ITS INPUT ──────────────────────
+    //
+    // **Stated plainly, because it is a finding and not a caveat.** With E5 and F1 fixed there
+    // is no lever left in the assembler that raises a view's floor. So nothing above this line
+    // hands `latch_trust_floor` an observation cleaner than what the run has already seen, and
+    // the monotonicity this test is named for is no longer *exercised* by the trim it was built
+    // for. The latch has become defence in depth rather than the only thing standing there.
+    //
+    // That is a reason to assert it directly, not a reason to drop it: `SessionState` blocks are
+    // shortened today, but a future path that *removes* one — or a fourth lever added without
+    // this file being read — puts the latch back on the critical path. `UserAsserted` is the
+    // cleanest observation there is, and the floor must ignore it.
+    assert_eq!(
+        run.latch_trust_floor(TrustClass::UserAsserted),
+        None,
+        "monotonic: no observation, however clean, raises a latched floor"
+    );
+    assert_eq!(run.trust_floor(), TrustClass::UntrustedContent);
+    assert!(
+        marlowe_permission::blocks_composed_targets(run.trust_floor()),
+        "and the floor is asserted where it is ENFORCED — the same predicate the adjudicator \
+         calls — never on the fact that it moved"
     );
 }
 

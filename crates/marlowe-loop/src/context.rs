@@ -690,7 +690,9 @@ impl Assembler {
     fn trim_to_budget(&self, blocks: &[Block]) -> Vec<Block> {
         let mut kept: Vec<Block> = Vec::with_capacity(blocks.len());
         let mut spent: BTreeMap<SourceKind, u32> = BTreeMap::new();
-        let mut omitted: BTreeMap<SourceKind, u32> = BTreeMap::new();
+        // **Count AND running `min` of the trust of what was folded in — audit finding F1.**
+        // See the marker construction at the bottom of this function for why the class travels.
+        let mut omitted: BTreeMap<SourceKind, (u32, TrustClass)> = BTreeMap::new();
 
         for b in blocks.iter().rev() {
             if !b.source.trimmable() {
@@ -719,15 +721,31 @@ impl Assembler {
                 *spent.get_mut(&b.source).expect("just inserted") += truncated.tokens;
                 kept.push(truncated);
             } else {
-                *omitted.entry(b.source).or_insert(0) += 1;
+                let e = omitted.entry(b.source).or_insert((0, TrustClass::UserAsserted));
+                e.0 += 1;
+                e.1 = e.1.min(b.trust);
             }
         }
 
-        for (source, count) in omitted {
+        // ── AUDIT FINDING F1: the marker carries the class of what it swallowed ────────
+        //
+        // This was a hardcoded `TrustClass::AgentObserved`, and of the three levers that shorten
+        // a view it was the only one that RAISED the floor. Truncation carries `b.trust`;
+        // `clear_tool_results` rewrites the text and preserves the class; the omission branch
+        // replaced an arbitrary set of blocks with a constant two full steps above
+        // `UntrustedContent`. Since `InjectedMemory` is trimmable and — after ADR-041 removed
+        // tool results as a taint source — is the *only* remaining `UntrustedContent` carrier in
+        // a parent's window, dropping it moved the derived floor from blocking to not blocking.
+        // The per-source budget, not an attacker, decided when that happened.
+        //
+        // `UserAsserted` is the identity for the `min`, not a default: it is the top of the
+        // lattice, so the first fold always replaces it, and an entry can only exist if at least
+        // one block was folded into it.
+        for (source, (count, trust)) in omitted {
             kept.push(Block::new(
                 source,
                 format!("[{count} earlier {source:?} block(s) omitted: over the per-source budget]"),
-                TrustClass::AgentObserved,
+                trust,
             ));
         }
         kept.reverse();
@@ -818,12 +836,28 @@ impl Assembler {
         // without bound across a long dialogue and would eventually make the post-compaction
         // window still exceed the trigger — which the loop treats as unrecoverable and fails the
         // run on. One turn is what the loop is mid-way through answering.
-        let live_turn = state
+        let live_idx = state
             .volatile
             .iter()
-            .rev()
-            .find(|b| b.source == SourceKind::History && b.trust == TrustClass::UserAsserted)
-            .cloned();
+            .rposition(|b| b.source == SourceKind::History && b.trust == TrustClass::UserAsserted);
+        let live_turn = live_idx.map(|i| state.volatile[i].clone());
+
+        // ── AUDIT FINDING E5: the summary carries the class of what it replaced ─────────
+        //
+        // **Over the blocks actually DISCARDED, never over the tier as it stood on entry.**
+        // Compaction now partitions rather than replaces: `live_turn` survives and keeps its own
+        // class. Folding a surviving `UserAsserted` turn into this `min` would be arithmetic over
+        // a block that is still in the window — and it would read identically in the common case,
+        // where the only untrusted block is one of the discarded ones. That is the shape this
+        // project keeps finding, so the exclusion is by index rather than by value: two blocks
+        // can be equal and only one of them is leaving.
+        let discarded_floor = state
+            .volatile
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| Some(*i) != live_idx)
+            .map(|(_, b)| b.trust)
+            .min();
 
         // The summarizer's output replaces the VOLATILE tier and nothing else. Governance is
         // not passed to it, is not returned by it, and is therefore not something it can drop.
@@ -841,16 +875,29 @@ impl Assembler {
             } else {
                 format!("{SUMMARY_PREFACE}\n\n{summary}")
             },
-            // A summary of the conversation is the model's own reading of it. Worst-case
-            // propagation would be wrong here for the same reason §3.3 draws the line at
-            // origin: the harness produced this call, so it is agent-inferred, and any
-            // untrusted text it summarised is still gone from the window.
+            // **`min(AgentInferred, floor of what was discarded)` — audit finding E5, HIGH.**
             //
-            // **And it stays `AgentInferred` even though that is half of what produced the bug.**
-            // Promoting it to `UserAsserted` would fix the role and launder a class, which is
-            // layer 2 and is not negotiable. The speaker is the `SourceKind`; the class is the
-            // origin.
-            TrustClass::AgentInferred,
+            // This was a bare `AgentInferred`, and the comment that stood here argued the summary
+            // was the model's own reading of the conversation so the class was the harness's to
+            // set. That is right about the *speaker* and wrong about the *origin*, which is the
+            // only thing §3.3 binds a trust class to. Layer 2's headline is *"four LLM rewrites
+            // later, a web page is still `UntrustedContent`"*; a summary is one rewrite, and
+            // stamping it `AgentInferred` raised the class of everything it absorbed by a full
+            // step. Within a run the latch absorbed that. **Across the turn boundary it did
+            // not**: `Daemon::ask_streaming_with` builds a fresh `Run::root` at `UserAsserted`
+            // over a persisted `SessionState`, and `engine.rs`'s single `latch_trust_floor` call
+            // re-derives the floor from the view — so re-latching depended entirely on the
+            // untrusted block still being physically present, and compaction is what removed it.
+            //
+            // **It still never RISES.** `min` with `AgentInferred` is what keeps this a
+            // propagation and not a promotion: a compaction that discarded nothing but
+            // `UserAsserted` turns produces `AgentInferred`, not `UserAsserted`. Promoting would
+            // fix a role and launder a class, which is what the previous comment correctly
+            // refused. The speaker is still the `SourceKind`; the class is now the origin's.
+            //
+            // Empty tier — nothing discarded — is `AgentInferred`, the same value the old
+            // constant produced, because there is no origin to propagate from.
+            discarded_floor.map_or(TrustClass::AgentInferred, |f| TrustClass::AgentInferred.min(f)),
         )];
         // After the summary, so the conversation ends on a turn addressed to the model.
         next.extend(live_turn);
