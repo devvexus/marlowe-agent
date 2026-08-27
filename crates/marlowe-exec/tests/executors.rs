@@ -86,11 +86,14 @@ fn read_returns_the_file_through_the_adjudicated_handle() {
     assert_eq!(r.summary.render(), "3 lines · 34 B");
 }
 
+/// **Two tools, one mode each.** `edit` patches an existing file; `write` creates or replaces one.
+/// They were a single tool separated by an OPTIONAL parameter, so a model holding a request and a
+/// schema had to infer which mode it was in — and inferred wrong.
 #[test]
-fn edit_writes_through_the_handle_and_can_create() {
+fn edit_patches_through_the_handle_and_write_creates() {
     let fx = Fixture::new("edit");
 
-    // Replace inside an existing file.
+    // `edit`: one snippet, the rest untouched.
     let (_, r) = fx.call(
         "edit",
         Args::new().text("path", "notes.md").text("replacing", "beta needle").text("content", "beta found"),
@@ -98,15 +101,55 @@ fn edit_writes_through_the_handle_and_can_create() {
     assert!(!r.failed, "{:?}", r.summary);
     assert_eq!(fs::read_to_string(fx.root.join("notes.md")).unwrap(), "alpha\nbeta found\ngamma\n");
 
-    // Create a file that did not exist — the WritePath half.
-    let (_, r) = fx.call("edit", Args::new().text("path", "out/new.txt").text("content", "made"));
-    // The parent must exist; `edit` creates the file, not the tree.
-    if r.failed {
-        fs::create_dir_all(fx.root.join("out")).unwrap();
-        let (_, r) = fx.call("edit", Args::new().text("path", "out/new.txt").text("content", "made"));
-        assert!(!r.failed, "{:?}", r.summary);
-    }
+    // `edit` without `replacing` no longer means "overwrite". It means nothing, and the refusal
+    // names the tool that would have worked.
+    let (_, r) = fx.call("edit", Args::new().text("path", "notes.md").text("content", "whatever"));
+    assert!(r.failed, "`edit` has no whole-file mode any more: {:?}", r.summary);
+    let d = r.summary.detail.clone().unwrap_or_default();
+    assert!(
+        d.contains("`write`"),
+        "a refusal must name the tool that would have worked, or the model guesses again: {d:?}"
+    );
+    assert_eq!(
+        fs::read_to_string(fx.root.join("notes.md")).unwrap(),
+        "alpha\nbeta found\ngamma\n",
+        "the refused call must not have touched the file"
+    );
+
+    // `write`: creates. The parent must exist -- `write` creates the file, not the tree.
+    fs::create_dir_all(fx.root.join("out")).unwrap();
+    let (_, r) = fx.call("write", Args::new().text("path", "out/new.txt").text("content", "made"));
+    assert!(!r.failed, "{:?}", r.summary);
     assert_eq!(fs::read_to_string(fx.root.join("out").join("new.txt")).unwrap(), "made");
+
+    // `write`: and replaces what was there.
+    let (_, r) = fx.call("write", Args::new().text("path", "out/new.txt").text("content", "remade"));
+    assert!(!r.failed, "{:?}", r.summary);
+    assert_eq!(fs::read_to_string(fx.root.join("out").join("new.txt")).unwrap(), "remade");
+}
+
+/// **A write must never cost a model call and leave nothing behind.**
+///
+/// Watched live 2026-08-26: asked for a new file, the model called `edit` with `replacing` set.
+/// Path scoping had already opened the path `CreateOrOpen`, so the file existed at zero bytes,
+/// `"".find(..)` missed, the call failed, and `Session Handoff - 2087.md` was left on disk at 0 B.
+/// Six calls and three minutes followed.
+///
+/// The zero-byte file is unavoidable *inside `edit`* — scoping opens the handle before any
+/// executor runs, and this crate cannot tell a file it just created from one already empty. What
+/// is avoidable is spending a model call to produce one, and `write` is how: one call, both
+/// arguments required, no mode to choose.
+#[test]
+fn write_leaves_content_not_an_empty_file() {
+    let fx = Fixture::new("write-new");
+    let (_, r) = fx.call(
+        "write",
+        Args::new().text("path", "Session Handoff - 99.md").text("content", "# Handoff\n"),
+    );
+    assert!(!r.failed, "one call must be enough to write a new file: {:?}", r.summary);
+    let on_disk = fs::read_to_string(fx.root.join("Session Handoff - 99.md")).unwrap();
+    assert_eq!(on_disk, "# Handoff\n");
+    assert!(!on_disk.is_empty(), "a written file with nothing in it is the whole bug");
 }
 
 #[test]
@@ -175,7 +218,7 @@ fn an_escape_never_reaches_an_executor_at_all() {
 fn a_failed_replace_says_which_of_the_three_things_went_wrong() {
     let fx = Fixture::new("edit-miss");
 
-    // 1. A NEW file. This is the live case.
+    // 1. A NEW file. This is the live case, and the answer is now a different TOOL.
     let (_, r) = fx.call(
         "edit",
         Args::new()
@@ -186,19 +229,14 @@ fn a_failed_replace_says_which_of_the_three_things_went_wrong() {
     assert!(r.failed);
     let d = r.summary.detail.clone().unwrap_or_default();
     assert!(
-        d.contains("empty") && d.contains("CREATES"),
-        "a model writing a new file must be told the file is empty BECAUSE `edit` made it, and \
-         that omitting `replacing` is the fix: {d:?}"
+        d.contains("`write`"),
+        "the remedy is a TOOL, and naming it is what stops the retry loop: {d:?}"
     );
+    // The side effect this crate cannot undo -- scoping opened the handle `CreateOrOpen` before
+    // any executor ran -- and which a later `read` would otherwise present as a new mystery.
     assert!(
-        d.contains("NO `replacing`"),
-        "the remedy has to be named, not implied: {d:?}"
-    );
-    // The side effect, which nothing can undo and which the next `read` will otherwise present
-    // as a second unrelated mystery.
-    assert!(
-        d.contains("ZERO BYTES"),
-        "the call left a zero-byte file on disk and did not say so, so `0 lines` from a later          `read` looks like a new problem: {d:?}"
+        d.contains("zero bytes"),
+        "the call left an empty file on disk and did not say so: {d:?}"
     );
 
     // 2. A whitespace-only mismatch — the commonest miss in a real file, and the one where a

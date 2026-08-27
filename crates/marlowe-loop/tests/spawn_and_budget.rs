@@ -1757,7 +1757,8 @@ fn the_interactive_profile_exposes_nothing_the_tool_host_cannot_run() {
             // is why this crate's stub names them rather than running them — and why the daemon
             // verifies **the host it will actually use**, a gap that was open until Session D
             // closed it.
-            ["read", "edit", "find", "bash", "web", "recall", "use"]
+            // **Fourth time: `write`, when it was split out of `edit`.**
+            ["read", "write", "edit", "find", "bash", "web", "recall", "use"]
                 .iter()
                 .map(|t| marlowe_tools::ToolId::new(*t))
                 .collect()

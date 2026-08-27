@@ -713,7 +713,7 @@ impl Daemon {
             .collect();
 
         // **The profile is WIDENED by what the servers contributed, and the budget can refuse.**
-        // Ten builtins of twelve leaves room for two MCP tools; a third is
+        // Eleven builtins of thirteen leaves room for two MCP tools (ADR-058); a third is
         // `ExposureError::TooMany`, which names the budget and the remedy rather than dropping the
         // overflow silently. A server whose third tool vanished would look like a broken server.
         let profile = CapabilityProfile::interactive_with(fleet.tool_ids()).map_err(|e| {
@@ -1537,8 +1537,9 @@ impl Daemon {
             run_id,
             session_id,
             // **The same widened profile the startup guard verified.** Building
-            // `interactive()` here instead would expose ten tools while the host executes
-            // twelve -- the model would never see the MCP tools, and nothing would report it.
+            // `interactive()` here instead would expose the eleven builtins while the host
+            // executes thirteen -- the model would never see the MCP tools, and nothing would
+            // report it.
             CapabilityProfile::interactive_with(
                 self.mcp.lock().expect("the mcp fleet lock was poisoned").tool_ids(),
             )

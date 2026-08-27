@@ -91,9 +91,13 @@ fn the_registry_can_hold_more_than_it_exposes() {
     let ids: Vec<ToolId> = BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
     assert!(ExposedSet::new(ids).is_ok(), "eleven fits");
 
-    // Thirteen does not, and the refusal is in the constructor rather than at a call site.
-    let too_many: Vec<ToolId> = (0..13).map(|i| ToolId::new(format!("t{i}"))).collect();
-    assert!(ExposedSet::new(too_many).is_err());
+    // **One past the budget does not, and the refusal is in the CONSTRUCTOR rather than at a
+    // call site.** Derived from `MAX_EXPOSED_TOOLS` rather than typed: ADR-058 moved it from
+    // twelve to thirteen, and a hardcoded 13 here would have silently become "exactly the
+    // budget" -- a test whose subject had quietly changed from refusal to acceptance.
+    let too_many: Vec<ToolId> =
+        (0..=MAX_EXPOSED_TOOLS).map(|i| ToolId::new(format!("t{i}"))).collect();
+    assert!(ExposedSet::new(too_many).is_err(), "one past {MAX_EXPOSED_TOOLS} must refuse");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -231,7 +235,7 @@ fn there_is_exactly_one_driving_loop_in_this_crate() {
 
 #[test]
 fn the_loop_starts_with_no_configuration_file_anywhere() {
-    // What this asserts: an `Engine` with the interactive profile, the eleven builtins, a
+    // What this asserts: an `Engine` with the interactive profile, all eleven builtins, a
     // budget and a workspace can be constructed and can run a turn, and none of it reads a
     // config file — every knob has a defensible default in code (ARCHITECTURE §5).
     //
@@ -242,7 +246,7 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     let registry = builtin_registry().expect("the builtins are compiled in, not loaded");
     // Ten since M2 C2e removed `done`: a run ends when the model replies without calling a
     // tool, so a tool whose only job was ending no longer exists.
-    assert_eq!(registry.len(), 10);
+    assert_eq!(registry.len(), 11);
 
     let profile = CapabilityProfile::interactive();
     // **Registered is ten and exposed is ten: the gap closed in M2 C3.**
@@ -256,7 +260,8 @@ fn the_loop_starts_with_no_configuration_file_anywhere() {
     //
     // The equality is not the property. The property is that the two numbers agree *because* a
     // guard makes them agree, and the next tool to arrive fails this line until it can run.
-    assert_eq!(profile.exposed_tools().len(), 10);
+    // **Eleven since ADR-058 split `write` out of `edit`.** Four tools have crossed this gap now.
+    assert_eq!(profile.exposed_tools().len(), 11);
 
     let budget = marlowe_loop::Budget::interactive();
     assert!(budget.tokens > 0 && budget.micros_usd > 0, "every dimension has a default");

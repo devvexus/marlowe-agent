@@ -361,6 +361,7 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
     // `tool` rather than leaking an arbitrary string into the frame.
     let verb: &'static str = match verb {
         "read" => "read",
+        "write" => "write",
         "edit" => "edit",
         "find" => "find",
         "bash" => "bash",

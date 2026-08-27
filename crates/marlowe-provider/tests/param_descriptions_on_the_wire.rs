@@ -82,8 +82,13 @@ fn every_parameter_the_model_is_offered_carries_a_written_description() {
 /// The three facts a model most needs and could not previously have known, asserted individually
 /// so a rewrite that keeps the descriptions non-empty but drops their content still fails.
 ///
-/// Each is read off an executor: `edit` truncates when `replacing` is absent (`executors.rs`),
-/// `slice_lines` is 1-based inclusive, and `find` matches with `line.contains` — no regex.
+/// Each is read off an executor: `write` replaces the whole file, `slice_lines` is 1-based
+/// inclusive, and `find` matches with `line.contains` — no regex.
+///
+/// **The first of these used to be about `edit::replacing` warning that omitting it overwrote
+/// everything.** That warning is gone because the hazard is: `edit` has no whole-file mode any
+/// more, and `write` is a separate tool. A description cannot be the last line of defence against
+/// an ambiguity that has been removed from the shape.
 #[test]
 fn the_three_facts_that_cost_a_call_are_the_ones_actually_stated() {
     let body = body();
@@ -97,11 +102,19 @@ fn the_three_facts_that_cost_a_call_are_the_ones_actually_stated() {
             .to_string()
     };
 
-    let replacing = find_desc("edit", "replacing");
+    // `write` is the destructive one now, and it says so where the content is named.
+    let content = find_desc("write", "content");
     assert!(
-        replacing.to_lowercase().contains("whole file"),
-        "`edit::replacing` does not warn that omitting it overwrites everything, which is the \
-         most destructive default in the builtins: {replacing:?}"
+        content.to_lowercase().contains("entire") && content.to_lowercase().contains("replaced"),
+        "`write::content` does not say it replaces everything already in the file: {content:?}"
+    );
+    // And `edit` points at it, so a model that reaches for the wrong one is redirected rather
+    // than refused into a guess. Live, the model reached for the SHELL.
+    let edit_desc = find_desc("edit", "path");
+    assert!(
+        edit_desc.contains("`write`"),
+        "`edit::path` does not name the tool that creates a file, so a model holding a create \
+         request has nothing to follow: {edit_desc:?}"
     );
     let range = find_desc("read", "range");
     assert!(

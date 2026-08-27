@@ -197,13 +197,19 @@ impl CapabilityProfile {
         // Three tools have now been restored by this guard and none by anybody remembering to.
         // That is the property: the exposed set is DERIVED from what is runnable rather than
         // maintained beside it.
-        let tools =
-            ["read", "edit", "find", "bash", "web", "recall", "use", "ask", "remember", "run"]
-                .iter()
-                .map(|t| ToolId::new(*t))
-                .collect();
+        // **`write` joined when `edit` was split in two.** `edit` used to carry both modes,
+        // separated by an optional parameter, and a model asked to write a file reached for the
+        // shell instead -- no builtin was named for the verb. Splitting them is only useful if
+        // BOTH are exposed, which is this line.
+        let tools = [
+            "read", "write", "edit", "find", "bash", "web", "recall", "use", "ask", "remember",
+            "run",
+        ]
+        .iter()
+        .map(|t| ToolId::new(*t))
+        .collect();
         Self::new(
-            ExposedSet::new(tools).expect("ten fits in twelve"),
+            ExposedSet::new(tools).expect("eleven fits in thirteen"),
             // **ADR-032 §3.1: nothing reachable by default, each host by human approval.**
             //
             // Not `DenyAll`, which is structural and unwidenable — the quarantined reader holds
@@ -232,8 +238,10 @@ impl CapabilityProfile {
     ///
     /// # The budget refuses, and the message says which tool to drop
     ///
-    /// The interactive set is ten of ARCHITECTURE §5's twelve, so **two MCP tools fit and a third
-    /// does not**. That is a real constraint on a real product and it refuses at load rather than
+    /// The interactive set is eleven of ARCHITECTURE §5's thirteen, so **two MCP tools fit and a
+    /// third does not**. The cap moved with ADR-058 precisely so that splitting `write` out of
+    /// `edit` did not take that two down to one: a fix to Marlowe's own surface must not be paid
+    /// for out of a user's server allowance. That is a real constraint on a real product and it refuses at load rather than
     /// silently dropping the overflow: a server whose third tool quietly vanished would look like
     /// a server with a broken tool. `ExposureError::TooMany` carries the count and the remedy.
     ///
@@ -422,12 +430,18 @@ mod tests {
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
-        // **Ten as of M2 C3, and two under the budget.** `web` rejoined in C2f, `recall` in
-        // Session D and `use` in C3 — each at the moment it gained an executor, added and removed
-        // by the same guard without anyone having to remember either time. That is the whole
-        // point of `verify_every_exposed_tool_is_runnable`: the exposed set is derived from what
-        // is runnable rather than maintained beside it.
-        assert_eq!(i.exposed_tools().len(), 10);
+        // **Eleven as of the write/edit split, and ONE under the budget.** `web` rejoined in C2f,
+        // `recall` in Session D, `use` in C3 -- each at the moment it gained an executor, added by
+        // the same guard without anyone having to remember. That is the point of
+        // `verify_every_exposed_tool_is_runnable`: the exposed set is derived from what is
+        // runnable rather than maintained beside it.
+        //
+        // **The eleventh is `write`, and it did NOT cost an MCP slot.** Against the old cap of
+        // twelve it would have taken a server from two tools to one; ADR-058 moved the cap to
+        // thirteen instead, because a fix to Marlowe's own surface must not be paid for out of a
+        // user's server allowance. `composition_root.rs` asserts the two slots rather than the
+        // total, so the next builtin that would eat one fails the suite.
+        assert_eq!(i.exposed_tools().len(), 11);
         assert!(
             i.exposed_tools().iter().any(|t| t.as_str() == "recall"),
             "recall is what makes a memory written a minute ago reachable at all: auto-injection \

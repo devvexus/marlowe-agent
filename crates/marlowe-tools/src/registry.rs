@@ -281,12 +281,17 @@ mod tests {
         }
         assert_eq!(r.len(), 40, "registration carries no cap");
 
-        let ids: Vec<ToolId> = (0..13).map(|i| ToolId::new(format!("t{i}"))).collect();
+        // **Derived, not typed.** These were `13` and `12`, meaning "one past the budget" and
+        // "exactly at it". ADR-058 moved the cap to thirteen and the literals silently became
+        // "at" and "one under" -- the same bytes asserting a different property, with nothing to
+        // notice. A cap that appears as a numeral in a test is a cap that goes stale.
+        let past = crate::exposure::MAX_EXPOSED_TOOLS + 1;
+        let ids: Vec<ToolId> = (0..past).map(|i| ToolId::new(format!("t{i}"))).collect();
         assert!(matches!(
             r.expose(&ids),
-            Err(RegistryError::Exposure(ExposureError::TooMany { got: 13 }))
+            Err(RegistryError::Exposure(ExposureError::TooMany { got })) if got == past
         ));
-        assert!(r.expose(&ids[..12]).is_ok());
+        assert!(r.expose(&ids[..crate::exposure::MAX_EXPOSED_TOOLS]).is_ok());
     }
 
     #[test]

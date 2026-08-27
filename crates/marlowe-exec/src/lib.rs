@@ -155,24 +155,12 @@ impl<S: PathScope> FileSystemTools<S> {
 /// Nothing was broken. `existing.find` was correct, the refusal was honest, and the message was
 /// about the wrong thing. So the three cases are separated and each says what to do next.
 fn replacing_miss(existing: &str, replacing: &str) -> String {
-    if existing.is_empty() {
-        // **The side effect is stated rather than hidden.** Path scoping opened this
-        // `CreateOrOpen`, so the file is on disk at zero bytes whatever happens next, and
-        // nothing in this executor can safely undo that: it cannot tell a file it has just
-        // created from one the user already had empty, and `ScopedPath` does not carry the
-        // distinction -- `scope/mod.rs` is a section 13 path and adding it there is a
-        // DECISIONS entry, not a passing edit.
-        //
-        // So the message says the file is now there. Live, the model was told the cause,
-        // understood it, and then reported "my first attempt wrote it anyway" about a
-        // zero-byte file -- and the next `read` returning `0 lines` looked like a second,
-        // unrelated mystery. That is how the original loop sustained itself.
-        return "the file is empty, so there is nothing to replace — and it is empty because \
-                `edit` CREATES the file it is given. IT NOW EXISTS, AT ZERO BYTES, so reading \
-                it will report `0 lines` until something is written to it. To write it, call \
-                `edit` again with the same `path`, your `content`, and NO `replacing` at all."
-            .to_string();
-    }
+    // **The empty-file case does not reach here any more** — `edit` writes it, because a
+    // `replacing` that cannot match anything in a file with no content is vacuous rather than
+    // wrong. See the note at that branch. Debug-asserted rather than handled, so a future change
+    // that routes an empty file back here is caught in the suite instead of shipping a message
+    // about a case that has a better answer.
+    debug_assert!(!existing.is_empty(), "an empty file is written, not refused");
 
     // **The overwhelmingly common miss is whitespace**, and saying so turns an unbounded retry
     // into one corrected call. Checked by collapsing runs of whitespace on both sides: if the
@@ -362,6 +350,58 @@ impl<S: PathScope> FileSystemTools<S> {
         }
     }
 
+    /// **`write` exists because a tool's NAME is the first thing a model matches on.**
+    ///
+    /// Told to write a file, the model looked for a write verb, found none, and reached for the
+    /// shell: `cat > session-handoff.md << 'EOF'` — journal seq 4806, 2026-08-26, which failed
+    /// under `cmd /C` with a bare exit code. `edit` did not occur to it until the shell had
+    /// failed, and then it picked `edit`'s wrong mode.
+    ///
+    /// That second part was the deeper fault. `edit` used to be **two tools wearing one name**,
+    /// told apart by an OPTIONAL parameter: supply `replacing` and it patches, omit it and it
+    /// overwrites. A model holding a request and a schema had to infer a mode, and the mode it
+    /// inferred was wrong. No description fixes that — the ambiguity is in the shape.
+    ///
+    /// So the two modes are two tools and every parameter of each is required. `write` creates or
+    /// overwrites; `edit` replaces a snippet and fails if it is absent. Neither has a mode.
+    fn write(&self, args: &Args, a: &Adjudication) -> ToolOutcome {
+        let Some(scoped) = handle_for(a, "path") else {
+            return failed("write", "no adjudicated handle for `path`");
+        };
+        let Some(content) = text_arg(args, "content") else {
+            return failed("write", "`content` is required");
+        };
+        let mut file = match scoped.handle().try_clone() {
+            Ok(f) => f,
+            Err(e) => return failed("write", e.to_string()),
+        };
+        let mut existing = String::new();
+        let _ = file.read_to_string(&mut existing);
+        // Truncate through the handle, not by reopening with `create(true)` — the handle is the
+        // one the permission layer checked, and reopening by path is the TOCTOU this avoids.
+        if let Err(e) = file
+            .set_len(0)
+            .and_then(|()| file.seek(SeekFrom::Start(0)).map(|_| ()))
+            .and_then(|()| file.write_all(content.as_bytes()))
+            .and_then(|()| file.flush())
+        {
+            return failed("write", e.to_string());
+        }
+        ToolOutcome {
+            summary: ResultSummary::new(vec![Metric::Diff {
+                added: count_lines(content),
+                removed: count_lines(&existing),
+            }]),
+            body: ToolBody::Inline(scoped.relative().to_string()),
+            trust: TrustClass::AgentObserved,
+            failed: false,
+            wall_ms: 0,
+            preview: None,
+        }
+    }
+
+    /// Replace one snippet. **`replacing` is required** — see [`FileSystemTools::write`] for why
+    /// the two modes are two tools.
     fn edit(&self, args: &Args, a: &Adjudication) -> ToolOutcome {
         let Some(scoped) = handle_for(a, "path") else {
             return failed("edit", "no adjudicated handle for `path`");
@@ -369,32 +409,42 @@ impl<S: PathScope> FileSystemTools<S> {
         let Some(content) = text_arg(args, "content") else {
             return failed("edit", "`content` is required");
         };
+        let Some(replacing) = text_arg(args, "replacing") else {
+            return failed(
+                "edit",
+                "`replacing` is required: `edit` replaces one exact snippet. To create a file or \
+                 replace all of it, use `write` instead.",
+            );
+        };
 
         let mut file = match scoped.handle().try_clone() {
             Ok(f) => f,
             Err(e) => return failed("edit", e.to_string()),
         };
-
-        let (next, added, removed) = if let Some(replacing) = text_arg(args, "replacing") {
-            let mut existing = String::new();
-            if let Err(e) = file.read_to_string(&mut existing) {
-                return failed("edit", e.to_string());
-            }
-            let Some(at) = existing.find(replacing) else {
-                return failed("edit", replacing_miss(&existing, replacing));
-            };
-            let mut next = String::with_capacity(existing.len());
-            next.push_str(&existing[..at]);
-            next.push_str(content);
-            next.push_str(&existing[at + replacing.len()..]);
-            (next, count_lines(content), count_lines(replacing))
-        } else {
-            let mut existing = String::new();
-            let _ = file.read_to_string(&mut existing);
-            (content.to_string(), count_lines(content), count_lines(&existing))
+        let mut existing = String::new();
+        if let Err(e) = file.read_to_string(&mut existing) {
+            return failed("edit", e.to_string());
+        }
+        // **An empty file has nothing to patch, and `edit` no longer creates one to find out.**
+        // `path` is a `WritePath`, so scoping has already opened it `CreateOrOpen` — the zero-byte
+        // file exists by the time this runs and cannot be un-created here. What CAN be done is
+        // refuse in a sentence that names the tool that would have worked.
+        if existing.is_empty() {
+            return failed(
+                "edit",
+                "the file is empty, so there is no snippet to replace. Use `write` with `path` \
+                 and `content` to create it. (Naming a path here creates it at zero bytes before \
+                 this tool runs, so it now exists and is empty.)",
+            );
+        }
+        let Some(at) = existing.find(replacing) else {
+            return failed("edit", replacing_miss(&existing, replacing));
         };
+        let mut next = String::with_capacity(existing.len());
+        next.push_str(&existing[..at]);
+        next.push_str(content);
+        next.push_str(&existing[at + replacing.len()..]);
 
-        // Truncate through the handle, not by reopening with `create(true)`.
         if let Err(e) = file
             .set_len(0)
             .and_then(|()| file.seek(SeekFrom::Start(0)).map(|_| ()))
@@ -403,14 +453,15 @@ impl<S: PathScope> FileSystemTools<S> {
         {
             return failed("edit", e.to_string());
         }
-
         ToolOutcome {
-            summary: ResultSummary::new(vec![Metric::Diff { added, removed }]),
+            summary: ResultSummary::new(vec![Metric::Diff {
+                added: count_lines(content),
+                removed: count_lines(replacing),
+            }]),
             body: ToolBody::Inline(scoped.relative().to_string()),
             trust: TrustClass::AgentObserved,
             failed: false,
             wall_ms: 0,
-            // `edit` reports a diff, not a body; there is nothing to preview.
             preview: None,
         }
     }
@@ -788,7 +839,7 @@ impl<S: PathScope> ToolHost for FileSystemTools<S> {
     /// **The five this host actually has arms for.** Kept beside the match below so the two
     /// cannot drift; `every_declared_tool_has_a_match_arm` asserts they agree.
     fn executes(&self) -> Vec<marlowe_tools::ToolId> {
-        ["read", "edit", "find", "bash", "web"]
+        ["read", "write", "edit", "find", "bash", "web"]
             .iter()
             .map(|t| marlowe_tools::ToolId::new(*t))
             .collect()
@@ -893,6 +944,7 @@ impl<S: PathScope> FileSystemTools<S> {
         let declared = [PathGlob::new("./**")];
         match tool.as_str() {
             "read" => self.read(args, adjudication),
+            "write" => self.write(args, adjudication),
             "edit" => self.edit(args, adjudication),
             "find" => self.find(args, adjudication, &declared),
             "bash" => self.bash(args, adjudication),

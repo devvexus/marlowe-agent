@@ -19,7 +19,7 @@ use marlowe_daemon::skills::SkillTools;
 use marlowe_loop::driver::{ToolBody, ToolHost, ToolOutcome};
 use marlowe_loop::{BatchItem, CapabilityProfile};
 use marlowe_permission::{Adjudication, ArgValue, Args};
-use marlowe_tools::{ExposureError, Metric, ResultSummary, ToolId};
+use marlowe_tools::{ExposureError, Metric, ResultSummary, ToolId, MAX_EXPOSED_TOOLS};
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // 1. The batch survives every wrapper
@@ -180,20 +180,38 @@ fn each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch() {
 
 /// **ADR-052 §5, and `STATE.md` claimed this was already unit-tested. It was not.**
 ///
-/// The interactive set is ten of ARCHITECTURE §5's twelve after ADR-051 exposed `use`, so two MCP
-/// tools fit and a third does not. It must **refuse by name** rather than drop the overflow: a
-/// server whose third tool silently vanished would look like a server with a broken tool.
+/// A tool past the budget must **refuse by name** rather than drop the overflow: a server whose
+/// extra tool silently vanished would look like a server with a broken tool.
+///
+/// # This asserted two slots, briefly asserted one, and asserts two again — ADR-058
+///
+/// Splitting `write` out of `edit` took the exposed builtins to eleven, and against a cap of
+/// twelve that left an MCP server exactly **one** tool. The arithmetic was correct and the
+/// outcome was wrong: a fix to Marlowe's own surface had quietly been paid for out of a user's
+/// server allowance, and one tool is not a usable budget for a server.
+///
+/// The cap moved to thirteen instead. **Two slots is the property being defended here**, not the
+/// number twelve — so this test names the slots rather than the total, and a future builtin that
+/// takes the count back to one fails it.
 #[test]
 fn two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name() {
     let base = CapabilityProfile::interactive();
-    assert_eq!(base.exposed_tools().len(), 10, "ADR-051 exposed `use`: ten of twelve");
+    let builtins = base.exposed_tools().len();
+    assert_eq!(builtins, 11, "ADR-051 exposed `use`; ADR-058 split out `write`");
+
+    // The property: whatever the builtins are, a server gets two.
+    assert_eq!(
+        MAX_EXPOSED_TOOLS - builtins,
+        2,
+        "an MCP server must keep two slots; a builtin that eats one is a decision, not a detail"
+    );
 
     let two = CapabilityProfile::interactive_with(vec![
         ToolId::new("crm__lookup"),
         ToolId::new("crm__search"),
     ])
     .expect("two MCP tools fit the two remaining slots");
-    assert_eq!(two.exposed_tools().len(), 12, "exactly at the budget");
+    assert_eq!(two.exposed_tools().len(), MAX_EXPOSED_TOOLS, "exactly at the budget");
     assert!(two.exposed_tools().contains(&ToolId::new("crm__lookup")));
 
     let three = CapabilityProfile::interactive_with(vec![
@@ -203,11 +221,11 @@ fn two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name() {
     ]);
     match three {
         Err(marlowe_loop::ProfileError::Exposure(ExposureError::TooMany { got })) => {
-            assert_eq!(got, 13, "the refusal carries the count the user has to act on")
+            assert_eq!(got, MAX_EXPOSED_TOOLS + 1, "the refusal carries the count to act on")
         }
         other => panic!(
-            "a thirteenth tool must refuse by name so the user can choose what to give up; \
-             got {other:?}"
+            "one tool past the budget must refuse by name so the user can choose what to give \
+             up; got {other:?}"
         ),
     }
 }

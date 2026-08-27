@@ -15,10 +15,23 @@ use serde::{Deserialize, Serialize};
 
 use crate::manifest::ToolId;
 
-/// ARCHITECTURE §5: eleven tools, one slot spare. The spare is deliberate — it is what lets a
-/// profile add one situational tool without a redesign, and it is not a place to put a
-/// twelfth permanent tool.
-pub const MAX_EXPOSED_TOOLS: usize = 12;
+/// ARCHITECTURE §5, **amended 2026-08-27 from twelve to thirteen** (ADR-058).
+///
+/// # The number is a floor on what MCP gets, not a ceiling on what Marlowe has
+///
+/// Twelve was eleven builtins plus one spare. Splitting `write` out of `edit` — because `edit` was
+/// two tools wearing one name and a model asked to write a file reached for the shell instead —
+/// made the builtins eleven **exposed**, which silently took an MCP server from two tools to one.
+///
+/// That is the wrong thing to have paid with. A fix to Marlowe's own surface should not shrink
+/// what a user's server may offer, and one tool is not a usable budget for a server: `mcp.json`
+/// is not hypothetical. So the cap moved rather than the MCP allowance.
+///
+/// **Thirteen is arithmetic, not a new judgement: eleven exposed builtins plus the two MCP slots
+/// the budget has always meant.** It carries no spare, and that is deliberate — the next builtin
+/// has to raise this again, in the open, with a reason. A cap that quietly absorbed each new tool
+/// would be the permissive default this project keeps deleting.
+pub const MAX_EXPOSED_TOOLS: usize = 13;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ExposureError {
@@ -99,12 +112,22 @@ mod tests {
         (0..n).map(|i| ToolId::new(format!("t{i}"))).collect()
     }
 
+    /// **The name and every number are derived, and that is the point.**
+    ///
+    /// This was `twelve_is_allowed_and_thirteen_is_not`, with `got: 13` typed in. ADR-058 moved
+    /// the cap to thirteen and the literal stayed — so the assertion started demanding that a set
+    /// of FOURTEEN report `got: 13`, which is simply false, and the test name described a rule
+    /// the code no longer had.
+    ///
+    /// A constant that appears as a word in a test name is a constant that will go stale in a
+    /// place no compiler looks.
     #[test]
-    fn twelve_is_allowed_and_thirteen_is_not() {
-        assert!(ExposedSet::new(ids(MAX_EXPOSED_TOOLS)).is_ok());
+    fn the_budget_is_allowed_and_one_past_it_is_not() {
+        assert!(ExposedSet::new(ids(MAX_EXPOSED_TOOLS)).is_ok(), "the budget itself must fit");
         assert_eq!(
             ExposedSet::new(ids(MAX_EXPOSED_TOOLS + 1)),
-            Err(ExposureError::TooMany { got: 13 })
+            Err(ExposureError::TooMany { got: MAX_EXPOSED_TOOLS + 1 }),
+            "the refusal carries the count the user has to act on"
         );
     }
 
@@ -119,13 +142,20 @@ mod tests {
 
     #[test]
     fn deserialization_runs_the_same_constructor() {
-        // A thirteenth tool arriving from a config file must be refused by the same code the
-        // constructor uses. Without this the invariant would hold everywhere except the one
-        // path that reads user input.
-        let thirteen = serde_json::to_string(&ids(13)).unwrap();
-        assert!(serde_json::from_str::<ExposedSet>(&thirteen).is_err());
+        // A tool past the budget arriving from a config file must be refused by the same code the
+        // constructor uses. Without this the invariant would hold everywhere except the one path
+        // that reads user input.
+        //
+        // Derived from `MAX_EXPOSED_TOOLS`, not typed: at the old cap of twelve these literals
+        // meant "one past" and "exactly at". ADR-058 moved the cap and they silently became
+        // "exactly at" and "one under" — the same bytes asserting a different property.
+        let past = serde_json::to_string(&ids(MAX_EXPOSED_TOOLS + 1)).unwrap();
+        assert!(serde_json::from_str::<ExposedSet>(&past).is_err());
 
-        let twelve = serde_json::to_string(&ids(12)).unwrap();
-        assert_eq!(serde_json::from_str::<ExposedSet>(&twelve).unwrap().len(), 12);
+        let at = serde_json::to_string(&ids(MAX_EXPOSED_TOOLS)).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ExposedSet>(&at).unwrap().len(),
+            MAX_EXPOSED_TOOLS
+        );
     }
 }

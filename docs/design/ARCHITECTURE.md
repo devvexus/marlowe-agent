@@ -285,7 +285,12 @@ default topology — orchestrator-worker, never swarm.
 ### 2.11 Tool / skill registry
 
 **Owns** manifests, signature verification, install-time diff review, and **exposure
-selection** — a large registry presenting ≤12 model-visible tools per run.
+selection** — a large registry presenting ≤13 model-visible tools per run.
+
+> **Amended 2026-08-27, ≤12 → ≤13 (ADR-058).** Eleven exposed builtins plus two MCP slots.
+> `write` was split out of `edit` and would otherwise have been paid for out of a user's MCP
+> allowance, taking a server from two tools to one. The cap moved instead. It carries **no spare**:
+> the next builtin raises it again, deliberately.
 
 **Never** executes anything or holds a credential.
 

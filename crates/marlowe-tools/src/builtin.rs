@@ -33,8 +33,8 @@ use crate::ArgumentRole;
 
 /// The eleven ids, in ADR-006's order. Used by the HP10 budget test and by profile
 /// construction, so the list exists once.
-pub const BUILTIN_TOOLS: [&str; 10] = [
-    "bash", "read", "edit", "find", "web", "recall", "remember", "use", "run", "ask",
+pub const BUILTIN_TOOLS: [&str; 11] = [
+    "bash", "read", "write", "edit", "find", "web", "recall", "remember", "use", "run", "ask",
 ];
 
 /// The workspace-relative glob every filesystem tool declares.
@@ -254,6 +254,50 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             ],
         ),
         registration(
+            "write",
+            // **A tool's NAME is the first thing a model matches against the verb in a request.**
+            //
+            // Told to write a file, the model looked for a write verb, found none among the ten
+            // builtins, and reached for the shell -- `cat > session-handoff.md << 'EOF'`, journal
+            // seq 4806, which fails under `cmd /C` with a bare exit code. Only after that did it
+            // try `edit`, and then it chose `edit`'s wrong mode.
+            //
+            // `edit` used to be two tools wearing one name, separated by an OPTIONAL parameter:
+            // pass `replacing` and it patches, omit it and it overwrites. A model had to infer a
+            // mode from a schema that offered both, and no wording fixes an ambiguity that is in
+            // the shape rather than the prose. The modes are now two tools, and every parameter
+            // of each is required, so neither has a mode to guess.
+            "Create a file, or replace all of its contents. Both arguments are required and there \
+             is nothing else to decide: `content` becomes the whole file. To change one part of an \
+             existing file and leave the rest alone, use `edit`. The parent directory must already \
+             exist.",
+            "edit",
+            2_048,
+            Reversible,
+            &[WORKSPACE],
+            &[],
+            vec![
+                // WritePath: `write` may create its target, which is most of the point.
+                documented(
+                    "path",
+                    ArgumentRole::Target,
+                    ParamType::WritePath,
+                    true,
+                    "The file, workspace-relative, e.g. `notes/handoff.md`. Created if it does not \
+                     exist; its parent directory must already exist.",
+                ),
+                // Payload by design: section 9 is explicit that untrusted prose may fill an inert
+                // body freely. The danger is the pair, not the text.
+                documented(
+                    "content",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "The ENTIRE contents of the file. Anything already there is replaced.",
+                ),
+            ],
+        ),
+        registration(
             "edit",
             // Three claims, each from the executor: `existing.find(replacing)` takes the FIRST
             // occurrence; a miss returns `failed("edit", "`replacing` was not found in the file")`;
@@ -261,7 +305,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // directory is the walk's rule, not this tool's — only the LAST component is opened
             // `CreateOrOpen`, so a missing parent is `Unopenable`, which
             // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.
-            "Replace a file's contents, or write a new file. Without `replacing`, `content` becomes the whole file — **this is how you create one**. With `replacing`, the first exact occurrence of that text is replaced and the call FAILS if it is not found, so never pass `replacing` for a file that does not exist yet: there is nothing in it to match. Read a file before replacing part of it, and copy the snippet byte for byte. The parent directory must already exist.",
+            "Change ONE snippet inside an existing file, leaving the rest untouched. To create a file, or to replace all of it, use `write` instead — this tool cannot. `read` the file first and copy `replacing` out of what comes back, byte for byte: the first exact occurrence is replaced and the call FAILS if it is not found. The parent directory must already exist.",
             "edit",
             2_048,
             Reversible,
@@ -274,7 +318,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Target,
                     ParamType::WritePath,
                     true,
-                    "The file to write, workspace-relative. It is created if it does not exist, but its parent directory must already exist.",
+                    "The file to change, workspace-relative. It must already exist and must not be empty -- `write` is the tool that creates one.",
                 ),
                 // Content is Payload by design: §9 is explicit that untrusted prose may fill
                 // an inert body freely. The danger is the pair, not the text.
@@ -283,14 +327,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "The replacement text. With `replacing`, this is what that snippet becomes; without it, this becomes the ENTIRE file.",
+                    "What `replacing` becomes. Only that snippet changes; the rest of the file is untouched.",
                 ),
                 documented(
                     "replacing",
                     ArgumentRole::Payload,
                     Text,
-                    false,
-                    "The exact existing text to replace -- copy it verbatim, including indentation. The FIRST occurrence is replaced and the call FAILS if it is not found, so include enough surrounding lines to be unambiguous. OMITTING THIS OVERWRITES THE WHOLE FILE.",
+                    true,
+                    "REQUIRED: the exact existing text to replace -- copy it verbatim from a `read`, including indentation. The FIRST occurrence is replaced and the call FAILS if it is not found, so include enough surrounding lines to be unambiguous.",
                 ),
             ],
         ),
@@ -598,20 +642,25 @@ mod tests {
     use crate::exposure::MAX_EXPOSED_TOOLS;
 
     #[test]
-    fn ten_tools_against_a_budget_of_twelve() {
+    fn eleven_tools_against_a_budget_of_twelve() {
         let r = builtin_registry().expect("the builtin manifests load");
         assert_eq!(r.len(), BUILTIN_TOOLS.len());
-        // **Ten since M2 C2e removed `done`.** ADR-006 named eleven; the eleventh was a tool
-        // whose only job was ending a run, and a run now ends when the model replies without
-        // calling a tool. Two spare slots rather than one — spending either still needs an ADR.
-        assert_eq!(BUILTIN_TOOLS.len(), 10, "ADR-006's eleven, less `done` (M2 C2e)");
+        // **Ten since M2 C2e removed `done`; eleven since `write` was split out of `edit`.**
+        // ADR-006 named eleven, lost one when `done` went, and spends the slot again here --
+        // deliberately. The reason is in `FileSystemTools::write`: `edit` was two tools wearing
+        // one name, separated by an OPTIONAL parameter, and a model asked to write a file reached
+        // for the SHELL because no builtin was named for the verb.
+        //
+        // **One spare slot left, and spending it needs an ADR.** This comment is the record that
+        // the last one was spent on purpose.
+        assert_eq!(BUILTIN_TOOLS.len(), 11, "ADR-006's eleven, less `done`, plus `write`");
         assert!(
             BUILTIN_TOOLS.len() < MAX_EXPOSED_TOOLS,
             "the spare slot is the design; spending it here needs an ADR"
         );
 
         let ids: Vec<ToolId> = BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
-        assert!(r.expose(&ids).is_ok(), "all ten fit in one exposed set");
+        assert!(r.expose(&ids).is_ok(), "all eleven fit in one exposed set");
     }
 
     /// **A description that hit the cap was cut mid-sentence and nothing said so.**
