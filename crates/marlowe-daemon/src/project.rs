@@ -368,6 +368,13 @@ fn tool_call(id: u64, verb: &str, target: &str, state: &str, summary: &str) -> T
         "remember" => "remember",
         "web" => "web",
         "spawn" => "spawn",
+        // **`use` was missing and rendered as the generic `tool`.** Seen live 2026-08-26: two
+        // `use` calls in one turn showed as `... tool  release-notes`, which reads as an
+        // unnamed tool rather than the skill system. The vocabulary is closed on purpose --
+        // an unrecognised verb off the wire must not reach the frame -- but a BUILTIN missing
+        // from it is a gap in the closed set, not the protection working.
+        "use" => "use",
+        "ask" => "ask",
         _ => "tool",
     };
     let metrics = vec![Metric::State(match state {

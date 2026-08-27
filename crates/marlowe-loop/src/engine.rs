@@ -2435,7 +2435,67 @@ impl<S: PathScope> Engine<S> {
         // the *user* typed to the parent is not user-asserted inside a child that never saw it.
         let mut child_provenance = Provenance::new();
 
-        let outcome = self.run(&mut child_run, &mut child_state, &mut child_provenance, ports);
+        // ── THE USER MUST SEE THAT A CHILD IS RUNNING ────────────────────────────────────
+        //
+        // **A spawn produced no visible line at all until this.** Every other tool goes through
+        // `prepare`, which emits `TurnEvent::ToolLine`; a spawn is `ModelStep::Spawn` — loop
+        // control, not a tool-host call — so it took a different path and emitted nothing. Watched
+        // live 2026-08-26: the model said it had delegated, the child ran and returned, and the
+        // transcript showed **no tool line and no result**. From the outside that is
+        // indistinguishable from a model claiming to have done something it did not do, which is
+        // the one thing a harness must never leave ambiguous.
+        //
+        // Same family as the two gaps B1 closed for the same reason: children were in no listing
+        // and the roster panel had no producer, both because `Engine::spawn` sits outside the paths
+        // that report. This is the third — it sat outside the path that *renders*.
+        //
+        // The id comes from the same counter every other line uses, so a spawn takes its place in
+        // the transcript rather than beside it.
+        let spawn_line_id = self.next_call_id;
+        self.next_call_id += 1;
+        ports.sink.emit(TurnEvent::ToolLine {
+            id: spawn_line_id,
+            verb: "spawn".to_string(),
+            // The child's sayable name, not its UUID — the same rendering `/runs` and the window
+            // use, so one run has one name wherever a person meets it.
+            target: crate::run::sayable(&child_id.to_string()),
+            state: ToolLineState::Running { elapsed_ms: 0 },
+        });
+
+        // -- THE CHILD MUST NOT STREAM ONTO THE PARENT'S SCREEN -------------------------
+        //
+        // **It did.** Watched live 2026-08-26: a child's prose appeared mid-sentence in the
+        // parent's conversation, interleaved between the parent's own tool lines -- because this
+        // call handed the child `ports`, and `ports.sink` is the parent's surface. Every
+        // `TextDelta` the child produced went straight to the user's terminal.
+        //
+        // Section 10.2 is explicit that a subagent returns **findings, not transcripts**, and audit
+        // finding E4 forbids prose composed in a child's window reaching a terminal. Both were
+        // being violated by one argument.
+        //
+        // `QuarantinedSink` already existed for exactly this and the quarantined reader already
+        // used it -- so this is not a new mechanism, it is the same one applied to the path that
+        // was missed. It drops the three prose events and passes structural ones, which is why the
+        // spawn line above still renders: that line is the HARNESS's, emitted here, not the
+        // child's.
+        //
+        // `control` is deliberately left as the parent's: a child is steerable in principle, and
+        // narrowing that is a separate decision from this one.
+        let outcome = {
+            let mut quarantined_sink = QuarantinedSink { inner: ports.sink };
+            let mut child_ports = Ports {
+                driver: ports.driver,
+                summarizer: ports.summarizer,
+                tools: ports.tools,
+                memory: None,
+                approvals: ports.approvals,
+                sink: &mut quarantined_sink,
+                control: ports.control,
+                clock: ports.clock,
+                recorder: ports.recorder,
+            };
+            self.run(&mut child_run, &mut child_state, &mut child_provenance, &mut child_ports)
+        };
 
         // The child's spend is the parent's spend. A budget that did not roll up would let a
         // tree cost arbitrarily more than the root declared.
@@ -2492,6 +2552,38 @@ impl<S: PathScope> Engine<S> {
         // its tool results, everything it read — is dropped at the end of this function. There
         // is no accessor that would hand it to the parent, which is what makes §10.2's "the
         // orchestrator's context must never accumulate raw worker history" structural.
+        // ── AND THE USER MUST SEE WHAT CAME BACK ─────────────────────────────────────────
+        //
+        // `note` goes into the parent's CONTEXT, where only the model reads it. So when the model
+        // then summarised the child badly — or claimed to be quoting it and quoted nothing — the
+        // user had no way to tell a bad summary from a child that returned nothing. Observed live:
+        // *"here is exactly what was said by that child run"*, followed by nothing at all.
+        //
+        // **The line carries the child's own result, not the model's account of it.** That is the
+        // point: it is the one rendering of a child that the parent cannot paraphrase.
+        //
+        // A refused or failed child auto-expands, because `ToolLineState::Failed` is documented as
+        // "the one case where the user always wants detail" — and a child that returned an invalid
+        // result is exactly that case.
+        let child_failed = note.starts_with('[');
+        let summary = marlowe_tools::ResultSummary::with_detail(
+            vec![
+                marlowe_tools::Metric::Count { n: child_run.spent.tokens, unit: "tokens" },
+                marlowe_tools::Metric::State(if child_failed { "no result" } else { "returned" }),
+            ],
+            note.clone(),
+        );
+        ports.sink.emit(TurnEvent::ToolLine {
+            id: spawn_line_id,
+            verb: "spawn".to_string(),
+            target: crate::run::sayable(&child_id.to_string()),
+            state: if child_failed {
+                ToolLineState::Failed(summary)
+            } else {
+                ToolLineState::Ok(summary)
+            },
+        });
+
         state.push(Block::new(SourceKind::ChildResults, note, TrustClass::AgentInferred));
     }
 

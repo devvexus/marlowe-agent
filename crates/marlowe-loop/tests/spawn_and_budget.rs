@@ -1944,3 +1944,125 @@ fn a_refusal_tells_the_model_what_happened_and_whether_to_retry() {
          depends on: {refusal}"
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// A spawn is VISIBLE — the user sees it happen and sees what came back
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/// **A spawn emitted no line at all, and the transcript could not be told apart from a lie.**
+///
+/// Watched live 2026-08-26 on `qwen3.5:9b`: the model said it had delegated, a child ran and
+/// returned — the journal shows `run_spawned` and `run_completed` — and the screen showed **no
+/// tool line and no result**. Every other tool goes through `prepare`, which emits
+/// `TurnEvent::ToolLine`; a spawn is `ModelStep::Spawn`, loop control rather than a tool-host
+/// call, so it took a path that emitted nothing.
+///
+/// From outside, "the model delegated and is summarising the child" and "the model claimed to
+/// delegate and made the answer up" rendered **identically**. That is the one ambiguity a harness
+/// must not leave, and it is the third instance of `Engine::spawn` sitting outside a path that
+/// reports — B1 closed the run listing and the roster panel for the same reason.
+#[test]
+fn a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::Spawn(SpawnRequest {
+                task: "summarise the run tool".into(),
+                contract: OutputContract::new("findings", &["findings"]),
+                orphan: OrphanPolicy::Terminate,
+                share: BudgetShare::Standard,
+                grant_tokens: None,
+                tools: vec![],
+                reads_untrusted: false,
+            }),
+            100,
+        ),
+        // The child answers with a marker no summariser could invent, so "the result reached the
+        // line" is a difference that was observed rather than assumed.
+        say("PELICAN-4402 is what the child found", 100),
+        say("parent done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
+    assert!(matches!(outcome, LoopOutcome::Completed(_)), "the spawn itself must succeed");
+
+    let lines: Vec<_> = sink
+        .events
+        .iter()
+        .filter_map(|ev| match ev {
+            marlowe_loop::TurnEvent::ToolLine { verb, target, state, .. } if verb == "spawn" => {
+                Some((target.clone(), state.clone()))
+            }
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !lines.is_empty(),
+        "a spawn emitted NO tool line — the user cannot tell delegation from a claim of it"
+    );
+
+    // Running first, so the line exists while the child is still working rather than appearing
+    // only once it is over. A spawn blocks, so this is the only thing on screen for its duration.
+    assert!(
+        lines
+            .iter()
+            .any(|(_, s)| matches!(s, marlowe_loop::ToolLineState::Running { .. })),
+        "no `Running` line: nothing marks the wait while the child works. Got {lines:?}"
+    );
+
+    // **The child's own result, not the model's account of it.** This is the assertion that would
+    // have caught what was watched live: a parent claiming to quote a child while quoting nothing.
+    let finished = lines
+        .iter()
+        .find(|(_, s)| !matches!(s, marlowe_loop::ToolLineState::Running { .. }))
+        .expect("the line must resolve when the child returns, not stay Running forever");
+    let rendered = format!("{:?}", finished.1);
+    assert!(
+        rendered.contains("PELICAN-4402"),
+        "the child's result never reached the line, so the user still sees only the model's \
+         summary of it. Got {rendered}"
+    );
+
+    // The name a person can say, the same one `/runs` and the window use — not a UUID.
+    assert!(
+        finished.0.contains('-') && !finished.0.contains("00000000"),
+        "the line should carry the child's sayable name, got {:?}",
+        finished.0
+    );
+
+    // **The child's prose must NOT be on the parent's screen.** It was: watched live, a child's
+    // sentence appeared mid-stream in the parent's conversation, because `spawn` handed the child
+    // the parent's sink. Section 10.2 says a subagent returns findings, not transcripts, and E4
+    // forbids child-composed prose reaching a terminal.
+    //
+    // The marker is the control: the child definitely SAID it -- it is on the resolved line above,
+    // which is the harness's own rendering of the returned result -- so its absence from the
+    // streamed text is a difference that was observed, not a test passing on an empty sink.
+    let streamed = sink.text();
+    assert!(
+        !streamed.contains("PELICAN-4402"),
+        "the child streamed its prose onto the parent's surface. Got: {streamed:?}"
+    );
+}
