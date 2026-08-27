@@ -30,15 +30,22 @@ pub fn peak_working_set_bytes() -> Option<u64> {
         // that runs a handful of times in an example and once in a test, never on the scored path,
         // and adding a crate to the shipped dependency graph to read a diagnostic would be paying
         // in the wrong currency.
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                &format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id()),
-            ])
-            .output()
-            .ok()?;
+        // See the note in `marlowe-provider`'s `free_device_bytes`: a console-subsystem
+        // child flashes a window unless `CREATE_NO_WINDOW` is set, and this one runs on a
+        // diagnostic path where the user has asked for nothing.
+        let mut cmd = std::process::Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id()),
+        ]);
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let out = cmd.output().ok()?;
         if !out.status.success() {
             return None;
         }

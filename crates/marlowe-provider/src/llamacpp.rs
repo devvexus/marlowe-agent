@@ -502,10 +502,22 @@ pub fn offload_from_log(lines: &[String]) -> Offload {
 /// derived from the other: this one is used only as a delta across a spawn, where the absolute
 /// value cancels.
 fn free_device_bytes() -> Option<u64> {
-    let out = std::process::Command::new("nvidia-smi")
-        .args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"])
-        .output()
-        .ok()?;
+    // **NO CONSOLE WINDOW ON WINDOWS.** Every one of these is a console-subsystem binary, so the
+    // OS gives it a window unless told otherwise, and the window flashes for as long as the child
+    // lives. Called on a probe path this reads to the user as *"a bunch of terminals opening and
+    // closing"* -- which is exactly what it is, and it is what Matthew reported after the first
+    // hybrid switch. Output is captured in every case, so the window shows nothing and costs
+    // nothing to suppress. `CREATE_NO_WINDOW` is `0x0800_0000` from `winbase.h`; it is one constant
+    // and is not worth a crate.
+    let mut cmd = std::process::Command::new("nvidia-smi");
+    cmd.args(["--query-gpu=memory.free", "--format=csv,noheader,nounits"]);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let out = cmd.output().ok()?;
     if !out.status.success() {
         return None;
     }

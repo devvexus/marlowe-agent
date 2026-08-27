@@ -315,13 +315,18 @@ const PROBE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25)
 /// timeout costs a *reading*, never the process. That asymmetry is the whole argument: a missing
 /// reserve is a named degradation, and a hang is an unbounded outage.
 fn bounded_output(program: &str, args: &[&str]) -> Option<std::process::Output> {
-    let mut child = Command::new(program)
-        .args(args)
+    let mut cmd = Command::new(program);
+    cmd.args(args)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok()?;
+        .stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let mut child = cmd.spawn().ok()?;
 
     for _ in 0..PROBE_POLLS {
         // LOOP-EXEMPT: bounded polling of a child process, not a driving loop.

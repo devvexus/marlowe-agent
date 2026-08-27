@@ -2425,6 +2425,13 @@ pub fn shell_command() -> std::io::Result<std::process::Command> {
         };
         let mut c = std::process::Command::new(bash);
         c.arg("-c");
+        // The surface renders this child's output; a console window would show the same bytes
+        // twice, in a frame the user cannot close without killing the tool.
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            c.creation_flags(CREATE_NO_WINDOW);
+        }
         Ok(c)
     }
     #[cfg(unix)]
