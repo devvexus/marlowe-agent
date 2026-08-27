@@ -204,25 +204,22 @@ impl DaemonConfig {
             rerank_provider: "not-wired".to_string(),
             // **The default is the local path and nothing can move it but an explicit choice.**
             //
-            // **And as of 2026-08-27 the local path is the HYBRID.** Ollama stores, downloads and
-            // lists; a `llama-server` Marlowe starts and owns serves. Measured product-level on
-            // this machine, daemon `--dev` clock, n=11 warm per arm, identical 17,381-char prompt
-            // and 12-tool set on both: **65.3 ms to first token against Ollama's 313.4 — 4.80x** —
-            // with generation throughput slightly *better* (73.6 vs 68.3 tok/s) and turn total
-            // 1.55x. Tool-call correctness at production prompt size is 84.5% against 67.9%.
+            // **AND IT IS `Ollama` HERE ON PURPOSE, EVEN THOUGH THE PRODUCT DEFAULTS TO THE
+            // HYBRID.** `ollama/llama.cpp` is what a user gets; it is resolved in
+            // `marlowe::resolve_provider`, at the CLI boundary, and NOT in this struct.
             //
-            // **Defaulting to it is safe because the fallback is not an error path, it is a tier.**
-            // If `llama-server` cannot be found, cannot bind, cannot get the GPU, or comes up on
-            // the CPU, `HybridEngine::start` returns Ollama serving and the reason stays in the
-            // status band for the session. A machine with no Ollama at all fails the same way it
-            // did before. So the worst case of this default is the old default, plus a sentence
-            // explaining itself.
+            // The difference is not stylistic. `Daemon::open` starts an engine when this field
+            // says `LlamaCpp`, and **twenty `Daemon::open` call sites in the daemon tests alone
+            // take this default** — with cargo running tests inside a binary on parallel threads.
+            // Putting the hybrid here made every one of them spawn a `llama-server` and load a
+            // 6.7 GB model onto a 16 GB card, concurrently. The workspace suite stopped being a
+            // four-minute run and started **freezing the machine before it could finish**.
             //
-            // The picker still offers plain `ollama`, and `--provider ollama` still pins it.
-            model_provider: ModelProviderChoice::LlamaCpp {
-                endpoint: marlowe_provider::llamacpp::default_endpoint(),
-                sampling: marlowe_provider::llamacpp::SamplingSource::OllamaParams,
-            },
+            // So: this struct is the *declaration a library caller inherits*, and it must be inert.
+            // The product's opinion lives where the product is assembled. A test that wants the
+            // hybrid asks for it by name, which is also the only way to be sure a test that
+            // exercises it meant to.
+            model_provider: ModelProviderChoice::Ollama,
             dev: false,
             thinking: true,
             context_tokens: marlowe_provider::DEFAULT_CONTEXT_TOKENS,

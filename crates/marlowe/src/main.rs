@@ -1074,7 +1074,29 @@ fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
         std::process::exit(2);
     }
     match named {
-        None | Some("ollama") => ModelProviderChoice::Ollama,
+        // **THE PRODUCT DEFAULT: no `--provider` means the hybrid.** Ollama stores, downloads and
+        // lists; a `llama-server` Marlowe starts and owns serves. Measured product-level on this
+        // machine, daemon `--dev` clock, n=11 warm per arm, identical 17,381-char prompt and
+        // 12-tool set on both arms: **65.3 ms to first token against Ollama's 313.4 — 4.80x** —
+        // with generation throughput slightly better (73.6 vs 68.3 tok/s) and turn total 1.55x.
+        //
+        // Safe as a default because the fallback is a tier and not an error path: if `llama-server`
+        // cannot be found, cannot bind, cannot get the GPU, or comes up on the CPU, the engine
+        // returns Ollama serving and the reason stays in the band for the session. The worst case
+        // of this default is the old default plus a sentence explaining itself.
+        //
+        // **It lives HERE and not in `DaemonConfig`'s default**, and that is load-bearing rather
+        // than tidy. `Daemon::open` starts an engine when the config says `LlamaCpp`, and twenty
+        // `Daemon::open` sites in the daemon tests take that default on parallel threads — so
+        // putting it there spawned a `llama-server` per test and loaded 6.7 GB onto a 16 GB card
+        // over and over. The suite stopped finishing and started freezing the machine. The library
+        // default is what a caller inherits and must be inert; this is where the product's opinion
+        // belongs.
+        None => ModelProviderChoice::LlamaCpp {
+            endpoint: marlowe_provider::llamacpp::default_endpoint(),
+            sampling: marlowe_provider::llamacpp::SamplingSource::OllamaParams,
+        },
+        Some("ollama") => ModelProviderChoice::Ollama,
         Some("openrouter") => {
             let Some(model) = flag_value(args, "--openrouter-model") else {
                 eprintln!(

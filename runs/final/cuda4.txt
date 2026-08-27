@@ -1,0 +1,53 @@
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.32s
+     Running tests\embedder_provider.rs (target\debug\deps\embedder_provider-8c0fde4da9d011c5.exe)
+
+running 8 tests
+test a_cuda_session_that_loaded_actually_holds_DEVICE_memory ... ok
+test an_absent_device_is_cpu_and_says_so_rather_than_guessing ... ok
+test the_budget_is_checked_before_a_session_is_attempted_not_after ... ok
+test asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run ... ok
+test a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test cuda_padding_invariance_is_measured_on_the_shipped_graph ... ok
+test every_session_in_one_embedder_uses_the_same_provider ... ok
+test cuda_determinism_and_worker_invariance_are_measured_not_inherited ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.81s
+
+     Running tests\no_unbounded_external_commands.rs (target\debug\deps\no_unbounded_external_commands-e57ae060d3ba336a.exe)
+
+running 2 tests
+test the_detector_can_actually_see_an_unbounded_command ... ok
+test every_external_command_in_this_crate_is_bounded ... FAILED
+
+failures:
+
+---- every_external_command_in_this_crate_is_bounded stdout ----
+
+thread 'every_external_command_in_this_crate_is_bounded' (15680) panicked at crates\marlowe-memory\tests\no_unbounded_external_commands.rs:222:5:
+a child process is constructed outside `src/cue/dense/vram.rs`, which is the shape that wedged this workspace's suite on 2026-08-25 (12+ min) and hung a test binary on 2026-08-26 (~25 min at 1 GB RSS).
+
+  tests/embedder_provider.rs:385
+      let mut cmd = std::process::Command::new("nvidia-smi");
+
+Route it through `marlowe_memory::cue::dense::vram::bounded_output`, which polls `try_wait` a bounded number of times and then kills and reaps. It gives a null stdin and CREATE_NO_WINDOW for free, and every caller in this crate already degrades to `None` with a named reason -- so a timeout costs a READING, never the process.
+
+The check is textual: if this fired on prose, spell the type differently in the comment.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_external_command_in_this_crate_is_bounded
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p marlowe-memory --test no_unbounded_external_commands`

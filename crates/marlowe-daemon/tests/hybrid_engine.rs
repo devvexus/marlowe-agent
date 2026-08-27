@@ -288,14 +288,35 @@ fn a_llama_server_holding_the_weights_reserves_nothing_and_names_the_branch() {
     // spelling would match the Ollama branch's own sentences and prove nothing.
     assert!(served.reason.contains("llama-server"), "the branch must be named: {}", served.reason);
 
-    // **The control.** Without it, a `read()` returning zero-and-a-fixed-string for every input
-    // passes both assertions above. The Ollama arm must reach a DIFFERENT branch.
-    let ollama =
-        Reserve::ForTier1 { model: "marlowe-red:9b", runtime: Tier1Runtime::Ollama }.read();
+    // **The control, and it deliberately does NOT use the Ollama arm.**
+    //
+    // Its job is to prove the dispatch discriminates — that `read()` is not returning
+    // zero-and-a-fixed-string for every input, which would pass both assertions above. ANY second
+    // branch does that, and `NotOnThisCard` is a pure early return: zero bytes, a different
+    // sentence, no subprocess.
+    //
+    // **It used to use `Tier1Runtime::Ollama`, and that made this the single worst hang in the
+    // workspace suite.** That arm is the only one that shells out — `ollama ps`, then `ollama
+    // list` — and Ollama serialises. Alone the test passed in **5.07 s**; under `cargo test
+    // --workspace --jobs 4` it sat for **over 60 seconds** while every other binary in the run
+    // finished in under 10, and the suite hit its ceiling without completing. `bounded_output`'s
+    // 5 s-per-command ceiling was never the cause: queueing behind a dozen other test processes
+    // was.
+    //
+    // The lesson is not "that test was slow". It is that **a control reaching a shared external
+    // service is a control whose cost depends on what else is running**, and a parallel suite is
+    // exactly where that bites. The property being controlled for needed no external call at all.
+    let other =
+        Reserve::ForTier1 { model: "marlowe-red:9b", runtime: Tier1Runtime::NotOnThisCard }.read();
     assert!(
-        !ollama.reason.contains("already net of it"),
-        "the Ollama arm took the llama-server branch, so the dispatch is not discriminating: {}",
-        ollama.reason
+        !other.reason.contains("already net of it"),
+        "a second runtime took the llama-server branch, so the dispatch is not discriminating: {}",
+        other.reason
+    );
+    assert_ne!(
+        other.reason, served.reason,
+        "two different runtimes produced the same sentence, so the reason cannot say which branch \
+         answered — which is the whole job of the reason, since five branches return zero bytes"
     );
 }
 

@@ -184,6 +184,34 @@ fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
     // written on. That is a gap in the evidence and is recorded as one, not papered over.
     let Some(dir) = dir_or_skip() else { return };
 
+    // **THIS MEASUREMENT IS ONLY VALID ON A CARD NOBODY ELSE IS USING, SO IT CHECKS.**
+    //
+    // Every reading here is a free-memory delta — a property of the whole DEVICE, attributed to one
+    // session. That attribution holds only while nothing else allocates or frees during the window.
+    // Since the llama.cpp hybrid landed, the suite starts `llama-server` and Ollama keeps its own
+    // runner warm on a keep-alive, so the card routinely has another 6.7 GB tenant mid-run.
+    //
+    // Measured: with Ollama's runner resident, the drop released **58,720,256 of an expected
+    // 129,809,014 bytes** — a PARTIAL release, because the other process took memory back between
+    // the two reads. That is not a reading about this provider, and asserting on it either blames
+    // the provider for another process or forces a threshold so loose the test stops meaning
+    // anything.
+    //
+    // So: if any other process holds the device, say so and stop. **A skip that names its reason is
+    // worth more than a pass that cannot be attributed** — and this test exists to catch a CUDA
+    // session that silently ran on CPU, which is a real failure this project hit today at 10 tok/s
+    // against 107 with every health signal reading fine. It must not be made to pass by accident.
+    if let Some(n) = other_gpu_tenants() {
+        if n > 0 {
+            eprintln!(
+                "SKIP: {n} other process(es) hold this device, so a free-memory delta cannot be \
+                 attributed to this session. Re-run alone: `cargo test -p marlowe-memory --test \
+                 embedder_provider`."
+            );
+            return;
+        }
+    }
+
     // **ONE SESSION, AND THE READING IS WHAT IT RELEASES ON DROP.**
     //
     // The obvious shape -- read free memory, load, read again -- cannot work here, for a reason
@@ -347,3 +375,32 @@ fn cuda_padding_invariance_is_measured_on_the_shipped_graph() {
         "CUDA: a text embedded alone and inside a batch must be bit-identical"
     );
 }
+
+/// How many processes OTHER than this one hold the CUDA device. `None` when it cannot be read.
+///
+/// Bounded by construction: `nvidia-smi` is given a null stdin and its output is read once. This is
+/// a test, not the shipped path — but the same rule applies, because an unbounded child in a suite
+/// is the hang that stalls every binary queued behind it.
+fn other_gpu_tenants() -> Option<usize> {
+    // **Through the crate's own bounded helper, because the guard is right.**
+    // `no_unbounded_external_commands` caught the first version of this function using a bare
+    // `.output()` and named the remedy. An unbounded child in a suite is the hang that stalls every
+    // binary queued behind it -- which is the exact failure this whole session spent an afternoon
+    // on. It also gives null stdin and CREATE_NO_WINDOW for free.
+    let out = marlowe_memory::cue::dense::vram::bounded_output(
+        "nvidia-smi",
+        &["--query-compute-apps=pid", "--format=csv,noheader"],
+    )?;
+    if !out.status.success() {
+        return None;
+    }
+    let me = std::process::id().to_string();
+    Some(
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && *l != me)
+            .count(),
+    )
+}
+
