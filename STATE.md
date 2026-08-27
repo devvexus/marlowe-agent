@@ -1,5 +1,61 @@
 ﻿# State
 
+## 2026-08-27 — OPEN: TIME TO FIRST TOKEN IS LONG, AND IT IS NOT HTTPS
+
+**Reported live, partially diagnosed, MEASUREMENT DISPATCHED.** The user's question was whether the
+Ollama transport is HTTPS, since that would explain a handshake delay. It is not, and the two things
+that are actually in the path are below.
+
+### It is plain HTTP over a raw socket
+
+`LocalEndpoint::default_ollama()` is `127.0.0.1:11434` and `http::post_ndjson` does
+`TcpStream::connect` and writes a request head by hand. **There is no TLS anywhere on this path** —
+no rustls, no handshake, no certificate verification. `marlowe-net`'s rustls is the `web` tool's
+egress path and is not involved in a model call. So HTTPS is ruled out, and ruled out by reading the
+code rather than by measuring around it.
+
+### Two things that ARE in the path
+
+**1. `Connection: close`, so a new TCP connection per model call.** On loopback this is
+sub-millisecond and is almost certainly not the delay, but it is a fresh connect + accept every
+turn and it is free to remove.
+
+**2. THE SYSTEM PREFIX CHANGES EVERY TURN, and this is the suspect worth measuring.**
+`request_body` builds ONE system message from `view.stable` + `view.context` + every
+`SourceKind::InjectedMemory` block, concatenated. **Injected memory is retrieved per turn**, so the
+system message differs between turns even when identity, persona, governance and the workspace map
+are identical.
+
+`llama.cpp` reuses its KV cache only for a **byte-identical** prefix. A system message that changes
+at any point forces re-evaluation of everything from that point on — and the system message
+measured on a real run is **12,556 to 17,353 characters**, roughly 4-6k tokens, before any
+conversation. If the prefix is invalidated every turn, every turn pays full prompt evaluation
+before the first token appears.
+
+This is exactly why `workspace_map` sorts its entries: an unsorted listing would change the prefix
+for no reason. That instinct was right and it does not survive injected memory being concatenated
+after it.
+
+**The tension is real and is not a simple fix.** Injected memory was deliberately moved INTO the
+system message: a `system` message appearing after the user's turn broke a qwen3-next template with
+*"System message must be at the beginning"*, and attributing memory to the user would make a
+recalled fact indistinguishable from something the user just said. Any fix has to keep both of
+those true while leaving the stable prefix untouched between turns.
+
+### What is being measured, and the control that decides whether the numbers count
+
+Metric: **time to FIRST TOKEN, including a thinking token** — the user's stated target, and the
+right one, because a reasoning model emits `thinking` long before `content`.
+
+Cells worth separating: a warm model with a byte-identical system prefix; the same with one byte
+changed near the start; system prompts of increasing length; `num_ctx` at the shipped 32,768 versus
+smaller; and connection reuse versus `Connection: close`.
+
+**CLAUDE.md hazard form 6 governs this measurement.** A timing run taken while a `cargo` build or
+the CUDA suite is using the machine is not evidence — a 16-core build inflated every stage of a
+previous session's table by ~10%, and that table looked complete. **Any number here needs an idle
+machine and a control that would have caught a busy one.**
+
 ## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
 
 **Reported live and diagnosed, NOT fixed.** Found while a workflow was running, so the fix is held
