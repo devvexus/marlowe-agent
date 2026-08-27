@@ -1,5 +1,175 @@
 ﻿# State
 
+## 2026-08-27 — M3 SESSION B2: THE TOOLS. NINE DEFECTS, AND SEVEN WERE THE SAME ONE
+
+Started as "make `run` work", became an audit of every builtin. Commits `342c47c`, `485c76a`,
+`04742c6`, `e7bf6af`, `928052f`, `a8b5ba8`, `5a876a3`, `fab045d`. Suite **1496 passed, 0 failed,
+4 ignored, 125 binaries** (`runs/session-b2-window/suite.txt`).
+
+### THE SHAPE OF THE WHOLE SESSION, IN ONE SENTENCE
+
+**Seven of the nine defects were the harness knowing exactly what had happened and not saying.**
+A child's brief, a child's result, a spawn refusal, an executor failure, a run's output, a
+parameter's meaning, a workspace's contents. Every time, the model filled the silence with the most
+plausible story available — which is what any model does with none — and every time the fix was the
+CHANNEL, never the model.
+
+The three inventions it produced are worth quoting together, because each had a different cause and
+none was a model failing to be careful:
+
+| what it invented | what was true |
+|---|---|
+| *"I did not have access to its documentation"* | the child was granted 500 tokens and paused before its first call |
+| *"Windows mishandles ` -` in filenames"* | `edit` searched a file it had just created empty |
+| *"the task will handle it through the tool grant mechanism"* | there is no such mechanism; the word "grant" in a description invited it |
+
+### THE SPAWN WAS TWO MALFORMED CONVERSATIONS (342c47c)
+
+A child's brief went out as `role: "assistant"` — `History` + `AgentInferred`, which both drivers
+map to the model's own voice. Its whole window was a system message and a turn it had supposedly
+already taken, so it returned nothing three times. New `SourceKind::Brief`, **not** a trust-class
+change: `AgentInferred` is correct, and pushing the parent's prose as `UserAsserted` to fix the role
+would launder a class two lines from where `Provenance::new()` is reset to prevent it. **Trust class
+answers how much a block may authorize; it does not name a speaker.**
+
+Then the same defect one level up, which fixing the child did not reach: the child's RESULT came
+back as `assistant` too, and `ModelStep::Spawn` pushed no turn recording that the parent had called
+`run`. A spawn now pushes an assistant turn with `tool_calls` and returns a paired `tool` message.
+
+**Both halves were tested throughout and neither test could see it** — `ScriptDriver` answers
+whatever it is shown. `spawned_child_wire.rs` asserts both windows from one spawn.
+
+### `Budget::grant` HAD NO FLOOR, AND THE FLOOR ALREADY EXISTED
+
+The model asked for 100 and 500 tokens; `has_room_for_a_call` refuses below `MIN_CALL_TOKENS = 512`,
+so both children paused having spent nothing. **The constant was read by the spender and by nothing
+at the point of granting.** `MIN_CHILD_TOKENS` derives it. An earlier session declined this as "a
+number nobody has measured" and mitigated it with advice; the advice lasted one session and quoted
+a figure that was not even the enforced one.
+
+### A FAILED TOOL CALL REACHED THE MODEL AS `"edit · "` (e7bf6af)
+
+`failed()` returned an EMPTY body with the reason in `summary.detail`. **Four consumers each needed
+their own patch** — the model's window, the journal (`{"tool":"read","summary":"read"}`), the
+surface, and every failure assertion in the new test file (blank panics). Fixed at the source: the
+reason is in both, so nothing downstream has to know failures are shaped differently.
+
+A REFUSAL was never affected, which is why it survived: `tool_error` always carried its reason.
+Only EXECUTOR failures were silent — the ones a model must correct rather than abandon.
+
+### `edit` WAS TWO TOOLS WEARING ONE NAME (ADR-058, 928052f)
+
+Told to write a file, the model reached for the SHELL — `cat > f << 'EOF'` — because no builtin was
+named for the verb. Then it picked `edit`'s wrong mode: `replacing` was OPTIONAL, so supplying it
+patched and omitting it overwrote, and a model holding a request and a schema had to infer which
+tool it was in. Six calls, three minutes, a zero-byte file.
+
+**Three attempts to fix this in prose came first and none removed the choice.** The ambiguity was in
+the shape. `write(path, content)` and `edit(path, replacing, content)`, every parameter required,
+neither with a mode.
+
+### THE SHELL WAS NOT BASH (5a876a3)
+
+The tool has always been NAMED `bash` and ran `cmd /C`. Two faults, and fixing the first left it
+broken: `Command::arg` applies **Rust's** escaping (`"` becomes `\"`) which `cmd.exe` reads
+literally, so every QUOTED command arrived corrupted — measured, `echo "hello"` printed
+`\"hello\"`. And the interpreter was still wrong.
+
+Git Bash, resolved **explicitly**, never from `PATH`: `C:\Windows\System32\bash.exe` is the WSL
+launcher and a different filesystem (`/mnt/c/…` against `/c/…`). Both "work", which is what makes it
+dangerous. No fallback to cmd.
+
+`shell_bounds.rs` held its own copy of `spawn_shell` under a doc comment saying it matched — true
+when written, false the moment the interpreter changed. `marlowe_exec::shell_command` is the one
+definition now.
+
+### `glob`, AND THE DIRECTORY IT SAID WAS EMPTY
+
+`find` searches CONTENTS and needs a pattern; `read` needs a path already known; `bash` asks the
+user every time. **There was no way to list a directory**, so across two sessions the model made
+SEVEN shell attempts at one and then reported `docs/requirements` — four files — as *"appears
+empty"*. `glob` returns names, opens nothing, and is `Inert`. `MAX_EXPOSED_TOOLS` 12 → 13 → 14, so
+MCP keeps its two slots; `composition_root.rs` asserts **the two slots, not the number**.
+
+### `read` COULD NOT READ A LARGE FILE AT ALL (fab045d)
+
+Anything over `MAX_INLINE_BYTES` became a `ContentRef` — and **a file reference cannot be
+dereferenced**, because `read`'s `ref` takes ids `web` issued. The middle of every file above 8 KB
+was unreachable. A run read five design documents totalling ~400 KB, got head and tail of each, and
+answered from none.
+
+`read` returns a WINDOW: 2000 lines, 32 KB, as TEXT, with a notice naming the next range. Confirmed
+live — `455 lines · 32956 B` on the new binary where the old returned `597 lines · 63052 B`.
+
+**The cost notice is relative to the model's own window**, not a constant: `FileSystemTools` takes
+`context_tokens` (the same number the driver sends as `num_ctx`) and warns above a quarter of it. An
+ordinary long file gets one line and no alarm — *a model told everything is expensive has learned
+nothing about what is.*
+
+### THE 120,000-TOKEN BUG, INSIDE THE FIX WRITTEN TO END THAT FAMILY
+
+The child's brief said "at most 4000 characters" — `OutputContract::max_chars`, the AGGREGATE —
+while `validate` enforces `FieldSpec::max_chars`, **2000 PER FIELD**. A child wrote 3,093, failed
+three times, burned ~120,000 tokens, and a child's spend rolls up to its parent. Two numbers, one
+told and the other enforced.
+
+### THE DAEMON TESTS WERE RACING THEMSELVES (a8b5ba8)
+
+Three timeout raises (4s → 12s → 30s) had assumed machine load. **Cargo runs tests WITHIN a binary
+on parallel threads**; `control_plane.rs` has ten, several start two daemons, and `Daemon::open`
+builds the whole memory subsystem — a dozen embedders loading at once inside one process.
+Serialising construction only: 10/10 on three runs, 33s → 6s.
+
+### WHAT THE TESTS DID NOT CATCH, AND WHY
+
+`bash` had ~30 tests and **none used a quoted command**. `edit` was never tried on a file that did
+not exist. `read` was never tried on an empty one. The suite tested the cases someone thought to
+write. `every_tool_exercised.rs` (77 tests) drives every executor against a real filesystem across
+ordinary AND edge inputs, and found six silent wrong answers in one pass — including `edit` with an
+empty `replacing` PREPENDING and reporting success (`str::find("")` is `Some(0)`), and `read` with
+an out-of-range `range` rendering `0 lines · 0 B`, the exact string its description promised means
+"empty file".
+
+**Six tests encoded `MAX_EXPOSED_TOOLS` as a numeral and one encoded it in its NAME**
+(`twelve_is_allowed_and_thirteen_is_not`, with `got: 13` inside). All now derive from the constant:
+`ids(13)`/`ids(12)` meant "one past" and "exactly at" before the change and "exactly at" and "one
+under" after — the same bytes asserting a different property.
+
+**And a description drifted for an hour with both halves tested.** `read.range` promised "a
+backwards range returns nothing" after the executor started refusing one; the wire test proved the
+description reached the model and the executor test proved the refusal, and **nothing compared
+them**. `each_description_promise_is_kept_by_the_executor` reads each promise out of the shipped
+manifest and makes the call it describes.
+
+### OPEN, IN THE ORDER TO TAKE THEM
+
+1. **`Event::Tool` carries no detail — 34 sites.** §B6's *"Enter or Tab for full output in place"*
+   has never been true for ANY tool. Seen live as `write scratchpad/… blocked` with no reason on
+   screen: the model was told why, the USER was not. Last instance of the family and the only one
+   about the user. Its own session — `cargo test --workspace --no-run` is the check, because a
+   missed `#[cfg(test)]` destructure will not fail `cargo build`.
+2. **`find` is literal-only** (`line.contains`). Claude Code's Grep is regex with glob/type filters.
+   One executor, **no new tool slot** — the cheapest remaining gap, and the user has said Claude
+   Code is the standard to match with no exceptions.
+3. **`read` returns no line numbers.** Claude Code returns `cat -n` because its Edit is
+   line-anchored; ours requires `replacing` copied VERBATIM from `read`, so numbering would break
+   every edit. Match it by changing BOTH tools or neither — not a silent divergence.
+4. **`web` is fetch-only** (ADR-035); no search.
+5. **MCP squeeze.** 12 builtins against a cap of 14 leaves a server exactly two slots. `find`→regex
+   is free; anything new costs another amendment.
+6. **`SourceKind::ToolSchemas` is budgeted 5% of the window and never written** — the same
+   empty-but-budgeted slot `ProjectFiles` was until this session. Descriptions reach the model
+   through Ollama's `tools` array, which is the right channel, so the slot is unnecessary rather
+   than broken.
+7. A failed child's reason reaches the journal but is not recorded beside its result.
+
+### ONE PROCESS NOTE, BECAUSE IT COST THE USER TIME
+
+`cargo test -p <crate>` builds and runs EVERY binary in the package and can exceed a 600s
+foreground timeout while another cargo holds the package lock. Run `--test <binary>` while
+iterating; keep `--workspace --no-fail-fast` for the single pass before claiming green, and
+background it. **And read a backgrounded run's output when it completes — do not re-run it blind.**
+
 ## 2026-08-26 — "HE CAN'T EVEN WRITE A FILE, AND HE DOESN'T EVEN KNOW WHY"
 
 The user's words, and both halves were literally true. Journal seq 4806–4864 and the handoff
