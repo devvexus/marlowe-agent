@@ -1,6 +1,64 @@
 ﻿# State
 
 
+## 2026-08-27 — FOR REVIEW NEXT SESSION: THE FIT RULE, AND WHAT THE USER IS TOLD
+
+**Matthew's design, taken after the hybrid was built. To be implemented in the session after the
+current one closes — logged now so it is not re-derived.**
+
+### The rule
+
+> **Can we fit everything into VRAM? Yes → llama.cpp (maximum performance). No → Ollama.**
+
+**This SUPERSEDES the "offload as a degree" suggestion recorded in the previous entry, and it is
+better.** That suggestion proposed treating 42/48 layers on GPU as healthy — which means
+reimplementing layer splitting and its heuristics. Matthew's rule gives that job to Ollama, which
+already does it well. **Clean division: llama.cpp is the full-offload path, Ollama is the
+everything-else path.** No new code for the hard case, and the fallback stops being a failure mode
+and becomes a *tier*.
+
+### What the user is told
+
+* **llama.cpp:** *"MAXIMUM PERFORMANCE AND ACCURACY"*
+* **Ollama:** *"degraded performance (ollama)"* — wording to settle, but the substance is that the
+  user must know which tier they are on **without asking**, and it must persist rather than flash.
+
+**"ACCURACY" IS A LOAD-BEARING CLAIM AND IT IS BACKED, WITH ONE QUALIFICATION.** At Marlowe's real
+system-message size, tool-call correctness measured **llama.cpp 84.5% against Ollama 67.9%**, 84
+trials each; and across 168 trials Ollama named a tool that **was not in the exposed set** 14 times
+against llama.cpp's 0. So the accuracy half is real, not marketing. **The qualification: both
+servers degrade at production prompt size** — the 100% and 12/12 figures in older notes are from
+two-line prompts. Do not print a number the user can catch us on; print the tier.
+
+### The fit predicate is NOT just the weights, and this is where it will go wrong
+
+"Everything" has to include, on the shipped path:
+
+1. **Model weights** — `qwen3.5:9b` is **6.7 GB** measured, not the 9.5 GB figure that circulated
+   (that was weights *plus* a 32k KV cache).
+2. **KV cache at the chosen context.** Scales with `-c`. This is the multi-GB term nobody counts.
+3. **Marlowe's own tier-1 reserve** — the embedder and the cross-encoder both want the card, and the
+   reserve already exists (`vram.rs`). The hybrid must not fit a model by starving its own retrieval.
+4. **Headroom for the desktop.** Measured baseline on this machine with nothing running: **3,205 MiB**
+   used by compositor/browser. A predicate that assumes a bare card will be wrong on every real one.
+
+### The open question the rule does not settle
+
+**If it does not fit at 32k context but would fit at 8k, which wins?** Shrinking `-c` to reach
+llama.cpp buys ~3x latency and better tool calling; keeping the context takes Ollama. Both are
+defensible and it is a product decision, not an implementation detail.
+
+**Recommendation to put to Matthew: try the largest context that fits, floor it at something usable,
+and say what it chose** — *"32k needs 3.1 GB of KV; 2.4 GB free after weights, opening 16k"*. That
+turns an invisible tradeoff into a sentence the user can act on. It should NOT silently pick a tiny
+context to claim the fast tier.
+
+### Ordering, which matters on the target hardware
+
+**Decide before loading.** Free VRAM, blob resolution and binary presence are all cheap. A fallback
+discovered *after* llama.cpp has loaded 6.7 GB costs a second 6.7 GB load under Ollama — the worst
+experience on exactly the low-end machines this rule exists to serve.
+
 ## 2026-08-27 — ADR-060 BUILT AS THE HYBRID — `ollama/llama.cpp`. WRITTEN, NOT RUN.
 
 **Ollama stores, downloads and lists; a `llama-server` Marlowe starts and owns serves; when it
