@@ -31,30 +31,113 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
 use marlowe_daemon::protocol::Event;
-use marlowe_daemon::{auth, control_plane, Client, Daemon, DaemonConfig};
+use marlowe_daemon::{auth, control_plane, Client, Daemon, DaemonConfig, DaemonError};
 
 static SEQ: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+/// **A port this fixture OWNS, not a port number it once saw.**
+///
+/// This was `free_port() -> u16`: bind `0`, read the number, **close the socket**, return the
+/// number. Between that close and the daemon's own bind sat the `START` mutex (seconds, if another
+/// fixture is constructing) and `Daemon::open` (seconds, it builds the memory subsystem) — and a
+/// port that nothing holds for several seconds on a machine allocating ephemeral ports
+/// sequentially is a port somebody else gets.
+///
+/// It was found by the `fail_fast` added for the adjacent-pair race, on the first run under a
+/// process doing nothing but `bind(0)`: **`the_control_port_refuses_what_needs_the_model_and_says_-`**
+/// **`where_it_lives` lost port 59524 before its daemon reached the bind**, os error 10048. Nine of
+/// the ten tests here went through `free_port`, so this was the same defect as the collide test's
+/// `a.port + 1` with a wider blast radius and no test naming it.
+///
+/// The listener is handed to [`Fixture::start_holding`], which releases it after `Daemon::open`
+/// and immediately before `serve` binds.
+fn reserve_port() -> TcpListener {
+    TcpListener::bind("127.0.0.1:0").expect("a free port")
+}
+
+/// **Two adjacent loopback ports, both HELD, so nothing can take either one first.**
+///
+/// # `port + 1` is not "some other port" — on Windows it is the NEXT one the OS will hand out
+///
+/// Measured 2026-08-27, 300 trials in a quiet process: bind `0` → `p`, close it, bind `p`, then
+/// bind `0` again for the control plane. The control plane landed on **`p + 1` in 300 of 300**,
+/// and a second daemon told to use `p + 1` **failed to bind in 300 of 300**. Windows allocates
+/// ephemeral ports sequentially, so a test that starts a daemon on `p` and *then* reaches for
+/// `p + 1` is reaching for the port the machine is about to give to the very next `bind(0)` —
+/// the daemon's own control plane, another fixture's `free_port()`, another fixture's outbound
+/// `connect`, or a socket in another test binary entirely.
+///
+/// That is not a slow machine and no timeout fixes it. The only fix is to **own both ports before
+/// either daemon starts**, which is what this returns: `(lo, hi)` on `p` and `p + 1`, each handed
+/// to [`Fixture::start_holding`], which releases one at the last instant before its daemon binds.
+///
+/// It is the same high-then-low reservation
+/// `the_client_reaches_its_own_control_plane_and_not_the_adjacent_port` already carries, hoisted
+/// so the two tests that need an adjacent pair cannot drift apart.
+fn reserve_adjacent_pair() -> (TcpListener, TcpListener) {
+    for _ in 0..200 {
+        // LOOP-EXEMPT: retrying an OS allocation, not a driving loop.
+        let hi = TcpListener::bind("127.0.0.1:0").expect("a free port");
+        let p = hi.local_addr().unwrap().port();
+        // The high port is taken first, so the low one is the only thing still to win. If `p - 1`
+        // is occupied, `hi` drops with the iteration and another pair is tried.
+        if let Ok(lo) = TcpListener::bind(("127.0.0.1", p - 1)) {
+            return (lo, hi);
+        }
+        // **THE PAUSE AND THE BOUND ARE A MEASURED FIX, NOT POLITENESS.** The first version of
+        // this loop was unbounded and unpaced. Under contention it binds thousands of ports a
+        // second, inside the same binary whose other nine fixtures were each sitting in their own
+        // allocate-then-bind window, and it starved them: eight consecutive runs failed in
+        // `the_control_port_refuses_what_needs_the_model_and_says_where_it_lives` with os error
+        // 10048. The culprit was this loop, not the load it was being run under.
+        //
+        // It was caught by the negative control that was meant to confirm the opposite. The same
+        // external load with this loop ABSENT passed 5 of 5, which is what said the adversary was
+        // in here rather than out there. A fix that introduces the failure it is measuring
+        // against is the cheapest way to draw a wrong conclusion from a green run.
+        thread::sleep(Duration::from_millis(1));
+    }
+    panic!("no adjacent pair of loopback ports came free in 200 attempts");
 }
 
 struct Fixture {
     root: PathBuf,
     port: u16,
     shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// **What `serve` returned, so a bind failure is a sentence and not a symptom.**
+    ///
+    /// `thread::spawn(move || { let _ = daemon.serve(); })` discarded `DaemonError::Listen`. A
+    /// daemon that could not take its port then looked exactly like a slow one: `wait_until_-`
+    /// `listening` succeeded because *whoever did take the port* accepted the connection, and
+    /// `wait_until_advertised` spent 30 s waiting for a file that was never going to be written
+    /// before panicking **"the control plane never advertised a port"** — a true sentence about
+    /// the wrong subject, on a run where the control plane had in fact announced itself for the
+    /// other daemon three lines above. That is the proxy family in a fixture: the reading was
+    /// identical whether the daemon was slow or dead.
+    serve: mpsc::Receiver<DaemonError>,
 }
 
 impl Fixture {
     fn start(name: &str) -> Self {
-        Self::start_on(name, free_port())
+        Self::start_holding(name, reserve_port())
     }
 
-    fn start_on(name: &str, port: u16) -> Self {
+    /// Start on the port `reserved` is sitting on, releasing it only once the daemon is built and
+    /// about to bind.
+    ///
+    /// **The release point is the whole value, and it is the only way in.** `Daemon::open` builds
+    /// the memory subsystem, which is seconds; releasing the port before that — as `free_port`
+    /// did, and as `start_on(name, a.port + 1)` did — opens a seconds-wide window for the rest of
+    /// the machine to take it. Dropping it here narrows the window to a `thread::spawn`. There is
+    /// deliberately no constructor that takes a bare `u16`: a port number with no listener behind
+    /// it is the defect, so the type system no longer offers one.
+    fn start_holding(name: &str, reserved: TcpListener) -> Self {
+        let port = reserved.local_addr().unwrap().port();
         // ── ONE DAEMON COMES UP AT A TIME, AND THIS IS THE FLAKE'S ACTUAL CAUSE ──────────
         //
         // `wait_until_advertised` was raised from 4 s to 12 s to 30 s and still failed about half
@@ -71,6 +154,11 @@ impl Fixture {
         // The alternative that was rejected: raising the timeout a fourth time. A timeout short
         // enough to fail on a busy machine turns a real assertion into a coin flip, and a timeout
         // long enough never to fail turns a hang into a thirty-second pause nobody notices.
+        //
+        // **This lock is also why the port had to become a reservation (2026-08-27).** Waiting
+        // here is unbounded from the caller's point of view, so a fixture that had merely *read* a
+        // port number could sit outside its own bind for seconds. The lock is taken AFTER the
+        // reservation for that reason: `reserved` is already ours before anyone queues.
         static START: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let _one_at_a_time = START.lock().unwrap_or_else(|e| e.into_inner());
 
@@ -85,14 +173,31 @@ impl Fixture {
         config.port = port;
         let daemon = Daemon::open(config).expect("the daemon opens");
         let shutdown = daemon.shutdown_handle();
+        // **Released here, not earlier**, so the port is ours until the instant before `serve`
+        // binds it. See `start_holding`.
+        drop(reserved);
+        let (tx, serve) = mpsc::channel();
         thread::spawn(move || {
-            let _ = daemon.serve();
+            if let Err(e) = daemon.serve() {
+                let _ = tx.send(e);
+            }
         });
 
-        let fx = Self { root, port, shutdown };
+        let fx = Self { root, port, shutdown, serve };
         fx.wait_until_listening();
         fx.wait_until_advertised();
         fx
+    }
+
+    /// **Did the daemon fail, or is it merely slow?** Both wait loops ask this every poll, because
+    /// neither can tell the difference from what it observes: a port someone else holds accepts
+    /// connections, and a daemon that never started never writes a port file. `serve` returns
+    /// `DaemonError::Listen` the moment the bind fails, so the answer is available immediately and
+    /// the test says which one it was instead of timing out with a plausible wrong sentence.
+    fn fail_fast(&self) {
+        if let Ok(e) = self.serve.try_recv() {
+            panic!("the daemon for port {} stopped before it could serve: {e}", self.port);
+        }
     }
 
     fn profile(&self) -> PathBuf {
@@ -109,6 +214,7 @@ impl Fixture {
 
     fn wait_until_listening(&self) {
         for _ in 0..200 {
+            self.fail_fast();
             if TcpStream::connect(("127.0.0.1", self.port)).is_ok() {
                 return;
             }
@@ -137,14 +243,27 @@ impl Fixture {
     /// stop starting two real daemons here, not to raise it a third time.
     ///
     /// CLAUDE.md's shared-resource hazard, form 6, applied to a timeout rather than a stopwatch.
+    ///
+    /// **Untouched again on 2026-08-27, and this note records why the number was not the fault.**
+    /// The failure that sent someone here reported *"the control plane never advertised a port"*
+    /// three lines under a log line saying the control plane was on 127.0.0.1:53227 — because the
+    /// daemon it was waiting for had never bound its main port at all and `serve`'s error was
+    /// being thrown away. `fail_fast` now answers that in one poll. What reaches this panic is a
+    /// daemon that bound, is serving, and has still not written `control.port` after 30 s.
     fn wait_until_advertised(&self) {
         for _ in 0..1500 {
+            self.fail_fast();
             if control_plane::advertised_port(&self.profile()).is_some() {
                 return;
             }
             thread::sleep(Duration::from_millis(20));
         }
-        panic!("the control plane never advertised a port");
+        panic!(
+            "the daemon on port {} bound and served, and still never advertised a control port. \
+             If it printed DEGRADED, `control_plane::spawn` could not bind, which is what \
+             deriving the control port from the main port does when the adjacent port is held",
+            self.port
+        );
     }
 }
 
@@ -354,21 +473,11 @@ fn the_client_reaches_its_own_control_plane_and_not_the_adjacent_port() {
     // control -- which is how the first version of this fix failed while passing alone.
     //
     // Binding high-then-low inverts that: the adjacent port is held before anything else can take
-    // it, and the daemon's port is only released for the instant it takes `Fixture::start_on` to
-    // claim it, under the `exclusive` lock.
-    let (adjacent, daemon_port) = loop {
-        let hi = TcpListener::bind("127.0.0.1:0").expect("a free port");
-        let p = hi.local_addr().unwrap().port();
-        match TcpListener::bind(("127.0.0.1", p - 1)) {
-            Ok(lo) => {
-                drop(lo);
-                break (hi, p - 1);
-            }
-            // `p - 1` is taken; `hi` drops with the loop and another pair is tried.
-            Err(_) => continue,
-        }
-    };
-    let a = Fixture::start_on("client-a", daemon_port);
+    // it, and the daemon's port is only released for the instant it takes the daemon to bind it —
+    // `start_holding` drops the reservation after `Daemon::open` rather than before, which is the
+    // difference between a window of microseconds and one of seconds.
+    let (lo, adjacent) = reserve_adjacent_pair();
+    let a = Fixture::start_holding("client-a", lo);
     assert_eq!(
         adjacent.local_addr().unwrap().port(),
         a.port + 1,
@@ -404,6 +513,91 @@ fn the_client_reaches_its_own_control_plane_and_not_the_adjacent_port() {
     );
 }
 
+/// **Two daemons on adjacent main ports, and neither one's control plane lands on the other's.**
+///
+/// # It reached for `a.port + 1` after `a` had started, and that port was already gone
+///
+/// The first version did `Fixture::start("collide-a")` and then
+/// `Fixture::start_on("collide-b", a.port + 1)`. Nothing owned `a.port + 1` in between, and on
+/// Windows that is not an arbitrary number — it is the next port the OS will hand to anybody.
+/// Measured 300/300 in a quiet process: `a`'s **own** control plane takes it. In this binary,
+/// with ten tests running as threads, some other fixture takes it instead.
+///
+/// `b`'s bind then failed, `serve`'s error was discarded, and the fixture reported whichever
+/// downstream symptom the squatter happened to produce — *"the daemon never bound 58492"* if it
+/// did not accept, *"the control plane never advertised a port"* 30 s later if it did. Neither
+/// names the fault. Reproduced 2 times in 21 runs of this binary at the default thread count,
+/// 0 in 12 at `--test-threads 4`, 0 in 5 alone: **the variable is concurrent ephemeral-port
+/// allocation, not machine load and not startup cost.**
+///
+/// # The timeout was not raised, and this is not the flake that was fixed last night
+///
+/// `wait_until_advertised`'s note says a further flake means stopping, not waiting longer. That
+/// verdict stands and this obeys it: the wait is untouched, the second daemon stays, and what
+/// changed is that the test now **owns both ports before either daemon starts** —
+/// `reserve_adjacent_pair` plus `start_holding`, the same reservation the sibling test above
+/// already carried.
+///
+/// # What this reads if the collision handling breaks — RUN, not predicted
+///
+/// The mutation is `control_plane::spawn` binding `main + 1` instead of `0`. It was **applied to
+/// `crates/marlowe-daemon/src/control_plane.rs` and the suite run against it on 2026-08-27**,
+/// because this section previously argued the outcome and an argued outcome is the weaker claim
+/// this project keeps a table about. Observed, and it is exactly the predicted shape:
+///
+/// ```text
+/// marlowe: DEGRADED · the control plane could not bind a loopback port (os error 10048)
+/// thread 'two_daemons_never_collide_and_the_derived_port_would_have' panicked at ...
+///   the daemon on port 62744 bound and served, and still never advertised a control port.
+/// ```
+///
+/// `a` comes up while this test still holds `a.port + 1`, so `a`'s control plane cannot bind,
+/// `spawn` returns the error the daemon prints as DEGRADED, no `control.port` file is written, and
+/// **`a`'s `wait_until_advertised` fails — `b` never starts**. So the four-way check never gets to
+/// run, which is worth knowing before reading its absence as the assertion being decorative.
+///
+/// **A derived control port cannot be caught by the distinctness check, and this is structural.**
+/// The mutation does not produce two listeners quietly sharing a port; it produces a *bind
+/// failure*, because the ports here are adjacent by construction. Six of the ten tests in this
+/// file went red. The four that stayed green are the ones whose fixture reserves only its own
+/// port, so `main + 1` was free and the derived plane bound happily — which is exactly the silence
+/// `control_plane.rs`'s own header describes: *"the derivation made a collision silent everywhere
+/// except where two daemons happened to be adjacent"*, reproduced.
+///
+/// # The reproduction, so the next report does not start from zero
+///
+/// **This test is not load-sensitive and it is not startup-cost-sensitive.** Measured 2026-08-27:
+/// it passed **42 of 42** — 14 whole-binary runs, 10 collide-only runs, and 18 whole-binary runs
+/// three-up beside a port churner that *closes* what it binds. Reading that as "cannot reproduce"
+/// is the trap; the variable is none of those things.
+///
+/// What breaks it is another process binding ephemeral ports and **holding** them — which is what
+/// the other fifteen test binaries in a `--workspace` run are:
+///
+/// ```text
+/// python -c "import socket,time
+/// h=[]; t=time.time()+45
+/// while time.time()<t:
+///     s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(1); h.append(s); time.sleep(0.004)" &
+/// sleep 4    # let it accumulate, so the OS's next handout is inside the churner's reach
+/// cargo test -p marlowe-daemon --test control_plane
+/// ```
+///
+/// Same adversary, same protocol both sides:
+///
+/// | | collide test alone | whole binary |
+/// |---|---|---|
+/// | `free_port()` + `start_on(a.port + 1)` | **0 of 12 passed** | **1 of 6 passed** |
+/// | `reserve_adjacent_pair()` + `start_holding` | **12 of 12** | **6 of 6** |
+///
+/// All twelve failures panicked with the reported sentence — *"the control plane never advertised
+/// a port"* — about `b`. **That is how a port race presents as a patience problem**, and it is why
+/// the answer was not the fourth timeout raise.
+///
+/// The underlying arithmetic, measured the same day at 400 trials in a quiet process: bind `0` →
+/// `q`, close, bind `q`, then bind `0` again — the second bind landed on `q + 1` **379 times**,
+/// and a daemon told to take `q + 1` failed **379 times**, the taker being the first daemon's own
+/// control plane in every one of them.
 #[test]
 fn two_daemons_never_collide_and_the_derived_port_would_have() {
     // **Ports are a machine resource and cargo runs test binaries concurrently.** This test
@@ -414,9 +608,24 @@ fn two_daemons_never_collide_and_the_derived_port_would_have() {
     // daemon's control plane on another daemon's main port, and the symptom was a token refusal
     // that looked like a profile mismatch. Two workspace tests hit it within minutes, because
     // `free_port()` handed one fixture the port another fixture's control plane had taken.
-    let a = Fixture::start("collide-a");
-    // Deliberately adjacent: this is the exact configuration the derivation broke.
-    let b = Fixture::start_on("collide-b", a.port + 1);
+    //
+    // Deliberately adjacent: this is the exact configuration the derivation broke. Both ports are
+    // held from here until each daemon is ready to bind its own.
+    let (lo, hi) = reserve_adjacent_pair();
+    let a = Fixture::start_holding("collide-a", lo);
+    let b = Fixture::start_holding("collide-b", hi);
+
+    // **The control, hoisted above the assertion that needs it (2026-08-27).** `b` really is on
+    // `a + 1`, so the derivation this test is named for would have collided here. It read *below*
+    // the four-way check, and that order is the wrong way round: **four unrelated ports are
+    // trivially distinct**, so a `reserve_adjacent_pair` that stopped returning an adjacent pair
+    // would leave the check below green and measuring nothing at all. The premise is asserted
+    // first so a broken fixture fails by name rather than by a later line.
+    assert_eq!(
+        b.port,
+        a.port + 1,
+        "the two daemons are not adjacent, so nothing below this line is a test"
+    );
 
     let ports = [a.port, b.port, a.control_port(), b.control_port()];
     for (i, p) in ports.iter().enumerate() {
@@ -424,9 +633,6 @@ fn two_daemons_never_collide_and_the_derived_port_would_have() {
             assert!(i == j || p != q, "two listeners share port {p}: {ports:?}");
         }
     }
-
-    // The control: `b` really is on `a + 1`, so the derivation would have collided here.
-    assert_eq!(b.port, a.port + 1);
 
     // And both still serve their own clients, which is what the collision broke.
     for fx in [&a, &b] {
