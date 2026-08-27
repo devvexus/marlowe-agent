@@ -45,7 +45,25 @@ pub const BUILTIN_TOOLS: [&str; 10] = [
 const WORKSPACE: &str = "./**";
 
 fn param(name: &str, role: ArgumentRole, ty: ParamType, required: bool) -> RawParamSpec {
-    RawParamSpec { name: name.to_string(), role: Some(role), ty, required }
+    RawParamSpec { name: name.to_string(), role: Some(role), ty, required, description: None }
+}
+
+/// The same, with the parameter's meaning stated. **Use this wherever the name is not
+/// self-evident** — see [`marlowe_tools::ParamSpec::description`] for what a missing one cost.
+fn documented(
+    name: &str,
+    role: ArgumentRole,
+    ty: ParamType,
+    required: bool,
+    description: &str,
+) -> RawParamSpec {
+    RawParamSpec {
+        name: name.to_string(),
+        role: Some(role),
+        ty,
+        required,
+        description: Some(description.to_string()),
+    }
 }
 
 /// **Four constructors, because there are two independent questions.**
@@ -353,18 +371,50 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // The defaults named here are ADR-057 §1's, restated where the model actually reads
             // them. A model that has to guess whether omitting `exposed_tools` means "none" or
             // "everything I have" will guess the generous one.
-            "Delegate a sub-task to a child run: it starts with a fresh window, works, and returns \
-             one structured result. Blocks until the child finishes; its working never enters this \
-             conversation, only what it returns. What you leave out takes a safe default — no \
-             tools, a share of this run's budget, and the child ends when this run does.",
+            // **`budget_tokens` is stated in the description because that is where the model
+            // reads its constraints.** Watched live 2026-08-26: the model asked for
+            // `budget_tokens: 100`, the harness granted exactly that — ADR-057 makes the field
+            // model-supplied — and the child paused on its first iteration having spent nothing,
+            // because 100 tokens cannot carry one model call. Nothing was broken; the budget
+            // backstop reported the pause honestly. But the model had no way to know the number
+            // was unusable, and a receipt saying `budget: 100 tokens` reaches its context after
+            // the fact rather than before the choice.
+            //
+            // **That guidance was tried alone, and it did not hold. There is now a floor in
+            // `Budget::grant`, and the paragraph above is what the model reads BEFORE choosing.**
+            //
+            // The argument for advice-only was that a refusal threshold would be *"a constant
+            // nobody has measured"*. It was wrong on its own terms: `MIN_CALL_TOKENS` had been
+            // the measured, enforced floor since M2, read by `has_room_for_a_call` at the moment
+            // of SPENDING and by nothing at the moment of GRANTING. So the two halves of the
+            // system disagreed silently, and `grant` handed out budgets the loop was certain to
+            // reject. See `budget::MIN_CHILD_TOKENS`, which derives the figure rather than
+            // choosing it.
+            //
+            // Two of the next three live spawns asked for 100 and 500 (journal seq 4584, 4615).
+            // Both children died before their first word. Advice the model can ignore is not a
+            // control, and the number in it was not even the enforced one.
+            "Delegate a sub-task to a child run and wait for it. The child is a SEPARATE agent with an EMPTY window: it cannot see this conversation, your files, your memory, or anything you have already learned. It knows only what `task` says and only the tools you grant it. Whatever it needs must be IN the task. It works, returns one structured result, and is gone — its reasoning and tool calls never enter this conversation. Use it to parallelise work you could describe to a competent stranger. Do NOT use it to answer a question about this conversation, this codebase, or your own tools: the child knows none of that and will spend its whole budget discovering it cannot.",
             "run",
             1_024,
             Consequential,
             &[],
             &[],
             vec![
-                payload_req("task", Text),
-                payload_opt("output_contract", Text),
+                documented(
+                    "task",
+                    ArgumentRole::Payload,
+                    Text,
+                    true,
+                    "The child's ENTIRE brief. It has no other context, so include the background,                      the question, and any text it must work from. `summarise the run tool` fails;                      `summarise this text: <text>` works.",
+                ),
+                documented(
+                    "output_contract",
+                    ArgumentRole::Payload,
+                    Text,
+                    false,
+                    "Comma-separated field names the child must return, e.g. `findings` or                      `summary,risks`. Defaults to one `findings` field. The child's reply is                      REJECTED if it does not fill every field you name.",
+                ),
                 // The child's capability profile and budget are Targets. Untrusted content
                 // choosing a child's tool set is the trifecta reassembling itself one level
                 // down.
@@ -376,14 +426,32 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                 // every spawn in the workspace was hand-built at `UserAsserted`, where the check
                 // would not have fired either way. `Engine::spawn` now applies
                 // `blocks_composed_targets` itself.
-                target_opt("exposed_tools", Text),
+                documented(
+                    "exposed_tools",
+                    ArgumentRole::Target,
+                    Text,
+                    true,
+                    "REQUIRED: comma-separated tool names the child may use, drawn from the tools                      you hold — you cannot grant what you do not have. Pass an empty string only                      for a child that reasons from `task` alone and needs nothing; a child with no                      tools cannot look anything up.",
+                ),
                 // **`budget_micros_usd` -> `budget_tokens`, ADR-057 §6.** `SpawnRequest::grant_tokens`
                 // and `Budget::grant`'s `explicit` are tokens. Wiring the old name to the field it
                 // names would have handed a micro-dollar count to a token grant: a correct number
                 // about the wrong quantity, which is the family this file is full of warnings about.
                 // `Amount` goes with it — it is documented as money, and a token count is not money.
-                target_opt("budget_tokens", Integer),
-                target_opt("orphan_policy", Text),
+                documented(
+                    "budget_tokens",
+                    ArgumentRole::Target,
+                    Integer,
+                    false,
+                    "Tokens the child may spend, taken from yours. OMIT IT to get a share sized                      for the job, which is almost always right. If you do set it, the MINIMUM is                      3601 and anything smaller is refused: a child spends its whole brief on its                      first call before it emits a word. Think tens of thousands, not hundreds.",
+                ),
+                documented(
+                    "orphan_policy",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "`terminate` (default) ends the child when this run ends; `detach` lets it                      outlive this run. Omit unless you specifically want it to survive you.",
+                ),
             ],
         ),
         registration(

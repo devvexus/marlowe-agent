@@ -73,6 +73,18 @@ pub struct SpawnRequest {
     pub grant_tokens: Option<u64>,
     /// A **narrowing** of the parent's set. There is no widening path.
     pub tools: Vec<ToolId>,
+    /// **Whether the model actually SAID which tools the child gets.**
+    ///
+    /// `tools` alone cannot answer it: an omitted `exposed_tools` and a deliberate empty one both
+    /// arrive as an empty vec, and they mean opposite things -- "I did not think about it" versus
+    /// "this child reasons from its task and needs nothing".
+    ///
+    /// ADR-057 defaulted it to empty. Watched live 2026-08-26 that produced a child with no tools,
+    /// asked to summarise a tool it had no way to look up: 12,332 tokens of reasoning, no result.
+    /// ADR-057's own argument is why the default was wrong -- it justified defaults as *"a fixed
+    /// constant that does not vary with the task"*, and a child's tool set varies with the task by
+    /// definition. Section 5 says **declared at spawn, never inferred**.
+    pub tools_declared: bool,
     /// Sets the quarantined-reader profile, which forces the tool set empty. A spawn asking
     /// for both is a load-time error — see `profile`.
     pub reads_untrusted: bool,
@@ -116,6 +128,8 @@ impl SpawnRequest {
             share: BudgetShare::Standard,
             grant_tokens: parse_grant(args),
             tools: parse_tools(text("exposed_tools")),
+            // Presence, not content: an empty string is a declaration, an absent key is not.
+            tools_declared: args.get("exposed_tools").is_some(),
             // ADR-057 §5. Layer 1 decides what is quarantined; a model does not ask to be.
             reads_untrusted: false,
         }

@@ -419,8 +419,15 @@ impl OllamaDriver {
         }
         for block in view.volatile.iter() {
             let role = match block.source {
-                SourceKind::ToolResults => "tool",
-                SourceKind::History | SourceKind::ChildResults => {
+                // A child's return, on the wire, IS a tool result: the assistant turn
+                // `Engine::spawn` pushes announces it by id, and `unorphan_tool_messages` demotes
+                // it to `user` if that turn is ever missing. What it must never be is
+                // `assistant` -- that is the parent answering itself. See `Engine::spawn`.
+                SourceKind::ToolResults | SourceKind::ChildResults => "tool",
+                // The brief is what the PARENT said to this run. It is the child's user
+                // turn, whatever trust class it carries -- see `SourceKind::Brief`.
+                SourceKind::Brief => "user",
+                SourceKind::History => {
                     match block.trust {
                         // The one the bug turned on.
                         marlowe_contract::TrustClass::AgentInferred => "assistant",
@@ -1413,6 +1420,15 @@ fn json_type(ty: marlowe_tools::ParamType) -> &'static str {
 /// model reading it learns nothing about what to put there.
 fn param_description(p: &marlowe_tools::ParamSpec) -> String {
     use marlowe_tools::{ArgumentRole, ParamType};
+
+    // **The tool's own words win.** Everything below is generated from `ty` and `required`, which
+    // told a model that `run`'s `task` takes "text" -- true, useless, and the reason a spawn
+    // delegated a question its child had no way to answer. A generated sentence is the fallback
+    // for a parameter whose name already says what it is, never a substitute for one that does not.
+    if let Some(d) = &p.description {
+        let arity = if p.required { "REQUIRED" } else { "Optional" };
+        return format!("{arity}. {d}");
+    }
     let what = match p.ty {
         ParamType::Path => "an existing path, relative to the workspace root",
         ParamType::WritePath => "a path relative to the workspace root; it may not exist yet",

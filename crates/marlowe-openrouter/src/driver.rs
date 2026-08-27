@@ -265,8 +265,13 @@ impl OpenRouterDriver {
 
         for block in view.volatile.iter() {
             let role = match block.source {
-                SourceKind::ToolResults => "tool",
-                SourceKind::History | SourceKind::ChildResults => match block.trust {
+                // See `Engine::spawn`: a child's return is announced by an assistant
+                // turn and paired by id, so it goes out as a tool result, never as the parent's
+                // own words.
+                SourceKind::ToolResults | SourceKind::ChildResults => "tool",
+                // See `SourceKind::Brief`: the parent speaking, not the child.
+                SourceKind::Brief => "user",
+                SourceKind::History => match block.trust {
                     marlowe_contract::TrustClass::AgentInferred => "assistant",
                     _ => "user",
                 },

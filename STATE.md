@@ -1,5 +1,238 @@
 ﻿# State
 
+## 2026-08-26 — THE CHILD WAS NEVER ASKED ANYTHING. TWO DEFECTS, AND ONE WRONG DIAGNOSIS RETRACTED
+
+A second live spawn, same session. Both of the failures logged in OPEN 2 below have causes, and
+**neither is the cause that was written down.**
+
+### 0. AND THE PARENT'S WINDOW HAD THE SAME DEFECT, WHICH FIXING THE CHILD DID NOT REACH
+
+Fixing §1 was verified live on the child and the child alone. The next run got further and failed
+in the same way one level up: the child ran, completed, and returned a summary — and then **the
+parent** produced nothing four times and failed with *"the model produced no reply and no tool call
+3 times in a row"*. Journal seq 4630–4643.
+
+The parent's window was:
+
+```text
+system     Marlowe.
+user       Use an agent to summarize the run tool
+user       [spawned] tools: none · budget: 75000 · orphan: terminate
+assistant  findings: ...          <- the CHILD's answer, as the parent's own words
+```
+
+`ChildResults` + `AgentInferred` is `role: "assistant"` on both wires, and **`ModelStep::Spawn`
+pushed no assistant turn at all** — so nothing in the parent's window recorded that it had called
+`run`, and the conversation ended on a message the parent had supposedly written.
+
+`/api/chat` has the shape and the loop was not using it. A spawn now pushes an assistant turn
+carrying the call (`id`, `name: "run"`, the normalised arguments), and the child's return goes back
+as a `tool` message paired to that id. `unorphan_tool_messages` is the safety net: an unannounced
+result is demoted to `user` rather than sent as an orphan, so even a trimmed turn leaves the
+conversation answerable.
+
+**The lesson is not the role mapping, it is the verification.** The first fix was confirmed against
+one window, and a spawn has two. `spawned_child_wire.rs` now asserts both from a single spawn, and
+the parent half is controlled twice: reverting the role mapping fails it with the exact live shape,
+and deleting the announcing turn fails it by name.
+
+**And the first version of the pairing assertion was worthless**, which is worth keeping. It was
+written as `if returned.0 == "tool" { ... }` — and deleting the announcing turn makes `unorphan`
+demote the result to `user`, which satisfies the other assertions *and skips the guarded block*. A
+conditional assertion is the vacuity family with an `if` in it. It is unconditional now: the
+parent's window must record that it called `run`, whatever role the result ends up with.
+
+### Verified live, not argued
+
+Three runs against `qwen3.5:9b` through the shipped binary, `--dev` reading the roles off the
+outbound body rather than a test's reconstruction:
+
+* **A delegated summary.** Child window `system` + `user`; parent window after the return
+  `system, user, user, assistant(tool_calls=1), tool(run)`. The parent answered with the child's
+  actual result. 63.8 s.
+* **`"Use an agent to summarize the run tool"`** — the prompt that failed. Completes in 14.4 s, and
+  the model correctly does *not* delegate, which is what the tool description asks of it.
+* **`budget_tokens: 100`** — the transcript shows `spawn refused refused [failed]` and the model
+  reports *"child runs require at least 3601 minimum"* and offers the two remedies. Previously this
+  drew a blank gap and the model invented a cause.
+
+**`--dev` already prints every message with its role and its `tool_calls` count, and it would have
+found both defects in one command.** It was not used. It is the instrument for anything about what
+the model received — the standing rule about a template not being what the model got, applied to
+conversation shape.
+
+### 1. A SPAWNED CHILD'S BRIEF WENT OUT AS `role: "assistant"`
+
+`Engine::spawn` pushed the task as `SourceKind::History` at `TrustClass::AgentInferred`. Both
+drivers derive the wire role from exactly that pair — `History | ChildResults` + `AgentInferred`
+is `assistant`, which is correct and deliberate for the parent's own prior replies. So every child
+ever spawned received:
+
+```text
+system:    <identity, governance>
+assistant: <the task>
+```
+
+**No user turn in it at all.** The model was handed its own message with nothing to answer,
+returned nothing three times running, and the loop failed the run. Journal seq 4597–4601: four
+model calls, ~12,332 tokens, no output.
+
+**THE PREVIOUS ENTRY'S DIAGNOSIS OF THIS IS WITHDRAWN.** It read *"it produced only reasoning and
+never closed into an answer … whether a spawned child should run with thinking disabled is a real
+question"*. The child was not thinking out loud. It had nothing to reply to. Disabling thinking for
+children would have changed nothing, cost a session, and left the real defect in place — which is
+the value of saying what a retracted diagnosis was rather than deleting it.
+
+Fixed with a new **`SourceKind::Brief`**, non-trimmable, volatile. **Not** by changing the trust
+class: `AgentInferred` is right, because the parent's model composed that text, and pushing it as
+`UserAsserted` to make the role come out right is a laundering step two lines from where
+`Provenance::new()` is reset to prevent exactly that. Trust class answers *how much may this
+authorize*; it does not name a speaker. The speaker is the block's **origin**, which is what
+`SourceKind` is for.
+
+**Every test in the workspace passed while this was true.** `parse_step` parsed, the budget held,
+the contract validated, `spawn` created and settled the child, and
+`a_model_reply_naming_run_spawns_a_child_that_works_and_returns` was green — because `ScriptDriver`
+answers whatever it is shown. The defect was in neither half; it was in the seam, and nothing that
+tests halves can see a seam. **Third instance**, after `done` routed to a tool host with no
+executor and a persona that loaded but never reached a request body.
+
+The regression is `marlowe-provider/tests/spawned_child_wire.rs`: a real `Engine::spawn`, the
+`ContextView` the child was actually called with, through the real `request_body`, roles read off
+the bytes. Controlled — reverting `spawn` to `SourceKind::History` fails it with the exact live
+shape. **`ollama.rs`'s explicit `SourceKind::Brief => "user"` arm is decorative** and the control
+proved it: `_ => "user"` already catches it, and deleting the arm fails nothing. Recorded rather
+than removed, because the comment on it is worth having; what is load-bearing is that `spawn` keeps
+the brief out of the `History | ChildResults` arm.
+
+### 2. `Budget::grant` NOW HAS A FLOOR, AND OPEN 2's ARGUMENT AGAINST ONE WAS WRONG
+
+The model asked for `budget_tokens: 500` (seq 4615) and `100` (seq 4584). Both children paused on
+iteration one having spent **0**, and the transcript read `spawn … failed · 0 tokens · no result`.
+
+OPEN 2 declined to add a floor because *"that threshold is a number nobody has measured and this
+project does not ship those"*. **`MIN_CALL_TOKENS = 512` was already the measured, enforced floor**
+— `has_room_for_a_call` refuses to issue a call below it, and that is precisely what fired. It was
+read by the **consumer** and by nothing at the point of **granting**, so the two halves disagreed
+in silence and `grant` handed out budgets the loop was certain to reject. Instance #16 — a control
+that exists, is correct, and is not read where it could have acted.
+
+`MIN_CHILD_TOKENS` is **derived**: `MEASURED_CHILD_FIRST_CALL_TOKENS` (3,089 — the smallest first
+call in the journal, prompt and completion together, because `Usage::as_budget` counts both) plus
+`MIN_CALL_TOKENS`. An explicit grant below it is refused **with both numbers**; a share-derived one
+is silently raised, because the parent did not choose that number and refusing would report its
+request as the fault. A parent with less than the floor left is told to do the work itself.
+
+Mitigating this in the tool description alone was tried for exactly one session and the model
+ignored it — and the number in the advice was not even the enforced one.
+
+### 3. THE FAILURE REASON NOW CROSSES INTO THE PARENT
+
+The parent's window said only *"[child failed; the reason is in the journal and was not carried
+across]"*. The journal is not model-reachable (invariant 8), so to the model that sentence is
+indistinguishable from no information, and the model did what models do with none: it announced
+that the child had failed *"because I did not have access to its documentation in my profile"* —
+untrue — and abandoned the task. **A withheld reason did not prevent a false statement reaching the
+user; it caused one.**
+
+All three `fail` sites are harness or provider strings, never child-composed prose, so the original
+guard did not apply to them. The reason crosses through `sanitize_line` and a 400-char cap, the
+same treatment as the spawn receipt's `returns` field and for the same forgery reason. A pause now
+names the dimension and both numbers instead of `Debug`-printing an enum.
+
+### 4. A REFUSED SPAWN DREW NOTHING ON SCREEN
+
+`tool_error` pushes a block into the session and emits no `TurnEvent`. For a tool-host call that is
+fine — `prepare` already emitted a line for `finish` to fail. **A spawn has no `prepare`**, so all
+six refusals in `Engine::spawn` were invisible: the user saw a gap, and the model's next sentence
+filled it. They now go through `spawn_refused`, which emits a `Failed` line — §B6's one state that
+always expands — as well as telling the model. Fifth instance of `Engine::spawn` sitting outside a
+path that reports.
+
+### 5. THE CHILD IS NOW TOLD HOW LONG ITS ANSWER MAY BE
+
+The brief carried `Return: <description>` and not the cap `validate` enforces. Live, a parent asked
+for a *"comprehensive summary … aim to fill the 20k token budget"* under a 2,000-character field
+cap. Read from the contract rather than restated, so it cannot drift from what is checked.
+
+### What this cost the tests, which is the part worth reading before the next session
+
+`exposed_tools` became required last session and **the workspace suite was never run after it** —
+12 tests in `spawn_from_a_model_reply.rs` had been failing since. Per-crate runs and a killed
+workspace run both read as green. This is the `--no-fail-fast` rule in CLAUDE.md, third occurrence.
+
+Two tests starved a child with `budget_tokens: 600` and a 100-token step. The floor turned that
+into a refusal, so both were then measuring a *completed* child under a name about orphans — the
+same trim-dependent shape as `adr023_live.rs`. Both now size the step from `MIN_CHILD_TOKENS` so
+the child still pauses after exactly one call.
+
+### Still open from the entry below
+
+**OPEN 1 stands unchanged** — `Event::Tool` carries no detail field, 34 sites, so §B6's *"Enter or
+Tab for full output in place"* still has never been true for any tool. A child's returned result is
+the most visible case and it is still capped at the metrics line.
+
+`RunCompleted` is journaled as `{}`, so a child's result is not recorded anywhere durable.
+
+## 2026-08-26 — THREE THINGS A LIVE SPAWN FOUND, TWO STILL OPEN
+
+Watched a real spawn in the TUI. The mechanism works; what it exposed is worth more than the
+feature.
+
+**FIXED — a spawn was invisible.** No tool line, and the child streamed its prose onto the parent's
+screen. Both because `Engine::spawn` sits outside the paths that report; `QuarantinedSink` already
+existed and this path never used it. Committed. **Fourth instance** of that blind spot — B1 closed
+the run listing and the roster panel for the same reason.
+
+**FIXED — `use` and `ask` rendered as a generic `tool`.** `project.rs` matches a closed §B6
+vocabulary; a *builtin* missing from it is a gap in the set, not the protection working.
+
+### OPEN 1 — tool detail never crosses the wire, and §B6 has never been true
+
+`Event::Tool` carries one `summary: String` and no detail. The daemon sends `s.render()`, which is
+**metrics only** — `ResultSummary::detail` is discarded. The CLI prints that inline and is correct.
+The TUI reads `s.detail` for its expansion and receives the metrics string.
+
+**So §B6's *"Enter or Tab for full output in place"* has never held for any tool.** Expanding a
+`read` shows `48 lines`, not the file. `bash` output, skill bodies and a child's returned result all
+stop at the same boundary. Spawn is only where it became visible, because a child's result is the
+*whole* point of the call.
+
+**34 sites**, including `RunFrame::Tool`, which feeds the agent window. B1's report warns that
+`cargo build` will not catch a missed `#[cfg(test)]` destructure there — `cargo test --workspace
+--no-run` is the check. Its own session.
+
+### OPEN 2 — a budget grant has no floor, and a reasoning-only child burns its budget
+
+Two live failures, both honest, neither a defect:
+
+* `budget_tokens: 100` — granted exactly as asked, child paused on iteration one having spent **0**.
+  Instance #17 one step removed: not `0 >= 0`, but *below the minimum viable*, looking correctly
+  configured. **Mitigated in the tool description**, which is where the model reads its
+  constraints — not with a floor in `Budget::grant`, because that threshold is a number nobody has
+  measured and this project does not ship those.
+* `budget_tokens: 20000` — child spent **12,332** and failed with *"the model produced no reply and
+  no tool call 3 times in a row"*. It produced only reasoning and never closed into an answer. Same
+  `<think>` handling that fragments a parent's sentence, seen from the other end.
+
+**The second is the one to look at.** A child is a worker; it has no reason to think out loud, and
+on this model doing so cost 12k tokens and returned nothing. Whether a spawned child should run with
+thinking disabled is a real question and is not answered here.
+
+> **BOTH BULLETS ABOVE ARE SUPERSEDED — see the entry at the top of this file (2026-08-26).** The
+> first is fixed by a floor in `Budget::grant`, and the argument given here against one was wrong:
+> `MIN_CALL_TOKENS` was already the measured, enforced threshold. **The second diagnosis is
+> withdrawn.** The child was not failing to close into an answer; its brief reached the wire as
+> `role: "assistant"`, so it had nothing to answer at all. Disabling thinking for children would
+> have fixed nothing.
+
+### And the receipt is context-only
+
+ADR-057's receipt — `[spawned] tools: none · budget: 100 tokens · orphan: terminate` — is pushed
+into the parent's window, so **only the model reads it**. Both live failures would have been obvious
+had it been on screen. Same shape as OPEN 1: the thing that explains the outcome is the thing the
+user cannot see.
+
 ## 2026-08-26 — M3 SESSION B1: `run` SPAWNS. ADR-057
 
 **`cargo test --workspace --jobs 4 --no-fail-fast`: 1396 passed, 0 failed, 4 ignored over 118 `test result` lines**, tallied from

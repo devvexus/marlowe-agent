@@ -77,11 +77,25 @@ pub struct Description {
     text: String,
 }
 
-/// §7.1's progressive-disclosure budget: *"~30–100 tokens of name + description per skill"*.
-/// A description longer than this is truncated at registration, not at render time — a budget
-/// enforced only where the text is displayed is a budget an unbounded string walks past on
-/// every other path.
-pub const MAX_DESCRIPTION_CHARS: usize = 400;
+/// The bound on any tool description, first- or third-party.
+///
+/// **Raised from 400 to 1200 on 2026-08-26, because 400 was the wrong number inherited from the
+/// wrong requirement.** §7.1's *"~30–100 tokens of name + description per skill"* is a
+/// **progressive-disclosure** budget: a skill's description is EMBEDDED for semantic discovery, and
+/// §7.1's own words are that *"embedding full instruction prose pollutes the vector space"*. That
+/// is a real constraint on skills and it says nothing about a builtin.
+///
+/// A builtin's description is not embedded. It is sent verbatim in the tool schema on every
+/// request, where the only cost is tokens — and an imprecise description costs far more than a
+/// long one. Measured 2026-08-26: `run`'s 400 characters could not state that a child starts with
+/// nothing but its task, so a spawn delegated an unanswerable question, burned 12,332 tokens
+/// reasoning, and returned no result. The tokens saved by brevity were spent forty times over by
+/// one confused call.
+///
+/// **It remains bounded, and that bound is still load-bearing**, because `Description::new` also
+/// wraps third-party MCP descriptions: an unbounded string from a server is a server deciding how
+/// much of the context window it gets. 1200 is room for a precise tool and still a ceiling.
+pub const MAX_DESCRIPTION_CHARS: usize = 1_200;
 
 impl Description {
     /// Build a description: sanitised for display, trimmed, and bounded at

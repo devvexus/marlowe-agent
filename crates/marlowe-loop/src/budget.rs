@@ -44,6 +44,41 @@ pub struct Budget {
 /// what a useful step costs, not of how large the run's allowance happens to be.
 pub const MIN_CALL_TOKENS: u64 = 512;
 
+/// The smallest FIRST model call this project has measured for a spawned child, prompt and
+/// completion counted together — which is what `Usage::as_budget` adds to `spent`.
+///
+/// Journal seq 4597, 2026-08-26, on this machine: a toolless child with a two-line task, on the
+/// stable tier this build assembles. **It is a measurement of one system and it is not
+/// inherited** — a different persona, a different governance set or a different model moves it,
+/// and the way to move this constant is to re-read the journal, not to argue about it.
+pub const MEASURED_CHILD_FIRST_CALL_TOKENS: u64 = 3_089;
+
+/// The smallest grant that buys a child a single reply — and the floor `Budget::grant` enforces.
+///
+/// # This was advice for one session, the model ignored it, and children died silently
+///
+/// ADR-057 made `budget_tokens` model-supplied. The tool description told the model that *"a few
+/// hundred buys no model call at all"* and an earlier session declined to enforce it, on the
+/// grounds that a refusal threshold would be *"a constant nobody has measured"*. Watched live
+/// 2026-08-26: two of the next three spawns asked for **100** and **500** tokens (journal seq
+/// 4584 and 4615). Both children paused on their first iteration having spent **nothing**, and
+/// the parent's transcript read `spawn … failed · 0 tokens · no result`. The model, given no
+/// reason it could act on, invented one — *"I did not have access to its documentation"* — and
+/// abandoned the task.
+///
+/// # It is derived, not invented, which is what the earlier objection was actually about
+///
+/// `MIN_CALL_TOKENS` was **already the enforced floor** — `has_room_for_a_call` refuses to issue
+/// a call below it, and that is precisely what fired. So the number was never missing; it was
+/// read by the CONSUMER and not by the GRANTER, which is instance #16 in `CLAUDE.md` — a control
+/// that exists, is correct, and is not read at the site that could have acted on it. A grant
+/// below this hands out a budget the loop is *guaranteed* to reject, and the two halves of the
+/// system disagreed in silence.
+///
+/// One measured first call, plus enough left over to issue a second: at exactly this figure a
+/// child gets its reply and one more step, and below it a child cannot finish a sentence.
+pub const MIN_CHILD_TOKENS: u64 = MEASURED_CHILD_FIRST_CALL_TOKENS + MIN_CALL_TOKENS;
+
 /// Which dimension ran out. `&'static str` so it can travel into a journal payload and a
 /// `BlockReason` without allocating, and so the set of names is closed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -152,13 +187,33 @@ impl Budget {
         if left.tokens == 0 {
             return Err(GrantRefused::PoolEmpty { dimension: "tokens" });
         }
+        // ── THE FLOOR, ENFORCED WHERE THE BUDGET IS HANDED OUT ──────────────────────────
+        //
+        // `has_room_for_a_call` already refused to issue a call below `MIN_CALL_TOKENS`. Reading
+        // that floor only at the point of spending meant `grant` could hand out a budget the loop
+        // was certain to reject, and it did — twice in three spawns. See `MIN_CHILD_TOKENS`.
         if let Some(want) = explicit {
             if want > left.tokens {
                 return Err(GrantRefused::MoreThanRemains { want, left: left.tokens });
             }
         }
+        if left.tokens < MIN_CHILD_TOKENS {
+            return Err(GrantRefused::PoolTooSmall { left: left.tokens, min: MIN_CHILD_TOKENS });
+        }
+        if let Some(want) = explicit {
+            if want < MIN_CHILD_TOKENS {
+                return Err(GrantRefused::BelowFloor { want, min: MIN_CHILD_TOKENS });
+            }
+        }
         let of_original = |original: u64| share.apply_u64(original);
-        let tokens = explicit.unwrap_or_else(|| of_original(self.tokens)).min(left.tokens);
+        // The share path is floored too, and floored SILENTLY rather than refused: the parent did
+        // not choose this number, the harness did, so refusing would report the parent's request
+        // as the fault. `left.tokens >= MIN_CHILD_TOKENS` is guaranteed above, so raising to the
+        // floor can never exceed what remains.
+        let tokens = explicit
+            .unwrap_or_else(|| of_original(self.tokens))
+            .min(left.tokens)
+            .max(MIN_CHILD_TOKENS);
         Ok(Budget {
             // **Every dimension floors at 1 while the parent still has any.** Audit findings C4
             // and C5 — the seventeenth instance, twice, in the function that hands budgets out.
@@ -280,6 +335,19 @@ pub enum GrantRefused {
         "a grant of {want} tokens was asked for and {left} remain. A grant is deducted from the          parent's pool, so it cannot exceed it"
     )]
     MoreThanRemains { want: u64, left: u64 },
+    /// The grant is too small for the child to make one model call.
+    ///
+    /// Named with both numbers because a model told only "refused" retries the same request, and
+    /// this refusal is one the model can fix by editing a single field.
+    #[error(
+        "a grant of {want} tokens was asked for and a child needs at least {min}: its first model          call spends its whole brief before it emits a word, so a child granted less pauses          before it speaks and returns nothing. Ask for {min} or more, or omit `budget_tokens`          and take the share sized for the job"
+    )]
+    BelowFloor { want: u64, min: u64 },
+    /// Something remains, but not enough for any child to do anything with.
+    #[error(
+        "{left} tokens remain and a child needs at least {min} to make one model call, so nothing          can usefully be delegated from here. Do the work in this run"
+    )]
+    PoolTooSmall { left: u64, min: u64 },
 }
 
 /// How much of the run's **original** budget a child is granted. §10.2's effort scaling,
@@ -490,5 +558,61 @@ mod tests {
         let b = Budget { tokens: 1_000, ..Budget::interactive() };
         assert!(b.has_room_for_a_call(&spent(0)));
         assert!(!b.has_room_for_a_call(&spent(600)));
+    }
+
+    /// The regression for the live failure of 2026-08-26, asserted where the number is DECIDED.
+    ///
+    /// The child that died was granted 500 tokens and the loop needs 512 to issue a call, so the
+    /// two constants have to be compared somewhere. This compares them: any grant `Budget::grant`
+    /// returns must be one `has_room_for_a_call` accepts. **Delete the floor and this fails on
+    /// the exact figure the model asked for.**
+    #[test]
+    fn a_granted_child_can_always_make_at_least_one_call() {
+        let parent = Budget::interactive();
+        let none = Budget::default();
+
+        // What the model actually asked for, twice, in one evening.
+        for want in [1_u64, 100, 500, MIN_CHILD_TOKENS - 1] {
+            match parent.grant(&none, BudgetShare::Standard, Some(want)) {
+                Err(GrantRefused::BelowFloor { want: w, min }) => {
+                    assert_eq!(w, want);
+                    assert_eq!(min, MIN_CHILD_TOKENS);
+                }
+                other => panic!("a grant of {want} tokens was not refused: {other:?}"),
+            }
+        }
+
+        // And every grant that IS handed out clears the floor the loop enforces, whichever path
+        // produced it -- explicit, or a share small enough to round under it.
+        for share in [BudgetShare::Small, BudgetShare::Standard, BudgetShare::Large] {
+            for tokens in [MIN_CHILD_TOKENS, 10_000, 200_000] {
+                let parent = Budget { tokens, ..Budget::interactive() };
+                let child = parent
+                    .grant(&none, share, None)
+                    .unwrap_or_else(|e| panic!("{share:?} of {tokens}: {e}"));
+                assert!(
+                    child.has_room_for_a_call(&none),
+                    "{share:?} of {tokens} granted {} tokens, below the {MIN_CALL_TOKENS} the loop needs",
+                    child.tokens,
+                );
+                assert!(child.tokens <= parent.remaining(&none).tokens, "granted more than remains");
+            }
+        }
+    }
+
+    /// The other half: a parent too poor to delegate is told so, rather than producing a child
+    /// that pauses before it speaks. The refusal names both numbers because the model has to
+    /// decide what to do instead.
+    #[test]
+    fn a_parent_below_the_floor_refuses_to_delegate_rather_than_starving_a_child() {
+        let parent = Budget::interactive();
+        let nearly_spent = Budget { tokens: parent.tokens - 1_000, ..Budget::default() };
+        match parent.grant(&nearly_spent, BudgetShare::Standard, None) {
+            Err(GrantRefused::PoolTooSmall { left, min }) => {
+                assert_eq!(left, 1_000);
+                assert_eq!(min, MIN_CHILD_TOKENS);
+            }
+            other => panic!("expected PoolTooSmall, got {other:?}"),
+        }
     }
 }

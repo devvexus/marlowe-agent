@@ -124,6 +124,16 @@ pub struct ParamSpec {
     pub name: String,
     pub role: ArgumentRole,
     pub ty: ParamType,
+    /// **What this parameter means, in the tool's own words.**
+    ///
+    /// `None` falls back to a sentence generated from `ty` and `required` — which says a `Text`
+    /// parameter takes "text", and that is all a model learned about `run`'s `task` until
+    /// 2026-08-26. A spawn then delegated a question the child had no way to answer, spent 12,332
+    /// tokens reasoning, and returned nothing.
+    ///
+    /// Set it wherever the name is not self-evident. A parameter whose meaning the model has to
+    /// infer is a parameter the model will infer wrongly.
+    pub description: Option<String>,
     /// **Whether the executor demands it. A separate question from [`ArgumentRole`].**
     ///
     /// `role` answers *what untrusted content may never shape*. `required` answers *what the tool
@@ -146,11 +156,11 @@ pub struct ParamSpec {
 
 impl ParamSpec {
     pub fn target(name: &str, ty: ParamType) -> Self {
-        Self { name: name.to_string(), role: ArgumentRole::Target, ty, required: true }
+        Self { name: name.to_string(), role: ArgumentRole::Target, ty, required: true, description: None }
     }
 
     pub fn payload(name: &str, ty: ParamType) -> Self {
-        Self { name: name.to_string(), role: ArgumentRole::Payload, ty, required: false }
+        Self { name: name.to_string(), role: ArgumentRole::Payload, ty, required: false, description: None }
     }
 }
 
@@ -291,6 +301,10 @@ pub struct RawManifest {
 #[serde(deny_unknown_fields)]
 pub struct RawParamSpec {
     pub name: String,
+    /// See [`ParamSpec::description`]. `#[serde(default)]` so a manifest arriving as bytes -- an
+    /// MCP descriptor -- simply has none, rather than failing to deserialize.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// **`None` is an error, never a default.** §7.3: *"no silent Payload default"*. A
     /// parameter whose role nobody stated is a parameter whose provenance nobody checks.
     #[serde(default)]
@@ -366,7 +380,7 @@ pub fn load(
         let Some(role) = p.role else {
             return Err(LoadError::UnroledParameter { tool, param: p.name });
         };
-        params.push(ParamSpec { name: p.name, role, ty: p.ty , required: p.required });
+        params.push(ParamSpec { name: p.name, role, ty: p.ty, required: p.required, description: p.description });
     }
     // `tool` survives the loop because every branch above returns; the moves are terminal.
 
@@ -433,7 +447,7 @@ mod tests {
     #[test]
     fn a_parameter_without_a_role_is_a_load_error() {
         let mut r = raw("t");
-        r.params = vec![RawParamSpec { name: "path".into(), role: None, ty: ParamType::Path, required: true }];
+        r.params = vec![RawParamSpec { name: "path".into(), role: None, ty: ParamType::Path, required: true, description: None }];
         assert_eq!(
             load(r, ManifestProvenance::FirstParty),
             Err(LoadError::UnroledParameter {

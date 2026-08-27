@@ -382,6 +382,12 @@ impl McpClient {
                     role: Some(ArgumentRole::Target),
                     ty: *ty,
                     required: t.required.contains(name),
+                    // **None, deliberately.** An MCP `inputSchema` may carry a per-property
+                    // `description`, and passing it through would be an improvement -- but it is
+                    // third-party text reaching the model's tool schema, which is ADR-052's
+                    // subject and not a field to wire in passing. Until then a server's parameter
+                    // gets the generated sentence, same as before.
+                    description: None,
                 })
                 .collect();
 

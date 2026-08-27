@@ -143,6 +143,13 @@ use crate::turn::{ToolLineState, TurnEvent};
 /// meaningless id, and it keeps the wire shape uniform.
 pub const CONTROL_CALL_ID: &str = "control";
 
+/// How much of a failed child's reason crosses into the parent's window.
+///
+/// Long enough for an HTTP status and a refused model slug, short enough that a reason cannot
+/// become a substantial share of the parent's context. See the note at the `Failed` branch of
+/// `spawn` for why it crosses at all.
+const CHILD_FAILURE_MAX_CHARS: usize = 400;
+
 /// Said when a human was asked and declined **with** a reason. The reason goes between this and
 /// [`DECLINED_ADVICE`], verbatim — §B9's answer belongs to the user, not to a paraphrase.
 const DECLINED_WITH_REASON: &str =
@@ -2245,12 +2252,39 @@ impl<S: PathScope> Engine<S> {
         // answer, and refused **by name**: a child sent an empty brief has a fresh window with
         // nothing in it and will burn its whole grant asking what it was for.
         if req.task.trim().is_empty() {
-            self.tool_error(
+            self.spawn_refused(
                 state,
-                &ToolId::new("run"),
+                ports,
                 "a spawn needs a `task` — a child starts with a fresh window and knows nothing \
                  that is not in it",
-                CONTROL_CALL_ID,
+            );
+            return;
+        }
+
+        // ── `exposed_tools` is DECLARED, never defaulted (ADR-057 amendment) ────────────
+        //
+        // **ADR-057 defaulted this to empty and the default was wrong on its own terms.** It
+        // justified defaults as *"a fixed constant that does not vary with the task"* — and a
+        // child's tool set varies with the task by definition. §5 says declared at spawn, never
+        // inferred; a default was the exception to it.
+        //
+        // Watched live 2026-08-26: a child with no tools was asked to summarise a tool it had no
+        // way to look up. It reasoned for **12,332 tokens** and returned nothing, and the parent's
+        // only clue was a receipt in its own context that the user could not see.
+        //
+        // **The empty set stays expressible** — `exposed_tools: ""` is a declaration that this
+        // child reasons from its task alone. What is refused is *not saying*. The one legitimate
+        // toolless child is layer 1's quarantined reader, where `reads_untrusted &&
+        // !exposed_tools.is_empty()` is a load-time error — and that child is built by
+        // `condense_batch`, never by a model calling `run`.
+        if !req.tools_declared {
+            self.spawn_refused(
+                state,
+                ports,
+                "a spawn needs `exposed_tools` — say which of your tools the child may use, or \
+                 pass an empty string to declare that it reasons from `task` alone. A child that \
+                 was given none by accident cannot look anything up and will spend its whole \
+                 budget discovering that",
             );
             return;
         }
@@ -2278,13 +2312,12 @@ impl<S: PathScope> Engine<S> {
         // The threshold is `blocks_composed_targets` — the same function the adjudicator enforces
         // on and the §B5 banner reads. M2 C2f: one definition, or the banner and the guard drift.
         if blocks_composed_targets(run.trust_floor()) && composes_spawn_targets(&req) {
-            self.tool_error(
+            self.spawn_refused(
                 state,
-                &ToolId::new("run"),
+                ports,
                 "this run has read untrusted content, so a child's tools, budget and orphan \
                  policy can no longer be composed here — spawn with none of them and the child \
                  gets the safe defaults, or do the work in this run",
-                CONTROL_CALL_ID,
             );
             return;
         }
@@ -2299,22 +2332,21 @@ impl<S: PathScope> Engine<S> {
         let child_budget = match run.budget.grant(&run.spent, req.share, req.grant_tokens) {
             Ok(b) => b,
             Err(e) => {
-                self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
+                self.spawn_refused(state, ports, &e.to_string());
                 return;
             }
         };
         if run.spent.subagents >= run.budget.subagents {
-            self.tool_error(state, &ToolId::new("run"), "subagent budget exhausted", CONTROL_CALL_ID);
+            self.spawn_refused(state, ports, "subagent budget exhausted");
             return;
         }
 
         // A narrowing, never a widening.
         for t in &req.tools {
             if !run.profile.exposed_tools().contains(t) {
-                self.tool_error_ref(
-                    CONTROL_CALL_ID,
+                self.spawn_refused(
                     state,
-                    &ToolId::new("run"),
+                    ports,
                     &format!("`{t}` is not available to this run and cannot be given to a child"),
                 );
                 return;
@@ -2327,7 +2359,7 @@ impl<S: PathScope> Engine<S> {
             match ExposedSet::new(req.tools.clone()) {
                 Ok(s) => s,
                 Err(e) => {
-                    self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
+                    self.spawn_refused(state, ports, &e.to_string());
                     return;
                 }
             },
@@ -2339,7 +2371,7 @@ impl<S: PathScope> Engine<S> {
         ) {
             Ok(p) => p,
             Err(e) => {
-                self.tool_error(state, &ToolId::new("run"), &e.to_string(), CONTROL_CALL_ID);
+                self.spawn_refused(state, ports, &e.to_string());
                 return;
             }
         };
@@ -2419,6 +2451,60 @@ impl<S: PathScope> Engine<S> {
             TrustClass::AgentObserved,
         ));
 
+        // ── THE PARENT MUST HAVE A TURN SAYING IT CALLED `run` ───────────────────────────
+        //
+        // **It had none.** `ModelStep::Spawn` is loop control: it goes straight from the loop's
+        // match to this function, so unlike every tool-host call it pushed no assistant turn and
+        // no `tool_calls`. The parent's window recorded that a child had been granted things and
+        // what it returned, and **nothing recording that the parent had acted at all**.
+        //
+        // That is not only a gap in the record, it is what left the window malformed. The result
+        // block below was `ChildResults` + `AgentInferred`, which both drivers map to
+        // `role: "assistant"` -- so a parent's conversation ended with ITS OWN message, exactly
+        // as a child's did before `SourceKind::Brief`. Watched live 2026-08-26 (journal seq
+        // 4630-4643): the child ran, completed, and returned a summary; the parent then produced
+        // nothing four times and failed with *"the model produced no reply and no tool call 3
+        // times in a row"*. **The same defect one level up, and the fix for the child did not
+        // reach it** -- because the child's brief and the parent's result are two different
+        // blocks and only one of them had been looked at.
+        //
+        // `/api/chat` has the shape for this and the loop was not using it: an assistant turn
+        // carrying `tool_calls`, then a `tool` message carrying `tool_call_id`. That is what
+        // `unorphan_tool_messages` is written to enforce, and an unannounced result is demoted to
+        // `user` rather than sent as an orphan -- so even if this turn is ever trimmed away, the
+        // conversation still ends on a turn the model can answer.
+        //
+        // The id is the spawn line's, so the transcript line, the journal and the wire all name
+        // one call.
+        let spawn_line_id = self.next_call_id;
+        self.next_call_id += 1;
+        let spawn_call_id = format!("spawn-{spawn_line_id}");
+        let brief_for_receipt = {
+            let one_line = marlowe_contract::text::sanitize_line(req.task.trim());
+            match one_line.char_indices().nth(RECEIPT_RETURNS_MAX_CHARS) {
+                Some((cut, _)) => format!("{}…", &one_line[..cut]),
+                None => one_line.into_owned(),
+            }
+        };
+        state.push(Block::assistant_turn(
+            String::new(),
+            None,
+            vec![crate::context::WireToolCall {
+                id: spawn_call_id.clone(),
+                name: "run".to_string(),
+                // **The harness's normalised view, not the model's raw arguments.** The task is
+                // the parent's own prose coming back to the window it came from, so it crosses no
+                // boundary -- but under a latched floor it is a payload that untrusted content may
+                // have shaped, and a newline in it would let that content contribute something
+                // shaped like a harness line. Same treatment as `returns`, for the same reason.
+                arguments: json!({
+                    "task": brief_for_receipt,
+                    "exposed_tools": granted_tools,
+                    "budget_tokens": child_budget.tokens,
+                }),
+            }],
+        ));
+
         // A fresh context window and a self-contained brief. The child does not know its
         // siblings exist, because nothing about them is in here.
         let mut child_state = SessionState::new(child_run.session, state.identity.clone());
@@ -2426,9 +2512,27 @@ impl<S: PathScope> Engine<S> {
         for c in &state.governance {
             child_state.assert_governance(c.clone());
         }
+        // **`Brief`, not `History` -- and the trust class is unchanged on purpose.** Both drivers
+        // read `History` + `AgentInferred` as `role: "assistant"`, so this block arrived as
+        // something the CHILD had already said. See `SourceKind::Brief` for what that produced.
         child_state.push(Block::new(
-            SourceKind::History,
-            format!("{}\n\nReturn: {}", req.task, req.contract.description),
+            SourceKind::Brief,
+            // **The length limit is in the brief, because it is enforced on the reply.**
+            //
+            // A child told "a comprehensive summary" and silently held to 2,000 characters writes
+            // 4,000, fails `validate`, and spends a contract retry discovering a number it was
+            // never given. Observed in the same live run that produced everything else on this
+            // page: a parent asked for a comprehensive summary of `run` under a 2,000-character
+            // field cap and told the child to "aim to fill the 20k token budget".
+            //
+            // Read from the contract rather than restated, so it cannot drift from what
+            // `validate` actually checks -- the same reason `expected_params` reads the registry.
+            format!(
+                "{}\n\nReturn: {} (at most {} characters)",
+                req.task,
+                req.contract.description,
+                req.contract.max_chars,
+            ),
             TrustClass::AgentInferred,
         ));
         // A fresh tracker. The child does not inherit the parent's attributions, so a string
@@ -2451,8 +2555,6 @@ impl<S: PathScope> Engine<S> {
         //
         // The id comes from the same counter every other line uses, so a spawn takes its place in
         // the transcript rather than beside it.
-        let spawn_line_id = self.next_call_id;
-        self.next_call_id += 1;
         ports.sink.emit(TurnEvent::ToolLine {
             id: spawn_line_id,
             verb: "spawn".to_string(),
@@ -2521,7 +2623,23 @@ impl<S: PathScope> Engine<S> {
             },
             // `PauseReason` is a harness enum, so this one was already safe. Stated rather than
             // left to inspection: the next variant added to it must stay harness-authored.
-            LoopOutcome::Paused { reason } => format!("[child paused] {reason:?}"),
+            LoopOutcome::Paused { reason } => match &reason {
+                // The dimension AND the numbers. A model told only "paused" re-spawns the same
+                // request; a model told "it ran out of tokens after 20000" changes the field it
+                // got wrong. `PauseReason` is a harness enum, so none of this is child-authored.
+                PauseReason::BudgetExhausted { dimension } => format!(
+                    "[child stopped] it ran out of {dimension} after spending {} tokens of the \
+                     {} it was granted, and returned nothing. Give the next one more \
+                     `budget_tokens`, or a smaller task",
+                    child_run.spent.tokens, child_budget.tokens,
+                ),
+                PauseReason::AwaitingApproval => "[child stopped] it needed an approval, and a \
+                     child run has nobody to ask"
+                    .to_string(),
+                PauseReason::AwaitingAnswer => "[child stopped] it needed an answer from the \
+                     user, and a child run has nobody to ask. Put what it needed in the task"
+                    .to_string(),
+            },
             LoopOutcome::Escalated { question } => {
                 self.record(
                     ports,
@@ -2543,8 +2661,33 @@ impl<S: PathScope> Engine<S> {
                     state,
                     json!({ "child": child_id.to_string(), "error": error }),
                 );
-                "[child failed; the reason is in the journal and was not carried across]"
-                    .to_string()
+                // ── THE REASON CROSSES, SANITISED. ──────────────────────────────────
+                //
+                // It used to be withheld, and the paragraph above still explains why that was
+                // right for *child-authored* text. **A failure reason is not child-authored.**
+                // All three `fail` sites are harness or provider strings: two are literals in
+                // this file, and the third is a driver's `e.detail` — an HTTP status, a refused
+                // model slug, a connection error.
+                //
+                // Withholding it cost more than it protected. Watched live 2026-08-26: a child
+                // died and the parent's window said only *"the reason is in the journal"*. The
+                // journal is not model-reachable (invariant 8), so that sentence is, to the
+                // model, indistinguishable from no information at all — and the model did what
+                // models do with no information, which is **invent some**. It announced that the
+                // child had failed *"because I did not have access to its documentation"*, which
+                // was not true, and abandoned the task on the strength of it. A withheld reason
+                // did not prevent a false statement reaching the user; it caused one.
+                //
+                // The forgery hazard the original guard names is real and is handled where it
+                // lives: `sanitize_line` collapses the newlines that would let a reason
+                // contribute something shaped like a harness receipt, and the cap bounds it.
+                // Same treatment as the spawn receipt's `returns` field, for the same reason.
+                let one_line = marlowe_contract::text::sanitize_line(error.trim());
+                let clipped = match one_line.char_indices().nth(CHILD_FAILURE_MAX_CHARS) {
+                    Some((cut, _)) => format!("{}…", &one_line[..cut]),
+                    None => one_line.into_owned(),
+                };
+                format!("[child failed] {clipped}")
             }
         };
 
@@ -2573,6 +2716,9 @@ impl<S: PathScope> Engine<S> {
             ],
             note.clone(),
         );
+        // Rendered before the move: this is the §B6 line as it was, kept on the block so a
+        // replay does not have to parse it back out of the prose.
+        let rendered_summary = summary.render();
         ports.sink.emit(TurnEvent::ToolLine {
             id: spawn_line_id,
             verb: "spawn".to_string(),
@@ -2584,7 +2730,24 @@ impl<S: PathScope> Engine<S> {
             },
         });
 
-        state.push(Block::new(SourceKind::ChildResults, note, TrustClass::AgentInferred));
+        // **A `tool` message, paired to the call above.** It was `ChildResults` +
+        // `AgentInferred`, which is `role: "assistant"` on both wires -- so the child's answer
+        // arrived in the parent's window as something the PARENT had already said, and the parent
+        // had nothing left to reply to. See the note at the assistant turn above.
+        //
+        // `SourceKind` stays `ChildResults`: it is the origin, it carries its own context budget,
+        // and a child's return is not a tool result for accounting purposes even though it is one
+        // on the wire. The trust class stays `AgentInferred` -- what crosses is validated or
+        // harness-authored, and that is decided by the `match` above, not here.
+        let mut returned = Block::new(SourceKind::ChildResults, note, TrustClass::AgentInferred);
+        returned.wire = Some(crate::context::WireTurn {
+            tool_name: Some("run".to_string()),
+            tool_call_id: Some(spawn_call_id),
+            tool_summary: Some(rendered_summary),
+            tool_failed: child_failed,
+            ..crate::context::WireTurn::default()
+        });
+        state.push(returned);
     }
 
     /// The tool's declared parameters, rendered for a model that just got one wrong.
@@ -2637,15 +2800,40 @@ impl<S: PathScope> Engine<S> {
         });
     }
 
-    /// `tool_error` with the id first, for call sites whose message is a multi-line `format!`.
-    fn tool_error_ref(
+    /// A spawn that never happened, told to the model **and shown to the user**.
+    ///
+    /// # `tool_error` alone is invisible, and that is what made the last live failure unreadable
+    ///
+    /// `tool_error` pushes a block into the session — the model reads it, nothing renders it. For
+    /// a tool-host call that is fine, because `prepare` has already emitted a `ToolLine` that
+    /// `finish` turns into a failure. **A spawn has no `prepare`**: `ModelStep::Spawn` is loop
+    /// control, so every one of the five refusals in `spawn` produced a screen showing nothing at
+    /// all — the same gap B1 closed for a spawn that *succeeded*, still open for one that did not.
+    ///
+    /// Watched live 2026-08-26: a spawn was refused, the user saw an empty gap, and the model's
+    /// next sentence invented a cause. A refusal the user cannot see is indistinguishable from a
+    /// model that chose not to act.
+    ///
+    /// The line is `Failed`, which §B6 documents as the one state that always expands, so the
+    /// reason is on screen rather than behind a keypress.
+    fn spawn_refused(
         &mut self,
-        call_ref: &str,
         state: &mut SessionState,
-        tool: &ToolId,
+        ports: &mut Ports<'_>,
         why: &str,
     ) {
-        self.tool_error(state, tool, why, call_ref);
+        let id = self.next_call_id;
+        self.next_call_id += 1;
+        ports.sink.emit(TurnEvent::ToolLine {
+            id,
+            verb: "spawn".to_string(),
+            target: "refused".to_string(),
+            state: ToolLineState::Failed(marlowe_tools::ResultSummary::with_detail(
+                vec![marlowe_tools::Metric::State("refused")],
+                why.to_string(),
+            )),
+        });
+        self.tool_error(state, &ToolId::new("run"), why, CONTROL_CALL_ID);
     }
 
     fn tool_error(

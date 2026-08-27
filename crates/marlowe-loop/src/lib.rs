@@ -37,7 +37,7 @@ pub mod run;
 pub mod steer;
 pub mod turn;
 
-pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS};
+pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS, MIN_CHILD_TOKENS};
 pub use context::{
     estimate_tokens, Assembler, Block, ContextView, GovernanceConstraint, PrefixCache,
     SessionState, SourceBudgets, SourceKind, Tier as ContextTier, COMPACTION_TRIGGER, MEMORY_TOKEN_BUDGET, WireTurn, WireToolCall};

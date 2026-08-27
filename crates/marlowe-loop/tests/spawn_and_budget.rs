@@ -64,6 +64,7 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
                 // holds keeps the assertion pointed at the right refusal.
                 tools: vec![ToolId::new("read")],
                 reads_untrusted: true,
+                tools_declared: true,
             }),
             100,
         ),
@@ -142,6 +143,7 @@ fn a_quarantined_child_runs_and_returns_findings() {
                 grant_tokens: None,
                 tools: vec![], // empty: the quarantined shape
                 reads_untrusted: true,
+                tools_declared: true,
             }),
             100,
         ),
@@ -364,6 +366,7 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
                 // The child needs a tool in order to HAVE working to isolate.
                 tools: vec![ToolId::new("read")],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             100,
         ),
@@ -489,6 +492,7 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
                 grant_tokens: None,
                 tools: vec![ToolId::new("remember")],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             100,
         ),
@@ -572,6 +576,7 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
                 grant_tokens: None,
                 tools: vec![ToolId::new("bash")], // the parent does not have it
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             100,
         ),
@@ -626,6 +631,7 @@ fn the_spawn_tree_is_bounded_by_depth() {
                 grant_tokens: None,
                 tools: vec![],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             10,
         )
@@ -681,6 +687,7 @@ fn a_childs_spend_counts_against_its_parent() {
                 grant_tokens: None,
                 tools: vec![],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             1_000,
         ),
@@ -1430,12 +1437,14 @@ fn a_manifest_declaring_an_amount() -> marlowe_tools::CapabilityManifest {
                     role: Some(marlowe_tools::ArgumentRole::Target),
                     ty: marlowe_tools::ParamType::Amount,
                     required: true,
+                    description: None,
                 },
                 marlowe_tools::RawParamSpec {
                     name: "task".into(),
                     role: Some(marlowe_tools::ArgumentRole::Payload),
                     ty: marlowe_tools::ParamType::Text,
                     required: false,
+                    description: None,
                 },
             ],
         },
@@ -1974,6 +1983,7 @@ fn a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it() {
                 grant_tokens: None,
                 tools: vec![],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             100,
         ),
@@ -2064,5 +2074,114 @@ fn a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it() {
     assert!(
         !streamed.contains("PELICAN-4402"),
         "the child streamed its prose onto the parent's surface. Got: {streamed:?}"
+    );
+}
+
+/// **A spawn that does not say which tools the child gets is refused, not defaulted.**
+///
+/// ADR-057 amendment, 2026-08-26. The default was empty, and watched live that produced a child
+/// with no tools asked to summarise a tool it could not look up — 12,332 tokens of reasoning and
+/// no result. `tools` alone cannot tell an omitted `exposed_tools` from a deliberate empty one;
+/// they arrive identically and mean opposite things.
+#[test]
+fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::Spawn(SpawnRequest {
+                task: "do something".into(),
+                contract: OutputContract::new("findings", &["findings"]),
+                orphan: OrphanPolicy::Terminate,
+                share: BudgetShare::Standard,
+                grant_tokens: None,
+                tools: vec![],
+                reads_untrusted: false,
+                // The subject of the test: the model never said.
+                tools_declared: false,
+            }),
+            100,
+        ),
+        say("parent done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let outcome = e.run(&mut run, &mut state, &mut prov, &mut ports);
+    assert!(matches!(outcome, LoopOutcome::Completed(_)), "the parent survives the refusal");
+
+    let blocks = e.assembler().assemble(&state).rendered();
+    assert!(
+        blocks.contains("exposed_tools"),
+        "the refusal must NAME the missing parameter, or the model cannot fix it: {blocks}"
+    );
+    assert_eq!(
+        run.spent.subagents, 0,
+        "a refused spawn must not have started a child, but one was counted"
+    );
+
+    // **The control.** The same request WITH the declaration must spawn — otherwise this test
+    // would pass on a build where `run` refuses everything.
+    let mut e2 = engine();
+    let mut driver2 = ScriptDriver::new(vec![
+        step(
+            ModelStep::Spawn(SpawnRequest {
+                task: "do something".into(),
+                contract: OutputContract::new("findings", &["findings"]),
+                orphan: OrphanPolicy::Terminate,
+                share: BudgetShare::Standard,
+                grant_tokens: None,
+                tools: vec![],
+                reads_untrusted: false,
+                tools_declared: true,
+            }),
+            100,
+        ),
+        say("child done", 100),
+        say("parent done", 100),
+    ]);
+    let mut sink2 = CollectingSink::default();
+    let mut summarizer2 = EmptySummarizer;
+    let mut tools2 = ScriptedTools::default();
+    let mut approvals2 = FixedApprovals(true);
+    let mut control2 = marlowe_loop::NoControl;
+    let mut clock2 = FrozenClock(1_700_000_000_000);
+    let mut recorder2 = MemoryRecorder::default();
+    let mut ports2 = Ports {
+        driver: &mut driver2,
+        summarizer: &mut summarizer2,
+        tools: &mut tools2,
+        memory: None,
+        approvals: &mut approvals2,
+        sink: &mut sink2,
+        control: &mut control2,
+        clock: &mut clock2,
+        recorder: &mut recorder2,
+    };
+    let mut run2 = root(Budget::interactive());
+    let mut state2 = SessionState::new(run2.session, "Marlowe.");
+    let mut prov2 = Provenance::new();
+    let _ = e2.run(&mut run2, &mut state2, &mut prov2, &mut ports2);
+    assert_eq!(
+        run2.spent.subagents, 1,
+        "an empty tool set that was DECLARED must still spawn — the refusal is about silence"
     );
 }

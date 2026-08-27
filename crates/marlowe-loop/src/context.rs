@@ -59,6 +59,35 @@ pub enum SourceKind {
     ToolResults,
     InjectedMemory,
     ChildResults,
+    /// **The brief a parent hands a child, and it exists because `History` sent it as the child's
+    /// own words.**
+    ///
+    /// A spawn pushed the task as `History` at `TrustClass::AgentInferred`, and both drivers
+    /// derive the wire role from exactly that pair — `History | ChildResults` + `AgentInferred`
+    /// is `role: "assistant"`. Correct for the parent's own prior replies, which is what that
+    /// mapping was written for. Catastrophic here: a child's whole conversation became
+    ///
+    /// ```text
+    /// system:    <identity, governance>
+    /// assistant: <the task>
+    /// ```
+    ///
+    /// with **no user turn in it at all**. The model was handed its own message and asked to
+    /// continue it, produced nothing three times running, and the loop failed the run with
+    /// *"the model produced no reply and no tool call 3 times in a row"* (journal seq 4597-4601,
+    /// 2026-08-26). Nothing in the loop was wrong and every unit test passed: `parse_step` parsed
+    /// correctly, the budget held, the contract was well-formed. The seam between the spawn and
+    /// the wire was wrong, and nothing that tests halves can see a seam.
+    ///
+    /// **The fix is not a trust class.** `AgentInferred` is right — the parent's model composed
+    /// that text, and pushing it as `UserAsserted` to get the role would be a laundering step of
+    /// exactly the kind `Provenance::new()` is reset to prevent two lines above the push. Trust
+    /// class answers *how much may this authorize*; it does not name a speaker. The speaker is
+    /// the block's **origin**, which is what `SourceKind` is for, and the origin of a brief is
+    /// the thing that commissioned the run — never the run itself.
+    ///
+    /// Non-trimmable, like `History`: a child evicted of its brief has no reason to exist.
+    Brief,
 }
 
 impl SourceKind {
@@ -73,7 +102,8 @@ impl SourceKind {
             SourceKind::History
             | SourceKind::ToolResults
             | SourceKind::InjectedMemory
-            | SourceKind::ChildResults => Tier::Volatile,
+            | SourceKind::ChildResults
+            | SourceKind::Brief => Tier::Volatile,
         }
     }
 
@@ -93,7 +123,10 @@ impl SourceKind {
     /// per-source accounting; what it does not do is authorise a silent drop.
     pub fn trimmable(self) -> bool {
         match self {
-            SourceKind::Identity | SourceKind::Governance | SourceKind::History => false,
+            SourceKind::Identity
+            | SourceKind::Governance
+            | SourceKind::History
+            | SourceKind::Brief => false,
             SourceKind::ProjectFiles
             | SourceKind::Skills
             | SourceKind::ToolSchemas
@@ -103,7 +136,7 @@ impl SourceKind {
         }
     }
 
-    pub const ALL: [SourceKind; 9] = [
+    pub const ALL: [SourceKind; 10] = [
         SourceKind::Identity,
         SourceKind::Governance,
         SourceKind::ProjectFiles,
@@ -113,6 +146,7 @@ impl SourceKind {
         SourceKind::ToolResults,
         SourceKind::InjectedMemory,
         SourceKind::ChildResults,
+        SourceKind::Brief,
     ];
 }
 
@@ -474,6 +508,10 @@ impl SourceBudgets {
         // that K1's precision numbers are *defined* at, so it must not scale with the window.
         by_source.insert(SourceKind::InjectedMemory, MEMORY_TOKEN_BUDGET);
         by_source.insert(SourceKind::ChildResults, pct(5));
+        // A parent's own window never holds one, so this costs a root run nothing. In a child it
+        // is the single most important block there is, and it is not trimmable, so the figure is
+        // a reporting line rather than a limit that can bite.
+        by_source.insert(SourceKind::Brief, pct(10));
         Self { by_source }
     }
 }

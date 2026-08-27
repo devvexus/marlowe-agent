@@ -122,7 +122,7 @@ fn a_child_spawned_from_a_model_reply_is_listed_in_runs() {
     );
 
     let mut driver = ScriptDriver::new(vec![
-        reply(run_call(serde_json::json!({ "task": "go and count them" })), 100),
+        reply(run_call(serde_json::json!({ "task": "go and count them", "exposed_tools": "" })), 100),
         reply(serde_json::json!({ "content": "nineteen" }), 100),
         reply(serde_json::json!({ "content": "nineteen." }), 100),
     ]);
@@ -259,7 +259,7 @@ fn a_finished_childs_elapsed_is_final_rather_than_growing() {
         OutputContract::answer(),
     );
     let mut driver = ScriptDriver::new(vec![
-        reply(run_call(serde_json::json!({ "task": "go and count them" })), 100),
+        reply(run_call(serde_json::json!({ "task": "go and count them", "exposed_tools": "" })), 100),
         reply(serde_json::json!({ "content": "nineteen" }), 100),
         reply(serde_json::json!({ "content": "nineteen." }), 100),
     ]);
@@ -369,7 +369,7 @@ fn a_run_windows_roster_names_the_children_and_a_childless_run_names_none() {
         OutputContract::answer(),
     );
     let mut driver = ScriptDriver::new(vec![
-        reply(run_call(serde_json::json!({ "task": "go and count them" })), 100),
+        reply(run_call(serde_json::json!({ "task": "go and count them", "exposed_tools": "" })), 100),
         reply(serde_json::json!({ "content": "nineteen" }), 100),
         reply(serde_json::json!({ "content": "nineteen." }), 100),
     ]);

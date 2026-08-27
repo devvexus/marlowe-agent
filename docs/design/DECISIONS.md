@@ -3195,6 +3195,34 @@ else.
 
 ---
 
+## 2026-08-26 — ADR-057 AMENDED BY A LIVE RUN: `exposed_tools` is required, and a grant has a floor
+
+Two of §1's seven rows changed. The full argument is in the ADR's amendment; this records the
+decision and the one piece of reasoning that generalises past it.
+
+**`exposed_tools` is required.** §1 defaulted it to empty as the conservative end of its field, and
+that reasoning is correct for lifetime and for budget, where every value is workable and the safe
+one is simply the smallest. It is wrong here, and wrong by §1's own test: a default is *"a fixed
+constant that does not vary with the task"*, and a child's tool set varies with the task by
+definition. Defaulting it was the single exception this ADR carved into its own rule. The empty set
+stays expressible — what is refused is not saying.
+
+**`budget_tokens` is floored at `MIN_CHILD_TOKENS`**, derived as the smallest first call measured in
+the journal plus `MIN_CALL_TOKENS`. An earlier decision declined this on the grounds that the
+threshold would be *"a number nobody has measured"*. **That was wrong on its own terms**:
+`MIN_CALL_TOKENS` was already measured and already enforced by `has_room_for_a_call` — read by the
+spender and by nothing at the point of granting. `Budget::grant` was handing out budgets the loop
+was guaranteed to reject.
+
+**The generalisable part, because it is the second time this month.** The mitigation chosen instead
+was a sentence in the tool description telling the model what was viable. It lasted one session: the
+next two spawns asked for 100 and 500 tokens. **Advice a model can ignore is not a control**, and
+the figure quoted in the advice was not even the one being enforced — so the two would have drifted
+had the constant ever moved. Where a limit is enforced somewhere, the decision is not whether to
+invent a threshold; it is whether the site that could act on the existing one reads it.
+
+---
+
 ## 2026-08-26 — A §13 change: layer 3 now fires at the spawn site, and two guarded files were edited
 
 **Three of the six §13 entries are involved, so this arrives with an entry rather than as a quiet

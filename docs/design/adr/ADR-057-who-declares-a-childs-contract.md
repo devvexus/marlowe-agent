@@ -34,8 +34,8 @@ So the rule is per-field, and it is total:
 |---|---|---|
 | `task` | the model, **required** | there is none; an empty task is refused by name |
 | `contract` | the model's `output_contract` line | `"what you found"`, one `findings` field — a **shape** the harness fixes, never a shape read from the task |
-| `tools` | the model's `exposed_tools` | **empty.** Not the parent's set |
-| `grant_tokens` | the model's `budget_tokens` | `None` → `share` of the parent's *original* pool |
+| `tools` | the model's `exposed_tools`, **required** | there is none — a spawn that does not name it is refused by name. See the amendment |
+| `grant_tokens` | the model's `budget_tokens` | `None` → `share` of the parent's *original* pool. **Floored at `MIN_CHILD_TOKENS` either way** — see the amendment |
 | `share` | **the harness, always** | `Standard`. Not model-reachable at all — see §5 |
 | `orphan` | the model's `orphan_policy` | `Terminate` — the child dies with its parent |
 | `reads_untrusted` | **the harness, always** | `false`. Not model-reachable at all — see §5 |
@@ -245,3 +245,63 @@ this feature saw none of it**, and one delegation did.
 - **No agent tree.** One level of `run` is the primitive; the five levels, the roles and the create
   grant are built on it, not by it.
 - **No concurrency.** A spawn still runs to completion inside the parent's step.
+
+---
+
+## AMENDMENT 2026-08-26 — two fields, changed by watching it run
+
+Both changes are to §1's table and both were forced by the same live session. Neither revisits the
+inference-versus-default distinction, which stands: a default is still a declaration written down
+once. What changed is that **two of the defaults were not conservative — they were unusable**, and
+one of them was not a default this decision was entitled to make.
+
+### A. `exposed_tools` is REQUIRED, not defaulted to empty
+
+§1 gave it the conservative end of its field. That reasoning holds for *lifetime* and for *budget*,
+where every value is workable and the safe one is simply the smallest. It does not hold here,
+because a child's tool set **varies with the task by definition** — which is the very property §1
+uses to separate a default from an inference:
+
+> **A default is a fixed constant that does not vary with the task.**
+
+A tool set is not that. §5 of M3-DESIGN requires it *declared at spawn, never inferred*, and
+defaulting it was the one exception this ADR carved into its own rule.
+
+Watched live 2026-08-26: a child with no tools was asked to summarise a tool it had no way to look
+up. It reasoned for **12,332 tokens** and returned nothing, and the parent's only clue was a
+receipt in its own context that the user could not see.
+
+**The empty set stays expressible.** `exposed_tools: ""` is a declaration that this child reasons
+from its task alone. What is refused is *not saying* — silence used to mean "none" and now means
+"say which". The one legitimate toolless child is layer 1's quarantined reader, where
+`reads_untrusted && !exposed_tools.is_empty()` is a load-time error, and that child is built by
+`condense_batch`, never by a model calling `run`.
+
+### B. `budget_tokens` is floored at `MIN_CHILD_TOKENS`
+
+§1 left the grant to the model with no lower bound. Live, two of three spawns asked for **100** and
+**500** tokens (journal seq 4584, 4615). `Budget::grant` honoured both exactly, and both children
+paused on their first iteration having spent **nothing** — because `has_room_for_a_call` refuses to
+issue a model call with fewer than `MIN_CALL_TOKENS = 512` left.
+
+**The floor was not missing. It was read by the spender and by nothing at the point of granting**,
+so `grant` handed out budgets the loop was guaranteed to reject and the two halves of the system
+disagreed in silence. `CLAUDE.md` instance #16 — a control that exists, is correct, and is not read
+where it could have acted.
+
+An earlier attempt mitigated this in the tool description alone, on the stated grounds that a
+refusal threshold would be *"a constant nobody has measured"*. That argument was wrong on its own
+terms — the constant existed and was enforced — and the mitigation failed on its first outing,
+because advice a model can ignore is not a control.
+
+`MIN_CHILD_TOKENS` is **derived, not chosen**: the smallest first call measured in the journal
+(3,089 tokens, prompt and completion together, because `Usage::as_budget` counts both) plus
+`MIN_CALL_TOKENS`. An explicit grant below it is refused **with both numbers**, because a model told
+only "refused" retries the same request. A share-derived grant is silently raised instead of
+refused: the parent did not choose that number and refusing would report its request as the fault.
+
+### What this does not change
+
+The receipt (§2), the narrowing check (§3), the adjudication (§4), the two fields the model may
+never name (§5), and the `budget_tokens` rename (§6) are all unaffected. `share` and
+`reads_untrusted` remain structurally out of the model's reach.

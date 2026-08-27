@@ -559,14 +559,21 @@ fn a_parent_completing_settles_its_children_through_the_loop() {
                 contract: OutputContract::new("findings", &["findings"]),
                 orphan: OrphanPolicy::Detach,
                 share: BudgetShare::Standard,
-                // Enough for one call (`MIN_CALL_TOKENS` is 512) and not two.
-                grant_tokens: Some(600),
+                // Enough for one call and not two. **The figure is derived, not typed**:
+                // `MIN_CHILD_TOKENS` is the floor `Budget::grant` enforces, and the child's one
+                // scripted step below is sized to leave less than `MIN_CALL_TOKENS` behind it.
+                // Writing 600 here was fine until the floor existed, and then it was a refusal
+                // rather than a starved child -- a test measuring a different thing than its name.
+                grant_tokens: Some(marlowe_loop::MIN_CHILD_TOKENS),
                 tools: vec![],
                 reads_untrusted: false,
+                tools_declared: true,
             }),
             100,
         ),
-        step(a_read("child-step.md"), 100),
+        // Spends all but 401 of the child's grant, which is under `MIN_CALL_TOKENS` -- so the
+        // child pauses after exactly one call and is still live when the parent ends.
+        step(a_read("child-step.md"), marlowe_loop::MIN_CHILD_TOKENS - 401),
         say("parent done", 100),
     ]);
     let mut sink = CollectingSink::default();
