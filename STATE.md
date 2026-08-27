@@ -280,11 +280,71 @@ It also means there is no client-side prefix reuse to build the KV-cache fix on.
 * Neither of these is licence to attribute memory to the user; that was rejected for a reason —
   a recalled fact must not read as something the user just said.
 
-### Still queued on the measurement
+### THE MEASUREMENT IS COMPLETE. 336 requests, `runs/ttft/raw.ndjson`, 45 cells in `summary.csv`
 
-Flash-attention and batch-size ceiling on llama.cpp; the remaining passes of the production-shaped
-growth cell. Everything else asked for has landed. `num_ctx` scaling and the `options`-reconfigure
-question are moot if the runtime moves.
+**Machine control, because it decides whether any of this counts.** Every one of the 336 requests is
+bracketed by `tasklist` (cargo/rustc/link) and `nvidia-smi` **before and after itself**, both
+recorded into the raw data. The instrument **waits** when a build appears — 20 s poll, 20 s settle —
+and records the wait. Cargo appeared 5 times; ~4 minutes were waited out. RTX 4080 SUPER, 16 GB,
+desktop baseline 38%, stable throughout.
+
+The unchanging control read **1068, 1063, 1077, 1064, 1078, 1051, 1071 ms** across the first seven
+phases — 2.5% spread. **After the model was unloaded and reloaded for the llama.cpp test it settled
+~9% lower (965–1042).** Comparisons *within* a control window are valid; the two windows differ and
+that is flagged here rather than smoothed away.
+
+### The ranked levers, each with its measured win and its cost
+
+**1. Talk to llama.cpp directly instead of Ollama's `/api/chat`.** −225 ms per model **call**, −19%
+prompt eval. **Warm TTFT 275 → 52 ms.** Cost: we own runner lifecycle, model management and
+templates, and lose auto-load/unload and `keep_alive`. See the ADR.
+
+**2. Keep the system prefix byte-identical across turns.** −730 ms at turn 1, **−1,040 ms by turn
+10**, and it stops the growth. Measured over 10 turns × 6 passes, monotone in every pass: prompt eval
+**689 → 1,320 ms**. The counterfactual — same content, changing block moved *after* the history —
+is **flat at ~275 ms regardless of turn count**. The single line is `ollama.rs`'s
+`SourceKind::InjectedMemory => continue`, which folds memory into the leading system message.
+
+**These two multiply, and there is a measured reason to do #1 first.** Ollama's prompt cache is
+**shared and finite**: the flat counterfactual was knocked out in **3 of 6 passes** under interleaved
+traffic. llama.cpp with `-np 1` is a single deterministic slot. So #1 does not merely add to #2 —
+**it is what makes #2 reliable.** That is measured, not argued.
+
+**3. Drop `Availability::probe` from the per-turn path.** −14 ms p50, −32 ms p99, n=40. Ours, cheap,
+1.3% of today's TTFT.
+
+**4. `Connection: close` → keep-alive.** −0.5 ms. **A measured null.** Not a latency fix, and it
+should stop being described as one.
+
+### MEASURED NON-LEVERS — recorded so nobody re-derives them
+
+Every one of these was tried and is null. **This list is the most reusable part of the measurement**:
+each entry is a plausible-sounding knob that costs a session to re-test.
+
+| knob | reading |
+|---|---|
+| `num_ctx` 32768 / 8192 / 4096 | load 263 / 284 / 298 ms, prompt eval **flat at 181** — so the 226 ms is *not* KV allocation |
+| `num_predict` 16 / 512 / 8192 | 470 / 482 / 519 ms across a **512× range** |
+| `think` true / false | 1,162 vs 1,017 ms, but TTFT-minus-prompt-eval is **287 vs 279** — the whole difference is the template's own tokens |
+| flash attention | null |
+| `ubatch` 2048 | null |
+| empty vs full `options` payload | null — no runner reconfigure |
+| `keep_alive=-1` | null |
+| Nagle on / off | 266 vs 279 ms |
+| keep-alive reuse vs fresh connection | 267 vs 279 ms |
+| one write vs two | 258 vs 279 ms |
+
+**On HTTPS, stated once and closed:** there is no TLS in this path and no TLS cell was built. It
+would have measured a cost the product does not pay — transport is **0.45 ms of a 1,064 ms TTFT**,
+so TLS could not have been the answer under any assumption. The original hypothesis is dead.
+
+### The instrument defect, kept because it is the family this project keeps finding
+
+The first control **reused its marker values**, so its final reading collapsed **1068 → 336 ms** — a
+cache *hit* that read exactly like *"the machine got faster"*. Unique markers restore it to 1096.
+**A control is only a control if it cannot accidentally succeed**, which is the same sentence as
+instance #15's *"a latch that fires on everything means nothing"* and #16's *"assert where it is
+enforced, not where it is declared"*.
 
 ## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
 
