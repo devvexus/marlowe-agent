@@ -1,0 +1,915 @@
+89366.989255 marlowe: context window 32768 tokens (model ceiling 262144)
+89366.989275 marlowe: model provider LLAMACPP · http://127.0.0.1:11492 · ADR-060, opt-in; Ollama remains the default
+89366.989280 marlowe: llama.cpp renders the GGUF's own chat template and parses its own tool-call dialect — Ollama's renderer and parser are NOT in this path
+89366.990209 marlowe: sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89366.990215 marlowe: qwen3.5:9b · tool-call reliability NOT MEASURED on this machine — a failed tool call may be the model rather than the harness · served by llama.cpp, NOT Ollama — any tool-call figure recorded for this model was measured through Ollama's own renderer and parser, and llama.cpp uses neither
+89367.270504 
+89367.270528 Marlowe — first run under this profile. What it can reach:
+89367.270534 
+89367.270537   FILES
+89367.270539     C:\Users\matth\Projects\Marlowe_Harness
+89367.270540     That directory and everything under it. Nothing outside it: paths are resolved and checked before opening, and symlinks pointing out are refused.
+89367.270541 
+89367.270543   NETWORK
+89367.270544     Nothing, until you approve a host. Every fetch asks, and every fetch asks again — approvals are not remembered between requests in this build.
+89367.270548     A fetched page is read by a separate, sandboxed process that holds no tools; only a short summary of it comes back.
+89367.270549 
+89367.270550   MEMORY
+89367.270551     live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+89367.270553     What you tell Marlowe can be written to a signed journal on this machine, under the profile directory. It is not sent anywhere.
+89367.270555 
+89367.270555   ALWAYS ASKS YOU FIRST
+89367.270557     bash     Run one command line through bash — really bash, including on Windows, where it is Git Bash.
+89367.270559     (and any network request, per host, every time)
+89367.270560 
+89367.270561   MAY ACT WITHOUT ASKING
+89367.270562     ask      Put a question to the user and wait.
+89367.270563     edit     Change ONE snippet inside an existing file, leaving the rest untouched.
+89367.270564     glob     List the files under a directory, by name.
+89367.270565     grep     Search the CONTENTS of files under a directory with a regular expression, line by line.
+89367.270567     read     Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns).
+89367.270568     recall   Search Marlowe's own memory: what the user said in earlier sessions, and what Marlowe has learned.
+89367.270569     remember Ask the harness to record something worth keeping.
+89367.270570     run      Delegate a sub-task to a child run and wait for it.
+89367.270571     use      Find and load a skill.
+89367.270572     web      Fetch one URL over https and return the page.
+89367.270573     write    Create a file, or replace all of its contents.
+89367.270574     Whether these ask depends on the trust tier this run was granted. The trust ledger that would raise a tier does not exist yet, so today they run at the tier the profile starts with.
+89367.270575 
+89367.270576   The model chooses what to do; the harness decides what it is allowed to do, and the decisions are in the journal.
+89367.270576 
+89367.270587 marlowe: memory retrieval live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+89367.270589 marlowe: skills 0 installed
+89367.270590 marlowe: daemon listening on 127.0.0.1:11453
+89367.270591 marlowe: runs are owned here and survive the client that started them
+89367.274588 marlowe: control plane on 127.0.0.1:50699
+89367.319162 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89367.323858 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89367.323868 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89367.323869 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89367.323873 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89367.323876 [dev] --- conversation (2 messages) ---
+89367.323919 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89367.323951 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89367.324023 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89367.324027 [dev] ===== END REQUEST =====
+89369.516262 [dev] frame    1      0 bytes  ""
+89369.517558 [dev] frame    2  THINK    3 bytes
+89369.517770 [dev] frame    2      0 bytes  ""
+89369.529701 [dev] frame    3  THINK    5 bytes
+89369.529711 [dev] frame    3      0 bytes  ""
+89369.547808 [dev] frame    4  THINK    6 bytes
+89369.547820 [dev] frame    4      0 bytes  ""
+89369.560259 [dev] frame    5  THINK    3 bytes
+89369.560279 [dev] frame    5      0 bytes  ""
+89369.574508 [dev] frame    6  THINK    3 bytes
+89369.574526 [dev] frame    6      0 bytes  ""
+89369.589838 [dev] frame    7  THINK    6 bytes
+89369.589871 [dev] frame    7      0 bytes  ""
+89369.602724 [dev] frame    8  THINK    5 bytes
+89369.602749 [dev] frame    8      0 bytes  ""
+89369.615865 [dev] frame    9  THINK    8 bytes
+89369.615885 [dev] frame    9      0 bytes  ""
+89369.630642 [dev] frame   10  THINK    4 bytes
+89369.630659 [dev] frame   10      0 bytes  ""
+89369.643881 [dev] frame   11  THINK    5 bytes
+89369.643912 [dev] frame   11      0 bytes  ""
+89369.656385 [dev] frame   12  THINK    2 bytes
+89369.656400 [dev] frame   12      0 bytes  ""
+89369.671328 [dev] frame   13  THINK    5 bytes
+89369.671360 [dev] frame   13      0 bytes  ""
+89369.685097 [dev] frame   14  THINK    1 bytes
+89369.685116 [dev] frame   14      0 bytes  ""
+89369.697223 [dev] frame   15  THINK    4 bytes
+89369.697242 [dev] frame   15      0 bytes  ""
+89369.712909 [dev] frame   16  THINK    8 bytes
+89369.712917 [dev] frame   16      0 bytes  ""
+89369.726029 [dev] frame   17  THINK    5 bytes
+89369.726059 [dev] frame   17      0 bytes  ""
+89369.738208 [dev] frame   18  THINK    1 bytes
+89369.738225 [dev] frame   18      0 bytes  ""
+89369.752949 [dev] frame   19  THINK    5 bytes
+89369.752964 [dev] frame   19      0 bytes  ""
+89369.765854 [dev] frame   20  THINK    3 bytes
+89369.765869 [dev] frame   20      0 bytes  ""
+89369.778475 [dev] frame   21  THINK    2 bytes
+89369.778486 [dev] frame   21      0 bytes  ""
+89369.792770 [dev] frame   22  THINK    7 bytes
+89369.792799 [dev] frame   22      0 bytes  ""
+89369.806487 [dev] frame   23  THINK   12 bytes
+89369.806499 [dev] frame   23      0 bytes  ""
+89369.819696 [dev] frame   24  THINK    5 bytes
+89369.819710 [dev] frame   24      0 bytes  ""
+89369.832922 [dev] frame   25  THINK    6 bytes
+89369.832933 [dev] frame   25      0 bytes  ""
+89369.846393 [dev] frame   26  THINK    2 bytes
+89369.846413 [dev] frame   26      0 bytes  ""
+89369.858632 [dev] frame   27  THINK    8 bytes
+89369.858644 [dev] frame   27      0 bytes  ""
+89369.874049 [dev] frame   28  THINK    4 bytes
+89369.874064 [dev] frame   28      0 bytes  ""
+89369.886719 [dev] frame   29  THINK    5 bytes
+89369.886735 [dev] frame   29      0 bytes  ""
+89369.899268 [dev] frame   30  THINK    4 bytes
+89369.899284 [dev] frame   30      0 bytes  ""
+89369.914795 [dev] frame   31  THINK    3 bytes
+89369.914822 [dev] frame   31      0 bytes  ""
+89369.928119 [dev] frame   32  THINK   10 bytes
+89369.928142 [dev] frame   32      0 bytes  ""
+89369.940556 [dev] frame   33  THINK    1 bytes
+89369.940566 [dev] frame   33      0 bytes  ""
+89369.955215 [dev] frame   34  THINK    2 bytes
+89369.955225 [dev] frame   34      0 bytes  ""
+89369.968932 [dev] frame   35  THINK    7 bytes
+89369.968953 [dev] frame   35      0 bytes  ""
+89369.980977 [dev] frame   36  THINK    5 bytes
+89369.980992 [dev] frame   36      0 bytes  ""
+89369.995706 [dev] frame   37  THINK    7 bytes
+89369.995715 [dev] frame   37      0 bytes  ""
+89370.009161 [dev] frame   38  THINK    2 bytes
+89370.009176 [dev] frame   38      0 bytes  ""
+89370.023242 [dev] frame   39  THINK    5 bytes
+89370.023254 [dev] frame   39      0 bytes  ""
+89370.036068 [dev] frame   40  THINK    2 bytes
+89370.036079 [dev] frame   40      0 bytes  ""
+89370.049948 [dev] frame   41  THINK    1 bytes
+89370.049959 [dev] frame   41      0 bytes  ""
+89370.090999 [dev] frame   42      5 bytes  "READY"
+89370.105260 [dev] frame   43      0 bytes  ""
+89370.105280 [dev] frame   44      0 bytes  ""
+89370.504763 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89370.505955 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89370.505976 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89370.505979 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89370.505981 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89370.505983 [dev] --- conversation (2 messages) ---
+89370.506034 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89370.506061 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89370.506069 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89370.506072 [dev] ===== END REQUEST =====
+89370.579770 [dev] frame    1      0 bytes  ""
+89370.579785 [dev] frame    2  THINK    3 bytes
+89370.579806 [dev] frame    2      0 bytes  ""
+89370.595984 [dev] frame    3  THINK    5 bytes
+89370.596000 [dev] frame    3      0 bytes  ""
+89370.611388 [dev] frame    4  THINK    6 bytes
+89370.611407 [dev] frame    4      0 bytes  ""
+89370.624251 [dev] frame    5  THINK    3 bytes
+89370.624271 [dev] frame    5      0 bytes  ""
+89370.637168 [dev] frame    6  THINK    3 bytes
+89370.637220 [dev] frame    6      0 bytes  ""
+89370.651812 [dev] frame    7  THINK    8 bytes
+89370.651838 [dev] frame    7      0 bytes  ""
+89370.665343 [dev] frame    8  THINK    5 bytes
+89370.665357 [dev] frame    8      0 bytes  ""
+89370.677560 [dev] frame    9  THINK    8 bytes
+89370.677592 [dev] frame    9      0 bytes  ""
+89370.692773 [dev] frame   10  THINK    4 bytes
+89370.692788 [dev] frame   10      0 bytes  ""
+89370.706446 [dev] frame   11  THINK    5 bytes
+89370.706483 [dev] frame   11      0 bytes  ""
+89370.721230 [dev] frame   12  THINK    2 bytes
+89370.721245 [dev] frame   12      0 bytes  ""
+89370.734098 [dev] frame   13  THINK    5 bytes
+89370.734117 [dev] frame   13      0 bytes  ""
+89370.747639 [dev] frame   14  THINK    1 bytes
+89370.747662 [dev] frame   14      0 bytes  ""
+89370.761667 [dev] frame   15  THINK    4 bytes
+89370.761682 [dev] frame   15      0 bytes  ""
+89370.774937 [dev] frame   16  THINK    8 bytes
+89370.774957 [dev] frame   16      0 bytes  ""
+89370.788414 [dev] frame   17  THINK    5 bytes
+89370.788431 [dev] frame   17      0 bytes  ""
+89370.800084 [dev] frame   18  THINK    1 bytes
+89370.800104 [dev] frame   18      0 bytes  ""
+89370.813586 [dev] frame   19  THINK    5 bytes
+89370.813599 [dev] frame   19      0 bytes  ""
+89370.826995 [dev] frame   20  THINK    3 bytes
+89370.827016 [dev] frame   20      0 bytes  ""
+89370.841240 [dev] frame   21  THINK    2 bytes
+89370.841257 [dev] frame   21      0 bytes  ""
+89370.853992 [dev] frame   22  THINK   16 bytes
+89370.854002 [dev] frame   22      0 bytes  ""
+89370.867728 [dev] frame   23  THINK   12 bytes
+89370.867739 [dev] frame   23      0 bytes  ""
+89370.880482 [dev] frame   24  THINK    5 bytes
+89370.880493 [dev] frame   24      0 bytes  ""
+89370.894177 [dev] frame   25  THINK    9 bytes
+89370.894192 [dev] frame   25      0 bytes  ""
+89370.908746 [dev] frame   26  THINK    3 bytes
+89370.908758 [dev] frame   26      0 bytes  ""
+89370.923018 [dev] frame   27  THINK    5 bytes
+89370.923049 [dev] frame   27      0 bytes  ""
+89370.936017 [dev] frame   28  THINK    4 bytes
+89370.936035 [dev] frame   28      0 bytes  ""
+89370.949226 [dev] frame   29  THINK    3 bytes
+89370.949240 [dev] frame   29      0 bytes  ""
+89370.961573 [dev] frame   30  THINK   10 bytes
+89370.961585 [dev] frame   30      0 bytes  ""
+89370.975934 [dev] frame   31  THINK    1 bytes
+89370.975974 [dev] frame   31      0 bytes  ""
+89370.989114 [dev] frame   32  THINK    1 bytes
+89370.989123 [dev] frame   32      0 bytes  ""
+89371.029019 [dev] frame   33      5 bytes  "READY"
+89371.042698 [dev] frame   34      0 bytes  ""
+89371.042727 [dev] frame   35      0 bytes  ""
+89371.420650 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89371.423993 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89371.424007 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89371.424009 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89371.424011 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89371.424015 [dev] --- conversation (2 messages) ---
+89371.424053 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89371.424085 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89371.424093 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89371.424096 [dev] ===== END REQUEST =====
+89371.490355 [dev] frame    1      0 bytes  ""
+89371.490369 [dev] frame    2  THINK    3 bytes
+89371.490389 [dev] frame    2      0 bytes  ""
+89371.507321 [dev] frame    3  THINK    5 bytes
+89371.507334 [dev] frame    3      0 bytes  ""
+89371.523025 [dev] frame    4  THINK    6 bytes
+89371.523054 [dev] frame    4      0 bytes  ""
+89371.534189 [dev] frame    5  THINK    3 bytes
+89371.534217 [dev] frame    5      0 bytes  ""
+89371.548524 [dev] frame    6  THINK    3 bytes
+89371.548538 [dev] frame    6      0 bytes  ""
+89371.560794 [dev] frame    7  THINK    6 bytes
+89371.560813 [dev] frame    7      0 bytes  ""
+89371.574738 [dev] frame    8  THINK    5 bytes
+89371.574763 [dev] frame    8      0 bytes  ""
+89371.589081 [dev] frame    9  THINK    8 bytes
+89371.589090 [dev] frame    9      0 bytes  ""
+89371.601298 [dev] frame   10  THINK    4 bytes
+89371.601316 [dev] frame   10      0 bytes  ""
+89371.614409 [dev] frame   11  THINK    5 bytes
+89371.614419 [dev] frame   11      0 bytes  ""
+89371.629634 [dev] frame   12  THINK    2 bytes
+89371.629644 [dev] frame   12      0 bytes  ""
+89371.643264 [dev] frame   13  THINK    5 bytes
+89371.643280 [dev] frame   13      0 bytes  ""
+89371.656217 [dev] frame   14  THINK    1 bytes
+89371.656232 [dev] frame   14      0 bytes  ""
+89371.670778 [dev] frame   15  THINK    4 bytes
+89371.670793 [dev] frame   15      0 bytes  ""
+89371.682900 [dev] frame   16  THINK    8 bytes
+89371.682917 [dev] frame   16      0 bytes  ""
+89371.695258 [dev] frame   17  THINK    5 bytes
+89371.695269 [dev] frame   17      0 bytes  ""
+89371.710395 [dev] frame   18  THINK    1 bytes
+89371.710415 [dev] frame   18      0 bytes  ""
+89371.724187 [dev] frame   19  THINK    5 bytes
+89371.724200 [dev] frame   19      0 bytes  ""
+89371.736499 [dev] frame   20  THINK    3 bytes
+89371.736522 [dev] frame   20      0 bytes  ""
+89371.751830 [dev] frame   21  THINK    2 bytes
+89371.751850 [dev] frame   21      0 bytes  ""
+89371.764776 [dev] frame   22  THINK    7 bytes
+89371.764805 [dev] frame   22      0 bytes  ""
+89371.778157 [dev] frame   23  THINK   12 bytes
+89371.778175 [dev] frame   23      0 bytes  ""
+89371.793190 [dev] frame   24  THINK    5 bytes
+89371.793207 [dev] frame   24      0 bytes  ""
+89371.806673 [dev] frame   25  THINK    6 bytes
+89371.806694 [dev] frame   25      0 bytes  ""
+89371.818708 [dev] frame   26  THINK    2 bytes
+89371.818726 [dev] frame   26      0 bytes  ""
+89371.834253 [dev] frame   27  THINK    8 bytes
+89371.834272 [dev] frame   27      0 bytes  ""
+89371.847330 [dev] frame   28  THINK    4 bytes
+89371.847360 [dev] frame   28      0 bytes  ""
+89371.859631 [dev] frame   29  THINK    6 bytes
+89371.859658 [dev] frame   29      0 bytes  ""
+89371.874646 [dev] frame   30  THINK    3 bytes
+89371.874665 [dev] frame   30      0 bytes  ""
+89371.887970 [dev] frame   31  THINK   10 bytes
+89371.887989 [dev] frame   31      0 bytes  ""
+89371.900907 [dev] frame   32  THINK    1 bytes
+89371.900929 [dev] frame   32      0 bytes  ""
+89371.915770 [dev] frame   33  THINK    1 bytes
+89371.915794 [dev] frame   33      0 bytes  ""
+89371.954750 [dev] frame   34      5 bytes  "READY"
+89371.969079 [dev] frame   35      0 bytes  ""
+89371.969105 [dev] frame   36      0 bytes  ""
+89372.350515 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89372.351766 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89372.351779 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89372.351781 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89372.351782 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89372.351787 [dev] --- conversation (2 messages) ---
+89372.351817 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89372.351873 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89372.351875 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89372.351878 [dev] ===== END REQUEST =====
+89372.417026 [dev] frame    1      0 bytes  ""
+89372.417039 [dev] frame    2  THINK    3 bytes
+89372.417051 [dev] frame    2      0 bytes  ""
+89372.433481 [dev] frame    3  THINK    5 bytes
+89372.433494 [dev] frame    3      0 bytes  ""
+89372.448832 [dev] frame    4  THINK    3 bytes
+89372.448843 [dev] frame    4      0 bytes  ""
+89372.461013 [dev] frame    5  THINK    7 bytes
+89372.461043 [dev] frame    5      0 bytes  ""
+89372.476793 [dev] frame    6  THINK    4 bytes
+89372.476809 [dev] frame    6      0 bytes  ""
+89372.490107 [dev] frame    7  THINK    2 bytes
+89372.490120 [dev] frame    7      0 bytes  ""
+89372.503401 [dev] frame    8  THINK    7 bytes
+89372.503422 [dev] frame    8      0 bytes  ""
+89372.515700 [dev] frame    9  THINK    8 bytes
+89372.515721 [dev] frame    9      0 bytes  ""
+89372.529673 [dev] frame   10  THINK    2 bytes
+89372.529696 [dev] frame   10      0 bytes  ""
+89372.542457 [dev] frame   11  THINK    3 bytes
+89372.542473 [dev] frame   11      0 bytes  ""
+89372.554883 [dev] frame   12  THINK    6 bytes
+89372.554898 [dev] frame   12      0 bytes  ""
+89372.569721 [dev] frame   13  THINK    5 bytes
+89372.569734 [dev] frame   13      0 bytes  ""
+89372.582654 [dev] frame   14  THINK    8 bytes
+89372.582666 [dev] frame   14      0 bytes  ""
+89372.597393 [dev] frame   15  THINK    2 bytes
+89372.597406 [dev] frame   15      0 bytes  ""
+89372.610326 [dev] frame   16  THINK    5 bytes
+89372.610351 [dev] frame   16      0 bytes  ""
+89372.623751 [dev] frame   17  THINK    1 bytes
+89372.623769 [dev] frame   17      0 bytes  ""
+89372.637394 [dev] frame   18  THINK    4 bytes
+89372.637408 [dev] frame   18      0 bytes  ""
+89372.650790 [dev] frame   19  THINK    8 bytes
+89372.650823 [dev] frame   19      0 bytes  ""
+89372.664322 [dev] frame   20  THINK    5 bytes
+89372.664343 [dev] frame   20      0 bytes  ""
+89372.676600 [dev] frame   21  THINK    1 bytes
+89372.676629 [dev] frame   21      0 bytes  ""
+89372.691296 [dev] frame   22  THINK    5 bytes
+89372.691313 [dev] frame   22      0 bytes  ""
+89372.703663 [dev] frame   23  THINK    3 bytes
+89372.703682 [dev] frame   23      0 bytes  ""
+89372.716948 [dev] frame   24  THINK    2 bytes
+89372.716966 [dev] frame   24      0 bytes  ""
+89372.732154 [dev] frame   25  THINK   16 bytes
+89372.732183 [dev] frame   25      0 bytes  ""
+89372.745237 [dev] frame   26  THINK    8 bytes
+89372.745256 [dev] frame   26      0 bytes  ""
+89372.757741 [dev] frame   27  THINK    5 bytes
+89372.757756 [dev] frame   27      0 bytes  ""
+89372.773127 [dev] frame   28  THINK    6 bytes
+89372.773146 [dev] frame   28      0 bytes  ""
+89372.786502 [dev] frame   29  THINK    2 bytes
+89372.786526 [dev] frame   29      0 bytes  ""
+89372.798856 [dev] frame   30  THINK    8 bytes
+89372.798867 [dev] frame   30      0 bytes  ""
+89372.813252 [dev] frame   31  THINK    4 bytes
+89372.813265 [dev] frame   31      0 bytes  ""
+89372.826480 [dev] frame   32  THINK    6 bytes
+89372.826502 [dev] frame   32      0 bytes  ""
+89372.840642 [dev] frame   33  THINK    3 bytes
+89372.840657 [dev] frame   33      0 bytes  ""
+89372.853827 [dev] frame   34  THINK   10 bytes
+89372.853842 [dev] frame   34      0 bytes  ""
+89372.867330 [dev] frame   35  THINK    1 bytes
+89372.867342 [dev] frame   35      0 bytes  ""
+89372.879486 [dev] frame   36  THINK    2 bytes
+89372.879500 [dev] frame   36      0 bytes  ""
+89372.894436 [dev] frame   37  THINK    7 bytes
+89372.894446 [dev] frame   37      0 bytes  ""
+89372.907719 [dev] frame   38  THINK    7 bytes
+89372.907743 [dev] frame   38      0 bytes  ""
+89372.919972 [dev] frame   39  THINK    8 bytes
+89372.919989 [dev] frame   39      0 bytes  ""
+89372.934533 [dev] frame   40  THINK    1 bytes
+89372.934547 [dev] frame   40      0 bytes  ""
+89372.947798 [dev] frame   41  THINK    1 bytes
+89372.947808 [dev] frame   41      0 bytes  ""
+89372.988625 [dev] frame   42      5 bytes  "READY"
+89373.001020 [dev] frame   43      0 bytes  ""
+89373.001055 [dev] frame   44      0 bytes  ""
+89373.365124 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89373.368704 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89373.368723 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89373.368726 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89373.368728 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89373.368730 [dev] --- conversation (2 messages) ---
+89373.368762 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89373.368798 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89373.368806 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89373.368810 [dev] ===== END REQUEST =====
+89373.450018 [dev] frame    1      0 bytes  ""
+89373.450033 [dev] frame    2  THINK    3 bytes
+89373.450054 [dev] frame    2      0 bytes  ""
+89373.467465 [dev] frame    3  THINK    5 bytes
+89373.467477 [dev] frame    3      0 bytes  ""
+89373.481004 [dev] frame    4  THINK    6 bytes
+89373.481022 [dev] frame    4      0 bytes  ""
+89373.494220 [dev] frame    5  THINK    3 bytes
+89373.494247 [dev] frame    5      0 bytes  ""
+89373.507640 [dev] frame    6  THINK    3 bytes
+89373.507655 [dev] frame    6      0 bytes  ""
+89373.520518 [dev] frame    7  THINK    6 bytes
+89373.520534 [dev] frame    7      0 bytes  ""
+89373.532758 [dev] frame    8  THINK    5 bytes
+89373.532770 [dev] frame    8      0 bytes  ""
+89373.547025 [dev] frame    9  THINK    8 bytes
+89373.547042 [dev] frame    9      0 bytes  ""
+89373.559436 [dev] frame   10  THINK    2 bytes
+89373.559454 [dev] frame   10      0 bytes  ""
+89373.573354 [dev] frame   11  THINK    5 bytes
+89373.573366 [dev] frame   11      0 bytes  ""
+89373.588839 [dev] frame   12  THINK    1 bytes
+89373.588855 [dev] frame   12      0 bytes  ""
+89373.601207 [dev] frame   13  THINK    4 bytes
+89373.601222 [dev] frame   13      0 bytes  ""
+89373.614439 [dev] frame   14  THINK    8 bytes
+89373.614450 [dev] frame   14      0 bytes  ""
+89373.629566 [dev] frame   15  THINK    5 bytes
+89373.629577 [dev] frame   15      0 bytes  ""
+89373.643691 [dev] frame   16  THINK    2 bytes
+89373.643702 [dev] frame   16      0 bytes  ""
+89373.657778 [dev] frame   17  THINK    3 bytes
+89373.657790 [dev] frame   17      0 bytes  ""
+89373.671197 [dev] frame   18  THINK   11 bytes
+89373.671205 [dev] frame   18      0 bytes  ""
+89373.683391 [dev] frame   19  THINK    1 bytes
+89373.683402 [dev] frame   19      0 bytes  ""
+89373.695705 [dev] frame   20  THINK    3 bytes
+89373.695715 [dev] frame   20      0 bytes  ""
+89373.710723 [dev] frame   21  THINK   12 bytes
+89373.710751 [dev] frame   21      0 bytes  ""
+89373.725010 [dev] frame   22  THINK    1 bytes
+89373.725021 [dev] frame   22      0 bytes  ""
+89373.739853 [dev] frame   23  THINK    5 bytes
+89373.739866 [dev] frame   23      0 bytes  ""
+89373.753234 [dev] frame   24  THINK    5 bytes
+89373.753247 [dev] frame   24      0 bytes  ""
+89373.767230 [dev] frame   25  THINK    5 bytes
+89373.767245 [dev] frame   25      0 bytes  ""
+89373.779643 [dev] frame   26  THINK    1 bytes
+89373.779652 [dev] frame   26      0 bytes  ""
+89373.793397 [dev] frame   27  THINK    1 bytes
+89373.793438 [dev] frame   27      0 bytes  ""
+89373.834368 [dev] frame   28      5 bytes  "READY"
+89373.847955 [dev] frame   29      0 bytes  ""
+89373.847979 [dev] frame   30      0 bytes  ""
+89374.238392 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89374.242375 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89374.242390 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89374.242392 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89374.242395 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89374.242396 [dev] --- conversation (2 messages) ---
+89374.242432 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89374.242472 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89374.242489 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89374.242490 [dev] ===== END REQUEST =====
+89374.319310 [dev] frame    1      0 bytes  ""
+89374.319330 [dev] frame    2  THINK    3 bytes
+89374.319360 [dev] frame    2      0 bytes  ""
+89374.336028 [dev] frame    3  THINK    5 bytes
+89374.336045 [dev] frame    3      0 bytes  ""
+89374.351472 [dev] frame    4  THINK    6 bytes
+89374.351486 [dev] frame    4      0 bytes  ""
+89374.363875 [dev] frame    5  THINK    3 bytes
+89374.363906 [dev] frame    5      0 bytes  ""
+89374.376648 [dev] frame    6  THINK    3 bytes
+89374.376659 [dev] frame    6      0 bytes  ""
+89374.391287 [dev] frame    7  THINK    8 bytes
+89374.391297 [dev] frame    7      0 bytes  ""
+89374.403664 [dev] frame    8  THINK    5 bytes
+89374.403682 [dev] frame    8      0 bytes  ""
+89374.417391 [dev] frame    9  THINK    8 bytes
+89374.417412 [dev] frame    9      0 bytes  ""
+89374.432887 [dev] frame   10  THINK    4 bytes
+89374.432899 [dev] frame   10      0 bytes  ""
+89374.446563 [dev] frame   11  THINK    5 bytes
+89374.446580 [dev] frame   11      0 bytes  ""
+89374.458736 [dev] frame   12  THINK    2 bytes
+89374.458755 [dev] frame   12      0 bytes  ""
+89374.473519 [dev] frame   13  THINK    5 bytes
+89374.473538 [dev] frame   13      0 bytes  ""
+89374.486651 [dev] frame   14  THINK    1 bytes
+89374.486666 [dev] frame   14      0 bytes  ""
+89374.499055 [dev] frame   15  THINK    4 bytes
+89374.499070 [dev] frame   15      0 bytes  ""
+89374.514764 [dev] frame   16  THINK    8 bytes
+89374.514781 [dev] frame   16      0 bytes  ""
+89374.527382 [dev] frame   17  THINK    5 bytes
+89374.527398 [dev] frame   17      0 bytes  ""
+89374.540273 [dev] frame   18  THINK    1 bytes
+89374.540285 [dev] frame   18      0 bytes  ""
+89374.553328 [dev] frame   19  THINK    2 bytes
+89374.553342 [dev] frame   19      0 bytes  ""
+89374.566499 [dev] frame   20  THINK    7 bytes
+89374.566518 [dev] frame   20      0 bytes  ""
+89374.579586 [dev] frame   21  THINK    5 bytes
+89374.579606 [dev] frame   21      0 bytes  ""
+89374.592793 [dev] frame   22  THINK    7 bytes
+89374.592811 [dev] frame   22      0 bytes  ""
+89374.604748 [dev] frame   23  THINK    5 bytes
+89374.604788 [dev] frame   23      0 bytes  ""
+89374.618131 [dev] frame   24  THINK    5 bytes
+89374.618152 [dev] frame   24      0 bytes  ""
+89374.631831 [dev] frame   25  THINK    1 bytes
+89374.631843 [dev] frame   25      0 bytes  ""
+89374.645447 [dev] frame   26  THINK    1 bytes
+89374.645463 [dev] frame   26      0 bytes  ""
+89374.687744 [dev] frame   27      5 bytes  "READY"
+89374.701035 [dev] frame   28      0 bytes  ""
+89374.701056 [dev] frame   29      0 bytes  ""
+89375.080792 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89375.083294 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89375.083314 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89375.083318 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89375.083322 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89375.083324 [dev] --- conversation (2 messages) ---
+89375.083384 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89375.083418 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89375.083443 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89375.083448 [dev] ===== END REQUEST =====
+89375.146400 [dev] frame    1      0 bytes  ""
+89375.146411 [dev] frame    2  THINK    3 bytes
+89375.146430 [dev] frame    2      0 bytes  ""
+89375.163580 [dev] frame    3  THINK    5 bytes
+89375.163597 [dev] frame    3      0 bytes  ""
+89375.177576 [dev] frame    4  THINK    6 bytes
+89375.177607 [dev] frame    4      0 bytes  ""
+89375.193167 [dev] frame    5  THINK    3 bytes
+89375.193184 [dev] frame    5      0 bytes  ""
+89375.206211 [dev] frame    6  THINK    3 bytes
+89375.206226 [dev] frame    6      0 bytes  ""
+89375.219190 [dev] frame    7  THINK    6 bytes
+89375.219210 [dev] frame    7      0 bytes  ""
+89375.232059 [dev] frame    8  THINK    5 bytes
+89375.232077 [dev] frame    8      0 bytes  ""
+89375.246371 [dev] frame    9  THINK    8 bytes
+89375.246390 [dev] frame    9      0 bytes  ""
+89375.259316 [dev] frame   10  THINK    4 bytes
+89375.259327 [dev] frame   10      0 bytes  ""
+89375.273775 [dev] frame   11  THINK    5 bytes
+89375.273794 [dev] frame   11      0 bytes  ""
+89375.290208 [dev] frame   12  THINK    2 bytes
+89375.290229 [dev] frame   12      0 bytes  ""
+89375.305993 [dev] frame   13  THINK    5 bytes
+89375.306005 [dev] frame   13      0 bytes  ""
+89375.320428 [dev] frame   14  THINK    1 bytes
+89375.320439 [dev] frame   14      0 bytes  ""
+89375.336078 [dev] frame   15  THINK    4 bytes
+89375.336094 [dev] frame   15      0 bytes  ""
+89375.351204 [dev] frame   16  THINK    8 bytes
+89375.351215 [dev] frame   16      0 bytes  ""
+89375.367907 [dev] frame   17  THINK    5 bytes
+89375.367919 [dev] frame   17      0 bytes  ""
+89375.382246 [dev] frame   18  THINK    1 bytes
+89375.382255 [dev] frame   18      0 bytes  ""
+89375.397818 [dev] frame   19  THINK    5 bytes
+89375.397829 [dev] frame   19      0 bytes  ""
+89375.413013 [dev] frame   20  THINK    3 bytes
+89375.413024 [dev] frame   20      0 bytes  ""
+89375.429028 [dev] frame   21  THINK    2 bytes
+89375.429042 [dev] frame   21      0 bytes  ""
+89375.444686 [dev] frame   22  THINK    7 bytes
+89375.444704 [dev] frame   22      0 bytes  ""
+89375.459973 [dev] frame   23  THINK   12 bytes
+89375.459992 [dev] frame   23      0 bytes  ""
+89375.475326 [dev] frame   24  THINK    5 bytes
+89375.475338 [dev] frame   24      0 bytes  ""
+89375.491970 [dev] frame   25  THINK    2 bytes
+89375.491982 [dev] frame   25      0 bytes  ""
+89375.507927 [dev] frame   26  THINK    7 bytes
+89375.507940 [dev] frame   26      0 bytes  ""
+89375.524111 [dev] frame   27  THINK    7 bytes
+89375.524122 [dev] frame   27      0 bytes  ""
+89375.538545 [dev] frame   28  THINK    9 bytes
+89375.538575 [dev] frame   28      0 bytes  ""
+89375.555202 [dev] frame   29  THINK    8 bytes
+89375.555213 [dev] frame   29      0 bytes  ""
+89375.570185 [dev] frame   30  THINK    4 bytes
+89375.570195 [dev] frame   30      0 bytes  ""
+89375.582796 [dev] frame   31  THINK   11 bytes
+89375.582813 [dev] frame   31      0 bytes  ""
+89375.596526 [dev] frame   32  THINK   11 bytes
+89375.596540 [dev] frame   32      0 bytes  ""
+89375.609762 [dev] frame   33  THINK    3 bytes
+89375.609777 [dev] frame   33      0 bytes  ""
+89375.622032 [dev] frame   34  THINK    5 bytes
+89375.622045 [dev] frame   34      0 bytes  ""
+89375.635335 [dev] frame   35  THINK    6 bytes
+89375.635348 [dev] frame   35      0 bytes  ""
+89375.649054 [dev] frame   36  THINK    1 bytes
+89375.649065 [dev] frame   36      0 bytes  ""
+89375.661634 [dev] frame   37  THINK    1 bytes
+89375.661677 [dev] frame   37      0 bytes  ""
+89375.702113 [dev] frame   38      5 bytes  "READY"
+89375.715575 [dev] frame   39      0 bytes  ""
+89375.715596 [dev] frame   40      0 bytes  ""
+89376.094283 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89376.095597 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89376.095610 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89376.095612 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89376.095617 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89376.095618 [dev] --- conversation (2 messages) ---
+89376.095650 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89376.095683 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89376.095696 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89376.095697 [dev] ===== END REQUEST =====
+89376.159413 [dev] frame    1      0 bytes  ""
+89376.159425 [dev] frame    2  THINK    3 bytes
+89376.159449 [dev] frame    2      0 bytes  ""
+89376.175167 [dev] frame    3  THINK    5 bytes
+89376.175178 [dev] frame    3      0 bytes  ""
+89376.190229 [dev] frame    4  THINK    6 bytes
+89376.190240 [dev] frame    4      0 bytes  ""
+89376.201171 [dev] frame    5  THINK    3 bytes
+89376.201200 [dev] frame    5      0 bytes  ""
+89376.214890 [dev] frame    6  THINK    3 bytes
+89376.214909 [dev] frame    6      0 bytes  ""
+89376.227454 [dev] frame    7  THINK    6 bytes
+89376.227474 [dev] frame    7      0 bytes  ""
+89376.240400 [dev] frame    8  THINK    5 bytes
+89376.240430 [dev] frame    8      0 bytes  ""
+89376.253603 [dev] frame    9  THINK    8 bytes
+89376.253636 [dev] frame    9      0 bytes  ""
+89376.266732 [dev] frame   10  THINK    4 bytes
+89376.266752 [dev] frame   10      0 bytes  ""
+89376.279391 [dev] frame   11  THINK    5 bytes
+89376.279407 [dev] frame   11      0 bytes  ""
+89376.292544 [dev] frame   12  THINK    2 bytes
+89376.292554 [dev] frame   12      0 bytes  ""
+89376.305218 [dev] frame   13  THINK    5 bytes
+89376.305236 [dev] frame   13      0 bytes  ""
+89376.317638 [dev] frame   14  THINK    1 bytes
+89376.317648 [dev] frame   14      0 bytes  ""
+89376.331839 [dev] frame   15  THINK    4 bytes
+89376.331854 [dev] frame   15      0 bytes  ""
+89376.345239 [dev] frame   16  THINK    8 bytes
+89376.345264 [dev] frame   16      0 bytes  ""
+89376.358157 [dev] frame   17  THINK    5 bytes
+89376.358171 [dev] frame   17      0 bytes  ""
+89376.371397 [dev] frame   18  THINK    1 bytes
+89376.371410 [dev] frame   18      0 bytes  ""
+89376.383595 [dev] frame   19  THINK    2 bytes
+89376.383608 [dev] frame   19      0 bytes  ""
+89376.398960 [dev] frame   20  THINK    7 bytes
+89376.398969 [dev] frame   20      0 bytes  ""
+89376.412024 [dev] frame   21  THINK    3 bytes
+89376.412042 [dev] frame   21      0 bytes  ""
+89376.425384 [dev] frame   22  THINK    5 bytes
+89376.425402 [dev] frame   22      0 bytes  ""
+89376.437552 [dev] frame   23  THINK    4 bytes
+89376.437570 [dev] frame   23      0 bytes  ""
+89376.452423 [dev] frame   24  THINK    1 bytes
+89376.452449 [dev] frame   24      0 bytes  ""
+89376.465929 [dev] frame   25  THINK    1 bytes
+89376.465948 [dev] frame   25      0 bytes  ""
+89376.506241 [dev] frame   26      5 bytes  "READY"
+89376.518847 [dev] frame   27      0 bytes  ""
+89376.518873 [dev] frame   28      0 bytes  ""
+89376.899614 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89376.901510 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89376.901523 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89376.901525 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89376.901527 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89376.901531 [dev] --- conversation (2 messages) ---
+89376.901562 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89376.901594 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89376.901603 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89376.901605 [dev] ===== END REQUEST =====
+89376.966900 [dev] frame    1      0 bytes  ""
+89376.966913 [dev] frame    2  THINK    3 bytes
+89376.966947 [dev] frame    2      0 bytes  ""
+89376.982645 [dev] frame    3  THINK    5 bytes
+89376.982656 [dev] frame    3      0 bytes  ""
+89376.997209 [dev] frame    4  THINK    3 bytes
+89376.997229 [dev] frame    4      0 bytes  ""
+89377.010634 [dev] frame    5  THINK    7 bytes
+89377.010663 [dev] frame    5      0 bytes  ""
+89377.025706 [dev] frame    6  THINK    4 bytes
+89377.025726 [dev] frame    6      0 bytes  ""
+89377.037980 [dev] frame    7  THINK    2 bytes
+89377.037999 [dev] frame    7      0 bytes  ""
+89377.051046 [dev] frame    8  THINK    7 bytes
+89377.051061 [dev] frame    8      0 bytes  ""
+89377.063442 [dev] frame    9  THINK   13 bytes
+89377.063462 [dev] frame    9      0 bytes  ""
+89377.076873 [dev] frame   10  THINK    9 bytes
+89377.076892 [dev] frame   10      0 bytes  ""
+89377.090061 [dev] frame   11  THINK    2 bytes
+89377.090078 [dev] frame   11      0 bytes  ""
+89377.102246 [dev] frame   12  THINK    5 bytes
+89377.102265 [dev] frame   12      0 bytes  ""
+89377.115536 [dev] frame   13  THINK    4 bytes
+89377.115564 [dev] frame   13      0 bytes  ""
+89377.129586 [dev] frame   14  THINK    5 bytes
+89377.129595 [dev] frame   14      0 bytes  ""
+89377.141832 [dev] frame   15  THINK    2 bytes
+89377.141848 [dev] frame   15      0 bytes  ""
+89377.154796 [dev] frame   16  THINK    5 bytes
+89377.154816 [dev] frame   16      0 bytes  ""
+89377.168166 [dev] frame   17  THINK    1 bytes
+89377.168184 [dev] frame   17      0 bytes  ""
+89377.179481 [dev] frame   18  THINK    5 bytes
+89377.179502 [dev] frame   18      0 bytes  ""
+89377.193664 [dev] frame   19  THINK    8 bytes
+89377.193681 [dev] frame   19      0 bytes  ""
+89377.207831 [dev] frame   20  THINK    5 bytes
+89377.207850 [dev] frame   20      0 bytes  ""
+89377.220196 [dev] frame   21  THINK    1 bytes
+89377.220212 [dev] frame   21      0 bytes  ""
+89377.235484 [dev] frame   22  THINK    1 bytes
+89377.235499 [dev] frame   22      0 bytes  ""
+89377.274128 [dev] frame   23      5 bytes  "READY"
+89377.289785 [dev] frame   24      0 bytes  ""
+89377.289836 [dev] frame   25      0 bytes  ""
+89377.665102 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89377.666983 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89377.666995 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89377.666999 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89377.667000 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89377.667004 [dev] --- conversation (2 messages) ---
+89377.667037 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89377.667074 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89377.667087 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89377.667088 [dev] ===== END REQUEST =====
+89377.730959 [dev] frame    1      0 bytes  ""
+89377.730973 [dev] frame    2  THINK    3 bytes
+89377.730994 [dev] frame    2      0 bytes  ""
+89377.746452 [dev] frame    3  THINK    5 bytes
+89377.746461 [dev] frame    3      0 bytes  ""
+89377.759020 [dev] frame    4  THINK    6 bytes
+89377.759039 [dev] frame    4      0 bytes  ""
+89377.772501 [dev] frame    5  THINK    3 bytes
+89377.772529 [dev] frame    5      0 bytes  ""
+89377.786212 [dev] frame    6  THINK    3 bytes
+89377.786277 [dev] frame    6      0 bytes  ""
+89377.798269 [dev] frame    7  THINK    6 bytes
+89377.798286 [dev] frame    7      0 bytes  ""
+89377.812480 [dev] frame    8  THINK    5 bytes
+89377.812500 [dev] frame    8      0 bytes  ""
+89377.825636 [dev] frame    9  THINK    8 bytes
+89377.825655 [dev] frame    9      0 bytes  ""
+89377.837743 [dev] frame   10  THINK    2 bytes
+89377.837762 [dev] frame   10      0 bytes  ""
+89377.852954 [dev] frame   11  THINK    5 bytes
+89377.852974 [dev] frame   11      0 bytes  ""
+89377.866160 [dev] frame   12  THINK    1 bytes
+89377.866179 [dev] frame   12      0 bytes  ""
+89377.878415 [dev] frame   13  THINK    4 bytes
+89377.878433 [dev] frame   13      0 bytes  ""
+89377.893447 [dev] frame   14  THINK    8 bytes
+89377.893464 [dev] frame   14      0 bytes  ""
+89377.906143 [dev] frame   15  THINK    5 bytes
+89377.906159 [dev] frame   15      0 bytes  ""
+89377.918688 [dev] frame   16  THINK    1 bytes
+89377.918728 [dev] frame   16      0 bytes  ""
+89377.933715 [dev] frame   17  THINK    2 bytes
+89377.933734 [dev] frame   17      0 bytes  ""
+89377.946999 [dev] frame   18  THINK    7 bytes
+89377.947044 [dev] frame   18      0 bytes  ""
+89377.959248 [dev] frame   19  THINK    3 bytes
+89377.959266 [dev] frame   19      0 bytes  ""
+89377.974291 [dev] frame   20  THINK    8 bytes
+89377.974310 [dev] frame   20      0 bytes  ""
+89377.987167 [dev] frame   21  THINK    5 bytes
+89377.987187 [dev] frame   21      0 bytes  ""
+89377.999386 [dev] frame   22  THINK    1 bytes
+89377.999403 [dev] frame   22      0 bytes  ""
+89378.014491 [dev] frame   23  THINK    1 bytes
+89378.014501 [dev] frame   23      0 bytes  ""
+89378.055098 [dev] frame   24      5 bytes  "READY"
+89378.068594 [dev] frame   25      0 bytes  ""
+89378.068621 [dev] frame   26      0 bytes  ""
+89378.443471 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89378.445322 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89378.445337 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89378.445339 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89378.445341 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89378.445342 [dev] --- conversation (2 messages) ---
+89378.445370 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89378.445404 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89378.445413 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89378.445415 [dev] ===== END REQUEST =====
+89378.508059 [dev] frame    1      0 bytes  ""
+89378.508074 [dev] frame    2  THINK    3 bytes
+89378.508089 [dev] frame    2      0 bytes  ""
+89378.525258 [dev] frame    3  THINK    5 bytes
+89378.525281 [dev] frame    3      0 bytes  ""
+89378.539079 [dev] frame    4  THINK    6 bytes
+89378.539091 [dev] frame    4      0 bytes  ""
+89378.554313 [dev] frame    5  THINK    3 bytes
+89378.554324 [dev] frame    5      0 bytes  ""
+89378.566751 [dev] frame    6  THINK    3 bytes
+89378.566757 [dev] frame    6      0 bytes  ""
+89378.579018 [dev] frame    7  THINK    6 bytes
+89378.579038 [dev] frame    7      0 bytes  ""
+89378.592054 [dev] frame    8  THINK    5 bytes
+89378.592069 [dev] frame    8      0 bytes  ""
+89378.605191 [dev] frame    9  THINK    8 bytes
+89378.605206 [dev] frame    9      0 bytes  ""
+89378.618278 [dev] frame   10  THINK    4 bytes
+89378.618289 [dev] frame   10      0 bytes  ""
+89378.631992 [dev] frame   11  THINK    5 bytes
+89378.632063 [dev] frame   11      0 bytes  ""
+89378.645434 [dev] frame   12  THINK    2 bytes
+89378.645455 [dev] frame   12      0 bytes  ""
+89378.658577 [dev] frame   13  THINK    5 bytes
+89378.658592 [dev] frame   13      0 bytes  ""
+89378.671933 [dev] frame   14  THINK    1 bytes
+89378.671947 [dev] frame   14      0 bytes  ""
+89378.685698 [dev] frame   15  THINK    4 bytes
+89378.685712 [dev] frame   15      0 bytes  ""
+89378.699416 [dev] frame   16  THINK    8 bytes
+89378.699425 [dev] frame   16      0 bytes  ""
+89378.712903 [dev] frame   17  THINK    5 bytes
+89378.712913 [dev] frame   17      0 bytes  ""
+89378.726314 [dev] frame   18  THINK    1 bytes
+89378.726326 [dev] frame   18      0 bytes  ""
+89378.738939 [dev] frame   19  THINK    2 bytes
+89378.738975 [dev] frame   19      0 bytes  ""
+89378.753007 [dev] frame   20  THINK    3 bytes
+89378.753016 [dev] frame   20      0 bytes  ""
+89378.766415 [dev] frame   21  THINK    3 bytes
+89378.766432 [dev] frame   21      0 bytes  ""
+89378.780509 [dev] frame   22  THINK    5 bytes
+89378.780523 [dev] frame   22      0 bytes  ""
+89378.793983 [dev] frame   23  THINK    1 bytes
+89378.793996 [dev] frame   23      0 bytes  ""
+89378.807600 [dev] frame   24  THINK    1 bytes
+89378.807611 [dev] frame   24      0 bytes  ""
+89378.846891 [dev] frame   25      5 bytes  "READY"
+89378.859961 [dev] frame   26      0 bytes  ""
+89378.859983 [dev] frame   27      0 bytes  ""
+89379.218748 [dev] memory: live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j · injected 0 · margin None · abstained Some("no candidates survived scoping and the §4.3 exclusions")
+89379.220580 [dev] ===== OUTBOUND REQUEST (llamacpp) =====
+89379.220592 [dev] model=qwen3.5:9b max_tokens=8192 enable_thinking=true
+89379.220594 [dev] context window: a LAUNCH flag (-c), not a request field; checked against /props at switch and at turn start
+89379.220598 [dev] sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5
+89379.220599 [dev] --- conversation (2 messages) ---
+89379.220635 [dev] [  0] system    17381 chars  tool_calls=0  "<identity>\r\nYou are Marlowe.\r\n\r\nYou are not a chatbot and not an assis"
+89379.220667 [dev] [  1] user         51 chars  tool_calls=0  "Reply with exactly the word READY and nothing else."
+89379.220681 [dev] tools offered: read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run
+89379.220682 [dev] ===== END REQUEST =====
+89379.286616 [dev] frame    1      0 bytes  ""
+89379.286630 [dev] frame    2  THINK    3 bytes
+89379.286644 [dev] frame    2      0 bytes  ""
+89379.303134 [dev] frame    3  THINK    5 bytes
+89379.303145 [dev] frame    3      0 bytes  ""
+89379.316944 [dev] frame    4  THINK    6 bytes
+89379.316959 [dev] frame    4      0 bytes  ""
+89379.331542 [dev] frame    5  THINK    3 bytes
+89379.331551 [dev] frame    5      0 bytes  ""
+89379.345028 [dev] frame    6  THINK    3 bytes
+89379.345053 [dev] frame    6      0 bytes  ""
+89379.357723 [dev] frame    7  THINK    8 bytes
+89379.357738 [dev] frame    7      0 bytes  ""
+89379.373238 [dev] frame    8  THINK    5 bytes
+89379.373258 [dev] frame    8      0 bytes  ""
+89379.386292 [dev] frame    9  THINK    8 bytes
+89379.386320 [dev] frame    9      0 bytes  ""
+89379.399077 [dev] frame   10  THINK    2 bytes
+89379.399086 [dev] frame   10      0 bytes  ""
+89379.414449 [dev] frame   11  THINK    5 bytes
+89379.414458 [dev] frame   11      0 bytes  ""
+89379.428209 [dev] frame   12  THINK    1 bytes
+89379.428222 [dev] frame   12      0 bytes  ""
+89379.440490 [dev] frame   13  THINK    4 bytes
+89379.440501 [dev] frame   13      0 bytes  ""
+89379.453926 [dev] frame   14  THINK    8 bytes
+89379.453937 [dev] frame   14      0 bytes  ""
+89379.466764 [dev] frame   15  THINK    5 bytes
+89379.466774 [dev] frame   15      0 bytes  ""
+89379.479940 [dev] frame   16  THINK    1 bytes
+89379.479949 [dev] frame   16      0 bytes  ""
+89379.494986 [dev] frame   17  THINK    5 bytes
+89379.494999 [dev] frame   17      0 bytes  ""
+89379.507750 [dev] frame   18  THINK    3 bytes
+89379.507780 [dev] frame   18      0 bytes  ""
+89379.520357 [dev] frame   19  THINK    2 bytes
+89379.520371 [dev] frame   19      0 bytes  ""
+89379.533154 [dev] frame   20  THINK    7 bytes
+89379.533167 [dev] frame   20      0 bytes  ""
+89379.546331 [dev] frame   21  THINK   12 bytes
+89379.546347 [dev] frame   21      0 bytes  ""
+89379.558544 [dev] frame   22  THINK    5 bytes
+89379.558561 [dev] frame   22      0 bytes  ""
+89379.571965 [dev] frame   23  THINK    6 bytes
+89379.571986 [dev] frame   23      0 bytes  ""
+89379.585832 [dev] frame   24  THINK    2 bytes
+89379.585843 [dev] frame   24      0 bytes  ""
+89379.598398 [dev] frame   25  THINK    8 bytes
+89379.598408 [dev] frame   25      0 bytes  ""
+89379.612282 [dev] frame   26  THINK    4 bytes
+89379.612294 [dev] frame   26      0 bytes  ""
+89379.626743 [dev] frame   27  THINK    6 bytes
+89379.626762 [dev] frame   27      0 bytes  ""
+89379.638954 [dev] frame   28  THINK    3 bytes
+89379.638965 [dev] frame   28      0 bytes  ""
+89379.652046 [dev] frame   29  THINK   11 bytes
+89379.652057 [dev] frame   29      0 bytes  ""
+89379.666503 [dev] frame   30  THINK    8 bytes
+89379.666519 [dev] frame   30      0 bytes  ""
+89379.679402 [dev] frame   31  THINK    1 bytes
+89379.679418 [dev] frame   31      0 bytes  ""
+89379.692512 [dev] frame   32  THINK    1 bytes
+89379.692524 [dev] frame   32      0 bytes  ""
+89379.732410 [dev] frame   33      5 bytes  "READY"
+89379.745896 [dev] frame   34      0 bytes  ""
+89379.745917 [dev] frame   35      0 bytes  ""

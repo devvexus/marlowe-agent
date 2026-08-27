@@ -1,0 +1,617 @@
+{
+  "label": "LLAMACPP-dev-on",
+  "provider": "llamacpp",
+  "dev": "on",
+  "daemon_port": 11453,
+  "llamacpp_port": 11492,
+  "reps": 12,
+  "rep1_discarded": true,
+  "daemon_startup_ms": 357.3,
+  "announced": [
+    "marlowe: context window 32768 tokens (model ceiling 262144)",
+    "marlowe: model provider LLAMACPP \u00b7 http://127.0.0.1:11492 \u00b7 ADR-060, opt-in; Ollama remains the default",
+    "marlowe: llama.cpp renders the GGUF's own chat template and parses its own tool-call dialect \u2014 Ollama's renderer and parser are NOT in this path",
+    "marlowe: sampling from `qwen3.5:9b`'s Ollama .params layer: temperature 1, top_k 20, top_p 0.95, presence_penalty 1.5",
+    "marlowe: qwen3.5:9b \u00b7 tool-call reliability NOT MEASURED on this machine \u2014 a failed tool call may be the model rather than the harness \u00b7 served by llama.cpp, NOT Ollama \u2014 any tool-call figure recorded for this model was measured through Ollama's own renderer and parser, and llama.cpp uses neither",
+    "marlowe: memory retrieval live \u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j",
+    "marlowe: skills 0 installed",
+    "marlowe: daemon listening on 127.0.0.1:11453",
+    "marlowe: runs are owned here and survive the client that started them",
+    "marlowe: control plane on 127.0.0.1:50699"
+  ],
+  "bracket_before": {
+    "tag": "before",
+    "at": "14:18:48",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 1,
+      "marlowe.exe": 0,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 9576,
+      "free_mib": 6470
+    }
+  },
+  "bracket_after": {
+    "tag": "after",
+    "at": "14:19:02",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 1,
+      "marlowe.exe": 1,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 9654,
+      "free_mib": 6392
+    }
+  },
+  "dev_ttft_ms": {
+    "n": 11,
+    "median": 65.3,
+    "min": 62.7,
+    "max": 81.2,
+    "spread": 18.6,
+    "all": [
+      73.7,
+      66.3,
+      65.2,
+      81.2,
+      76.8,
+      63.0,
+      63.7,
+      65.3,
+      63.9,
+      62.7,
+      65.9
+    ]
+  },
+  "dev_ttft_anyframe_ms": {
+    "n": 11,
+    "median": 65.3,
+    "min": 62.6,
+    "max": 81.2,
+    "spread": 18.6,
+    "all": [
+      73.7,
+      66.3,
+      65.1,
+      81.2,
+      76.8,
+      63.0,
+      63.7,
+      65.3,
+      63.9,
+      62.6,
+      65.9
+    ]
+  },
+  "socket_ttft_ms": {
+    "n": 11,
+    "median": 88.0,
+    "min": 71.2,
+    "max": 108.8,
+    "spread": 37.6,
+    "all": [
+      102.7,
+      89.6,
+      92.5,
+      88.0,
+      108.8,
+      83.6,
+      82.7,
+      89.6,
+      85.6,
+      84.3,
+      71.2
+    ]
+  },
+  "pre_request_ms": {
+    "n": 11,
+    "median": 4.9,
+    "min": 4.2,
+    "max": 7.2,
+    "spread": 3.0,
+    "all": [
+      4.2,
+      6.6,
+      4.4,
+      6.3,
+      7.2,
+      5.4,
+      4.3,
+      4.8,
+      4.9,
+      5.1,
+      4.7
+    ]
+  },
+  "delivery_ms": {
+    "n": 11,
+    "median": 0.1,
+    "min": 0.1,
+    "max": 0.1,
+    "spread": 0.0,
+    "all": [
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1,
+      0.1
+    ]
+  },
+  "turn_total_ms": {
+    "n": 11,
+    "median": 501.3,
+    "min": 417.1,
+    "max": 686.6,
+    "spread": 269.6,
+    "all": [
+      572.8,
+      572.6,
+      686.6,
+      497.7,
+      501.3,
+      663.4,
+      450.1,
+      417.1,
+      427.6,
+      440.7,
+      534.5
+    ]
+  },
+  "gen_tok_per_s": {
+    "n": 11,
+    "median": 73.6,
+    "min": 68.5,
+    "max": 75.1,
+    "spread": 6.6,
+    "all": [
+      73.4,
+      73.1,
+      73.6,
+      72.9,
+      73.4,
+      68.5,
+      75.1,
+      74.3,
+      74.0,
+      73.9,
+      74.0
+    ]
+  },
+  "gen_chars_per_s": {
+    "n": 11,
+    "median": 311.4,
+    "min": 263.7,
+    "max": 340.4,
+    "spread": 76.6,
+    "all": [
+      340.4,
+      318.9,
+      334.9,
+      290.5,
+      290.5,
+      324.3,
+      277.6,
+      311.4,
+      283.6,
+      263.7,
+      336.7
+    ]
+  },
+  "rep1": {
+    "dev_ttft_ms": 2193.5304000071483,
+    "socket_ttft_ms": 2205.2101000008406,
+    "turn_total_ms": 2813.821999996435
+  },
+  "system_chars_seen": [
+    17381
+  ],
+  "tools_seen": [
+    "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run"
+  ],
+  "messages_seen": [
+    2
+  ],
+  "model_calls_seen": [
+    1
+  ],
+  "errors": [],
+  "degraded": [],
+  "rows": [
+    {
+      "rep": 1,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 2205.2101000008406,
+      "turn_total_ms": 2813.821999996435,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 182,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 2193.5304000071483,
+      "dev_ttft_anyframe_ms": 2192.235399998026,
+      "pre_request_ms": 8.546099998056889,
+      "delivery_ms": 0.29399999766610563,
+      "frames_first_call": 44,
+      "gen_tok_per_s": 73.16380542321345,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 307.2565620247545
+    },
+    {
+      "rep": 2,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 102.65080000681337,
+      "turn_total_ms": 572.7551000018138,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 155,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 73.71329999295995,
+      "dev_ttft_anyframe_ms": 73.69739998830482,
+      "pre_request_ms": 4.200499999569729,
+      "delivery_ms": 0.07320000440813601,
+      "frames_first_call": 35,
+      "gen_tok_per_s": 73.44345242874046,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 340.35000318376495
+    },
+    {
+      "rep": 3,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 89.62460000475403,
+      "turn_total_ms": 572.5528000039048,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 149,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 66.27349999325816,
+      "dev_ttft_anyframe_ms": 66.25920000078622,
+      "pre_request_ms": 6.6399000061210245,
+      "delivery_ms": 0.09040000441018492,
+      "frames_first_call": 36,
+      "gen_tok_per_s": 73.10918752645638,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 318.8879837629502
+    },
+    {
+      "rep": 4,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 92.4862999963807,
+      "turn_total_ms": 686.6273000050569,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 194,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 65.16159999591764,
+      "dev_ttft_anyframe_ms": 65.14780000725295,
+      "pre_request_ms": 4.445200000191107,
+      "delivery_ms": 0.07660000119358301,
+      "frames_first_call": 44,
+      "gen_tok_per_s": 73.62822063511554,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 334.9373296862092
+    },
+    {
+      "rep": 5,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 88.04610000515822,
+      "turn_total_ms": 497.6779999997234,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 114,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 81.22279999952298,
+      "dev_ttft_anyframe_ms": 81.20810000400525,
+      "pre_request_ms": 6.347200003801845,
+      "delivery_ms": 0.08080000407062471,
+      "frames_first_call": 30,
+      "gen_tok_per_s": 72.8740991878369,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 290.5047189966866
+    },
+    {
+      "rep": 6,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 108.81809999409597,
+      "turn_total_ms": 501.2869999918621,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 109,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 76.83929998893291,
+      "dev_ttft_anyframe_ms": 76.82009998825379,
+      "pre_request_ms": 7.246300010592677,
+      "delivery_ms": 0.10900000052060932,
+      "frames_first_call": 29,
+      "gen_tok_per_s": 73.35096550637053,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 290.4688753698672
+    },
+    {
+      "rep": 7,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 83.62989999295678,
+      "turn_total_ms": 663.3619999920484,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 183,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 62.96329999167938,
+      "dev_ttft_anyframe_ms": 62.95239999599289,
+      "pre_request_ms": 5.3696999966632575,
+      "delivery_ms": 0.07360000745393336,
+      "frames_first_call": 40,
+      "gen_tok_per_s": 68.51904688791318,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 324.28771841389255
+    },
+    {
+      "rep": 8,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 82.6902999979211,
+      "turn_total_ms": 450.0613999989582,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 97,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 63.728399996762164,
+      "dev_ttft_anyframe_ms": 63.715700001921505,
+      "pre_request_ms": 4.268799995770678,
+      "delivery_ms": 0.08820000221021473,
+      "frames_first_call": 28,
+      "gen_tok_per_s": 75.11536467871063,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 277.648405113282
+    },
+    {
+      "rep": 9,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 89.55239999340847,
+      "turn_total_ms": 417.06300000078045,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 97,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 65.30760000168812,
+      "dev_ttft_anyframe_ms": 65.29470000532456,
+      "pre_request_ms": 4.779700000653975,
+      "delivery_ms": 0.10649999603629112,
+      "frames_first_call": 25,
+      "gen_tok_per_s": 74.321053946405,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 311.4403014672016
+    },
+    {
+      "rep": 10,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 85.64010000554845,
+      "turn_total_ms": 427.6479000109248,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 92,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 63.88429999060463,
+      "dev_ttft_anyframe_ms": 63.87069998891093,
+      "pre_request_ms": 4.868100004387088,
+      "delivery_ms": 0.08480000542476773,
+      "frames_first_call": 26,
+      "gen_tok_per_s": 74.0415396724475,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 283.6192624801983
+    },
+    {
+      "rep": 11,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 84.28060000005644,
+      "turn_total_ms": 440.70589999319054,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 89,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 62.65920000441838,
+      "dev_ttft_anyframe_ms": 62.643900004331954,
+      "pre_request_ms": 5.13959999079816,
+      "delivery_ms": 0.08510000770911574,
+      "frames_first_call": 27,
+      "gen_tok_per_s": 73.88279971434191,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 263.7298755217734
+    },
+    {
+      "rep": 12,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 71.19339999917429,
+      "turn_total_ms": 534.4669000041904,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 151,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 65.94760000007227,
+      "dev_ttft_anyframe_ms": 65.93349999457132,
+      "pre_request_ms": 4.651099996408448,
+      "delivery_ms": 0.0822000001790002,
+      "frames_first_call": 35,
+      "gen_tok_per_s": 74.02778654658195,
+      "system_chars": 17381,
+      "system_chars_sysline": null,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 336.7341322098305
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+{
+  "label": "SMOKE",
+  "provider": "ollama",
+  "dev": "on",
+  "daemon_port": 11460,
+  "llamacpp_port": 0,
+  "reps": 2,
+  "rep1_discarded": true,
+  "daemon_startup_ms": 140.4,
+  "announced": [],
+  "bracket_before": {
+    "tag": "before",
+    "at": "14:13:58",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 0,
+      "marlowe.exe": 0,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 3270,
+      "free_mib": 12776
+    }
+  },
+  "bracket_after": {
+    "tag": "after",
+    "at": "14:14:09",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 1,
+      "marlowe.exe": 1,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 11501,
+      "free_mib": 4545
+    }
+  },
+  "dev_ttft_ms": {
+    "n": 1,
+    "median": 312.6,
+    "min": 312.6,
+    "max": 312.6,
+    "spread": 0.0,
+    "all": [
+      312.6
+    ]
+  },
+  "dev_ttft_anyframe_ms": {
+    "n": 1,
+    "median": 312.6,
+    "min": 312.6,
+    "max": 312.6,
+    "spread": 0.0,
+    "all": [
+      312.6
+    ]
+  },
+  "socket_ttft_ms": {
+    "n": 1,
+    "median": 326.1,
+    "min": 326.1,
+    "max": 326.1,
+    "spread": 0.0,
+    "all": [
+      326.1
+    ]
+  },
+  "pre_request_ms": {
+    "n": 1,
+    "median": 12.8,
+    "min": 12.8,
+    "max": 12.8,
+    "spread": 0.0,
+    "all": [
+      12.8
+    ]
+  },
+  "delivery_ms": {
+    "n": 1,
+    "median": 0.1,
+    "min": 0.1,
+    "max": 0.1,
+    "spread": 0.0,
+    "all": [
+      0.1
+    ]
+  },
+  "turn_total_ms": {
+    "n": 1,
+    "median": 831.8,
+    "min": 831.8,
+    "max": 831.8,
+    "spread": 0.0,
+    "all": [
+      831.8
+    ]
+  },
+  "gen_tok_per_s": {
+    "n": 1,
+    "median": 75.8,
+    "min": 75.8,
+    "max": 75.8,
+    "spread": 0.0,
+    "all": [
+      75.8
+    ]
+  },
+  "gen_chars_per_s": {
+    "n": 1,
+    "median": 369.8,
+    "min": 369.8,
+    "max": 369.8,
+    "spread": 0.0,
+    "all": [
+      369.8
+    ]
+  },
+  "rep1": {
+    "dev_ttft_ms": 8071.099000007962,
+    "socket_ttft_ms": 8096.7210000089835,
+    "turn_total_ms": 8645.289200008847
+  },
+  "system_chars_seen": [
+    17381
+  ],
+  "tools_seen": [
+    "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run"
+  ],
+  "messages_seen": [
+    2
+  ],
+  "model_calls_seen": [
+    1
+  ],
+  "errors": [],
+  "degraded": [],
+  "rows": [
+    {
+      "rep": 1,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 8096.7210000089835,
+      "turn_total_ms": 8645.289200008847,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 201,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 8071.099000007962,
+      "dev_ttft_anyframe_ms": 8071.099000007962,
+      "pre_request_ms": 19.922999999835156,
+      "delivery_ms": 0.5774000019300729,
+      "frames_first_call": 41,
+      "gen_tok_per_s": 73.89053818844063,
+      "system_chars": 17381,
+      "system_chars_sysline": 17381,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 375.5230434430055
+    },
+    {
+      "rep": 2,
+      "n_model_calls": 1,
+      "socket_ttft_ms": 326.0649000003468,
+      "turn_total_ms": 831.811199997901,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 182,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": 312.56790000770707,
+      "dev_ttft_anyframe_ms": 312.56790000770707,
+      "pre_request_ms": 12.839999995776452,
+      "delivery_ms": 0.09630000567995012,
+      "frames_first_call": 39,
+      "gen_tok_per_s": 75.81835438696145,
+      "system_chars": 17381,
+      "system_chars_sysline": 17381,
+      "messages": 2,
+      "tools": "read, write, edit, glob, grep, bash, web, recall, use, ask, remember, run",
+      "roles": [
+        [
+          "system",
+          17381
+        ],
+        [
+          "user",
+          51
+        ]
+      ],
+      "gen_chars_per_s": 369.7506042078891
+    }
+  ]
+}

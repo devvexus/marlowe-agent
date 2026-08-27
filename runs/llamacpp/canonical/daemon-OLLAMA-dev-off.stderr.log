@@ -1,0 +1,41 @@
+89234.256990 marlowe: context window 32768 tokens (model ceiling 262144)
+89234.640157 
+89234.640171 Marlowe — first run under this profile. What it can reach:
+89234.640180 
+89234.640181   FILES
+89234.640183     C:\Users\matth\Projects\Marlowe_Harness
+89234.640185     That directory and everything under it. Nothing outside it: paths are resolved and checked before opening, and symlinks pointing out are refused.
+89234.640188 
+89234.640191   NETWORK
+89234.640192     Nothing, until you approve a host. Every fetch asks, and every fetch asks again — approvals are not remembered between requests in this build.
+89234.640198     A fetched page is read by a separate, sandboxed process that holds no tools; only a short summary of it comes back.
+89234.640199 
+89234.640200   MEMORY
+89234.640201     live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+89234.640204     What you tell Marlowe can be written to a signed journal on this machine, under the profile directory. It is not sent anywhere.
+89234.640205 
+89234.640206   ALWAYS ASKS YOU FIRST
+89234.640208     bash     Run one command line through bash — really bash, including on Windows, where it is Git Bash.
+89234.640210     (and any network request, per host, every time)
+89234.640211 
+89234.640212   MAY ACT WITHOUT ASKING
+89234.640213     ask      Put a question to the user and wait.
+89234.640214     edit     Change ONE snippet inside an existing file, leaving the rest untouched.
+89234.640215     glob     List the files under a directory, by name.
+89234.640216     grep     Search the CONTENTS of files under a directory with a regular expression, line by line.
+89234.640217     read     Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns).
+89234.640218     recall   Search Marlowe's own memory: what the user said in earlier sessions, and what Marlowe has learned.
+89234.640219     remember Ask the harness to record something worth keeping.
+89234.640220     run      Delegate a sub-task to a child run and wait for it.
+89234.640221     use      Find and load a skill.
+89234.640222     web      Fetch one URL over https and return the page.
+89234.640223     write    Create a file, or replace all of its contents.
+89234.640224     Whether these ask depends on the trust tier this run was granted. The trust ledger that would raise a tier does not exist yet, so today they run at the tier the profile starts with.
+89234.640225 
+89234.640226   The model chooses what to do; the harness decides what it is allowed to do, and the decisions are in the journal.
+89234.640227 
+89234.640238 marlowe: memory retrieval live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+89234.640240 marlowe: skills 0 installed
+89234.640241 marlowe: daemon listening on 127.0.0.1:11452
+89234.640242 marlowe: runs are owned here and survive the client that started them
+89234.642015 marlowe: control plane on 127.0.0.1:63305

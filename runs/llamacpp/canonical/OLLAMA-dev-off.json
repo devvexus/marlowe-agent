@@ -1,0 +1,296 @@
+{
+  "label": "OLLAMA-dev-off",
+  "provider": "ollama",
+  "dev": "off",
+  "daemon_port": 11452,
+  "llamacpp_port": 0,
+  "reps": 12,
+  "rep1_discarded": true,
+  "daemon_startup_ms": 407.7,
+  "announced": [
+    "marlowe: context window 32768 tokens (model ceiling 262144)",
+    "marlowe: memory retrieval live \u00b7 C:\\Users\\matth\\Projects\\Marlowe_Harness\\models\\ms-marco-MiniLM-L-2-v2-ft-session-j",
+    "marlowe: skills 0 installed",
+    "marlowe: daemon listening on 127.0.0.1:11452",
+    "marlowe: runs are owned here and survive the client that started them",
+    "marlowe: control plane on 127.0.0.1:63305"
+  ],
+  "bracket_before": {
+    "tag": "before",
+    "at": "14:16:35",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 1,
+      "marlowe.exe": 0,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 10991,
+      "free_mib": 5055
+    }
+  },
+  "bracket_after": {
+    "tag": "after",
+    "at": "14:16:51",
+    "procs": {
+      "cargo.exe": 0,
+      "rustc.exe": 0,
+      "llama-server.exe": 1,
+      "marlowe.exe": 1,
+      "ollama.exe": 1
+    },
+    "vram": {
+      "used_mib": 11147,
+      "free_mib": 4899
+    }
+  },
+  "dev_ttft_ms": null,
+  "dev_ttft_anyframe_ms": null,
+  "socket_ttft_ms": {
+    "n": 11,
+    "median": 330.0,
+    "min": 302.0,
+    "max": 382.1,
+    "spread": 80.1,
+    "all": [
+      330.0,
+      336.7,
+      336.1,
+      322.1,
+      325.7,
+      318.4,
+      302.0,
+      355.5,
+      382.1,
+      335.8,
+      325.7
+    ]
+  },
+  "pre_request_ms": null,
+  "delivery_ms": null,
+  "turn_total_ms": {
+    "n": 11,
+    "median": 859.6,
+    "min": 676.8,
+    "max": 1380.7,
+    "spread": 703.9,
+    "all": [
+      807.3,
+      747.4,
+      858.5,
+      769.8,
+      914.0,
+      676.8,
+      968.4,
+      859.6,
+      891.5,
+      1380.7,
+      937.5
+    ]
+  },
+  "gen_tok_per_s": null,
+  "gen_chars_per_s": {
+    "n": 11,
+    "median": 318.1,
+    "min": 278.5,
+    "max": 371.1,
+    "spread": 92.6,
+    "all": [
+      305.9,
+      326.2,
+      317.8,
+      321.6,
+      341.7,
+      318.1,
+      328.6,
+      305.5,
+      292.5,
+      278.5,
+      371.1
+    ]
+  },
+  "rep1": {
+    "dev_ttft_ms": null,
+    "socket_ttft_ms": 321.1269000021275,
+    "turn_total_ms": 708.8944999995874
+  },
+  "system_chars_seen": [],
+  "tools_seen": [],
+  "messages_seen": [],
+  "model_calls_seen": [
+    0
+  ],
+  "errors": [],
+  "degraded": [],
+  "rows": [
+    {
+      "rep": 1,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 321.1269000021275,
+      "turn_total_ms": 708.8944999995874,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 92,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 250.14983201442155
+    },
+    {
+      "rep": 2,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 330.0112999859266,
+      "turn_total_ms": 807.2673999995459,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 141,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 305.9154194065485
+    },
+    {
+      "rep": 3,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 336.6542000003392,
+      "turn_total_ms": 747.3987000121269,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 129,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 326.23686986960115
+    },
+    {
+      "rep": 4,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 336.08510000340175,
+      "turn_total_ms": 858.4815000067465,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 161,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 317.7663552025572
+    },
+    {
+      "rep": 5,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 322.06930000393186,
+      "turn_total_ms": 769.8481999977957,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 139,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 321.5872833712649
+    },
+    {
+      "rep": 6,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 325.7339999981923,
+      "turn_total_ms": 914.0377000003355,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 196,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 341.66026832615154
+    },
+    {
+      "rep": 7,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 318.4017000021413,
+      "turn_total_ms": 676.8224999977974,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 109,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 318.06189819726313
+    },
+    {
+      "rep": 8,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 301.9566000002669,
+      "turn_total_ms": 968.3899999945424,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 214,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 328.61498238515827
+    },
+    {
+      "rep": 9,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 355.5002999928547,
+      "turn_total_ms": 859.5551000034902,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 149,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 305.52233605701326
+    },
+    {
+      "rep": 10,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 382.09610000194516,
+      "turn_total_ms": 891.4714999991702,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 144,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 292.51510771979116
+    },
+    {
+      "rep": 11,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 335.8256000065012,
+      "turn_total_ms": 1380.7428000000073,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 286,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 278.49096560168454
+    },
+    {
+      "rep": 12,
+      "n_model_calls": 0,
+      "socket_ttft_ms": 325.7182999950601,
+      "turn_total_ms": 937.4924000003375,
+      "first_delta_kind": "reasoning",
+      "reply": "READY",
+      "reasoning_chars": 222,
+      "err": null,
+      "degraded": [],
+      "dev_ttft_ms": null,
+      "note": "no parsed dev request/frame pair in this rep window",
+      "gen_chars_per_s": 371.051994515691
+    }
+  ]
+}

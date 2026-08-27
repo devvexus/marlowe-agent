@@ -41,3 +41,7 @@ runs/session-d-coldprobe/
 
 # ORT profiling dumps: ~170 MB each, over GitHub's 100 MB limit. Kept on disk, never committed.
 runs/**/ort-profiles/
+
+# Scratch profile roots written by measurement instruments (journals, embeddings,
+# per-cell LOCALAPPDATA). Evidence lives in the .log/.json beside them.
+runs/**/profile-*/

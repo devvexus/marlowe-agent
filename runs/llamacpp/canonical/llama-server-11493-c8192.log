@@ -1,0 +1,23 @@
+0.00.086.718 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.158.134 W srv  llama_server: -----------------
+0.00.158.138 W srv  llama_server: CORS is set to allow all origins ('*') and no API key is set
+0.00.158.138 W srv  llama_server: this can be a security risk (cross-origin attacks)
+0.00.158.139 W srv  llama_server: more info: https://github.com/ggml-org/llama.cpp/pull/25655
+0.00.158.139 W srv  llama_server: -----------------
+0.00.160.724 I srv    load_model: loading model 'C:\Users\matth/.ollama/models/blobs/sha256-dec52a44569a2a25341c4e4d3fee25846eed4f6f0b936278e3a3c900bb99d37c'
+0.00.810.802 W load: control-looking token: 248064 '<|repo_name|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.810.807 W load: control-looking token: 248063 '<|fim_pad|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.810.808 W load: control-looking token: 248062 '<|fim_suffix|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.810.810 W load: control-looking token: 248061 '<|fim_middle|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.810.812 W load: control-looking token: 248060 '<|fim_prefix|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.00.811.307 W load: control-looking token: 248065 '<|file_sep|>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.01.822.336 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 8192, kv_unified = 'false'
+0.01.837.529 I srv  llama_server: model loaded
+0.01.837.535 I srv  llama_server: listening on http://127.0.0.1:11493
+0.28.038.251 I slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = -1
+0.28.038.294 I slot launch_slot_: id  0 | task 0 | processing task, is_child = 0
+0.29.609.733 I slot print_timing: id  0 | task 0 | prompt eval time =     171.50 ms /    19 tokens (    9.03 ms per token,   110.78 tokens per second)
+0.29.609.741 I slot print_timing: id  0 | task 0 |        eval time =    1399.91 ms /   120 tokens (   11.67 ms per token,    85.72 tokens per second)
+0.29.609.742 I slot print_timing: id  0 | task 0 |       total time =    1571.41 ms /   139 tokens
+0.29.609.743 I slot print_timing: id  0 | task 0 |    graphs reused =        119
+0.29.609.769 I slot      release: id  0 | task 0 | stop processing: n_tokens = 138, truncated = 0
