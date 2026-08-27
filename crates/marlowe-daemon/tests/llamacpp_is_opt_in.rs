@@ -265,6 +265,12 @@ fn a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exact
     d.set_provider("ollama/llama.cpp").expect(
         "the hybrid must be selectable even when its engine cannot start -- that is the fallback",
     );
+    // **The switch and the start are two steps now, and the test mirrors the handler.** The engine
+    // takes seconds to come up and `set_provider` runs on the thread that answers the control
+    // port, so acknowledging first is what stops the surface freezing from the moment the slash
+    // command is sent. A test that called only the first half would assert on a daemon that had
+    // not tried to start anything.
+    d.start_pending_engine();
 
     let report = d.status();
     assert_eq!(

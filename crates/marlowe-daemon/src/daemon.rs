@@ -710,9 +710,55 @@ pub struct Daemon {
     /// user's own setting with no record of who did it, or a screen claiming llama.cpp is serving
     /// when Ollama is.
     engine: crate::engine::HybridEngine,
+
+    /// **Set by `set_provider`, consumed by [`Self::start_pending_engine`].** `Some` means a
+    /// hybrid switch has been ACCEPTED and its engine has not been started yet.
+    ///
+    /// It exists because starting the engine takes seconds — a spawn, a health wait, an offload
+    /// measurement — and `set_provider` is called on the thread that answers the control port.
+    /// Doing it inline froze the surface from the moment the slash command was sent until the
+    /// engine either came up or gave up. The switch is now acknowledged first and the engine
+    /// started second, so the user sees the provider change immediately and the engine's verdict
+    /// when it arrives.
+    ///
+    /// The `String` is the sampler disclosure, resolved during the switch. Carried rather than
+    /// recomputed because resolving it reads Ollama's store, and doing that twice would put a
+    /// second child process on the path this change exists to shorten.
+    pending_engine: Option<String>,
 }
 
 impl Daemon {
+
+    /// **Start the engine for a hybrid switch that has already been acknowledged.** No-op unless
+    /// [`Self::pending_engine`] is set.
+    ///
+    /// Split out of `set_provider` deliberately: see the field's own note. The caller emits a
+    /// `Status` between the two, which is what unfreezes the surface.
+    pub fn start_pending_engine(&mut self) {
+        let Some(note) = self.pending_engine.take() else { return };
+        let ModelProviderChoice::LlamaCpp { endpoint, .. } = self.config.model_provider() else {
+            return;
+        };
+        self.engine = crate::engine::HybridEngine::start(
+            &self.config.model,
+            &endpoint,
+            self.config.context_tokens,
+        );
+        // ADR-029: announced, never inferred. Both halves of the hybrid are named, because the
+        // point of one entry with two names is that the user can see both.
+        eprintln!(
+            "marlowe: model provider {} · Ollama stores and lists · {} · {note}",
+            marlowe_view::provider::HYBRID,
+            self.engine.disclosure(),
+        );
+        if self.engine.fallback_line().is_none() {
+            eprintln!(
+                "marlowe: llama.cpp renders the GGUF's own chat template and parses its own \
+                 tool-call dialect. Ollama's renderer and parser are NOT in this path, so the \
+                 tool-call reliability recorded for this model does not describe it."
+            );
+        }
+    }
 
     /// How many history blocks this conversation is carrying. **Test surface for the session
     /// store** — the amnesia bug was invisible from outside because the session *id* was stable
@@ -943,6 +989,7 @@ impl Daemon {
             mcp_notices,
             token,
             engine,
+            pending_engine: None,
         })
     }
 
@@ -1509,11 +1556,6 @@ impl Daemon {
                 // old engine first stops any server we own, because the commonest reason a start
                 // fails on this card is that a `llama-server` is already holding it.
                 self.engine.stop();
-                self.engine = crate::engine::HybridEngine::start(
-                    &self.config.model,
-                    &endpoint,
-                    self.config.context_tokens,
-                );
 
                 // **The switch is ACCEPTED either way, and that is the decision.** *"llama fails
                 // fall back to ollama but surface to user why."* Refusing here would be the old
@@ -1523,22 +1565,13 @@ impl Daemon {
                 self.config.model_provider =
                     ModelProviderChoice::LlamaCpp { endpoint, sampling };
 
-                // ADR-029: announced, never inferred. Both halves of the hybrid are named,
-                // because the point of one entry with two names is that the user can see both.
-                eprintln!(
-                    "marlowe: model provider {} · Ollama stores and lists · {} · {}",
-                    marlowe_view::provider::HYBRID,
-                    self.engine.disclosure(),
-                    plan.disclosure(),
-                );
-                if self.engine.fallback_line().is_none() {
-                    eprintln!(
-                        "marlowe: llama.cpp renders the GGUF's own chat template and parses its \
-                         own tool-call dialect. Ollama's renderer and parser are NOT in this \
-                         path, so the tool-call reliability recorded for this model does not \
-                         describe it."
-                    );
-                }
+                // **The engine is NOT started here, and that is the fix for the freeze.**
+                // Spawning it, waiting for health and measuring the offload takes seconds, and
+                // this function runs on the thread that answers the control port -- so doing it
+                // inline froze the surface from the instant the slash command was sent. The
+                // switch is acknowledged now; `start_pending_engine` runs after the caller has
+                // emitted a `Status`.
+                self.pending_engine = Some(plan.disclosure());
                 Ok(())
             }
             // Unreachable while `PROVIDERS` and this match agree, and a wrong answer here is a
@@ -1726,6 +1759,13 @@ impl Daemon {
                 // One non-blocking `try_wait` per turn. A server that died since the last turn
                 // latches its reason here, so the very next thing the user sees names the exit
                 // code and the server's own last log line rather than a connection failure.
+                // **A pending engine is started here too, so a caller that forgot cannot leave
+                // the hybrid serving nothing.** `set_provider` acknowledges the switch and defers
+                // the start; the control-plane handler runs it immediately afterwards. This is the
+                // backstop for every other path -- a default that makes a mismatch unobservable is
+                // the shape CLAUDE.md has four bugs from, and "the engine never started because
+                // nobody called the second function" is exactly that shape.
+                self.start_pending_engine();
                 if let Some(line) = self.engine.refresh() {
                     on_event(Event::Degraded {
                         what: "the engine changed".into(),
@@ -2649,7 +2689,16 @@ impl Daemon {
                 // is a consequence of this, and the client re-projects the daemon's report rather
                 // than guessing what the new list holds.
                 match self.set_provider(&provider) {
-                    Ok(()) => on_event(Event::Status(self.status())),
+                    Ok(()) => {
+                        // **Two statuses, and the first one is the point.** The switch is
+                        // acknowledged before the engine is started, so the surface repaints with
+                        // the new provider immediately instead of sitting frozen for the seconds a
+                        // spawn, a health wait and an offload measurement take. The second carries
+                        // the engine's verdict -- serving, or fallen back with the reason.
+                        on_event(Event::Status(self.status()));
+                        self.start_pending_engine();
+                        on_event(Event::Status(self.status()));
+                    }
                     Err(detail) => on_event(Event::Error { detail }),
                 }
             }
@@ -2741,10 +2790,36 @@ impl Daemon {
             if shutdown.load(Ordering::Relaxed) {
                 break;
             }
+            // **THE CONNECTION IS SHUT DOWN EXPLICITLY, AND THIS IS THE FREEZE.**
+            //
+            // Windows creates sockets from `accept` as INHERITABLE, and Rust's `Command::spawn` passes
+            // `bInheritHandles = TRUE`. So every child started while a connection is open receives a
+            // duplicate of that connection's handle. Dropping our own copy is then NOT enough: the peer
+            // sees no EOF, because the child is holding the other reference for as long as it lives.
+            //
+            // `/provider ollama/llama.cpp` starts a `llama-server` that is MEANT to outlive the request.
+            // So the socket stayed open forever. Measured against the real control port: both status
+            // frames arrived, at 2,050 ms and 6,489 ms, and then **no EOF after 180 seconds**, while a
+            // second connection was answered in 27 ms. The daemon was never stuck. Only the caller was,
+            // on a handle it could not see and did not own.
+            //
+            // This is why shortening `HEALTH_DEADLINE` and deferring the engine start did not help:
+            // both made the daemon faster at a job it was already completing, and neither can close a
+            // handle held by another process.
+            //
+            // `shutdown` acts on the CONNECTION rather than on a handle's reference count, so it sends
+            // FIN and the peer reads EOF no matter how many duplicates exist. It is ordinary safe Rust —
+            // this crate denies `unsafe`, and `SetHandleInformation` would have needed an exemption for a
+            // weaker guarantee, since it only protects children spawned AFTER the flag is cleared.
             let Ok(stream) = incoming else { continue };
+            let hangup = stream.try_clone().ok();
             let mut guard = state.lock().expect("the daemon is single-threaded");
             let _ = guard.serve_one(stream);
             drop(guard);
+            // FIN, unconditionally. See the note above the accept.
+            if let Some(h) = hangup {
+                let _ = h.shutdown(std::net::Shutdown::Both);
+            }
             // **Checked after serving, not only before accepting.** `incoming()` blocks, so a
             // shutdown request set the flag and then the loop sat waiting for a connection that
             // would never come — the daemon answered "shutdown" and kept listening. Verified by

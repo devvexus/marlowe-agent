@@ -630,7 +630,14 @@ pub fn spawn(
                 break;
             }
             let Ok(stream) = incoming else { continue };
+            // See the note on the main port's accept loop: a child spawned while this connection
+            // is open inherits its handle on Windows, so dropping our copy does not give the peer
+            // an EOF. `shutdown` acts on the connection, not on a handle count.
+            let hangup = stream.try_clone().ok();
             let _ = serve_one(&plane, &token, stream);
+            if let Some(h) = hangup {
+                let _ = h.shutdown(std::net::Shutdown::Both);
+            }
             if shutdown.load(Ordering::Relaxed) {
                 break;
             }
