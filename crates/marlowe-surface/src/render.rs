@@ -465,11 +465,29 @@ fn draw_status(app: &App, theme: &Theme, tree: &RegionTree, area: Rect, buf: &mu
     ];
     Paragraph::new(left).render(body, buf);
 
-    let figures: Vec<Line> = band
-        .figures
-        .iter()
-        .map(|f| Line::from(Span::styled(f.clone(), Ink::Dim.style(theme))))
-        .collect();
+    // **The cadence leads the figures, and BOTH numbers or neither.**
+    //
+    // `Cadence::render` emits time-to-first-token and tokens/sec together. That pairing is not
+    // presentation, it is the finding: a CPU `llama-server` once beat Ollama on TTFT — 218 ms
+    // against 426 — while being FIVE TIMES WORSE per turn, because TTFT is prompt evaluation and
+    // prompt evaluation is what a CPU does acceptably. Showing TTFT alone would put that exact
+    // blind spot on the user's screen.
+    //
+    // Accent rather than Dim: it is the one figure that changes while a turn is running, and the
+    // band's other figures are static facts about the session.
+    let mut figures: Vec<Line> = Vec::new();
+    if let Some(c) = band.cadence {
+        // `figures()` returns BOTH numbers as separate lines -- the pairing is enforced by the
+        // type, not by this call site remembering to print two things.
+        for f in c.figures() {
+            figures.push(Line::from(Span::styled(f, Ink::Accent.style(theme))));
+        }
+    }
+    figures.extend(
+        band.figures
+            .iter()
+            .map(|f| Line::from(Span::styled(f.clone(), Ink::Dim.style(theme)))),
+    );
     Paragraph::new(figures)
         .alignment(Alignment::Right)
         .render(body, buf);

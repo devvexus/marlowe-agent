@@ -53,11 +53,21 @@ pub fn items_for(view: &SessionView, tab: Tab) -> Vec<Item> {
             "action classes, tier, agreement rate, trend",
             "promotion proposals with evidence, and ceilings no evidence lifts",
         )],
-        Tab::Status => vec![not_yet(
+        // **The real pane, not the placeholder.** The daemon's announcements are projected into
+        // `SessionView::status_pane` by `marlowe_daemon::project`, and this is where they are
+        // read. It said *"not built — M2, against real data"* while the data was already arriving
+        // on the wire and being folded into the view — the pane existed, the projection existed,
+        // and nothing drew it, so the screen said the feature was unbuilt.
+        //
+        // Empty is still honest: a daemon that has announced nothing has nothing to show, and the
+        // placeholder says so rather than leaving a blank region, which §B7 forbids because an
+        // empty pane is indistinguishable from a broken one.
+        Tab::Status if !view.status_pane.is_empty() => view.status_pane.clone(),
+        Tab::Status => vec![Item::new(
             "Status",
             'b',
-            "model, provider, context, spend, connection health",
-            "degradation reasons, memory size, daemon uptime",
+            Tone::Dim,
+            &[("the daemon has announced nothing yet this session", Tone::Dim)],
         )],
     }
 }
@@ -97,7 +107,13 @@ mod tests {
     #[test]
     fn the_four_deferred_panes_say_so_rather_than_showing_invented_data() {
         let s = marlowe_stub::Session::new();
-        for tab in Tab::ALL.iter().filter(|t| !t.is_live_in_m1()) {
+        // **Status is no longer one of them.** It went live on 2026-08-27: the daemon's own
+        // announcements -- the engine start and its measured tok/s, an Ollama eviction, a reserve
+        // that could not be taken -- are projected into `SessionView::status_pane` and drawn here.
+        // It said "not built - M2" for a while AFTER the data was already arriving on the wire and
+        // being folded into the view, because the pane and the projection existed and nothing drew
+        // them. Leaving it in this list would have kept asserting that a shipped pane is unbuilt.
+        for tab in Tab::ALL.iter().filter(|t| !t.is_live_in_m1() && **t != Tab::Status) {
             let items = items_for(s.view(), *tab);
             let says_so = items.iter().any(|i| {
                 i.lines
@@ -111,5 +127,19 @@ mod tests {
                 tab.title()
             );
         }
+
+        // **And the positive half, because excluding a tab from a "says it is unbuilt" check is
+        // not the same as showing that it is built.** Dropping Status from the loop above would
+        // pass on a build where the pane renders nothing at all -- which is exactly the state it
+        // was in this morning.
+        let status = items_for(s.view(), Tab::Status);
+        assert!(!status.is_empty(), "the Status pane must render a region; an empty pane is                  indistinguishable from a broken one");
+        assert!(
+            !status.iter().any(|i| i
+                .lines
+                .iter()
+                .any(|(text, _)| text.contains("not built") && text.contains("M2"))),
+            "Status still claims to be unbuilt while its projection is live"
+        );
     }
 }
