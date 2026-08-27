@@ -555,6 +555,25 @@ pub fn start_with_deadline(
         cmd.env("PATH", plan.path_value());
     }
 
+    // **NO CONSOLE WINDOW. `llama-server.exe` is a console subsystem binary, so Windows gives it
+    // one unless told otherwise, and a black box appears on the user's desktop for the life of the
+    // session.**
+    //
+    // This is not cosmetic. The engine is meant to be an implementation detail of `/provider
+    // ollama/llama.cpp` -- Ollama's own runner is invisible, and a window that appears only on the
+    // fast path teaches the user that the fast path is the broken one. It is also a window with no
+    // close semantics: closing it kills the engine mid-turn, and the supervisor would report a
+    // crash the user caused and cannot connect to what they did.
+    //
+    // `CREATE_NO_WINDOW` (0x0800_0000) suppresses it. Stdout and stderr are already captured
+    // (`Stdio::piped`), so nothing is lost -- the log the offload check reads is unaffected.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     let mut child = cmd.spawn().map_err(|e| EngineFailure::SpawnFailed {
         binary: plan.binary.clone(),
         detail: e.to_string(),
