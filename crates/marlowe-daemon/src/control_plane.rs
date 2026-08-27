@@ -299,7 +299,35 @@ impl ControlPlane {
                 },
             ),
             pending_steers: self.control.pending_steers(run),
+            subagents: self.children_of(run),
         }
+    }
+
+    /// The runs this one spawned, for §6.3's roster panel.
+    ///
+    /// **Read from the checkpoint store, not from the run table**, and for the same reason
+    /// `parent` above is: the table is what this daemon remembers and the store is what survived.
+    /// A child spawned before a restart is still this run's child, and a roster that forgot it
+    /// would be a window disagreeing with the journal.
+    ///
+    /// The status still prefers the live table when it has a row, because that is the one that
+    /// moves while a child works; the checkpoint is the fallback and never a guess.
+    fn children_of(&self, parent: RunId) -> Vec<crate::protocol::RunChild> {
+        self.control
+            .store()
+            .latest_per_run()
+            .into_iter()
+            .filter(|cp| cp.parent == Some(parent))
+            .map(|cp| {
+                let id = cp.run.to_string();
+                let status = self
+                    .runs
+                    .get(&id)
+                    .map(|s| s.status.clone())
+                    .unwrap_or_else(|| format!("{:?}", cp.status).to_lowercase());
+                crate::protocol::RunChild { id, status }
+            })
+            .collect()
     }
 }
 

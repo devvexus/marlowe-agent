@@ -44,10 +44,21 @@ use marlowe_provider::ollama::parse_step;
 use marlowe_daemon::protocol::Event;
 use marlowe_tools::builtin_registry;
 
-fn tmp(name: &str) -> PathBuf {
+/// A profile root for one test.
+///
+/// **`Profile::init` refuses a non-empty root**, and a previous run's files survive when its
+/// journal handle outlived the panic that ended it — so the remove is best-effort and the open is
+/// the fallback, which is the pattern `memory_durability.rs` already uses. A test that failed once
+/// must not go on failing for a reason that has nothing to do with what it asserts.
+fn fresh_profile(name: &str) -> (PathBuf, Profile) {
     let dir = std::env::temp_dir().join(format!("marlowe-roster-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
-    dir
+    let profile = if dir.join("profile.json").exists() {
+        Profile::open(&dir).expect("an existing profile opens")
+    } else {
+        Profile::init(&dir).expect("a fresh profile")
+    };
+    (dir, profile)
 }
 
 /// **`wall_ms` is non-zero on purpose.** A reply that costs no wall time leaves a run's final
@@ -84,8 +95,7 @@ fn listed(plane: &marlowe_daemon::control_plane::Shared) -> Vec<(String, String,
 
 #[test]
 fn a_child_spawned_from_a_model_reply_is_listed_in_runs() {
-    let root_dir = tmp("listed");
-    let profile = Profile::init(&root_dir).expect("a fresh profile");
+    let (root_dir, profile) = fresh_profile("listed");
     let journal = Arc::new(Mutex::new(Journal::open(&profile).expect("the journal opens")));
     let plane = ControlPlane::new(DurableControl::new(JournalCheckpoints::new(Arc::clone(
         &journal,
@@ -227,8 +237,7 @@ fn the_daemon_installs_this_recorder_at_the_composition_root() {
 /// property.
 #[test]
 fn a_finished_childs_elapsed_is_final_rather_than_growing() {
-    let root_dir = tmp("elapsed");
-    let profile = Profile::init(&root_dir).expect("a fresh profile");
+    let (root_dir, profile) = fresh_profile("elapsed");
     let journal = Arc::new(Mutex::new(Journal::open(&profile).expect("the journal opens")));
     let plane = ControlPlane::new(DurableControl::new(JournalCheckpoints::new(Arc::clone(
         &journal,
@@ -321,6 +330,130 @@ fn a_finished_childs_elapsed_is_final_rather_than_growing() {
         first, second,
         "a finished run's elapsed moved between two reads, so `detail` is still computing it live \
          from `started_ms` — the row was never closed"
+    );
+
+    let _ = std::fs::remove_dir_all(&root_dir);
+}
+
+/// **§6.3's roster panel has a producer.** `RunView::subagents` was a hardcoded `Vec::new()` — an
+/// empty roster because nothing filled it, indistinguishable from an empty roster because the run
+/// had no children, and the product was in the first state for the whole of M2.
+///
+/// Asserted end to end: a model reply spawns a child, the control plane's `detail` names it, and
+/// the projection that feeds a run window turns it into an item carrying the child's id.
+///
+/// **The control is the parent-and-child pair, not the child alone.** Watching the *child* must
+/// still show an empty roster — a `children_of` that returned every run it knew, or that folded on
+/// the wrong side of `parent`, would fill both and look right on whichever one was asserted first.
+#[test]
+fn a_run_windows_roster_names_the_children_and_a_childless_run_names_none() {
+    let (root_dir, profile) = fresh_profile("roster");
+    let journal = Arc::new(Mutex::new(Journal::open(&profile).expect("the journal opens")));
+    let plane = ControlPlane::new(DurableControl::new(JournalCheckpoints::new(Arc::clone(
+        &journal,
+    ))));
+
+    let mut e = Engine::new(
+        builtin_registry().expect("the builtins load"),
+        Unavailable,
+        100_000,
+        10_000,
+        PathBuf::from("/ws"),
+        Tier::Act,
+    );
+    let mut parent = Run::root(
+        RunId::from_name("roster-panel-parent"),
+        SessionId::from_name("roster-panel-session"),
+        CapabilityProfile::interactive(),
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut driver = ScriptDriver::new(vec![
+        reply(run_call(serde_json::json!({ "task": "go and count them" })), 100),
+        reply(serde_json::json!({ "content": "nineteen" }), 100),
+        reply(serde_json::json!({ "content": "nineteen." }), 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = RosterRecorder::new(
+        marlowe_loop::record::SharedJournalRecorder::new(Arc::clone(&journal), parent.trace_id),
+        Arc::clone(&plane),
+    );
+    let mut state = SessionState::new(parent.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    {
+        let mut ports = Ports {
+            driver: &mut driver,
+            summarizer: &mut summarizer,
+            tools: &mut tools,
+            memory: None,
+            approvals: &mut approvals,
+            sink: &mut sink,
+            control: &mut control,
+            clock: &mut clock,
+            recorder: &mut recorder,
+        };
+        let _ = e.run(&mut parent, &mut state, &mut prov, &mut ports);
+    }
+
+    let rows = listed(&plane);
+    assert_eq!(rows.len(), 1, "the child's row: {rows:?}");
+    let child_id = rows[0].0.clone();
+
+    // ── the view a run window actually draws ──────────────────────────────────────────
+    let view_of = |id: RunId| {
+        let detail = plane.lock().expect("the plane lock").detail(id);
+        let mut projection = marlowe_daemon::watch_client::RunProjection::new(id.to_string());
+        projection.apply(&[detail]);
+        projection.view().expect("a detail was absorbed, so there is a view")
+    };
+
+    let parent_view = view_of(parent.id);
+    assert_eq!(
+        parent_view.subagents.len(),
+        1,
+        "the parent's roster is empty, so the panel still reads `subagents — none` on a run that \
+         has a child"
+    );
+    let item = &parent_view.subagents[0];
+    assert_eq!(
+        item.id.as_deref(),
+        Some(child_id.as_str()),
+        "the roster item must carry the child's UUID: two live runs can share a mnemonic, and a \
+         panel folded by name would merge them"
+    );
+    assert!(
+        item.label.contains('-'),
+        "the label is the sayable name, not the raw id: {:?}",
+        item.label
+    );
+    assert!(
+        item.lines.iter().any(|(t, _)| t == "completed"),
+        "the child's state is not on its row: {:?}",
+        item.lines
+    );
+
+    // **The control.** The child has no children, so its own window's roster is empty — and it is
+    // empty for the right reason, since the parent's is not.
+    //
+    // **The id is bound before the call, and that is not style.** Written as
+    // `view_of(plane.lock()...resolve(&child_id)...)` the `MutexGuard` temporary lives until the
+    // end of the enclosing statement — which is *after* `view_of` returns — and `view_of` locks
+    // the same plane. `std::sync::Mutex` is not reentrant, so that deadlocks on one thread, with
+    // no panic and no output: the test binary simply never exits, and `cargo` reports nothing
+    // until somebody notices the process. It cost this session a ten-minute hang and a `LNK1104`
+    // on the next build, because killing cargo does not kill the binary it spawned.
+    let child_run = plane.lock().expect("the plane lock").resolve(&child_id).expect("resolves");
+    let child_view = view_of(child_run);
+    assert!(
+        child_view.subagents.is_empty(),
+        "the childless run's roster is not empty, so `children_of` is not filtering on `parent`: \
+         {:?}",
+        child_view.subagents
     );
 
     let _ = std::fs::remove_dir_all(&root_dir);

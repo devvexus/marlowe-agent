@@ -2,7 +2,7 @@
 
 ## 2026-08-26 — M3 SESSION B1: `run` SPAWNS. ADR-057
 
-**`cargo test --workspace --jobs 4 --no-fail-fast`: 1395 passed, 0 failed, 4 ignored over 118 `test result` lines**, tallied from
+**`cargo test --workspace --jobs 4 --no-fail-fast`: 1396 passed, 0 failed, 4 ignored over 118 `test result` lines**, tallied from
 `runs/session-b1/suite.txt`. Branch `m3-run-spawns`, worktree `../Marlowe_B1`, from `d60c0b8`.
 
 **`run` could not spawn and never had.** `builtin.rs` told the model so in its own description —
@@ -219,21 +219,56 @@ refuses while untracked files remain) and never with a recursive delete that fol
 real `models/` goes with it.
 
 **The count was taken on exactly the tree that was committed.** No `.rs` or `.toml` changed between
-the run and `0f4c98d`; only `STATE.md`, `DECISIONS.md`, the ADR and `runs/session-b1/` moved, and
-none of those compiles. `git status --porcelain` filtered to source is empty at the commit, which is
-the check rather than the assertion.
+the run and the final commit; only `STATE.md`, `DECISIONS.md`, the ADR and `runs/session-b1/` moved,
+and none of those compiles. `git status --porcelain` filtered to source is empty at the commit, which
+is the check rather than the assertion.
+
+### §6.3's ROSTER PANEL HAS A PRODUCER
+
+`RunView::subagents` was a hardcoded `Vec::new()` with the comment *"empty because nothing produces
+them"* — accurate, and the same trap as the run table one layer up: a roster empty because the tree
+is empty and a roster empty because nothing fills it read identically, and the product was in the
+first state for the whole of M2.
+
+`Event::RunDetail` grows a `subagents: Vec<RunChild>`, computed by `ControlPlane::children_of` from
+the **checkpoint store** rather than the run table — the same source `parent` already comes from, and
+the one that survives a restart, so a child spawned before a reboot is still its parent's child. The
+status prefers the live table where it has a row, because that is what moves while a child works.
+
+`watch_client` folds each into an **unkeyed** `Item` carrying the child's UUID. Unkeyed because an
+item with no key is still a region — border, focus, arrows, wheel, pointer — and the window has no
+accelerator pool of its own; inventing one is how two items come to share a letter, which is what
+cost the Runs pane every key it had. The classic `--runs <id>` renders one `subagent` line per child
+beside the existing fields.
+
+**The control is the pair, not the child alone.** Watching the *child* must still show an empty
+roster, and it is asserted in the same test: a `children_of` that ignored `parent` would fill both
+and look right on whichever was checked first. Both mutations bite — the fold removed, and the filter
+widened.
+
+### THE DEADLOCK THIS COST, because it is a shape worth recognising
+
+```rust
+let child_view = view_of(plane.lock()…resolve(&child_id)…);   // hangs, silently
+```
+
+The `MutexGuard` temporary lives to the end of the **enclosing statement** — after `view_of` returns
+— and `view_of` locks the same plane. `std::sync::Mutex` is not reentrant, so this deadlocks on one
+thread with **no panic and no output**: the test binary never exits and `cargo` says nothing. It
+cost ten minutes of hang, and then an `LNK1104` on the next build, because killing `cargo` does not
+kill the binary it spawned. Bind the id first.
 
 ### Still open
 
 - **The orphan policy is only reachable through a budget-paused child**, because a spawn blocks.
   Not a defect — `settle_orphan` is right to leave a finished child alone — but it means `Adopt` has
   no loop-level test and cannot get one until runs are concurrent (Session C).
-- **`RunView::subagents` is still `Vec::new()` in `watch_client.rs`.** The run table now holds
-  children; the *window's* roster panel does not read them yet. `/runs` shows a child; a run window
-  does not.
 - **No `await` and no steer target for a child.** `run` spawns and blocks; the model cannot name a
   run id, so it cannot address one.
-- `pane_key` still clamps past seventeen items (F2's open item, untouched).
+- **§6.3's other three panels — budget, scope memory, meetings — are still `Vec::new()`.** The
+  roster now has a producer; those do not, and each waits on a milestone that has not happened.
+  Unlike the roster before this session, that is a fact about a childless *feature* rather than one
+  hiding behind a plausible empty panel.
 
 ---
 

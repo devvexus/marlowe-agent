@@ -203,6 +203,21 @@ reply through `parse_step` into a real engine over a real signed journal and ass
 other reads the composition root for that installation — the `persona_emission.rs` lesson, where a
 test on the source could not see that the running daemon served a binary from before the commit.
 
+### 7.2 And the panel above it
+
+`RunView::subagents` was a hardcoded `Vec::new()`, one layer up from the same trap. `RunDetail` now
+carries a `subagents` list computed from the **checkpoint store** — the source `parent` already comes
+from, and the one that survives a restart — and `watch_client` folds each into an unkeyed `Item`
+carrying the child's UUID rather than only its mnemonic, because two live runs can share a name.
+
+Unkeyed is a decision, not an omission: an item with no key is still a region, and the run window has
+no accelerator pool of its own. Minting one here is how two items come to share a letter, which is
+the silent shadowing that cost the Runs pane every key it had in Session F2.
+
+**The control is the parent-and-child pair.** A `children_of` that ignored `parent` would populate
+both rosters and read correctly on whichever was asserted first, so the childless child is checked in
+the same test.
+
 ### 7.1 The defect the first live spawn produced, in the code this ADR added
 
 `ControlPlane::detail` reads *"final when there is one, live otherwise"*: a row whose `elapsed_ms` is

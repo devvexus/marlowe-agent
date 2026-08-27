@@ -670,6 +670,8 @@ mod tests {
             resumable: true,
             orphan_policy: "detach".into(),
             pending_steers: 0,
+            // This test is about the Runs *pane* folding a row, not about the roster panel.
+            subagents: Vec::new(),
         };
         apply_events(&mut view, &[detail("running")]);
         apply_events(&mut view, &[detail("completed")]);

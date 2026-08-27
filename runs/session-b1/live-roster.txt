@@ -1,0 +1,12 @@
+run dusty-summit
+  id          1cad786d-a10f-4ab7-83e6-c10a63377c17
+  status      completed
+  elapsed     5294 ms
+  spend       0 of 2000000 micros_usd
+  tokens      17678 of 200000 granted
+  depth       3
+  checkpoint  step 2
+  resume      not resumable
+  on cancel   children terminate
+  steers      0 queued
+  subagent    steady-delta  completed  9bf88dd8-5945-4c6b-8ced-00dbfe263a79
