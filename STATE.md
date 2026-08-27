@@ -1,6 +1,81 @@
 ﻿# State
 
 
+## 2026-08-27 — `ollama/llama.cpp` IS THE DEFAULT. THE CUDA LEAK IS FOUND. THE 2 s IS NOT.
+
+### The default moved, and the fallback is what makes that safe
+
+`DaemonConfig`'s compiled default is now `ModelProviderChoice::LlamaCpp`. **The worst case of this
+default is the old default plus a sentence explaining itself** — if `llama-server` cannot be found,
+cannot bind, cannot get the GPU, or comes up on the CPU, `HybridEngine::start` returns Ollama serving
+and the reason stays in the band for the session. A machine with no Ollama at all fails exactly as it
+did before. Plain `ollama` is still in the picker and `--provider ollama` still pins it.
+
+**The Windows Terminal shortcut inherits it and needed no change.** `profile_commandline`
+(`launcher.rs`) writes `"<exe>" --tui --ground` into `settings.json` with **no provider flag**, so
+`wt -p Marlowe` and the Start-menu shortcut take whatever the compiled default is. That was worth
+checking rather than assuming: the same function's own doc records a defect where the shortcut and
+the direct-spawn path disagreed about what Marlowe is, because the profile line was a fixed string.
+
+### THE CUDA TEST: THE FIRST SESSION IN A PROCESS LEAKS A ~238 MB PRIMARY CONTEXT
+
+`a_cuda_session_that_loaded_actually_holds_DEVICE_memory` read a free-VRAM delta and got 0 under a
+workspace run while passing 8/8 alone. Its own message offered two hypotheses -- *"the provider
+silently fell back to CPU, or another process freed memory during the read"* -- **and had no way to
+choose between them**, which is the real defect.
+
+**Release-on-drop works for the session's arena. The CUDA primary context does not come back while
+the process lives.** So a `before` taken at the top of the FIRST session includes a one-off cost that
+is not that session's, and a `before` in a process where an earlier test already paid it does not.
+**The reading depended on test ORDER** -- exactly why it passed alone and failed in a suite.
+
+**The first fix was worse than the bug and the machine said so.** Paying the context up front in a
+throwaway session fixes the arithmetic and loads the graph onto the card TWICE; on a 16 GB card
+already holding a `llama-server` that is enough to thrash the desktop. It took the binary from ~13 s
+to **117 s and froze the whole machine**. Reverted.
+
+**Measure the drop instead.** One session: `free_after_drop - free_while_held` is what THIS session
+released, the leaked primary context is not released either way and therefore **cancels across the
+two reads**, and only one copy of the graph is ever resident. A concurrent allocation is **detected,
+not absorbed** -- free memory falling across a drop that only releases cannot be this session's, so
+it is reported as inconclusive rather than folded into the verdict. **8 passed, 0 failed.**
+
+### THE ORPHANED ENGINE WAS THE INSTRUMENT, NOT THE PRODUCT
+
+The desktop lag had a second cause and it was mine. `SupervisedServer` **does** have a `Drop` that
+kills the child unless it was adopted, so every graceful exit cleans up. My repro script called
+`proc.terminate()`, which on Windows is `TerminateProcess` and runs no destructor -- leaving a
+`llama-server` holding **6.4 GB**. Measured at the moment it was found: **9,394 MiB used, 6,652
+free**; after killing it, **3,005 used, 13,041 free**. The embedder tests were then allocating CUDA
+against a nearly-full card, which is what paged GPU memory and froze the desktop.
+
+**Nothing in the product needed changing, and the lesson is about instruments:** a test harness that
+kills a daemon must kill what the daemon spawned, because the OS will not do it for you and `Drop`
+does not run through `TerminateProcess`.
+
+### THE 2,048 ms BEFORE THE FIRST FRAME — CAUSE NOT ESTABLISHED, AND SAYING SO
+
+`/provider ollama/llama.cpp` still takes **~2,075 ms to the first status frame**. Reproduced against
+the real control port, consistently, and **invariant across the default flip** — 2,047 ms when the
+default was Ollama, 2,075 ms when it is the hybrid — which rules out anything that only happens on a
+real switch.
+
+**Two hypotheses measured and ELIMINATED, neither by argument:**
+
+* **`resolve_sampling` running `ollama show --modelfile`.** Timed directly: **106–112 ms**, three
+  runs. It is 5% of the gap, not the gap. This was my stated cause in the previous commit and it was
+  wrong.
+* **A per-status offload or tool-support probe.** `status_llamacpp` passes
+  `OffloadPolicy::Carried`, so the reading is carried rather than re-measured, and
+  `probe_tool_support` — the one call that would cost a model round trip — is a separate function
+  that `Availability::probe` does not call.
+
+**What is known:** the infinite freeze is fixed (inherited socket handle, `0345f62`); this is a
+bounded 2 s, the surface repaints after it, and the daemon answers other connections in ~27 ms
+throughout. **What is not known is where the 2 s goes.** The next session should instrument
+`set_provider` and `status()` directly rather than guess a third time — the number is stable enough
+to bisect in one build.
+
 ## 2026-08-27 — FOR REVIEW NEXT SESSION: THE FIT RULE, AND WHAT THE USER IS TOLD
 
 **Matthew's design, taken after the hybrid was built. To be implemented in the session after the

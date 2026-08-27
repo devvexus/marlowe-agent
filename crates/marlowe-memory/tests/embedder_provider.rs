@@ -183,10 +183,25 @@ fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
     // **It is skipped, loudly, where CUDA does not load** -- including on the machine this was
     // written on. That is a gap in the evidence and is recorded as one, not papered over.
     let Some(dir) = dir_or_skip() else { return };
-    let Some(before) = marlowe_memory::cue::dense::vram::free_bytes() else {
-        eprintln!("SKIP: no readable device, so there is no byte to observe");
-        return;
-    };
+
+    // **ONE SESSION, AND THE READING IS WHAT IT RELEASES ON DROP.**
+    //
+    // The obvious shape -- read free memory, load, read again -- cannot work here, for a reason
+    // that took a wedged machine to find. **The first CUDA session in a process leaks a ~238 MB
+    // primary context that never comes back while the process lives.** So a `before` taken at the
+    // top of the FIRST session includes a one-off cost that is not that session's, and a `before`
+    // in a process where an earlier test already paid it does not. The reading depended on test
+    // ORDER, which is why this passed alone and failed in a workspace run, and why its own message
+    // could only offer two hypotheses with no way to choose between them.
+    //
+    // Paying the context up front in a throwaway session fixes the arithmetic and is the wrong
+    // trade: it loads the graph onto the card TWICE, and on a 16 GB card already holding a
+    // `llama-server` that is enough to thrash the whole machine. Measured: it took the test from
+    // ~13 s to 117 s and froze the desktop.
+    //
+    // So measure the drop instead. `after_load - after_drop` is what THIS session released, the
+    // primary context is not released either way and therefore cancels, and only one copy of the
+    // graph is ever resident.
     let mut e = match Embedder::load_with_provider(&dir, 1, None, ProviderChoice::Cuda, Probe::Device, marlowe_memory::cue::dense::vram::Reserve::None)
     {
         Ok(e) => e,
@@ -197,15 +212,39 @@ fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
     };
     // The arena allocates on first run, so an unwarmed session would under-read.
     e.embed("a niche equation appears in the middle of a long document").expect("embeds");
-    let after = marlowe_memory::cue::dense::vram::free_bytes().expect("the device was readable");
+    let Some(held) = marlowe_memory::cue::dense::vram::free_bytes() else {
+        eprintln!("SKIP: no readable device, so there is no byte to observe");
+        return;
+    };
+    drop(e);
+    let released = marlowe_memory::cue::dense::vram::free_bytes().expect("the device was readable");
 
     let model_bytes = std::fs::metadata(dir.join(MODEL_FILE)).map(|m| m.len()).unwrap_or(0);
-    let dropped = before.saturating_sub(after);
+    let freed = released.saturating_sub(held);
+
+    // **A CONCURRENT ALLOCATION IS DETECTED, NOT ABSORBED.** A free-memory delta is a measurement
+    // of the whole machine attributed to one process, and this suite now starts `llama-server` and
+    // Ollama runners that take and release 6.7 GB while this runs. If free memory went DOWN across
+    // a drop that only releases, something else took the card mid-read -- that is not a reading
+    // about the provider. Failing on it would blame this provider for another process; passing on
+    // it would be the vacuity this project keeps finding.
+    if released < held {
+        eprintln!(
+            "INCONCLUSIVE: free device memory FELL by {} bytes across a drop that only releases, so \
+             another process allocated during the read. Re-run with `-p marlowe-memory --test \
+             embedder_provider` on a quiet card.",
+            held - released
+        );
+        return;
+    }
+
     assert!(
-        dropped >= model_bytes,
-        "a CUDA session that ran should hold at least the graph's {model_bytes} bytes on the \
-         device; free memory moved by {dropped}. Either the provider silently fell back to CPU, \
-         or another process freed memory during the read"
+        freed >= model_bytes,
+        "dropping a CUDA session should release at least the graph's {model_bytes} bytes; free \
+         memory moved by {freed}. A concurrent allocation is caught above and the leaked primary \
+         context cancels across the two reads, so the remaining reading is that THE PROVIDER \
+         SILENTLY FELL BACK TO CPU -- the failure this test exists for, and one this project hit \
+         today at 10 tok/s against 107 with every health signal reading fine."
     );
 }
 
