@@ -1567,6 +1567,33 @@ impl Daemon {
             // run; no test could see it, because nothing asserts that the prompt names only tools
             // that exist.
             state.assert_governance(GovernanceConstraint::asserted(governance_prompt()));
+            // ── WHAT IS ACTUALLY IN THE WORKSPACE ────────────────────────────────────────
+            //
+            // **`SourceKind::ProjectFiles` existed, had 15% of the window budgeted to it, and
+            // NOTHING EVER PUT ANYTHING IN IT.** A grep for the variant outside `context.rs`
+            // returned nothing at all: the tier was declared, budgeted, trimmable, reported --
+            // and permanently empty.
+            //
+            // The cost was measured live, 2026-08-27. Asked to write `session-handoff.md`, the
+            // model tried `scratchpad/session-handoff.md` (refused), then `bash dir` (declined --
+            // no approval surface), then `scratchpad/wsC/session-handoff.md` (refused), then the
+            // right path. **Three wasted calls and 190 seconds to discover a directory listing.**
+            // It had been told the workspace's absolute path and nothing about its contents, so
+            // it invented plausible prefixes out of the path string itself.
+            //
+            // A tool would answer this too, and a tool is the wrong shape: knowing where you are
+            // is not an action, it is context, and making the model spend a call and a round trip
+            // on it is the same mistake as making it guess. §6's context tier is exactly the
+            // place for "things that describe the world rather than speak in it" -- the tier's own
+            // words -- so the listing goes there and the model simply knows.
+            if let Some(map) = workspace_map(&self.config.workspace) {
+                state.push(marlowe_loop::Block::new(
+                    marlowe_loop::SourceKind::ProjectFiles,
+                    map,
+                    // The harness read the filesystem; no model composed this.
+                    marlowe_contract::TrustClass::AgentObserved,
+                ));
+            }
             SessionMemory { state, provenance: Provenance::new() }
         });
         let SessionMemory { mut state, mut provenance } = memory;
@@ -2161,6 +2188,85 @@ fn identity_block() -> String {
 /// A recorder for a daemon with no journal on disk — used by tests, never by `serve`.
 pub fn memory_recorder() -> MemoryRecorder {
     MemoryRecorder::default()
+}
+
+/// A bounded picture of the workspace, for the context tier.
+///
+/// # What it includes, and why each bound is there
+///
+/// Breadth-first from the root so the top level is always complete before anything deeper is
+/// spent on: a model that knows the top level can `find` or `read` its way down, whereas one that
+/// got an exhaustive listing of the first directory alphabetically knows almost nothing.
+///
+/// **`MAP_MAX_ENTRIES` is a cap on the LISTING, not on the workspace.** A truncated map says so in
+/// words, because a listing that silently stops is worse than none: the model would conclude a
+/// file is absent when it was merely past the cap. `SourceBudgets` gives `ProjectFiles` 15% of the
+/// window and the assembler may trim this block; the cap is what stops it being the thing that
+/// forces a trim.
+///
+/// Skips the directories whose contents are never what the model wants and would consume the whole
+/// budget: version control, build output, dependency trees.
+pub fn workspace_map(root: &std::path::Path) -> Option<String> {
+    /// Enough to see a real project's shape; small enough not to dominate the context tier.
+    const MAP_MAX_ENTRIES: usize = 200;
+    /// Two levels: the root, and one inside each directory. Deeper is `find`'s job.
+    const MAP_MAX_DEPTH: usize = 2;
+    const SKIP: [&str; 6] = [".git", "target", "node_modules", ".venv", "__pycache__", "dist"];
+
+    let mut out = Vec::new();
+    let mut queue = std::collections::VecDeque::new();
+    queue.push_back((root.to_path_buf(), 0usize));
+    let mut truncated = false;
+
+    while let Some((dir, depth)) = queue.pop_front() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        // **Sorted, because this reaches a model and `read_dir` order is a filesystem detail.**
+        // Two runs on the same workspace must describe it the same way, or the prompt prefix
+        // changes for no reason and the provider's cache is thrown away every turn.
+        let mut names: Vec<_> = entries.flatten().collect();
+        names.sort_by_key(|e| e.file_name());
+        for e in names {
+            if out.len() >= MAP_MAX_ENTRIES {
+                truncated = true;
+                break;
+            }
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with('.') && name != ".claude" {
+                continue;
+            }
+            let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            let rel = e.path().strip_prefix(root).ok()?.to_string_lossy().replace('\\', "/");
+            if is_dir {
+                out.push(format!("{rel}/"));
+                if depth + 1 < MAP_MAX_DEPTH && !SKIP.contains(&name.as_str()) {
+                    queue.push_back((e.path(), depth + 1));
+                }
+            } else {
+                out.push(rel);
+            }
+        }
+        if truncated {
+            break;
+        }
+    }
+
+    if out.is_empty() {
+        return None;
+    }
+    let mut text = format!(
+        "<workspace>\nThese paths exist in the workspace, relative to its root. Paths you use in \
+         `read`, `write`, `edit` and `find` are relative to that root -- do NOT prefix them with \
+         the root's own name.\n\n{}",
+        out.join("\n")
+    );
+    if truncated {
+        text.push_str(&format!(
+            "\n\n[listing stopped at {MAP_MAX_ENTRIES} entries and at depth {MAP_MAX_DEPTH}; \
+             there are more files than this. Use `find` to look for what is not listed.]"
+        ));
+    }
+    text.push_str("\n</workspace>");
+    Some(text)
 }
 
 /// How the loop's termination rule is stated to the model.

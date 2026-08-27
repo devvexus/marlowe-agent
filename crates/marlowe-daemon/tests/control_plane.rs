@@ -55,6 +55,25 @@ impl Fixture {
     }
 
     fn start_on(name: &str, port: u16) -> Self {
+        // ── ONE DAEMON COMES UP AT A TIME, AND THIS IS THE FLAKE'S ACTUAL CAUSE ──────────
+        //
+        // `wait_until_advertised` was raised from 4 s to 12 s to 30 s and still failed about half
+        // the time under `--workspace`, while passing 10/10 alone. The reason is not the machine
+        // being busy: **cargo runs the tests inside one binary on parallel threads**, this file
+        // has ten of them, several start two daemons, and `Daemon::open` builds the whole memory
+        // subsystem -- so a dozen embedders were loading at once inside a single process.
+        //
+        // `exclusive("daemon-ports")` serialises the two tests that need specific ports and does
+        // nothing about the other eight. This serialises the expensive part for all of them: held
+        // across construction and until the daemon has advertised, then released, so the tests
+        // still overlap for everything they actually assert.
+        //
+        // The alternative that was rejected: raising the timeout a fourth time. A timeout short
+        // enough to fail on a busy machine turns a real assertion into a coin flip, and a timeout
+        // long enough never to fail turns a hang into a thirty-second pause nobody notices.
+        static START: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _one_at_a_time = START.lock().unwrap_or_else(|e| e.into_inner());
+
         let n = SEQ.fetch_add(1, Ordering::Relaxed);
         let root = std::env::temp_dir()
             .join(format!("marlowe-cp-{name}-{}-{n}", std::process::id()));
@@ -303,18 +322,66 @@ fn the_control_port_refuses_what_needs_the_model_and_says_where_it_lives() {
 /// through had no test at all. That is `CLAUDE.md`'s *"a declared control that nothing reads"*
 /// with the sign flipped: a reader nothing exercised.
 ///
-/// Two adjacent daemons, driven through the `Client`. Under the derivation, `a`'s client aims at
-/// `a.port + 1`, which is `b`'s **main** port, and offers `a`'s token — so it is refused, and the
-/// refusal is not a `NoDaemon`, so `control_or_main` correctly does not paper over it.
+/// # This started two real daemons, flaked, and the fix was to stop — not to wait longer
+///
+/// It stood up **two** full daemons in-process. `Daemon::open` builds the memory subsystem before
+/// `serve` is even called, and under `--workspace` that competes with sixteen test binaries and
+/// the CUDA suite. The advertise timeout was raised from 4 s to 12 s to 30 s and it still failed
+/// roughly half the time, while passing 10/10 alone. `wait_until_advertised`'s own note said the
+/// answer to a further flake was to stop starting two daemons, and this is that.
+///
+/// # The squatter is a STRONGER control than the second daemon was
+///
+/// The property is that `Client::control` uses the **advertised** port rather than `port + 1`. The
+/// old test proved that by standing a second daemon on the adjacent port and checking the steer
+/// did not land there. A plain `TcpListener` on `port + 1` proves it better: a second daemon
+/// speaks the protocol and could conceivably satisfy an assertion by accident, whereas a socket
+/// that accepts and immediately closes can satisfy nothing at all. Mutate `Client::control` to
+/// `port + 1` and the steer hits the squatter and fails — which is the mutation this test exists
+/// to kill.
+///
+/// It also removes the second `Daemon::open`, which is where the wall-clock went.
 #[test]
-fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
-    // **Ports are a machine resource and cargo runs test binaries concurrently.** This test
-    // needs specific adjacent ports and no other daemon competing for them; it passed alone
-    // and failed under `--workspace` until this. See `common/exclusive.rs`.
+fn the_client_reaches_its_own_control_plane_and_not_the_adjacent_port() {
+    // **Ports are a machine resource and cargo runs test binaries concurrently.** This test needs
+    // a specific adjacent port free. See `common/exclusive.rs`.
     let _ports = exclusive("daemon-ports");
-    let a = Fixture::start("client-a");
-    let b = Fixture::start_on("client-b", a.port + 1);
-    assert_eq!(b.port, a.port + 1, "the control: they really are adjacent");
+
+    // **The squatter binds FIRST and the daemon goes below it.** Starting the daemon and then
+    // reaching for `port + 1` loses a race: `Fixture::start` takes a random free port, other tests
+    // in this binary run concurrently and take their own, and one of them can already be sitting
+    // on the adjacent one. Asserting it was free is asserting something this test does not
+    // control -- which is how the first version of this fix failed while passing alone.
+    //
+    // Binding high-then-low inverts that: the adjacent port is held before anything else can take
+    // it, and the daemon's port is only released for the instant it takes `Fixture::start_on` to
+    // claim it, under the `exclusive` lock.
+    let (adjacent, daemon_port) = loop {
+        let hi = TcpListener::bind("127.0.0.1:0").expect("a free port");
+        let p = hi.local_addr().unwrap().port();
+        match TcpListener::bind(("127.0.0.1", p - 1)) {
+            Ok(lo) => {
+                drop(lo);
+                break (hi, p - 1);
+            }
+            // `p - 1` is taken; `hi` drops with the loop and another pair is tried.
+            Err(_) => continue,
+        }
+    };
+    let a = Fixture::start_on("client-a", daemon_port);
+    assert_eq!(
+        adjacent.local_addr().unwrap().port(),
+        a.port + 1,
+        "the control: the squatter really is on the adjacent port"
+    );
+    let reached_adjacent = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = reached_adjacent.clone();
+    thread::spawn(move || {
+        for stream in adjacent.incoming() {
+            counter.fetch_add(1, Ordering::Relaxed);
+            drop(stream);
+        }
+    });
 
     let run = "00000000-0000-0000-0000-0000000000dd";
     let steered = a.client().steer(run, "only the 2024 filings").expect("a's client steers a");
@@ -323,12 +390,17 @@ fn the_client_reaches_its_own_daemons_control_plane_when_two_are_adjacent() {
         "the steer must reach a's own plane: {steered:?}"
     );
 
-    // ...and it went to A, not to B. Without this the assertion above would pass against a
-    // client that reached *some* control plane.
-    let bs_view = b.client().watch(run, 0).expect("b's client watches b");
-    assert!(
-        bs_view.iter().any(|e| matches!(e, Event::RunDetail { pending_steers: 0, .. })),
-        "a steer sent to a must not appear in b: {bs_view:?}"
+    // ...and it got there by the ADVERTISED port, not by arithmetic. Without this the assertion
+    // above would pass on a build that happened to have the control plane at `port + 1` anyway.
+    assert_eq!(
+        reached_adjacent.load(Ordering::Relaxed),
+        0,
+        "the client knocked on `port + 1`, which is the derivation `Client::control` must not use"
+    );
+    assert_ne!(
+        a.control_port(),
+        a.port + 1,
+        "the control: the advertised port is not the derived one, so the check above can fail"
     );
 }
 

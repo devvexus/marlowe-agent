@@ -305,7 +305,7 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
             // directory is the walk's rule, not this tool's — only the LAST component is opened
             // `CreateOrOpen`, so a missing parent is `Unopenable`, which
             // `executors.rs::edit_writes_through_the_handle_and_can_create` shows happening.
-            "Change ONE snippet inside an existing file, leaving the rest untouched. To create a file, or to replace all of it, use `write` instead — this tool cannot. `read` the file first and copy `replacing` out of what comes back, byte for byte: the first exact occurrence is replaced and the call FAILS if it is not found. The parent directory must already exist.",
+            "Change ONE snippet inside an existing file, leaving the rest untouched. To create a file, or to replace all of it, use `write` instead — this tool cannot. `read` the file first and copy `replacing` out of what comes back byte for byte, keeping it as SHORT as possible while still unique: `replacing` is DELETED and `content` put in its place, so a large `replacing` with a short `content` silently throws the difference away. The parent directory must already exist.",
             "edit",
             2_048,
             Reversible,
@@ -327,14 +327,14 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "What `replacing` becomes. Only that snippet changes; the rest of the file is untouched.",
+                    "What `replacing` becomes. It must contain everything you still want from the text you put in `replacing`, because that text is gone -- if `replacing` is three lines and only the middle one changes, `content` is all three lines with the middle one edited.",
                 ),
                 documented(
                     "replacing",
                     ArgumentRole::Payload,
                     Text,
                     true,
-                    "REQUIRED: the exact existing text to replace -- copy it verbatim from a `read`, including indentation. The FIRST occurrence is replaced and the call FAILS if it is not found, so include enough surrounding lines to be unambiguous.",
+                    "REQUIRED: the exact existing text to replace, copied verbatim from a `read` including indentation. Keep it SMALL -- the smallest snippet that appears only once, usually one line or a few. Do NOT paste the whole file: everything you put here is deleted and replaced by `content`, so a large `replacing` with a short `content` destroys the rest of the file. The FIRST occurrence is replaced and the call FAILS if it is not found.",
                 ),
             ],
         ),
