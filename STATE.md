@@ -485,6 +485,41 @@ traffic. llama.cpp with `-np 1` is a single deterministic slot. So #1 does not m
 **4. `Connection: close` → keep-alive.** −0.5 ms. **A measured null.** Not a latency fix, and it
 should stop being described as one.
 
+### `prompt_n` IS NOT `prompt_ms`, AND THE TWO SERVERS DO NOT MEAN THE SAME THING BY IT
+
+**A category error that looked exactly like a broken experiment.** Second-pass TTFT cells read
+`prompt_n=4` for llama.cpp against `prompt_n=3871` for Ollama, which reads as *"the llama arm ran a
+4-token prompt"* — i.e. an invalid comparison. It is not. Decomposed from the probe's own
+`raw.ndjson`, 621 rows:
+
+| cell | n | ttft_med | prompt_ms_med | prompt_n | load_ms_med |
+|---|---|---|---|---|---|
+| llama-jinja-gpu, tools=False | 12 | 63.9 ms | 28.6 ms | 4 | — |
+| llama-jinja-gpu, tools=True | 12 | 78.5 ms | 30.3 ms | 4 | — |
+| ollama, tools=False | 24 | 345.1 ms | 31.9 ms | 3871 | 289.7 ms |
+| ollama, tools=True | 24 | 352.0 ms | 33.3 ms | 6737 | 280.5 ms |
+
+**The arithmetic that settles it:** 3,871 tokens in 31.9 ms would be 121,000 tok/s. This card does
+5,227 tok/s cold. So **Ollama's prefix cache hit too** — `prompt_eval_count` reports the *whole
+prompt*, where llama.cpp's `timings.prompt_n` reports *tokens actually evaluated*. Two different
+quantities with confusingly parallel names.
+
+**Both arms were warm and did the same ~30 ms of prompt work.** So the ~285 ms delta is **not
+prompt evaluation at all** — it is `load_ms`, present on every Ollama call and absent from
+llama.cpp. That is **84% of Ollama's warm TTFT** and it is ADR-060's scheduler tax reproduced a
+**fourth** independent time: **226 ms** (STATE.md), **301 ms** (pass 1), **257 ms** (pass 2),
+**285 ms** (here). The spread tracks desktop load; the structure is identical every time.
+
+**Rule: when comparing the two servers, use `prompt_ms`, never `prompt_n`.** This is the standing
+failure family in a new place — an adjacent measurement, with a parallel name, read as the one being
+asked for. Here it would have discarded a valid comparison rather than blessing an invalid one, which
+is the rarer direction and just as wrong.
+
+**Everything above is the PYTHON INSTRUMENT, not the product.** `runs/ttft/*` and
+`runs/llamacpp/ttft-*.txt` are `probe.py` talking straight to `/api/chat` and
+`/v1/chat/completions`. `product_ttft.py` exists but **had not been run** as of this entry — **no
+product-level TTFT number exists yet**, and none of these may be quoted as one.
+
 ### MEASURED NON-LEVERS — recorded so nobody re-derives them
 
 Every one of these was tried and is null. **This list is the most reusable part of the measurement**:
