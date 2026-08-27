@@ -47,7 +47,7 @@ question nobody asked; the question is "does anything in this crate wait forever
 command". `protect-boundaries.py --self-check` is the precedent: it fails when a guarded path does
 not exist, so a rename cannot silently un-guard anything.
 
-## 2026-08-27 — OPEN: TTFT IS 1,064 ms. THE TRANSPORT IS INNOCENT AND THE PREFIX IS NOT
+## 2026-08-27 — OPEN: TTFT IS 1,064 ms. THE TRANSPORT IS INNOCENT, OLLAMA IS NOT
 
 **MEASURED on a controlled machine, NOT FIXED.** Two agents ran: one instrumenting Ollama directly
 (~130 requests, `runs/ttft/raw.ndjson`), one auditing the client path by reading code only
@@ -127,6 +127,65 @@ Ollama tax and this becomes a product decision; ~226 ms there means it is the ru
 **Open question that changes its weight: is it per REQUEST or per STREAM?** The loop makes several
 model calls per user turn, so per-request means a five-call turn pays 1.13 s of pure tax.
 
+### RESOLVED: THE 226 ms IS AN OLLAMA TAX, AND llama.cpp DOES NOT CHARGE IT
+
+The head-to-head ran and it is not ambiguous. Ollama's **own** bundled `llama-server.exe` (0.32.5,
+build b1-b4d6c7d8f), against the **same GGUF blob** (`sha256-dec52a44…`) Ollama had already pulled,
+same RTX 4080 SUPER, `-c 32768 -ngl 99 -np 1`, GPU-resident at 9.5 GB VRAM. Same instrument, same
+system prompts, same unique-marker discipline. qwen3.5:9b was unloaded from Ollama first.
+
+| cell | Ollama | llama.cpp | delta |
+|---|---|---|---|
+| tiny prompt, no system | 292.6 ms | **44.3 ms** | −248 ms |
+| 15k-char system, prefix WARM | 275.1 ms | **52.0 ms** | −223 ms |
+| 15k-char system, prefix COLD | 1,064.4 ms | 742.2 ms | −322 ms |
+| 23,200-char system, cold | 1,463.1 ms | 1,040.7 ms | −422 ms |
+| 46,400-char system, cold | 2,660.3 ms | 2,061.7 ms | −599 ms |
+
+**Two separate taxes, and they add.**
+
+1. **A fixed ~225 ms per request.** It is exactly Ollama's reported `load_duration`, on a model that
+   never left VRAM. In Ollama's server that interval is measured from request receipt to
+   `sched.GetRunner` returning — **pure scheduler overhead**. llama.cpp's equivalent is ~16 ms.
+2. **A proportional ~19% on prompt evaluation.** Ollama 5,227 tok/s, llama.cpp 6,228 tok/s — same
+   graph, same card, measured from 31 to 11,839 tokens on both. So the 5,227 tok/s figure recorded
+   above is **not the card's ceiling; it is ours by way of Ollama.**
+
+**Warm TTFT goes from 275 ms to 52 ms — 5.3x, and it clears the 200 ms bar with room.** It does not
+require solving the prefix-cache problem first: the two are independent and they multiply.
+
+**PER REQUEST, not per stream.** One `load_duration` per `/api/chat` call, reported in that call's
+final frame. Marlowe's loop makes one call per iteration and every tool call round-trips, so **a
+five-call turn pays 5 × 226 ms = 1.13 s of pure scheduler tax before any thinking happens.** On
+llama.cpp the same turn pays ~80 ms. This is the number that reframes the problem: the tax is not
+paid once per turn, it is paid once per *iteration*.
+
+**THIS NEEDS A DECISION AND IT IS NOT MINE TO MAKE.** Moving the local runtime off Ollama is an
+architecture change with real costs — Ollama is the model store, the downloader, the thing `/provider
+ollama` and model switching are built on, and `/api/tags` is how the surface knows what exists. The
+option worth examining first is the hybrid: **keep Ollama as the model store and serve with the
+`llama-server.exe` Ollama already ships**, pointed at the blob Ollama already downloaded. That is
+what the measurement above literally did, so it is known to work on this machine. An ADR is drafted
+separately; nothing has been changed.
+
+### The other cells, and one of them is a null result worth keeping
+
+**`/api/tags`, the probe Marlowe runs before every turn:** full round trip, fresh TCP, chunked body
+read, JSON parsed, 30 models, 13 KB — **p50 14.0 ms loaded, 6.9 ms unloaded, p90 30.5 ms, p99
+32.1 ms**, n=40 each. Real, ours, removable, and **1.3% of today's TTFT.** Worth fixing for the tail,
+not worth calling the problem. Recording the number matters more than the fix: it stops the next
+session from guessing at it.
+
+**`think` true vs false is a NULL RESULT.** 1,162 vs 1,017 ms cold, n=5 each — and the entire
+difference is the template's own token count (prompt eval 875 vs 738). TTFT-minus-prompt-eval is
+**287 vs 279 ms, identical.** Thinking is not a TTFT cost, and disabling it would buy nothing but
+the tokens the template adds. The knob is closed.
+
+**The production-shaped cell, first pass:** TTFT grows **1,146 ms at turn 1 to 1,873 ms at turn 9**,
+while the counterfactual — same content with the changing block moved after the history — **stays
+flat.** That is the prefix diagnosis confirmed by construction rather than by argument, and it means
+the fix is measured before it is built.
+
 ### The client side: what Marlowe adds between the socket and the screen
 
 Read-only audit, `runs/ttft/client-path.md`. **The read path is clean** — `ChunkedBody`
@@ -180,11 +239,9 @@ It also means there is no client-side prefix reuse to build the KV-cache fix on.
 
 ### Still queued on the measurement
 
-`llama-server` head-to-head; `load_duration` vs `num_ctx` (32768/8192/4096); whether the `options`
-payload forces a runner reconfigure per request; `OLLAMA_NUM_PARALLEL=1`; flash attention;
-whether 5,227 tok/s is the card's ceiling or ours; `/api/tags` round-trip cost; the
-production-shaped cell (TTFT growth with turn count, plus the counterfactual with the changing
-block moved after the history); `think` true/false.
+Flash-attention and batch-size ceiling on llama.cpp; the remaining passes of the production-shaped
+growth cell. Everything else asked for has landed. `num_ctx` scaling and the `options`-reconfigure
+question are moot if the runtime moves.
 
 ## 2026-08-27 — OPEN BUG: COMPACTION HANDS THE MODEL ITS OWN SUMMARY AND NOTHING TO ANSWER
 
@@ -418,15 +475,17 @@ manifest and makes the call it describes.
    screen: the model was told why, the USER was not. Last instance of the family and the only one
    about the user. Its own session — `cargo test --workspace --no-run` is the check, because a
    missed `#[cfg(test)]` destructure will not fail `cargo build`.
-2. **`find` is literal-only** (`line.contains`). Claude Code's Grep is regex with glob/type filters.
-   One executor, **no new tool slot** — the cheapest remaining gap, and the user has said Claude
-   Code is the standard to match with no exceptions.
-3. **`read` returns no line numbers.** Claude Code returns `cat -n` because its Edit is
-   line-anchored; ours requires `replacing` copied VERBATIM from `read`, so numbering would break
-   every edit. Match it by changing BOTH tools or neither — not a silent divergence.
+2. ~~**`find` is literal-only**~~ **CLOSED, ADR-059.** It is `grep`, on the `regex` crate, with a
+   `glob` filter and `context`. No new tool slot. The walk defect underneath it — no skip list, so
+   the search never reached `crates/` on this checkout — was the larger half and is closed with it.
+3. **`read` returns no line numbers — and ADR-059 made this SHARPER, not smaller.** Claude Code
+   returns `cat -n` because its Edit is line-anchored; ours requires `replacing` copied VERBATIM
+   from `read`, so numbering would break every edit. `grep` now returns `path:line:text`, so the
+   model gets a line number from one tool and not the other. Match it by changing BOTH tools or
+   neither — not a silent divergence.
 4. **`web` is fetch-only** (ADR-035); no search.
-5. **MCP squeeze.** 12 builtins against a cap of 14 leaves a server exactly two slots. `find`→regex
-   is free; anything new costs another amendment.
+5. **MCP squeeze.** 12 builtins against a cap of 14 leaves a server exactly two slots. `find`→`grep`
+   was free as predicted (ADR-059 changed no count); anything new costs another amendment.
 6. **`SourceKind::ToolSchemas` is budgeted 5% of the window and never written** — the same
    empty-but-budgeted slot `ProjectFiles` was until this session. Descriptions reach the model
    through Ollama's `tools` array, which is the right channel, so the slot is unnecessary rather
