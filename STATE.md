@@ -1,5 +1,48 @@
 ﻿# State
 
+## 2026-08-27 — FUTURE WORK: STATE.md COSTS ~32,000 TOKENS TO OPEN, AND EVERY AGENT OPENS IT
+
+**Logged deliberately as future work. NOT to be done now** — it is a large mechanical edit to the
+one file every session reads, and doing it while three agents are mid-flight is how a handoff gets
+lost.
+
+### The measurement
+
+| file | size | tokens |
+|---|---|---|
+| `STATE.md` | 522 KB, 7,879 lines | ~130,000 whole; **~32,000 for the first 2,000 lines**, which is one default `Read` |
+| `docs/design/DECISIONS.md` | 209 KB, 3,265 lines | ~52,000 |
+| `CLAUDE.md` | 50 KB | ~12,500 |
+
+`STATE.md` has **78 top-level entries**, most of them closed milestones.
+
+### Why it matters, and it was found by asking where 300k tokens went
+
+Every subagent dispatched in this project is told *"read `CLAUDE.md`, `STATE.md` and `DECISIONS.md`
+first"*. That is **45,000–90,000 tokens spent before the agent does any work, per agent**. The tools
+workflow ran several and cost ~300k for ~1,800 lines of output; the reading floor is the larger part
+of that, not the building.
+
+The irony is worth recording because it is the same failure this project keeps naming: a session
+spent the night measuring a 4,500-token *model* prompt costing 800 ms on a 9B, while routinely
+handing 32,000-token files to Opus agents without ever asking what that cost. **The context budget
+was being managed carefully in exactly one of the two places it is spent.**
+
+### What the fix is
+
+`STATE.md` is append-only and is being used as a briefing document. It should be a short
+current-state file — built / next / known issues, which is what `CLAUDE.md` says it is for — with
+closed entries moved to `docs/history/` behind a dated index. Nothing is deleted; the archive stays
+greppable, and a session that needs an old entry can find it by date.
+
+Two rules that should follow it, and they matter more than the split:
+
+* **Do not tell an agent to read `STATE.md` wholesale.** Paste the two or three relevant paragraphs
+  into its prompt. That is already what the useful dispatches do — the numbers an agent needs end up
+  quoted in the prompt anyway, and the file read adds nothing but floor.
+* **`DECISIONS.md` at ~52,000 tokens has the same shape**, though it is more defensible: a decision
+  stays live in a way a session log does not. Measure before splitting it.
+
 ## 2026-08-27 — OPEN: THE SUITE-WEDGE GUARD GREPS ONLY THE FILE IT LIVES IN
 
 **Surfaced by the B1 merge agent, verified here, NOT fixed** — two background jobs are using this
