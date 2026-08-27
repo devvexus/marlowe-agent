@@ -24,6 +24,7 @@
 //!   a turn completes. Zero is the truth there, not a placeholder.
 
 use marlowe_view::meter::MeterSource;
+use marlowe_view::model::Cadence;
 use marlowe_view::model::{
     Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tone, ToolCall,
 };
@@ -51,9 +52,39 @@ use crate::protocol::{Event, StatusReport};
 /// it, so an option a user can see is an option the daemon accepts.
 pub use marlowe_view::provider::PROVIDERS;
 
+/// One daemon announcement as a [`Item`] for §B1's status pane.
+///
+/// **The text is quoted, never composed.** `Announcement::text` is a fact the daemon computed —
+/// the same standing as `StatusReport::degraded`, which the band already renders verbatim. ADR-030
+/// §5 forbids free text in `marlowe_view::Notice` because that vocabulary is Marlowe's own speech;
+/// this is not that, and the surface must not paraphrase it.
+///
+/// `key: None` deliberately: the pane's letter pool is seventeen and these are read, not operated.
+/// An item with no key is still a region — border, focus, arrows, wheel, pointer — it simply has no
+/// accelerator, which is the honest rendering when there is no letter to give.
+fn announcement_item(a: &crate::protocol::Announcement) -> Item {
+    let tone = match a.level {
+        crate::protocol::AnnounceLevel::Info => Tone::Dim,
+        crate::protocol::AnnounceLevel::Warn => Tone::Amber,
+    };
+    Item {
+        label: a.text.clone(),
+        id: None,
+        key: None,
+        lines: Vec::new(),
+        tone,
+        editable: false,
+    }
+}
+
 pub fn view_from_status(report: &StatusReport) -> SessionView {
     let degraded = report.degraded.as_deref().map(classify_degradation);
     SessionView {
+        // **The backlog, and it is why `StatusReport` carries announcements at all.** Almost
+        // everything the daemon says — the engine start, the reserve, the resumable runs — is said
+        // BEFORE any client exists. A pane fed only by live events would be empty for exactly the
+        // facts a user most wants when they open the surface and something looks slow.
+        status_pane: report.announcements.iter().map(announcement_item).collect(),
         control: ControlStrip {
             // One option each, because one is the truth: the daemon runs one model, in one
             // workspace, and profile/session switching has no producer until M2 D and M3. A picker
@@ -97,6 +128,10 @@ pub fn view_from_status(report: &StatusReport) -> SessionView {
             autonomy: Picker::new(&["observe"], 0),
         },
         status: StatusBand {
+            // **`None` until a turn produces one.** A cadence invented from a status report would
+            // be a number on screen that no model produced, which is the shape this project has a
+            // ledger of. It is set by `Event::Cadence` and by nothing else.
+            cadence: None,
             state: if degraded.is_some() {
                 StatusState::Idle
             } else {
@@ -164,7 +199,22 @@ pub(crate) fn classify_degradation(remedy: &str) -> DegradedPath {
 pub fn apply_events(view: &mut SessionView, events: &[Event]) {
     for event in events {
         match event {
+            // **Appended, not replaced.** The pane is a log: a second engine start does not erase
+            // the first, because "it restarted" is the fact a user is trying to see.
+            Event::Announce(a) => view.status_pane.push(announcement_item(a)),
+            // **`Cadence::new` refuses a reading with no elapsed generation time**, so a turn that
+            // produced a first token and nothing after it leaves the band showing the previous
+            // turn's figure rather than a division by zero dressed as a measurement.
+            Event::Cadence { ttft_ms, tokens, since_first_ms, warm } => {
+                if let Some(c) = Cadence::new(*ttft_ms, *tokens, *since_first_ms, *warm) {
+                    view.status.cadence = Some(c);
+                }
+            }
             Event::Status(r) => {
+                // **The backlog is re-read on every status, and it is idempotent by construction:**
+                // the daemon's ring is the single source, so this replaces rather than appends.
+                // Appending here as well would double every line each time a `Status` arrived.
+                view.status_pane = r.announcements.iter().map(announcement_item).collect();
                 view.status.degraded = r.degraded.as_deref().map(classify_degradation);
                 view.status.figures = vec![
                     format!("{} live", r.live_runs),
@@ -559,6 +609,9 @@ mod tests {
             model_provider: "ollama".into(),
             live_runs: 0,
         models: Vec::new(),
+        // Nothing has been announced into this fixture and nothing has been up.
+        announcements: Vec::new(),
+        uptime_ms: 0,
         }
     }
 
@@ -877,6 +930,9 @@ mod key_tests {
             model_provider: "ollama".into(),
             live_runs: 0,
         models: Vec::new(),
+        // Nothing has been announced into this fixture and nothing has been up.
+        announcements: Vec::new(),
+        uptime_ms: 0,
         });
         // Enough runs to exhaust the pool and then some.
         let events: Vec<Event> = (0..25)

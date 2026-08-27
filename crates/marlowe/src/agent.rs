@@ -115,11 +115,23 @@ pub fn serve(
     if let Some(n) = context {
         config.context_tokens = n;
     }
-    eprintln!(
-        "marlowe: context window {} tokens (model ceiling {})",
+    // ── EVERY `marlowe:` LINE BELOW IS ALSO KEPT, AND THAT IS THE POINT ──────────────────────
+    //
+    // `marlowe_daemon::announce` prints exactly what `eprintln!("marlowe: …")` printed and retains
+    // a bounded copy, which `StatusReport::announcements` carries to the TUI's §B7 Status tab.
+    // These are the sentences a user wants when something is slow or wrong, and until now the only
+    // way to see them was to have started the daemon by hand in a terminal that was still open —
+    // which §B17's launcher makes the unusual case, not the normal one.
+    //
+    // **The `[dev]` dumps are deliberately NOT routed through this.** §B1's carve-out keeps
+    // instrumentation behind `--dev`; the split between the two prefixes already existed, and this
+    // change respects it rather than flattening it.
+    use marlowe_daemon::announce;
+    announce::info(format!(
+        "context window {} tokens (model ceiling {})",
         config.context_tokens,
         marlowe_provider::MODEL_CONTEXT_CEILING
-    );
+    ));
     // **Announced, never inferred** — ADR-029's rule applied to the model provider. A daemon on
     // openrouter.ai and one on loopback otherwise print an identical startup, and the difference
     // is money and a network.
@@ -131,22 +143,25 @@ pub fn serve(
     match config.model_provider() {
         ModelProviderChoice::Ollama => {}
         ModelProviderChoice::OpenRouter { model } => {
-            eprintln!("marlowe: model provider OPENROUTER · {model} · https://openrouter.ai");
-            eprintln!(
-                "marlowe: this path is NOT bit-identically reproducible — the serving upstream is \
-                 recorded per call instead. See ADR-046 §6."
+            announce::info(format!(
+                "model provider OPENROUTER · {model} · https://openrouter.ai"
+            ));
+            // **Amber.** Money leaves the machine and the run stops being reproducible; both are
+            // things a person would want to have noticed before the third turn.
+            announce::warn(
+                "this path is NOT bit-identically reproducible — the serving upstream is \
+                 recorded per call instead. See ADR-046 §6.",
             );
-            eprintln!(
-                "marlowe: {}",
-                marlowe_provider::ModelCapability::unmeasured(&model).disclosure()
+            announce::info(
+                marlowe_provider::ModelCapability::unmeasured(&model).disclosure(),
             );
         }
         ModelProviderChoice::LlamaCpp { endpoint, sampling } => {
-            eprintln!(
-                "marlowe: model provider {} · Ollama stores, downloads and lists; a llama-server \
-                 on {endpoint} serves. ADR-060",
+            announce::info(format!(
+                "model provider {} · Ollama stores, downloads and lists; a llama-server on \
+                 {endpoint} serves. ADR-060",
                 marlowe_view::provider::HYBRID,
-            );
+            ));
             // **The two things that silently change under this engine, both printed.** The
             // template is llama.cpp's rendering of the GGUF's own, not Ollama's Go renderer; the
             // sampler is whatever `resolve_sampling` found, or a stated absence.
@@ -155,24 +170,22 @@ pub fn serve(
             // started yet — `Daemon::open` starts it a few lines below and prints which half is
             // actually serving. Saying "llama.cpp renders the template" here, ahead of a start
             // that may fall back, would be a claim about a run that had not happened.
-            eprintln!(
-                "marlowe: if llama.cpp serves, it renders the GGUF's own chat template and parses \
-                 its own tool-call dialect — Ollama's renderer and parser are NOT in that path. \
-                 The engine line below says which half actually started"
+            announce::info(
+                "if llama.cpp serves, it renders the GGUF's own chat template and parses its own \
+                 tool-call dialect — Ollama's renderer and parser are NOT in that path. The \
+                 engine line below says which half actually started",
             );
             match marlowe_provider::llamacpp::resolve_sampling(&config.model, sampling) {
-                Ok(plan) => eprintln!("marlowe: {}", plan.disclosure()),
+                Ok(plan) => announce::info(plan.disclosure()),
                 // Printed, not swallowed. The refusal itself lands later -- at the first turn,
                 // where the driver is built -- and a reader who sees only that has to guess which
                 // of four reads of Ollama.s store failed and where it looked.
-                Err(e) => eprintln!("marlowe: {}", e.remedy()),
+                // A sampler that could not be resolved is a degraded start, not a fact.
+                Err(e) => announce::warn(e.remedy()),
             }
             // Through the ONE definition the daemon's status line also calls, so a startup
             // announcement and a status band cannot say different things about one run.
-            eprintln!(
-                "marlowe: {}",
-                marlowe_provider::llamacpp::disclosure_for(&config.model)
-            );
+            announce::info(marlowe_provider::llamacpp::disclosure_for(&config.model));
         }
     }
     let port = config.port;
@@ -190,7 +203,17 @@ pub fn serve(
     // **Announced, never inferred.** ADR-029's rule applied to memory: a daemon whose retrieval
     // half is not running behaves exactly like one whose store is empty, and those are very
     // different facts to a person wondering why Marlowe does not remember.
-    eprintln!("marlowe: memory retrieval {}", daemon.memory_state().headline());
+    // **WRITE-ONLY is amber and READY is not**, read off the state rather than from the string:
+    // a headline is prose and a level is a decision, and deciding by substring would put the two a
+    // rename apart. `RetrievalState::is_live` is the predicate; `headline` is the prose.
+    announce::say(
+        if daemon.memory_state().is_live() {
+            marlowe_daemon::protocol::AnnounceLevel::Info
+        } else {
+            marlowe_daemon::protocol::AnnounceLevel::Warn
+        },
+        format!("memory retrieval {}", daemon.memory_state().headline()),
+    );
 
     // **Skills and MCP servers are announced, and so is everything that refused.** ADR-051 §6 and
     // ADR-052 §4, on ADR-029's rule: a state that is not announced is a state the user meets as a
@@ -198,32 +221,33 @@ pub fn serve(
     // describing itself differently than when they approved it are three ways an installed
     // capability stops being what they think it is, and none of them raises an error anywhere
     // else. Scanning once at startup is only defensible because this is where it lands.
-    eprintln!(
-        "marlowe: skills {} installed{}",
+    announce::info(format!(
+        "skills {} installed{}",
         daemon.skills_installed(),
         if daemon.skill_refusals().is_empty() {
             String::new()
         } else {
             format!(", {} refused", daemon.skill_refusals().len())
         }
-    );
+    ));
     for refusal in daemon.skill_refusals() {
-        eprintln!("marlowe:   ! {}", marlowe_contract::text::sanitize_line(refusal));
+        announce::warn(format!("  ! {}", marlowe_contract::text::sanitize_line(refusal)));
     }
     if daemon.mcp_tools() > 0 || !daemon.mcp_notices().is_empty() {
-        eprintln!(
-            "marlowe: mcp {} tool(s) from {} server(s)",
+        announce::info(format!(
+            "mcp {} tool(s) from {} server(s)",
             daemon.mcp_tools(),
             daemon.mcp_servers()
-        );
-        // Sanitised: a notice quotes a tool name the server chose.
+        ));
+        // Sanitised: a notice quotes a tool name the server chose. It reaches a pane now as well
+        // as a pipe, so the sanitiser matters more rather than less.
         for notice in daemon.mcp_notices() {
-            eprintln!("marlowe:   ! {}", marlowe_contract::text::sanitize_line(notice));
+            announce::warn(format!("  ! {}", marlowe_contract::text::sanitize_line(notice)));
         }
     }
 
-    eprintln!("marlowe: daemon listening on 127.0.0.1:{port}");
-    eprintln!("marlowe: runs are owned here and survive the client that started them");
+    announce::info(format!("daemon listening on 127.0.0.1:{port}"));
+    announce::info("runs are owned here and survive the client that started them");
     daemon.serve().map_err(|e| e.to_string())
 }
 
@@ -589,6 +613,19 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
     let events = resolve_retractions(events);
     for event in &events {
         match event {
+            // **The classic CLI prints announcements too, and it is not the TUI's job alone.**
+            // These are the lines that used to go only to stderr -- an engine start, a reserve that
+            // could not be taken, resumable runs -- and a person running `marlowe --ask` in a
+            // terminal has exactly the same need for them as a person in the surface. Sanitised
+            // like every other daemon-authored string, so a newline inside one cannot forge
+            // a line the daemon never wrote.
+            Event::Announce(a) => {
+                writeln!(out, "marlowe: {}", sanitize_line(&a.text))?;
+            }
+            // **Not printed here, deliberately.** The cadence is a live figure for a band that
+            // repaints; in a linear transcript it would be a number stamped mid-answer with no
+            // frame to belong to. `--status` and the TUI are where it reads as a measurement.
+            Event::Cadence { .. } => {}
             Event::Status(r) => {
                 writeln!(out, "marlowe {}", sanitize_line(&r.version))?;
                 writeln!(out, "  workspace   {}", sanitize_line(&r.workspace))?;
@@ -854,6 +891,9 @@ mod display_sanitiser {
                 model_provider: format!("openrouter{OVERWRITE}"),
                 live_runs: 0,
                 models: Vec::new(),
+                // Nothing has been announced into this fixture and nothing has been up.
+                announcements: Vec::new(),
+                uptime_ms: 0,
             }),
             Event::Text { delta: format!("prose{OVERWRITE}more") },
             Event::User { text: format!("hi{OVERWRITE}") },
@@ -960,6 +1000,9 @@ mod display_sanitiser {
                 model_provider: provider.into(),
                 live_runs: 0,
                 models: Vec::new(),
+                // Nothing has been announced into this fixture and nothing has been up.
+                announcements: Vec::new(),
+                uptime_ms: 0,
             })
         };
 

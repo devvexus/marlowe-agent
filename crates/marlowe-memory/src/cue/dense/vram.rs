@@ -301,20 +301,30 @@ const PROBE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(25)
 
 /// Run an external command with a hard ceiling. `None` on failure **or** on timeout.
 ///
-/// # Why this exists
+/// # THIS IS THE CRATE'S ONLY SANCTIONED WAY TO RUN AN EXTERNAL COMMAND
 ///
-/// Both commands this module runs — `ollama` and `nvidia-smi` — are outside this project's control
-/// and can block indefinitely: a busy GPU, a driver in an uninterruptible state, a server mid-load.
-/// They were called through a bare `Command::output()`, which waits forever.
+/// Not a convenience — a **containment boundary**, enforced by
+/// `tests/no_unbounded_external_commands.rs`, which fails if `Command::new` appears anywhere under
+/// `crates/marlowe-memory` except this module. That is why it is `pub`: an integration test or an
+/// example that needs to shell out has one way in, and the guard can name the one file where a
+/// process is allowed to be constructed.
+///
+/// # Why it exists
+///
+/// The commands this crate runs — `ollama`, `nvidia-smi`, `powershell` — are outside this project's
+/// control and can block indefinitely: a busy GPU, a driver in an uninterruptible state, a server
+/// mid-load. They were called through a bare `Command::output()`, which waits forever.
 ///
 /// **On 2026-08-25 that wedged the entire workspace suite for 12+ minutes**, with no ceiling
 /// anywhere: three `rerank_provider` tests sat in `Reserve::read()` and every later crate went
-/// unrun. The suite looked alive and produced nothing.
+/// unrun. The suite looked alive and produced nothing. **On 2026-08-26 the identical shape,
+/// copied into `tests/rerank_provider.rs`, hung a test binary for ~25 minutes at 1 GB RSS** —
+/// outside the reach of a guard that greped only this file.
 ///
-/// Every caller already returns `Option` and degrades to "no reserve, and here is why", so a
+/// Every caller already returns `Option` and degrades to "no reading, and here is why", so a
 /// timeout costs a *reading*, never the process. That asymmetry is the whole argument: a missing
 /// reserve is a named degradation, and a hang is an unbounded outage.
-fn bounded_output(program: &str, args: &[&str]) -> Option<std::process::Output> {
+pub fn bounded_output(program: &str, args: &[&str]) -> Option<std::process::Output> {
     let mut cmd = Command::new(program);
     cmd.args(args)
         .stdin(std::process::Stdio::null())
@@ -354,6 +364,27 @@ fn ollama_lines(args: &[&str]) -> Option<Vec<String>> {
             .lines()
             .map(str::trim)
             .filter(|l| !l.is_empty() && !l.starts_with("NAME"))
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// The model names `ollama list` reports, or `None` when it did not answer.
+///
+/// **One definition, and the second one is what this replaces.** `tests/rerank_provider.rs` ran its
+/// own `ollama list` and parsed it by hand — a second producer of the same value, and the one that
+/// shipped the unbounded `Command::output()` this module's ceiling exists to prevent. Routed here,
+/// the test asks the same question the reserve asks, through the same bounded probe, against the
+/// same header/blank-line filter.
+///
+/// `None` deliberately does **not** distinguish "no `ollama` on this machine" from "`ollama` did
+/// not answer inside the probe ceiling". Callers must name both possibilities rather than assert
+/// one: a timeout rendered as "not installed" is a mismatch made unobservable by a default.
+pub fn ollama_model_names() -> Option<Vec<String>> {
+    Some(
+        ollama_lines(&["list"])?
+            .iter()
+            .filter_map(|l| first_field(l))
             .map(str::to_string)
             .collect(),
     )
@@ -414,33 +445,38 @@ pub fn free_bytes() -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    /// **THE GUARD FOR THE OUTAGE, AND IT IS A SOURCE CHECK ON PURPOSE.**
+    /// **THE GUARD FOR THE OUTAGE MOVED OUT OF THIS FILE, AND THIS IS THE LINK THAT KEEPS IT.**
     ///
-    /// The enforcement is the OS killing a child; nothing in-process can observe "a command that
-    /// would have hung didn't". Asserting `PROBE_POLLS == 200` would assert the declaration, which
-    /// is the family this project logs at #16. So this asserts the thing that would actually
-    /// regress: that no external command in this module is run through a bare `Command::output()`
-    /// again.
+    /// The old check here was `include_str!("vram.rs")`: it greped its own module and nothing else,
+    /// so it was sound, had never regressed, and was **structurally incapable** of seeing the
+    /// identical hazard reproduced in a sibling file. On 2026-08-26 exactly that happened —
+    /// `tests/rerank_provider.rs` grew a bare `Command::output()` and hung a test binary for
+    /// ~25 minutes. CLAUDE.md's instance #14 with the sign flipped: the guard never moved, the
+    /// hazard was copied outside its reach, and the guard's own name (*"in this module"*) was an
+    /// accurate description of a scope nobody chose.
     ///
-    /// On 2026-08-25 a bare `.output()` here wedged the whole workspace suite for 12+ minutes.
+    /// The subject is now the whole crate and lives in
+    /// `tests/no_unbounded_external_commands.rs`. **This test is the back-link, and it is an
+    /// `include_str!` on purpose**: deleting or renaming that file does not make this test fail, it
+    /// makes the crate fail to COMPILE, naming the missing path. A guard is a claim about a path,
+    /// and a claim about a path needs something that breaks when the path stops existing.
     #[test]
-    fn no_external_command_in_this_module_waits_forever() {
-        let src = include_str!("vram.rs");
-        let body = src.split("mod tests").next().expect("there is code before the tests");
-
+    fn the_crate_wide_guard_exists_and_still_names_this_module() {
+        const GUARD: &str = include_str!("../../../tests/no_unbounded_external_commands.rs");
+        // Its roster must still name this file. If `vram.rs` is renamed, the guard's own
+        // self-check fails by name -- and this assertion fails here too, at the other end of the
+        // link, so neither half can be moved quietly.
         assert!(
-            !body.contains(".output()"),
-            "a bare `Command::output()` is back in vram.rs. It waits with NO ceiling, and both              commands this module runs are outside our control -- a busy GPU, a driver in an              uninterruptible state, a server mid-load. Route it through `bounded_output`."
+            GUARD.contains("src/cue/dense/vram.rs"),
+            "the crate-wide guard no longer names this module as the one place a process may be \
+             constructed. Either this file moved, or the containment boundary was widened without \
+             saying so."
         );
-        // The vacuity control: the assertion above is about ABSENCE, so it passes on an empty
-        // file, on a renamed module, and on a build where the probes were deleted entirely.
+        // The vacuity control: the roster could name this file while the guard checked nothing.
         assert!(
-            body.contains("fn bounded_output"),
-            "the vacuity control: `bounded_output` is gone, so the check above proves nothing"
-        );
-        assert!(
-            body.matches("bounded_output(").count() >= 3,
-            "expected the definition plus both call sites (ollama, nvidia-smi)"
+            GUARD.contains("fn every_external_command_in_this_crate_is_bounded"),
+            "the crate-wide guard file exists but no longer contains the check; a back-link to an \
+             empty guard is a comment"
         );
     }
 

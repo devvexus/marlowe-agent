@@ -350,6 +350,14 @@ fn to_wire(event: TurnEvent) -> Option<Event> {
     })
 }
 
+/// How many streamed tokens between `Event::Cadence` frames. See the emission site for why this
+/// is not 1.
+///
+/// Eight is roughly 110 ms at this machine's measured 73.6 tok/s and roughly 800 ms at the 10 tok/s
+/// a CPU offload produces — which is the right way round: the slower the engine, the more obviously
+/// the figure is telling you so, and the fewer frames it spends doing it.
+const CADENCE_EVERY: u64 = 8;
+
 /// A sink that hands each event to a callback **as the loop produces it**.
 ///
 /// # This is the structural half of streaming
@@ -421,7 +429,12 @@ pub fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
         // harness speech, and the window's transcript vocabulary has no variant for it that is not
         // model prose. It reaches a window through the daemon's `Degraded` handling on the
         // conversation port instead, and is deliberately not duplicated here.
-        Event::Degraded { .. }
+        // An announcement is about the DAEMON, not about this run, and a run window that
+        // repeated the daemon's startup log would be a second copy of a different subject.
+        // `Cadence` is about the turn the CONVERSATION is having; a watched run has its own.
+        Event::Announce(_)
+        | Event::Cadence { .. }
+        | Event::Degraded { .. }
         | Event::User { .. }
         | Event::Status(_)
         | Event::Approval { .. }
@@ -725,6 +738,19 @@ pub struct Daemon {
     /// recomputed because resolving it reads Ollama's store, and doing that twice would put a
     /// second child process on the path this change exists to shorten.
     pending_engine: Option<String>,
+
+    /// When this daemon came up, from the one fenced clock. §B7 lists *daemon uptime* among what
+    /// the Status tab holds; `StatusReport::uptime_ms` is the difference, and it is a duration
+    /// rather than this stamp precisely so no clock reading crosses the boundary.
+    started_ms: i64,
+
+    /// Turns this engine has answered. **Zero means the next turn is the first one.**
+    ///
+    /// It is what `Event::Cadence`'s `warm` reports, and it is deliberately a count of turns rather
+    /// than a claim about weights: the harness cannot see whether the model was paged in from disk,
+    /// and it can see exactly which turn this is. Starting an engine and switching model both reset
+    /// it, because both replace the thing being measured.
+    turns_on_engine: u32,
 }
 
 impl Daemon {
@@ -746,16 +772,20 @@ impl Daemon {
         );
         // ADR-029: announced, never inferred. Both halves of the hybrid are named, because the
         // point of one entry with two names is that the user can see both.
-        eprintln!(
-            "marlowe: model provider {} · Ollama stores and lists · {} · {note}",
+        // **A new engine is a new denominator.** `warm` reports whether this engine has answered
+        // before, so replacing it must reset the count -- otherwise the first turn on the new
+        // engine is labelled warm and whatever the load cost reads as the engine being slow.
+        self.turns_on_engine = 0;
+        crate::announce::info(format!(
+            "model provider {} · Ollama stores and lists · {} · {note}",
             marlowe_view::provider::HYBRID,
             self.engine.disclosure(),
-        );
+        ));
         if self.engine.fallback_line().is_none() {
-            eprintln!(
-                "marlowe: llama.cpp renders the GGUF's own chat template and parses its own \
+            crate::announce::info(
+                "llama.cpp renders the GGUF's own chat template and parses its own \
                  tool-call dialect. Ollama's renderer and parser are NOT in this path, so the \
-                 tool-call reliability recorded for this model does not describe it."
+                 tool-call reliability recorded for this model does not describe it.",
             );
         }
     }
@@ -970,10 +1000,12 @@ impl Daemon {
         ));
         let resumable = plane.lock().expect("fresh").seed_from_journal();
         if resumable > 0 {
-            eprintln!(
-                "marlowe: {resumable} interrupted run(s) can be resumed — `marlowe --runs` lists \
-                 them, `marlowe --resume <id>` continues one"
-            );
+            // **A warning, not a fact.** Work was interrupted and is sitting there unfinished,
+            // which is the definition of something wanting attention -- §B2's amber.
+            crate::announce::warn(format!(
+                "{resumable} interrupted run(s) can be resumed — `marlowe --runs` lists them, \
+                 `marlowe --resume <id>` continues one"
+            ));
         }
 
         Ok(Self {
@@ -990,6 +1022,9 @@ impl Daemon {
             token,
             engine,
             pending_engine: None,
+            // §4.5's legitimate case, through the one fence. See `crate::clock`.
+            started_ms: marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock),
+            turns_on_engine: 0,
         })
     }
 
@@ -1032,6 +1067,18 @@ impl Daemon {
 
     pub fn live_runs(&self) -> usize {
         self.plane.lock().expect("the control plane lock was poisoned").live_runs()
+    }
+
+    /// How long this daemon has been up. §B7 lists *daemon uptime*; §B5's `idle` band carries it.
+    ///
+    /// **Saturating, so a clock that steps backwards reads zero rather than four billion.**
+    /// `SystemClock` is wall time, not monotonic — an NTP correction mid-session is not
+    /// hypothetical, and `0 ms` is a visibly wrong number a reader dismisses, where
+    /// `4294967295 ms` is a plausible-looking one they believe.
+    fn uptime_ms(&self) -> u64 {
+        marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock)
+            .saturating_sub(self.started_ms)
+            .max(0) as u64
     }
 
     /// What §B5's band and first-run onboarding need, without touching a model.
@@ -1082,6 +1129,8 @@ impl Daemon {
                 rerank_provider: self.config.rerank_provider.clone(),
                 model_provider: self.config.model_provider().name().to_string(),
                 live_runs: self.live_runs(),
+                announcements: crate::announce::retained(),
+                uptime_ms: self.uptime_ms(),
                 // **The catalogue when we have it, the configured slug when we do not.**
                 //
                 // This paragraph used to say the opposite -- *"OpenRouter's catalogue is hundreds
@@ -1196,6 +1245,8 @@ impl Daemon {
             model_provider: self.config.model_provider().name().to_string(),
             live_runs: self.live_runs(),
             models,
+            announcements: crate::announce::retained(),
+            uptime_ms: self.uptime_ms(),
         }
     }
 
@@ -1259,6 +1310,8 @@ impl Daemon {
             model_provider: self.config.model_provider().name().to_string(),
             live_runs: self.live_runs(),
             models,
+            announcements: crate::announce::retained(),
+            uptime_ms: self.uptime_ms(),
         }
     }
 
@@ -1314,10 +1367,11 @@ impl Daemon {
                     None => {
                         self.engine = engine;
                         self.config.model = model.to_string();
-                        eprintln!(
-                            "marlowe: model {previous} -> {model} · {}",
+                        self.turns_on_engine = 0;
+                        crate::announce::info(format!(
+                            "model {previous} -> {model} · {}",
                             self.engine.disclosure()
-                        );
+                        ));
                         return Ok(());
                     }
                     // **The switch still happens, and the engine falls back.** Ollama has the
@@ -1328,7 +1382,10 @@ impl Daemon {
                     Some(line) => {
                         self.engine = engine;
                         self.config.model = model.to_string();
-                        eprintln!("marlowe: model {previous} -> {model}; {line}");
+                        self.turns_on_engine = 0;
+                        // The model changed AND the engine could not serve it. The second half is
+                        // the part that wants attention, so the whole line carries its level.
+                        crate::announce::warn(format!("model {previous} -> {model}; {line}"));
                         return Ok(());
                     }
                 }
@@ -2289,13 +2346,82 @@ impl Daemon {
         let plane_for_sink = std::sync::Arc::clone(&self.plane);
         let run_key = run_id.to_string();
         let key_for_sink = run_key.clone();
-        let mut on_event = move |e: Event| {
+        let mut downstream = move |e: Event| {
             if let Some(frame) = to_run_frame(&e) {
                 if let Ok(mut p) = plane_for_sink.lock() {
                     p.push(&key_for_sink, frame);
                 }
             }
             on_event(e);
+        };
+
+        // ── §B5's FIGURES, MEASURED WHERE THE TOKENS ACTUALLY ARRIVE ─────────────────────────
+        //
+        // **No model call is added to get these.** Every token the engine streams already passes
+        // through `CallbackSink::emit` on its way to the socket, so the measurement is a counter
+        // and two clock reads on a path that was already running. The alternative — a separate
+        // probe turn — would report the latency of a request nobody made.
+        //
+        // **TTFT is the first token of ANY kind**, `thinking` included. `qwen3.5:9b` emitted 2,615
+        // of 2,862 frames with an empty `content` field; timing to the first *answer* token would
+        // have reported the length of its deliberation as latency. What a person perceives as "it
+        // started" is the first token that exists.
+        //
+        // **The rate is emitted with it and never without it.** `marlowe_view::Cadence` is what
+        // enforces that at the render, and the reason is this project's own measurement: a CPU
+        // `llama-server` beat Ollama on TTFT — 218 ms against 426 — while being five times worse
+        // per turn, because TTFT is prompt eval and prompt eval is what a CPU does acceptably.
+        //
+        // The clock is the §4.5 fence, the same one `started_ms` and the memory path read.
+        let turn_started_ms = marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock);
+        let warm = self.turns_on_engine > 0;
+        let mut first_token_ms: Option<i64> = None;
+        let mut tokens: u64 = 0;
+        let mut announced = crate::announce::issued();
+        let mut on_event = move |e: Event| {
+            // Counted BEFORE forwarding, so a figure emitted alongside a token includes it. One
+            // delta is one token on both local engines — `ollama.rs` calls `on_delta` once per
+            // NDJSON frame and Ollama sends one frame per token.
+            let is_token = matches!(e, Event::Text { .. } | Event::Reasoning { .. });
+            if is_token {
+                tokens += 1;
+            }
+            let ending = matches!(e, Event::Done { .. });
+            downstream(e);
+
+            if is_token && first_token_ms.is_none() {
+                first_token_ms =
+                    Some(marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock));
+            }
+            // Every `CADENCE_EVERY` tokens, and once more as the turn closes. Not per token: at
+            // 73 tok/s that would be 73 extra frames a second carrying a number that had barely
+            // moved, and a meter redrawn faster than a person can read is decoration (§B12).
+            let due = (is_token && tokens % CADENCE_EVERY == 0) || ending;
+            if due {
+                if let Some(first) = first_token_ms {
+                    let now =
+                        marlowe_loop::ClockSource::now_ms(&mut crate::clock::SystemClock);
+                    downstream(Event::Cadence {
+                        ttft_ms: first.saturating_sub(turn_started_ms).max(0) as u64,
+                        tokens,
+                        since_first_ms: now.saturating_sub(first).max(0) as u64,
+                        warm,
+                    });
+                }
+            }
+
+            // **The daemon's own announcements, flushed onto the live stream.** Anything said
+            // during a turn — an engine that died and fell back, a model switch, the openrouter
+            // disclosure — reaches the pane while the turn is still going, rather than waiting for
+            // the next `Status`. The relaxed load is the whole cost on the common path where
+            // nothing has been said.
+            if crate::announce::issued() != announced {
+                let (mark, fresh) = crate::announce::since(announced);
+                announced = mark;
+                for a in fresh {
+                    downstream(Event::Announce(a));
+                }
+            }
         };
         let mut sink = CallbackSink { on_event: &mut on_event };
         // **The shared control plane, not `NoControl`.** This is what makes `/steer` reach a run
@@ -2556,7 +2682,7 @@ impl Daemon {
             .unwrap_or_else(|arc| arc.lock().expect("attribution").clone());
         if !attribution.calls.is_empty() {
             let line = attribution.disclosure();
-            eprintln!("marlowe: openrouter · {line}");
+            crate::announce::info(format!("openrouter · {line}"));
             if let Some(s) = plane
                 .lock()
                 .expect("the control plane lock was poisoned")
@@ -2777,8 +2903,8 @@ impl Daemon {
             self.token.clone(),
             Arc::clone(&self.shutdown),
         ) {
-            Ok(port) => eprintln!("marlowe: control plane on 127.0.0.1:{port}"),
-            Err(detail) => eprintln!("marlowe: DEGRADED · {detail}"),
+            Ok(port) => crate::announce::info(format!("control plane on 127.0.0.1:{port}")),
+            Err(detail) => crate::announce::warn(format!("DEGRADED · {detail}")),
         }
         let shutdown = Arc::clone(&self.shutdown);
 

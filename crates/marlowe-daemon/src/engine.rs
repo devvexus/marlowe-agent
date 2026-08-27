@@ -63,12 +63,12 @@ impl HybridEngine {
                 // ADR-029: announced, never inferred. Two things change under this engine that a
                 // user cannot otherwise see — which process ran the forward pass, and on which
                 // processor — and both are printable here.
-                eprintln!(
-                    "marlowe: engine llama.cpp · {} · started in {} ms · {}",
+                crate::announce::info(format!(
+                    "engine llama.cpp · {} · started in {} ms · {}",
                     server.endpoint(),
                     server.startup.as_millis(),
                     server.offload().disclosure(),
-                );
+                ));
                 HybridEngine::Serving(Box::new(server))
             }
             Err(failure) => Self::fell_back(&failure),
@@ -79,7 +79,12 @@ impl HybridEngine {
     /// and the sentence in the status band cannot say different things.
     pub fn fell_back(failure: &EngineFailure) -> Self {
         let line = failure.fallback_line();
-        eprintln!("marlowe: {line}");
+        // **Amber, and this is the one announcement whose level is not a judgement call.** The
+        // engine the user picked is not the engine that is serving; §B2 gives amber to exactly
+        // "not the way it was asked for". The band already latches this through
+        // `StatusReport::degraded`; the pane keeps it with the rest of the log so the sequence is
+        // legible — what started, what failed, what took over.
+        crate::announce::warn(line.clone());
         HybridEngine::FellBack { line }
     }
 

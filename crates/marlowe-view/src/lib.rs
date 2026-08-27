@@ -44,7 +44,8 @@ pub use approval::{
     RiskTier,
 };
 pub use model::{
-    Ambient, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tab, Tone, ToolCall,
+    Ambient, Cadence, ControlStrip, Entry, Item, Pager, Picker, StatusBand, StatusState, Tab, Tone,
+    ToolCall,
 };
 pub use notice::{CommandLine, Terminal,
     Capability, Disposition, Echo, Listing, Milestone, Notice, PaneSummary, Refusal, RenderContext,

@@ -242,6 +242,15 @@ pub enum PaneSummary {
     Runs { running: u32, spend_cents: u32, ceiling_cents: u32 },
     /// `next_at` is a typed time, not a formatted string — the first place free text would leak in.
     Schedule { needing_you: u32, next_at: (u8, u8), next_is_conflict: bool },
+    /// §B7's Status tab, once it holds the daemon's own announcements.
+    ///
+    /// **Counts, not the lines themselves.** ADR-030 §5 forbids a `String` field here, and the rule
+    /// earns its keep in exactly this variant: the announcements are daemon-authored sentences, and
+    /// letting one into the notice vocabulary would make `Notice::render` a passthrough for
+    /// arbitrary text. What Marlowe says out loud is *how many need you*; the sentences themselves
+    /// are in the pane, which is the whole of §B7's rule — the transcript carries judgment, the
+    /// region carries data.
+    Status { announcements: u32, needing_you: u32, degraded: bool },
     NotBuilt { arrives: Milestone },
 }
 
@@ -394,6 +403,22 @@ impl PaneSummary {
                     format!(
                         "{needing_you} things need you — the {h:02}:{m:02} is the one to look at."
                     )
+                }
+            }
+            // §C1: the first sentence carries the answer, and the answer here is whether anything
+            // is wrong. §C4: no flattery, no reassurance — "all clear" on a healthy daemon is a
+            // fact, and the degraded case names the count rather than softening it.
+            PaneSummary::Status { announcements, needing_you, degraded } => {
+                if needing_you > 0 {
+                    format!(
+                        "{needing_you} of {announcements} want a look. They are at the top.",
+                    )
+                } else if degraded {
+                    "Something is degraded. The reason is here.".to_string()
+                } else if announcements == 0 {
+                    "The daemon has said nothing yet.".to_string()
+                } else {
+                    format!("Nothing wrong. {announcements} routine so far.")
                 }
             }
             PaneSummary::NotBuilt { arrives } => format!(

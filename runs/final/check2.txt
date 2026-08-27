@@ -1,0 +1,170 @@
+    Checking marlowe-stub v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-stub)
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+    Checking marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+    Checking marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+    Checking marlowe-surface v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-surface)
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+error[E0063]: missing field `cadence` in initializer of `StatusBand`
+  --> crates\marlowe-daemon\src\project.rs:99:17
+   |
+99 |         status: StatusBand {
+   |                 ^^^^^^^^^^ missing `cadence`
+
+error[E0063]: missing field `status_pane` in initializer of `SessionView`
+  --> crates\marlowe-daemon\src\project.rs:56:5
+   |
+56 |     SessionView {
+   |     ^^^^^^^^^^^ missing `status_pane`
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1654:9
+     |
+1654 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:3236:9
+     |
+3236 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0004]: non-exhaustive patterns: `&Event::Announce(_)` and `&Event::Cadence { .. }` not covered
+   --> crates\marlowe-daemon\src\project.rs:166:15
+    |
+166 |         match event {
+    |               ^^^^^ patterns `&Event::Announce(_)` and `&Event::Cadence { .. }` not covered
+    |
+note: `Event` defined here
+   --> crates\marlowe-daemon\src\protocol.rs:219:10
+    |
+219 | pub enum Event {
+    |          ^^^^^
+...
+268 |     Announce(Announcement),
+    |     -------- not covered
+...
+286 |     Cadence { ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool },
+    |     ------- not covered
+    = note: the matched value is of type `&Event`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+388 ~             Event::RunOutput { .. } => {},
+389 +             &Event::Announce(_) | &Event::Cadence { .. } => todo!()
+    |
+
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+error[E0004]: non-exhaustive patterns: `&protocol::Event::Announce(_)` and `&protocol::Event::Cadence { .. }` not covered
+   --> crates\marlowe-daemon\src\project.rs:166:15
+    |
+166 |         match event {
+    |               ^^^^^ patterns `&protocol::Event::Announce(_)` and `&protocol::Event::Cadence { .. }` not covered
+    |
+note: `protocol::Event` defined here
+   --> crates\marlowe-daemon\src\protocol.rs:219:10
+    |
+219 | pub enum Event {
+    |          ^^^^^
+...
+268 |     Announce(Announcement),
+    |     -------- not covered
+...
+286 |     Cadence { ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool },
+    |     ------- not covered
+    = note: the matched value is of type `&protocol::Event`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+388 ~             Event::RunOutput { .. } => {},
+389 +             &protocol::Event::Announce(_) | &protocol::Event::Cadence { .. } => todo!()
+    |
+
+Some errors have detailed explanations: E0004, E0063.
+For more information about an error, try `rustc --explain E0004`.
+warning: `marlowe-daemon` (lib) generated 2 warnings
+error: could not compile `marlowe-daemon` (lib) due to 3 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+warning: `marlowe-daemon` (lib test) generated 4 warnings (1 duplicate)
+error: could not compile `marlowe-daemon` (lib test) due to 3 previous errors; 4 warnings emitted

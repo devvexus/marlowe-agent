@@ -31,6 +31,9 @@ fn view() -> marlowe_view::SessionView {
         model_provider: "ollama".into(),
         live_runs: 0,
         models: Vec::new(),
+        // Nothing has been announced into this fixture and nothing has been up.
+        announcements: Vec::new(),
+        uptime_ms: 0,
     })
 }
 

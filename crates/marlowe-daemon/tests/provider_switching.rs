@@ -184,6 +184,9 @@ fn the_provider_picker_is_built_from_the_daemons_own_report() {
         model_provider: provider.into(),
         live_runs: 0,
         models: vec!["m".into()],
+        // Nothing has been announced into this fixture and nothing has been up.
+        announcements: Vec::new(),
+        uptime_ms: 0,
     };
 
     let local = marlowe_daemon::view_from_status(&report("ollama"));

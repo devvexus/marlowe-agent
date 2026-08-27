@@ -85,6 +85,16 @@ pub enum RetrievalState {
 }
 
 impl RetrievalState {
+    /// Whether retrieval is actually running. **The predicate, beside the prose.**
+    ///
+    /// A caller deciding how loudly to say this — the startup announcement picks amber or dim off
+    /// it — must not decide by looking for `WRITE-ONLY` inside [`Self::headline`]. That is a
+    /// substring test against a sentence, and a reword would silently turn the warning into a
+    /// routine line with nothing failing. Same fact, one source.
+    pub fn is_live(&self) -> bool {
+        matches!(self, Self::Live { .. })
+    }
+
     pub fn headline(&self) -> String {
         match self {
             Self::Live { model_dir } => format!("live · {model_dir}"),

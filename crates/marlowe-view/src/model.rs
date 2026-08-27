@@ -108,6 +108,96 @@ impl StatusState {
 
 /// What the status band shows for the current state. §B5: *"the numbers that matter **for that
 /// state**"* — a band that always shows the same four numbers is a status bar, not a status band.
+/// **What the turn in flight is costing, while it is still in flight.** §B5's figures for
+/// `thinking` and `writing`.
+///
+/// # TTFT is the first token of ANY kind, and that is not the conventional reading
+///
+/// A reasoning model emits `thinking` long before it emits `content` — `qwen3.5:9b` produced
+/// 2,615 of 2,862 frames with an empty `content` field. Timing to the first *answer* token would
+/// therefore report the length of the model's deliberation as latency, which is a measurement of
+/// something else entirely. What a person perceives as "it started" is the first token that
+/// exists, so that is what this measures.
+///
+/// # The two numbers are one struct because either one alone is a trap
+///
+/// This project has the receipts. A CPU `llama-server` beat Ollama on TTFT — **218 ms against
+/// 426**, a 2x win — while being **five times worse over a whole turn**, because TTFT is prompt
+/// eval and prompt eval is the part a CPU does acceptably (`llamacpp.rs`, `Offload`'s header).
+/// A band showing only the latency would have rendered that regression as an improvement, on
+/// screen, to the person it was happening to.
+///
+/// So there is no way to put one on screen without the other: the fields are **private**, the only
+/// constructor is [`Cadence::new`], and the only renderer is [`Cadence::figures`], which emits both
+/// lines or does not exist. A surface cannot reach past it, because there is nothing to reach.
+///
+/// # `new` returns `Option`, and that `None` is the honest reading of an undefined rate
+///
+/// At the instant the first token lands there is no elapsed generation time to divide by. A rate
+/// over a zero denominator is infinity, renders as `inf tok/s`, and reads as a bug in Marlowe. The
+/// band shows the state and its detail and no figures until there is time to measure against —
+/// which lasts a fraction of a second and is true throughout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cadence {
+    ttft_ms: u64,
+    tokens: u64,
+    since_first_ms: u64,
+    warm: bool,
+}
+
+impl Cadence {
+    /// `None` when there is no elapsed generation time — see the type's header.
+    ///
+    /// `tokens` is what the engine streamed, counted at the harness's own sink. Both local engines
+    /// emit one delta per token, so this is a count rather than an estimate from characters.
+    pub fn new(ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool) -> Option<Self> {
+        if since_first_ms == 0 {
+            return None;
+        }
+        Some(Self { ttft_ms, tokens, since_first_ms, warm })
+    }
+
+    pub fn ttft_ms(self) -> u64 {
+        self.ttft_ms
+    }
+
+    pub fn tokens(self) -> u64 {
+        self.tokens
+    }
+
+    /// Whether the engine had already answered a turn when this one started.
+    ///
+    /// **Not a claim about weights.** The harness does not know whether the model was paged in
+    /// from disk; what it knows is which turn this is, and the first turn on a freshly started
+    /// engine is the one carrying whatever the load cost. So the rendered words are `first turn on
+    /// this engine`, which is a fact, rather than `cold`, which would be an inference.
+    pub fn warm(self) -> bool {
+        self.warm
+    }
+
+    /// Generated tokens per second, over the time since the first token.
+    ///
+    /// **The denominator excludes TTFT deliberately**, because TTFT already reports that interval.
+    /// Dividing by the whole turn would fold prompt eval into the rate and make the two figures
+    /// report overlapping things — and it is the *generation* rate that separates a GPU from a CPU
+    /// (107 against 10 on this machine), which is the separation the pairing exists to preserve.
+    pub fn tok_per_s(self) -> f64 {
+        self.tokens as f64 * 1000.0 / self.since_first_ms as f64
+    }
+
+    /// §B5's figures column: at most two lines, right-aligned. **Both numbers, always.**
+    pub fn figures(self) -> Vec<String> {
+        vec![
+            format!("ttft {} ms · {:.0} tok/s", self.ttft_ms, self.tok_per_s()),
+            format!(
+                "{} tokens · {}",
+                self.tokens,
+                if self.warm { "warm" } else { "first turn on this engine" }
+            ),
+        ]
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusBand {
     pub state: StatusState,
@@ -117,6 +207,12 @@ pub struct StatusBand {
     pub figures: Vec<String>,
     /// Set when invariant 4 has fired. Renders amber, over the state's own detail.
     pub degraded: Option<crate::turn::DegradedPath>,
+    /// **The turn in flight, measured.** `None` between turns, and until the first token lands.
+    ///
+    /// It is not folded into [`Self::figures`] as two more strings, because the whole point of
+    /// [`Cadence`] is that the pair cannot be split — and a `Vec<String>` is precisely the shape
+    /// somebody splits. A renderer asks the struct for its lines; it never composes them.
+    pub cadence: Option<Cadence>,
 }
 
 /// §B4's five control-strip regions, in order.

@@ -79,6 +79,9 @@ impl Session {
     pub fn new() -> Self {
         let mut s = Self {
             view: SessionView {
+                // Empty rather than absent: the pane exists and has nothing in it yet, which
+                // is what a stubbed session honestly is.
+                status_pane: Vec::new(),
                 control: ControlStrip {
                     model: Picker::new(&["opus-5", "sonnet-5", "haiku-4.5", "local/qwen-32b"], 0),
                     profile: Picker::new(&["work", "personal"], 0),
@@ -104,6 +107,12 @@ impl Session {
                     detail: "voice · barge-in on · say \"marlowe\" to interrupt".into(),
                     figures: vec!["740 ms voice-to-voice".into(), "opus-5 · work".into()],
                     degraded: None,
+                    // The stub is a SECOND definition of the surface's shape, so a new field
+                    // has to be added here too or every stub-driven surface test stops
+                    // compiling. None: the stub scripts a conversation, not a live turn,
+                    // and inventing a cadence here would put a number on a screen that no
+                    // model produced.
+                    cadence: None,
                 },
                 transcript: opening_transcript(),
                 pager: Pager {

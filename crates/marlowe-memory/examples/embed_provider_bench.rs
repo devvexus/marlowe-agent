@@ -56,14 +56,11 @@ use marlowe_memory::cue::dense::MAX_SEQ_LEN;
 fn peak_host_bytes() -> u64 {
     #[cfg(windows)]
     {
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                &format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id()),
-            ])
-            .output();
-        if let Ok(o) = out {
+        // Through `vram::bounded_output`: the crate's only sanctioned way to run an external
+        // command, enforced by `tests/no_unbounded_external_commands.rs`. A bare `.output()` on a
+        // `powershell` spawn is what wedged the workspace suite twice.
+        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
+        if let Some(o) = vram::bounded_output("powershell", &["-NoProfile", "-Command", &script]) {
             if let Ok(s) = String::from_utf8(o.stdout) {
                 if let Ok(v) = s.trim().parse::<u64>() {
                     return v;
@@ -97,10 +94,10 @@ fn peak_host_bytes() -> u64 {
 /// shared, and on a driver that answers, this attributes bytes to a process where a card-wide
 /// delta cannot.
 fn own_vram_bytes() -> Option<u64> {
-    let out = std::process::Command::new("nvidia-smi")
-        .args(["--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"])
-        .output()
-        .ok()?;
+    let out = vram::bounded_output(
+        "nvidia-smi",
+        &["--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"],
+    )?;
     let text = String::from_utf8(out.stdout).ok()?;
     let me = std::process::id().to_string();
     for line in text.lines() {
@@ -263,10 +260,10 @@ fn embedder_main() {
     );
     println!(
         "co-resident processes on the card at start: {}",
-        std::process::Command::new("nvidia-smi")
-            .args(["--query-compute-apps=process_name", "--format=csv,noheader"])
-            .output()
-            .ok()
+        vram::bounded_output(
+            "nvidia-smi",
+            &["--query-compute-apps=process_name", "--format=csv,noheader"],
+        )
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .map(|t| {
                 let names: Vec<String> = t
@@ -561,10 +558,10 @@ fn reranker_main() {
 
     println!(
         "\nco-resident processes on the card: {}",
-        std::process::Command::new("nvidia-smi")
-            .args(["--query-compute-apps=process_name", "--format=csv,noheader"])
-            .output()
-            .ok()
+        vram::bounded_output(
+            "nvidia-smi",
+            &["--query-compute-apps=process_name", "--format=csv,noheader"],
+        )
             .and_then(|o| String::from_utf8(o.stdout).ok())
             .map(|t| {
                 let names: Vec<String> = t

@@ -1,0 +1,102 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1597:9
+     |
+1597 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:767:13
+    |
+701 | /             Event::RunDetail {
+702 | |                 id,
+703 | |                 status,
+704 | |                 parent,
+...   |
+715 | |                 subagents,
+716 | |             } => {
+    | |_____________- matches all the relevant values
+...
+767 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe` (bin "marlowe") generated 1 warning
+warning: method `name` is never used
+  --> crates\marlowe-embed-spike\src\main.rs:43:8
+   |
+42 | trait Engine {
+   |       ------ method in this trait
+43 |     fn name(&self) -> &'static str;
+   |        ^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-embed-spike` (bin "marlowe-embed-spike") generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.68s

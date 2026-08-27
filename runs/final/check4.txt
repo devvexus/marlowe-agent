@@ -1,0 +1,258 @@
+warning: unused import: `Capability`
+  --> crates\marlowe-surface\src\commands.rs:14:28
+   |
+14 | use marlowe_view::notice::{Capability, Echo, Listing, Milestone, Notice, PaneSummary, Refusal};
+   |                            ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cmd`
+    --> crates\marlowe-surface\src\app.rs:1394:21
+     |
+1394 |         if let Some(cmd) = text.strip_prefix('!') {
+     |                     ^^^ help: if this is intentional, prefix it with an underscore: `_cmd`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-surface` to apply 2 suggestions)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+    Checking marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:158:9
+    |
+158 |     let mut a = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_flicker.rs:159:9
+    |
+159 |     let mut b = WindowApp::new(common::run_view());
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_flicker") generated 2 warnings (run `cargo fix --test "window_flicker" -p marlowe-surface` to apply 2 suggestions)
+warning: variable does not need to be mutable
+  --> crates\marlowe-surface\tests\window_render.rs:92:9
+   |
+92 |     let mut app = common::window();
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:128:9
+    |
+128 |     let mut c1 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> crates\marlowe-surface\tests\window_render.rs:129:9
+    |
+129 |     let mut c2 = common::window();
+    |         ----^^
+    |         |
+    |         help: remove this `mut`
+
+warning: `marlowe-surface` (test "window_render") generated 3 warnings (run `cargo fix --test "window_render" -p marlowe-surface` to apply 3 suggestions)
+warning: unused import: `marlowe_view::Tab`
+   --> crates\marlowe-surface\tests\b13_rendering.rs:510:9
+    |
+510 |     use marlowe_view::Tab;
+    |         ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `SessionView`
+  --> crates\marlowe-surface\tests\b13_keyboard.rs:18:20
+   |
+18 | use marlowe_view::{SessionView, Tab};
+   |                    ^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-surface` (test "b13_rendering") generated 1 warning (run `cargo fix --test "b13_rendering" -p marlowe-surface` to apply 1 suggestion)
+warning: `marlowe-surface` (test "b13_keyboard") generated 1 warning (run `cargo fix --test "b13_keyboard" -p marlowe-surface` to apply 1 suggestion)
+    Checking marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+warning: `marlowe-surface` (lib test) generated 2 warnings (2 duplicates)
+warning: unused variable: `reference_order`
+   --> crates\marlowe-memory\tests\rerank_provider.rs:435:9
+    |
+435 |     let reference_order = order_of(&alone);
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_order`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-memory` (test "rerank_provider") generated 1 warning (run `cargo fix --test "rerank_provider" -p marlowe-memory` to apply 1 suggestion)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1654:9
+     |
+1654 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:3236:9
+     |
+3236 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+    Checking marlowe-stub v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-stub)
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+    Checking marlowe v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe)
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: function `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key` should have a snake case name
+   --> crates\marlowe-memory\src\gate\features.rs:448:8
+    |
+448 |     fn z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_rank_key`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `declaring_a_RANK_feature_inert_is_refused` should have a snake case name
+   --> crates\marlowe-memory\src\gate\mod.rs:954:8
+    |
+954 |     fn declaring_a_RANK_feature_inert_is_refused() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `declaring_a_rank_feature_inert_is_refused`
+
+warning: function `the_calibration_reads_MARGIN_and_nothing_else` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1056:8
+     |
+1056 |     fn the_calibration_reads_MARGIN_and_nothing_else() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `the_calibration_reads_margin_and_nothing_else`
+
+warning: function `the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1066:8
+     |
+1066 |     fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `the_ranking_score_is_the_winning_cues_z_not_its_calibrated_value`
+
+warning: function `an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index` should have a snake case name
+    --> crates\marlowe-memory\src\retrieve.rs:1619:8
+     |
+1619 |     fn an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `an_adjacent_rank_swap_is_an_exact_tie_and_breaks_by_candidate_index`
+
+warning: `marlowe-memory` (lib test) generated 5 warnings
+warning: unreachable pattern
+   --> crates\marlowe\src\agent.rs:791:13
+    |
+725 | /             Event::RunDetail {
+726 | |                 id,
+727 | |                 status,
+728 | |                 parent,
+...   |
+739 | |                 subagents,
+740 | |             } => {
+    | |_____________- matches all the relevant values
+...
+791 |               Event::RunDetail { .. } | Event::RunOutput { .. } => {}
+    |               ^^^^^^^^^^^^^^^^^^^^^^^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+error[E0004]: non-exhaustive patterns: `&marlowe_daemon::Event::Announce(_)` and `&marlowe_daemon::Event::Cadence { .. }` not covered
+   --> crates\marlowe\src\agent.rs:615:15
+    |
+615 |         match event {
+    |               ^^^^^ patterns `&marlowe_daemon::Event::Announce(_)` and `&marlowe_daemon::Event::Cadence { .. }` not covered
+    |
+note: `marlowe_daemon::Event` defined here
+   --> crates\marlowe-daemon\src\protocol.rs:219:1
+    |
+219 | pub enum Event {
+    | ^^^^^^^^^^^^^^
+...
+268 |     Announce(Announcement),
+    |     -------- not covered
+...
+286 |     Cadence { ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool },
+    |     ------- not covered
+    = note: the matched value is of type `&marlowe_daemon::Event`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+791 ~             Event::RunDetail { .. } | Event::RunOutput { .. } => {},
+792 +             &marlowe_daemon::Event::Announce(_) | &marlowe_daemon::Event::Cadence { .. } => todo!()
+    |
+
+For more information about this error, try `rustc --explain E0004`.
+warning: `marlowe` (bin "marlowe" test) generated 1 warning
+error: could not compile `marlowe` (bin "marlowe" test) due to 1 previous error; 1 warning emitted
+warning: build failed, waiting for other jobs to finish...

@@ -159,6 +159,59 @@ pub enum RunFrame {
 /// `read_line`.
 pub const MAX_TOOL_DETAIL_BYTES: usize = marlowe_exec::READ_WINDOW_BYTES;
 
+/// **One thing the daemon said about itself**, on the wire instead of only on stderr.
+///
+/// # The defect this closes
+///
+/// The daemon announces real things on its way up:
+///
+/// ```text
+/// marlowe: engine llama.cpp · http://127.0.0.1:11437 · started in 1935 ms · GPU-resident (96 tok/s measured)
+/// marlowe: memory retrieval WRITE-ONLY — no --reranking directory
+/// marlowe: 3 interrupted run(s) can be resumed
+/// ```
+///
+/// Every one of them goes to **stderr**, and §B17's launcher opens the terminal Marlowe draws in —
+/// so the frame occupies the screen and the announcements land in a stream nobody is reading. A
+/// user whose first turn takes two seconds has the reason printed a metre away from where they are
+/// looking, in a place they cannot get to.
+///
+/// # `Info` and `Warn` and nothing else
+///
+/// The level decides a tone, and §B2 allows exactly three state colours. A third level would need a
+/// third meaning, and the meanings are taken: amber is *needs attention*, red is *conflict, failure,
+/// irreversible*, and nothing the daemon says on its way up is irreversible. So `Warn` is amber and
+/// `Info` is dim, and dimming is load-bearing — §B2 again: an item needing nothing recedes so the
+/// eye goes to the ones that do.
+///
+/// **Diagnostics are not here and must not be.** `daemon.rs` already prefixes its two kinds of line
+/// differently — `marlowe:` for facts about the user's machine, `[dev]` for the outbound-request
+/// dump and the raw provider frames — and only the first kind is an [`Announcement`]. §B1's
+/// carve-out keeps instrumentation behind `--dev`; a 1.9-second engine start is not instrumentation,
+/// it is the answer to *why was that slow*.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Announcement {
+    pub level: AnnounceLevel,
+    /// The sentence, exactly as it went to stderr, minus the `marlowe: ` prefix.
+    ///
+    /// **Daemon-authored, and that is what makes a `String` legitimate here.** ADR-030 §5 forbids
+    /// free text in `marlowe_view::Notice` because that vocabulary is what *the surface* renders as
+    /// Marlowe's own speech. This is a fact the daemon computed — the same standing as
+    /// `StatusReport::model_disclosure` and `StatusReport::degraded`, both of which are `String`s
+    /// that the band already renders verbatim. The surface quotes it; it never composes it.
+    pub text: String,
+}
+
+/// How much attention an [`Announcement`] wants. See that type's header for why there are two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnounceLevel {
+    /// A fact about the machine. Dim.
+    Info,
+    /// Something is not the way it was asked for. Amber, and counted in the pane's summary.
+    Warn,
+}
+
 /// Daemon → client. Render-only, mirroring `TurnEvent` plus the frames a client needs to know
 /// the turn is over.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -205,6 +258,32 @@ pub enum Event {
         detail: Option<String>,
     },
     Compacted { turns: u32 },
+    /// Something the daemon said about itself, **while the client is attached**.
+    ///
+    /// The backlog — everything said before anyone connected — rides on
+    /// [`StatusReport::announcements`] instead, because a client that reconnects to a daemon that
+    /// has been up for an hour needs the same lines a client that watched it start would have. Two
+    /// routes for one fact, and they carry the identical [`Announcement`]: the ring is the single
+    /// source, and this variant is a flush of it rather than a second author.
+    Announce(Announcement),
+    /// **The turn in flight, measured.** §B5: *"the numbers that matter for that state."*
+    ///
+    /// # Both numbers or neither, enforced past this point
+    ///
+    /// The wire carries the raw quantities; `marlowe_view::Cadence` is what refuses to render one
+    /// without the other, because that is where the rendering happens. Putting a pre-rendered
+    /// string here would move the decision to the daemon and leave the surface free to split it
+    /// again — see that type's header for the 218-vs-426 ms measurement that is the reason.
+    ///
+    /// `ttft_ms` is time to the **first token of any kind, `thinking` included**. `tokens` is the
+    /// count of streamed deltas — one per token on both local engines — and `since_first_ms` is the
+    /// interval they were produced over, sent rather than derived so the client cannot choose a
+    /// different denominator from the one the daemon measured.
+    ///
+    /// **Emitted several times a turn, not once at the end.** A summary printed after the fact
+    /// answers a different question from a number that ticks: §B12's third craft target is that a
+    /// user never wonders whether it is working, and the way a rate answers that is by moving.
+    Cadence { ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool },
     /// Invariant 4. Carries the **remedy**, not just the fact.
     Degraded { what: String, remedy: String },
     /// §B9. The client renders; the daemon decides.
@@ -330,6 +409,25 @@ pub struct StatusReport {
     /// carries only the configured model and `degraded` says why.
     #[serde(default)]
     pub models: Vec<String>,
+    /// **Everything the daemon has said about itself, oldest first.** §B7's Status tab.
+    ///
+    /// Bounded — see `crate::announce::CAPACITY`. It rides on `Status` rather than only on
+    /// [`Event::Announce`] because almost all of it is said *before any client exists*: the engine
+    /// starts, the provider is announced and the resumable runs are counted while the socket is
+    /// still being bound. A live-only channel would deliver an empty log to the one person who
+    /// most wants it, and would deliver a different log to a client that reconnected.
+    ///
+    /// `#[serde(default)]` so a client built before this field still parses the frame.
+    #[serde(default)]
+    pub announcements: Vec<Announcement>,
+    /// Milliseconds the daemon has been up. §B7 lists *daemon uptime* among what Status holds, and
+    /// §B5's `idle` band carries it.
+    ///
+    /// **A duration, never a start timestamp.** A timestamp on this wire would be a clock reading
+    /// crossing a boundary, and CONTRACTS §4.5's whole argument is about where those may exist; a
+    /// monotonic elapsed count is not one and cannot be turned back into one by the client.
+    #[serde(default)]
+    pub uptime_ms: u64,
 }
 
 /// Read one NDJSON value per line.
@@ -435,6 +533,9 @@ mod tests {
             model_provider: "ollama".into(),
             live_runs: 0,
             models: vec!["qwen3.5:9b".into()],
+            // Nothing has been announced into this fixture and nothing has been up.
+            announcements: Vec::new(),
+            uptime_ms: 0,
         };
         let json = serde_json::to_string(&r).unwrap();
         assert!(json.contains("rerank_provider"), "{json}");

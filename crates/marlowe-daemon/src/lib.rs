@@ -38,6 +38,8 @@
 
 #![forbid(unsafe_code)]
 
+/// The daemon's own announcements, kept as well as printed. §B7's Status tab reads them.
+pub mod announce;
 pub mod auth;
 pub mod client;
 pub mod control_plane;

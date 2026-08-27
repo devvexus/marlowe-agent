@@ -216,12 +216,24 @@ fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
     // so it reports rather than skips silently when there is none — and it is deliberately not
     // asserted against a fixed byte count, because the reserve is DERIVED from whatever Ollama
     // has and a literal here would be the hardcoded constant ADR-045 forbids.
-    let installed = std::process::Command::new("ollama").arg("list").output();
-    let Ok(out) = installed else {
-        eprintln!("SKIP: no `ollama` on this machine, so there is no tier 1 to reserve for");
+    // **Through `vram::ollama_model_names`, which is bounded.** Until 2026-08-27 this line spawned
+    // `ollama list` directly and waited on it with a bare `.output()` -- no null stdin, no ceiling,
+    // the exact shape `bounded_output` was written for two days earlier after it wedged the
+    // workspace suite from `vram.rs`. It was reproduced here, one file outside the reach of a guard
+    // that greped a single module, and on 2026-08-26 this binary hung ~25 minutes at 1 GB RSS with
+    // every target queued behind it. `tests/no_unbounded_external_commands.rs` is the widened
+    // guard; it covers `tests/` for that reason, and it is why the offending spelling cannot even
+    // appear in this comment.
+    let Some(installed_names) = marlowe_memory::cue::dense::vram::ollama_model_names() else {
+        // Both branches named, because the reading cannot tell them apart and asserting one would
+        // render a timeout as "not installed".
+        eprintln!(
+            "SKIP: `ollama list` did not answer -- either there is no `ollama` on this machine, or \
+             it did not respond inside the probe ceiling. Either way there is no tier 1 to reserve \
+             for."
+        );
         return;
     };
-    let text = String::from_utf8_lossy(&out.stdout).to_string();
 
     // **NAMED, NOT WHATEVER SORTED FIRST.** This used to take row 1 of `ollama list`, which makes
     // the test do different work on every machine — and on the development box row 1 is
@@ -237,13 +249,7 @@ fn a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph() {
     // So: ask for the model the project actually measures against, and **skip by name** rather than
     // silently measuring a different one.
     const TIER1: &str = "marlowe-red:9b";
-    let installed_names: Vec<&str> = text
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with("NAME"))
-        .filter_map(|l| l.split_whitespace().next())
-        .collect();
-    let Some(first) = installed_names.iter().copied().find(|n| *n == TIER1) else {
+    let Some(first) = installed_names.iter().map(String::as_str).find(|n| *n == TIER1) else {
         eprintln!(
             "SKIP: {TIER1} is not installed, and this test will not substitute another model -- \
              picking one by list order is what made it machine-dependent. Installed: {installed_names:?}"

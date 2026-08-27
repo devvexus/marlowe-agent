@@ -30,22 +30,21 @@ pub fn peak_working_set_bytes() -> Option<u64> {
         // that runs a handful of times in an example and once in a test, never on the scored path,
         // and adding a crate to the shipped dependency graph to read a diagnostic would be paying
         // in the wrong currency.
-        // See the note in `marlowe-provider`'s `free_device_bytes`: a console-subsystem
-        // child flashes a window unless `CREATE_NO_WINDOW` is set, and this one runs on a
-        // diagnostic path where the user has asked for nothing.
-        let mut cmd = std::process::Command::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            &format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id()),
-        ]);
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        let out = cmd.output().ok()?;
+        //
+        // **Through `vram::bounded_output`, which is the crate's only sanctioned way to run an
+        // external command.** This spawned `powershell` through a bare `.output()` until
+        // 2026-08-27 -- the exact shape that wedged the workspace suite from `vram.rs` two days
+        // earlier, sitting one file away from the ceiling written to prevent it, unseen because
+        // the guard greped a single module. `powershell` is not fast and it is not ours: profile
+        // loading, execution policy and AV interception all sit between the spawn and the answer,
+        // and any of them can take arbitrarily long. `CREATE_NO_WINDOW` and a null stdin come with
+        // the helper -- a console child flashes a window otherwise, on a diagnostic path where the
+        // user asked for nothing.
+        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
+        let out = crate::cue::dense::vram::bounded_output(
+            "powershell",
+            &["-NoProfile", "-NonInteractive", "-Command", &script],
+        )?;
         if !out.status.success() {
             return None;
         }

@@ -317,5 +317,8 @@ fn report_with_degraded(degraded: Option<String>) -> marlowe_daemon::StatusRepor
         model_provider: marlowe_view::provider::HYBRID.to_string(),
         live_runs: 0,
         models: vec!["qwen3.5:9b".into()],
+        // Nothing has been announced into this fixture and nothing has been up.
+        announcements: Vec::new(),
+        uptime_ms: 0,
     }
 }

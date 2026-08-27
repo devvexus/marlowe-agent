@@ -93,6 +93,9 @@ impl LiveSession {
             // Nothing has been asked yet; an invented list would be the surface holding state
             // the daemon has not supplied.
             models: Vec::new(),
+            // Nothing has been announced into this fixture and nothing has been up.
+            announcements: Vec::new(),
+            uptime_ms: 0,
         });
         view.status.detail = "connecting to the daemon".into();
         // Not `degraded`: nothing has failed yet, and saying so would be a claim about a
@@ -167,6 +170,9 @@ impl LiveSession {
             model_provider: "unavailable".into(),
             live_runs: 0,
             models: Vec::new(),
+            // Nothing has been announced into this fixture and nothing has been up.
+            announcements: Vec::new(),
+            uptime_ms: 0,
         });
         view.status.detail = format!("{detail} · start one with `marlowe --serve`");
         Self {

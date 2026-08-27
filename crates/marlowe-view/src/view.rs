@@ -58,6 +58,27 @@ pub struct SessionView {
     pub meter: MeterSource,
     pub runs: Vec<Item>,
     pub schedule: Vec<Item>,
+    /// §B7's **Status** tab: *"model, provider, context, spend, connection health, degradation
+    /// reasons, memory size, daemon uptime."*
+    ///
+    /// # This is where the daemon's announcements live, and it is not a new pane
+    ///
+    /// The daemon says real things on its way up — which engine is serving and how long it took to
+    /// start, which provider stores and lists, that retrieval is write-only, that three
+    /// interrupted runs can be resumed. Every one of those is on the list this tab is chartered
+    /// with, and until now every one of them went to **stderr**, where a user who launched from
+    /// the launcher (§B17) never sees it.
+    ///
+    /// So they land here, alongside the facts they qualify, rather than in a region of their own.
+    /// §B2 is the constraint that settles it: a border must earn itself, and a second pane holding
+    /// what this pane is already chartered to hold does not.
+    ///
+    /// **Diagnostics are still excluded.** The daemon prefixes its two kinds of line differently
+    /// already — `marlowe:` for facts about the user's machine, `[dev]` for the outbound-request
+    /// dump and the raw provider frames — and only the first kind crosses the wire. §B1's carve-out
+    /// keeps instrumentation behind `--dev`; a 1.9-second engine start is not instrumentation, it
+    /// is the answer to *why was that slow*.
+    pub status_pane: Vec<Item>,
 }
 
 /// A line the user has typed and the producer has not yet confirmed.
@@ -361,6 +382,8 @@ mod tests {
 
     fn view(transcript: Vec<Entry>) -> SessionView {
         SessionView {
+            // A default view has an empty pane: nothing has been announced yet.
+            status_pane: Vec::new(),
             control: ControlStrip {
                 model: Picker::new(&["a"], 0),
                 profile: Picker::new(&["a"], 0),
@@ -370,6 +393,8 @@ mod tests {
                 provider: Picker::new(&["ollama"], 0),
             },
             status: StatusBand {
+                // No turn has run, so there is no cadence to show.
+                cadence: None,
                 state: crate::model::StatusState::Idle,
                 detail: String::new(),
                 figures: Vec::new(),
