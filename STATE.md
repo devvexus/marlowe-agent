@@ -1,5 +1,70 @@
 ﻿# State
 
+## 2026-08-27 — DESIGNED, NOT BUILT: PREFIX STABILITY. EIGHT CHURN SOURCES, NOT TWO
+
+Full design in **`runs/ttft/prefix-fix-design.md`** (46 KB). Implementation is queued behind the
+llama.cpp provider work, which owns `marlowe-provider/src` — both change `ollama.rs`.
+
+### The inventory corrected this file
+
+STATE.md named **two** sources of per-turn prefix churn. There are **eight**. Both known ones
+confirmed; six added. The one that matters most was invisible:
+
+**`SourceKind::Skills` is pushed EVERY TURN** (`daemon.rs:1697-1707`), ranked against that turn's
+message, into the **context tier** — which is inside the system message. `context_blocks` is
+**append-only and never pruned** (three sites, all checked), and compaction replaces only
+`volatile`. So **a Skills block accumulates for the life of the session**, bounded on the wire only
+by the 10% budget — at which point the trimmer starts rewriting the oldest, churning the prefix
+again. Nobody had this one.
+
+The nudge (`engine.rs:804-811`) is **worse per occurrence** than injected memory: it diverges
+*before* the workspace map, where memory diverges after it.
+
+`workspace_map`'s deliberate sort **does** survive — it is computed once per session, not per turn.
+That instinct was right after all.
+
+### Two latent defects found by the same read, independent of TTFT
+
+* **`trim_to_budget` drops `wire` on truncation** (`context.rs:669`), which un-pairs a tool result
+  and demotes it to `user`.
+* **An assistant `tool_calls` with no answering `tool` message is reachable today**, via trimmable
+  `ChildResults` against non-trimmable `History`. The mirror of `unorphan_tool_messages` — which
+  does not exist.
+
+### The design, in one paragraph
+
+Memory rides the tail as an `assistant(recall) → tool(memories)` pair on `Engine::spawn`'s existing
+rails, **keeping `SourceKind::InjectedMemory`**. Keeping the kind is load-bearing and the reason is
+one this project has been bitten by: the §B1 transcript projection (`daemon.rs:1851-1899`) matches
+on `SourceKind` and ends in `_ => {}`, so **a new kind would have fallen through silently.** It also
+preserves the pinned 7,000-token budget, the tier and `trust_floor`. `InjectedMemory` becomes
+non-trimmable. The nudge moves to the view tail. Skills splits into a constant library line in the
+system message and per-turn hits at the tail.
+
+**Layers 2 and 3 are unchanged, argued line by line:** `trust_floor` is `min` over blocks and reads
+neither `SourceKind` nor the wire role, the class travels unchanged, and `blocks_composed_targets`
+sees identical input. **One instruction the implementer must not violate: never `Provenance::attribute`
+the memory text.**
+
+### `PrefixCache`: DELETE it
+
+Decided, with the argument. It caches an assembled string on **our** side of the socket; the cache
+that matters is llama.cpp's, **server-side**, and no client-side string cache can reach it. The only
+lever is emitting byte-identical bytes, which is achieved by construction. **`cache_epoch` stays** —
+it is pinned in CONTRACTS §12 — and finally gets a real reader: the new test asserts the system
+message is byte-identical exactly when the epoch has not moved.
+
+### The test, and its most important control
+
+Drives the real loop over real daemon state through the real `request_body`, on **both** drivers. It
+needs one refactor: extract the daemon's ~190-line turn preamble into `pub fn open_turn`. Without
+the fix it fails with `first_diff` pointing inside the system message.
+
+**The control that makes it non-vacuous: an inert fixture.** Rebuild the *old* concatenation rule
+from the same two views and assert those differ — otherwise **an empty belief store makes the whole
+test green on an unfixed build.** That is the green-and-vacuous family caught before it shipped,
+which is the cheaper half.
+
 ## 2026-08-27 — FUTURE WORK: STATE.md COSTS ~32,000 TOKENS TO OPEN, AND EVERY AGENT OPENS IT
 
 **Logged deliberately as future work. NOT to be done now** — it is a large mechanical edit to the
