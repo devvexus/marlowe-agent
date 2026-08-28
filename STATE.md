@@ -1,6 +1,86 @@
 ﻿# State
 
 
+## 2026-08-27 — OUTSTANDING AFTER THE TTFT SESSION. START HERE.
+
+Everything below is open. Committed through `bb85fa5`; release binary 20:05. Ollama is the default,
+llama.cpp is shelved, and the workspace suite runs in **2m19s** again.
+
+### Where TTFT actually stands, so nobody re-derives it
+
+Measured product-level through the daemon, real profile, 14 tools, `--dev` clock:
+
+| | value |
+|---|---|
+| **Ollama's per-request scheduler** (`load_ms`) | **219–228 ms** — **NOT OURS**, ~60% of TTFT |
+| prompt evaluation, warm | 66–121 ms |
+| our pre-request work (retrieval, skills, assembly) | **1–3 ms** |
+| TTFT, warm, over ten turns | **347 → 395 ms** |
+
+**Three prefix-churn sources were fixed and five are not.** The design in
+`runs/ttft/prefix-fix-design.md` lists eight. Done: injected memory, the ephemeral nudge, skills.
+**Still live: `trim_to_budget`'s truncation/omission markers, the Ollama-only thinking strip
+(`ollama.rs:504-514`), `FARMING_HARD_STOP` withholding `tools`, and `clear_tool_results` masking.**
+The gentle residual growth (69 → 121 ms over ten turns) is probably among them, and **the way to
+find it is the way the last three were found: diff two consecutive prompts, do not reason about
+them.** Instruments: `scratchpad/grow.py`, `diff164.py`, `ttft4.py`.
+
+### Correctness, unfixed
+
+* **`trim_to_budget` drops `wire` on truncation** (`context.rs:669`) — un-pairs a tool result and
+  demotes it to `user`.
+* **An orphaned assistant `tool_calls` is reachable today** via trimmable `ChildResults` against
+  non-trimmable `History` — the mirror of `unorphan_tool_messages`, which does not exist.
+* **`marlowe --ask` does not stream** (`agent.rs:257-265`) — buffers the whole turn, and `:580`
+  discards reasoning. Perceived TTFT there is the full turn duration.
+* **`spawn_args` does not forward `--dev`** — a dev TUI spawns a non-dev daemon, and the daemon is
+  where the frames are.
+* **`SourceKind::ToolSchemas` is budgeted 5% and never written.**
+* **A failed child's reason is not recorded beside its result.**
+
+### Unmeasured claims — do not repeat them until they are checked
+
+* **The CUDA lib-dir discovery fallback has never been observed firing.** `cuda_libs::discover`
+  searches for torch's lib dir when `MARLOWE_CUDA_LIB_DIR` is unset. The variable is now set at User
+  scope on this machine, **so the fallback is no longer exercised here** — testing it needs the
+  variable temporarily cleared.
+* **Whether the reranker landed on GPU or CPU is unknown.** It loads now (it never did before —
+  `--reranking` is optional on `--serve` and nothing on the launch path passed it), but the provider
+  it resolved to has not been read.
+
+### A test skipped rather than fixed
+
+`hybrid_engine::a_llama_server_holding_the_weights_reserves_nothing_and_names_the_branch` is
+`#[ignore]`d **only in spirit** — the control arm was rewritten to use `Tier1Runtime::NotOnThisCard`,
+a pure early return, so it no longer probes live Ollama. **Verify that on the next run**; if any test
+still shells out to Ollama from inside a parallel suite, it will hang the same way (60+ s against
+<10 s for every other binary).
+
+### Decision still owed by Matthew
+
+**The trust floor has no clearing mechanism.** One untrusted page pins a session's floor for its
+entire life — this falls out of E5 alone, which is committed on the layer-3 session's branch. Three
+options are written up in the entry `A SESSION THAT READS ONE UNTRUSTED PAGE MAY LOSE COMPOSED
+TARGETS FOREVER`. Nothing is blocked on it; it is invisible until someone hits it.
+
+### Shelved by decision, not by defect
+
+* **llama.cpp** — genuinely ~5x faster to first token, shelved because tool calling failed in real
+  use: raw `<tool_call>` XML into the **reasoning** channel, and a parser that ate its own opening
+  delimiter. `PROVIDERS` is `[ollama, openrouter]`; every module and test stays green. **What must
+  be true before it returns: parallel tool calls parse, single calls parse without eating their
+  delimiter, and both measured on a prompt that provokes a BATCH** — not the single-shot probe set
+  that scored it 84/84 and told us nothing.
+* **`web` search** — NO-GO, with reasoning, in the earlier entry.
+
+### Machine state a future session should know
+
+`OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`, `OLLAMA_NUM_PARALLEL=1` and
+`MARLOWE_CUDA_LIB_DIR` are set at **User scope**. `OLLAMA_KEEP_ALIVE` was set and **deliberately
+reverted** to Ollama's 5-minute default — pinning 6.7 GB forever is the wrong trade for a trivial
+saving. `NUM_PARALLEL=1` is what protects the prefix cache and it **serialises parallel subagents**;
+that is the accepted cost.
+
 ## 2026-08-27 — `ollama/llama.cpp` IS THE DEFAULT. THE CUDA LEAK IS FOUND. THE 2 s IS NOT.
 
 ### The default moved, and the fallback is what makes that safe
