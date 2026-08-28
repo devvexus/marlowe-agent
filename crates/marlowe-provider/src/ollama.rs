@@ -393,7 +393,10 @@ impl OllamaDriver {
                 // Already emitted, in the single leading system message. Skipped here rather than
                 // given a role, because a `system` message at this position is what broke a
                 // qwen3-next template with `System message must be at the beginning`.
-                SourceKind::InjectedMemory => continue,
+                // Both ride the trailing system message -- see the tail of this function. Without
+                // this arm they were emitted TWICE: once here as `user` via the catch-all, and
+                // again at the tail as `system`. Measured in a live dump.
+                SourceKind::InjectedMemory | SourceKind::Skills => continue,
                 _ => "user",
             };
             let mut msg = serde_json::json!({ "role": role, "content": block.text });

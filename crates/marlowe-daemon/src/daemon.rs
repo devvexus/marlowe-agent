@@ -2698,6 +2698,11 @@ impl Daemon {
                 let registry = self.skills.lock().expect("the skill registry lock was poisoned");
                 crate::skills::hits_for(&registry, message)
             };
+            // **Replace, do not accumulate -- the same mistake one tier down.** The context-tier
+            // version of this bug appended a line per turn; moving it to `volatile` without a
+            // retain simply moved the accumulation, and the trailing block grew 164 -> 330 -> 496
+            // -> 662 chars over four turns. Measured, not assumed.
+            state.volatile.retain(|b| b.source != marlowe_loop::SourceKind::Skills);
             if let Some(hits) = hits {
                 state.volatile.push(marlowe_loop::Block::new(
                     marlowe_loop::SourceKind::Skills,
