@@ -28,7 +28,35 @@
 /// validation, the stub's scripted control strip, and `marlowe-surface`'s `/provider` help text.
 /// A name a user can see is therefore a name the daemon accepts, by construction rather than by
 /// review.
-pub const PROVIDERS: &[&str] = &[OLLAMA, HYBRID, OPENROUTER];
+// **`HYBRID` IS SHELVED AS OF 2026-08-27 AND IS DELIBERATELY ABSENT FROM THIS ARRAY.**
+//
+// Matthew's decision, taken after using it: *"LLAMA.cpp gets shelved. It has so many issues.
+// OLLAMA stays the default. Shelve the hybrid path. Don't remove it. But make it unavailable."*
+//
+// **Why, and the reason is tool calling rather than speed.** The engine is genuinely faster — the
+// measurements stand — but tool calling through `llama-server` failed in real use at a rate the
+// probes never saw. Observed live: the model emitting raw `<tool_call><function=read>` XML into
+// the **reasoning** channel, looping, never producing a call the harness could act on; and a
+// single-call turn where the parser **ate the opening `<tool_call>` and emitted the remainder as
+// visible text**. That is a parser-level failure, not a prompt one.
+//
+// **The probes missed it twice, and both misses are this project's standing family.** The leak
+// check asserted no markup in **`content`** — 0/168, clean, and the wrong channel. And the
+// batching check recorded *"spurious batches (n_calls > 1): 0"*, which was read as "the model
+// never over-calls" when it meant **the parser never returned more than one** — the probe never
+// sent a prompt that would provoke a parallel batch. A single `glob` worked; six chained calls
+// did not.
+//
+// **Nothing is deleted.** `marlowe-provider::{llamacpp, hybrid, ollama_store}`, the supervisor, the
+// offload check, the `PATH` fix and every test remain and stay green. Only the door is closed:
+// this array is what the picker offers, what `set_provider` validates against, and what the stub
+// scripts — so removing the entry here removes it everywhere, by construction. Put it back and the
+// path is live again.
+//
+// **What has to be true before it returns:** parallel tool calls parse, single tool calls parse
+// without eating their own delimiter, and both are measured on a prompt that provokes a BATCH —
+// not on the single-shot probe set that scored it 84/84 and told us nothing about this.
+pub const PROVIDERS: &[&str] = &[OLLAMA, OPENROUTER];
 
 /// ADR-028's default. Ollama stores the models **and** runs them.
 pub const OLLAMA: &str = "ollama";

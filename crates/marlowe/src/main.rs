@@ -396,6 +396,9 @@ fn main() {
             .map(PathBuf::from)
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_else(|| PathBuf::from("."));
+        // Cloned before `workspace` is moved into the config below; the reranker search needs the
+        // same directory and a second `flag_value` call would be a second source for one fact.
+        let workspace_for_rerank = workspace.clone();
         let profile_root = flag_value(&args, "--profile-root")
             .map(PathBuf::from)
             .unwrap_or_else(agent::default_profile_root);
@@ -414,7 +417,7 @@ fn main() {
                 // a 60 MB model an install-time dependency of being able to talk is K6's
                 // five-minute target gone. Absent, memory is WRITE-ONLY and says so at startup and
                 // on `--status` — announced rather than silently degraded.
-                flag_value(&args, "--reranking").map(PathBuf::from),
+                reranking_for_serve(&args, &workspace_for_rerank),
                 flag_value(&args, "--model").map(str::to_string),
                 model_provider.clone(),
             ),
@@ -1065,6 +1068,43 @@ fn main() {
 /// the provider on its own would mean a machine with a key exported for some other tool answers
 /// `marlowe --ask` over the network and bills for it — K6 gone, silently, on a machine where
 /// nothing was configured. `tests/zero_config_is_unchanged.rs` asserts that at the daemon.
+/// The cross-encoder directory for `--serve`: the flag if given, otherwise **the pinned model if it
+/// is sitting in the workspace**.
+///
+/// # Absent is not the same as off, and the daemon could not tell the difference
+///
+/// `--reranking` is optional here on purpose — see the call site — and the intent was that a user
+/// without the model still gets a daemon rather than a refusal. What actually happened is that
+/// **nothing passes the flag on the path a user takes.** The Windows Terminal shortcut runs
+/// `--tui --ground`; the TUI's `spawn_args` builds the daemon's argv and has no `--reranking` in
+/// it. So every daemon Matthew has ever launched reported `rerank not-loaded` and
+/// `memory retrieval WRITE-ONLY`, with the pinned model sitting in `models/` the whole time.
+///
+/// That is the shape CLAUDE.md keeps naming: a default that makes a mismatch unobservable. The
+/// daemon announced the degradation honestly and nobody could act on it, because the remedy was a
+/// flag no launch path offered.
+///
+/// # Why a search rather than a compiled default
+///
+/// The path is workspace-relative, so a constant would be wrong for anyone who checked the repo out
+/// somewhere else, and `models/` is gitignored — a fresh clone genuinely does not have it. Looking
+/// is the only thing that can tell those two cases apart, and the answer is announced either way.
+///
+/// **`off` still means off**, explicitly, and an explicit `--reranking <dir>` still wins. This only
+/// fills the case where nobody said anything, which used to mean "silently write-only".
+fn reranking_for_serve(args: &[String], workspace: &std::path::Path) -> Option<PathBuf> {
+    match flag_value(args, "--reranking") {
+        Some("off") => return None,
+        Some(v) => return Some(PathBuf::from(v)),
+        None => {}
+    }
+    // ADR-018/ADR-020's pinned graph: the Session J fine-tune, f32. The int8 directory it replaced
+    // is deliberately NOT a candidate — CLAUDE.md refuses it by name, because scoring the old graph
+    // under the shipped label is exactly the mismatch this whole function exists to stop.
+    let pinned = workspace.join("models").join("ms-marco-MiniLM-L-2-v2-ft-session-j");
+    pinned.is_dir().then_some(pinned)
+}
+
 fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
     use marlowe_daemon::ModelProviderChoice;
 
@@ -1074,28 +1114,10 @@ fn resolve_provider(args: &[String]) -> marlowe_daemon::ModelProviderChoice {
         std::process::exit(2);
     }
     match named {
-        // **THE PRODUCT DEFAULT: no `--provider` means the hybrid.** Ollama stores, downloads and
-        // lists; a `llama-server` Marlowe starts and owns serves. Measured product-level on this
-        // machine, daemon `--dev` clock, n=11 warm per arm, identical 17,381-char prompt and
-        // 12-tool set on both arms: **65.3 ms to first token against Ollama's 313.4 — 4.80x** —
-        // with generation throughput slightly better (73.6 vs 68.3 tok/s) and turn total 1.55x.
-        //
-        // Safe as a default because the fallback is a tier and not an error path: if `llama-server`
-        // cannot be found, cannot bind, cannot get the GPU, or comes up on the CPU, the engine
-        // returns Ollama serving and the reason stays in the band for the session. The worst case
-        // of this default is the old default plus a sentence explaining itself.
-        //
-        // **It lives HERE and not in `DaemonConfig`'s default**, and that is load-bearing rather
-        // than tidy. `Daemon::open` starts an engine when the config says `LlamaCpp`, and twenty
-        // `Daemon::open` sites in the daemon tests take that default on parallel threads — so
-        // putting it there spawned a `llama-server` per test and loaded 6.7 GB onto a 16 GB card
-        // over and over. The suite stopped finishing and started freezing the machine. The library
-        // default is what a caller inherits and must be inert; this is where the product's opinion
-        // belongs.
-        None => ModelProviderChoice::LlamaCpp {
-            endpoint: marlowe_provider::llamacpp::default_endpoint(),
-            sampling: marlowe_provider::llamacpp::SamplingSource::OllamaParams,
-        },
+        // **Back to Ollama, 2026-08-27.** The hybrid is shelved — see
+        // `marlowe_view::provider::PROVIDERS` for the reason, which is tool calling and not speed.
+        // The engine's numbers stand; its tool-call parsing did not survive real use.
+        None => ModelProviderChoice::Ollama,
         Some("ollama") => ModelProviderChoice::Ollama,
         Some("openrouter") => {
             let Some(model) = flag_value(args, "--openrouter-model") else {

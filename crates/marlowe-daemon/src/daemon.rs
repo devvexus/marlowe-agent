@@ -2105,6 +2105,41 @@ impl Daemon {
                         text.len(),
                         text.chars().take(60).collect::<String>()
                     );
+                    // ── OLLAMA'S OWN DECOMPOSITION OF THE REQUEST IT JUST SERVED ─────────────
+                    //
+                    // **These fields arrive on every final frame and NOTHING in this workspace
+                    // read them.** `usage` takes `prompt_eval_count`, `eval_count` and
+                    // `total_duration` and drops the other three on the floor -- so the one
+                    // question a TTFT investigation has to answer, *how much of the wait is the
+                    // scheduler and how much is prompt evaluation*, had no instrument at all and
+                    // was argued from the outside three times.
+                    //
+                    // `load_duration` is request-receipt to `sched.GetRunner` returning. On a
+                    // model that never left VRAM it is **pure scheduler overhead** and it is
+                    // charged **per request**, which the loop makes one of per iteration.
+                    //
+                    // **`prompt_ms` is the work reading, NEVER `prompt_eval_count`.** Ollama
+                    // reports the count for the WHOLE prompt whether or not it evaluated it; on a
+                    // cache hit almost none of it was evaluated and the count is unchanged. A
+                    // previous session read the count as work and reached a wrong conclusion. The
+                    // duration is the only one of the pair that moves when the cache hits, which
+                    // is exactly why both are printed side by side here rather than either alone.
+                    if done {
+                        let ms = |k: &str| {
+                            frame.get(k).and_then(|v| v.as_u64()).map(|ns| ns as f64 / 1e6)
+                        };
+                        let n_of = |k: &str| frame.get(k).and_then(|v| v.as_u64());
+                        eprintln!(
+                            "[dev] ollama-timing load_ms={:?} prompt_ms={:?} prompt_n={:?} \
+                             eval_ms={:?} eval_n={:?} total_ms={:?}",
+                            ms("load_duration").map(|v| (v * 10.0).round() / 10.0),
+                            ms("prompt_eval_duration").map(|v| (v * 10.0).round() / 10.0),
+                            n_of("prompt_eval_count"),
+                            ms("eval_duration").map(|v| (v * 10.0).round() / 10.0),
+                            n_of("eval_count"),
+                            ms("total_duration").map(|v| (v * 10.0).round() / 10.0),
+                        );
+                    }
                 }));
             }
                 Box::new(driver)
@@ -2559,12 +2594,30 @@ impl Daemon {
         // `ContextView::trust_floor` is `min` over all blocks including this one — so a recalled
         // web-derived belief correctly drops the run's floor and blocks composed targets.
         let now_for_memory = clock.now_ms();
+        // **PHASE TIMING FOR THE PRE-REQUEST PATH, and it exists because nobody could name where
+        // ~198 ms goes.**
+        //
+        // Measured product-level, warm, Ollama: a ~500 ms time-to-first-token decomposes as
+        // **198.5 ms OURS** before a byte is written, 226.5 ms of Ollama's own per-request
+        // scheduler cost, 224.3 ms of prompt evaluation. The first term is the only one we control
+        // and it had never been broken down — the guesses so far were the cross-encoder (which is
+        // **not loaded at all**, so it cannot be spending anything) and skills ranking (which is
+        // `lexical::score_texts` over one installed skill, so it cannot either).
+        //
+        // `clock.now_ms()` is the fence — the same one the turn already reads for memory — so this
+        // adds no clock access outside it and `the_only_real_clock_read_is_the_latency_fence`
+        // stays satisfied. Behind `--dev`, like every other instrument.
         let retrieved = if is_resume {
             crate::memory::Retrieved::nothing_was_asked()
         } else {
             self.memory.retrieve(session, message, now_for_memory, MEMORY_TOKEN_BUDGET)
         };
         if self.config.dev {
+            eprintln!(
+                "[dev] phase retrieve {} ms · store {}",
+                clock.now_ms().saturating_sub(now_for_memory),
+                self.memory.state().headline(),
+            );
             eprintln!(
                 "[dev] memory: {} · injected {} · margin {:?} · abstained {:?}",
                 self.memory.state().headline(),
@@ -2604,11 +2657,37 @@ impl Daemon {
             if self.config.dev {
                 eprintln!("[dev] skills: surfaced {} B", text.len());
             }
+            // **REPLACE, DO NOT APPEND, AND THIS IS THE PREFIX-CACHE FIX.**
+            //
+            // `context_blocks` is append-only and this runs EVERY TURN, so the same sentence --
+            // `1 skill(s) installed in this profile. Search them with `use`.` -- accumulated one
+            // copy per turn. Measured on a real profile: the system message grew **+64 chars every
+            // turn**, 17,478 -> 17,962 over six turns.
+            //
+            // A server reuses its prompt cache only for a **byte-identical prefix**, so a system
+            // message that grows by a line is a system message that is never cached: Ollama
+            // re-evaluated all ~9,900 tokens on every turn, `prompt_ms` sat at 197-239 ms and never
+            // fell, and time-to-first-token stayed near 500 ms with `injected 0` memories and 1-4 ms
+            // of harness time. It was never retrieval, the cross-encoder, or the memory budget --
+            // each of those was measured and cleared. It was this line, duplicated.
+            //
+            // Replacing keeps the tier's content identical between turns when the surfaced skills
+            // are the same, which is the common case, so the prefix goes byte-stable and the cache
+            // holds from the second turn on.
+            state.context_blocks.retain(|b| b.source != marlowe_loop::SourceKind::Skills);
             state.push(marlowe_loop::Block::new(
                 marlowe_loop::SourceKind::Skills,
                 text,
                 TrustClass::UserAsserted,
             ));
+        }
+        if self.config.dev {
+            // Everything from the turn's clock read to here: retrieval, skills, and the pushes
+            // between them. Subtract the `retrieve` line above and what is left is the rest.
+            eprintln!(
+                "[dev] phase pre-request {} ms",
+                clock.now_ms().saturating_sub(now_for_memory)
+            );
         }
 
         let trace = run.trace_id;

@@ -1,10 +1,42 @@
-//! **ADR-060's hybrid is opt-in, and the sites that would have made it silent.**
+//! **ADR-060's hybrid is opt-in — and as of 2026-08-27 it is SHELVED, which is a further step.**
 //!
 //! Three tests here assert the INVERSE of what they asserted a day ago, and each says so at
 //! its own doc comment. That is not churn: ADR-060 was accepted as the hybrid rather than as
 //! the third provider these were written against, and a refusal that became a fallback is a
 //! behavioural decision, not a bug fix. `hybrid_engine.rs` holds the tests for the fallback
 //! itself.
+//!
+//! # THE SHELVING, and what it did and did not do
+//!
+//! Matthew's call, after using it: *"LLAMA.cpp gets shelved. It has so many issues. OLLAMA stays
+//! the default. Shelve the hybrid path. Don't remove it. But make it unavailable."*
+//!
+//! **The reason is tool calling, not speed.** The engine is genuinely ~5x faster to first token and
+//! those measurements stand. In real use the model emitted raw `<tool_call><function=read>` XML
+//! into the **reasoning** channel, looping, never producing a call the harness could act on; and on
+//! a single-call turn the parser **ate the opening `<tool_call>` and emitted the remainder as
+//! visible text**. Parser-level, not prompting.
+//!
+//! **Two probes missed it, and both misses are this project's standing family.** The leak check
+//! asserted no markup in **`content`** — 0/168, clean, and the wrong channel. The batching check
+//! recorded *"spurious batches (n_calls > 1): 0"*, which was read as *the model never over-calls*
+//! when it meant **the parser never returned more than one**. A single `glob` worked; six chained
+//! calls did not.
+//!
+//! **Exactly one thing changed in the code: `marlowe_view::provider::PROVIDERS` lost the entry.**
+//! `HYBRID` the constant, every `marlowe-provider` module, `ModelProviderChoice::LlamaCpp`,
+//! `HybridEngine`, the supervisor and the fallback wording all still exist and stay green. So the
+//! rule applied to these tests is: **a test whose subject is the PICKER now asserts the hybrid is
+//! absent; a test whose subject is the ENGINE keeps its assertions and drives the type directly.**
+//! None of it is deleted, because none of the subjects are gone.
+//!
+//! # The consequence that decides how the engine tests are driven
+//!
+//! `set_provider` validates against `PROVIDERS` **before** its match, so its `HYBRID` arm is now
+//! unreachable — and with it the port-collision refusal that used to live there. The one route
+//! from the product into a live `HybridEngine` is `Daemon::open` on a config that already says
+//! `LlamaCpp`, which is what `--provider llamacpp` still builds at the CLI. That is the route the
+//! fallback test takes below.
 //!
 //! # What was actually dangerous about adding a provider here
 //!
@@ -49,6 +81,30 @@ fn llamacpp() -> ModelProviderChoice {
     }
 }
 
+/// **A daemon that has actually STARTED a hybrid engine**, which the shelving left exactly one
+/// route to: a config that already says `LlamaCpp` when `Daemon::open` runs. The other helper
+/// mutates the config *after* open and therefore never starts anything.
+///
+/// `model` is the lever that decides the engine's fate, and every caller here passes one that
+/// **cannot resolve**. That is not a convenience: `hybrid::start` reads Ollama's store *first*,
+/// before any port is touched, anything is spawned, or any resident Ollama model is unloaded — so
+/// an unresolvable name reaches the fallback in milliseconds without putting a 6.7 GB
+/// `llama-server` on the card. A test suite taking the GPU is CLAUDE.md's sixth parallel-session
+/// hazard with a different resource, and it would be invisible in the measurement it corrupted.
+fn hybrid_daemon(case: &str, model: &str) -> Daemon {
+    let root = std::env::temp_dir().join(format!("marlowe-llamacpp-optin-{case}"));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).expect("a scratch profile");
+    let mut config = DaemonConfig::new(root, std::env::temp_dir());
+    config.port = 0;
+    config.model = model.to_string();
+    config.model_provider = llamacpp();
+    Daemon::open(config).expect("a daemon on an empty profile")
+}
+
+/// A model name no store can resolve, so `hybrid::start` fails before it spawns anything.
+const UNRESOLVABLE: &str = "definitely-not-a-model:0b";
+
 #[test]
 fn the_default_provider_is_still_ollama_after_a_third_option_exists() {
     // Asserted on `model_provider()` — the ONE function the run path calls to choose a driver and
@@ -58,31 +114,65 @@ fn the_default_provider_is_still_ollama_after_a_third_option_exists() {
     assert_eq!(config.model_provider(), ModelProviderChoice::Ollama);
 }
 
+/// **Every OFFERED provider round-trips through `name()`, and the hybrid is offered by none.**
+///
+/// # One clause of this is inverted, and only one
+///
+/// It used to assert the set equality in both directions: every `name()` the enum can produce is in
+/// `PROVIDERS`, and the two are the same size. The **first direction is now false by design** — the
+/// enum can still produce `ollama/llama.cpp` (`ModelProviderChoice::LlamaCpp` was not removed) and
+/// the picker deliberately does not offer it. That clause is inverted below and says so.
+///
+/// The **second direction is untouched and is the one that was load-bearing**: `project.rs`'s picker
+/// finds the active provider with `position()` and falls back to `unwrap_or(0)`, so a `PROVIDERS`
+/// entry whose spelling no `name()` produces would render that daemon as `ollama` — a wrong answer
+/// in the one place a person reads which provider is live, with nothing failing.
+///
+/// **What this reads on a build without the shelving:** `PROVIDERS` has three entries including the
+/// hybrid, so the absence assertions fail by name and the length check fails at 3 vs 2. It cannot
+/// pass on either build by accident.
 #[test]
 fn every_provider_the_picker_offers_has_a_name_the_enum_can_produce() {
-    // `project::PROVIDERS` is the single definition of the set, and `name()` is what `status()`
-    // reports. `project.rs`'s picker finds the active one with `position()` and falls back to
-    // `unwrap_or(0)`, so a `name()` that did not match its `PROVIDERS` entry EXACTLY would render a
-    // llamacpp daemon as `ollama` — a wrong answer in the one place a person reads which provider
-    // is live, with nothing failing.
-    let produced: Vec<&str> = vec![
+    let offered: Vec<&str> = vec![
         ModelProviderChoice::Ollama.name(),
         ModelProviderChoice::OpenRouter { model: "vendor/model".into() }.name(),
-        llamacpp().name(),
     ];
-    for name in &produced {
+    for name in &offered {
         assert!(
             marlowe_daemon::PROVIDERS.contains(name),
             "`{name}` is a name the enum produces and the picker does not offer"
         );
     }
     assert_eq!(
-        produced.len(),
+        offered.len(),
         marlowe_daemon::PROVIDERS.len(),
-        "PROVIDERS and this list disagree: {:?} vs {produced:?}. A `PROVIDERS` entry with no \
+        "PROVIDERS and this list disagree: {:?} vs {offered:?}. A `PROVIDERS` entry with no \
          variant is refused at runtime by `set_provider`'s named `other` arm; a variant with no \
          entry is worse, because the picker silently reports the wrong provider.",
         marlowe_daemon::PROVIDERS
+    );
+
+    // ── THE INVERTED CLAUSE ──────────────────────────────────────────────────────────────
+    //
+    // **The hybrid's name is still produced by the enum and is deliberately not offered.** This
+    // used to be `assert!(PROVIDERS.contains(&llamacpp().name()))`. Removing the entry from
+    // `PROVIDERS` is the entire mechanism of the shelving: that array is what the picker offers,
+    // what `set_provider` validates against, and what the stub scripts, so one deletion closes
+    // every door at once. Asserted here rather than left as an absence nobody checks, because
+    // putting the entry back is a one-line change that would otherwise reopen the path silently.
+    assert!(
+        !marlowe_daemon::PROVIDERS.contains(&marlowe_view::provider::HYBRID),
+        "the hybrid is back in the picker. It is SHELVED, not removed -- see this file's header \
+         for what must be true before it returns: parallel tool calls parse, single tool calls \
+         parse without eating their own delimiter, and both measured on a prompt that provokes a \
+         BATCH. Got: {:?}",
+        marlowe_daemon::PROVIDERS
+    );
+    assert_eq!(
+        llamacpp().name(),
+        marlowe_view::provider::HYBRID,
+        "the constant survived the shelving and the variant still names itself with it -- that is \
+         what makes this a shelf rather than a deletion"
     );
 }
 
@@ -227,15 +317,22 @@ fn switching_models_on_the_hybrid_restarts_the_engine_and_is_not_acknowledged_be
     assert_eq!(d.status().model, current);
 }
 
-/// **THE SWITCH IS ACCEPTED AND THE ENGINE FALLS BACK, AND THE REASON IS ON THE SCREEN.**
+/// **THE ENGINE FALLS BACK TO OLLAMA AND THE REASON IS ON THE SCREEN.**
 ///
-/// # The single most important behavioural change in ADR-060, asserted on the words
+/// # Renamed from `a_hybrid_SWITCH_whose_engine_cannot_start_...`, and only the route changed
 ///
-/// This test used to assert a **refusal**: the user picks the provider, the server is not up, and
-/// Marlowe says no. That was the third-provider design, and Matthew's decision replaces it —
-/// *"llama fails fall back to ollama but surface to user why"*. A refusal leaves the user with
-/// nothing; a silent fallback leaves them with a screen naming an engine that is not serving. The
-/// answer is both: it works, and it says.
+/// Every assertion below is the one it made yesterday. What is gone is the **switch**: the shelving
+/// removed the entry from `PROVIDERS`, `set_provider` validates against `PROVIDERS` before its
+/// match, and its `HYBRID` arm is therefore unreachable. Driving this test through `set_provider`
+/// would now measure the shelving and report it as a statement about the engine.
+///
+/// **The subject is not shelved — only the door is.** `HybridEngine`, the supervisor, every
+/// `EngineFailure` variant and the whole fallback wording still exist, still ship, and are still
+/// reachable: `marlowe::resolve_provider` still accepts `--provider llamacpp`, which builds a
+/// `LlamaCpp` config, and `Daemon::open` starts an engine when the config says so. So this drives
+/// the type directly, through `Daemon::open`, which is the one remaining product route into a live
+/// engine. **Deleting it because the picker no longer offers the hybrid would have deleted a test
+/// of code that still runs.**
 ///
 /// # Asserted where it is enforced, not where it is declared
 ///
@@ -244,12 +341,20 @@ fn switching_models_on_the_hybrid_restarts_the_engine_and_is_not_acknowledged_be
 /// variant was constructed. A test asserting `matches!(engine, FellBack { .. })` would be green on
 /// a build whose message said nothing.
 ///
-/// **What this reads on a build without the change:** `set_provider` returns `Err` and
-/// `expect(...)` fails by name; before that, `degraded` carried a launch command with no statement
-/// about which engine was serving, so every assertion below fails.
+/// **What this reads on a build where the fallback wording regressed:** `degraded` is `None` and
+/// the `expect` fails, or it carries a launch command with no statement about which engine is
+/// serving, and every clause below fails by name.
+///
+/// # KNOWN DEFECT THE SHELVING CREATED, asserted on below and NOT fixed here
+///
+/// The last clause of this sentence tells the user to type `/provider ollama/llama.cpp`. That is
+/// now the one string `set_provider` refuses — the picker does not offer it, so the validation
+/// rejects it before the retry arm is reached. **The persistent amber band instructs an action the
+/// daemon answers with `is not a provider this build has`.** The clause is still asserted because
+/// it is still what the product emits; the contradiction is named here so it is on the record
+/// rather than discovered by a user.
 #[test]
-fn a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exactly_why() {
-    let mut d = daemon("switch");
+fn a_hybrid_engine_that_cannot_start_falls_back_to_ollama_and_says_exactly_why() {
     // **The failure is forced at the STORE, not at the port, and the first attempt at this test is
     // why.** It used port 1 on the theory that nothing can listen there — and on Windows
     // `llama-server` bound it, came up healthy, and measured **97 tok/s on the GPU**. The test
@@ -260,22 +365,15 @@ fn a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exact
     // failure has to be one that CANNOT succeed on any machine — so it is a model name that is not
     // in Ollama's store, which fails in `ollama_store::resolve` **before** anything is spawned and
     // before any resident Ollama model is unloaded.
-    d.config_mut().model_provider = llamacpp();
-    d.config_mut().model = "definitely-not-a-model:0b".to_string();
-    d.set_provider("ollama/llama.cpp").expect(
-        "the hybrid must be selectable even when its engine cannot start -- that is the fallback",
-    );
-    // **The switch and the start are two steps now, and the test mirrors the handler.** The engine
-    // takes seconds to come up and `set_provider` runs on the thread that answers the control
-    // port, so acknowledging first is what stops the surface freezing from the moment the slash
-    // command is sent. A test that called only the first half would assert on a daemon that had
-    // not tried to start anything.
-    d.start_pending_engine();
+    let d = hybrid_daemon("engine-fallback", UNRESOLVABLE);
 
     let report = d.status();
     assert_eq!(
-        report.model_provider, "ollama/llama.cpp",
-        "the picker keeps showing what the user CHOSE; the band is what says the engine differs"
+        report.model_provider, marlowe_view::provider::HYBRID,
+        "the report keeps naming what the config ASKED for; the band is what says the engine \
+         differs. Note that this is a name `PROVIDERS` no longer offers -- see \
+         `the_provider_picker_is_built_from_the_daemons_own_report` for what the picker does with \
+         it."
     );
     let degraded = report.degraded.expect("a fallen-back engine must degrade visibly");
 
@@ -293,6 +391,11 @@ fn a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exact
         degraded.contains("225 ms"),
         "it must say what was lost, measured rather than adjectival: {degraded}"
     );
+    // **STILL ASSERTED, AND CURRENTLY A FALSE PROMISE — see this test's header.** The product
+    // emits this clause, so the test records it; but `set_provider` refuses that exact string now
+    // that `PROVIDERS` has lost the entry, so the remedy the band offers no longer works. Left
+    // asserted deliberately: weakening it would hide the contradiction, and inverting it would
+    // claim a decision nobody has taken about what a shelved engine should tell the user.
     assert!(
         degraded.contains("/provider ollama/llama.cpp"),
         "a degraded state a user cannot act on is a crash with better manners: {degraded}"
@@ -300,7 +403,7 @@ fn a_hybrid_switch_whose_engine_cannot_start_falls_back_to_ollama_and_says_exact
     // And the cause is SPECIFIC rather than a category: it names the model that could not be
     // resolved and the store it was looked for in.
     assert!(
-        degraded.contains("definitely-not-a-model:0b"),
+        degraded.contains(UNRESOLVABLE),
         "the cause must name what could not be resolved: {degraded}"
     );
     assert!(
@@ -340,8 +443,19 @@ fn the_fallback_sentence_is_absent_when_no_engine_was_asked_to_start() {
 /// `LLAMACPP_DEFAULT_PORT` was 11435 — which is `DEFAULT_DAEMON_PORT`. Every unit test passed,
 /// because no single process knows both constants; what caught it was `marlowe --status --provider
 /// llamacpp` reporting *"something is listening on http://127.0.0.1:11435 but it is not
-/// llama-server"* about **Marlowe's own daemon**. Moving the constant fixes today. This asserts on
-/// the configured ports, which is what can still collide once both are settable by hand.
+/// llama-server"* about **Marlowe's own daemon**. Moving the constant fixed that day.
+///
+/// # HALF OF THIS TEST NOW MEASURES SOMETHING ELSE, AND THE NAME OVERSTATES IT
+///
+/// It had two halves: the compiled defaults must differ, and a **hand-set** collision must be
+/// refused — because `--daemon-port` and `--llamacpp-port` are both settable, so equal defaults
+/// were never the only way to reach the state. The second half went through `set_provider`, and the
+/// shelving made `set_provider`'s `HYBRID` arm unreachable, taking that port guard with it.
+///
+/// So **half one is now the only executable guard on this class**, and half two below asserts what
+/// the same call does instead. The rule itself is still enforced in the product, once, by
+/// `marlowe::resolve_provider` at the CLI — which exits 2 before a daemon exists and which **no
+/// test in the workspace reaches**. That gap is the finding, not a tidy-up.
 #[test]
 fn a_llamacpp_port_equal_to_the_daemons_own_is_refused_by_name() {
     // Half one: the two compiled defaults. Nothing in a single process compares them but this.
@@ -356,41 +470,87 @@ fn a_llamacpp_port_equal_to_the_daemons_own_is_refused_by_name() {
         "the llamacpp default landed on Ollama's port, which this provider must run beside"
     );
 
-    // Half two, and it is the one that survives both constants changing: a hand-set collision
-    // is refused. `--daemon-port` and `--llamacpp-port` are both settable, so equal defaults
-    // were never the only way to reach this state.
+    // ── HALF TWO, INVERTED, AND THE INVERSION IS ITSELF THE FINDING ──────────────────────
+    //
+    // It asserted that a **hand-set** collision was refused with `own control port`, because
+    // `--daemon-port` and `--llamacpp-port` are both settable and equal defaults were never the
+    // only way to reach this state. That refusal lives inside `set_provider`'s `HYBRID` arm — and
+    // `set_provider` validates against `PROVIDERS` **before** the match, so the shelving made the
+    // arm unreachable and took the port guard with it.
+    //
+    // **So the daemon-side port refusal no longer exists as a reachable path, and this asserts
+    // what actually happens now**: the same call, on the same colliding config, fails for the
+    // shelving instead. Recording that is the point. A test quietly dropped here would leave a
+    // guard everyone believes in and nothing runs.
+    //
+    // **The rule still has one live enforcement site: `marlowe::resolve_provider`**, which refuses
+    // `--llamacpp-port <daemon port>` with `is Marlowe's own daemon port` before the daemon is
+    // built. That is the CLI, it calls `std::process::exit(2)`, and **no test in the workspace
+    // covers it** — so half one above is currently the only executable guard on this class.
     let mut d = daemon("port-collision");
     d.config_mut().port = marlowe_provider::LLAMACPP_DEFAULT_PORT;
     let e = d
         .set_provider("llamacpp")
-        .expect_err("a llama-server cannot be on the daemon's own control port");
+        .expect_err("the hybrid is shelved, so every spelling of it is refused");
     assert!(
-        e.contains("own control port"),
-        "the refusal must say WHICH conflict this is, or it reads as the server being down: {e}"
+        e.contains("is not a provider this build has"),
+        "the shelving must be the reason, and it must be stated: {e}"
+    );
+    assert!(
+        !e.contains("own control port"),
+        "if this ever passes again, the `HYBRID` arm of `set_provider` became reachable -- the \
+         hybrid is back in `PROVIDERS`, and the port guard is live again along with it: {e}"
     );
 }
 
-/// The name is accepted by `set_provider` — i.e. the arm exists at all. Without it,
-/// `set_provider`'s named `other` arm answers *"`llamacpp` is listed as a provider and has no
-/// implementation"*, which is the correct failure and still a failure.
+/// **THE DOOR, ASSERTED SHUT. This is the exact inverse of `llamacpp_is_not_rejected_by_name`.**
+///
+/// # The inversion is the decision, and it is the whole mechanism of the shelving
+///
+/// That test asserted the name was **accepted** — that `set_provider` had an arm for the string the
+/// picker offered, rather than falling through to *"`llamacpp` is listed as a provider and has no
+/// implementation"*. It was right for a build that offered the hybrid. Now nothing offers it, and
+/// the requirement is the opposite: *"Don't remove it. But make it unavailable."*
+///
+/// **Both spellings, because both were reachable.** `/provider llamacpp` (no slash, what a shell
+/// user types) is normalised to `ollama/llama.cpp` at the top of `set_provider`, so a shelving that
+/// closed only one of them would leave the alias open — and the alias is the one a person reaches
+/// for.
+///
+/// **What this reads on a build without the shelving:** `set_provider` accepts both, returns `Ok`,
+/// and `expect_err` fails by name on the first of them. It cannot pass on the old build.
 #[test]
-fn llamacpp_is_not_rejected_by_name() {
+fn llamacpp_is_rejected_by_name_because_the_hybrid_is_shelved() {
     let mut d = daemon("by-name");
-    // **A model that is not in Ollama's store, so the engine cannot start and this test cannot
-    // spawn a 6.7 GB server.** It was spawning one: `set_provider` starts the engine, and on this
-    // machine that meant a real `llama-server` on the card for ~2 s per test. CLAUDE.md's sixth
-    // parallel-session hazard is a build stealing CPU from a timed measurement; a test suite
-    // taking the GPU is the same hazard with a different resource, and it would be invisible in
-    // the measurement it corrupted. The subject here is the NAME being accepted, not the engine.
-    d.config_mut().model = "definitely-not-a-model:0b".to_string();
-    if let Err(e) = d.set_provider("llamacpp") {
+    // A model that is not in Ollama's store, so no path out of this call can spawn a 6.7 GB
+    // server. Belt and braces now that the switch is refused before it reaches an engine at all.
+    d.config_mut().model = UNRESOLVABLE.to_string();
+
+    for spelling in [marlowe_view::provider::HYBRID, "llamacpp"] {
+        let e = d
+            .set_provider(spelling)
+            .expect_err("the hybrid is shelved; `set_provider` must refuse every spelling of it");
         assert!(
-            !e.contains("is not a provider this build has"),
-            "the picker offers it and the daemon does not know it: {e}"
+            e.contains("is not a provider this build has"),
+            "`{spelling}` must be refused for the reason it IS refused for -- an unrecognised \
+             name -- rather than by an engine failure that happens to look like a refusal: {e}"
         );
-        assert!(
-            !e.contains("has no implementation"),
-            "`PROVIDERS` gained an entry that `set_provider` has no arm for: {e}"
+        // The refusal is still the *list* refusal, so it names what IS available. A user who typed
+        // a shelved name reads the two that work rather than a bare "no".
+        for offered in marlowe_daemon::PROVIDERS {
+            assert!(e.contains(offered), "the refusal must list `{offered}`: {e}");
+        }
+        assert_eq!(
+            d.status().model_provider,
+            marlowe_view::provider::OLLAMA,
+            "a refused switch must not have half-happened: `{spelling}` was rejected, so the \
+             daemon must still be on the provider it was on"
         );
     }
+
+    // **THE CONTROL, and without it every assertion above passes on a build where `set_provider`
+    // refuses everything.** `ollama` is not shelved and must still be accepted, so the refusals
+    // above are discriminating rather than universal.
+    d.set_provider(marlowe_daemon::PROVIDERS[0])
+        .expect("the offered providers are still accepted");
 }

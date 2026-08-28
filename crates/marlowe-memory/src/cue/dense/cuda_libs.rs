@@ -261,12 +261,87 @@ pub fn resolve(value: Option<&OsString>) -> Resolution {
 pub fn ensure_search_path() -> &'static Resolution {
     static ONCE: OnceLock<Resolution> = OnceLock::new();
     ONCE.get_or_init(|| {
-        let resolution = resolve(std::env::var_os(ENV_VAR).as_ref());
+        // **The variable first; a SEARCH when it is unset.**
+        //
+        // # Why this stopped being acceptable as env-var-only
+        //
+        // Unset, an ORT CUDA session cannot construct, the embedder's `auto` provider (ADR-044)
+        // resolves to **CPU**, and it says so in a line that reads like success. CLAUDE.md records
+        // that hazard against this exact variable — *"an unset variable is not an error, it is a
+        // slower run with a correct-looking log line"* — and on 2026-08-27 it cost a full day.
+        //
+        // Every measurement taken from a shell had the variable exported. **The Windows Terminal
+        // shortcut does not export it, and neither does the daemon the TUI spawns**, so the product
+        // ran the memory system on CPU while every test of it ran on GPU. Measured against that
+        // split: **~198 ms of pre-request time**, which was the largest remaining term in a ~500 ms
+        // time-to-first-token and the one thing on that path we actually own.
+        //
+        // A product that is three to four times slower unless the user exports a path is a product
+        // with a trap in it. The directory is at a predictable location and we can look.
+        //
+        // # What the search is, and what it is not
+        //
+        // It is **not** a guess. `resolve` still checks every file in [`REQUIRED`] is present, so a
+        // candidate that does not actually hold the CUDA 12 runtime and cuDNN 9 is rejected exactly
+        // as a wrong `MARLOWE_CUDA_LIB_DIR` would be. The search only supplies candidates; the
+        // verification is unchanged and is still the thing that decides.
+        //
+        // **The variable always wins**, so anyone pinning a specific runtime keeps doing so, and a
+        // machine with two of them is not silently reassigned.
+        let from_env = std::env::var_os(ENV_VAR);
+        let resolution = match resolve(from_env.as_ref()) {
+            Resolution::NotRequested => discover().map_or(Resolution::NotRequested, |d| {
+                resolve(Some(&OsString::from(d)))
+            }),
+            other => other,
+        };
         if let Resolution::Applied { dirs } = &resolution {
             prepend_to_path(dirs);
         }
         resolution
     })
+}
+
+/// Where the CUDA 12 runtime lives on a machine that never set [`ENV_VAR`].
+///
+/// **`torch` ships it.** ADR-015 established that no CUDA toolkit is installed here and none is
+/// needed: `torch 2.5.1+cu121` carries the CUDA 12.1 runtime and cuDNN 9 in its own `lib` directory,
+/// and that is what the variable has always pointed at. So the search looks where a `pip install
+/// torch` puts things, in the order a user is most likely to have them.
+///
+/// **Returns the first candidate that EXISTS as a directory.** Whether it holds the right DLLs is
+/// not decided here — `resolve` checks [`REQUIRED`] and rejects it otherwise. Splitting those two
+/// jobs is deliberate: a search that also validated would have two places to be wrong about what
+/// counts as a usable runtime.
+#[cfg(windows)]
+fn discover() -> Option<std::ffi::OsString> {
+    let home = std::env::var_os("USERPROFILE").map(PathBuf::from)?;
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+
+    let mut roots: Vec<PathBuf> = Vec::new();
+    // Per-user Python installs, newest first: a machine with several keeps the newest current.
+    for py in ["Python313", "Python312", "Python311", "Python310"] {
+        if let Some(l) = &local {
+            roots.push(l.join("Programs").join("Python").join(py));
+        }
+    }
+    // A virtualenv beside the checkout, and a conda-style prefix in the home directory.
+    roots.push(home.join(".venv"));
+    roots.push(home.join("anaconda3"));
+    roots.push(home.join("miniconda3"));
+
+    roots
+        .into_iter()
+        .map(|r| r.join("Lib").join("site-packages").join("torch").join("lib"))
+        .find(|d| d.is_dir())
+        .map(std::ffi::OsString::from)
+}
+
+/// Nothing to discover off Windows: `REQUIRED` is empty there, so `resolve` never had a reason to
+/// refuse and the loader finds its own libraries.
+#[cfg(not(windows))]
+fn discover() -> Option<std::ffi::OsString> {
+    None
 }
 
 fn prepend_to_path(dirs: &[PathBuf]) {

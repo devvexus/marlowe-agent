@@ -1,0 +1,655 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-memory)
+warning: `marlowe-exec` (lib) generated 1 warning
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused variable: `registry`
+   --> crates\marlowe-provider\tests\tool_call_probe.rs:101:9
+    |
+101 |     let registry = builtin_registry().unwrap();
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_registry`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (test "tool_call_probe") generated 1 warning (run `cargo fix --test "tool_call_probe" -p marlowe-provider` to apply 1 suggestion)
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-daemon)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1670:9
+     |
+1670 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `ModelStep`
+  --> crates\marlowe-provider\tests\spawned_child_wire.rs:34:29
+   |
+34 |     ModelCall, ModelDriver, ModelStep, OutputContract, Ports, Provenance, ProviderError, Run, RunId,
+   |                             ^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `marlowe_tools::skill::load_skill`
+   --> crates\marlowe-daemon\src\skills.rs:391:9
+    |
+391 |     use marlowe_tools::skill::load_skill;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `std::io::Write`
+    --> crates\marlowe-daemon\src\daemon.rs:3331:9
+     |
+3331 |     use std::io::Write as _;
+     |         ^^^^^^^^^^^^^^
+
+warning: `marlowe-provider` (test "spawned_child_wire") generated 1 warning (run `cargo fix --test "spawned_child_wire" -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+warning: `marlowe-provider` (lib test) generated 1 warning (1 duplicate)
+warning: `marlowe-daemon` (lib test) generated 5 warnings (2 duplicates) (run `cargo fix --lib -p marlowe-daemon --tests` to apply 2 suggestions)
+warning: unused import: `Ipv4Addr`
+  --> crates\marlowe-daemon\tests\socket_auth.rs:25:16
+   |
+25 | use std::net::{Ipv4Addr, TcpListener, TcpStream};
+   |                ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (test "socket_auth") generated 1 warning (run `cargo fix --test "socket_auth" -p marlowe-daemon` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.18s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_daemon-66451bb00c59559c.exe)
+
+running 74 tests
+test announce::tests::the_log_retains_what_it_printed_bounded_and_in_order ... ok
+test control_plane::resolve_tests::a_full_uuid_resolves_even_when_this_daemon_has_never_heard_of_it ... ok
+test control_plane::resolve_tests::an_unknown_token_says_how_a_run_is_addressed ... ok
+test control_plane::resolve_tests::an_id_prefix_resolves_from_four_characters_and_not_from_three ... ok
+test control_plane::resolve_tests::an_ambiguous_name_is_refused_by_name_and_lists_what_it_matched ... ok
+test control_plane::resolve_tests::a_mnemonic_resolves_to_its_run ... ok
+test control_plane::resolve_tests::a_typed_token_cannot_carry_an_escape_sequence_into_the_refusal ... ok
+test client::tests::the_client_holds_no_run_state ... ok
+test auth::tests::no_token_means_no_daemon_has_run_here ... ok
+test daemon::approval_gate_tests::the_model_is_told_the_surface_renders_markdown_and_latex ... ok
+test daemon::approval_gate_tests::a_declined_decision_is_denied ... ok
+test daemon::approval_gate_tests::a_granted_decision_is_approved_and_the_prompt_names_the_blast_radius ... ok
+test daemon::approval_gate_tests::each_prompt_in_a_turn_gets_its_own_decision_id ... ok
+test auth::tests::comparison_rejects_every_near_miss ... ok
+test onboarding::tests::the_journal_filename_this_depends_on_is_the_journals_own ... ok
+test daemon::approval_gate_tests::silence_a_malformed_reply_and_a_stale_decision_id_are_all_denials ... ok
+test onboarding::tests::a_fresh_profile_root_is_a_first_run_and_one_with_a_journal_is_not ... ok
+test project::key_tests::no_projected_pane_item_collides_with_a_region_key_or_a_tab_digit ... ok
+test project::tests::a_daemon_with_no_amplitude_source_reports_no_reading_rather_than_silence ... ok
+test onboarding::tests::a_tool_is_disclosed_as_always_asking_exactly_when_its_manifest_is_irreversible ... ok
+test project::tests::a_degraded_report_reaches_the_band_even_when_the_remedy_is_unrecognised ... ok
+test project::tests::a_failed_tool_call_arrives_expanded ... ok
+test project::tests::a_refresh_keeps_each_rows_hotkey_where_the_user_last_saw_it ... ok
+test project::tests::a_pane_that_runs_out_of_letters_hands_out_none_rather_than_a_duplicate ... ok
+test project::tests::a_row_is_labelled_by_its_mnemonic_and_still_shows_the_id ... ok
+test onboarding::tests::bash_is_disclosed_as_always_asking ... ok
+test onboarding::tests::the_screen_never_claims_a_tool_runs_silently ... ok
+test project::tests::a_running_run_carries_no_state_colour_and_a_stopped_one_recedes ... ok
+test onboarding::tests::the_workspace_path_is_stated_literally ... ok
+test project::tests::an_unrecognised_verb_does_not_leak_an_arbitrary_string_into_the_frame ... ok
+test project::tests::asking_for_the_runs_twice_does_not_double_the_rows ... ok
+test auth::tests::two_profiles_get_different_tokens ... ok
+test project::tests::text_deltas_coalesce_into_one_turn_rather_than_one_entry_per_token ... ok
+test project::tests::the_band_reads_the_daemons_own_report_rather_than_a_second_source ... ok
+test project::tests::the_render_only_approval_announcement_does_not_claim_an_answer_is_owed ... ok
+test project::tests::watching_one_run_twice_updates_its_row_rather_than_adding_another ... ok
+test project::tests::two_runs_sharing_a_mnemonic_stay_two_rows ... ok
+test protocol::tests::a_degraded_event_carries_its_remedy ... ok
+test protocol::tests::frames_round_trip_as_ndjson ... ok
+test protocol::tests::no_request_or_event_hands_the_client_run_state ... ok
+test protocol::tests::the_status_report_announces_the_provider_rather_than_implying_it ... ok
+test recall::batch_forwarding_tests::a_batch_of_web_calls_reaches_the_inner_host_as_a_batch ... ok
+test recall::batch_forwarding_tests::recall_is_served_locally_without_breaking_the_order_of_the_rest ... ok
+test roster::tests::a_status_word_is_read_from_both_shapes_and_never_guessed ... ok
+test roster::tests::a_terminal_word_matches_run_status_and_a_live_one_does_not ... ok
+test skills::tests::a_profile_with_no_skills_says_so_rather_than_failing ... ok
+test skills::tests::something_actually_produces_a_skills_block ... ok
+test skills::tests::surfacing_is_silent_when_no_skills_are_installed ... ok
+test auth::tests::a_truncated_token_file_is_replaced_rather_than_accepted ... ok
+test skills::tests::use_is_in_the_executed_set_alongside_whatever_is_wrapped ... ok
+test watch_client::tests::a_finished_run_does_not_show_thinking_forever ... ok
+test watch_client::tests::a_projection_with_no_answer_yet_has_no_view_rather_than_an_invented_one ... ok
+test watch_client::tests::a_re_sent_tail_overwrites_rather_than_appending ... ok
+test skills::tests::surfacing_names_the_library_even_when_nothing_matches ... ok
+test auth::tests::a_token_is_minted_once_and_reread_thereafter ... ok
+test skills::tests::a_name_that_is_not_installed_says_what_is ... ok
+test watch_client::tests::a_status_the_window_does_not_know_is_shown_rather_than_defaulted_away ... ok
+test watch_client::tests::an_adopted_runs_policy_names_the_run_that_adopted_it ... ok
+test watch_client::tests::retracted_speech_becomes_a_finished_thought_rather_than_staying_an_answer ... ok
+test skills::tests::disclosure_returns_the_body_and_only_when_asked_by_name ... ok
+test skills::tests::surfacing_never_carries_one_word_of_a_body ... ok
+test watch_client::tests::sessions_a_own_status_words_survive_the_projection ... ok
+test watch_client::tests::the_checkpoint_comes_through_as_the_two_facts_it_is ... ok
+test watch_client::tests::the_next_poll_asks_from_the_highest_sequence_not_one_past_it ... ok
+test skills::tests::the_body_crosses_on_disclosure_and_not_on_discovery ... ok
+test skills::tests::name_wins_over_query_when_both_are_supplied ... ok
+test skills::tests::discovery_returns_names_and_descriptions_and_not_one_word_of_a_body ... ok
+test skills::tests::surfacing_puts_a_matching_skill_in_front_of_the_model ... ok
+test live::tests::selecting_the_value_that_is_already_live_is_not_an_error ... ok
+test live::tests::approving_when_nothing_is_pending_refuses_rather_than_dropping_the_answer ... ok
+test live::tests::every_intent_the_surface_can_form_is_answered_or_refused_by_name ... ok
+test live::tests::answering_an_approval_returns_the_band_to_the_state_the_prompt_interrupted ... ok
+test live::tests::an_absent_daemon_degrades_visibly_rather_than_refusing_to_start ... ok
+test client::tests::an_absent_daemon_is_a_named_error_not_a_hang ... ok
+
+test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests\a_description_cannot_forge_its_own_rendering.rs (target\debug\deps\a_description_cannot_forge_its_own_rendering-9b4621176ce7d7c7.exe)
+
+running 2 tests
+test the_probe_characters_reach_the_body_when_the_sanitiser_is_absent ... ok
+test no_invisible_character_reaches_either_adapters_request_body ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\a_spawned_child_is_listed_in_runs.rs (target\debug\deps\a_spawned_child_is_listed_in_runs-66f5ed401a690631.exe)
+
+running 4 tests
+test the_daemon_installs_this_recorder_at_the_composition_root ... ok
+test a_child_spawned_from_a_model_reply_is_listed_in_runs ... ok
+test a_run_windows_roster_names_the_children_and_a_childless_run_names_none ... ok
+test a_finished_childs_elapsed_is_final_rather_than_growing ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests\approval_round_trip.rs (target\debug\deps\approval_round_trip-d9842dc5d326e587.exe)
+
+running 3 tests
+test the_client_answers_the_prompt_on_the_same_connection_and_names_the_decision ... ok
+test a_declined_prompt_is_sent_as_declined_rather_than_dropped ... ok
+test the_render_only_prompt_is_not_answered ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+
+     Running tests\composition_root.rs (target\debug\deps\composition_root-171683ac4733316c.exe)
+
+running 5 tests
+test two_mcp_tools_fit_the_budget_and_a_third_refuses_by_name ... ok
+test widening_a_top_level_profile_does_not_weaken_the_narrowing_rule_for_children ... ok
+test a_batch_reaches_the_innermost_host_through_both_wrappers ... ok
+test each_wrapper_still_answers_its_own_tool_inside_a_mixed_batch ... ok
+test a_malformed_mcp_config_is_an_error_and_an_absent_one_is_not ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\context_window.rs (target\debug\deps\context_window-be52327402964409.exe)
+
+running 6 tests
+test a_completed_turn_does_not_repeat_its_reply_in_the_done_frame ... ok
+test the_declared_default_is_well_under_the_recorded_ceiling ... ok
+test the_assembler_window_and_num_ctx_come_from_the_same_field ... ok
+test the_daemons_thinking_setting_is_the_one_the_driver_uses ... ok
+test every_request_carries_num_ctx ... ok
+test every_request_declares_whether_the_model_should_think ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\control_plane.rs (target\debug\deps\control_plane-025630f0b310a5ed.exe)
+
+running 10 tests
+test an_oversized_steer_is_refused_by_the_door_and_never_queued ... ok
+test the_control_port_refuses_what_needs_the_model_and_says_where_it_lives ... ok
+test a_steer_sent_on_one_connection_is_visible_on_another ... ok
+test the_control_port_refuses_a_wrong_token ... ok
+test a_steer_for_a_stopped_run_is_refused_and_nothing_is_queued ... ok
+test an_empty_steer_is_refused_rather_than_queued ... ok
+test a_steer_cannot_carry_an_escape_sequence_onto_a_terminal ... ok
+test the_client_reaches_its_own_control_plane_and_not_the_adjacent_port ... ok
+test two_daemons_never_collide_and_the_derived_port_would_have ... ok
+test the_control_port_answers_while_the_main_port_is_wedged ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.59s
+
+     Running tests\every_builtin_has_a_verb.rs (target\debug\deps\every_builtin_has_a_verb-dedb025eef521c71.exe)
+
+running 4 tests
+test an_unrecognised_verb_still_renders_as_tool_in_the_window ... ok
+test a_spawn_renders_as_a_verb_in_both_panes ... ok
+test an_old_journals_find_still_renders_as_a_verb ... ok
+test every_builtin_is_in_the_section_b6_verb_vocabulary ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\hybrid_engine.rs (target\debug\deps\hybrid_engine-e5ff9d0eb3fc851f.exe)
+
+running 6 tests
+test a_llama_server_holding_the_weights_reserves_nothing_and_names_the_branch ... ok
+test a_cpu_server_is_a_fallback_and_the_reason_names_the_gpu ... ok
+test each_named_failure_reaches_the_user_as_a_sentence_only_it_could_have_produced ... ok
+test the_hybrids_name_is_one_string_and_every_reader_has_the_same_one ... ok
+test an_engine_fallback_is_not_projected_as_a_hosted_failover ... ok
+test the_tier1_runtime_follows_the_engine_that_is_actually_serving ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\llamacpp_is_opt_in.rs (target\debug\deps\llamacpp_is_opt_in-d82cb317d545d562.exe)
+
+running 9 tests
+test every_provider_the_picker_offers_has_a_name_the_enum_can_produce ... ok
+test the_default_provider_is_still_ollama_after_a_third_option_exists ... ok
+test a_llamacpp_port_equal_to_the_daemons_own_is_refused_by_name ... ok
+test a_hybrid_engine_that_cannot_start_falls_back_to_ollama_and_says_exactly_why ... ok
+test the_fallback_sentence_is_absent_when_no_engine_was_asked_to_start ... ok
+test llamacpp_is_rejected_by_name_because_the_hybrid_is_shelved ... ok
+test switching_models_on_the_hybrid_restarts_the_engine_and_is_not_acknowledged_before_it_is_true ... ok
+test the_hybrids_picker_offers_what_ollama_has_pulled_because_ollama_is_the_store ... ok
+test a_llamacpp_daemon_does_not_disclose_ollamas_measured_tool_call_reliability ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+
+     Running tests\mcp_output_is_untrusted.rs (target\debug\deps\mcp_output_is_untrusted-0b848a7d1ac59118.exe)
+
+running 3 tests
+test a_real_server_answers_and_its_result_is_untrusted_content ... ok
+test the_probe_token_reaches_the_parent_when_the_result_is_TRUSTED ... ok
+test the_hostile_response_does_not_reach_the_parents_window ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests\memory_durability.rs (target\debug\deps\memory_durability-a4b630b4be8ee553.exe)
+
+running 5 tests
+test retrieval_is_announced_as_write_only_when_no_graph_is_loaded ... ok
+test a_write_only_daemon_still_remembers ... ok
+test an_unrecognised_payload_kind_is_refused_and_an_absent_one_is_not ... ok
+test the_run_floor_reaches_the_daemons_write_path ... ok
+test a_claim_written_today_is_still_there_after_the_daemon_restarts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests\provider_switching.rs (target\debug\deps\provider_switching-0eb84e3c57eba241.exe)
+
+running 6 tests
+test the_provider_picker_is_built_from_the_daemons_own_report ... ok
+test a_model_that_is_not_in_the_hosted_catalogue_is_refused_by_name ... ok
+test a_hosted_daemon_with_no_catalogue_still_offers_the_model_it_is_using ... ok
+test switching_the_provider_replaces_what_the_model_picker_is_built_from ... ok
+test selecting_the_provider_already_in_use_changes_nothing ... ok
+test every_provider_the_picker_offers_is_one_the_daemon_accepts ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+     Running tests\reasoning_leak.rs (target\debug\deps\reasoning_leak-5e3791bd992b3bcc.exe)
+
+running 14 tests
+test a_turn_that_was_entirely_reasoning_yields_no_prose_for_the_loop ... ok
+test shutdown_is_reachable_and_the_wire_carries_it ... ok
+test speech_after_a_retraction_is_kept ... ok
+test a_retraction_with_nothing_outstanding_is_harmless ... ok
+test a_blocked_tool_call_reaches_the_transcript ... ok
+test narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript ... ok
+test retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript ... ok
+test a_retraction_is_honoured_when_it_is_not_the_last_event ... ok
+test the_retired_name_sweep_rejects_the_description_that_shipped ... ok
+test the_system_prompt_names_no_tool_that_does_not_exist ... ok
+test the_guard_catches_the_prompt_that_actually_shipped ... ok
+test no_live_prose_names_a_retired_tool ... ok
+test a_second_turn_on_the_same_session_can_see_the_first ... ok
+test shutting_down_an_absent_daemon_fails_quietly ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests\socket_auth.rs (target\debug\deps\socket_auth-efa6f129369133ef.exe)
+
+running 5 tests
+test a_client_from_another_profile_gets_a_named_refusal_not_a_silence ... ok
+test the_right_token_is_served ... ok
+test a_wrong_token_is_refused_before_the_request_is_dispatched ... ok
+test an_empty_a_truncated_and_a_one_character_wrong_token_are_all_refused ... ok
+test a_silent_peer_does_not_wedge_the_daemon ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.58s
+
+     Running tests\split.rs (target\debug\deps\split-cea3560ab250839a.exe)
+
+running 4 tests
+test the_client_can_render_before_a_daemon_exists ... ok
+test a_turn_with_no_model_degrades_with_a_remedy_rather_than_failing ... ok
+test a_status_request_answers_without_touching_a_model ... ok
+test the_daemon_owns_the_run_across_a_client_disconnect ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.84s
+
+     Running tests\the_model_knows_where_it_is.rs (target\debug\deps\the_model_knows_where_it_is-73a7b2523e043b7d.exe)
+
+running 4 tests
+test an_empty_workspace_contributes_nothing ... ok
+test the_map_names_the_top_level_and_skips_the_noise ... ok
+test the_map_is_the_same_twice ... ok
+test a_listing_that_hit_its_cap_says_so ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests\zero_config_is_unchanged.rs (target\debug\deps\zero_config_is_unchanged-dca50ad99c9b95b9.exe)
+
+running 3 tests
+test no_environment_variable_can_move_the_default_provider ... ok
+test status_names_the_provider_it_selected ... ok
+test the_default_daemon_still_routes_to_the_pinned_local_model ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_provider-e578288662d0ace6.exe)
+
+running 69 tests
+test deadline::tests::a_start_measures_forward_and_offers_nothing_else ... ok
+test capability::tests::the_default_bar_is_about_tool_calls_and_has_a_floor_on_trials ... ok
+test capability::tests::a_disclosure_always_carries_its_denominator ... ok
+test hybrid::tests::the_marker_is_absent_from_remedies_that_are_not_a_fallback ... ok
+test hybrid::tests::an_empty_log_is_stated_rather_than_rendered_as_nothing ... ok
+test hybrid::tests::a_server_is_ours_only_when_it_names_our_blob ... ok
+test capability::tests::an_unmeasured_model_says_so_rather_than_implying_a_number ... ok
+test hybrid::tests::a_cpu_server_says_the_gpu_could_not_be_used_and_not_merely_that_it_is_slow ... ok
+test hybrid::tests::every_failure_names_something_specific_and_no_two_read_alike ... ok
+test hybrid::tests::the_fallback_line_names_both_engines_and_the_specific_cause ... ok
+test http::tests::only_loopback_endpoints_can_be_constructed ... ok
+test llamacpp::tests::a_backend_that_failed_then_succeeded_is_not_reported_as_cpu ... ok
+test llamacpp::tests::a_context_smaller_than_the_assembler_packs_is_a_refusal_that_names_both_numbers ... ok
+test llamacpp::tests::a_quiet_log_is_unknown_and_never_gpu ... ok
+test llamacpp::tests::the_disclosure_never_quotes_a_figure_measured_through_another_runtime ... ok
+test llamacpp::tests::the_gpu_floor_sits_between_the_measured_cpu_and_gpu_rates ... ok
+test llamacpp::tests::the_sampler_is_sent_when_it_resolved_and_absent_when_it_did_not ... ok
+test llamacpp::tests::the_startup_log_says_cpu_only_when_it_says_so_and_never_says_gpu_by_silence ... ok
+test llamacpp::tests::the_two_absent_sampler_states_do_not_read_the_same ... ok
+test llamacpp::tests::the_vram_delta_reports_unknown_when_either_reading_is_missing ... ok
+test ollama::control_text_tests::a_bare_done_is_just_a_reply_and_a_reply_ends_the_turn ... ok
+test ollama::control_text_tests::prose_that_merely_mentions_a_control_word_stays_prose ... ok
+test ollama::control_text_tests::a_structured_tool_call_is_unaffected ... ok
+test ollama::leaked_call_tests::prose_about_tools_is_not_a_tool_call ... ok
+test ollama::leaked_call_tests::a_tool_call_written_as_markup_is_recovered ... ok
+test ollama::tests::a_malformed_tool_call_falls_back_to_prose_rather_than_inventing_a_call ... ok
+test ollama::tests::a_recoverable_call_is_still_recovered_and_never_defanged ... ok
+test ollama::tests::a_tool_call_parses_into_a_step_with_no_taint_field_to_fill ... ok
+test ollama::tests::done_with_an_unexpected_field_name_still_ends_the_run ... ok
+test ollama::tests::each_unavailability_names_a_different_remedy ... ok
+test ollama::tests::markup_the_recovery_declined_cannot_reach_the_provider_as_tags ... ok
+test ollama::tests::ordinary_prose_passes_through_the_defang_unchanged ... ok
+test ollama::tests::prose_parses_as_say ... ok
+test ollama::tests::the_recorded_capability_describes_the_model_that_is_actually_default ... ok
+test ollama::tests::the_control_tools_become_loop_steps_not_tool_calls ... ok
+test ollama_store::tests::a_bare_name_resolves_to_the_library_namespace_and_the_latest_tag ... ok
+test ollama_store::tests::a_hugging_face_pull_keeps_its_own_host_and_namespace ... ok
+test ollama_store::tests::a_name_that_would_walk_out_of_the_store_is_refused_rather_than_rewritten ... ok
+test ollama_store::tests::a_registry_port_is_not_mistaken_for_a_tag ... ok
+test ollama_store::tests::an_empty_params_layer_reads_as_no_sampling_rather_than_as_a_claim ... ok
+test ollama_store::tests::params_are_read_as_ollama_writes_them_and_unknown_keys_are_ignored ... ok
+test routing::tests::cloud_tags_are_refused_by_name ... ok
+test routing::tests::ordinary_local_tags_are_accepted ... ok
+test routing::tests::routing_is_by_role_and_the_table_is_the_only_place_a_model_is_named ... ok
+test sse::tests::a_keepalive_comment_is_not_a_frame_and_not_an_error ... ok
+test sse::tests::a_multi_line_data_field_is_joined_with_newlines ... ok
+test sse::tests::a_stream_cut_short_yields_what_arrived_rather_than_nothing ... ok
+test sse::tests::nothing_after_done_is_read ... ok
+test sse::tests::the_done_sentinel_is_a_sentinel_and_not_malformed_json ... ok
+test think::hold_rule::an_unclosed_block_that_ends_in_a_tool_call_yields_no_speech ... ok
+test think::hold_rule::content_with_no_tag_and_no_tool_call_is_the_answer ... ok
+test think::hold_rule::nothing_before_the_closing_tag_is_ever_speech ... ok
+test think::streaming_rule::content_with_no_native_thinking_is_held_until_the_tag ... ok
+test think::streaming_rule::the_reply_streams_chunk_by_chunk_once_the_provider_separates_the_channels ... ok
+test think::streaming_rule::with_thinking_off_the_reply_streams_immediately ... ok
+test think::tests::a_closing_tag_with_no_opening_tag_retracts_the_speech_before_it ... ok
+test think::tests::a_fragment_that_never_becomes_a_tag_is_released_at_the_end ... ok
+test think::tests::a_nested_block_is_reasoning_and_the_tags_never_reach_the_caller ... ok
+test think::tests::a_tag_split_across_chunks_is_never_emitted_in_pieces ... ok
+test think::tests::content_without_tags_is_speech_and_streams_unchanged ... ok
+test think::tests::retraction_applies_only_to_speech_that_is_still_outstanding ... ok
+test wire::tests::a_reply_that_precedes_its_call_is_not_linked ... ok
+test wire::tests::a_result_whose_call_was_trimmed_away_is_demoted_and_loses_its_pairing ... ok
+test wire::tests::a_tool_message_that_answers_a_real_call_keeps_its_role ... ok
+test wire::tests::a_tool_message_with_no_preceding_call_becomes_a_user_message ... ok
+test wire::tests::an_empty_tool_array_is_omitted_and_a_populated_one_is_kept ... ok
+test http::tests::an_absent_endpoint_is_unreachable_rather_than_a_panic ... ok
+test ollama::tests::an_absent_endpoint_degrades_with_a_remedy_rather_than_crashing ... ok
+test llamacpp::tests::a_down_endpoint_degrades_with_a_remedy_rather_than_crashing ... ok
+
+test result: ok. 69 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.03s
+
+     Running tests\child_brief_role.rs (target\debug\deps\child_brief_role-5d432493f6295c94.exe)
+
+running 2 tests
+test the_parents_own_prior_reply_is_still_its_own ... ok
+test a_child_is_asked_its_task_rather_than_shown_it_as_its_own_words ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\llamacpp_stream_fold.rs (target\debug\deps\llamacpp_stream_fold-4cd7e4f09eaade3b.exe)
+
+running 12 tests
+test an_error_object_inside_a_200_stream_fails_the_call_rather_than_returning_an_empty_reply ... ok
+test the_done_sentinel_ends_the_stream_and_nothing_after_it_is_read ... ok
+test speech_is_held_until_the_think_block_is_known_shut_and_a_close_tag_never_reaches_the_reply ... ok
+test the_loop_control_tools_are_routed_through_the_one_parse_step_that_exists ... ok
+test llama_cpp_s_own_timings_are_read_when_the_usage_block_is_absent ... ok
+test reasoning_goes_to_the_reasoning_channel_and_never_to_the_reply ... ok
+test a_fragment_that_does_not_reassemble_becomes_an_empty_object_rather_than_a_guess ... ok
+test text_arrives_in_pieces_rather_than_in_one_lump_at_the_end ... ok
+test two_calls_in_one_reply_keep_their_order_and_stay_two_calls ... ok
+test the_transport_saw_the_body_the_driver_actually_built ... ok
+test the_token_counts_reach_usage_so_the_budget_has_something_to_count ... ok
+test a_tool_call_split_across_ten_fragments_reassembles_into_one_call_with_its_arguments ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\llamacpp_wire_shape.rs (target\debug\deps\llamacpp_wire_shape-1565972bd8538b29.exe)
+
+running 9 tests
+test the_output_cap_is_bounded_by_the_window_exactly_as_the_other_two_adapters_bound_it ... ok
+test a_required_parameter_is_marked_required_and_carries_the_tools_own_words ... ok
+test an_empty_tool_set_omits_the_key_rather_than_sending_an_empty_array ... ok
+test the_replayed_call_carries_a_type_here_and_does_not_on_the_ollama_path ... ok
+test the_tool_result_pairs_by_id_alone_and_carries_no_tool_name_or_thinking ... ok
+test arguments_are_a_json_string_here_and_a_json_object_on_the_ollama_path ... ok
+test the_thinking_switch_is_declared_in_this_dialects_spelling_and_moves_with_the_setting ... ok
+test the_context_window_is_absent_here_because_it_is_a_launch_flag ... ok
+test the_sampler_reaches_the_wire_and_its_absence_is_a_different_body_rather_than_the_same_one ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\no_tls_in_the_default_path.rs (target\debug\deps\no_tls_in_the_default_path-c56a69eabf65a94d.exe)
+
+running 2 tests
+test marlowe_provider_reaches_no_tls_crate ... ok
+test the_walk_actually_finds_tls_where_tls_is ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\ollama_store_resolution.rs (target\debug\deps\ollama_store_resolution-0e7ad700627ef1fd.exe)
+
+running 10 tests
+test a_store_that_is_not_there_is_refused_by_path_rather_than_treated_as_empty ... ok
+test a_missing_server_binary_is_refused_by_name_with_every_path_it_tried ... ok
+test a_model_that_was_never_pulled_is_refused_with_the_pull_command ... ok
+test a_params_layer_that_will_not_parse_refuses_rather_than_silently_using_llama_cpp_defaults ... ok
+test a_manifest_that_names_a_blob_the_store_does_not_hold_is_refused_before_any_launch ... ok
+test a_manifest_with_no_model_layer_names_the_media_types_it_did_find ... ok
+test a_manifest_that_will_not_parse_is_refused_rather_than_half_read ... ok
+test a_model_with_no_params_layer_resolves_with_no_sampler_rather_than_refusing ... ok
+test a_well_formed_store_resolves_to_the_blob_and_the_published_sampler ... ok
+test the_launch_command_carries_the_blob_the_backend_dll_the_window_and_the_path_prefix ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\param_descriptions_on_the_wire.rs (target\debug\deps\param_descriptions_on_the_wire-62a5e86381da44ff.exe)
+
+running 2 tests
+test every_parameter_the_model_is_offered_carries_a_written_description ... ok
+test the_three_facts_that_cost_a_call_are_the_ones_actually_stated ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\persona_emission.rs (target\debug\deps\persona_emission-0493d9191a2552c6.exe)
+
+running 8 tests
+test the_persona_reaches_the_outbound_request_body ... ok
+test the_persona_is_in_the_stable_tier_and_not_a_user_turn ... ok
+test history_roles_follow_who_actually_said_it ... ok
+test parameter_types_are_not_all_string ... ok
+test every_tool_with_a_target_declares_it_required ... ok
+test the_web_tool_requires_its_url_and_offers_no_search ... ok
+test parameter_descriptions_do_not_leak_internal_rust_type_names ... ok
+test the_persona_text_exists_in_exactly_one_place ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests\spawn_from_a_model_reply.rs (target\debug\deps\spawn_from_a_model_reply-7ac62c248ca9b8fe.exe)
+
+running 18 tests
+test a_grant_of_zero_is_no_grant_rather_than_a_child_that_cannot_think ... ok
+test a_tool_list_parses_in_the_shapes_a_model_writes_it ... ok
+test adopt_is_withheld_rather_than_given_an_invented_parent ... ok
+test a_grant_larger_than_the_pool_is_refused_with_both_numbers ... ok
+test a_spawn_with_no_task_is_refused_and_no_child_is_created ... ok
+test a_model_cannot_hand_its_child_a_tool_the_parent_does_not_hold ... ok
+test a_long_contract_description_does_not_push_the_grant_off_the_receipt ... ok
+test a_model_reply_naming_run_spawns_a_child_that_works_and_returns ... ok
+test a_contract_description_cannot_forge_a_second_line_of_the_receipt ... ok
+test a_latched_run_may_still_spawn_at_the_defaults ... ok
+test a_child_left_at_the_default_policy_is_terminated_with_its_parent ... ok
+test a_detached_child_that_outlives_its_parent_is_recorded_as_detached ... ok
+test an_unrecognised_orphan_policy_takes_the_safe_value_and_the_receipt_names_it ... ok
+test a_latched_run_cannot_compose_a_childs_tool_set ... ok
+test the_depth_bound_refuses_the_level_past_it_under_real_spawns ... ok
+test a_leaf_at_depth_four_is_inside_the_declared_band_under_real_spawns ... ok
+test a_declared_empty_tool_set_gets_terminate_and_a_receipt_saying_so ... ok
+test a_latched_run_cannot_compose_a_childs_budget_or_lifetime ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spawned_child_wire.rs (target\debug\deps\spawned_child_wire-a13a7e157b42232a.exe)
+
+running 4 tests
+test a_childs_result_survives_in_the_journal ... ok
+test a_childs_prose_never_reaches_the_surface_but_the_parents_answer_does ... ok
+test a_real_spawn_puts_the_brief_on_the_wire_as_a_turn_the_child_can_answer ... ok
+test after_a_child_returns_the_parent_has_something_to_answer ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\system_message_shape.rs (target\debug\deps\system_message_shape-ab3f2b31ca1dd028.exe)
+
+running 7 tests
+test the_openai_wire_still_carries_exactly_one_system_message_and_it_leads ... ok
+test an_injected_memory_reaches_the_openai_wire_as_a_recall_result_paired_by_id ... ok
+test changing_a_memory_leaves_the_openai_prefix_byte_identical ... ok
+test an_injected_memory_reaches_ollama_at_the_tail_and_is_not_attributed_to_the_person ... ok
+test the_identity_still_leads_the_system_message ... ok
+test the_ollama_wire_carries_a_second_system_message_and_it_comes_last ... ok
+test changing_a_memory_leaves_the_ollama_prefix_byte_identical ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\tool_call_probe.rs (target\debug\deps\tool_call_probe-ee1358791e4645a4.exe)
+
+running 2 tests
+test measure_tool_call_reliability ... ignored, needs a live Ollama endpoint; run with --ignored
+test the_probe_refuses_to_report_a_rate_it_did_not_measure ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src\lib.rs (target\debug\deps\marlowe_view-e60194b4cfa4d302.exe)
+
+running 22 tests
+test approval::tests::a_promotable_class_states_how_far_off_promotion_is ... ok
+test approval::tests::the_accept_label_follows_the_effect_rather_than_always_saying_send ... ok
+test approval::tests::routine_is_a_stated_claim_rather_than_an_absent_one ... ok
+test approval::tests::the_delegation_hatch_can_be_withheld_and_the_answer_keys_never_can ... ok
+test approval::tests::the_novelty_reason_and_the_ceiling_both_reach_the_one_line ... ok
+test approval::tests::the_overlay_states_blast_radius_and_has_no_way_to_state_a_command ... ok
+test notice::tests::money_renders_from_cents_rather_than_from_a_preformatted_string ... ok
+test run::tests::a_tenth_of_a_cent_does_not_render_as_zero_beside_a_three_dollar_ceiling ... ok
+test run::tests::every_state_that_has_stopped_reports_itself_as_not_live ... ok
+test notice::tests::a_listing_without_its_data_says_so_rather_than_printing_nothing ... ok
+test notice::tests::a_pane_with_nothing_in_it_says_so_rather_than_rendering_an_empty_sentence ... ok
+test notice::tests::an_echo_is_quoted_and_never_reworded ... ok
+test meter::tests::a_flat_reading_and_no_reading_are_not_the_same_value ... ok
+test notice::tests::not_built_is_not_the_same_speech_act_as_an_unknown_command ... ok
+test meter::tests::an_absent_source_holds_the_last_frame_rather_than_flattening_it ... ok
+test run::tests::elapsed_never_prints_a_bare_seconds_count_for_a_long_run ... ok
+test run::tests::no_ceiling_is_not_a_full_bar ... ok
+test run::tests::the_orphan_policy_is_stated_plainly_and_never_as_its_variant_name ... ok
+test view::tests::a_degraded_band_carries_the_specific_path_not_the_word_degraded ... ok
+test view::tests::a_pending_line_is_retired_by_the_producer_and_by_nothing_else ... ok
+test view::tests::every_control_is_reachable_read_only_and_none_is_writable ... ok
+test view::tests::there_is_no_way_to_turn_a_pending_line_into_transcript ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\vocabulary.rs (target\debug\deps\vocabulary-a43853e9ad4ef5c2.exe)
+
+running 3 tests
+test every_notice_variant_passes_the_persona_probes ... ok
+test no_notice_field_is_a_free_text_string ... ok
+test no_produce_impl_has_a_catch_all_arm ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests marlowe_daemon
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_provider
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_view
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

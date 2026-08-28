@@ -1,5 +1,18 @@
 //! **ADR-060's hybrid, asserted on what a person reads.**
 //!
+//! # SHELVED 2026-08-27, and that is why this file did not shrink
+//!
+//! `marlowe_view::provider::PROVIDERS` lost the `ollama/llama.cpp` entry, so the picker no longer
+//! offers it and `set_provider` no longer accepts it. **Nothing else was removed.** `HybridEngine`,
+//! `EngineFailure`, the supervisor, `Offload`, `tier1_runtime_for` and the `Reserve` arithmetic all
+//! still ship and are all still reachable — `marlowe::resolve_provider` still builds a `LlamaCpp`
+//! config from `--provider llamacpp`, and `Daemon::open` starts an engine when the config says so.
+//!
+//! So five of the six tests below are untouched: their subject is code that runs. Only
+//! `the_hybrids_name_is_one_string_and_every_reader_has_the_same_one` changed, in exactly one
+//! clause, and it says so at its own doc comment. **A test is deleted when its subject is gone, not
+//! when its subject is shelved.**
+//!
 //! # What each test would read on a build WITHOUT this change
 //!
 //! Stated per test, because a test that would pass either way is not a test of the change. Of the
@@ -17,28 +30,38 @@
 
 use marlowe_view::turn::DegradedPath;
 
-/// **One entry, two names, and the three readers that must agree on the spelling.**
+/// **One name, two crates that declare it, and the readers that must agree on the spelling —
+/// which now includes the picker AGREEING NOT TO OFFER IT.**
 ///
-/// `marlowe_view::PROVIDERS` is what the picker offers, `ModelProviderChoice::name()` is what
-/// `--status` reports, and `hybrid::HYBRID_PROVIDER_NAME` is what the fallback line tells the user
-/// to type. `marlowe-provider` sits below `marlowe-view` and cannot import from it, so the two
-/// constants are separate declarations — **and this is the seam where they are checked**, which is
-/// the alternative to adding a dependency edge purely to make a string reachable.
+/// `ModelProviderChoice::name()` is what `--status` reports and `hybrid::HYBRID_PROVIDER_NAME` is
+/// what the fallback line tells the user to type. `marlowe-provider` sits below `marlowe-view` and
+/// cannot import from it, so the two constants are separate declarations — **and this is the seam
+/// where they are checked**, which is the alternative to adding a dependency edge purely to make a
+/// string reachable. That half of this test has not moved.
 ///
-/// **Without the change:** `name()` returns `"llamacpp"`, which is not in `PROVIDERS`, and
-/// `project.rs`'s picker does `position(...).unwrap_or(0)` — it does not error, it renders a hybrid
-/// daemon as plain `ollama`. That is the silent wrong answer this asserts against.
+/// # The `PROVIDERS.contains` clause is inverted, and the inversion is the shelving itself
+///
+/// It asserted the hybrid was **in** the list the picker is built from. As of 2026-08-27 it must be
+/// **absent**: *"Shelve the hybrid path. Don't remove it. But make it unavailable."* The reason is
+/// tool calling, not speed — the model emitted raw `<tool_call>` XML into the reasoning channel and
+/// the parser ate its own opening delimiter on single-call turns — and the mechanism is exactly
+/// this one deletion, because `PROVIDERS` is what the picker offers, what `set_provider` validates
+/// against and what the stub scripts.
+///
+/// **The constants stay and must stay.** `HYBRID` is still printed by `agent.rs`'s startup
+/// announcement, by `announce.rs`, by `tui::spawn_args` and by every `EngineFailure::fallback_line`,
+/// so a drift between the two crates' spellings is still the live defect it always was. Shelving
+/// the path did not shelve the string.
+///
+/// **What this reads on a build without the shelving:** the absence assertion fails, naming the
+/// array it found the entry in. It cannot pass on either build by accident.
 #[test]
 fn the_hybrids_name_is_one_string_and_every_reader_has_the_same_one() {
     assert_eq!(
         marlowe_provider::HYBRID_PROVIDER_NAME,
         marlowe_view::provider::HYBRID,
         "the provider crate's spelling and the view crate's have drifted; the fallback line would \
-         tell the user to type a name the picker does not offer"
-    );
-    assert!(
-        marlowe_view::provider::PROVIDERS.contains(&marlowe_view::provider::HYBRID),
-        "the hybrid is not in the list the picker is built from"
+         tell the user to type a name that is not the one anything else uses"
     );
     let name = marlowe_daemon::ModelProviderChoice::LlamaCpp {
         endpoint: marlowe_provider::LocalEndpoint::new("127.0.0.1", 1).expect("loopback"),
@@ -46,15 +69,34 @@ fn the_hybrids_name_is_one_string_and_every_reader_has_the_same_one() {
     }
     .name();
     assert_eq!(name, marlowe_view::provider::HYBRID);
+
+    // ── THE INVERTED CLAUSE ──────────────────────────────────────────────────────────────
     assert!(
-        marlowe_view::provider::PROVIDERS.contains(&name),
-        "`name()` produces `{name}`, which the picker does not offer, so `position()` would fall \
-         to index 0 and render this daemon as `{}`",
-        marlowe_view::provider::PROVIDERS[0]
+        !marlowe_view::provider::PROVIDERS.contains(&marlowe_view::provider::HYBRID),
+        "the hybrid is back in the list the picker is built from. It is SHELVED, not removed: \
+         parallel tool calls must parse, single tool calls must parse without eating their own \
+         delimiter, and both must be measured on a prompt that provokes a BATCH before this entry \
+         returns. Got: {:?}",
+        marlowe_view::provider::PROVIDERS
     );
-    // **The name says BOTH halves.** That is the requirement, not an aesthetic: a user must be
-    // able to see which engine is serving, and one entry called `llamacpp` would hide that Ollama
-    // is still the store while one called `ollama` would hide that it is not the engine.
+    assert!(
+        !marlowe_view::provider::PROVIDERS.contains(&name),
+        "`name()` produces `{name}` and the picker offers it, so the door is open again"
+    );
+    // The control: the array is not empty and did not lose the providers that ARE offered. Without
+    // it both assertions above pass on a build where `PROVIDERS` is `&[]` and nothing is
+    // selectable at all.
+    assert!(
+        marlowe_view::provider::PROVIDERS.contains(&marlowe_view::provider::OLLAMA)
+            && marlowe_view::provider::PROVIDERS.contains(&marlowe_view::provider::OPENROUTER),
+        "shelving the hybrid must not have taken the live providers with it: {:?}",
+        marlowe_view::provider::PROVIDERS
+    );
+
+    // **The name says BOTH halves**, and it still matters while it is shelved: every announcement
+    // and every fallback line still prints it. A user must be able to see which engine is serving,
+    // and one entry called `llamacpp` would hide that Ollama is still the store while one called
+    // `ollama` would hide that it is not the engine.
     assert!(
         marlowe_view::provider::HYBRID.contains("ollama")
             && marlowe_view::provider::HYBRID.contains("llama.cpp"),

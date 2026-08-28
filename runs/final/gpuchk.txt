@@ -1,0 +1,41 @@
+marlowe: context window 32768 tokens (model ceiling 262144)
+
+Marlowe — first run under this profile. What it can reach:
+
+  FILES
+    C:\Users\matth\Projects\Marlowe_Harness
+    That directory and everything under it. Nothing outside it: paths are resolved and checked before opening, and symlinks pointing out are refused.
+
+  NETWORK
+    Nothing, until you approve a host. Every fetch asks, and every fetch asks again — approvals are not remembered between requests in this build.
+    A fetched page is read by a separate, sandboxed process that holds no tools; only a short summary of it comes back.
+
+  MEMORY
+    live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+    What you tell Marlowe can be written to a signed journal on this machine, under the profile directory. It is not sent anywhere.
+
+  ALWAYS ASKS YOU FIRST
+    bash     Run one command line through bash — really bash, including on Windows, where it is Git Bash.
+    (and any network request, per host, every time)
+
+  MAY ACT WITHOUT ASKING
+    ask      Put a question to the user and wait.
+    edit     Change ONE snippet inside an existing file, leaving the rest untouched.
+    glob     List the files under a directory, by name.
+    grep     Search the CONTENTS of files under a directory with a regular expression, line by line.
+    read     Read a file in the workspace by workspace-relative `path`, OR a fetched document by `ref` (the id `web` returns).
+    recall   Search Marlowe's own memory: what the user said in earlier sessions, and what Marlowe has learned.
+    remember Ask the harness to record something worth keeping.
+    run      Delegate a sub-task to a child run and wait for it.
+    use      Find and load a skill.
+    web      Fetch one URL over https and return the page.
+    write    Create a file, or replace all of its contents.
+    Whether these ask depends on the trust tier this run was granted. The trust ledger that would raise a tier does not exist yet, so today they run at the tier the profile starts with.
+
+  The model chooses what to do; the harness decides what it is allowed to do, and the decisions are in the journal.
+
+marlowe: memory retrieval live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+marlowe: skills 0 installed
+marlowe: daemon listening on 127.0.0.1:11755
+marlowe: runs are owned here and survive the client that started them
+marlowe: control plane on 127.0.0.1:50285

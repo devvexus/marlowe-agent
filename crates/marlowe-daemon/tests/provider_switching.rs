@@ -150,9 +150,22 @@ fn every_provider_the_picker_offers_is_one_the_daemon_accepts() {
     let mut d = daemon("not-offered");
     let e = d.set_provider("anthropic").expect_err("an unknown provider must be refused");
     assert!(e.contains("is not a provider this build has"), "{e}");
+    // **Derived from `PROVIDERS`, not spelled out, and that is a fix rather than tidying.** This
+    // read `e.contains("ollama") && e.contains("openrouter") && e.contains("ollama/llama.cpp")` —
+    // a second hand-maintained copy of the set, in an assertion, which went stale the moment the
+    // set changed and failed for a reason that had nothing to do with the property. The refusal is
+    // built by `PROVIDERS.join(", ")`; reading the same array is what makes this a test of the
+    // message rather than of somebody's memory of it.
+    for offered in marlowe_daemon::PROVIDERS {
+        assert!(e.contains(offered), "the refusal must list `{offered}`: {e}");
+    }
+    // **And the shelved hybrid must NOT be listed.** `ollama/llama.cpp` is a provider this build
+    // still has code for and deliberately does not offer, so naming it in the remedy would send a
+    // user to a switch that is refused. Asserted rather than assumed: the list and the validation
+    // are the same array, so this is what keeps the array honest in both directions.
     assert!(
-        e.contains("ollama") && e.contains("openrouter") && e.contains("ollama/llama.cpp"),
-        "the refusal must list them: {e}"
+        !e.contains(marlowe_view::provider::HYBRID),
+        "the refusal offered the shelved hybrid as a remedy: {e}"
     );
 }
 
@@ -193,10 +206,10 @@ fn the_provider_picker_is_built_from_the_daemons_own_report() {
     let p = local.picker(marlowe_view::ControlId::Provider);
     assert_eq!(
         p.options,
-        vec!["ollama".to_string(), "ollama/llama.cpp".to_string(), "openrouter".to_string()],
+        marlowe_daemon::PROVIDERS.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
         "the picker is built from `project::PROVIDERS`, so this list changing means that list did"
     );
-    assert_eq!(p.options[p.selected], "ollama");
+    assert_eq!(p.options[p.selected], marlowe_view::provider::OLLAMA);
 
     // The control, and it is the one that matters: a different report must select differently.
     // Without it, a hardcoded `selected: 0` passes everything above.
@@ -207,14 +220,37 @@ fn the_provider_picker_is_built_from_the_daemons_own_report() {
         "the picker showed a provider the daemon did not report"
     );
 
-    // **And the third, which is the one this control was written before there was.** `position()`
-    // falls back to `unwrap_or(0)` for a name it does not recognise, so a `name()` that did not
-    // spell `llamacpp` EXACTLY as `PROVIDERS` does would render a llamacpp daemon as `ollama` --
-    // a silent wrong answer in the one place a person reads which provider is live.
-    let local_llamacpp = marlowe_daemon::view_from_status(&report("ollama/llama.cpp"));
-    let p = local_llamacpp.picker(marlowe_view::ControlId::Provider);
+    // ── THE SHELVED HYBRID, AND THE GAP IT LEFT ──────────────────────────────────────────
+    //
+    // **This clause is inverted, and the inversion exposes a defect rather than tidying one away.**
+    //
+    // It used to assert that a daemon reporting `ollama/llama.cpp` selected `ollama/llama.cpp` --
+    // the guard against `name()` and `PROVIDERS` drifting apart, because `position()` falls back to
+    // `unwrap_or(0)` and a mismatch renders that daemon as plain `ollama` with nothing failing.
+    //
+    // The shelving removed the entry from `PROVIDERS` and **did not** remove `--provider llamacpp`
+    // from `marlowe::resolve_provider`. So that state is still reachable in the product, the name
+    // is now one `PROVIDERS` does not hold, and `unwrap_or(0)` does exactly what the old comment
+    // warned about: **a daemon whose engine is llama.cpp renders in the picker as `ollama`.**
+    //
+    // It is asserted here as a CHARACTERISATION -- the current behaviour, pinned, with the defect
+    // named -- rather than deleted. Deleting it would leave the drift unguarded; asserting the old
+    // expectation would fail on a decision that was deliberately taken. If the CLI door is closed
+    // later, or the picker is taught to show an unrecognised report, this test fails and points
+    // here.
+    let shelved = marlowe_daemon::view_from_status(&report(marlowe_view::provider::HYBRID));
+    let p = shelved.picker(marlowe_view::ControlId::Provider);
+    assert!(
+        !p.options.iter().any(|o| o == marlowe_view::provider::HYBRID),
+        "the shelving must reach the picker: {:?}",
+        p.options
+    );
     assert_eq!(
-        p.options[p.selected], "ollama/llama.cpp",
-        "the picker showed a provider the daemon did not report"
+        p.options[p.selected],
+        marlowe_view::provider::OLLAMA,
+        "KNOWN GAP, not an expectation: `--provider llamacpp` still builds a hybrid daemon at the \
+         CLI, and the picker has no entry for what it reports, so `position().unwrap_or(0)` shows \
+         `ollama` while llama.cpp is the engine. If this assertion starts failing, someone fixed \
+         it -- update this test rather than restoring the fallback."
     );
 }

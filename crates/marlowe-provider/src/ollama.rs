@@ -161,6 +161,17 @@ impl Availability {
     }
 }
 
+/// Restore the pre-fix placement of injected memory: chained onto the leading system message.
+///
+/// **An instrument, and the default is the fixed behaviour.** See the call site in
+/// `build_request` for why one binary has to be able to produce both arms. Read once per
+/// request, which is thousands of times cheaper than the model call it precedes and keeps the
+/// switch honest — a value cached at startup would silently ignore a mid-run change and make a
+/// mis-set arm look like a null result.
+fn memory_at_head() -> bool {
+    std::env::var("MARLOWE_MEMORY_AT_HEAD").is_ok_and(|v| v != "0" && !v.is_empty())
+}
+
 /// The context window used when none is given, in tokens.
 ///
 /// **Declared and always sent, never inferred.** Ollama's own default is 2048 whatever the model
@@ -335,11 +346,22 @@ impl OllamaDriver {
             // Attributing it to the user instead would make a recalled fact indistinguishable from
             // something they just said, and §B1 keeps memory out of the interface, which starts
             // with not pretending it was spoken.
-            .chain(
-                view.volatile
-                    .iter()
-                    .filter(|b| b.source == SourceKind::InjectedMemory),
-            )
+            .map(|b| b.text.as_str())
+            .filter(|t| !t.trim().is_empty())
+            .collect();
+        // **INJECTED MEMORY IS NO LONGER CHAINED IN HERE — see the tail of this function.**
+        //
+        // This is the leading system message, at **position 0**. Ollama reuses its prompt cache
+        // only for a byte-identical prefix, and memory is re-retrieved every turn — so a single
+        // changed fact invalidated this message AND every turn of conversation behind it.
+        // Measured on this machine: a **148-byte** change at the front cost **1.45 seconds**, in an
+        // ordinary run nobody was provoking; over ten turns prompt evaluation climbed
+        // **689 → 1,320 ms**, monotone in six passes. The counterfactual — the same content after
+        // the history — was **flat at ~275 ms regardless of turn count**.
+        let recalled: Vec<&str> = view
+            .volatile
+            .iter()
+            .filter(|b| b.source == SourceKind::InjectedMemory)
             .map(|b| b.text.as_str())
             .filter(|t| !t.trim().is_empty())
             .collect();
@@ -425,6 +447,57 @@ impl OllamaDriver {
         // hosted provider did: *"a MALFORMED conversation: no assistant `tool_calls`, no
         // `tool_name`, so the template left a block open and the model continued it in
         // `content`."* See `crate::wire`.
+        // ── INJECTED MEMORY, AT THE TAIL ────────────────────────────────────────────────────
+        //
+        // **A SECOND `system` MESSAGE, and here that is safe where it was not before.** The comment
+        // this replaces records a real failure: a `system` message placed after the user's turn
+        // broke a qwen3-next Jinja template with `System message must be at the beginning`. Ollama
+        // serving qwen3.5 does not use that template -- it applies a BUILT-IN Go renderer for the
+        // architecture and ignores the `TEMPLATE` field entirely, which this project established
+        // with a BANANA control after announcing the opposite conclusion and being wrong.
+        //
+        // So the constraint that forced memory into position 0 is a property of one template on one
+        // driver, and it is not this one. Keeping it here cost a full prompt re-evaluation every
+        // time a memory changed.
+        //
+        // A `system` role rather than `user`: a recalled fact must not be indistinguishable from
+        // something the person just said. Rather than `assistant`: the model did not say it.
+        //
+        // **If a future Ollama model does refuse a trailing system message, the symptom is loud** --
+        // an immediate template error on every turn, not a silent degradation -- and the fix is to
+        // move it onto the assistant+tool rails the llama.cpp driver uses.
+        if !recalled.is_empty() {
+            if memory_at_head() {
+                // ── THE OLD PLACEMENT, REACHABLE ON PURPOSE ─────────────────────────────────
+                //
+                // **A measurement scaffold, not a product option**, and it exists because of a
+                // rule this project keeps relearning: a fix is not verified until the thing it
+                // fixed is measured on the SAME machine, in the SAME session, against the SAME
+                // binary. Building "before" and "after" as two binaries makes every difference
+                // between the two builds a candidate explanation for the gap.
+                //
+                // Off unless the variable is set, so the shipped path is the fixed one and a
+                // forgotten flag cannot silently restore the regression. It is deliberately an
+                // environment variable rather than a config field: config is a surface users see
+                // and this is an instrument.
+                let head = recalled.join("\n\n");
+                if let Some(first) = messages.first_mut() {
+                    if first.get("role").and_then(|r| r.as_str()) == Some("system") {
+                        let joined = format!(
+                            "{}\n\n{head}",
+                            first.get("content").and_then(|c| c.as_str()).unwrap_or("")
+                        );
+                        first["content"] = serde_json::Value::String(joined);
+                    }
+                }
+            } else {
+                messages.push(serde_json::json!({
+                    "role": "system",
+                    "content": recalled.join("\n\n"),
+                }));
+            }
+        }
+
         crate::wire::unorphan_tool_messages(&mut messages);
 
         // ── SLIDING-WINDOW REASONING ────────────────────────────────────────────────
