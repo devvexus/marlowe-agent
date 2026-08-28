@@ -361,7 +361,9 @@ impl OllamaDriver {
         let recalled: Vec<&str> = view
             .volatile
             .iter()
-            .filter(|b| b.source == SourceKind::InjectedMemory)
+            // Skills hits ride the same tail as memory: both are "the harness found this for THIS
+            // turn", both are query-dependent, and both must stay out of the cached prefix.
+            .filter(|b| matches!(b.source, SourceKind::InjectedMemory | SourceKind::Skills))
             .map(|b| b.text.as_str())
             .filter(|t| !t.trim().is_empty())
             .collect();

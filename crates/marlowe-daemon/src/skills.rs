@@ -266,23 +266,40 @@ pub(crate) fn surface(skills: &SkillRegistry, message: &str) -> Option<String> {
         return None;
     }
 
-    let mut out = format!(
-        "{} skill(s) installed in this profile. Search them with `use`.\n",
-        all.len()
-    );
+    // **The constant half only.** See [`hits_for`] for the per-query half and why they are
+    // separate: this string depends solely on how many skills are installed, so it is identical on
+    // every turn of a session and can live in the cached prefix.
+    let _ = message;
+    Some(format!("{} skill(s) installed in this profile. Search them with `use`.\n", all.len()))
+}
 
+/// The skills that match THIS turn's message, or `None` when none do.
+///
+/// # Why this is not part of [`surface`] any more
+///
+/// It used to be appended to the same string, which put a **query-dependent** block inside the
+/// leading system message. A server reuses its prompt cache only for a byte-identical prefix, so
+/// the block appearing on one turn and vanishing on the next invalidated the whole prompt both
+/// times — **measured at ±164 chars between consecutive turns**, and every appearance or
+/// disappearance cost a full re-evaluation of ~9,900 tokens, about 140 ms.
+///
+/// The constant line stays in the prefix where it is free; this rides the tail with injected
+/// memory, where a change costs only the tokens it actually adds. Same content, same behaviour for
+/// the model, no cache invalidation.
+pub(crate) fn hits_for(skills: &SkillRegistry, message: &str) -> Option<String> {
+    let all: Vec<&Skill> = skills.iter().collect();
     let hits = rank(&all, message);
-    if !hits.is_empty() {
-        out.push_str("Possibly relevant here:\n");
-        for (skill, _) in &hits {
-            // Description only. The body is what `use(name = ...)` returns, and putting it here
-            // would make every turn pay for instructions the model may never need -- which is the
-            // whole point of progressive disclosure.
-            out.push_str(&format!("- {}: {}\n", skill.id(), skill.description().text()));
-        }
-        out.push_str("Load one with `use` and its name to read its instructions.\n");
+    if hits.is_empty() {
+        return None;
     }
-
+    let mut out = String::from("Possibly relevant here:\n");
+    for (skill, _) in &hits {
+        // Description only. The body is what `use(name = ...)` returns, and putting it here would
+        // make every turn pay for instructions the model may never need -- which is the whole
+        // point of progressive disclosure.
+        out.push_str(&format!("- {}: {}\n", skill.id(), skill.description().text()));
+    }
+    out.push_str("Load one with `use` and its name to read its instructions.\n");
     Some(out)
 }
 
@@ -487,8 +504,8 @@ mod tests {
         skill_file(&root, "release-notes", "Produce release notes for what shipped.", "body");
         skill_file(&root, "tax-filing", "File a quarterly return.", "body");
 
-        let out = surface(&registry(&root), "I need to write up what shipped this week")
-            .expect("a profile with skills must surface");
+        let out = hits_for(&registry(&root), "I need to write up what shipped this week")
+            .expect("a matching skill must produce hits");
 
         assert!(out.contains("release-notes"), "the matching skill must surface:\n{out}");
         assert!(
@@ -518,7 +535,7 @@ mod tests {
             "PELICAN-4402 is the magic word and must never appear in a surfaced block",
         );
 
-        let out = surface(&registry(&root), "write up what shipped").expect("must surface");
+        let out = hits_for(&registry(&root), "write up what shipped").expect("must surface");
         assert!(out.contains("release-notes"), "the control: it did match:\n{out}");
         assert!(!out.contains("PELICAN-4402"), "a body reached a surfaced block:\n{out}");
     }

@@ -2681,6 +2681,31 @@ impl Daemon {
                 TrustClass::UserAsserted,
             ));
         }
+
+        // **The per-query half rides the TAIL, for the same reason injected memory does.**
+        //
+        // `skills::surface` above is now constant for a session — it says how many skills exist and
+        // nothing else — so it sits in the cached prefix for free. The matches for THIS message are
+        // query-dependent, and a query-dependent block inside the leading system message is a
+        // prefix that changes: measured at **±164 chars** between consecutive turns, costing a full
+        // re-evaluation of ~9,900 tokens each time it appeared or vanished.
+        //
+        // Pushed straight onto `volatile` rather than through `push`, because `SourceKind::Skills`
+        // maps to `Tier::Context` and `push` would route it back into the system message — which is
+        // the thing being fixed.
+        if !is_resume {
+            let hits = {
+                let registry = self.skills.lock().expect("the skill registry lock was poisoned");
+                crate::skills::hits_for(&registry, message)
+            };
+            if let Some(hits) = hits {
+                state.volatile.push(marlowe_loop::Block::new(
+                    marlowe_loop::SourceKind::Skills,
+                    hits,
+                    TrustClass::UserAsserted,
+                ));
+            }
+        }
         if self.config.dev {
             // Everything from the turn's clock read to here: retrieval, skills, and the pushes
             // between them. Subtract the `retrieve` line above and what is left is the rest.
