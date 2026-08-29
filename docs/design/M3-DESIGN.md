@@ -443,23 +443,45 @@ have their own page: **`SCOPED-MEMORY.md`**. The two facts M3 depends on:
 
 ## §8. What must be fixed BEFORE this ships
 
-**M3 is where layer 3 goes live.** CLAUDE.md's audit is explicit that the latch is currently
-*unreachable* in the shipped daemon — `ingest` has one caller and it is the eval adapter — so
+**AMENDED 2026-08-29 BY ADR-062. This section used to open "M3 is where layer 3 goes live"; it
+does not, and the reason is in this document.** M3 is where the two defects are fixed and where the
+blocker to layer 3 going live is characterised. Wiring is blocked on Session D
+(`SCOPED-MEMORY.md`) and on ADR-062 §4's origin decision, which is the human's. **M3 may ship with
+layer 3 still unreachable, and STATE.md must say so.**
+
+The reason is the composition of §2.1 and §7 of this document, and neither half can be worked
+around. §2.1 makes Marlowe a permanent run whose floor latches monotonically, so wiring `ingest` at
+the condense site would cost him composed targets *for his life* on the first `web` call. §7 gives
+workers no `MemoryWrite` — `memory: None` is hardcoded at both child `Ports` sites — so the liaison
+that should own the write cannot perform it. **There is no run in the current architecture that may
+correctly hold an untrusted belief**, and that is the build order, not an oversight.
+
+CLAUDE.md's audit is explicit that the latch is currently *unreachable* in the shipped daemon — so
 Marlowe's "never tainted" property is true today for the wrong reason: **nothing can taint anything,
-so a test asserting the boundary passes even with every guard deleted.**
+so a test asserting the boundary passes even with every guard deleted.** That remains true after
+`673bcd2`: `MemoryHost::ingest_external` exists and nothing calls it.
 
 Two named defects go live in the same path the moment a real untrusted channel is wired:
 
 1. **the compaction stamp**
 2. **the trim marker**
 
-**Order is not negotiable: fix both, then wire the channel, then test the boundary.** And the
-boundary test is only meaningful once something *can* taint — which is the whole reason the
-post-M3 red-team session exists.
+**The order used to read "fix both, then wire the channel, then test the boundary". Its first
+clause is DONE (`6a1f4f5`); its second is now established as wrong. The order is: fix both — done —
+then STOP** (ADR-062). And the boundary test is only meaningful once something *can* taint — which
+is the whole reason the post-M3 red-team session exists, and why the strongest honest probe today
+(`crates/marlowe-daemon/tests/layer3_refuses_a_composed_target_from_an_ingested_belief.rs`)
+constructs the tainted state by hand and declares that it does.
 
 Agent-to-agent messaging is the first genuinely new content channel since ADR-041. `trust_for_channel`
 covers Web, Email, Messaging, Mcp, File. **There is no `Channel::Agent` and no trust class for an
 agent's speech.** Either add one, or record a decision that typed upward structure needs none.
+
+> **Half-answered 2026-08-29, and the item stays open — see `DECISIONS.md` and ADR-062 §4.1.** §2.3's
+> typed upward return carries no classifiable prose and is never ingested, so it needs no `Channel`.
+> That answers one of **three** consumers of the missing slot. The meeting utterance (§5.2) and the
+> harness-mediated reader over external bytes (ADR-062 §4) are separate, and either would still need
+> the variant on the day typed structure is proven to need none.
 
 ---
 
@@ -551,4 +573,7 @@ M3's existing rows in ROADMAP stand. These are additional and each is a command 
 3. Does `attach` permit **steering** from the agent window, or watching plus escalation reply only?
 4. Is a master's agent budget a **token pool, a headcount, or both**?
 5. `Channel::Agent`, or a recorded decision that typed structure needs no trust class? (§8)
+   **PARTLY ANSWERED 2026-08-29, re-scoped rather than closed.** §2.3's typed upward return needs
+   none — recorded in `DECISIONS.md`. Still open for the **meeting utterance** (§5.2) and the
+   **harness-mediated reader** (ADR-062 §4). Adding a variant is a pinned-contract change.
 6. Meetings: does the conductor's own context also clone, or does it own the transcript directly?

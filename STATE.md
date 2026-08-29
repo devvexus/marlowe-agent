@@ -1,7 +1,163 @@
 ﻿# State
 
 
-## 2026-08-27 — OUTSTANDING AFTER THE TTFT SESSION. START HERE.
+## 2026-08-29 — M3 SESSION B2. `ingest` HAS NO CORRECT PRODUCTION CALLER, AND THAT IS THE BUILD ORDER
+
+Branch `m3-ingest-live`, rebased onto master. **Layer 3 is not live and this session did not make it
+live.** What changed is that the reason is now a recorded decision (ADR-062) instead of an
+unexplained gap, and that the two defects sitting in the path are fixed before anything reaches it.
+
+### The load-bearing sentence
+
+**There is no run in the current architecture that may correctly hold an untrusted belief.** M3-DESIGN
+§2.1 forbids tainting Marlowe — one permanent run, a monotonic latch, so one ingested page costs him
+composed targets for his life — and §7 gives workers no `MemoryWrite` (`memory: None` hardcoded at
+`engine.rs:2215` and `engine.rs:2831`). The two rows are disjoint and their intersection is empty.
+`ingest` is therefore **not wired, deliberately**, and the answer to permanent taint is never a
+clearing mechanism; it is the liaison pattern, which is Sessions C/D.
+
+### What is true now
+
+| | |
+|---|---|
+| `marlowe_memory::ingest` non-test callers | **two** — the eval adapter, and `DaemonMemory::ingest_external` |
+| `MemoryHost::ingest_external` callers | **zero.** The port is declared, implemented against the real `ingest`, tested, and uncalled |
+| The discriminating check | `grep -rn "ingest_external(" --include=*.rs crates/*/src/` minus the definition. **Zero non-definition hits means layer 3 is still unreachable** |
+| The OLD check, `grep -rn "\bingest("` | **RETIRED — it now false-greens.** Instance #18 in CLAUDE.md's ledger |
+| `marlowe-daemon` | 179 passed, 0 failed, 21 `test result` lines (`runs/m3-close/daemon.txt`) |
+| `marlowe-loop` | 178 passed, 0 failed, 19 `test result` lines (`runs/m3-close/loop.txt`) |
+
+### Measured versus argued — the distinction, because a grep table reads like a test table
+
+**Measured, with a log:** the id collision (`runs/m3-mutation/mut5-id-collision.txt`, `left: 1,
+right: 6`); the tombstone resurrection (guard disabled → `left: Record, right: Tombstone`); the
+channel spelling (`Debug` restored → the pinned-fixture test alone goes red); the refusal being a
+real adjudication (`mut3-no-target-check.txt` deletes the adjudicator's target-provenance loop and
+the failure prints the exfiltration command executing); the latch NOT being behaviourally
+load-bearing in the daemon probe (`mut1b.txt` green with the latch dead, `mut1c-loop.txt` nine red in
+`marlowe-loop`); and `daemon.rs`'s zero coverage (`finding1*.txt`). **Fourteen mutation runs, one log
+each**, in `runs/m3-mutation/`.
+
+**Argued from grep, not measured:** ADR-062 §1.1's reachability chain and §5's lineage claim.
+Reachability is exactly the kind of claim this project has been wrong about **in both directions** —
+measure it on the shipped daemon before acting on it.
+
+### Two gaps carried forward, both real
+
+1. **`daemon.rs`'s injected-memory push has ZERO coverage, and it is the only production line the
+   whole layer-3 chain runs through.** `if !retrieved.is_empty() { state.push(Block::new(
+   SourceKind::InjectedMemory, retrieved.text.clone(), retrieved.floor)) }`. Two mutations: the floor
+   laundered to `UserAsserted`, and the push deleted outright. Both left the entire `marlowe-daemon`
+   crate green — `EXIT=0`, 21 `test result` lines, zero failures
+   (`runs/m3-mutation/finding1-floor-laundered.txt`, `finding1b-push-deleted.txt`). A one-line edit
+   defeating layers 2 and 3 together is invisible to the suite. **Closing it needs the model-driver
+   seam in `Daemon::turn` (`daemon.rs:1992`) first, then a loadable reranker. Do it before `ingest`
+   gets a caller.**
+2. **Three `min`s are the identity function in production, not one.** ADR-038's
+   `min(AgentInferred, run_floor)` in `remember_claim`, plus **both** guards `6a1f4f5` shipped — F1's
+   trim marker and E5's compaction stamp. All three need an `UntrustedContent` block in a *parent's*
+   window; ADR-041 removed tool results as a source and `ingest_external` has no caller, so none of
+   them can fire. The fixes are right and were the right order. **The mutations that turned them red
+   were driven from hand-pushed blocks — evidence about the assembler, not about a fetched page** —
+   and all three go live on the same day layer 3 does.
+
+### Fixed on this branch, in a port nothing calls
+
+Three defects, none of which was ever a live product bug, all fixed so they are not waiting when the
+port acquires a caller. **(a)** the turn id collapsed an ADR-041 group of up to six sources into one
+belief — the journal kept all six events, the derived store kept the last; now a length-prefixed
+`Uuid::new_v5` over `(channel, reference, text)`, with the channel through the **pinned serde
+spelling** and a fixture test asserting a whole derived id against a literal. **(b)** content-derived
+identity then made a re-ingest **resurrect a tombstoned or superseded belief** — `BeliefStore::insert`
+overwrites wholesale and `derive` replays the same insert, so *forget that* + a re-fetch restored the
+text and the fidelity; now a repeat write on a known id is a no-op returning the class the store
+holds. **(c)** the `RecordingMemory` double returned the value a test would want; it is now
+`AgentInferred`, the one variant `trust_for_channel` returns for no channel at all — it went to
+`UserAsserted` first, which is the **identity element under `min`** and therefore the permissive
+direction for a security latch.
+
+**One general property raised, not fixed:** `BeliefStore::insert` on a live id resurrects it, and
+`derive` agrees. The guard is at the daemon caller, not inside `marlowe_memory::ingest`, because
+`ingest` is the §4.6 path `eval/` drives and `eval/` is the scoreboard.
+
+### Decision status — the trust floor's clearing mechanism
+
+**Replaces the "Decision still owed by Matthew" entry below. Three parts, and only the middle one is
+still owed.**
+
+1. **CLOSED BY DESIGN. There is no clearing mechanism, ever.** §2.1 refuses an explicit human gesture
+   — it would un-latch a floor ADR-023 makes monotonic, and monotonicity is the whole guard. E5
+   refuses clearing at a session boundary — `SourceKind::Summary` is non-trimmable and each
+   compaction takes `min` over a discarded set including the previous summary, so clearing means
+   either discarding the summary or raising its class, and raising it is the laundering `6a1f4f5`
+   just fixed. The mitigation is the **liaison pattern** (Sessions C/D), not a clear.
+2. **STILL OWED.** Option 1's second clause — *make the reason legible when it fires, never a bare
+   refusal* — is an unbuilt UX obligation. **Instance #15 constrains it: the trigger is
+   `marlowe_permission::blocks_composed_targets`, NEVER "the floor moved".**
+3. **CURRENTLY UNREACHABLE.** The scenario needs an `UntrustedContent` block in a parent window,
+   which needs `ingest`, which has no caller. Not merely deferred — untestable, and it goes live on
+   the same day layer 3 does.
+
+### Owed to the human
+
+* **THE ORIGIN (ADR-062 §4).** What channel a belief derived from a condensed summary is recorded
+  under. The **class** is settled (`UntrustedContent`); the **origin** is not, and they are separable
+  because more than one channel maps to that class. `Channel::Web` records a provenance the harness
+  knows to be false; a new `Channel::Agent`/`HarnessMediated` variant is honest and is a **pinned
+  contract change**; lineage is **not expressible** (`ingest` hardcodes `derivation: Vec::new()`, and
+  `remember`'s `derived_from` is belief ids a page does not have). Load-bearing rather than pedantic:
+  the channel field is the only lever on the ingest path, so choosing it wrong **is** the class.
+* **WHETHER TO SPLIT `Block.trust`** into an origin field and a latch-exemption marker. §13 territory,
+  wants a `DECISIONS.md` entry before any code, and earns nothing until `ingest` has a caller.
+* **THE PRIORITY OF `SCOPED-MEMORY.md`.** It is the only thing that unblocks a correct caller. Whether
+  it lands as Session D or M3 ships with layer 3 unreachable is a roadmap call — the latter is now
+  written into ROADMAP and M3-DESIGN §8 as permitted, provided STATE.md says so. This says so.
+* **TWO HOOK ENTRIES, NOT ADDED BY THIS SESSION ON PURPOSE.** `crates/marlowe-daemon/src/memory.rs`
+  (the one production site that chooses a belief's `Channel` and `actor` — i.e. the whole class) and
+  `crates/marlowe-loop/src/driver.rs` (declares `ExternalContent`, whose doc says *"`channel` is the
+  whole of the trust decision"*) are safety machinery by function and are unguarded by
+  `.claude/hooks/protect-boundaries.py`. **Adding them changes the permission surface, so it is a
+  human's gesture, not an agent's.** Add both to `PROTECTED`; `--self-check` then fails the build if
+  either path moves. For `crates/marlowe-loop/src/context.rs` (E5 and F1) take the `engine.rs`
+  treatment instead — leave it unguarded, and record that
+  `crates/marlowe-loop/tests/shortening_never_raises_the_floor.rs` is the backing test, so deleting
+  the `min`s fails by name.
+* **`MemoryHost` IS NOT PINNED ANYWHERE, and §4.6 has stopped being eval-only.** Raised as a note in
+  CONTRACTS §4.6 rather than pinned, because pinning a new boundary is a contract act.
+  `ARCHITECTURE.md` §7 has no Loop→Memory row while CONTRACTS §12 opens *"every boundary in §7 is
+  pinned"*. Also: §4.6's example turn carries `origin.actor: "tool:web"` and the production impl
+  hardcodes `actor: "harness"` — one of the two should move.
+* **Whether the §13-guarded mutations should have been run.** Three of the fourteen edited
+  `adjudicate.rs` and `trust.rs` — they are the three most informative rows in the probe's table, and
+  they are also the rows a person should have approved. Every one was reverted;
+  `git diff --name-only crates/marlowe-permission/ crates/marlowe-memory/` is empty.
+
+### Things a future session would otherwise re-derive
+
+* **Five gates sit between an ingested belief and an observable refusal, and every one reads
+  identically to a working guard** (*"no composed target was refused"*): the six-hour maturation
+  window (`ingest.rs`, `MATURATION_WINDOW_MS` in `entry.rs`); `Abstention::NoReranker` — **a daemon
+  started without `--reranking` auto-injects nothing, ever**; `Abstention::NoRunnerUp` — a profile
+  holding exactly one planted belief can never inject; rank-1 and rank-2 both inside
+  `RERANK_BUDGET = 10`; and a margin ≥ 1.165071 at ~10% coverage. **Only maturation is exercised by
+  anything in the workspace.**
+* **A live two-turn daemon probe still cannot be written.** `Daemon::turn` constructs its model driver
+  internally (`daemon.rs:1992`) with no seam; `retrieve` abstains on `NoReranker` because `models/` is
+  gitignored and absent; and a turn boundary rebuilds `Run::root`. A faked reranker would make the
+  probe a measurement of the fake.
+* **The condensed note is stamped `AgentInferred` through four branches and three push sites**
+  (`engine.rs:2055`, `:2064`, `:2399`; the `note` closure at `:2001-2009`). A test asserting the stamp
+  is green with the quarantined reader deleted.
+* **`runs/m3-idcollision/memory.txt` contains a PRE-EXISTING, environment-derived failure** —
+  `both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words`, the `MARLOWE_CUDA_LIB_DIR` wiring
+  test. It is not caused by this work; do not attribute it to the ingest change when tallying that
+  directory.
+
+
+---
+
+
+## 2026-08-27 — OUTSTANDING AFTER THE TTFT SESSION
 
 Everything below is open. Committed through `bb85fa5`; release binary 20:05. Ollama is the default,
 llama.cpp is shelved, and the workspace suite runs in **2m19s** again.
@@ -56,7 +212,11 @@ a pure early return, so it no longer probes live Ollama. **Verify that on the ne
 still shells out to Ollama from inside a parallel suite, it will hang the same way (60+ s against
 <10 s for every other binary).
 
-### Decision still owed by Matthew
+### Decision still owed by Matthew — SUPERSEDED 2026-08-29, see the top entry
+
+**Closed by design: there is no clearing mechanism, ever** (M3-DESIGN §2.1 and E5 refuse both
+non-trivial options). What is still owed is the legibility half, and the scenario is currently
+unreachable. The original text follows.
 
 **The trust floor has no clearing mechanism.** One untrusted page pins a session's floor for its
 entire life — this falls out of E5 alone, which is committed on the layer-3 session's branch. Three

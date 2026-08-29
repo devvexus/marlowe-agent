@@ -750,6 +750,26 @@ supersession recency all read it.
 
 Loads a history. Also how the poisoning suite plants its attacks.
 
+> **A NOTE, NOT A SCHEMA CHANGE — 2026-08-29, `673bcd2`. §4.6 IS NO LONGER EVAL-ONLY.**
+> `IngestRequest`, `Turn` and `Origin` are now **constructed in production** by
+> `DaemonMemory::ingest_external`, which builds this shape in code rather than deserializing it, so
+> the two paths cannot diverge in what they hand `marlowe_memory::ingest`. **A change to §4.6 now
+> changes the daemon**, and that dependency runs the opposite way to the standing rule that `eval/`
+> is a scoreboard the implementation never reshapes. Nothing here moved and nothing here is
+> proposed; this is the "stop and raise it" half of that rule.
+>
+> Two loose ends, raised rather than resolved, because both want a decision:
+>
+> * **`MemoryHost` is not pinned anywhere.** `ARCHITECTURE.md` §7's boundary table has no
+>   Loop→Memory row, and §12 below opens *"every boundary in §7 is pinned"*. So a boundary that has
+>   existed in code since `MemoryHost::remember` is neither listed nor pinned, and `673bcd2` widens
+>   it with `ingest_external`. Adding the row and a §12 entry is the fix; it pins a new boundary and
+>   is therefore not a note.
+> * **The example turn above carries `origin.actor: "tool:web"`; the production impl hardcodes
+>   `actor: "harness"`**, with a reasoned comment (`check_actor` may reject and may never elevate;
+>   the harness performed the write, the page did not). One of the two should move, and which way is
+>   a recorded choice rather than two documents quietly disagreeing.
+
 ```json
 {
   "contract_version": "1.0",

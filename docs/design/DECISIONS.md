@@ -3311,3 +3311,35 @@ argument.
   silently resolves to CPU with a plausible reason string. **This must be fixed in the same change**;
   it is the one failure here that is invisible.
 
+
+---
+
+## 2026-08-29 — A NARROW decision on M3-DESIGN §12 item 5, and the item stays open
+
+**Decided:** a typed upward return — M3-DESIGN §2.3's `{ run_id, severity, category (fixed enum),
+artifact_ref, lineage[] }` — **needs no `Channel` and no trust class.** It carries no classifiable
+prose and it is never ingested. Nothing is added to `trust_for_channel`, and nothing in CONTRACTS
+§4.6 moves.
+
+**NOT decided, and the item is re-scoped rather than closed.** §8 asks the question of *"an agent's
+speech"*, and §2.3 answers only one of the three consumers of that missing slot. Two remain, and
+either would still need a variant on the day typed structure is proven to need none:
+
+1. **The meeting utterance** — §5.2's *"clone, and quarantine the utterance"*. A lateral agent
+   utterance is neither the downward instruction §2 declares safe nor the typed upward record §2.3
+   governs. ROADMAP Session E.
+2. **The harness-mediated reader over external bytes** — ADR-062 §4. A condensed summary is not agent
+   speech at all, so §2.3's argument does not reach it. `Channel::Web` would record a provenance the
+   harness knows to be false; there is no honest variant; and `trust_for_channel` is total with **no
+   default arm** precisely so that an unclassifiable origin is a decision rather than a fallback.
+
+**Sequencing, so this is not mistaken for a session's to take.** Adding a `Channel` variant is a
+**pinned-contract change** — CONTRACTS §4.6's closed set, wire-visible, with `trust_for_channel`'s
+exhaustive match and the eval side both having to agree on the string. It is the human's, and
+ADR-062 §4 costs the three options.
+
+**Why the narrow half is recorded at all, given that it changes nothing.** §12 item 5 reads *"either
+add one, or record a decision that typed structure needs none"*, and a future session reading §2.3
+would reasonably conclude the item was answered. It was answered for §2.3's object and for nothing
+else. Recording the scope is what stops the item being closed on a question smaller than the one
+asked.

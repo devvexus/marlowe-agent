@@ -58,9 +58,26 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    on this page.** The chain is four links and each was checked by grep, not by argument:
    injected memory is untrusted only if some belief is `UntrustedContent`; a belief is
    `UntrustedContent` only from `ingest` (`trust_for_channel` maps Web/Email/Messaging/Mcp/File) or
-   from `remember_claim` with an already-bottomed floor, which is circular; and **`ingest` has
-   exactly one caller in the workspace — `crates/marlowe/src/adapter.rs:304`, the `--eval-adapter`.**
-   `Channel::` appears nowhere in `crates/marlowe-daemon/src`.
+   from `remember_claim` with an already-bottomed floor, which is circular; and **`ingest` had
+   exactly one caller in the workspace, the `--eval-adapter`.**
+
+   **AMENDED 2026-08-29 (ADR-062), AND THE CONCLUSION IS UNCHANGED.** `ingest` now has **two**
+   non-test callers — `crates/marlowe/src/adapter.rs` (the eval adapter) and
+   `crates/marlowe-daemon/src/memory.rs` (`DaemonMemory::ingest_external`). `Channel::` now appears
+   in `marlowe-daemon` too, inside `ingest_external` and nowhere else. **`ingest_external` has no
+   caller of its own**, so every sentence below still holds.
+
+   **THE PRESCRIBED CHECK BELOW WAS RETIRED BY THAT SAME BRANCH, AND SAYING SO IS THE POINT.**
+   `grep -rn "\bingest("` now returns a daemon hit and reads as though the daemon ingests. It does
+   not. The command that still discriminates:
+
+   ```
+   grep -rn "ingest_external(" --include=*.rs crates/*/src/ | grep -v "fn ingest_external"
+   ```
+
+   **Zero non-definition hits means the latch is still unreachable.** A check that goes green while
+   the product is unchanged is worse than no check, which is why the old one is named as retired
+   rather than quietly replaced.
 
    So **in the shipped interactive product the latch cannot fire in a parent run at all.** It is not
    broken; it is *unreachable*, because ADR-041 removed the only reachable trigger and the
@@ -72,13 +89,30 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    number of live defences is smaller than this document has been claiming, and that the moment
    `ingest` is wired into the product — a `web`-derived belief, an inbound-mail channel, MCP output
    — layer 3 goes live *together with* two known defects in the same path (the compaction stamp and
-   the trim marker, below). Wire them in that order: **fix the two first, then wire ingest.**
+   the trim marker, below).
 
-   The check that would have caught this earlier is one command: `grep -rn "\bingest("` for callers.
+   **The order used to read "fix the two first, then wire ingest". Its first half is DONE
+   (`6a1f4f5`); its second half is now established as WRONG, so the rule is superseded rather than
+   satisfied.** ADR-062: M3-DESIGN §2.1 forbids tainting the one permanent run and §7 gives workers
+   no `MemoryWrite` (`memory: None` is hardcoded at both child `Ports` sites), so the two rows are
+   disjoint and **no run in the current architecture may correctly hold an untrusted belief.** The
+   rule is now: **fix the two — done — then STOP.** Wiring waits on scoped memory (ROADMAP M3
+   Session D) and on ADR-062 §4's origin decision, which is a pinned-contract question and the
+   human's.
+
    A live probe, not a unit test, is what closes it — ingest one `Channel::Web` belief into a real
-   profile, retrieve it, and assert on the emitted `TrustFloorLatched` event **and** a refused
-   composed target **across two turns**. If that probe cannot be written without the eval adapter,
-   that is itself the finding.
+   profile, retrieve it, and assert on a refused composed target **across two turns**. (Never on
+   `TrustFloorLatched`: instance #15 below is that event, and it fires on every run that has ever
+   run. Ask `marlowe_permission::blocks_composed_targets`.) **That probe still cannot be written,
+   and that IS the finding, now recorded:**
+   `crates/marlowe-daemon/tests/layer3_refuses_a_composed_target_from_an_ingested_belief.rs` goes as
+   far as it honestly can — a real `ingest`, a real store, a real maturation window, a real
+   adjudication, refused — and its header names the three blockers: `Daemon::turn` builds its model
+   driver internally with no seam, `retrieve` abstains on `NoReranker` with no cross-encoder loaded,
+   and a turn boundary rebuilds `Run::root`. It substitutes `daemon.rs`'s injected-memory push with
+   its own, **and that production line has zero coverage** — laundered to `UserAsserted` or deleted
+   outright, the whole daemon crate stays green (`runs/m3-mutation/finding1*.txt`). Cover it before
+   `ingest` gets a caller.
 2. **Trust class propagation.** Every belief carries its origin, and trust propagates **worst-case
    over full lineage**. Four LLM rewrites later, a web page is still `UntrustedContent`. This is what
    stops laundering. Brief §5.6 and §8; `trust.rs`; M0b Session A — 16 checked, 0 failed,
@@ -176,6 +210,29 @@ requirements only when the design docs do not answer the question.
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
   **15** — the trust-floor banner, which is the widest gap yet between what fired and what was
   claimed (M2 C2f).
+
+- **A PRESCRIBED DIAGNOSTIC CAN BE RETIRED BY THE VERY CHANGE THAT MAKES IT MATTER, AND IT
+  RETIRES BY GOING GREEN.** The **eighteenth** instance, found closing M3 Session B2, and it is the
+  first one committed against *this file*.
+
+  The layer-3 paragraph above named one command as *"the check that would have caught this
+  earlier"*: `grep -rn "\bingest("` for callers. `673bcd2` added `DaemonMemory::ingest_external`,
+  which calls `ingest` and **has no caller of its own**. The command now returns a daemon hit. A
+  reader running the prescribed check concludes the daemon ingests; the product's reachability is
+  **completely unchanged**.
+
+  Nothing was broken and nothing was hidden. The port is deliberate, the commit message says so, and
+  the check answers a question — *"does anything call `ingest`"* — that used to be the same question
+  as *"can the daemon become tainted"* and silently stopped being it. The discriminating command is
+  one level down (`ingest_external(` in `crates/*/src/`, minus the definition), and it had to be
+  written down because the old one now reads as a positive result.
+
+  **Ask of any command a document prescribes: what makes this the same question as the one being
+  asked, and what change would separate them?** The answer is usually a call graph, and a call graph
+  is exactly what a session is about to alter. This is the pipe-tested-guard family aimed at
+  documentation instead of code: a check that answers an adjacent question reads identically to one
+  that answers the real one — and unlike a stale guarded path, which goes silent, a retired grep
+  goes **loud and affirmative**, which is worse.
 
 - **A ZERO BUDGET DIMENSION MEANS "ALREADY EXHAUSTED", NOT "MAY NOT USE".** The **seventeenth**
   instance, found building ADR-041, and it is the cheapest possible mistake to make.
