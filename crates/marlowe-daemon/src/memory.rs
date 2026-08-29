@@ -31,7 +31,8 @@ use marlowe_memory::retrieve::{
     debug_assert_injection_valid, select_for_injection, Rerank, Scoring, RERANK_BUDGET,
 };
 use marlowe_memory::{
-    ingest, remember_claim, Abstention, BeliefStore, ClaimWrite, FrozenGate, OperatingPoint,
+    ingest, memory_id, remember_claim, Abstention, BeliefStore, ClaimWrite, FrozenGate,
+    OperatingPoint,
 };
 
 /// What one turn's retrieval produced.
@@ -361,6 +362,106 @@ fn payload_kind_from(raw: &str) -> Option<PayloadKind> {
     serde_json::from_value(serde_json::Value::String(raw.to_string())).ok()
 }
 
+/// The `turn_id` an externally-ingested belief is written under.
+///
+/// # The bug this exists to close, because a one-line `format!` did not look like one
+///
+/// It was `format!("external:{run}:{now_ms}")`. `marlowe_memory::entry::memory_id` is
+/// `m-{session_id}-{turn_id}-{index}`, and `index` is a turn's position **within one
+/// `IngestRequest`** — `ingest_external` sends a one-turn request, so it is `0` on every call.
+/// The whole of a belief's identity therefore rested on the turn id, and ADR-041 reads a group of
+/// up to `MAX_SOURCES_PER_READER` sources in **one turn at one clock reading**: six calls, one
+/// `run`, one `now_ms`, one derived id. `BeliefStore::insert` is a `BTreeMap` insert, so five of
+/// the six were overwritten — no error, no `MemoryWriteRejected` event, nothing failing.
+/// `crates/marlowe-daemon/tests/external_ingest_identity.rs` reads `left: 1, right: 6` without
+/// this function.
+///
+/// # It is the CONTENT and the ORIGIN, and deliberately not the time
+///
+/// Time is what had to leave, not merely what was insufficient. A `memory_id` containing a
+/// timestamp fails the clock probe's translation invariance — shift every supplied timestamp by
+/// ten years and the injected ids must not move — and the old spelling smuggled one in one
+/// derivation step away from where the workspace guard greps for it
+/// (`memory_ids_are_not_built_from_timestamps` looks for an id word and a time word on the *same
+/// line*, and these were in two different crates). A digest over `(channel, reference, text)` is
+/// stable under replay, under a daemon restart, and under two runs interleaving — none of which a
+/// counter would be, since a process-global counter makes an id depend on scheduling and a
+/// per-run one resets when the process does. **That is a claim about the DIGEST.** The composite
+/// id this function returns also carries `run`, which is not stable across runs — see the last
+/// section.
+///
+/// # The collapse this leaves, stated because it is a choice
+///
+/// Two ingests of a byte-identical summary under a byte-identical origin **inside one run** derive
+/// one id and become one belief. That direction is chosen: whoever can get a page fetched can
+/// usually get it fetched repeatedly, and N copies of one belief is N times the apparent
+/// corroboration in a store that is about to rank them. Idempotency costs a duplicate; the
+/// alternative pays in manufactured consensus. Different `reference`, different belief — which is
+/// CLAUDE.md's saturated-floor point applied to identity: where every source is
+/// `UntrustedContent`, *who asserted it* is the only remaining discriminator, so it belongs in
+/// the key.
+///
+/// **`run` stays in the id**, and that bounds every claim above to ONE RUN. `RunId::new` is
+/// `Uuid::new_v4` (`marlowe-loop/src/run.rs`), so a production run id is random: the derived id is
+/// reproducible *within* a run — replay and resume carry the same persisted `RunId`, and
+/// `Uuid::new_v5` adds no nondeterminism — and is different across runs, across turns that open a
+/// new run, and across a daemon restart, **by construction**. So the anti-corroboration property is
+/// **intra-run only**: the ordinary way a page gets fetched repeatedly is across turns, and that
+/// still produces N beliefs. Whether identity should be global instead is an open question, not a
+/// settled trade — ADR-062 §6.3 records it, and making it global makes the resurrection guard below
+/// load-bearing rather than merely correct.
+///
+/// # A repeat write on an existing id is a NO-OP, and that is not an optimisation
+///
+/// `BeliefStore::insert` is a `BTreeMap` insert and `BeliefStore::derive` replays with the same
+/// insert, so a second `MemoryWritten` for an id **overwrites the entry wholesale** — restoring the
+/// text a `Tombstoned` event cleared, resetting `fidelity` to `Record`, and clearing
+/// `superseded_by`. Both producers are reachable (`claim.rs`'s `forget_claim`,
+/// `consolidate.rs`'s supersession), so without the check below: the user says *forget that*, the
+/// same page is fetched again, and the forgotten belief is back at full fidelity and readmitted as
+/// an injection candidate by §4.3 exclusion (2). Content-derived identity is what makes that
+/// collision reachable at all, so the guard belongs with the derivation.
+///
+/// The check is at this caller rather than inside `marlowe_memory::ingest`, deliberately:
+/// `ingest` is the §4.6 path the eval harness drives, `eval/` is the scoreboard, and changing what
+/// a repeated turn id means there would change the scoreboard's behaviour to accommodate an
+/// implementation. **The general property — that `insert` on a live id resurrects — is untouched
+/// and is raised in ADR-062 §6.3 rather than fixed here.**
+fn external_turn_id(run: RunId, content: &ExternalContent<'_>) -> String {
+    // **The PINNED serde spelling, not `Debug`.** `Debug` was the first spelling here and it was
+    // wrong for a reason that takes one refactor to arrive: a `Debug` derive is not a stable
+    // format, and `Channel` pins its wire spelling with `#[serde(rename_all = "snake_case")]`
+    // precisely because the string is a contract. Renaming a variant in source — permitted by the
+    // contract, since the serde attribute holds the wire name — would silently change every id
+    // derived before the rename, and every already-known source would then re-ingest as a NEW
+    // belief with no error and no event: this function's own bug, rebuilt one layer down.
+    // `external_turn_id_is_pinned_to_the_wire_spelling` asserts a full derived id against a
+    // literal, so a spelling change fails by name instead of forking the store.
+    let channel = serde_json::to_string(&content.channel)
+        .expect("Channel is a plain unit-variant enum and cannot fail to serialize");
+    // `Some("")` and `None` must not encode identically: an absent reference and an empty one are
+    // different provenance claims.
+    let reference = match content.reference {
+        Some(r) => format!("some:{r}"),
+        None => "none".to_string(),
+    };
+    // Length-prefixed. Plain concatenation lets `("ab", "c")` and `("a", "bc")` collide, which
+    // would be this same bug rebuilt one layer down and much harder to see.
+    let mut input: Vec<u8> = Vec::new();
+    for field in [
+        channel.as_bytes(),
+        reference.as_bytes(),
+        content.text.as_bytes(),
+    ] {
+        input.extend_from_slice(&(field.len() as u64).to_le_bytes());
+        input.extend_from_slice(field);
+    }
+    format!(
+        "external:{run}:{}",
+        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, &input)
+    )
+}
+
 impl MemoryHost for DaemonMemory {
     fn remember(
         &mut self,
@@ -449,6 +550,31 @@ impl MemoryHost for DaemonMemory {
             return Err("nothing to ingest: the content is empty".to_string());
         }
 
+        let turn_id = external_turn_id(run, content);
+
+        // **The resurrection guard.** `external_turn_id`'s last section is the argument; this is
+        // the enforcement, and the two are ten lines apart on purpose.
+        //
+        // `marlowe_memory::entry::memory_id` is `m-{session}-{turn_id}-{index}` and `index` is the
+        // turn's position within the request below, which has exactly one turn — so `0`. Coupling
+        // to that is the cost of checking before the write rather than reconciling after it; the
+        // request is constructed immediately underneath, so the two cannot drift apart unseen, and
+        // `a_tombstoned_belief_stays_dead_when_the_same_source_is_ingested_again` fails if they do.
+        //
+        // Returning the class the store already holds is the whole behaviour: the caller is told
+        // what this origin's class IS, which is what it asked, and nothing is journalled. A second
+        // `MemoryWritten` would be the resurrection; a refusal would make idempotency look like a
+        // failure to a caller that legitimately re-read a page.
+        let derived_id = memory_id(&session.to_string(), &turn_id, 0);
+        if let Some(existing) = self
+            .beliefs
+            .lock()
+            .expect("the belief store lock was poisoned")
+            .get(&derived_id)
+        {
+            return Ok(existing.effective_trust);
+        }
+
         // §4.6's shape, built here rather than deserialized: this is the same wire type the eval
         // adapter fills from JSON, so the two paths cannot diverge in what they hand `ingest`.
         //
@@ -461,7 +587,7 @@ impl MemoryHost for DaemonMemory {
             clock: Clock::new(now_ms),
             session_id: session.to_string(),
             turns: vec![marlowe_contract::Turn {
-                turn_id: format!("external:{run}:{now_ms}"),
+                turn_id,
                 speaker: marlowe_contract::Speaker::Tool,
                 text: content.text.to_string(),
                 occurred_at_ms: now_ms,
