@@ -1,0 +1,64 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1670:9
+     |
+1670 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-daemon` (lib) generated 3 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-daemon)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.07s
+     Running tests\layer3_is_load_bearing.rs (target\debug\deps\layer3_is_load_bearing-de5fdc9bace1571c.exe)
+
+running 1 test
+test a_web_belief_ingested_through_the_real_path_refuses_a_composed_target ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.03s
+

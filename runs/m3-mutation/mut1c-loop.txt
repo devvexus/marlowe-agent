@@ -1,0 +1,169 @@
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-loop)
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.62s
+     Running tests\injection_attempts.rs (target\debug\deps\injection_attempts-38366d1192a7ba9a.exe)
+
+running 10 tests
+test an_instruction_inside_an_html_comment_does_not_reach_the_parent ... ok
+test a_page_cannot_forge_a_field_header_through_the_reader ... ok
+test ansi_escapes_from_a_page_never_reach_the_parent ... ok
+test a_page_impersonating_the_quarantine_banner_is_still_quarantined ... ok
+test a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash ... FAILED
+test no_hostile_page_moves_the_parents_trust_floor ... FAILED
+test even_a_fully_compromised_reader_cannot_make_the_parent_run_a_tool ... ok
+test an_instruction_inside_a_script_tag_does_not_reach_the_parent ... ok
+test a_reader_emitting_control_characters_is_refused_by_the_contract ... ok
+test an_enormous_hostile_page_is_still_contained ... ok
+
+failures:
+
+---- a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash stdout ----
+
+thread 'a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash' (76676) panicked at crates\marlowe-loop\tests\injection_attempts.rs:185:5:
+assertion `left == right` failed: the parent must stay clean
+  left: UserAsserted
+ right: AgentInferred
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- no_hostile_page_moves_the_parents_trust_floor stdout ----
+
+thread 'no_hostile_page_moves_the_parents_trust_floor' (82744) panicked at crates\marlowe-loop\tests\injection_attempts.rs:339:9:
+assertion `left == right` failed: page "<html><body>plain</body></html>" moved the parent's floor to UserAsserted
+  left: UserAsserted
+ right: AgentInferred
+
+
+failures:
+    a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash
+    no_hostile_page_moves_the_parents_trust_floor
+
+test result: FAILED. 8 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p marlowe-loop --test injection_attempts`
+     Running tests\shortening_never_raises_the_floor.rs (target\debug\deps\shortening_never_raises_the_floor-9eb15b8bb6a3c79e.exe)
+
+running 8 tests
+test a_compaction_that_discards_nothing_untrusted_leaves_the_summary_agent_inferred ... ok
+test a_compaction_that_discards_untrusted_content_stamps_the_summary_untrusted ... ok
+test an_omission_marker_over_trusted_blocks_does_not_lower_the_floor ... ok
+test compacting_an_empty_tier_is_agent_inferred_and_not_untrusted ... ok
+test an_omission_marker_takes_the_worst_class_of_a_mixed_set ... ok
+test an_omission_marker_carries_the_class_of_what_it_omitted ... ok
+test compaction_never_raises_the_class_above_agent_inferred ... ok
+test truncation_still_carries_the_class_it_always_did ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spawn_and_budget.rs (target\debug\deps\spawn_and_budget-228ebafca29ca012.exe)
+
+running 32 tests
+test a_declared_amount_is_rendered_as_money_in_the_scope_line ... ok
+test a_child_cannot_be_less_tainted_than_the_run_that_spawned_it ... FAILED
+test a_child_that_returns_a_transcript_shaped_result_is_refused_by_its_contract ... ok
+test a_negative_amount_is_not_quietly_turned_into_a_valid_one ... ok
+test a_model_that_returns_nothing_fails_the_run_rather_than_completing_it ... ok
+test a_child_cannot_be_given_a_tool_its_parent_does_not_have ... ok
+test a_refusal_tells_the_model_what_happened_and_whether_to_retry ... ok
+test a_driver_that_ignores_its_cap_is_stopped_at_the_next_iteration ... ok
+test a_quarantined_child_runs_and_returns_findings ... ok
+test a_child_does_not_inherit_its_parents_provenance_attributions ... ok
+test a_blocked_tool_call_still_emits_a_tool_line ... ok
+test a_childs_spend_counts_against_its_parent ... ok
+test a_budget_ceiling_pauses_and_never_spends_past_the_line ... ok
+test a_childs_transcript_never_reaches_the_parents_context ... ok
+test the_empty_tool_set_with_reads_untrusted_is_the_valid_quarantined_reader ... ok
+test a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts ... ok
+test a_batch_cannot_launder_a_target_through_its_own_sibling ... FAILED
+test an_integer_declared_as_an_integer_is_not_turned_into_money ... ok
+test a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it ... ok
+test the_guard_names_a_tool_that_has_no_executor ... ok
+test the_interactive_profile_exposes_nothing_the_tool_host_cannot_run ... ok
+test an_empty_turn_is_nudged_before_it_is_failed ... ok
+test the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view ... FAILED
+test a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop ... FAILED
+test the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing ... FAILED
+test every_result_in_a_batch_is_attributable_to_the_call_that_produced_it ... ok
+test a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name ... ok
+test a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked ... ok
+test an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once ... FAILED
+test the_spawn_tree_is_bounded_by_depth ... ok
+test every_budget_dimension_can_be_the_one_that_pauses ... ok
+test the_latch_announces_exactly_when_a_composed_target_is_actually_blocked ... FAILED
+
+failures:
+
+---- a_child_cannot_be_less_tainted_than_the_run_that_spawned_it stdout ----
+
+thread 'a_child_cannot_be_less_tainted_than_the_run_that_spawned_it' (69552) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:1760:5:
+assertion `left == right` failed: a child started clean would launder exactly what ADR-023 blocks: its task string was model-composed from the parent's tainted window
+  left: UserAsserted
+ right: UntrustedContent
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_batch_cannot_launder_a_target_through_its_own_sibling stdout ----
+
+thread 'a_batch_cannot_launder_a_target_through_its_own_sibling' (77880) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:1309:5:
+assertion `left == right` failed: the batch's untrusted results were condensed away and never touched this run's floor
+  left: UserAsserted
+ right: AgentInferred
+
+---- the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view stdout ----
+
+thread 'the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view' (79576) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:1661:5:
+assertion `left == right` failed: the latch must engage the first time untrusted content is seen
+  left: None
+ right: Some(UntrustedContent)
+
+---- a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop stdout ----
+
+thread 'a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop' (86844) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:807:5:
+assertion `left == right` failed: the injected memory must have latched the floor, or the refusal below proves nothing
+  left: UserAsserted
+ right: UntrustedContent
+
+---- the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing stdout ----
+
+thread 'the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing' (86696) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:1051:5:
+assertion `left == right` failed: the identity block alone moves the floor on the first assemble, with no tool call anywhere in the run
+  left: []
+ right: ["AgentObserved"]
+
+---- an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once stdout ----
+
+thread 'an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once' (83892) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:985:5:
+assertion `left == right` failed: the floor did move — it is the CLAIM that was wrong
+  left: UserAsserted
+ right: AgentInferred
+
+---- the_latch_announces_exactly_when_a_composed_target_is_actually_blocked stdout ----
+
+thread 'the_latch_announces_exactly_when_a_composed_target_is_actually_blocked' (79016) panicked at crates\marlowe-loop\tests\spawn_and_budget.rs:965:9:
+assertion `left == right` failed: at tool trust UntrustedContent, floor UserAsserted: the composed shell commands must run exactly when the banner stays silent. 0 ran
+  left: 0
+ right: 2
+
+
+failures:
+    a_batch_cannot_launder_a_target_through_its_own_sibling
+    a_child_cannot_be_less_tainted_than_the_run_that_spawned_it
+    a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop
+    an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once
+    the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing
+    the_latch_announces_exactly_when_a_composed_target_is_actually_blocked
+    the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view
+
+test result: FAILED. 25 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p marlowe-loop --test spawn_and_budget`
+error: 2 targets failed:
+    `-p marlowe-loop --test injection_attempts`
+    `-p marlowe-loop --test spawn_and_budget`

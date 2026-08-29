@@ -1,0 +1,381 @@
+   Compiling crc32fast v1.5.0
+   Compiling ureq-proto v0.6.0
+   Compiling digest v0.10.7
+   Compiling marlowe-journal v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-journal)
+   Compiling sha2 v0.10.9
+   Compiling flate2 v1.1.9
+   Compiling ureq v3.3.0
+   Compiling ort-sys v2.0.0-rc.10
+   Compiling ort v2.0.0-rc.10
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-memory)
+warning: function `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key` should have a snake case name
+   --> crates\marlowe-memory\src\gate\features.rs:448:8
+    |
+448 |     fn z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_rank_key`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: function `declaring_a_RANK_feature_inert_is_refused` should have a snake case name
+   --> crates\marlowe-memory\src\gate\mod.rs:954:8
+    |
+954 |     fn declaring_a_RANK_feature_inert_is_refused() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `declaring_a_rank_feature_inert_is_refused`
+
+warning: function `the_calibration_reads_MARGIN_and_nothing_else` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1056:8
+     |
+1056 |     fn the_calibration_reads_MARGIN_and_nothing_else() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `the_calibration_reads_margin_and_nothing_else`
+
+warning: function `the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value` should have a snake case name
+    --> crates\marlowe-memory\src\gate\mod.rs:1066:8
+     |
+1066 |     fn the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case (notice the capitalization): `the_ranking_score_is_the_winning_cues_z_not_its_calibrated_value`
+
+warning: function `an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index` should have a snake case name
+    --> crates\marlowe-memory\src\retrieve.rs:1619:8
+     |
+1619 |     fn an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `an_adjacent_rank_swap_is_an_exact_tie_and_breaks_by_candidate_index`
+
+warning: unused variable: `reference_order`
+   --> crates\marlowe-memory\tests\rerank_provider.rs:435:9
+    |
+435 |     let reference_order = order_of(&alone);
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_reference_order`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-memory` (lib test) generated 5 warnings
+warning: `marlowe-memory` (test "rerank_provider") generated 1 warning (run `cargo fix --test "rerank_provider" -p marlowe-memory` to apply 1 suggestion)
+warning: function `a_cuda_session_that_loaded_actually_holds_DEVICE_memory` should have a snake case name
+   --> crates\marlowe-memory\tests\embedder_provider.rs:170:4
+    |
+170 | fn a_cuda_session_that_loaded_actually_holds_DEVICE_memory() {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `a_cuda_session_that_loaded_actually_holds_device_memory`
+    |
+    = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: `marlowe-memory` (test "embedder_provider") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.59s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_memory-3bfc43ae83480986.exe)
+
+running 162 tests
+test cue::dense::cache::tests::every_identity_field_participates_in_the_key ... ok
+test consolidate::tests::dissimilar_entries_are_never_merged ... ok
+test consolidate::tests::another_session_is_never_touched ... ok
+test consolidate::tests::an_entry_with_no_vector_is_kept_rather_than_merged_away ... ok
+test consolidate::tests::the_survivor_is_the_latest_not_the_earliest ... ok
+test consolidate::tests::a_superseded_member_leaves_the_injection_candidate_set ... ok
+test consolidate::tests::the_applied_linkage_is_complete ... ok
+test consolidate::tests::single_link_chains_a_transitive_run_and_complete_link_does_not ... ok
+test consolidate::tests::consolidation_is_deterministic_across_runs ... ok
+test consolidate::tests::the_histogram_makes_a_badly_chosen_dump_floor_visible ... ok
+test consolidate::tests::a_dry_run_sweeps_every_threshold_and_marks_itself_unapplied ... ok
+test cue::dense::cuda_libs::tests::a_directory_that_does_not_exist_is_named_rather_than_left_to_error_126 ... ok
+test cue::dense::cuda_libs::tests::an_empty_variable_is_refused_rather_than_read_as_unset ... ok
+test cue::dense::cuda_libs::tests::an_unset_variable_is_not_a_failure_and_not_a_promise ... ok
+test cue::dense::embedder::tests::a_missing_model_names_the_fetch_command_rather_than_defaulting ... ok
+test cue::dense::embedder::tests::the_pinned_digests_match_the_fetched_model ... ok
+test cue::dense::hostmem::tests::the_quadratic_term_is_the_one_that_moved ... ok
+test cue::dense::hostmem::tests::the_shipped_cap_predicts_a_footprint_in_megabytes_not_gigabytes ... ok
+test cue::dense::tests::an_all_zero_hidden_state_does_not_divide_by_zero ... ok
+test cue::dense::tests::an_opposed_vector_scores_zero_rather_than_negative ... ok
+test cue::dense::tests::cosine_of_a_vector_with_itself_is_one ... ok
+test cue::dense::tests::pooling_and_cosine_are_deterministic ... ok
+test cue::dense::tests::pooling_averages_over_tokens_then_normalizes_to_unit_length ... ok
+test cue::dense::tests::similarity_is_absolute_not_relative_to_the_candidate_set ... ok
+test cue::dense::tokenizer::tests::an_empty_text_is_just_the_special_tokens ... ok
+test cue::dense::tokenizer::tests::an_overlong_word_is_a_single_unk ... ok
+test cue::dense::tokenizer::tests::accents_are_stripped_because_strip_accents_null_means_derive_from_do_lower_case ... ok
+test cue::dense::tokenizer::tests::basic_tokenize_lowercases_and_splits_punctuation ... ok
+test cue::dense::tokenizer::tests::cjk_characters_each_become_their_own_token ... ok
+test cue::dense::tokenizer::tests::encode_wraps_in_cls_and_sep ... ok
+test cue::dense::tokenizer::tests::separators_split_but_control_characters_weld ... ok
+test cue::dense::tokenizer::tests::special_token_literals_in_the_text_are_split_out_case_sensitively ... ok
+test cue::dense::tokenizer::tests::wordpiece_uses_continuations_and_falls_back_to_unk_for_the_whole_word ... ok
+test cue::dense::vectors::tests::an_empty_store_returns_nothing_rather_than_a_zero_vector ... ok
+test cue::dense::tokenizer::tests::tokenizing_is_deterministic ... ok
+test cue::dense::vectors::tests::retain_live_drops_vectors_for_memories_that_are_gone ... ok
+test cue::dense::vram::tests::a_fixed_probe_reports_exactly_what_it_was_given ... ok
+test cue::dense::vram::tests::the_crate_wide_guard_exists_and_still_names_this_module ... ok
+test cue::dense::vram::tests::zero_free_and_no_device_are_different_answers ... ok
+test cue::lexical::tests::a_matching_document_outscores_a_non_matching_one ... ok
+test cue::dense::tokenizer::tests::truncation_keeps_sep_last_and_says_so ... ok
+test cue::lexical::tests::a_query_sharing_no_vocabulary_scores_zero_everywhere ... ok
+test cue::lexical::tests::an_empty_candidate_set_scores_nothing_rather_than_dividing_by_zero ... ok
+test cue::lexical::tests::idf_is_never_negative ... ok
+test cue::lexical::tests::no_stemming_and_no_stop_list ... ok
+test cue::lexical::tests::saturation_is_absolute_not_relative_to_the_candidate_set ... ok
+test cue::lexical::tests::saturation_is_monotone ... ok
+test cue::dense::cuda_libs::tests::a_partial_runtime_is_refused_and_the_refusal_names_every_missing_library ... ok
+test cue::lexical::tests::the_belief_path_and_the_text_path_are_the_same_arithmetic ... ok
+test cue::lexical::tests::the_tokenizer_does_what_it_says ... ok
+test cue::lexical::tests::scoring_is_deterministic_across_calls ... ok
+test entry::tests::all_three_exclusions_bite_independently ... ok
+test entry::tests::an_unmatured_entry_is_not_an_injection_candidate ... ok
+test entry::tests::memory_ids_do_not_contain_a_timestamp ... ok
+test gate::features::tests::a_lone_candidate_competes_against_nothing_worth_zero ... ok
+test gate::features::tests::an_empty_candidate_set_extracts_nothing_rather_than_panicking ... ok
+test gate::features::tests::cue_agreement_counts_how_many_of_the_two_cues_fired ... ok
+test cue::dense::cache::tests::hits_and_misses_are_counted_so_a_dead_cache_is_visible ... ok
+test gate::features::tests::extraction_is_bit_identical_across_calls ... ok
+test gate::features::tests::a_tie_at_the_top_gives_both_candidates_zero_margin ... ok
+test gate::features::tests::feature_names_are_unique ... ok
+test gate::features::tests::margin_is_the_lead_over_the_runner_up_and_is_negative_for_everyone_else ... ok
+test gate::features::tests::no_feature_takes_two_roles ... ok
+test cue::dense::cache::tests::different_texts_do_not_collide ... ok
+test cue::dense::cuda_libs::tests::a_complete_runtime_in_one_directory_is_applied ... ok
+test gate::features::tests::reciprocal_rank_is_a_total_order_even_under_ties ... ok
+test gate::features::tests::margin_preserves_absolute_magnitude_which_is_why_it_is_the_calibrated_feature ... ok
+test gate::features::tests::sigma_zero_yields_zero_not_a_division ... ok
+test gate::features::tests::ordinals_span_zero_to_one ... ok
+test cue::dense::cuda_libs::tests::pointing_at_the_library_instead_of_its_directory_is_refused ... ok
+test gate::features::tests::names_and_values_stay_aligned ... ok
+test cue::dense::cache::tests::a_different_model_digest_cannot_read_the_previous_models_vectors ... ok
+test cue::dense::cache::tests::putting_the_same_text_twice_does_not_duplicate_the_record ... ok
+test gate::features::tests::the_gate_scores_effective_trust_not_declared_trust ... ok
+test gate::features::tests::the_raw_scores_are_retained_because_number_3_sweeps_them ... ok
+test gate::features::tests::the_role_arrays_agree_with_the_cue_specs ... ok
+test gate::features::tests::z_is_dimensionless_and_scale_invariant_which_is_why_it_is_the_RANK_key ... ok
+test gate::features::tests::z_sums_to_zero_and_has_unit_spread ... ok
+test gate::tests::a_disagreeing_ranking_key_is_refused ... ok
+test gate::tests::a_duplicate_breakpoint_is_refused ... ok
+test gate::tests::a_cue_without_a_curve_is_refused ... ok
+test gate::tests::a_curve_that_is_never_read_is_refused ... ok
+test gate::tests::a_failed_floor_loads_while_it_cannot_inject ... ok
+test gate::tests::a_failed_floor_that_would_inject_is_refused ... ok
+test cue::dense::cache::tests::a_hit_and_a_miss_produce_byte_identical_vectors ... ok
+test gate::tests::a_missing_field_names_itself ... ok
+test gate::tests::a_missing_rank_features_declaration_is_refused ... ok
+test gate::tests::a_moved_threshold_is_refused ... ok
+test gate::tests::a_v3_artifact_is_refused_by_its_own_missing_role ... ok
+test gate::tests::a_passing_floor_that_would_inject_loads ... ok
+test gate::tests::a_precision_above_one_is_refused ... ok
+test gate::tests::a_feature_in_no_role_with_no_stated_reason_is_refused ... ok
+test gate::tests::a_v3_fusion_declared_on_a_v4_schema_is_refused_by_name ... ok
+test gate::tests::a_non_monotone_curve_is_refused_and_names_its_cue ... ok
+test gate::tests::an_unmeasured_floor_loads_because_refusing_it_would_deadlock ... ok
+test gate::tests::a_wrong_version_is_refused ... ok
+test gate::tests::an_inert_feature_cannot_move_the_verdict ... ok
+test gate::tests::an_unfitted_artifact_is_refused_rather_than_defaulted ... ok
+test gate::tests::an_empty_curve_is_refused ... ok
+test gate::tests::an_unrecognised_floor_verdict_is_refused ... ok
+test gate::tests::declaring_a_RANK_feature_inert_is_refused ... ok
+test gate::tests::an_unsorted_curve_is_refused ... ok
+test gate::tests::declaring_a_cue_inert_is_refused ... ok
+test gate::tests::dropping_a_cue_is_refused_rather_than_silently_calibrating_one ... ok
+test gate::tests::declaring_an_unknown_feature_inert_is_refused ... ok
+test gate::tests::either_cue_alone_can_carry_a_candidate ... ok
+test gate::tests::max_calibrated_precision_is_the_best_cues_top_block ... ok
+test gate::tests::reordered_feature_names_are_refused ... ok
+test gate::tests::scoring_is_deterministic ... ok
+test gate::tests::the_calibration_reads_MARGIN_and_nothing_else ... ok
+test cue::dense::cuda_libs::tests::the_requirement_is_on_the_union_of_the_directories_not_on_each_one ... ok
+test gate::tests::the_ranking_score_is_the_winning_cues_Z_not_its_calibrated_value ... ok
+test gate::tests::the_two_stamps_are_distinguishable ... ok
+test gate::tests::the_threshold_is_read_in_calibrated_units_not_score_units ... ok
+test gate::tests::the_weaker_cue_cannot_drag_the_verdict_down ... ok
+test gate::tests::two_candidates_in_the_same_calibration_block_are_still_ordered ... ok
+test operating_point::tests::a_margin_at_or_above_the_cut_point_admits_and_below_it_abstains ... ok
+test operating_point::tests::admission_is_rank_one_alone_and_the_type_cannot_express_a_slate ... ok
+test operating_point::tests::every_abstention_reason_is_distinguishable_from_the_others ... ok
+test operating_point::tests::the_measurement_arm_is_recorded_rather_than_left_to_a_command_line_nobody_kept ... ok
+test operating_point::tests::full_coverage_admits_exactly_where_declared_abstains_on_the_margin_and_nowhere_else ... ok
+test operating_point::tests::nothing_the_operating_point_can_say_mentions_precision ... ok
+test operating_point::tests::the_margin_is_recorded_even_when_it_falls_short ... ok
+test probe::tests::every_stage_has_a_distinct_index_and_name ... ok
+test operating_point::tests::an_artifact_measured_on_another_graph_is_refused_by_name ... ok
+test operating_point::tests::the_shipped_artifact_loads_and_declares_the_published_cut_point ... ok
+test retrieve::tests::a_gap_exactly_at_the_threshold_does_not_split ... ok
+test operating_point::tests::without_a_reranker_nothing_injects_however_good_the_scores_look ... ok
+test gate::tests::the_committed_artifact_is_whatever_it_says_it_is ... ok
+test retrieve::tests::a_single_candidate_passes_through_with_rank_zero ... ok
+test retrieve::tests::an_adjacent_rank_swap_is_an_EXACT_tie_and_breaks_by_candidate_index ... ok
+test retrieve::tests::contiguous_turns_form_one_session_and_a_gap_starts_another ... ok
+test retrieve::tests::a_margin_calibrated_gate_can_pass_at_most_one_candidate_per_cue ... ok
+test retrieve::tests::a_query_matching_nothing_clears_no_candidate ... ok
+test retrieve::tests::equal_secondary_logits_get_secondary_ranks_by_index_then_still_fuse ... ok
+test retrieve::tests::keys_follow_the_candidates_own_order_not_time_order ... ok
+test retrieve::tests::an_unreranked_candidate_never_outranks_a_reranked_one ... ok
+test retrieve::tests::max_aggregation_cannot_displace_a_cues_top_1_candidate ... ok
+test retrieve::tests::nothing_is_injected_before_maturation ... ok
+test retrieve::tests::every_scored_candidate_is_retained_including_the_rejects ... ok
+test retrieve::tests::only_the_requested_session_is_scoped ... ok
+test retrieve::tests::pruning_does_not_apply_when_there_is_nothing_to_prune ... ok
+test retrieve::tests::pruning_keeps_the_union_of_each_cues_top_sessions ... ok
+test retrieve::tests::rrf_fusion_orders_by_reciprocal_rank_sum ... ok
+test retrieve::tests::simultaneous_turns_share_a_session_whatever_their_ids ... ok
+test retrieve::tests::the_token_estimate_is_pessimistic ... ok
+test retrieve::tests::under_the_cascade_rerank_score_stays_the_SHIPPED_graphs_logit ... ok
+test retrieve::tests::the_dump_order_is_stable ... ok
+test retrieve::tests::the_budget_cuts_after_the_gate_and_says_so ... ok
+test trust::tests::derivation_depth_does_not_launder ... ok
+test trust::tests::no_parents_means_own_trust ... ok
+test retrieve::tests::ranking_is_deterministic ... ok
+test trust::tests::one_untrusted_parent_drags_the_whole_derivation_down ... ok
+test trust::tests::ordinary_actors_pass ... ok
+test trust::tests::reserved_actors_are_refused ... ok
+test retrieve::tests::the_gate_drops_what_it_does_not_believe_in ... ok
+test trust::tests::the_actor_check_cannot_elevate ... ok
+test trust::tests::web_is_untrusted_no_matter_what ... ok
+test cue::dense::embedder::tests::a_swapped_model_file_is_refused_at_load ... ok
+test cue::dense::cache::tests::a_truncated_file_is_refused_rather_than_partially_served ... ok
+test cue::dense::vram::tests::the_device_reading_is_either_absent_or_plausible ... ok
+test cue::dense::hostmem::tests::a_reading_is_either_absent_or_plausible ... ok
+
+test result: ok. 162 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests\claim.rs (target\debug\deps\claim-29329b281adf5300.exe)
+
+running 12 tests
+test correcting_or_forgetting_something_that_does_not_exist_is_refused ... ok
+test forgetting_clears_the_text_and_a_rebuild_reproduces_exactly_that ... ok
+test no_floor_however_high_lets_a_model_claim_reach_the_harness_tier ... ok
+test an_empty_claim_is_refused_rather_than_written ... ok
+test an_unknown_parent_is_refused_and_the_refusal_is_in_the_log ... ok
+test a_fresh_claim_is_withheld_from_injection_until_it_matures ... ok
+test a_parents_worse_trust_drags_the_derived_claim_down_with_it ... ok
+test a_correction_may_not_lower_a_beliefs_authority_but_an_equal_one_may ... ok
+test a_correction_supersedes_the_old_belief_without_deleting_it ... ok
+test successive_claims_in_a_session_get_distinct_ids ... ok
+test the_run_floor_decides_a_claims_trust_class_and_a_clean_run_writes_higher ... ok
+test the_same_write_against_the_same_store_gets_the_same_id_at_any_clock ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests\cross_encoder_reference.rs (target\debug\deps\cross_encoder_reference-d7fb1730eaf0dfa1.exe)
+
+running 12 tests
+test a_batch_larger_than_the_measured_envelope_is_refused ... ok
+test batched_and_single_scoring_are_bit_identical ... ok
+test scoring_the_same_pair_twice_gives_the_same_logit ... ok
+test the_superseded_int8_directory_is_refused_by_name ... ok
+test the_cascade_fuse_graph_reproduces_its_own_reference_logits ... ok
+test the_longest_first_case_actually_exercises_the_strategy ... ok
+test the_pair_encoder_reproduces_huggingface_exactly ... ok
+test the_rust_graph_reproduces_the_reference_logits ... ok
+test the_rust_graph_reproduces_the_reference_on_cuda_too ... ok
+test batched_and_single_scoring_are_bit_identical_on_the_cascade_fuse_graph ... ok
+test the_two_vocabularies_encode_identically ... ok
+test the_rerank_budget_never_exceeds_what_invariance_was_measured_at ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\cuda_libs_hint.rs (target\debug\deps\cuda_libs_hint-df3b848b38722d71.exe)
+
+running 1 test
+test a_cuda_load_failure_with_nothing_configured_names_the_variable_that_would_fix_it ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\cuda_libs_wiring.rs (target\debug\deps\cuda_libs_wiring-415f6b8043b26a91.exe)
+
+running 1 test
+test both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words ... FAILED
+
+failures:
+
+---- both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words stdout ----
+SKIP embedder half: run `python tools/fetch_model.py`
+SKIP reranker half: run `python tools/fetch_model.py --cross-encoder`
+
+thread 'both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words' (70528) panicked at crates\marlowe-memory\tests\cuda_libs_wiring.rs:97:5:
+neither model is present, so neither call site was exercised. This test cannot distinguish a wired loader from an unwired one here
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    both_loaders_read_the_cuda_lib_variable_and_refuse_in_its_words
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe-memory --test cuda_libs_wiring`
+     Running tests\embedder_provider.rs (target\debug\deps\embedder_provider-8c0fde4da9d011c5.exe)
+
+running 8 tests
+test a_cuda_session_that_loaded_actually_holds_DEVICE_memory ... ok
+test a_zero_vram_budget_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test an_absent_device_is_cpu_and_says_so_rather_than_guessing ... ok
+test asking_for_cuda_explicitly_is_a_refusal_and_never_a_quiet_cpu_run ... ok
+test cuda_padding_invariance_is_measured_on_the_shipped_graph ... ok
+test every_session_in_one_embedder_uses_the_same_provider ... ok
+test the_budget_is_checked_before_a_session_is_attempted_not_after ... ok
+test cuda_determinism_and_worker_invariance_are_measured_not_inherited ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\embedding_reference.rs (target\debug\deps\embedding_reference-07c9972612d441a5.exe)
+
+running 9 tests
+test the_cache_returns_exactly_what_the_model_computed ... ok
+test embedding_is_bit_identical_across_calls_and_worker_counts ... ok
+test the_embedder_reproduces_the_reference_within_a_measured_tolerance ... ok
+test the_tokenizer_reproduces_huggingface_exactly ... ok
+test truncation_matches_huggingface_including_which_cases_truncate ... ok
+test the_embedder_reproduces_the_reference_on_cuda_too ... ok
+test a_vocabulary_of_the_wrong_size_is_refused_rather_than_used ... ok
+test a_vocabulary_missing_a_special_token_is_refused ... ok
+test a_crlf_checkout_does_not_shift_every_token_id ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests\ingest.rs (target\debug\deps\ingest-09ba76cd4e2ffcdf.exe)
+
+running 10 tests
+test consolidation_ran_is_journaled_even_when_nothing_merged ... ok
+test a_merge_is_journaled_and_survives_a_rebuild ... ok
+test apply_refuses_a_dry_run_report ... ok
+test a_wrong_derivation_version_refuses_to_rebuild ... ok
+test a_terminal_claim_is_user_asserted ... ok
+test a_written_memory_is_silent_until_it_matures ... ok
+test a_forged_privileged_actor_is_visibly_refused_and_not_written ... ok
+test a_web_claim_comes_back_untrusted ... ok
+test the_belief_store_rebuilds_from_the_log_alone ... ok
+test two_fresh_profiles_ingesting_the_same_history_agree_exactly ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests\no_unbounded_external_commands.rs (target\debug\deps\no_unbounded_external_commands-e57ae060d3ba336a.exe)
+
+running 2 tests
+test the_detector_can_actually_see_an_unbounded_command ... ok
+test every_external_command_in_this_crate_is_bounded ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\rerank_provider.rs (target\debug\deps\rerank_provider-246494b037d4372d.exe)
+
+running 12 tests
+test an_explicit_cpu_request_never_touches_the_card ... ok
+test the_batch_invariance_check_can_actually_see_a_reordering ... ok
+test the_measurement_arm_reserves_nothing_and_admits_it ... ok
+test a_full_card_falls_back_to_cpu_instead_of_failing_the_run ... ok
+test a_runtime_that_is_not_ollama_reserves_nothing_and_says_which_runtime_answered ... ok
+test a_reserve_for_an_uninstalled_model_is_zero_and_says_why ... ok
+test the_same_model_reserves_gigabytes_under_ollama_and_nothing_under_a_llama_server ... ok
+test a_reserve_for_an_installed_model_is_larger_than_the_rerank_graph ... ok
+test batch_invariance_on_cuda_is_measured_here_and_never_inherited_from_cpu ... ok
+test a_loaded_cuda_rerank_session_holds_device_memory ... ok
+test the_reserve_can_push_the_rerank_off_a_card_that_looks_free ... ok
+test scoring_is_deterministic_on_cuda_within_one_process ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+
+     Running tests\session_footprint.rs (target\debug\deps\session_footprint-31c97c37c811347d.exe)
+
+running 1 test
+test one_session_at_the_cap_costs_megabytes_not_gigabytes_on_host_and_on_device ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_memory
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: 1 target failed:
+    `-p marlowe-memory --test cuda_libs_wiring`

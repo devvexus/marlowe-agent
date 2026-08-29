@@ -178,6 +178,12 @@ pub struct RecordingMemory {
     /// declared* — that a fetched page is ingested as `Channel::Web` and not as something the
     /// loop chose to be kinder about. Deriving the class from that origin is
     /// `marlowe-memory`'s job and is asserted against the real `ingest` in the daemon's probe.
+    ///
+    /// **Nothing calls `ingest_external` in this crate today** — not the loop, not a test. The
+    /// field and the stub below are a tripwire for the day something does, and saying so is the
+    /// point: a comment describing tests that do not exist is instance #16 inside a comment
+    /// written to avoid instance #16. The rule the stub encodes is that no test may read the class
+    /// from here; it is enforced by the return value, not by this sentence. See the impl.
     pub ingested: Vec<(marlowe_contract::Channel, Option<String>, String)>,
 }
 
@@ -217,12 +223,43 @@ impl MemoryHost for RecordingMemory {
         // is not available: `marlowe-loop`'s tests do not depend on `marlowe-memory`, and adding
         // that dependency to reach a lookup table would invert the crate graph.
         //
-        // So this returns a fixed value that means nothing, and the rule is stated where someone
-        // would otherwise be tempted to assert on it: **no test in this crate reads this value.**
-        // They assert on `ingested`, which records what the loop *declared*. The derivation is
-        // asserted against the real `ingest` in the daemon's probe, which is the only place it is
-        // evidence about anything.
-        Ok(marlowe_contract::TrustClass::UntrustedContent)
+        // So this returns a fixed value, and the rule is stated where someone would otherwise be
+        // tempted to assert on it: **no test in this crate reads this value.** They assert on
+        // `ingested`, which records what the loop *declared*. The derivation is asserted against
+        // the real `ingest` in the daemon's probe, which is the only place it is evidence about
+        // anything.
+        //
+        // # WHY THE VALUE IS `AgentInferred`, AND IT IS NOT AN ARBITRARY CHOICE
+        //
+        // It used to be `UntrustedContent`. That is instance #16's shape sitting in a test helper:
+        // it is *exactly the answer a test would want*, so
+        //
+        //     assert_eq!(memory.ingest_external(..)?, TrustClass::UntrustedContent)
+        //
+        // passes — and goes on passing with `trust_for_channel` deleted, with
+        // `marlowe_memory::ingest` deleted, and with `DaemonMemory::ingest_external` deleted,
+        // because none of them is on the path. A green test asserting a double's constant, which
+        // reads exactly like a green test asserting the security property.
+        //
+        // It was then `UserAsserted` for one commit, and a review caught the second-order problem:
+        // `UserAsserted` is the TOP of the lattice, so `min(UserAsserted, x) == x` — it is the
+        // identity element of the operation every propagation path is built from. A double whose
+        // stub is the identity under `min` leaves a run untainted for free if a future loop path
+        // ever folds this return into a floor, and the containment test then goes green *because
+        // of the double*. Wrong-and-loud was the goal; that value is wrong-and-invisible.
+        //
+        // `AgentInferred` is the choice because it is the one variant `trust_for_channel` returns
+        // for **no channel at all**: `Terminal`/`Voice` are `UserAsserted`, `ToolOutput` is
+        // `AgentObserved`, and `Web`/`Email`/`Messaging`/`Mcp`/`File` are `UntrustedContent`. So
+        // it is wrong for every channel a caller could pass, unlike `UserAsserted` (right for
+        // `Terminal`) and `AgentObserved` (right for `ToolOutput`), and it is not the identity
+        // under `min`.
+        //
+        // **The fixed value cannot be made impossible** — `TrustClass` has four inhabitants — so
+        // this is the strongest available form of "a test cannot want it" rather than a proof. If
+        // a channel is ever added that maps to `AgentInferred`, this constant stops doing its job
+        // and the comment stops being true; change it then.
+        Ok(marlowe_contract::TrustClass::AgentInferred)
     }
 }
 

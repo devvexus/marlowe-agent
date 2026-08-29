@@ -1,0 +1,109 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: `marlowe-exec` (lib) generated 1 warning
+   Compiling marlowe-memory v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-memory)
+   Compiling marlowe-daemon v0.1.0 (C:\Users\matth\Projects\Marlowe_B2\crates\marlowe-daemon)
+warning: unused import: `std::path::Path`
+  --> crates\marlowe-daemon\src\staleness.rs:15:5
+   |
+15 | use std::path::Path;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+    --> crates\marlowe-daemon\src\daemon.rs:1670:9
+     |
+1670 |         mut on_event: impl FnMut(Event),
+     |         ----^^^^^^^^
+     |         |
+     |         help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `external_turn_id` is never used
+   --> crates\marlowe-daemon\src\memory.rs:403:4
+    |
+403 | fn external_turn_id(run: RunId, content: &ExternalContent<'_>) -> String {
+    |    ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `id` is never read
+  --> crates\marlowe-daemon\src\watch_client.rs:34:5
+   |
+33 | pub struct RunProjection {
+   |            ------------- field in this struct
+34 |     id: String,
+   |     ^^
+   |
+   = note: `RunProjection` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: `marlowe-daemon` (lib) generated 4 warnings (run `cargo fix --lib -p marlowe-daemon` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.56s
+     Running tests\external_ingest_identity.rs (target\debug\deps\external_ingest_identity-09993c56e81665ec.exe)
+
+running 5 tests
+test the_control_one_source_is_one_belief ... ok
+test identical_text_from_two_references_is_two_beliefs ... FAILED
+test the_same_source_ingested_twice_in_one_run_is_one_belief ... FAILED
+test a_web_source_is_still_untrusted_content ... ok
+test a_group_read_at_one_clock_reading_writes_one_belief_per_source ... FAILED
+
+failures:
+
+---- identical_text_from_two_references_is_two_beliefs stdout ----
+
+thread 'identical_text_from_two_references_is_two_beliefs' (70784) panicked at crates\marlowe-daemon\tests\external_ingest_identity.rs:206:5:
+assertion `left == right` failed: same words, different origin — two beliefs, or the journal cannot answer who said it
+  left: 1
+ right: 2
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_same_source_ingested_twice_in_one_run_is_one_belief stdout ----
+
+thread 'the_same_source_ingested_twice_in_one_run_is_one_belief' (51720) panicked at crates\marlowe-daemon\tests\external_ingest_identity.rs:170:5:
+assertion `left == right` failed: identical origin and identical text is one belief
+  left: 2
+ right: 1
+
+---- a_group_read_at_one_clock_reading_writes_one_belief_per_source stdout ----
+
+thread 'a_group_read_at_one_clock_reading_writes_one_belief_per_source' (77608) panicked at crates\marlowe-daemon\tests\external_ingest_identity.rs:120:5:
+assertion `left == right` failed: 6 distinct sources were ingested in one turn at one clock reading and the store holds a different number. Every source-derived belief is keyed by a `memory_id` derived from the turn id, so a turn id that does not vary per source makes `BeliefStore::insert` overwrite — silently, with no rejection and no event
+  left: 1
+ right: 6
+
+
+failures:
+    a_group_read_at_one_clock_reading_writes_one_belief_per_source
+    identical_text_from_two_references_is_two_beliefs
+    the_same_source_ingested_twice_in_one_run_is_one_belief
+
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p marlowe-daemon --test external_ingest_identity`
+error: 1 target failed:
+    `-p marlowe-daemon --test external_ingest_identity`
