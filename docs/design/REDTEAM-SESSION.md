@@ -205,10 +205,11 @@ way.
   `marlowe-loop/src/profile.rs` and `marlowe-permission/src/adjudicate.rs` as the §13-guarded files it
   touches. Both were edited. **An unaccepted §13 decision is not a defence to bet a machine on**,
   however well the code behind it reads.
-* **No prompt has been observed on the current binary.** The 37 rows above are from builds up to
-  2026-08-27. A code read plus a two-day-old journal row is weaker than a run, and this project has a
-  named family for treating one as the other. The live re-check is one `web` call in the TUI and a look
-  at the last `permission_decided` row.
+* **A prompt has been watched — M2 C2f, 2026-08-10, a real `web` fetch approved through the TUI
+  modal — but not on the current binary.** The 37 rows above are from builds up to 2026-08-27. A code
+  read plus a two-day-old journal row is weaker than a run, and this project has a named family for
+  treating one as the other. The re-check is one `web` call in the TUI and a look at the last
+  `permission_decided` row.
 * Layer 5 — the trust ledger — is M6 and does not exist.
 
 **Every report before M6 states the layer tally on its front page, and it is no longer "three live,

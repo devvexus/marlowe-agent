@@ -212,14 +212,25 @@ which returns `false` unconditionally — as the fallback when the socket cannot
 on the socket.** That is 29 human *yes* answers to a named host, and it is the strongest available
 evidence that the prompt reaches a person.
 
-**ARGUED, NOT MEASURED, AND THE DISTINCTION IS THE POINT.** Those rows come from builds between
-2026-08-10 and 2026-08-27; the most recent predates the B2 merge by two days. **Nobody has watched a
-prompt render on the current binary.** Nothing in B2 touches egress — but that is an argument, and
+**A PROMPT HAS BEEN WATCHED, AND THE RECORD OF IT IS ITSELF UNREACHABLE.** An earlier draft of this
+entry said nobody had ever seen one; that is wrong, and correcting it matters because overstating
+this gap is the same error as understating it. **M2 Session C2f live-verified it on 2026-08-10** —
+*"a real `web` fetch was approved through the TUI modal this session"*, in a table headed *"Live-
+verified this session, and the distinction matters"*, which also records `bash` through the approval
+window with the prompt shown and the human approving. That table sits ~7,100 lines into this file, in
+the history region, and the same C2f entry corrected *"approved but not shipped"* as stale **on
+2026-08-10** — nineteen days before CLAUDE.md was fixed. **The correction was made once, in a place
+nothing reaches, and the stale sentence went on propagating from the file every session reads.** That
+is this entry's thesis with a date on it.
+
+**What is still argued rather than measured** is narrower and stands: **no prompt has been observed on
+the current binary.** The journal rows come from builds between 2026-08-10 and 2026-08-27, the most
+recent predating the B2 merge by two days. Nothing in B2 touches egress — but that is an argument, and
 this project has a named family for substituting one for the other. Two documents also still disagree
 in words: ADR-032 §5 says *"`web` in the daemon will decline every host"*, `onboarding.rs` says
-*"every fetch is therefore a fresh human decision"*, written months apart. The journal favours
-`onboarding.rs` decisively. **The live re-check is one `web` call in the TUI and a look at the last
-`permission_decided` row**, and it has not been run.
+*"every fetch is therefore a fresh human decision"*, written months apart. C2f's observation and the
+journal both favour `onboarding.rs` decisively. **The re-check is one `web` call in the TUI and a look
+at the last `permission_decided` row**, and it has not been run on this build.
 
 **Grant persistence does not exist, and its absence is security-positive.** `EgressPolicy::grant()`'s
 only call sites are inside `adjudicate.rs`'s `#[cfg(test)] mod tests`, and `CapabilityProfile` exposes

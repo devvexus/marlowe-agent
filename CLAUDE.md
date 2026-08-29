@@ -135,9 +135,12 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    loop blocks on `ApprovalGate::await_approval`; the daemon wires `SocketApprovals`, not
    `DenyUnattended`. **Measured in the product's signed journal, not argued: 37 `web` decisions since
    the 2026-08-10 flip, every one `needs_approval` — zero allowed, zero blocked — and 29 granted / 8
-   declined by a client answering, which `DenyUnattended` cannot produce.** Those rows are from builds
-   up to 2026-08-27; **nobody has watched a prompt render on the current binary**, and the live
-   re-check is one `web` call in the TUI plus the last `permission_decided` row.
+   declined by a client answering, which `DenyUnattended` cannot produce.** **A prompt has been watched**: M2 C2f live-verified a
+   real `web` fetch approved through the TUI modal on 2026-08-10, and the same entry corrected this
+   list's *"approved but not shipped"* as stale on that date — ~7,100 lines into STATE.md, where
+   nothing reached it. What is still argued is narrower: those journal rows are from builds up to
+   2026-08-27, so **no prompt has been observed on the current binary**, and the re-check is one `web`
+   call in the TUI plus the last `permission_decided` row.
 
    **"Held for the session" is the part that is NOT built, and its absence is security-positive.**
    `EgressPolicy::grant()` has no production call site and `CapabilityProfile` exposes no `&mut`
