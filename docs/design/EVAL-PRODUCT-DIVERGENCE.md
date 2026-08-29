@@ -3,6 +3,25 @@
 **Established 2026-08-17. Every claim below was verified by grep at the time of writing, and the
 command is given so you can re-verify rather than trust this file.**
 
+> **AMENDED 2026-08-29 — §1 AND §2 BELOW ARE NOW FALSE, AND §1's COMMAND IS THE ONE CLAUDE.md's
+> INSTANCE #18 RETIRED.** `673bcd2` added `DaemonMemory::ingest_external`, so
+> `grep -rn "\bingest(" crates/ --include=*.rs` minus definitions and tests now returns **two** hits,
+> not one — `crates/marlowe/src/adapter.rs` and `crates/marlowe-daemon/src/memory.rs` — and
+> `grep -rc "Channel::" crates/marlowe-daemon/src/*.rs` returns **2** in `memory.rs`, not zero.
+>
+> **Neither change made layer 3 live.** `ingest_external` has no caller. The discriminating check is
+> now one level down —
+> `grep -rn "ingest_external(" --include=*.rs crates/*/src/` minus the definition — and **zero
+> non-definition hits still means the latch is unreachable in the shipped daemon**. See
+> [ADR-062](adr/ADR-062-ingest-has-no-correct-production-caller.md), which makes that unreachability a
+> recorded decision rather than an unexplained gap.
+>
+> **This is the failure this document exists to name, applied to this document.** A check that answers
+> an *adjacent* question reads identically to one that answers the real question — and a **retired
+> grep goes loud and affirmative**, which is worse than a stale guard going silent: it hands the next
+> reader a wrong answer in the shape of evidence. The body below is left as written; this note is the
+> correction.
+
 Three components have been found where the **eval path** and the **shipped daemon** have come apart.
 Each was found separately, chasing something else. Three is a pattern rather than a coincidence, and
 naming it is the point of this document.

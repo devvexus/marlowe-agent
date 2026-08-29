@@ -328,7 +328,7 @@ schema, lineage retention, and §5.2's consolidation gate are **asserted, not A/
 | Instillation hit rate | declared band; **a floor, because low means over-instilling** |
 | Cross-scope reads by a non-Marlowe agent | **0**, asserted at the enforcement site with a control that *can* attempt one |
 | Untrusted-derived facts in the stable tier without corroboration | **0** |
-| Poisoning ASR, red-team set, promoted-fact path | pre-registered ceiling; measured post-M3 |
+| Poisoning ASR, red-team set, promoted-fact path | pre-registered ceiling; measured in **red-team pass 2** ([`REDTEAM-SESSION.md`](REDTEAM-SESSION.md)), which is the first moment this path exists — a zero measured before this session ships is vacuous, not clean |
 | Facts revocable by source after N months | **100%** of facts whose lineage touches a revoked source |
 | Marlowe's floor after M scope completions | **unchanged**, with a control that latches |
 

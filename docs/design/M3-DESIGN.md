@@ -9,7 +9,7 @@ single invariant that keeps the thing the user talks to safe.
 |---|---|
 | **Status** | design; ROADMAP M3's scope is unchanged and remains the foundation |
 | **Depends on** | the control plane shipping first — there are no persistent agents without durable addressable runs |
-| **Blocks** | the post-M3 red-team session; scoped memory (`SCOPED-MEMORY.md`) |
+| **Blocks** | the red-team session ([`REDTEAM-SESSION.md`](REDTEAM-SESSION.md) — **pass 1 at the end of Session C, pass 2 post-M3**); scoped memory (`SCOPED-MEMORY.md`) |
 | **Anti-requirements honoured** | §15 — no swarm topology, no predeclared DAGs |
 | **Anti-requirements crossed** | audit finding E4, and §10.1's *"workers do not talk to each other"* — both need explicit `DECISIONS.md` entries, see §5 and §6 |
 
@@ -469,7 +469,7 @@ Two named defects go live in the same path the moment a real untrusted channel i
 **The order used to read "fix both, then wire the channel, then test the boundary". Its first
 clause is DONE (`6a1f4f5`); its second is now established as wrong. The order is: fix both — done —
 then STOP** (ADR-062). And the boundary test is only meaningful once something *can* taint — which
-is the whole reason the post-M3 red-team session exists, and why the strongest honest probe today
+is the whole reason [`REDTEAM-SESSION.md`](REDTEAM-SESSION.md) splits into two passes, and why the strongest honest probe today
 (`crates/marlowe-daemon/tests/layer3_refuses_a_composed_target_from_an_ingested_belief.rs`)
 constructs the tainted state by hand and declares that it does.
 
@@ -545,7 +545,10 @@ invisibility, layer 1 routing, and the empty tool set are not A/B tested.** They
    with agent output halts the conversation visually, which is what this milestone exists to stop.
    `/runs` and `/steer` survive, because §10.1 requires steering *from outside*. And the window
    renders the same control-plane state the **Runs** tab reports, never its own.
-7. **Post-M3: the red-team session**, then analogical retrieval.
+7. **The red-team session — [`REDTEAM-SESSION.md`](REDTEAM-SESSION.md), two passes.** Pass 1 at the
+   end of step 3, injection only, with §9.1's A8 free-text arm and `marlowe-red:9b` as its two
+   controls. Pass 2 after step 4, when `ingest` can have a correct caller and the taint classes stop
+   returning vacuous zeros. Then analogical retrieval.
 
 ---
 

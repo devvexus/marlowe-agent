@@ -157,6 +157,163 @@ still owed.**
 ---
 
 
+## 2026-08-29 — REACHABILITY AUDIT. LAYER 4 IS SHIPPED ON `web` AND ABSENT ON `bash`; ADR-032 HAS WAITED ON THE HUMAN FOR NINETEEN DAYS; AND THE RED-TEAM SESSION HAD NO INBOUND LINK
+
+**Nothing was built. This is a correction and a wiring-up of open items, and its load-bearing sentence
+is that an item written down somewhere nothing links to is the same as forgotten.** The test used
+throughout was: *starting from this file's top entry or ROADMAP's milestone table, and following only
+links that actually exist, does a reader arrive?* Four items answered no.
+
+### 1. `docs/design/REDTEAM-SESSION.md` had ZERO inbound links anywhere in the tree
+
+Committed at `ca0022d` with its pointer deliberately deferred to avoid two writers on one file, and
+then not added. `git grep REDTEAM` returned the file's own path and nothing else — while **seven sites
+across six documents** name the red-team session as a dependency, two of them settled entries
+(`DECISIONS.md`'s §8.2 amendment, where the ASR became a first-order number, and `CONTRACTS.md` §9's
+`Reversible` rationale, which rests on one named class from the list). **Two settled decisions rested
+on a measurement nobody had scheduled.** This is the shape this file already recorded once —
+*"three committed documents, none referenced from ROADMAP until now"* — recurring on a fourth.
+
+Fixed in ROADMAP (the M3 design list, Session C's row, and the red-team paragraph, which previously
+linked `ANALOGICAL-RETRIEVAL.md` and not the owner) and in CLAUDE.md's five-layer section, which is
+where a reader is already asking what evidence exists that the layers work. **Not** added to
+CLAUDE.md's document map: that table lists nine permanent documents with a per-task *"when to read"*
+trigger, and `M3-DESIGN.md`, `SCOPED-MEMORY.md`, `ANALOGICAL-RETRIEVAL.md`,
+`HARM-WEIGHTED-PRECISION.md` and `PRECISION-COVERAGE.md` are all deliberately absent from it.
+
+### 2. LAYER 4 — the entry in CLAUDE.md was wrong in both directions, and three documents inherited it
+
+`CLAUDE.md`'s five-layer list said *"approved but not shipped, pending the approval surface"*. The
+approval surface shipped at M2 C2f on **2026-08-10**; the sentence was carried for nineteen days into
+`REDTEAM-SESSION.md` §5, `marlowe-daemon/src/onboarding.rs`, `marlowe-mcp/src/lib.rs` and ADR-049 §4.
+It is the scoped-measurement family: the sentence was true when written and is about a different
+system.
+
+**What is shipped.** `CapabilityProfile::interactive()` holds
+`EgressPolicy::AllowApproved { granted: vec![] }` (`marlowe-loop/src/profile.rs:220`) — not `DenyAll`.
+`adjudicate`'s §4 turns an ungranted host into `Outcome::NeedsApproval` rather than `Blocked`, gated
+on `may_ask()` **and** `declared_admits(manifest.hosts())`, so a run that may ask still cannot ask
+about a host the tool never declared. The loop blocks on `ApprovalGate::await_approval`
+(`engine.rs:1707`); the daemon wires **`SocketApprovals`** (`daemon.rs:3182`), with `DenyUnattended` —
+which returns `false` unconditionally — as the fallback when the socket cannot be cloned.
+
+**MEASURED, in the product's own signed journal** (`default-profile/journal.db` under
+`%LOCALAPPDATA%\marlowe`, 5,847 rows, 2026-08-09 to 2026-08-29):
+
+| | |
+|---|---|
+| `web` `permission_decided` after the 2026-08-10 flip | **37, and every one is `needs_approval`** — zero `allowed`, zero `blocked` |
+| Paired to the request that raised them | **29 `approval_granted`, 8 `approval_denied`** |
+| Most recent | 2026-08-27 23:54 |
+| `egress_blocked` | 10 rows, **all ten predating 2026-08-10** — the `DenyAll` era |
+| Repeat asks | 41 distinct `web` scopes, 77 repeats — the same URL re-asked every time |
+
+`DenyUnattended` can only return `false`, so **a granted row cannot exist without a client answering
+on the socket.** That is 29 human *yes* answers to a named host, and it is the strongest available
+evidence that the prompt reaches a person.
+
+**ARGUED, NOT MEASURED, AND THE DISTINCTION IS THE POINT.** Those rows come from builds between
+2026-08-10 and 2026-08-27; the most recent predates the B2 merge by two days. **Nobody has watched a
+prompt render on the current binary.** Nothing in B2 touches egress — but that is an argument, and
+this project has a named family for substituting one for the other. Two documents also still disagree
+in words: ADR-032 §5 says *"`web` in the daemon will decline every host"*, `onboarding.rs` says
+*"every fetch is therefore a fresh human decision"*, written months apart. The journal favours
+`onboarding.rs` decisively. **The live re-check is one `web` call in the TUI and a look at the last
+`permission_decided` row**, and it has not been run.
+
+**Grant persistence does not exist, and its absence is security-positive.** `EgressPolicy::grant()`'s
+only call sites are inside `adjudicate.rs`'s `#[cfg(test)] mod tests`, and `CapabilityProfile` exposes
+`egress() -> &EgressPolicy` with no `&mut` accessor, so there is no route to call it. Every fetch is a
+fresh decision — *stronger* than ADR-032 §3.1 describes. **The hazard is the reverse: the widening
+path would activate untested the day someone wires it.** No milestone owns it; ADR-032 §4 defers it to
+the trust ledger and M6's ROADMAP section names no egress, host or grant. Now listed in ROADMAP's
+*Waiting on the human* block.
+
+**THE ACTUAL HOLE IN LAYER 4 IS `bash`, and it is ruled on but not decided.** `adjudicate`'s egress
+section iterates `manifest.params()` filtered to `ParamType::Url`; **`bash` declares none, so the loop
+body never executes and no `EgressPolicy` is consulted on that path at all** — ADR-049 §4, Accepted,
+measured: `curl` to arxiv.org returns HTTP 200 from `cmd /C`. What stands there instead is `bash`'s
+`Irreversible` escalation, which asks about a **command** and never a **destination**; the prompt
+cannot name a host because there is no host to name. ADR-049 §4's ruling was *environmental, not
+deliberate* — which is a diagnosis, not a decision. **Either the shell is outside layer 4's scope by a
+recorded decision, or it needs one, and that is §13 territory.** ADR-049 §4 also carries the stale
+*"layer 4 remains approved but not shipped"* sentence; it is left as written, because an accepted ADR
+is a record of what was decided when.
+
+**ADR-032 IS STILL `Status: PROPOSED — needs the human's approval`, dated 2026-08-10, AND ITS DECISION
+IS FULLY BUILT.** It is the only ADR in the set that is unaccepted *and* shipped — ADR-035, ADR-036
+and ADR-037 are unaccepted and say *design only, no code* — and its header declares **`Touches
+§13-guarded files: marlowe-loop/src/profile.rs, marlowe-permission/src/adjudicate.rs`**. Both were
+edited. Until 2026-08-29 nothing in ROADMAP or in this file's OUTSTANDING section said so, and
+`DECISIONS.md`'s Part 3 index lists it under a preamble asserting everything in that table is settled.
+
+### 3. The model-driver seam was named only here, and only in the newest entry
+
+Gap 1 of the entry above says closing `daemon.rs`'s zero-coverage injected-memory push *"needs the
+model-driver seam in `Daemon::turn` (`daemon.rs:1992`) first"*. That was the only statement of it in
+the project — absent from ROADMAP, from M3-DESIGN §10's build order, from ADR-062 §7 and from
+CONTRACTS — so it survived exactly as long as a reader read this file's newest entry to its fourth
+paragraph. **Session D makes that line load-bearing, so the seam is D's prerequisite and C is where it
+is cheap.** Now in ROADMAP's Session C row, with three things that were not written down anywhere:
+
+* **The barrier is not assertion strength.** Provider selection `return`s at `daemon.rs:1801` when
+  `Availability::probe` reports no model, and the push is at `:2629`, so **no in-process test executes
+  that line at all.** That, not weak assertions, is why both of B2's mutations left 179 tests green.
+* **`Run::root` is rebuilt every turn** (`daemon.rs:2486`) at `trust_floor: UserAsserted`
+  (`marlowe-loop/src/run.rs:680`); only `from_checkpoint` restores a latched floor. **ADR-023's latch
+  is per turn, not per conversation**, so CLAUDE.md's prescribed *"across two turns"* probe would
+  measure **re-injection**, not the latch. Which of the two is the specification is undecided and now
+  sits in C's row.
+* **The "loadable reranker" premise was worktree-scoped.**
+  `models/ms-marco-MiniLM-L-2-v2-ft-session-j` is **present on master** and absent only in worktrees,
+  so B2's *"`models/` is gitignored and absent"* is true of its worktree and false of the repo. The
+  requirement is *run the probe where the graph is and skip loudly elsewhere*, never a fake.
+
+### 4. The pre-B2 outstanding list is still reachable, and that is the audit's one clean result
+
+`## 2026-08-27 — OUTSTANDING AFTER THE TTFT SESSION` is the **second** entry in this file, 1.8% in.
+Its six correctness bugs, five unfixed prefix-churn sources and two unmeasured claims all survive a
+default `Read` with 1,840 lines to spare. A reader who takes in only a first screen misses it; a
+reader who opens the file does not. **Nothing was moved, because moving an item that is already
+reachable is how an index of everything becomes an index of nothing.**
+
+### THE FINDING THIS ENTRY CANNOT FIX: THIS FILE IS 8,818 LINES AND 89 ENTRIES
+
+The entry that says so — `2026-08-27 — FUTURE WORK: STATE.md COSTS ~32,000 TOKENS TO OPEN` — is itself
+~770 lines down, measured the file at **7,879 lines**, and has since watched it grow by ~940 with
+nothing acted on. **That is the reachability failure one level up, aimed at this project's first
+instruction**, since CLAUDE.md says *read `STATE.md` at session start*. Real open items at real depth:
+the compaction bug that hands the model its own summary (13% in); the suite-wedge guard that greps
+only the file it lives in (9%); `Event::Tool` carrying no detail across 34 sites, so §B6's *"Enter or
+Tab for full output"* has never been true for any tool (16%); ADR-061 shipped without the live TUI run
+CLAUDE.md budgets one of per milestone (8%).
+
+**The remedy is the one this file already proposes and it was NOT applied: archive closed entries to
+`docs/history/` behind a dated index, and stop telling agents to read this file wholesale.** That is a
+large mechanical edit to the one document every session opens, and reorganising the project's primary
+record is the human's call, not an agent's. It is left undone deliberately. **A cheap interim, if the
+split is not wanted yet, is a grep-anchored open-items index under the `# State` heading** — anchored
+on strings rather than line numbers, because a stale line number is the same failure again.
+
+### What was NOT done
+
+* **This file was not restructured.** See above.
+* **Nothing was pasted into `docs/design/DECISIONS.md`.** It carries baked-in mojibake (`Â§`, `â€”`:
+  BOM plus double-encoded UTF-8, visible around its §8.2-amendment entry), so any edit using `§` or
+  `—` would leave two encodings side by side in one paragraph. **A one-pass mojibake repair is its own
+  task and should not ride inside an unrelated edit.** Its Part 3 index separately asserts that every
+  ADR it lists is *"as settled as everything above"*, which is false for the four `PROPOSED` ones.
+* **`docs/requirements/01-brief.md` §8.3 was not amended to point at the red-team session**, and the
+  reason is recorded in `REDTEAM-SESSION.md` §1 so a later session does not add it anyway: a
+  requirements doc states what must be true, scheduling is a design act, and CLAUDE.md's map says
+  requirements are not loaded by default.
+* **No cargo, no daemon run, no live prompt observed.** Everything above is a file read, a grep, or a
+  read-only SQL query against the journal, and each claim is labelled which.
+
+
+---
+
+
 ## 2026-08-27 — OUTSTANDING AFTER THE TTFT SESSION
 
 Everything below is open. Committed through `bb85fa5`; release binary 20:05. Ollama is the default,

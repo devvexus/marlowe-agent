@@ -123,10 +123,48 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    window, so trimming the untrusted block silently restored privileges; it now latches on the `Run`
    and never rises. Live: **7 composed shell commands issued, 7 refused**.
 4. **Egress allowlisting.** Deny-by-default outbound; an extensible empty allowlist, per-host human
-   approval, held for the session. ADR-031, ADR-032. **Approved but not shipped**, pending the
-   approval surface.
+   approval. ADR-031, ADR-032. **SHIPPED ON THE `web` PATH; ABSENT ON THE `bash` PATH; AND ITS ADR IS
+   STILL UNACCEPTED.** This entry read *"approved but not shipped, pending the approval surface"*
+   until 2026-08-29 — nineteen days after the approval surface shipped — and it is where three other
+   documents inherited that sentence from.
+
+   `CapabilityProfile::interactive()` holds `EgressPolicy::AllowApproved { granted: [] }`
+   (`marlowe-loop/src/profile.rs:220`), and `adjudicate`'s §4 turns an ungranted host into
+   `Outcome::NeedsApproval` rather than `Blocked` — gated on `may_ask()` **and** the manifest's own
+   host declaration, so a run that may ask still cannot ask about a host the tool never declared. The
+   loop blocks on `ApprovalGate::await_approval`; the daemon wires `SocketApprovals`, not
+   `DenyUnattended`. **Measured in the product's signed journal, not argued: 37 `web` decisions since
+   the 2026-08-10 flip, every one `needs_approval` — zero allowed, zero blocked — and 29 granted / 8
+   declined by a client answering, which `DenyUnattended` cannot produce.** Those rows are from builds
+   up to 2026-08-27; **nobody has watched a prompt render on the current binary**, and the live
+   re-check is one `web` call in the TUI plus the last `permission_decided` row.
+
+   **"Held for the session" is the part that is NOT built, and its absence is security-positive.**
+   `EgressPolicy::grant()` has no production call site and `CapabilityProfile` exposes no `&mut`
+   accessor, so every fetch re-asks — stronger than ADR-032 §3.1, and a live hazard the day someone
+   wires it, because the widening path would activate untested.
+
+   **The hole is `bash`.** The adjudicator's egress check iterates parameters typed `Url`; `bash`
+   declares none, so **no `EgressPolicy` is consulted on that path at all** — ADR-049 §4, measured:
+   `curl` returning HTTP 200 from `cmd /C`. Its `Irreversible` escalation asks about a **command**,
+   never a **destination**. No milestone owns it and it is §13 territory.
+
+   **ADR-032 is `Status: PROPOSED — needs the human's approval`** and names
+   `marlowe-loop/src/profile.rs` and `marlowe-permission/src/adjudicate.rs` — both §13-guarded, both
+   edited. It is the only ADR in the set that is unaccepted *and* built. ROADMAP's *Waiting on the
+   human* block is where that now lives.
 5. **The trust ledger.** Consequential actions need earned tiers; irreversible ones have ceilings no
    evidence lifts. Addendum A §A8. **Not built — M6.**
+
+**WHEN THE FIVE GET TESTED, AND WHY ITS ZEROS ARE NOT AUTOMATICALLY GOOD NEWS —
+`docs/design/REDTEAM-SESSION.md`, which is scheduled rather than aspirational.** Since the §8.2
+amendment, §8.3's injection ASR is **first-order evidence that containment works**, not a
+defence-in-depth check, and it sat unscheduled across seven cross-references in six documents — two of
+them settled entries in `DECISIONS.md` and `CONTRACTS.md`. **Pass 1: end of M3 Session C**, injection
+only, with M3-DESIGN §9.1's A8 free-text arm and `marlowe-red:9b` as two controls *expected to fail* —
+both clean is still two hypotheses. **Pass 2: post-M3, after Session D.** **Every taint-class zero
+taken before Session D is discarded, not celebrated**: layer 3 is unreachable in the shipped daemon,
+so those cells read identically whether the defence holds or every guard is deleted.
 
 **The K1 injection gate / declared operating point is NOT one of the five.** It is a **relevance**
 mechanism. Brief §8.1 is explicit: *"Filtering does not work. Containment works."* Containment is

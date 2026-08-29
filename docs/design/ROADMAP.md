@@ -11,10 +11,54 @@ pulls you outside it, note it in `STATE.md` and stop.
 the four benchmark rows deferred to the end of the project, and
 [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) for what M0b published.
 
-**M3's design is three documents, and the milestone block below is only its scope:**
+**M3's design is four documents, and the milestone block below is only its scope:**
 [`M3-DESIGN.md`](M3-DESIGN.md) (the agent organisation),
 [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md) (memory topology, and a precondition for step 4),
+[`REDTEAM-SESSION.md`](REDTEAM-SESSION.md) (what the containment layers are measured by, and when a
+zero from that measurement means anything — **its first pass is inside M3, at the end of Session C**),
 [`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md) (post-M3, its own session).
+
+---
+
+## Waiting on the human — one-shot actions, and no session can clear any of them
+
+Listed here rather than only inside the milestone that found each one, because **a closed milestone
+is a section a reader scrolls past**, and an item nobody can find reads exactly like an item that was
+handled. Ranked by what it costs if it stays forgotten.
+
+1. **[`ADR-032`](adr/ADR-032-approved-egress-and-the-blast-radius.md) is still
+   `Status: PROPOSED — needs the human's approval`, and its decision is fully built.** It is the only
+   ADR in the set that is unaccepted *and* shipped — ADR-035, ADR-036 and ADR-037 are unaccepted and
+   say *design only, no code* — and it names `marlowe-loop/src/profile.rs` and
+   `marlowe-permission/src/adjudicate.rs`, two §13-guarded files, as ones it touches. Both were
+   edited. Accept it or change the code; what must not continue is §13 machinery running in the
+   product under an ADR nobody accepted. See STATE.md's 2026-08-29 layer-4 entry for what shipped,
+   what did not, and the journal reading behind both.
+2. **[`ADR-062`](adr/ADR-062-ingest-has-no-correct-production-caller.md) §4's origin decision** — what
+   channel a belief derived from a condensed summary is recorded under. It is a **pinned-contract
+   change** and it **blocks Session D's correct `ingest` caller**. The three options exist in the ADR
+   body only: `Channel::Web` (records a provenance the harness knows to be false), a new
+   `Channel::Agent`/`HarnessMediated` variant (honest, and the contract change), or lineage (**not
+   expressible** — `ingest` hardcodes `derivation: Vec::new()`). ADR-062 §4.1 records that settling it
+   for C's typed upward return does **not** close M3-DESIGN §12 item 5: the meeting utterance (E) and
+   the harness-mediated reader (D) are separate consumers of the same missing slot.
+3. **`bash` and egress — ruled on environmentally, never decided.** The adjudicator's egress section
+   iterates parameters typed `Url`; `bash` declares none, so **no `EgressPolicy` is consulted on that
+   path at all** — [`ADR-049`](adr/ADR-049-the-quarantined-reader-request-shape.md) §4, Accepted,
+   measured: `curl` to arxiv.org returns HTTP 200 from `cmd /C`. What stands there instead is `bash`'s
+   `Irreversible` escalation, which asks about a **command** and never about a **destination**. Either
+   the shell is outside layer 4's scope by a recorded decision, or it needs one. No milestone owns it,
+   and it is §13 territory.
+4. **Grant persistence is owned by no milestone.** ADR-032 §3.1 describes a session-held per-host
+   grant; `EgressPolicy::grant()` has **no production call site** and `CapabilityProfile` exposes no
+   `&mut` accessor, so every fetch is a fresh human decision — *stronger* than the ADR, not weaker.
+   The hazard is the day someone wires it, because the widening path would activate untested. ADR-032
+   §4 defers persistence to the trust ledger, and **M6's section below names no egress, host or
+   grant.**
+5. **CI has existed since 2026-08-18 and HAS NEVER EXECUTED. It is one click** on *Run workflow* —
+   see §M2's closure block and [`CI.md`](CI.md).
+6. **M1's accent row, the by-eye half.** §B13's arithmetic is asserted (`e21cae7`); a number is not an
+   eye, and CI's runners cannot supply one either.
 
 ---
 
@@ -769,9 +813,26 @@ the order below, and the order is load-bearing rather than a preference.
 | **A** | **The control plane itself** — runs as first-class objects, WAL + checkpoint resume, mid-flight steering, orphan policy declared at spawn. `/runs`, `/steer`, `/watch` | **DONE 2026-08-25**, ADR-053. Resume demonstrated live against a `taskkill /F`-ed daemon (`runs/session-a-m3/live/`), with the control showing the turn died. Steering demonstrated live from a second process. **`CONTRACTS.md` §5 is unchanged** — it was implemented, not reshaped |
 | **F** | **Windows — FULLY FUNCTIONAL EARLY, in parallel with A.** Talkable (a steer field in the window), streaming output, checkpoint state, and finished-looking, with sized empty panels for what lands in C–E. A window attaches to a **run**; a top-agent scope is a run with children, so one surface serves both. **A debugging instrument before it is a feature** — watching a WAL resume happen is how A gets verified. **A steer field is a WRITE**, so it takes `/steer`'s adjudication, never a side door. Needs the **E4** `DECISIONS.md` entry *before the first output line renders*. See [`M3-DESIGN.md`](M3-DESIGN.md) §6 | **BUILT 2026-08-25.** ADR-055, ADR-054. `marlowe --watch <run>`, `--runs`, `--steer`; `/watch` and `/steer` in both surfaces. **The control plane is a second listener on a published port** (`marlowe-daemon/src/watch.rs`) because the conversation socket is held for the whole of a turn — the turn path is not restructured. **The resume half is A's**: the window renders `RunControl::resume`'s answer verbatim, which is `NotDurable` until A lands, and then it is a checkpoint |
 | **B** | The compaction stamp and the trim marker — **both, before any upward channel is wired.** CLAUDE.md names them and M3-DESIGN §8 explains why they go live together with layer 3 | **DONE ON ITS OWN SCOPE, 2026-08-29**, on `m3-ingest-live`, rebased onto master. E5 (the compaction stamp) and F1 (the trim marker) are fixed at `6a1f4f5`. Both probes now exist — `layer3_refuses_a_composed_target_from_an_ingested_belief.rs` and `external_ingest_identity.rs` — with **14 mutation runs, one log each**, in `runs/m3-mutation/`. **`ingest` is still NOT wired, and ADR-062 establishes that it must not be**: M3-DESIGN §2.1 forbids tainting the one permanent run and §7 gives workers no `MemoryWrite`, so no run may correctly hold an untrusted belief until Session D. The layer-3 latch therefore remains **unreachable in the shipped daemon, by design rather than by oversight**. The discriminating check is now `grep -rn "ingest_external(" --include=*.rs crates/*/src/` minus the definition — zero hits. Two gaps carried forward in STATE.md: `daemon.rs`'s injected-memory push has **zero coverage** (two mutations, whole crate green), and E5/F1 are themselves unreachable `min`s until wiring happens |
-| **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone | not started |
-| **D** | Scoped memory and instillation — [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md). **Workers gain `MemoryWrite` only here**; until then everything returns as artifacts and typed returns | not started |
+| **C** | The tree and the typed upward channels, **together** — five agent levels, escalation to the user, harness-rendered TERMINATE, budget grants with envelopes. Together, because shipping the hierarchy first and the channels after ships the laundering path alone. **C also carries three things nothing else owns, and each is a prerequisite for D rather than a nicety.** (1) **THE MODEL-DRIVER SEAM.** `Daemon::turn` builds its `Box<dyn ModelDriver>` inline across three arms (`daemon.rs:1992`, `:2147`, `:2242`) and hands it to `Ports` at `:2738`; `turn` is private and neither public door — `ask_streaming_with` (`:1682`), `resume` (`:1727`) — takes a driver. So no test can drive a real daemon turn with a scripted model, and **`daemon.rs`'s injected-memory push at `:2629` — the only production line the whole layer-3 chain runs through — has zero coverage**: laundered to `UserAsserted` or deleted outright, the whole `marlowe-daemon` crate stayed green (`runs/m3-mutation/finding1*.txt`). The barrier is not assertion strength — provider selection `return`s at `:1801` when `Availability::probe` reports no model, so nothing in-process reaches `:2629` at all. `ModelDriver` is **not** pinned in `CONTRACTS.md` (ADR-060), so the seam is ordinary crate work, not a contract act. **A loadable reranker is a second, independent precondition** — see the paragraph below this table. (2) **`Run::root` is rebuilt every turn** (`daemon.rs:2486`) at `trust_floor: UserAsserted` (`marlowe-loop/src/run.rs:680`); only `Run::from_checkpoint` restores a latched floor, so ADR-023's latch is **per turn, not per conversation**, and CLAUDE.md's prescribed *"across two turns"* probe would measure **re-injection**. Decide which is the specification and record it in `DECISIONS.md` before D depends on either. (3) **RED-TEAM PASS 1 RUNS AT THE END OF THIS SESSION** — [`REDTEAM-SESSION.md`](REDTEAM-SESSION.md), injection only. C is what ships the control that makes a zero mean anything: [`M3-DESIGN.md`](M3-DESIGN.md) §9.1's **arm A8** (fully typed / typed + one validated sentence / **free text, expected to fail**), so A8's three arms are built with the channel work rather than retrofitted. End of C is the last cheap moment to find out that typed upward containment is decorative, because D and E are both built on the assumption that it is not | not started |
+| **D** | Scoped memory and instillation — [`SCOPED-MEMORY.md`](SCOPED-MEMORY.md). **Workers gain `MemoryWrite` only here**; until then everything returns as artifacts and typed returns. **D's prerequisites, none of which its own design document states as such.** §5.1 makes the **typed upward return the promotion channel** — *"same channel M3 §2 already types and validates"* — and §3's fact extractor is a **tool-spawned agent** (M3-DESIGN §1.4), so **D consumes C**; letters are labels elsewhere, not for this pair. §3.1 forbids inheriting `MAX_SOURCES_PER_READER = 6` and requires it be **picked as arm A3** (M3-DESIGN §9.1), and no session row owned any arm until now. **ADR-062 §4's origin decision lands here first** — see *Waiting on the human* above; it is the human's and it is what gives `ingest` a correct caller. §8's poisoning-ASR acceptance row is **red-team pass 2**, not a number D can take for itself. And §6's buckets change the retrieval path [`PRECISION-COVERAGE.md`](PRECISION-COVERAGE.md) publishes — that curve already describes `ThisSession` while the shipped path is `RetrievalScope::Profile`, so **re-publishing it is a second divergence nobody owns** | not started |
 | **E** | Meetings — largest surface, most speculative, needs the tree underneath. Crosses §10.1's *"workers do not talk to each other"* and needs a `DECISIONS.md` entry; `set_speaker` is the argument | not started |
+
+**WHAT "A LOADABLE RERANKER" MEANS, because four words in STATE.md understate it and its premise
+was worktree-scoped.** With no cross-encoder loaded, `DaemonMemory::retrieve` reads `Rerank::Off`
+(`marlowe-daemon/src/memory.rs:277`), `decide` returns `Abstention::NoReranker`
+(`marlowe-memory/src/operating_point.rs:283`), nothing is injected **ever**, and `daemon.rs:2629`
+cannot fire — a second precondition of C's item (1), independent of the driver seam. `models/` is
+gitignored but **present in this checkout and absent only in worktrees**, so B2's *"absent here"* was
+true of its worktree and false of the repo. The requirement is therefore *run the probe where
+`models/ms-marco-MiniLM-L-2-v2-ft-session-j` is, and skip loudly elsewhere* —
+`cross_encoder_reference.rs`'s idiom — and **never a fake**, per the layer-3 probe's own header. Two
+traps: `DaemonMemory::open` hardcodes `RerankChoice::Auto` and the daemon has no
+`--rerank-provider`, so the provider resolves against free VRAM at load (ADR-044's *"the product
+default, not a measurement setting"*); and `reranking_for_serve` auto-discovers the pinned directory,
+so a spawned binary is live here and write-only on a clean clone — **the same reading, two meanings**,
+so a probe must assert the resolved state and **fail** rather than pass when write-only. Three gates
+still stand behind the reranker (ADR-062 §7): `NoRunnerUp` alone means a profile holding exactly one
+planted belief can never inject, so plant **at least two**.
 
 **A AND F ARE BUILT IN PARALLEL, AND STEP ONE OF A IS A CONTRACT.** The window needs the run
 object; the run object is A's to define. So **A pins the run object's shape in
@@ -822,14 +883,46 @@ against ceiling, subagent depth, and *"a Steer field that injects guidance into 
 without restarting it"*). The tab is the roster; a window is one scope opened from it. These are one
 design, not two.
 
-**Then, and not inside M3:** the red-team session (§8 — the boundary cannot be *tested* until
-something can taint), followed by [`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md)'s tournament.
+**The red-team session is [`REDTEAM-SESSION.md`](REDTEAM-SESSION.md), and it is TWO passes rather
+than one.** *"Then, and not inside M3"* stood here until 2026-08-29 and was right about the reason
+and wrong about the date: *something can taint* arrives at **Session D, inside M3**, not at the
+milestone edge. The ordering is unchanged; only the boundary moves.
+
+* **Pass 1 — end of Session C, inside M3. Injection only.** The surface is what C ships: the typed
+  upward channels, plus the condensed summary re-entering a parent at `AgentInferred`. Two positive
+  controls, both *expected to fail*, and neither optional: [`M3-DESIGN.md`](M3-DESIGN.md) §9.1's
+  **arm A8** free-text arm, and **`marlowe-red:9b` against `qwen3.5:9b`** — without them a clean sheet
+  means *the design is sound* **or** *the attack set is weak*, and nothing separates those. Every
+  class needing a memory write path is **excluded and stated as excluded on the report**, because a
+  taint-class zero taken before Session D reads character-for-character like a working defence.
+* **Pass 2 — post-M3, after Session D**, when a run may correctly hold an untrusted belief and
+  §8.3's full class list applies. It needs more than D shipping — see that document's §4.
+
+**Every report before M6 states the layer tally on its front page**, and it is not *"three live"*: a
+partial number read as a whole-system result is this project's most-logged failure aimed at its most
+important measurement.
+
+**No session row owned any of M3-DESIGN §9.1's arms A1–A8 or `SCOPED-MEMORY.md` §7's S1–S7 until
+2026-08-29, and two of them are conditions rather than curiosities** — §3.1 forbids inheriting
+`MAX_SOURCES_PER_READER = 6` without **A3** (now in D's row), and **A8**'s free-text arm is *"the
+vacuity control for the entire §2 invariant"* and pass 1's channel control (now in C's row). Each
+needs bands pre-registered in a file before any run, per `tools/preregister_*.py` discipline.
+
+Then [`ANALOGICAL-RETRIEVAL.md`](ANALOGICAL-RETRIEVAL.md)'s tournament.
 
 ### What M3 must NOT do
 
-* **Do not wire `ingest` before Session B.** Layer 3's latch is currently unreachable in the shipped
-  daemon — `ingest` has one caller and it is the eval adapter — so **a test asserting the boundary
-  holds passes today with every guard deleted.** Fix the two defects, then wire, then test.
+* **Do not wire `ingest` before Session D. AMENDED 2026-08-29 by ADR-062, and both halves changed —
+  the blocker and the evidence.** Session B is done and the two defects are fixed; what blocks wiring
+  now is that **no run in the current architecture may correctly hold an untrusted belief**
+  ([`M3-DESIGN.md`](M3-DESIGN.md) §2.1 forbids tainting Marlowe, §7 gives workers no `MemoryWrite`),
+  and Session D is what creates a run that is not. **The old bullet's evidence is stale too, and that
+  matters more than the wording:** it read *"`ingest` has one caller and it is the eval adapter"*, and
+  there are now **two** — `crates/marlowe/src/adapter.rs` and `DaemonMemory::ingest_external` — so the
+  grep that produced that sentence now **false-greens**, which is CLAUDE.md's instance #18. The
+  discriminating check is one level down: `grep -rn "ingest_external(" --include=*.rs crates/*/src/`
+  minus the definition. **Zero non-definition hits still means a test asserting the boundary holds
+  passes today with every guard deleted.**
 * **No credential broker** (M5). No swarm. No predeclared DAG.
 * **Do not start the benchmarks** — deferred to the end of the project, 2026-08-24, by the human.
 
