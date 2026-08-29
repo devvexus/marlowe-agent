@@ -196,6 +196,7 @@ which is layer 3's job, and layer 3 holds.
 | `docs/design/CONTRACTS.md` | Pinned schemas and type signatures | **Before any code crossing a boundary** |
 | `docs/design/DECISIONS.md` | Settled choices with rationale | Before proposing an alternative |
 | `docs/design/ROADMAP.md` | Milestone sequence | To find current scope |
+| `docs/design/SECURITY-AUDIT.md` | **Open security findings — a standing ledger, not a closed report** | **Before touching any of the five layers, and before filing a security finding as new** |
 | `STATE.md` | Built / next / known issues | At session start, always |
 
 Requirements docs are long. Do not load them by default — read the design docs, and go to
