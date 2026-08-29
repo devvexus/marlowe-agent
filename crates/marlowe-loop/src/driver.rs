@@ -537,6 +537,64 @@ pub trait MemoryHost {
         run_floor: marlowe_contract::TrustClass,
         now_ms: i64,
     ) -> Result<String, String>;
+
+    /// Record content that arrived from **outside**, under the channel it arrived on.
+    ///
+    /// # Why this exists, and it is not a convenience over `remember`
+    ///
+    /// `remember` writes a *model-authored claim* at `min(AgentInferred, run_floor)`. That is
+    /// correct for what it is, and it is **circular as a source of taint**: a claim is only
+    /// `UntrustedContent` if the run's floor was already there, and the floor only gets there by
+    /// reading something untrusted. No amount of `remember` can produce the first tainted belief.
+    ///
+    /// `marlowe_memory::ingest` is the non-circular path — `trust_for_channel` is total over
+    /// `Channel` with no default arm, and a `Channel::Web` belief is `UntrustedContent` because
+    /// of **where it came from**, not because of what a run had already read. Until this method
+    /// existed `ingest` had exactly one caller in the workspace, `adapter.rs`'s `--eval-adapter`,
+    /// and `Channel::` appeared nowhere in `marlowe-daemon`. Layer 3's latch was therefore
+    /// **unreachable in the shipped product**: not broken, but with no live trigger, which is
+    /// indistinguishable from working until something reaches it.
+    ///
+    /// # The class is DERIVED and returned, never supplied
+    ///
+    /// The caller passes an origin and gets back the class the harness computed. It cannot ask
+    /// for one. This mirrors §4.6's rule that the wire declares `origin` and never `trust_class`,
+    /// and it is what lets a probe assert on what the system decided rather than on what a test
+    /// handed it.
+    ///
+    /// # What may be passed as `text`, and this is layer 1's boundary
+    ///
+    /// **The validated summary, never the raw bytes.** A belief is retrieved into a future
+    /// window, so ingesting a fetched page verbatim would put attacker-controlled bytes in front
+    /// of a run holding tools by a route that goes around the quarantined reader entirely —
+    /// brief §8.2 defeated through the memory store. The condensed form has been through a child
+    /// with an empty tool set and a validated output contract; what this records is that summary,
+    /// under the origin of the page it describes.
+    fn ingest_external(
+        &mut self,
+        run: crate::run::RunId,
+        session: crate::run::SessionId,
+        content: &ExternalContent<'_>,
+        now_ms: i64,
+    ) -> Result<marlowe_contract::TrustClass, String>;
+}
+
+/// One piece of content that arrived from outside the harness, with the origin it arrived under.
+///
+/// **`channel` is the whole of the trust decision** and is not derived from `text`. §3.3 binds a
+/// class to the authority of the origin, never to the safety of the bytes, and a content signal
+/// cannot survive derivation — which is the finding behind HP6.
+#[derive(Debug, Clone, Copy)]
+pub struct ExternalContent<'a> {
+    pub channel: marlowe_contract::Channel,
+    /// What produced it — a URL, a message id, a path. Recorded on the turn's `origin.ref`.
+    ///
+    /// **Not consulted by the trust computation.** It is provenance for a human reading the
+    /// journal; a `ref` that could raise a class would be attacker-supplied authority.
+    pub reference: Option<&'a str>,
+    /// The text to remember. See [`MemoryHost::ingest_external`] on why this is the validated
+    /// summary and never the raw bytes.
+    pub text: &'a str,
 }
 
 /// The surface port. Render-only: §2.14, surfaces hold no policy.

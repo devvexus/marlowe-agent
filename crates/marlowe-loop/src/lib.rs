@@ -47,7 +47,7 @@ pub use durable::{
     OrphanOutcome, Restored, CHECKPOINT_VERSION,
 };
 pub use driver::{BatchItem, ToolInvocation,
-    ApprovalGate, ClaimRequest, ClockSource, Control, MemoryHost, ModelCall, ModelDriver,
+    ApprovalGate, ClaimRequest, ClockSource, Control, ExternalContent, MemoryHost, ModelCall, ModelDriver,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
     ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,
 };

@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 use marlowe_contract::{Clock, PayloadKind, TrustClass};
 use marlowe_journal::Journal;
-use marlowe_loop::driver::{ClaimRequest, MemoryHost};
+use marlowe_loop::driver::{ClaimRequest, ExternalContent, MemoryHost};
 use marlowe_loop::run::{RunId, SessionId};
 use marlowe_memory::cue::dense::vectors::VectorStore;
 use marlowe_memory::cue::dense::vram::{Probe, Reserve};
@@ -31,7 +31,7 @@ use marlowe_memory::retrieve::{
     debug_assert_injection_valid, select_for_injection, Rerank, Scoring, RERANK_BUDGET,
 };
 use marlowe_memory::{
-    remember_claim, Abstention, BeliefStore, ClaimWrite, FrozenGate, OperatingPoint,
+    ingest, remember_claim, Abstention, BeliefStore, ClaimWrite, FrozenGate, OperatingPoint,
 };
 
 /// What one turn's retrieval produced.
@@ -416,5 +416,77 @@ impl MemoryHost for DaemonMemory {
             // a refusal rather than being reported as a successful write.
             Err(e) => Err(format!("the write could not be journalled: {e}")),
         }
+    }
+
+    /// **The production caller for `marlowe_memory::ingest`, and until now there was none.**
+    ///
+    /// CLAUDE.md's layer-3 paragraph is about this exact line. `ingest` had one caller in the
+    /// workspace — `adapter.rs:304`, the `--eval-adapter` — and `Channel::` appeared nowhere in
+    /// `marlowe-daemon`. Since ADR-041 removed tool results as a taint source, a belief could only
+    /// become `UntrustedContent` through `remember_claim` under an already-bottomed floor, which is
+    /// circular. So the shipped daemon had **no way to enter the state layer 3 defends**, and every
+    /// test that established taint by hand-pushing a block was measuring an unreachable state.
+    ///
+    /// This is the non-circular entry: `trust_for_channel` decides from the ORIGIN, so a
+    /// `Channel::Web` belief is `UntrustedContent` regardless of what the run had read.
+    ///
+    /// # It mirrors `remember` deliberately, and one difference is the point
+    ///
+    /// Same journal-then-store order, same clock discipline, same rejection-is-visible rule. The
+    /// difference is that `remember` takes a `run_floor` and this does not: a claim's class depends
+    /// on what the writing run has seen, and an ingest's does not depend on anything the run did.
+    /// Passing a floor here would be an invitation to `min` it in, which would make an external
+    /// origin's class depend on the reader — a laundering path in the direction nobody checks,
+    /// since it can only make the class *worse* and so never trips an alarm.
+    fn ingest_external(
+        &mut self,
+        run: RunId,
+        session: SessionId,
+        content: &ExternalContent<'_>,
+        now_ms: i64,
+    ) -> Result<TrustClass, String> {
+        if content.text.trim().is_empty() {
+            return Err("nothing to ingest: the content is empty".to_string());
+        }
+
+        // §4.6's shape, built here rather than deserialized: this is the same wire type the eval
+        // adapter fills from JSON, so the two paths cannot diverge in what they hand `ingest`.
+        //
+        // **`actor` is the HARNESS.** `check_actor` may reject and may never elevate, and the
+        // actor is who performed the write — a fetched page did not write anything, the harness
+        // did. Putting a page's own claim about itself here is how `actor: "permission:grant"`
+        // gets accepted somewhere.
+        let request = marlowe_contract::IngestRequest {
+            contract_version: marlowe_contract::CONTRACT_VERSION.to_string(),
+            clock: Clock::new(now_ms),
+            session_id: session.to_string(),
+            turns: vec![marlowe_contract::Turn {
+                turn_id: format!("external:{run}:{now_ms}"),
+                speaker: marlowe_contract::Speaker::Tool,
+                text: content.text.to_string(),
+                occurred_at_ms: now_ms,
+                origin: marlowe_contract::Origin {
+                    channel: content.channel,
+                    actor: "harness".to_string(),
+                    r#ref: content.reference.map(str::to_string),
+                },
+            }],
+        };
+
+        let mut journal = self.journal.lock().expect("the journal lock was poisoned");
+        let mut beliefs = self.beliefs.lock().expect("the belief store lock was poisoned");
+        let outcome = ingest(&mut journal, &mut beliefs, &request)
+            .map_err(|e| format!("the belief could not be journalled: {e}"))?;
+
+        // **A refusal is returned, never inferred from absence.** §4.6's rule, and K3 measures
+        // exactly this.
+        if let Some(r) = outcome.rejected.first() {
+            return Err(r.reason.clone());
+        }
+        outcome
+            .written
+            .first()
+            .map(|w| w.effective_trust)
+            .ok_or_else(|| "the ingest produced neither a write nor a refusal".to_string())
     }
 }

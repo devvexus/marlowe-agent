@@ -170,6 +170,15 @@ pub struct RecordingMemory {
     /// The clock reading each claim was written at. Recorded so a test can assert the memory write
     /// and the run share one time base rather than two.
     pub times: Vec<i64>,
+    /// Every `ingest_external` call, as `(channel, reference, text)`.
+    ///
+    /// **The CHANNEL is the assertable thing here, never the class.** See the stub return in the
+    /// impl below: this double does not derive a trust class and no test in this crate may read
+    /// one from it. What a `marlowe-loop` test can honestly assert is *which origin the loop
+    /// declared* — that a fetched page is ingested as `Channel::Web` and not as something the
+    /// loop chose to be kinder about. Deriving the class from that origin is
+    /// `marlowe-memory`'s job and is asserted against the real `ingest` in the daemon's probe.
+    pub ingested: Vec<(marlowe_contract::Channel, Option<String>, String)>,
 }
 
 impl MemoryHost for RecordingMemory {
@@ -186,6 +195,34 @@ impl MemoryHost for RecordingMemory {
         self.sessions.push(session);
         self.times.push(now_ms);
         Ok(format!("m-{}", self.claims.len()))
+    }
+
+    fn ingest_external(
+        &mut self,
+        _run: RunId,
+        _session: marlowe_loop::run::SessionId,
+        content: &marlowe_loop::ExternalContent<'_>,
+        _now_ms: i64,
+    ) -> Result<marlowe_contract::TrustClass, String> {
+        self.ingested.push((
+            content.channel,
+            content.reference.map(str::to_string),
+            content.text.to_string(),
+        ));
+        // **A STUB, AND LABELLED ONE, BECAUSE THE ALTERNATIVES ARE BOTH WORSE.**
+        //
+        // Returning a class here means one of two things. Mirroring `trust_for_channel`'s table
+        // would be a *second implementation* of §3.3 — the exact thing `trust.rs`'s module docs
+        // forbid, and it would go on passing after the real table changed. Calling the real one
+        // is not available: `marlowe-loop`'s tests do not depend on `marlowe-memory`, and adding
+        // that dependency to reach a lookup table would invert the crate graph.
+        //
+        // So this returns a fixed value that means nothing, and the rule is stated where someone
+        // would otherwise be tempted to assert on it: **no test in this crate reads this value.**
+        // They assert on `ingested`, which records what the loop *declared*. The derivation is
+        // asserted against the real `ingest` in the daemon's probe, which is the only place it is
+        // evidence about anything.
+        Ok(marlowe_contract::TrustClass::UntrustedContent)
     }
 }
 
