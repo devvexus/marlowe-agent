@@ -1,0 +1,96 @@
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: unused import: `super::*`
+   --> crates\marlowe-loop\src\run.rs:799:9
+    |
+799 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (lib test) generated 1 warning (run `cargo fix --lib -p marlowe-loop --tests` to apply 1 suggestion)
+    Finished `release` profile [optimized + debuginfo] target(s) in 11.22s
+     Running unittests src\lib.rs (target\release\deps\marlowe_loop-bfd23b09c1978b62.exe)
+
+running 56 tests
+test budget::tests::a_child_never_receives_the_whole_remaining_budget ... ok
+test budget::tests::a_granted_child_can_always_make_at_least_one_call ... ok
+test budget::tests::a_second_sibling_is_offered_the_same_allocation_as_the_first ... ok
+test budget::tests::an_explicit_grant_inside_the_pool_is_honoured_exactly ... ok
+test budget::tests::depth_bounds_the_tree_rather_than_accumulating ... ok
+test budget::tests::a_parent_below_the_floor_refuses_to_delegate_rather_than_starving_a_child ... ok
+test context::tests::a_tool_description_cannot_reach_the_stable_tier ... ok
+test context::tests::compaction_invalidates_the_cache_in_both_directions ... ok
+test budget::tests::every_dimension_can_be_the_one_that_fires ... ok
+test budget::tests::the_call_cap_is_what_is_left_not_a_default ... ok
+test budget::tests::an_explicit_grant_larger_than_the_pool_is_refused_with_both_numbers ... ok
+test context::tests::compaction_triggers_at_seventy_percent_not_at_exhaustion ... ok
+test budget::tests::there_is_a_floor_below_which_a_call_is_not_worth_issuing ... ok
+test context::tests::a_trimmable_source_over_its_cap_is_shortened_oldest_first_and_says_so ... ok
+test context::tests::governance_survives_a_summarizer_that_returns_nothing ... ok
+test context::tests::the_trust_floor_is_the_worst_class_in_view ... ok
+test budget::tests::a_leaf_at_depth_four_is_inside_the_declared_band ... ok
+test context::tests::history_is_not_trimmable_so_a_long_dialogue_compacts_instead_of_forgetting ... ok
+test context::tests::tool_results_are_masked_before_compaction_is_reached ... ok
+test control::tests::a_cancelled_run_refuses_to_resume_and_says_the_policy_did_it ... ok
+test control::tests::a_checkpoint_of_an_unknown_version_is_refused_rather_than_read_with_defaults ... ok
+test control::tests::a_durable_resume_with_no_checkpoint_names_the_absence_not_the_feature ... ok
+test control::tests::a_steer_addressed_to_a_child_is_not_taken_by_the_parent ... ok
+test control::tests::cancelling_one_run_does_not_cancel_its_sibling ... ok
+test control::tests::resume_refuses_by_name_rather_than_succeeding_quietly ... ok
+test control::tests::resume_stages_a_real_checkpoint_and_hands_it_over_exactly_once ... ok
+test control::tests::steering_is_ordered ... ok
+test profile::tests::a_child_cannot_be_widened_past_its_parent ... ok
+test profile::tests::a_spawn_that_reads_untrusted_with_any_tool_fails_at_load_time ... ok
+test profile::tests::deserialization_cannot_bypass_the_invariant ... ok
+test profile::tests::the_empty_tool_set_is_the_only_quarantined_shape ... ok
+test profile::tests::the_named_profiles_are_the_capability_profiles_not_variants ... ok
+test provenance::tests::a_numeric_argument_has_no_attribution_path ... ok
+test provenance::tests::a_path_the_user_typed_is_user_asserted ... ok
+test provenance::tests::a_value_the_model_composed_carries_the_windows_floor ... ok
+test provenance::tests::an_argument_the_model_supplied_that_nobody_attributed_is_not_trusted_by_default ... ok
+test provenance::tests::attribution_is_exact_and_a_near_miss_does_not_match ... ok
+test run::tests::a_contract_refuses_a_field_it_did_not_name ... ok
+test run::tests::a_contract_refuses_a_transcript_stuffed_into_a_named_field ... ok
+test run::tests::a_missing_field_is_a_violation_not_an_empty_string ... ok
+test run::tests::a_mnemonic_is_the_same_every_time_for_the_same_id ... ok
+test run::tests::a_mnemonic_is_typeable_without_looking_twice ... ok
+test run::tests::condensed_result_has_no_transcript_field ... ok
+test run::tests::naming_a_run_did_not_change_what_a_run_id_is ... ok
+test run::tests::different_ids_get_different_names ... ok
+test run::tests::run_ids_are_reproducible_when_named ... ok
+test steer::tests::an_ordinary_correction_is_admitted_unchanged ... ok
+test steer::tests::an_oversized_steer_is_refused_by_name_and_never_truncated ... ok
+test steer::tests::emptiness_is_judged_on_the_sanitised_text_not_the_raw_input ... ok
+test steer::tests::the_cap_is_counted_in_characters_not_bytes ... ok
+test steer::tests::the_display_predicate_runs_before_the_text_is_ever_attributed ... ok
+test turn::tests::the_variant_set_carries_nothing_about_memory ... ok
+test upward::tests::a_dash_and_an_underscore_are_the_same_arm ... ok
+test upward::tests::a_spelling_this_build_does_not_have_is_refused_and_never_defaulted ... ok
+test upward::tests::arm_c_exists_in_a_debug_build_and_its_spelling_does_not_exist_in_a_release_build ... FAILED
+test upward::tests::every_arm_round_trips_through_its_one_spelling ... ok
+
+failures:
+
+---- upward::tests::arm_c_exists_in_a_debug_build_and_its_spelling_does_not_exist_in_a_release_build stdout ----
+
+thread 'upward::tests::arm_c_exists_in_a_debug_build_and_its_spelling_does_not_exist_in_a_release_build' (60560) panicked at crates\marlowe-loop\src\upward.rs:209:13:
+the unvalidated control must not be selectable in a shipped build
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    upward::tests::arm_c_exists_in_a_debug_build_and_its_spelling_does_not_exist_in_a_release_build
+
+test result: FAILED. 55 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe-loop --lib`

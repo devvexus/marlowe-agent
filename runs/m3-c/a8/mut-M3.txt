@@ -1,0 +1,61 @@
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+warning: unused variable: `child_completed`
+    --> crates\marlowe-loop\src\engine.rs:2968:13
+     |
+2968 |         let child_completed = matches!(&outcome, LoopOutcome::Completed(_));
+     |             ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_child_completed`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `validated_headline` is never used
+    --> crates\marlowe-loop\src\engine.rs:3181:8
+     |
+ 559 | impl<S: PathScope> Engine<S> {
+     | ---------------------------- method in this implementation
+...
+3181 |     fn validated_headline(
+     |        ^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: `marlowe-loop` (lib) generated 2 warnings (run `cargo fix --lib -p marlowe-loop` to apply 1 suggestion)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.03s
+     Running tests\upward_channel.rs (target\debug\deps\upward_channel-9b19bf81a973f2d8.exe)
+
+running 4 tests
+test an_arm_has_exactly_one_spelling_and_an_unknown_one_is_refused ... ok
+test arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract ... FAILED
+test the_arms_differ_only_in_what_crosses_and_not_in_what_the_child_saw ... ok
+test the_arm_decides_what_crosses_from_a_child ... FAILED
+
+failures:
+
+---- arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract stdout ----
+
+thread 'arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract' (60708) panicked at crates\marlowe-loop\tests\upward_channel.rs:223:5:
+CONTROL FAILED: the validator never ran, so nothing was validated or refused
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_arm_decides_what_crosses_from_a_child stdout ----
+
+thread 'the_arm_decides_what_crosses_from_a_child' (45556) panicked at crates\marlowe-loop\tests\upward_channel.rs:186:5:
+CONTROL FAILED: the quarantined headline validator never ran, so arm (b) was arm (a) under another name
+
+
+failures:
+    arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract
+    the_arm_decides_what_crosses_from_a_child
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe-loop --test upward_channel`

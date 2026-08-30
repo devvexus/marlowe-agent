@@ -1,0 +1,176 @@
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: field `model_calls` is never read
+  --> crates\marlowe-loop\tests\quarantine_batch.rs:93:5
+   |
+89 | struct Harness {
+   |        ------- field in this struct
+...
+93 |     model_calls: Arc<Mutex<usize>>,
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (test "quarantine_batch") generated 1 warning
+warning: unused import: `super::*`
+   --> crates\marlowe-loop\src\run.rs:799:9
+    |
+799 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (lib test) generated 1 warning (run `cargo fix --lib -p marlowe-loop --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.71s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_loop-a44d0656fa4f11c0.exe)
+
+running 56 tests
+test budget::tests::a_child_never_receives_the_whole_remaining_budget ... ok
+test budget::tests::a_granted_child_can_always_make_at_least_one_call ... ok
+test budget::tests::an_explicit_grant_inside_the_pool_is_honoured_exactly ... ok
+test budget::tests::a_parent_below_the_floor_refuses_to_delegate_rather_than_starving_a_child ... ok
+test budget::tests::the_call_cap_is_what_is_left_not_a_default ... ok
+test budget::tests::a_leaf_at_depth_four_is_inside_the_declared_band ... ok
+test budget::tests::depth_bounds_the_tree_rather_than_accumulating ... ok
+test budget::tests::every_dimension_can_be_the_one_that_fires ... ok
+test budget::tests::a_second_sibling_is_offered_the_same_allocation_as_the_first ... ok
+test context::tests::compaction_invalidates_the_cache_in_both_directions ... ok
+test budget::tests::there_is_a_floor_below_which_a_call_is_not_worth_issuing ... ok
+test context::tests::a_tool_description_cannot_reach_the_stable_tier ... ok
+test budget::tests::an_explicit_grant_larger_than_the_pool_is_refused_with_both_numbers ... ok
+test context::tests::compaction_triggers_at_seventy_percent_not_at_exhaustion ... ok
+test context::tests::a_trimmable_source_over_its_cap_is_shortened_oldest_first_and_says_so ... ok
+test context::tests::governance_survives_a_summarizer_that_returns_nothing ... ok
+test context::tests::the_trust_floor_is_the_worst_class_in_view ... ok
+test context::tests::tool_results_are_masked_before_compaction_is_reached ... ok
+test context::tests::history_is_not_trimmable_so_a_long_dialogue_compacts_instead_of_forgetting ... ok
+test control::tests::a_cancelled_run_refuses_to_resume_and_says_the_policy_did_it ... ok
+test control::tests::a_checkpoint_of_an_unknown_version_is_refused_rather_than_read_with_defaults ... ok
+test control::tests::a_durable_resume_with_no_checkpoint_names_the_absence_not_the_feature ... ok
+test control::tests::a_steer_addressed_to_a_child_is_not_taken_by_the_parent ... ok
+test control::tests::resume_refuses_by_name_rather_than_succeeding_quietly ... ok
+test control::tests::cancelling_one_run_does_not_cancel_its_sibling ... ok
+test control::tests::resume_stages_a_real_checkpoint_and_hands_it_over_exactly_once ... ok
+test control::tests::steering_is_ordered ... ok
+test profile::tests::a_child_cannot_be_widened_past_its_parent ... ok
+test profile::tests::a_spawn_that_reads_untrusted_with_any_tool_fails_at_load_time ... ok
+test profile::tests::the_empty_tool_set_is_the_only_quarantined_shape ... ok
+test profile::tests::deserialization_cannot_bypass_the_invariant ... ok
+test profile::tests::the_named_profiles_are_the_capability_profiles_not_variants ... ok
+test provenance::tests::a_numeric_argument_has_no_attribution_path ... ok
+test provenance::tests::a_path_the_user_typed_is_user_asserted ... ok
+test provenance::tests::a_value_the_model_composed_carries_the_windows_floor ... ok
+test provenance::tests::an_argument_the_model_supplied_that_nobody_attributed_is_not_trusted_by_default ... ok
+test provenance::tests::attribution_is_exact_and_a_near_miss_does_not_match ... ok
+test run::tests::a_contract_refuses_a_field_it_did_not_name ... ok
+test run::tests::a_contract_refuses_a_transcript_stuffed_into_a_named_field ... ok
+test run::tests::a_missing_field_is_a_violation_not_an_empty_string ... ok
+test run::tests::a_mnemonic_is_the_same_every_time_for_the_same_id ... ok
+test run::tests::condensed_result_has_no_transcript_field ... ok
+test run::tests::naming_a_run_did_not_change_what_a_run_id_is ... ok
+test run::tests::run_ids_are_reproducible_when_named ... ok
+test run::tests::different_ids_get_different_names ... ok
+test steer::tests::an_ordinary_correction_is_admitted_unchanged ... ok
+test run::tests::a_mnemonic_is_typeable_without_looking_twice ... ok
+test steer::tests::emptiness_is_judged_on_the_sanitised_text_not_the_raw_input ... ok
+test steer::tests::the_display_predicate_runs_before_the_text_is_ever_attributed ... ok
+test steer::tests::the_cap_is_counted_in_characters_not_bytes ... ok
+test steer::tests::an_oversized_steer_is_refused_by_name_and_never_truncated ... ok
+test turn::tests::the_variant_set_carries_nothing_about_memory ... ok
+test upward::tests::a_dash_and_an_underscore_are_the_same_arm ... ok
+test upward::tests::a_spelling_this_build_does_not_have_is_refused_and_never_defaulted ... ok
+test upward::tests::arm_c_exists_in_a_debug_build_and_its_spelling_does_not_exist_in_a_release_build ... ok
+test upward::tests::every_arm_round_trips_through_its_one_spelling ... ok
+
+test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\injection_attempts.rs (target\debug\deps\injection_attempts-38366d1192a7ba9a.exe)
+
+running 10 tests
+test a_direct_instruction_in_the_page_body_does_not_reach_the_run_that_holds_bash ... ok
+test a_page_cannot_forge_a_field_header_through_the_reader ... ok
+test an_instruction_inside_a_script_tag_does_not_reach_the_parent ... ok
+test ansi_escapes_from_a_page_never_reach_the_parent ... ok
+test even_a_fully_compromised_reader_cannot_make_the_parent_run_a_tool ... ok
+test an_instruction_inside_an_html_comment_does_not_reach_the_parent ... ok
+test a_page_impersonating_the_quarantine_banner_is_still_quarantined ... ok
+test a_reader_emitting_control_characters_is_refused_by_the_contract ... ok
+test no_hostile_page_moves_the_parents_trust_floor ... ok
+test an_enormous_hostile_page_is_still_contained ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\quarantine_batch.rs (target\debug\deps\quarantine_batch-b93396033face3f2.exe)
+
+running 11 tests
+test with_no_budget_for_a_reader_the_page_is_not_placed_in_the_window ... ok
+test a_running_quarantined_reader_is_visible_as_a_subagent_on_the_surface ... ok
+test an_unattributed_reply_does_not_appear_under_any_sources_label ... ok
+test a_value_cannot_forge_a_source_header ... ok
+test the_subagent_line_carries_no_word_the_reader_or_the_page_wrote ... ok
+test nothing_the_quarantined_reader_says_reaches_the_surface ... ok
+test no_fetched_bytes_reach_the_parent_and_the_floor_does_not_move ... ok
+test each_source_is_reported_under_its_own_harness_assigned_label ... ok
+test identical_documents_are_read_once ... ok
+test a_group_of_fetches_is_read_by_exactly_one_quarantined_child ... ok
+test a_group_larger_than_the_cap_is_split_across_readers ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\spawn_and_budget.rs (target\debug\deps\spawn_and_budget-228ebafca29ca012.exe)
+
+running 32 tests
+test a_negative_amount_is_not_quietly_turned_into_a_valid_one ... ok
+test a_child_that_returns_a_transcript_shaped_result_is_refused_by_its_contract ... ok
+test a_declared_amount_is_rendered_as_money_in_the_scope_line ... ok
+test a_child_cannot_be_less_tainted_than_the_run_that_spawned_it ... ok
+test a_model_that_returns_nothing_fails_the_run_rather_than_completing_it ... ok
+test a_child_cannot_be_given_a_tool_its_parent_does_not_have ... ok
+test a_blocked_tool_call_still_emits_a_tool_line ... ok
+test a_driver_that_ignores_its_cap_is_stopped_at_the_next_iteration ... ok
+test a_childs_spend_counts_against_its_parent ... ok
+test a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts ... ok
+test a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop ... ok
+test a_refusal_tells_the_model_what_happened_and_whether_to_retry ... ok
+test a_child_does_not_inherit_its_parents_provenance_attributions ... ok
+test a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it ... ok
+test a_quarantined_child_runs_and_returns_findings ... ok
+test a_budget_ceiling_pauses_and_never_spends_past_the_line ... ok
+test a_batch_cannot_launder_a_target_through_its_own_sibling ... ok
+test an_empty_turn_is_nudged_before_it_is_failed ... ok
+test the_empty_tool_set_with_reads_untrusted_is_the_valid_quarantined_reader ... ok
+test an_integer_declared_as_an_integer_is_not_turned_into_money ... ok
+test the_guard_names_a_tool_that_has_no_executor ... ok
+test a_childs_transcript_never_reaches_the_parents_context ... ok
+test the_interactive_profile_exposes_nothing_the_tool_host_cannot_run ... ok
+test a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name ... ok
+test the_trust_floor_holds_after_the_untrusted_block_is_trimmed_out_of_the_view ... ok
+test every_result_in_a_batch_is_attributable_to_the_call_that_produced_it ... ok
+test the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing ... ok
+test a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked ... ok
+test the_spawn_tree_is_bounded_by_depth ... ok
+test an_ordinary_workspace_read_is_silent_and_a_fetched_page_announces_once ... ok
+test every_budget_dimension_can_be_the_one_that_pauses ... ok
+test the_latch_announces_exactly_when_a_composed_target_is_actually_blocked ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\upward_channel.rs (target\debug\deps\upward_channel-9b19bf81a973f2d8.exe)
+
+running 4 tests
+test an_arm_has_exactly_one_spelling_and_an_unknown_one_is_refused ... ok
+test arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract ... ok
+test the_arms_differ_only_in_what_crosses_and_not_in_what_the_child_saw ... ok
+test the_arm_decides_what_crosses_from_a_child ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
