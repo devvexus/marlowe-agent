@@ -7,6 +7,11 @@
 They are recorded here first because a decision made out loud and not written down is lost, which is
 the failure three other places were fixed for on this same day. **Next session opens on these.**
 
+**Scheduled as `M3-D1`–`M3-D4` in [`ROADMAP.md`](docs/design/ROADMAP.md)'s M3 block** — that table is
+the **scheduling** view (who implements each, what it blocks) and this entry is the **reasoning**.
+Two records of one fact diverge, so keep it that way: schedule changes go there, rationale stays
+here, and neither restates the other. A `DECISIONS.md` entry is written when each **lands**, not now.
+
 | # | Decision | State | Blocks |
 |---|---|---|---|
 | 1 | **The origin for a belief derived from a condensed summary is a NEW `Channel::Agent`.** ADR-062 §4's Option B, chosen over `Channel::Web` — which would record a provenance the harness knows to be false, since the page never emitted those bytes and the harness's own reader did | **decided, not built** | Session D's correct `ingest` caller |

@@ -833,6 +833,47 @@ the order below, and the order is load-bearing rather than a preference.
 | **E** | Meetings — largest surface, most speculative, needs the tree underneath. Crosses §10.1's *"workers do not talk to each other"* and needs a `DECISIONS.md` entry; `set_speaker` is the argument | not started |
 | **G** | **The Agent Directory — LAST IN M3, and its first step is a brainstorming session, not an implementation session.** Requested 2026-08-29 by the human. Two features that may be two sessions: a **directory** (all running agents, all available agents) and a **level ladder** — the user picks a secretary model plus Agent-Model-High/Medium/Low, and a `run` carries a **new `level` parameter** that loads the corresponding model. **The brief is [`AGENT-DIRECTORY.md`](AGENT-DIRECTORY.md), and the arithmetic in its §2 is why it cannot be designed at a keyboard**: a warm 9B runner is 6.7 GB, **two copies of a 9B do not fit on a 16 GB card**, and an Ollama cold load measured **10,484.9 ms** — so a "Low" tier *meant for fast tasks*, if reached by eviction, is ten seconds slower to first token than the Medium tier it was avoiding. **The ladder can invert its own purpose and the number that proves it is already recorded.** Needs C (the tree exists) and rides F's window substrate. Subsumes half of STATE.md's open item *"THREE CONSTANTS ENCODE A 16 GB CARD"* — `/model` saying what fits is this directory's VRAM column in another surface — so they are solved together or the same problem is solved twice | **not started; brainstorm first** |
 
+### Decisions taken during M3 — each one is owned by a session below, and none is built
+
+**Scoped here rather than only in `STATE.md`, because a decision recorded only in a dated log is
+found by a reader who already knows to look for it.** This table is the scheduling view: who
+implements it and what it blocks. `STATE.md`'s 2026-08-29 entry carries the reasoning, and the
+`DECISIONS.md` entry is written when each lands, not before.
+
+| # | Decision | Taken | Owned by | Blocks |
+|---|---|---|---|---|
+| **M3-D1** | **A belief derived from a condensed summary is recorded under a new `Channel::Agent`** — ADR-062 §4's Option B. `Channel::Web` was rejected: it records a provenance **the harness knows to be false**, since the page never emitted those bytes and the harness's own quarantined reader did | 2026-08-29, human | **Session D**, and the contract half may land earlier | **D's correct `ingest` caller.** Nothing wires `ingest` until this exists |
+| **M3-D2** | **`MemoryHost` is pinned in [`CONTRACTS.md`](CONTRACTS.md)**, with the missing [`ARCHITECTURE.md`](ARCHITECTURE.md) §7 Loop→Memory row | 2026-08-29, human | next session | — |
+| **M3-D3** | **`marlowe-daemon/src/memory.rs` and `marlowe-loop/src/driver.rs` are added to `.claude/hooks/protect-boundaries.py`** | 2026-08-29, human | next session | — |
+| **M3-D4** | **Egress approval confers NO authority on content.** An approved host is trusted to *fetch*; what it returns is `UntrustedContent` exactly as an unapproved host's would be | 2026-08-29, human | next session (a test), and ADR-032 on acceptance (a sentence) | — |
+
+**M3-D1 is a pinned-contract change and that is the whole reason it was the human's.** `Channel` is
+wire-visible, `trust_for_channel`'s match is exhaustive **with no default arm by design** — so the
+variant is a compile error until someone decides what it is worth, which is the load-time error §4.6
+asks for — and `eval/` deserializes the same type. Adding a variant is backward compatible for
+existing records; **reshaping the scoreboard's types is not a session's call**, which is why this one
+was escalated rather than taken. **It closes M3-DESIGN §8's standing question in the same edit** —
+*"there is no `Channel::Agent` and no trust class for an agent's speech. Either add one, or record a
+decision that typed upward structure needs none."* ADR-062 §4.1 is explicit that this does **not**
+thereby close M3-DESIGN §12 item 5: the meeting utterance (**E**) and the harness-mediated reader
+(**D**) remain separate consumers of the same missing slot.
+
+**M3-D3 needed no human and the closing agent thought it did.** The hook returns `ask`, not `deny`,
+so adding a path makes the agent prompt **more** often — monotonic in the human's favour. §13's rule
+exists to stop an agent **removing** or narrowing protection. **Adding is safe; removing needs a
+human.** Recorded so the next session does not re-derive the same over-caution and escalate again.
+
+**M3-D4 holds structurally today and is asserted by nothing, which is the hazard.**
+`trust_for_channel(channel: Channel) -> TrustClass` takes **only a channel**, so grant state cannot
+enter the function that decides the class; `marlowe-permission`'s egress module imports no
+`TrustClass`; and `marlowe-exec/src/lib.rs:1674` stamps `UntrustedContent` without consulting the
+policy. But `egress_grant.rs`'s two neighbouring tests cover *persistence* and *layer 1*, not this —
+**the invariant holds because nothing wires the two together, not because anything checks that
+nothing does.** The wrong version is plausible enough to pass review as an ergonomics improvement:
+*"the human was shown the host and approved it, therefore `UserAsserted`"* — the human's authority
+laundering the page's. Owed: `approving_a_host_does_not_raise_the_trust_class_of_what_it_returns`,
+asserting the class **with a grant in hand**, plus a control that the grant genuinely happened.
+
 **WHAT "A LOADABLE RERANKER" MEANS, because four words in STATE.md understate it and its premise
 was worktree-scoped.** With no cross-encoder loaded, `DaemonMemory::retrieve` reads `Rerank::Off`
 (`marlowe-daemon/src/memory.rs:277`), `decide` returns `Abstention::NoReranker`
