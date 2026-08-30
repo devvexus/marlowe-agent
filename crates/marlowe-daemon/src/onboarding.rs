@@ -31,11 +31,14 @@
 //! The **egress** line and the **memory** line are written here, because there is nothing to derive
 //! them from that would make the claim stronger:
 //!
-//! * Layer 4 (egress allowlisting) is **approved but not shipped** — `EgressPolicy::grant()` has no
-//!   call site in the product, and `CapabilityProfile` exposes no `&mut` accessor, so per-host
-//!   grants cannot be stored. Every fetch is therefore a fresh human decision. That is *stronger*
-//!   than ADR-032 §3.1 describes, and stating the shipped behaviour rather than the designed one is
-//!   the point.
+//! * Layer 4 (egress allowlisting) is shipped on the `web` path and **now stores per-host grants**
+//!   for the length of a run (ADR-032 §3.1, wired 2026-08-29). This paragraph said the opposite for
+//!   nineteen days — *"`EgressPolicy::grant()` has no call site in the product ... every fetch is
+//!   therefore a fresh human decision"* — which was true when written and was one of nine documents
+//!   repeating it. What the onboarding line must now say is the narrower true thing: **the first
+//!   fetch of a host in a turn asks, and the rest of that turn does not.** A run is one user
+//!   message (`Daemon::ask_streaming_with` builds a fresh `Run::root` per turn), so the human is
+//!   asked again on his next message; nothing is persisted and nothing is written to a config file.
 //! * The memory line states that what the user says can be written to a signed local journal. There
 //!   is no capability flag for "remembers things"; it is a property of the daemon existing.
 //!

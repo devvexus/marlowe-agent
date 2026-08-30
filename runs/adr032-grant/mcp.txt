@@ -1,0 +1,35 @@
+   Compiling marlowe-mcp v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-mcp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.86s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_mcp-5d9dae39bd148c91.exe)
+
+running 6 tests
+test tests::a_json_type_maps_to_a_param_type_and_the_unknown_case_is_text ... ok
+test deadline::tests::a_deadline_in_the_past_has_passed_and_one_in_the_future_has_not ... FAILED
+test tests::no_socket_reaches_this_crate ... ok
+test deadline::tests::nothing_but_a_bool_comes_out_of_this_module ... ok
+test tests::the_spawn_path_still_detaches_the_console ... ok
+test tests::a_server_that_cannot_be_started_says_so_by_name ... ok
+
+failures:
+
+---- deadline::tests::a_deadline_in_the_past_has_passed_and_one_in_the_future_has_not stdout ----
+
+thread 'deadline::tests::a_deadline_in_the_past_has_passed_and_one_in_the_future_has_not' (108164) panicked at crates\marlowe-mcp\src\deadline.rs:59:9:
+assertion failed: Deadline::after(0).passed()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    deadline::tests::a_deadline_in_the_past_has_passed_and_one_in_the_future_has_not
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p marlowe-mcp --lib`
+   Doc-tests marlowe_mcp
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: 1 target failed:
+    `-p marlowe-mcp --lib`

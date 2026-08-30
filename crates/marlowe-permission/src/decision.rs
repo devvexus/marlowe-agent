@@ -125,6 +125,26 @@ pub enum Reason {
     NoveltyDroppedOneTier,
     AllTargetsTrusted,
     InertNoTargetCheck,
+    /// **ADR-032 §3.1 — the host this call would reach, which the run has not been granted.**
+    ///
+    /// Emitted only on the `AllowApproved` ask-branch, so its presence means the outcome is
+    /// `NeedsApproval` *for an egress reason*: `DenyAll` and a declared `Allow` list are terminal
+    /// and never reach it.
+    ///
+    /// # Why the host travels in `reasons` rather than in a field on `Adjudication`
+    ///
+    /// The loop has to know **which** host a human just approved in order to record the grant,
+    /// and it must not re-derive it: two places deciding "which host was this call about" is the
+    /// shape where the enforcement site and the recording site silently disagree. The adjudicator
+    /// already knows — it is the code that parsed the URL and intersected the two sets — so it
+    /// says so, once, in the field that already exists for *why this outcome*.
+    ///
+    /// The audit story comes free: `reasons` is serialized into `PermissionDecided`, so the
+    /// signed journal records the host that was asked about next to the decision that asked.
+    /// The value is a parsed, lowercased [`crate::Host`] and never the raw URL — finding D9's
+    /// note about attacker prose landing in a field named `host` applies to `BlockReason`, and
+    /// this variant does not repeat it.
+    EgressHostNeedsApproval { host: String },
 }
 
 /// CONTRACTS.md §9.

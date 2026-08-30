@@ -373,6 +373,21 @@ impl<S: PathScope> Adjudicator<S> {
                     // is why the intersection is checked before this branch and not after.
                     if req.egress.may_ask() && crate::egress::declared_admits(manifest.hosts(), &host) {
                         egress_needs_approval = true;
+                        // **The host is NAMED in the decision, and that is what makes ADR-032
+                        // §3.1's session grant possible.** The loop has to know which host the
+                        // human just approved before it can record it, and the alternative —
+                        // the loop re-walking the manifest's `Url` params itself — puts a second
+                        // definition of *which host was this call about* beside this one. Two
+                        // sides silently disagreeing is the shape this project keeps logging;
+                        // the code that parsed the URL and intersected the two sets says so
+                        // once, here, and the loop reads it rather than re-deriving it.
+                        //
+                        // Reaching this line means the outcome will be `NeedsApproval`: §5 has
+                        // no `Blocked` return after this point. `DenyAll` and a declared `Allow`
+                        // list never get here at all, because `may_ask()` is false for both —
+                        // which is the same guard `EgressPolicy::grant` applies at the far end.
+                        reasons
+                            .push(Reason::EgressHostNeedsApproval { host: host.as_str().to_string() });
                         None
                     } else {
                         Some(BlockReason::EgressNotAllowed { host: host.as_str().to_string() })

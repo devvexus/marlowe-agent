@@ -1,6 +1,12 @@
 # ADR-032 — Egress is approved per host by a human, and that is only legitimate if the prompt shows the host
 
-**Status:** **ACCEPTED 2026-08-29 by the human**, nineteen days after §3.1 and §3.2 shipped
+**Status:** **ACCEPTED 2026-08-29 by the human**, nineteen days after most of §3.1 and §3.2 shipped
+**§3.1's third bullet — the session grant — shipped LAST, on 2026-08-29, and this line used to claim
+otherwise.** *"Nineteen days after §3.1 and §3.2 shipped"* was written on the day of acceptance and
+was already wrong: `EgressPolicy::grant` had no production caller, so an approved host was re-asked
+about on every fetch. That is the ADR's own §3.1 unimplemented, recorded here rather than in a
+changelog, because a status line that overstates what shipped is the same defect this ADR's status
+line was already carrying in the other direction.
 **Accepted late, and the gap is recorded rather than tidied away:** the decision was implemented in
 M2 C2f and the status line was never moved, so §13 machinery ran in the product under an ADR nobody
 had accepted. That is instance #16's shape aimed at a status line — a declared control (`PROPOSED`)
@@ -52,6 +58,25 @@ domains would be needed.
 - On approval the host is added to `granted` **for that run**. It does not persist across runs and
   it is not written to a config file. Session-scoped grant is what stops the second fetch of the
   same host re-asking; anything longer-lived is a separate decision with a separate audit story.
+
+  **WIRED 2026-08-29, and the scope word in that bullet is worth reading precisely.** The bullet
+  says *"for that run"* and then calls it *"session-scoped"*, and in the shipped daemon **those are
+  not the same thing**: `Daemon::ask_streaming_with` builds a fresh `Run::root` with a fresh
+  `CapabilityProfile` on every user message, so a grant covers every fetch inside one turn and is
+  gone by the next. What is implemented is the **run**-scoped reading, which is what the normative
+  first sentence says. The looser word in the third sentence is left standing and flagged rather
+  than quietly resolved, because widening it to the session is the same question
+  [`SECURITY-AUDIT.md`](../SECURITY-AUDIT.md) §8 raises about ADR-023's trust-floor latch — *"the
+  latch belongs on the session, not the Run"* — and both are the human's to decide, not a session's.
+
+  The route is `CapabilityProfile::grant_egress_host`, the **only** mutable method on that type: no
+  `egress_mut`, no `set_egress`, and it takes a parsed `Host` rather than a string. It delegates to
+  `EgressPolicy::grant`, whose no-op on every other variant is what keeps the widening incapable of
+  violating `CapabilityProfile::new`'s `reads_untrusted ⟹ DenyAll` invariant — the reason the
+  granted set lives on the profile rather than beside it on the `Run`. The host travels from the
+  adjudicator in `Reason::EgressHostNeedsApproval` so that the enforcement site and the recording
+  site cannot disagree about which host a call was for, and the widening lands in the
+  `ApprovalGranted` journal payload — recorded on what actually widened, not on what was asked for.
 - `DenyAll` and `Allow { hosts }` are unchanged, and neither can reach `NeedsApproval` by this
   route. A run that declared a list is held to its list.
 

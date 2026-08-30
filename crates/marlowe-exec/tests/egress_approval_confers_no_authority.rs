@@ -192,9 +192,11 @@ fn ref_hash(body: &str) -> String {
 
 /// A grant of `HOST`, in the shape ADR-032's approval flow would leave behind.
 ///
-/// **Constructed, because it cannot be earned.** `EgressPolicy::grant` has no production caller —
-/// layer 4's approval surface is not shipped — so this is a state no run can currently reach. It
-/// is written out here rather than obtained from a run precisely so that fact is visible.
+/// **Constructed, and no longer unreachable.** This doc said *"it cannot be earned: `EgressPolicy::
+/// grant` has no production caller"*; since 2026-08-29 the loop records the grant on approval, so
+/// this is the state a run is in after its first `yes` to that host. It is still written out here
+/// rather than earned, because this crate has no loop to earn it in — and because the point of the
+/// arm is the policy value, not how it was arrived at.
 fn granted() -> EgressPolicy {
     EgressPolicy::AllowApproved { granted: vec![HostPattern::new(HOST)] }
 }

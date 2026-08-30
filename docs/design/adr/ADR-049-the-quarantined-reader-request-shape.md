@@ -139,9 +139,15 @@ on without either of them being read.
 
 **Ruling: environmental, not deliberate.** `bash` reaches the network exactly as any other process
 on the machine does — measured, `curl` to arxiv.org returns HTTP 200 from `cmd /C`. No
-`EgressPolicy` is consulted on this path at all; `EgressPolicy::grant()` still has no production
-call site, and layer 4 remains *approved but not shipped*. **Nothing was granted and nothing was
-moved.**
+`EgressPolicy` is consulted on this path at all. **Nothing was granted and nothing was moved.**
+
+**AMENDED 2026-08-29.** This paragraph continued *"`EgressPolicy::grant()` still has no production
+call site, and layer 4 remains approved but not shipped"*. Layer 4 is shipped on the `web` path and
+the per-host grant is now wired, and **the finding here is untouched by that** — which is the point
+of amending rather than deleting. The `bash` hole is not that grants do not accumulate; it is that
+the adjudicator's egress section iterates parameters typed `Url` and `bash` declares none, so no
+policy of any kind is read on this path. A wider `EgressPolicy` and a narrower one are equally
+irrelevant to a call that never consults one.
 
 The actual defect is that **the tool is called `bash` and on Windows it is `cmd /C`.** The name was
 the whole of what the model had to go on and the name is wrong on this platform, so a model writes

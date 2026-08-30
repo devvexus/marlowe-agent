@@ -5,10 +5,29 @@
 //! `grant()`, and `grant()` is a method — a description of a mechanism, not a measurement of
 //! its output. This file asks the loop what actually happens.
 //!
-//! 1. A second fetch of the **same host** asks again. The grant is never recorded, because
-//!    nothing in the product calls `grant()` and `CapabilityProfile` exposes no `&mut` route
-//!    to the policy for it to be called through. **This is unaffected by layer 1** — condensing
-//!    a page changes who reads it, not who approved reaching for it.
+//! **AND FOR NINETEEN DAYS THE ANSWER WAS "NOTHING".** The first test in this file used to be
+//! called `a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded`, and it
+//! was correct: `EgressPolicy::grant` had no production caller, `CapabilityProfile` exposed no
+//! `&mut` route to reach it through, and every fetch of an already-approved host asked again.
+//! ADR-032 §3.1 had said otherwise since M2 C2f and was accepted on 2026-08-29; the sentence
+//! *"session-scoped grant is what stops the second fetch of the same host re-asking"* described
+//! a method nobody called. `SECURITY-AUDIT.md` D11(c) had it as one of eight instance-#16 cases
+//! — a declared control with no reader — and nobody had joined it to the ADR it was violating.
+//!
+//! So the first test is **inverted and renamed**, because a test whose name asserts the opposite
+//! of its body is worse than no test:
+//!
+//! 1. An approved host is **not** asked about again, on any path. A different host still is.
+//!    **This is unaffected by layer 1** — condensing a page changes who reads it, not who
+//!    approved reaching for it.
+//! 2. A run that declared `DenyAll` cannot be widened by an approval, and neither can a run that
+//!    declared a fixed `Allow` list. That is the safety property of the whole change and it is
+//!    measured by *attempting* the widening rather than by reading `grant`'s doc comment.
+//!
+//! **The grant is RUN-scoped, and a turn is not a run.** `Daemon::ask_streaming_with` builds a
+//! fresh `Run::root` per user message, so the human is asked again on his next turn. That is
+//! what ADR-032 §3.1 specifies and it is the same session-versus-run question `SECURITY-AUDIT.md`
+//! §8 raises about ADR-023's latch. Neither is extended here.
 //!
 //! The second test measures **layer 1**, and its assertions were inverted by the routing
 //! landing. Recorded here because the before/after is the clearest statement of what changed:
@@ -73,9 +92,33 @@ fn bash_call(command: &str) -> marlowe_loop::ModelCall {
     )
 }
 
-/// The whole measurement in one run, so every assertion shares one floor and one policy.
+/// **ADR-032 §3.1, measured on the loop: an approved host is not asked about twice.**
+///
+/// # This test is the inversion of the one it replaces
+///
+/// It was `a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded`, and it
+/// read 3 approvals for 2 hosts. It now reads 2, and that difference is the whole change.
+/// Renamed rather than edited in place, because a name asserting the opposite of its body is
+/// worse than no test at all.
+///
+/// # The whole measurement is in ONE run, deliberately
+///
+/// Every assertion shares one floor, one policy and one script, so the three fetches differ only
+/// in the URL. Split across three runs, the "a different host still asks" control would be a
+/// different run's policy and could not rule out a grant that leaked.
+///
+/// # What each of the three possible readings would mean
+///
+/// | Reading | What it would mean |
+/// |---|---|
+/// | 3 approvals | no grant is recorded at all — the defect this commit closes |
+/// | 1 approval | the grant is not per-host: approving one host opened the second |
+/// | **2 approvals** | one per distinct host, which is ADR-032 §3.1 |
+///
+/// The second fetch is a **different path on the same host** — the user's own scenario, and the
+/// reason `grants()` matches on host through `pattern_admits` with the path never entering it.
 #[test]
-fn a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded() {
+fn an_approved_host_is_not_asked_about_again_and_a_different_host_still_is() {
     let mut e = engine();
     // **The script encodes the CONDENSE COST MODEL, and that model changed (ADR-041).**
     //
@@ -88,15 +131,16 @@ fn a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded() 
     // `ScriptedTools` returns the same `PAGE_BODY` for every call, so fetches two and three are
     // cache hits and cost **no model call at all**. Only the first fetch needs a child reply.
     //
-    // The property under test is untouched: three fetches must still produce three egress
-    // approvals, because adjudication is per call and happens before any of this.
+    // The property under test is untouched: adjudication is per call and happens before any of
+    // this, so the approval count is decided by the policy and not by the cache.
     let mut driver = ScriptDriver::new(vec![
         web_call("https://docs.example.com/a"),
         say("the page is about widgets", 50), // the quarantined child's only reply
-        // Same host, different path. If `granted` had gained `docs.example.com`, this one
-        // would be `Allowed` outright and emit no ApprovalRequested.
+        // **Same host, different path -- the user's scenario.** Now that the approval above is
+        // recorded, this one is `Allowed` outright and emits no `ApprovalRequested`.
         web_call("https://docs.example.com/b"),
-        // ...and a different host, for completeness of the picture.
+        // **The anti-vacuity control, in the same run.** A different host must still ask.
+        // Without it, "grant everything on the first yes" passes every other assertion here.
         web_call("https://other.example.com/c"),
         say("done", 100),
     ]);
@@ -135,35 +179,211 @@ fn a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded() 
     let mut prov = Provenance::new();
     let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
 
-    // ── 1. every fetch asks, including the second of the same host ──────────────────────
+    // -- 0. the control that keeps every count below from being vacuous ------------------
+    //
+    // All three fetches must have REACHED THE HOST. A build that silently refused the second
+    // and third would also read "2 approvals", and would read it for the opposite reason.
     assert_eq!(
-        recorder.count(EventKind::ApprovalRequested),
+        tools.calls.iter().filter(|(t, _)| t == "web").count(),
         3,
-        "three fetches, three approvals. A per-host session grant would make this 2 (one per \
-         distinct host); a working grant on `docs.example.com` would make it 2 with the second \
-         call silent. It is 3, so no grant is retained at all"
+        "three fetches must have executed. Fewer means the calls were refused rather than \
+         granted, and every approval count below would be measuring refusals"
     );
-    assert_eq!(
-        recorder.count(EventKind::ApprovalGranted),
-        3,
-        "the human said yes three times for two hosts"
-    );
-
-    // ── 2. the policy itself never widened ─────────────────────────────────────────────
-    // The structural statement behind the count above: `granted` is still empty, because
-    // `CapabilityProfile` exposes `egress()` returning `&EgressPolicy` and no `&mut`
-    // accessor, so `grant()` has no reachable call site in the product.
-    assert_eq!(
-        run.profile.egress(),
-        &EgressPolicy::AllowApproved { granted: Vec::new() },
-        "`grant()` is never called: the run ends with the empty set it started with"
-    );
-
-    // ── 3. all three fetches were adjudicated as approvable, not blocked ────────────────
     assert_eq!(
         recorder.count(EventKind::EgressBlocked),
         0,
         "under AllowApproved with a `*` declaration, an ungranted host is UNASKED, not denied"
+    );
+
+    // -- 1. one approval per DISTINCT host, not one per fetch -----------------------------
+    assert_eq!(
+        recorder.count(EventKind::ApprovalRequested),
+        2,
+        "two distinct hosts, two approvals. 3 means no grant was recorded at all -- the defect \
+         this test used to be named for. 1 means the grant is not per-host, and approving \
+         docs.example.com opened other.example.com"
+    );
+    assert_eq!(
+        recorder.count(EventKind::ApprovalGranted),
+        2,
+        "the human said yes twice, once per host"
+    );
+
+    // -- 2. the policy widened, by exactly those two hosts, in the order they were asked --
+    //
+    // The structural statement behind the count above. **`docs.example.com` appears ONCE**, so
+    // the second fetch of that host neither asked nor re-recorded; and the set holds hosts, not
+    // URLs, so neither `/a` nor `/b` is anywhere in it.
+    assert_eq!(
+        run.profile.egress(),
+        &EgressPolicy::AllowApproved {
+            granted: vec![
+                HostPattern::new("docs.example.com"),
+                HostPattern::new("other.example.com"),
+            ]
+        },
+        "the run ends holding exactly the two hosts a human approved. An empty set means \
+         `grant_egress_host` was never called; a third entry means a path or a port reached the \
+         set; a `*` would mean something widened past what was approved"
+    );
+
+    // -- 3. the audit trail names what was widened, and when ------------------------------
+    //
+    // `ApprovalGranted` used to carry `{}` -- a record that somebody said yes to something. The
+    // widening is the part a later reader needs, and it is asserted on the EMITTED payload
+    // rather than on the fact that the code builds one.
+    let granted = recorder.payloads(EventKind::ApprovalGranted);
+    assert_eq!(
+        granted.iter().map(|p| p["egress_granted"].clone()).collect::<Vec<_>>(),
+        vec![
+            serde_json::json!(["docs.example.com"]),
+            serde_json::json!(["other.example.com"]),
+        ],
+        "each approval records the host it widened. `null` here means the journal says a human \
+         approved something without saying what the run gained by it"
+    );
+}
+
+/// **THE SAFETY PROPERTY OF THE WHOLE CHANGE: only `AllowApproved` can accept a widening.**
+///
+/// `EgressPolicy::grant`'s own doc says why -- *"a `DenyAll` run that could be widened at runtime
+/// would make the quarantined reader's containment a matter of what code ran, not of what it
+/// declared."* Until this commit that sentence cost nothing, because nothing called `grant`.
+/// Now something does, so it is measured.
+///
+/// # It ATTEMPTS the widening. A test that only watched a blocked fetch would prove nothing
+///
+/// Under `DenyAll`, `may_ask()` is false, so a `web` call is `Blocked` and the approval branch --
+/// where the grant is recorded -- is never reached at all. A test that merely fetched and
+/// asserted "blocked" would therefore stay green on a build where `grant` widens `DenyAll`
+/// enthusiastically: it never gets there. So the widening is performed **directly, through the
+/// only mutable route that exists**, and the loop is then asked whether anything changed.
+///
+/// # Three policies, because two of them are terminal for different reasons
+///
+/// `DenyAll` is structural -- the quarantined reader holds it, and §5's narrowing rule depends on
+/// it being unwidenable. `Allow { hosts }` is a declaration a run is held to. Neither may grow by
+/// approval, and `AllowApproved` is included as the positive control so that the assertions below
+/// are not simply "this method does nothing".
+#[test]
+fn a_deny_all_run_cannot_be_widened_by_an_approval() {
+    let host = marlowe_permission::Host::parse("docs.example.com").expect("a plain DNS name");
+
+    // -- the positive control, first: the method DOES widen the one policy that may --------
+    //
+    // Without this, every assertion below passes on a build where `grant_egress_host` is an
+    // empty function -- the exact vacuity this file exists to avoid.
+    let mut approvable = profile_with(EgressPolicy::AllowApproved { granted: Vec::new() });
+    approvable.grant_egress_host(&host);
+    assert_eq!(
+        approvable.egress(),
+        &EgressPolicy::AllowApproved { granted: vec![HostPattern::new("docs.example.com")] },
+        "the one policy that may widen, did. If this fails, nothing below is evidence about \
+         anything -- it would only show that the method never works"
+    );
+
+    // -- DenyAll: the widening is attempted through the only route there is ----------------
+    let mut denied = profile_with(EgressPolicy::DenyAll);
+    denied.grant_egress_host(&host);
+    assert_eq!(
+        denied.egress(),
+        &EgressPolicy::DenyAll,
+        "a DenyAll run stays DenyAll. `grant` is a no-op on every variant but AllowApproved, and \
+         that is what keeps the quarantined reader's containment a property of what it DECLARED \
+         rather than of what code happened to run"
+    );
+
+    // -- ...and the quarantined reader itself, which is the run that reading matters for ---
+    //
+    // `CapabilityProfile::new` refuses `reads_untrusted` with anything but `DenyAll`
+    // (`QuarantineWithEgress`). This asserts that the one mutable route on the type cannot get
+    // behind that check -- which is the reason the granted set lives on the profile at all.
+    let mut reader = CapabilityProfile::quarantined_reader();
+    reader.grant_egress_host(&host);
+    assert_eq!(
+        reader.egress(),
+        &EgressPolicy::DenyAll,
+        "the quarantined reader's egress is an invariant its constructor enforces, and the one \
+         mutable route on this type cannot get behind it"
+    );
+
+    // -- a declared Allow list is held to its list -----------------------------------------
+    let mut declared = profile_with(EgressPolicy::allow(&["api.example.com"]));
+    declared.grant_egress_host(&host);
+    assert_eq!(
+        declared.egress(),
+        &EgressPolicy::allow(&["api.example.com"]),
+        "a run that named its hosts in advance cannot ask its way past its own list"
+    );
+
+    // -- and now the observed outcome through the loop, on the widened DenyAll run ---------
+    //
+    // The comparisons above are structural. This is the fate of the call: a run whose `DenyAll`
+    // policy has had `grant_egress_host` called on it still cannot reach the host, is never
+    // asked about it, and records the refusal.
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        web_call("https://docs.example.com/a"),
+        web_call("https://docs.example.com/b"),
+        say("done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools {
+        trust: Some(TrustClass::UntrustedContent),
+        body: Some(PAGE_BODY.into()),
+        ..Default::default()
+    };
+    // **The human says yes to everything.** If an approval could widen this run, it would.
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("deny-all"),
+        SessionId::from_name("deny-all-session"),
+        denied,
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    assert_eq!(
+        recorder.count(EventKind::EgressBlocked),
+        2,
+        "both fetches were refused at the boundary. Under DenyAll an ungranted host is DENIED, \
+         not unasked -- `may_ask()` is false, which is the difference between the two policies"
+    );
+    assert_eq!(
+        recorder.count(EventKind::ApprovalRequested),
+        0,
+        "nobody was asked. A reading above zero would mean DenyAll had become a question, which \
+         is exactly what ADR-032 §2 says it must never be"
+    );
+    assert_eq!(
+        tools.calls.iter().filter(|(t, _)| t == "web").count(),
+        0,
+        "and no fetch reached the host"
+    );
+    assert_eq!(
+        run.profile.egress(),
+        &EgressPolicy::DenyAll,
+        "the run ends as it started. Reading `AllowApproved` here would mean the loop had \
+         widened it, and the containment argument would be gone"
     );
 }
 
@@ -410,11 +630,17 @@ fn reachable_profile() -> CapabilityProfile {
     profile_with(EgressPolicy::AllowApproved { granted: Vec::new() })
 }
 
-/// **A policy no run can reach**, written out rather than earned because it cannot be earned:
-/// `EgressPolicy::grant` has no production caller and `CapabilityProfile` exposes no `&mut` route
-/// to the policy, so this state exists only by construction. This arm is a tripwire for when
-/// ADR-032's approval surface lands — it is NOT a measurement of the shipped product and must
-/// not be read as one.
+/// **A run that already holds the grant**, written out rather than earned.
+///
+/// This doc used to read *"a policy no run can reach ... `EgressPolicy::grant` has no production
+/// caller"*, and that is **no longer true**: the loop records the grant on approval, so this state
+/// is now exactly what the run in `an_approved_host_is_not_asked_about_again_...` is in after its
+/// first `yes`. Corrected in the same commit that made it false, because a stale "unreachable"
+/// note invites a reader to dismiss this arm as hypothetical when it is now the common case.
+///
+/// It is still **constructed** rather than earned, and that is deliberate: the two arms must
+/// differ in one thing only — whether anybody was asked — and earning it would add an approval to
+/// arm B, which is the very observable the differential is measuring.
 fn constructed_grant_profile() -> CapabilityProfile {
     profile_with(EgressPolicy::AllowApproved { granted: vec![HostPattern::new(APPROVED_HOST)] })
 }

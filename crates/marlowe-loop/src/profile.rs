@@ -228,13 +228,20 @@ impl CapabilityProfile {
 
     /// [`Self::interactive`] plus the tools an installed MCP server contributes. ADR-052 §5.
     ///
-    /// # Why widening exists here and nowhere else
+    /// # Why widening exists here, and the one other place it now exists
     ///
     /// `narrowed` has no counterpart on purpose: a **spawn** may only narrow, because privilege
     /// must not grow with depth, and `WidenedPastParent` enforces it. This is not that. It is how
     /// a top-level profile is *built* — the exposed set has always been chosen at construction —
     /// and it takes no parent, so there is nothing for it to grow past. A child of the profile
     /// this returns is still narrowed against it, unchanged.
+    ///
+    /// **This heading used to read *"and nowhere else"*, and since ADR-032 §3.1 was wired that is
+    /// false.** [`Self::grant_egress_host`] is the second, and it is a *runtime* widening rather
+    /// than a construction-time one. It is bounded differently and deliberately: it moves one
+    /// field, only on `AllowApproved`, only by a validated host, only after a human said yes. A
+    /// list that omits it is the failure the §13 enforcement table produced two milestones
+    /// running — the guard held and the documentation went silent.
     ///
     /// # The budget refuses, and the message says which tool to drop
     ///
@@ -278,6 +285,46 @@ impl CapabilityProfile {
     }
     pub fn reads_untrusted(&self) -> bool {
         self.reads_untrusted
+    }
+
+    /// **ADR-032 §3.1: record a host a human approved, for the remainder of this run.**
+    ///
+    /// The one mutable route into this struct, and it can do exactly one thing.
+    ///
+    /// # Why not a `&mut EgressPolicy` accessor
+    ///
+    /// A broad mutable accessor routes around the validating constructor, which is instance #12
+    /// and has already bitten this project once through `Deserialize`. There is no `egress_mut`,
+    /// there is no `set_egress`, and this method takes a parsed [`Host`] rather than a string, so
+    /// the only reachable state change is *`AllowApproved`'s set grew by one validated host*.
+    ///
+    /// # Why the set lives on the PROFILE and not on the `Run`
+    ///
+    /// The `Run` was the tempting home — it already carries ADR-023's latched trust floor, which
+    /// is a per-run narrowing of exactly this kind, and it has no validating constructor to route
+    /// around. Three things decided against it, and the third is the one that matters:
+    ///
+    /// 1. **The adjudicator reads `run.profile.egress()`.** A set held beside the policy would
+    ///    have to be merged into one at the call site, which is a second definition of *what this
+    ///    run may reach* — the two-sides-silently-disagree shape.
+    /// 2. **Child propagation already exists and is already right.** `Engine::spawn` hands a
+    ///    quarantined child `DenyAll` and every other child a clone of the parent's policy. A
+    ///    `Run`-side set would need that decision written a second time, in a file where getting
+    ///    it wrong is silent.
+    /// 3. **`CapabilityProfile::new` holds the invariant `reads_untrusted ⟹ DenyAll`
+    ///    (`QuarantineWithEgress`), and this widening provably cannot break it** — because
+    ///    [`EgressPolicy::grant`] is a no-op on every variant except `AllowApproved`, so a
+    ///    quarantined reader's `DenyAll` stays `DenyAll` no matter what is granted to it. Hold
+    ///    the set on the `Run` and consult it *beside* the policy and that invariant is bypassed
+    ///    rather than enforced: the profile would still read `DenyAll` while the run reached the
+    ///    network, and every existing test of the quarantine would stay green. **The widening
+    ///    belongs inside the type that holds the invariant it could otherwise violate.**
+    ///
+    /// The no-op on non-`AllowApproved` policies is therefore load-bearing rather than defensive,
+    /// and it is asserted through the loop in
+    /// `marlowe-loop/tests/egress_grant.rs::a_deny_all_run_cannot_be_widened_by_an_approval`.
+    pub fn grant_egress_host(&mut self, host: &marlowe_permission::Host) {
+        self.egress.grant(host);
     }
 
     /// Narrow a profile for a child. **Widening is not offered** — there is no method that

@@ -1,0 +1,25 @@
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+   Compiling marlowe-exec v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.58s
+     Running tests\egress_approval_confers_no_authority.rs (target\debug\deps\egress_approval_confers_no_authority-e608ebf8bf0b01cc.exe)
+
+running 1 test
+test approving_a_host_does_not_raise_the_trust_class_of_what_it_returns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

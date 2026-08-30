@@ -66,11 +66,23 @@ handled. Ranked by what it costs if it stays forgotten.
    any of it non-trivial: **Ollama is on loopback**, and running a dev server and curling it is a
    legitimate use — so a blanket deny breaks the product, and *"allow loopback"* is exactly where an
    attacker aims once anything on loopback can proxy outward.
-4. **Grant persistence is owned by no milestone.** ADR-032 §3.1 describes a session-held per-host
-   grant; `EgressPolicy::grant()` has **no production call site** and `CapabilityProfile` exposes no
-   `&mut` accessor, so every fetch is a fresh human decision — *stronger* than the ADR, not weaker.
-   The hazard is the day someone wires it, because the widening path would activate untested. ADR-032
-   §4 defers persistence to the trust ledger, and **M6's section below names no egress, host or
+4. **Grant persistence is owned by no milestone. The RUN-scoped grant is now wired; the
+   SESSION-scoped one is the open question.** This entry read *"`EgressPolicy::grant()` has no
+   production call site ... the hazard is the day someone wires it, because the widening path would
+   activate untested"*. It was wired on 2026-08-29 and the widening path did **not** activate
+   untested: `CapabilityProfile::grant_egress_host` is the one mutable route, the loop calls it from
+   the approval-granted branch only, and
+   `marlowe-loop/tests/egress_grant.rs::a_deny_all_run_cannot_be_widened_by_an_approval` attempts
+   the widening on `DenyAll`, on a quarantined reader, and on a declared `Allow` list, mutation-
+   tested in both directions.
+
+   **What is still open is the scope, and it is the human's.** A grant lasts one `Run`, and
+   `Daemon::ask_streaming_with` builds a fresh `Run::root` per user message — so the human is
+   re-asked about an already-approved host on his next turn. That is exactly ADR-032 §3.1 and no
+   more, and it is **the same session-versus-run question [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md)
+   §8 raises about ADR-023's trust-floor latch** (*"the latch belongs on the session, not the
+   Run"*), which is likewise open and unowned. Extending either is §13-adjacent. ADR-032 §4 defers
+   *persistence across runs* to the trust ledger, and **M6's section below names no egress, host or
    grant.**
 5. **CI has existed since 2026-08-18 and HAS NEVER EXECUTED. It is one click** on *Run workflow* —
    see §M2's closure block and [`CI.md`](CI.md).

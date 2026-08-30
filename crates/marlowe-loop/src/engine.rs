@@ -19,7 +19,7 @@ use marlowe_contract::{Clock, TrustClass};
 use marlowe_journal::EventKind;
 use crate::turn::DegradedPath;
 use marlowe_permission::{
-    Adjudicator, Args, BlockReason, EgressPolicy, Outcome, PathScope, Request, Tier,
+    Adjudicator, Args, BlockReason, EgressPolicy, Host, Outcome, PathScope, Reason, Request, Tier,
     blocks_composed_targets,
 };
 use marlowe_tools::{ExposedSet, Metric, ResultSummary, ToolId, ToolRegistry};
@@ -1735,7 +1735,61 @@ impl<S: PathScope> Engine<S> {
                     self.refused_line(ports, call_id, &tool, &adjudication, "declined", "declined");
                     return Prepared::Refused { tool, why, call_ref: call_ref.to_string() };
                 }
-                self.record(ports, EventKind::ApprovalGranted, run, state, json!({}));
+                // ── ADR-032 §3.1's session grant. THE ONLY PLACE `granted` IS EVER WRITTEN ──
+                //
+                // *"On approval the host is added to `granted` for that run. Session-scoped grant
+                // is what stops the second fetch of the same host re-asking."* That sentence was
+                // accepted and the code did not do it: `EgressPolicy::grant` had no production
+                // caller (SECURITY-AUDIT D11(c), one of eight instance-#16 cases), so every fetch
+                // of an already-approved host asked again.
+                //
+                // The host comes from the adjudicator, in `Reason::EgressHostNeedsApproval`, and
+                // is NOT re-derived here — see that variant's doc for why one definition rather
+                // than two.
+                //
+                // **THE GRANT IS RUN-SCOPED, AND A TURN IS NOT A RUN.**
+                // `Daemon::ask_streaming_with` builds a fresh `Run::root` with a fresh
+                // `CapabilityProfile::interactive_with(..)` on every user message
+                // (`daemon.rs:2486`), so this set covers every fetch inside one turn and is gone
+                // by the next one: approve `example.com`, and the model may fetch any path on it
+                // for the rest of that turn without re-asking, but the human is asked again after
+                // his next message. That is exactly what ADR-032 §3.1 says and no more.
+                //
+                // It is also the same session-versus-run question SECURITY-AUDIT §8 raises about
+                // ADR-023's trust floor — *"the latch belongs on the session, not the Run"* — and
+                // it is open and unowned there too. Extending either one to the session is a
+                // §13-adjacent decision and is the human's, not a session's initiative.
+                //
+                // A resume is the same run, so a grant survives one: `Checkpoint` carries the
+                // profile exactly as it carries `trust_floor`. That is deliberate and is the same
+                // reasoning `durable.rs` gives for the floor — a restart must not become a reset.
+                let mut widened: Vec<String> = Vec::new();
+                for reason in &adjudication.decision.reasons {
+                    let Reason::EgressHostNeedsApproval { host } = reason else { continue };
+                    let Some(host) = Host::parse(host) else { continue };
+                    if run.profile.egress().grants(&host) {
+                        continue;
+                    }
+                    run.profile.grant_egress_host(&host);
+                    // **Recorded on the FATE, not on the intent.** `grant` is a no-op on every
+                    // policy but `AllowApproved`, so asking for the widening and getting it are
+                    // two different facts and the journal gets the second one. A `DenyAll` run
+                    // logs nothing here because nothing happened to it — which is the assertion
+                    // `a_deny_all_run_cannot_be_widened_by_an_approval` reads.
+                    if run.profile.egress().grants(&host) {
+                        widened.push(host.as_str().to_string());
+                    }
+                }
+                // `ApprovalGranted` carried `{}` — an audit record that a human said yes to
+                // something, with no record of what. The widening is the part a later reader
+                // needs, so it goes in the payload rather than into a new event kind: the
+                // approval and the widening are one moment, and splitting them would let an
+                // audit see either without the other. The key is absent when nothing widened.
+                let mut payload = json!({});
+                if !widened.is_empty() {
+                    payload["egress_granted"] = json!(widened);
+                }
+                self.record(ports, EventKind::ApprovalGranted, run, state, payload);
             }
             Outcome::Allowed | Outcome::AllowedBatched { .. } => {}
         }

@@ -69,11 +69,13 @@ nothing to do with the decision in §1.
 MCP has two standard transports. `marlowe-mcp` implements **stdio**: a child process, JSON-RPC over
 its stdin and stdout, one message per line.
 
-**The HTTP transport is deliberately not implemented.** Egress allowlisting is layer 4 of five, it is
-ADR-031/ADR-032 approved and **not shipped** — `EgressPolicy::grant()` still has no production call
-site — and putting a remote server's bytes on the wire with nothing allowlisting the destination
-would be the first production egress path in the product, arriving as a side effect of a
-skills-and-tools session.
+**The HTTP transport is deliberately not implemented, and as of 2026-08-29 the reason has narrowed
+rather than gone away.** This read *"ADR-031/ADR-032 approved and not shipped — `EgressPolicy::grant()`
+still has no production call site"*; the grant is now wired, so that half is retired. The half that
+was always the argument stands: an MCP transport declares no parameter typed `Url`, and the
+adjudicator's egress section iterates exactly those, so **a remote server's bytes would go on the
+wire with no `EgressPolicy` consulted at all** — ADR-049 §4's `bash` hole reproduced in a new place,
+arriving as a side effect of a skills-and-tools session.
 
 **The dependency list is the enforcement, not the comment.** `marlowe-mcp` does not depend on
 `marlowe-net`, so it has no TLS and no socket, and `cargo tree -p marlowe-mcp` says so.

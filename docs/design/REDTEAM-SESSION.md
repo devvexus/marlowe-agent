@@ -185,9 +185,16 @@ the open connection with the full URL in `blast_radius.scope`. The product's own
 blocked — with 29 granted and 8 declined by a client answering**, which `DenyUnattended` cannot
 produce. The approval surface this section called pending shipped at M2 C2f on 2026-08-10.
 
-What ADR-032 describes and has **not** shipped is the **session-held grant**: `EgressPolicy::grant()`
-has no production call site and `CapabilityProfile` exposes no `&mut` route to it, so every fetch is a
-fresh human decision. That is *stronger* than the ADR, not weaker.
+**The per-host grant shipped on 2026-08-29 and this paragraph is corrected rather than deleted**, so
+the change of posture is auditable. It read: *"what ADR-032 describes and has not shipped is the
+session-held grant ... every fetch is a fresh human decision. That is stronger than the ADR, not
+weaker."* True when written, and false now. A red-teamer should plan against the **current** rule:
+**the first fetch of a host within one turn asks; every later fetch of that host in the same turn
+does not**, on any path, because `grants()` matches on host and never on path. The grant dies with
+the `Run`, and a `Run` is one user message — so the same host is asked about again on the next turn,
+and nothing is persisted. `DenyAll` and a declared `Allow { hosts }` cannot be widened by an
+approval at all, which is the property to attack first if one wanted to reach the quarantined
+reader's network.
 
 **So the `web` path is not the hole. `bash` is.** The adjudicator's egress section iterates parameters
 typed `Url`; **`bash` declares none, so no `EgressPolicy` is consulted on that path at all** —

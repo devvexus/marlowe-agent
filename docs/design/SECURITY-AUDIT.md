@@ -133,7 +133,8 @@ persisted `SessionState`. **The latch belongs on the session, not the Run.**
 ### Recurring shapes worth naming
 
 - **Family #16 (a declared control nothing reads) appeared 8 more times**: `BASH_TIMEOUT_MS`,
-  `manifest_provenance()`, `EgressPolicy::grant`, `NeedsApproval { tier }`, `inline_threshold_bytes`
+  `manifest_provenance()`, ~~`EgressPolicy::grant`~~ (closed 2026-08-29 — D11(c)),
+  `NeedsApproval { tier }`, `inline_threshold_bytes`
   (twice reviewed, still unread), invariant 8's profile-root rule, `NoControl` "used by children",
   and `recall`'s maturation label.
 - **Assert-the-proxy appeared throughout**: labels asserted *present* rather than *distinct*; the
@@ -674,8 +675,18 @@ shaping.
 full shell command **is** in `scope` and printed. The test asserts the serialized JSON has no key
 named `"command"` — *the name of a field, not the fate of the bytes* — and is green on a build where
 the command is in the prompt. (b) `Outcome::NeedsApproval { tier }` is computed and **nothing reads
-it**; the view's `RiskTier` is a different type built only in the stub. (c) `EgressPolicy::grant` has
-**no production caller**, so ADR-032's session grant never accumulates.
+it**; the view's `RiskTier` is a different type built only in the stub. (c) `EgressPolicy::grant` had
+**no production caller**, so ADR-032's session grant never accumulated. **(c) is CLOSED, 2026-08-29.**
+`Engine::prepare_call`'s approval-granted branch now calls `CapabilityProfile::grant_egress_host`,
+which is the one mutable route into the profile and can only widen `AllowApproved`. The host is
+carried from the adjudicator in `Reason::EgressHostNeedsApproval` rather than re-derived by the loop,
+and the widening is recorded in the `ApprovalGranted` payload **on the fate rather than the intent** —
+a `DenyAll` run logs nothing there, because nothing happened to it.
+`marlowe-loop/tests/egress_grant.rs` has both halves, mutation-tested in both directions: removing the
+call reads `left: 3, right: 2` approvals, and a widening that ignores the declared policy reads
+`left: AllowApproved { granted: [docs.example.com] }, right: DenyAll`. **The grant is scoped to the
+`Run`, so §8 above now has a second instance** — a turn boundary rebuilds `Run::root` and the human is
+re-asked. (a) and (b) are unchanged.
 
 ---
 

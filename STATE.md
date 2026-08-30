@@ -1,6 +1,139 @@
 ﻿# State
 
 
+## 2026-08-29 — ADR-032 §3.1's SESSION GRANT IS WIRED, AND NINE DOCUMENTS SAID IT WAS NOT
+
+**The change is four lines of behaviour and nine documents of correction, and the second number is
+the finding.** `EgressPolicy::grant` had been written, documented and unreachable since M2 C2f:
+`CapabilityProfile` exposed `egress(&self)` and no `&mut`, so the engine's `Outcome::NeedsApproval`
+arm prompted, awaited the human, and widened nothing. Every fetch of an already-approved host asked
+again. `SECURITY-AUDIT.md` D11(c) had it as one of eight instance-#16 cases — a declared control
+nothing reads — and nobody had joined it to ADR-032 §3.1, which specifies the opposite and which the
+human accepted on 2026-08-29. **It was a compliance gap against an accepted ADR, not a feature
+request.**
+
+### What was built
+
+| File | Change |
+|---|---|
+| `marlowe-permission/src/decision.rs` | `Reason::EgressHostNeedsApproval { host }` — the adjudicator names the host it is asking about |
+| `marlowe-permission/src/adjudicate.rs` §4 | pushes it on the `may_ask` branch (§13-guarded) |
+| `marlowe-loop/src/profile.rs` | `grant_egress_host(&mut self, &Host)` — the ONE mutable method on the type (§13-guarded) |
+| `marlowe-loop/src/engine.rs` | the approval-granted branch calls it, and records what widened |
+
+**THE HOST IS NOT RE-DERIVED BY THE LOOP, and that is the whole reason `Reason` grew a variant.**
+The alternative was the engine re-walking the manifest's `Url` parameters itself, which puts a second
+definition of *which host was this call about* beside the adjudicator's. The code that parsed the URL
+and intersected the two sets says so once, and the loop reads it. The audit trail comes free:
+`reasons` is serialized into `PermissionDecided`, so the signed journal already records the host next
+to the decision that asked about it.
+
+### Why the granted set lives on the PROFILE and not on the `Run`
+
+The `Run` was the tempting home — it already carries ADR-023's latched trust floor, a per-run
+narrowing of exactly this kind, and it has no validating constructor to route around (instance #12).
+Three things decided against it and the third is the one that matters:
+
+1. The adjudicator reads `run.profile.egress()`. A set held beside the policy has to be merged into
+   one at the call site — a second definition of *what this run may reach*.
+2. Child propagation already exists and is already right: `Engine::spawn` hands a quarantined child
+   `DenyAll` and every other child a clone of the parent's policy. A `Run`-side set needs that
+   decision written a second time, in a file where getting it wrong is silent.
+3. **`CapabilityProfile::new` holds `reads_untrusted ⟹ DenyAll` (`QuarantineWithEgress`), and this
+   widening provably cannot break it** — because `EgressPolicy::grant` is a no-op on every variant
+   but `AllowApproved`. Hold the set on the `Run` and consult it *beside* the policy, and that
+   invariant is **bypassed rather than enforced**: the profile would still read `DenyAll` while the
+   run reached the network, and every existing quarantine test would stay green. The widening belongs
+   inside the type that holds the invariant it could otherwise violate.
+
+There is no `egress_mut` and no `set_egress`. The method takes a parsed `Host` rather than a string,
+so the only reachable state change is *`AllowApproved`'s set grew by one validated host*.
+
+### Journalled on the FATE, not the intent
+
+`ApprovalGranted` carried `{}` — a record that a human said yes to something, with no record of what.
+It now carries `egress_granted: [host, ...]`, and the entry is written **after** re-reading
+`grants()`, so a `DenyAll` run logs nothing there because nothing happened to it. Asking for a
+widening and getting one are two different facts and the journal gets the second. No new `EventKind`:
+the approval and the widening are one moment, and splitting them would let an audit see either
+without the other.
+
+### Mutation-tested in both directions
+
+- **Remove the `grant_egress_host` call.** `an_approved_host_is_not_asked_about_again_and_a_different_host_still_is`
+  fails `left: 3, right: 2` — *"3 means no grant was recorded at all, the defect this test used to be
+  named for."*
+- **Make the widening ignore the declared policy** (assign `AllowApproved` unconditionally).
+  `a_deny_all_run_cannot_be_widened_by_an_approval` fails
+  `left: AllowApproved { granted: [HostPattern("docs.example.com")] }, right: DenyAll`.
+
+The second mutation is why that test **attempts** the widening rather than watching a blocked fetch.
+Under `DenyAll`, `may_ask()` is false, so a `web` call is `Blocked` and the approval branch is never
+reached — a test that only fetched and asserted "blocked" would stay green on a build where `grant`
+widened `DenyAll` enthusiastically, because it never gets there. It also carries a positive control
+(`AllowApproved` did widen), or every assertion in it would pass on an empty function.
+
+The old test, `a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded`, is
+**inverted and renamed**. It was correct when written. A test whose name asserts the opposite of its
+body is worse than no test.
+
+### THE LIMITATION, STATED RATHER THAN DESIGNED AROUND: a turn is not a run
+
+`Daemon::ask_streaming_with` builds a fresh `Run::root` with a fresh `CapabilityProfile` on every
+user message (`daemon.rs:2486`). So the grant covers **every fetch inside one turn** — any path on
+that host, since `grants()` matches on host and the path never enters it — and **the human is asked
+again on his next message.**
+
+That is exactly what ADR-032 §3.1's normative sentence says (*"for that run"*), and it is **the same
+session-versus-run question `SECURITY-AUDIT.md` §8 raises about ADR-023's trust-floor latch** — *"the
+latch belongs on the session, not the Run"* — which is open and owned by nobody. **Extending either
+to the session is §13-adjacent and is the human's decision, so it was not taken here.** ADR-032 §3.1
+now flags its own looser third sentence rather than having it quietly resolved.
+
+A **resume** is the same run, so a grant survives one: `Checkpoint` carries the profile exactly as it
+carries `trust_floor`, for the reason `durable.rs` gives — a restart must not become a reset.
+
+### The nine documents, and the one not touched
+
+The sentence *"`EgressPolicy::grant()` has no production call site"* had been inherited by nine live
+places. Eight are corrected in this commit — `onboarding.rs`, `marlowe-mcp/src/lib.rs`, the
+`marlowe-exec` egress test, `ROADMAP.md`, `REDTEAM-SESSION.md`, `ADR-049` §4, `ADR-052` §3,
+`SECURITY-AUDIT.md` D11(c) and its family-#16 list — each **amended in place with the old sentence
+quoted**, not deleted, so the change of posture is auditable. ADR-032's own status line is corrected
+too: *"nineteen days after §3.1 and §3.2 shipped"* was written on the day of acceptance and was
+already wrong, because §3.1's third bullet had not shipped.
+
+**Two of those corrections are narrowings, not retractions.** `ADR-049` §4 and `ADR-052` §3 both
+rested part of their argument on layer 4 being unshipped. The finding in each is untouched: the
+adjudicator's egress section iterates parameters typed `Url`, and neither `bash` nor an MCP HTTP
+transport declares one — so **no `EgressPolicy` is read on those paths at all**, and a wider policy
+and a narrower one are equally irrelevant to a call that never consults one.
+
+**`CLAUDE.md` line 146 is the ninth and it is NOT edited.** It reads *"'Held for the session' is the
+part that is NOT built, and its absence is security-positive. `EgressPolicy::grant()` has no
+production call site ... a live hazard the day someone wires it, because the widening path would
+activate untested."* That is now false in its first clause and answered in its last — the widening
+path did not activate untested. It is left for the human, per the precedent in `4a28c1b`, where three
+agents declined to edit that file unasked.
+
+### Test results, tallied from files in `runs/adr032-grant/`, per-crate only
+
+`marlowe-permission` 73 passed across 5 result lines; `marlowe-loop` 180 across 19 with 3 ignored;
+`marlowe-daemon` 179 across 21; `marlowe` 56 across 4, **including `determinism_guard.rs`, which no
+other `-p` reaches**. Zero failures on every line, counted from the files with the `grep -c FAILED`
+first. `marlowe-exec/tests/egress_approval_confers_no_authority` was run on its own as the adjacent
+target, 1 passed.
+
+**WHAT THIS DOES NOT CLAIM.** `--workspace` was not run — the hard rule on this machine forbids it —
+so nothing here is a statement about the whole tree. `marlowe-exec` was not run in full, only the one
+egress target. **And no live `web` fetch was approved through the TUI on this binary**: the grant is
+measured on the loop with `ScriptedTools` and `FixedApprovals`, which is where the decision is made,
+but it is not the observed-prompt evidence `CLAUDE.md` asks for. The §13 hook produced no interactive
+prompt for the two guarded edits either, because the session was non-interactive; that is a property
+of the session and is not evidence that the hook is inert.
+
+---
+
 ## 2026-08-29 — SESSION B3: ALL FOUR M3-D DECISIONS LANDED, AND THE BOUNDARY HOOK COULD NOT SEE ITSELF SHRINK
 
 **Read the headline about `Channel::Agent` first, because the variant existing is the thing most
