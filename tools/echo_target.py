@@ -50,6 +50,13 @@ TRUST_BY_CHANNEL = {
     "mcp": "untrusted_content",
     "tool_output": "agent_observed",
     "file": "untrusted_content",
+    # NO `agent` ROW, AND THAT IS A DECISION, not an oversight (M3-D1, 2026-08-29). The
+    # implementation's `Channel` gained `agent` for a harness-mediated reader, but the harness
+    # emits eight channels and has no site that constructs the ninth -- `channel` crosses this
+    # boundary only in IngestRequest, harness -> target. A row here would be an entry nothing
+    # ever reads, which is the shape this repo keeps logging. If a request ever does arrive
+    # carrying `"agent"`, `derive_trust` raises loudly, which is the correct outcome for a value
+    # that cannot legitimately be sent.
 }
 
 

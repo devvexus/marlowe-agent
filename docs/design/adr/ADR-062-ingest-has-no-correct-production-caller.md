@@ -203,6 +203,28 @@ M3-DESIGN §8 raises the same question one step later and refuses to answer it b
 pinned contract, and there is no correct caller to exercise it (§2), so shipping the variant first is
 the label-before-the-reader pattern this repo keeps logging.
 
+> **TAKEN 2026-08-29 by the human, as M3-D1. Option B is the decision, and one half of its cost line
+> above is WRONG — corrected here rather than edited out of the table, because the false half is the
+> kind a later session inherits by quoting.**
+>
+> **The `trust_for_channel` half is right and it is the mechanism working.** The match is exhaustive
+> with no default arm by design, so the variant does not compile until someone decides what it is
+> worth — the load-time error §4.6 asks for.
+>
+> **"and the eval side both" is refuted.** `eval/` required no change and was not touched. `Channel`
+> occurs on the §4 wire in exactly one place, `IngestRequest.turns[].origin.channel`, which flows
+> harness → implementation only; no §4 response type on either side carries a channel field, so
+> `"agent"` can never reach eval's deserializer. Every one of eval's 11 `Origin(...)` sites is a
+> construction from a hardcoded literal, there is no cardinality assertion on the set, and no eval
+> test reads the Rust enum or `CONTRACTS.md`. The change is still **wire-visible** in the sense that
+> it is a pinned-contract amendment — recorded in `CONTRACTS.md` §4.6 — but the *binding* is
+> one-directional and unaffected.
+>
+> **What M3-D1 did NOT do.** It gave `ingest_external` no call site. §2.1 still forbids tainting the
+> one permanent run and §7 still withholds `MemoryWrite` from workers, so nothing constructs
+> `Channel::Agent` and layer 3 remains unreachable in the shipped daemon — the correct state until
+> Session D's caller exists.
+
 ### 4.1 · This does NOT close M3-DESIGN §12 item 5
 
 §2.3 of M3-DESIGN answers the **typed upward return** — `{ run_id, severity, category, artifact_ref,

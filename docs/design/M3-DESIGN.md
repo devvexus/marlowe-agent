@@ -473,15 +473,31 @@ is the whole reason [`REDTEAM-SESSION.md`](REDTEAM-SESSION.md) splits into two p
 (`crates/marlowe-daemon/tests/layer3_refuses_a_composed_target_from_an_ingested_belief.rs`)
 constructs the tainted state by hand and declares that it does.
 
-Agent-to-agent messaging is the first genuinely new content channel since ADR-041. `trust_for_channel`
-covers Web, Email, Messaging, Mcp, File. **There is no `Channel::Agent` and no trust class for an
-agent's speech.** Either add one, or record a decision that typed upward structure needs none.
+Agent-to-agent messaging is the first genuinely new content channel since ADR-041.
+`trust_for_channel` covered Web, Email, Messaging, Mcp, File. **`Channel::Agent` now exists and maps
+to `UntrustedContent`** — added by M3-D1 for the harness-mediated reader (ADR-062 §4, Option B),
+because `Channel::Web` records a provenance the harness knows to be false: the page never emitted
+those bytes, the harness's own quarantined reader did.
 
-> **Half-answered 2026-08-29, and the item stays open — see `DECISIONS.md` and ADR-062 §4.1.** §2.3's
-> typed upward return carries no classifiable prose and is never ingested, so it needs no `Channel`.
-> That answers one of **three** consumers of the missing slot. The meeting utterance (§5.2) and the
-> harness-mediated reader over external bytes (ADR-062 §4) are separate, and either would still need
-> the variant on the day typed structure is proven to need none.
+> **The slot exists; NOTHING CONSTRUCTS IT.** M3-D1 added the variant, its `trust_for_channel` arm,
+> and the contract text. It added no producer. `grep -rn "Channel::Agent" --include=*.rs
+> crates/*/src/` returns **six** hits and every one is accounted for: its `trust_for_channel`
+> arm, one comment naming it, and **four constructions inside `mod tests` blocks** that assert
+> its classification and its wire spelling. **Zero production construction sites.** (The
+> variant's own declaration is the bare token `Agent,` and does not match this pattern.)
+> The real output is printed here rather than a rounder one, because a repository whose
+> discipline rests on discriminating commands cannot publish a command whose output does not
+> match: a later session that runs it and sees six where two was promised has to either panic
+> or stop trusting the check. The discriminating command for reachability is unchanged —
+> `grep -rn "ingest_external(" --include=*.rs crates/*/src/` minus the definition still returns
+> **zero**, so layer 3 remains unreachable in the shipped daemon and that is the CORRECT state
+> (ADR-062 §2.1, §7). Saying so is instance #16 discipline: a variant nobody constructs must not be
+> read as a live path.
+>
+> **What this closes and what it does not.** §8's standing question is closed — the slot is no longer
+> missing. §2.3's typed upward return still needs no `Channel` (`DECISIONS.md`, ADR-062 §4.1). The
+> **meeting utterance** (§5.2) remains a separate consumer: whether an agent's *speech* is
+> `Channel::Agent` at `UntrustedContent`, or wants its own class, is not decided here.
 
 ---
 
@@ -575,8 +591,9 @@ M3's existing rows in ROADMAP stand. These are additional and each is a command 
 2. Is a compromised top-agent **replaced** after resolution, or does it continue on the same run?
 3. Does `attach` permit **steering** from the agent window, or watching plus escalation reply only?
 4. Is a master's agent budget a **token pool, a headcount, or both**?
-5. `Channel::Agent`, or a recorded decision that typed structure needs no trust class? (§8)
-   **PARTLY ANSWERED 2026-08-29, re-scoped rather than closed.** §2.3's typed upward return needs
-   none — recorded in `DECISIONS.md`. Still open for the **meeting utterance** (§5.2) and the
-   **harness-mediated reader** (ADR-062 §4). Adding a variant is a pinned-contract change.
+5. **ANSWERED 2026-08-29 for two of three consumers.** §2.3's typed upward return needs no trust
+   class (`DECISIONS.md`); the harness-mediated reader gets `Channel::Agent -> UntrustedContent`
+   (M3-D1, ADR-062 §4 Option B — the pinned-contract change is recorded in `CONTRACTS.md` §4.6).
+   **Still open only for the meeting utterance** (§5.2): whether an agent's speech shares that
+   variant or needs its own.
 6. Meetings: does the conductor's own context also clone, or does it own the transcript directly?

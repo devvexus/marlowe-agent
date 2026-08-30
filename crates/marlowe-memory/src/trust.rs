@@ -51,6 +51,17 @@ pub fn trust_for_channel(channel: Channel) -> TrustClass {
         // durable channel into a later run's context. Reading a file is not the user
         // speaking.
         Channel::File => TrustClass::UntrustedContent,
+
+        // A harness-mediated reader over external bytes. The *structure* is harness-authored,
+        // which is why this is not `Channel::Web` — the page never emitted those bytes, the
+        // quarantined reader did, and recording Web would assert a provenance the harness
+        // knows to be false. But the *content* is a condensation of untrusted input, and
+        // section 3.3's rule is that a fact the model extracted from bytes inherits the bytes'
+        // origin class. So an honest origin buys no more authority than the bytes had
+        // (ADR-062 section 3.2). Note the contrast with `ToolOutput` above: that is
+        // `AgentObserved` because the harness *computed* the value; here the harness only
+        // carried bytes it did not author.
+        Channel::Agent => TrustClass::UntrustedContent,
     }
 }
 
@@ -132,6 +143,28 @@ mod tests {
     #[test]
     fn web_is_untrusted_no_matter_what() {
         assert_eq!(trust_for_channel(Channel::Web), TrustClass::UntrustedContent);
+    }
+
+    #[test]
+    fn the_agent_channel_is_untrusted_content() {
+        // A lookup table with no default arm; this is the thin test that is right for one,
+        // and it is the same shape as `web_is_untrusted_no_matter_what` above.
+        //
+        // WHAT IT DOES NOT MEASURE, said plainly so nobody reads it as more: NO PRODUCTION
+        // CODE IN `crates/` CONSTRUCTS `Channel::Agent`. (This comment used to read "nothing
+        // in `crates/`", which the assertion five lines below refutes: unit tests construct
+        // the variant, which is what a test module is for. A sentence a neighbouring line
+        // disproves is how a true claim stops being believed.) Its only consumer is
+        // `ingest_external`, which has no caller (ADR-062 sections 2.1 and 7), so this
+        // asserts a classification for a slot, not the behaviour of a live path. On the day
+        // Session D's caller exists, the test that matters is a loop-level one showing a
+        // belief from this channel refused as a composed target.
+        assert_eq!(trust_for_channel(Channel::Agent), TrustClass::UntrustedContent);
+
+        // The discriminating pair: `ToolOutput` is `AgentObserved` because the harness
+        // *computed* the value. Asserting them together shows the table separates the two
+        // cases rather than agreeing everywhere.
+        assert_eq!(trust_for_channel(Channel::ToolOutput), TrustClass::AgentObserved);
     }
 
     #[test]

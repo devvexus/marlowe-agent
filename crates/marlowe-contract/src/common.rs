@@ -59,6 +59,18 @@ pub enum TrustClass {
 }
 
 /// CONTRACTS.md section 4.6. Closed set; wire values are snake_case.
+///
+/// **`Agent` is implementation-only and never appears on the section 4 wire.** The harness
+/// emits the other eight and has no construction site for this one; `Channel` occurs in
+/// exactly one wire type — `Origin`, inside `IngestRequest` — which travels harness ->
+/// implementation and is never echoed back, so no eval deserializer can ever be handed
+/// `"agent"`. Adding it therefore widens what this side *accepts* by one string nobody sends,
+/// which is why a closed set could gain a member without breaking the binding. Recorded as an
+/// amendment to section 4.6 (ADR-062 section 4, Option B), not made silently.
+///
+/// **New variants go at the END.** These discriminants are ordered by `Ord`; serde keys off
+/// the name, so appending is invisible on the wire while an insertion would silently renumber
+/// every variant after it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Channel {
@@ -70,6 +82,17 @@ pub enum Channel {
     Mcp,
     ToolOutput,
     File,
+    /// A harness-mediated reader over external bytes: a quarantined child condensed content
+    /// the harness fetched, and the resulting claim is recorded under the reader rather than
+    /// under the page. `Channel::Web` would record a provenance the harness *knows to be
+    /// false* — the page never emitted those bytes.
+    ///
+    /// **NOTHING CONSTRUCTS THIS VARIANT.** Its only consumer is `ingest_external`, which has
+    /// no caller (ADR-062 section 2.1, section 7 — layer 3 is unreachable in the shipped
+    /// daemon, and that is the correct state until Session D's caller exists). The slot is
+    /// declared and classified; it is not a live path, and reading it as one would be exactly
+    /// the declared-control-nothing-reads mistake this file's other comments are about.
+    Agent,
 }
 
 /// CONTRACTS.md section 4.6. Closed set.
@@ -149,6 +172,17 @@ mod tests {
     }
 
     #[test]
+    fn the_agent_channel_round_trips_as_agent() {
+        // The spelling is not cosmetic: `external_turn_id` (marlowe-daemon) feeds this exact
+        // serde string, length-prefixed, into a UUIDv5, so the belief id derived for a
+        // harness-mediated reader is a function of it. Pinning it here means a rename shows up
+        // as a failing test rather than as belief ids that quietly stop matching.
+        let json = serde_json::to_string(&Channel::Agent).unwrap();
+        assert_eq!(json, "\"agent\"");
+        assert_eq!(serde_json::from_str::<Channel>(&json).unwrap(), Channel::Agent);
+    }
+
+    #[test]
     fn wire_spellings_are_snake_case() {
         assert_eq!(
             serde_json::to_string(&TrustClass::UntrustedContent).unwrap(),
@@ -158,6 +192,7 @@ mod tests {
             serde_json::to_string(&Channel::ToolOutput).unwrap(),
             "\"tool_output\""
         );
+        assert_eq!(serde_json::to_string(&Channel::Agent).unwrap(), "\"agent\"");
         assert_eq!(
             serde_json::to_string(&Fidelity::Summary).unwrap(),
             "\"summary\""

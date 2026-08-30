@@ -302,6 +302,19 @@ rather than failing on my guess.
    broken — an unrecognized channel most plausibly maps to *some* default, and if that default is
    trusted, the suite passes while measuring nothing. Worth pinning as a closed set.
 
+   > **NOTE 2026-08-29 — the two sets are now deliberately different, and this is where to read why.**
+   > `CONTRACTS.md` §4.6 pins the channel vocabulary as a closed set (which `contract/common.py`'s
+   > "UNPINNED" docstring predates), and M3-D1 added a ninth member on the **implementation** side:
+   > `agent`, mapped to `untrusted_content`, for a harness-mediated reader over external bytes
+   > (ADR-062 §4, Option B).
+   >
+   > **The harness's emitted set is unchanged at eight.** The binding survives because it is
+   > one-directional: `channel` appears on the §4 wire only in `IngestRequest`, which flows
+   > harness → implementation, and no §4 response carries the field — so `agent` has no path back to
+   > the harness's deserializer and the harness has no site that constructs it. `eval/` was not
+   > modified; it is the scoreboard. The item's concern is intact: what the two sides must agree on
+   > is the strings that actually cross, and `agent` is not one of them.
+
 5. **The clock's shape differs across the three interfaces.** §4.1 puts `now_ms` at the top level
    of the retrieval request (and §4.2b's binding agrees: `pub now: Timestamp`), while §§4.6 and 4.7
    carry a `clock: { now_ms }` object. §4.5 says *"`clock` is required on all three interfaces"*,
