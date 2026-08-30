@@ -88,6 +88,42 @@ Argument values are coerced using the manifest's declared `ParamType` at parse t
 lesser half — the renderer fix above is what closes the security-relevant gap, and it closes it for
 `Integer` too, so the two are independent rather than one depending on the other.
 
+### 3.4 Approval is a REACHABILITY decision. It confers NO authority on what comes back.
+
+**Added 2026-08-29 (M3-D3/D4), because the wrong version is plausible enough to pass review as
+ergonomics.** It reads: *the human was shown this host and approved it, so what it returns is
+`UserAsserted`* — or the softer form, *don't quarantine a page from a host a person vouched for*.
+Both are the human's authority laundering the page's, and both are refused.
+
+An approved host returns `UntrustedContent` exactly as an unapproved one would. Approving
+`docs.example.com` says **you may reach that host**; it does not say *and you may believe it*, and
+it does not make the approver the origin. CONTRACTS §3.3 binds a trust class to the authority of
+the **origin**, and a person permitting a fetch has not become the origin any more than opening a
+door makes them the author of who walks through it. The two questions are orthogonal and the
+mechanisms answering them are separate on purpose:
+
+| Question | Mechanism | Where it is decided |
+|---|---|---|
+| May this run reach that host? | `EgressPolicy` + the manifest's declared hosts | the adjudicator, before any executor runs |
+| What authority does what came back have? | `TrustClass`, from the origin | the executor, stamping its result |
+
+**It currently holds structurally, and that is not the same as being checked.**
+`trust_for_channel` takes only a `Channel`, so grant state cannot enter it;
+`marlowe-permission`'s egress module imports no `TrustClass`; and the site that stamps the class —
+`read_ref`, since ADR-042 moved the page out of `web`'s own result — holds no `EgressPolicy` and
+has no route to one. An invariant that holds because two things never meet reports the same
+reading whether or not anyone has wired them together, so it is now asserted:
+
+- `marlowe-exec/tests/egress_approval_confers_no_authority.rs` — the class itself, on an observed
+  value, **with a grant actually in hand** (`line_numbers.rs` asserts the same class under
+  `DenyAll`, where nothing exists to launder). It carries a three-way adjudication control
+  proving the grant changed the answer, and a negative control on `web`'s own `AgentObserved`
+  reference so a build that stamped `UntrustedContent` everywhere fails rather than passes.
+- `marlowe-loop/tests/egress_grant.rs::approving_a_host_does_not_change_what_the_loop_does_with_what_it_returns`
+  — the **fate** of the bytes, over two arms (reached by approval, reached by a held grant),
+  asserting they agree on containment and the parent's floor. This is the only coverage of the
+  softer wrong version, in which an approved host's result skips the quarantined reader.
+
 ## 4. What is deliberately not decided
 
 - **Persisted grants.** A host approved today is not approved tomorrow. Persisting them needs the

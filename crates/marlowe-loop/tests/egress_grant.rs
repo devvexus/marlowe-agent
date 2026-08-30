@@ -26,6 +26,13 @@
 //!
 //! None of this reaches the network: the approval decision is recorded before any executor
 //! runs, and the host is `ScriptedTools`.
+//!
+//! **The third test is M3-D4's loop half: egress approval confers no authority on content.** It
+//! cannot assert a trust class -- `ScriptedTools` is handed its class by the test, so asserting it
+//! back is the double asserting its own constant -- so it asserts the **fate** of the bytes
+//! instead, which is what the loop actually decides. Its sibling
+//! `marlowe-exec/tests/egress_approval_confers_no_authority.rs` asserts the class itself, on an
+//! observed value from the real executor, and cannot see anything the loop does with it.
 
 mod common;
 
@@ -33,11 +40,11 @@ use common::*;
 use marlowe_contract::TrustClass;
 use marlowe_journal::EventKind;
 use marlowe_loop::{
-    Budget, CapabilityProfile, Engine, MemoryRecorder, ModelStep, OutputContract, Ports,
-    Provenance, Run, RunId, SessionId, SessionState,
+    Budget, CapabilityProfile, Engine, InterruptPolicy, MemoryRecorder, ModelRoute, ModelStep,
+    OutputContract, Ports, Provenance, Run, RunId, SessionId, SessionState,
 };
 use marlowe_permission::{ArgValue, Args, EgressPolicy, Tier, Unavailable};
-use marlowe_tools::ToolId;
+use marlowe_tools::{ExposedSet, HostPattern, ToolId};
 
 /// A distinctive marker. **Not "a fetched page"** -- a generic body would make the
 /// "it is absent from the parent" assertion pass on any build where the wording drifted,
@@ -291,5 +298,228 @@ fn after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs
         recorder.count(EventKind::ApprovalRequested),
         3,
         "two fetches and one bash. `bash` is Irreversible and escalates whatever the tier says"
+    );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// M3-D4 — approval is reachability, not authority. The loop half.
+// ══════════════════════════════════════════════════════════════════════════════════════════
+
+/// A host reached by APPROVAL and the same host reached by GRANT, side by side.
+const APPROVED_HOST: &str = "docs.example.com";
+const APPROVED_URL: &str = "https://docs.example.com/approved";
+
+/// What one arm observed. Collected into a struct so the two arms are compared field by field
+/// rather than by two blocks of assertions that could quietly drift apart.
+struct Arm {
+    approvals_requested: usize,
+    approvals_granted: usize,
+    floor: TrustClass,
+    /// The parent's rendered window at the end of the run.
+    rendered: String,
+    /// Whether ANY view the driver was called with contained the page — the child's included.
+    some_view_saw_the_page: bool,
+    web_calls: usize,
+}
+
+/// One fetch of `APPROVED_URL`, under whatever profile the caller hands in.
+///
+/// The script and every other port are identical between arms **by construction**: the profile is
+/// the only parameter, so any difference in the numbers below is a difference the profile caused.
+fn one_fetch_under(profile: CapabilityProfile) -> Arm {
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        web_call(APPROVED_URL),
+        say("the page is about widgets", 50), // the quarantined child's only reply
+        say("done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools {
+        trust: Some(TrustClass::UntrustedContent),
+        body: Some(PAGE_BODY.into()),
+        ..Default::default()
+    };
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("authority"),
+        SessionId::from_name("authority-session"),
+        profile,
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    Arm {
+        approvals_requested: recorder.count(EventKind::ApprovalRequested),
+        approvals_granted: recorder.count(EventKind::ApprovalGranted),
+        floor: run.trust_floor(),
+        rendered: e.assembler().assemble(&state).rendered(),
+        some_view_saw_the_page: driver.views_seen.iter().any(|v| v.contains(PAGE_BODY)),
+        web_calls: tools.calls.iter().filter(|(t, _)| t == "web").count(),
+    }
+}
+
+/// **Both arms are built here, and the egress policy is the ONLY thing that varies.**
+///
+/// It was two separate constructors — `CapabilityProfile::interactive()` against a hand-built
+/// one — and a hostile review measured that they differed in **three** ways, not one: twelve
+/// exposed tools against two, `may_write_memory` true against false, and the grant. Only the
+/// third is the intended variable. The test still passed, so this was a diagnostic defect rather
+/// than a wrong result — but the differential assertion at the bottom says the arms "differ in
+/// HOW the host was reached and in nothing else", and on that code it was false. A disagreement
+/// could have been caused by the exposed set or the memory-write flag, and the message would
+/// have named the wrong culprit.
+///
+/// One constructor makes the claim true by construction. Arm A's realism is preserved on the axis
+/// that matters: `AllowApproved { granted: [] }` is exactly what `CapabilityProfile::interactive`
+/// carries (`profile.rs`, ADR-032 §3.1), so arm A is the shipped egress posture even though its
+/// tool set is trimmed to what this script calls.
+fn profile_with(egress: EgressPolicy) -> CapabilityProfile {
+    CapabilityProfile::new(
+        ExposedSet::new(vec![ToolId::new("web"), ToolId::new("bash")]).expect("two fits"),
+        egress,
+        InterruptPolicy::Interruptible,
+        ModelRoute::Orchestrator,
+        false,
+        false,
+    )
+    .expect("this profile reads nothing untrusted")
+}
+
+/// **The egress posture a run can actually reach today**: `AllowApproved` with an empty set,
+/// widened by nothing, with a human saying yes at the gate.
+fn reachable_profile() -> CapabilityProfile {
+    profile_with(EgressPolicy::AllowApproved { granted: Vec::new() })
+}
+
+/// **A policy no run can reach**, written out rather than earned because it cannot be earned:
+/// `EgressPolicy::grant` has no production caller and `CapabilityProfile` exposes no `&mut` route
+/// to the policy, so this state exists only by construction. This arm is a tripwire for when
+/// ADR-032's approval surface lands — it is NOT a measurement of the shipped product and must
+/// not be read as one.
+fn constructed_grant_profile() -> CapabilityProfile {
+    profile_with(EgressPolicy::AllowApproved { granted: vec![HostPattern::new(APPROVED_HOST)] })
+}
+
+/// **Egress approval confers no authority on what the host returns — measured on the loop.**
+///
+/// # What it asserts, and why it is not a class assertion
+///
+/// The class a `marlowe-loop` test sees is the one the test set: `ScriptedTools` returns
+/// `self.trust`. Asserting it back would be the double asserting its own constant, which is the
+/// green-and-vacuous shape this project keeps logging. What the LOOP decides is the **fate** of
+/// the bytes — `blocks_composed_targets(outcome.trust)` routes them to a quarantined child — so
+/// containment is the honest loop-level read, and the class itself is asserted in
+/// `marlowe-exec/tests/egress_approval_confers_no_authority.rs` on a value the real executor
+/// produced. Neither file can see the other's mutation.
+///
+/// # The two arms and the differential
+///
+/// Arm A reaches the host the way the shipped product does: an ungranted `AllowApproved` policy
+/// and a human at the gate. Arm B reaches it by a grant held in advance. **They must differ in
+/// exactly one observable — whether anybody was asked — and agree on everything about the bytes.**
+/// The wrong version is one where reaching a host more easily also treats what it returns more
+/// kindly, and that shows up as arm B disagreeing with arm A about containment.
+///
+/// # What the scripted `web` stands in for
+///
+/// Since ADR-042 the shipped `web` returns a `DocumentRef` at `AgentObserved` and never page
+/// content; the untrusted bytes re-enter on a later `read(ref=...)`, which declares no `Url`
+/// parameter and is therefore never egress-adjudicated at all. The scripted `web` here carries
+/// the page directly, so it stands in for **whatever tool result carries the bytes** rather than
+/// modelling the shipped fetch. What is measured is that the egress policy does not change the
+/// ROUTING of an untrusted result, whichever call produced it — which is the property, and it
+/// is tool-agnostic because `condense_batch` triggers on the trust class rather than the tool
+/// name. The sibling exec test covers the real `web`/`read` split.
+///
+/// # The controls
+///
+/// - **The approval genuinely happened** (arm A): one `ApprovalRequested` and one
+///   `ApprovalGranted`. Without it the arm could be measuring a host nobody was asked about.
+/// - **The grant genuinely took effect** (arm B): zero `ApprovalRequested`. That is the only
+///   observable difference a grant makes, so without it arm B is arm A with extra words.
+/// - **The fetch genuinely occurred** (both): one `web` call reached the host.
+/// - **The page genuinely carried the marker** (both): some view contained `PAGE_BODY`, so the
+///   parent's not containing it is containment rather than a body that was always empty.
+#[test]
+fn approving_a_host_does_not_change_what_the_loop_does_with_what_it_returns() {
+    let approved = one_fetch_under(reachable_profile());
+    let granted = one_fetch_under(constructed_grant_profile());
+
+    // ── the two controls that distinguish the arms ───────────────────────────────────────
+    assert_eq!(
+        (approved.approvals_requested, approved.approvals_granted),
+        (1, 1),
+        "arm A: a human was actually asked and actually said yes. Zero here would mean the host \
+         was reached without an approval, and the arm would be measuring nothing"
+    );
+    assert_eq!(
+        granted.approvals_requested, 0,
+        "arm B: the grant took effect — a granted host is not asked about. A reading of 1 means \
+         the constructed policy did nothing and this arm is a duplicate of arm A"
+    );
+
+    // ── and the control that a fetch happened at all, in both ────────────────────────────
+    for (name, arm) in [("approved", &approved), ("granted", &granted)] {
+        assert_eq!(arm.web_calls, 1, "{name}: the fetch reached the host");
+        assert!(
+            arm.some_view_saw_the_page,
+            "{name}: some view must have contained the page, or every absence below is vacuous"
+        );
+    }
+
+    // ── THE PROPERTY: the two arms agree about the bytes ─────────────────────────────────
+    //
+    // Approval widened WHAT COULD BE REACHED. It did not widen what may be believed about what
+    // came back, and it did not exempt the reply from the quarantined reader.
+    for (name, arm) in [("approved", &approved), ("granted", &granted)] {
+        assert!(
+            !arm.rendered.contains(PAGE_BODY),
+            "{name}: an approved host's bytes must not reach the parent's window either. §8.2's \
+             second sentence does not have a friends list:\n{}",
+            arm.rendered
+        );
+        assert!(
+            arm.rendered.contains("read under quarantine") && arm.rendered.contains("source_1:"),
+            "{name}: what crossed instead is the validated summary:\n{}",
+            arm.rendered
+        );
+        assert_eq!(
+            arm.floor,
+            TrustClass::AgentInferred,
+            "{name}: `UntrustedContent` here would mean the condensed-summary routing did \
+             not happen and the page tainted the parent. It is evidence ONLY in that \
+             direction: `AgentInferred` is the floor of every run that reaches a model turn \
+             — every History block is stamped `AgentInferred` (context.rs) and \
+             `trust_floor` is a `min` — so no value above it is reachable here and this \
+             assertion cannot detect one. Read it together with the containment assertions \
+             above, not on its own"
+        );
+    }
+
+    // ── stated as the differential, so a change that breaks the symmetry is named ────────
+    assert_eq!(
+        (approved.floor, approved.rendered.contains(PAGE_BODY)),
+        (granted.floor, granted.rendered.contains(PAGE_BODY)),
+        "the two arms differ in HOW the host was reached and in nothing else. If they ever \
+         disagree here, something has made approval confer authority"
     );
 }
