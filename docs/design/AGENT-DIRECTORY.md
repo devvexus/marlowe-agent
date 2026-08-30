@@ -35,41 +35,75 @@ they ship together or whether the directory is useful before the ladder exists.
 
 ---
 
-## §2. THE CONSTRAINT THAT DECIDES THE SHAPE, AND IT IS ALREADY MEASURED
+## §2. THE SHAPE IS DECIDED, AND IT WAS DECIDED BY SIZING RATHER THAN BY SCHEDULING
 
-**On this machine, the ladder is not a residency problem — it is a scheduling problem, and the
-arithmetic says so before anyone designs anything.**
+**AMENDED 2026-08-30 by the human, and the amendment overturns this section's original argument.**
+It reasoned from a 9B secretary plus a 9B worker, concluded that two copies of a 9B do not fit on a
+16 GB card, and therefore that the tier ladder had to *swap* models — at a measured **10,484.9 ms**
+per cold load, which would make a "fast" tier slower than the tier it was avoiding.
 
-| Measured, and where | Value |
-|---|---|
-| The card | **16 GB** |
-| A warm 9B Ollama runner | **6.7 GB** (STATE.md, hybrid session) |
-| **Two copies of a 9B on 16 GB** | **DO NOT FIT.** A warm runner alone was enough to push `llama-server` silently onto the CPU |
-| Ollama **cold** load, measured through the daemon | **10,484.9 ms** |
-| Ollama **warm** per-request scheduler | **219–228 ms**, paid per request |
-| `OLLAMA_NUM_PARALLEL=1` | set at User scope; protects the prefix cache and **serialises parallel subagents** — the accepted cost |
-| CUDA primary context | ~238 MB per process, leaked once and never returned |
-| Embedder + reranker | also want VRAM; ADR-044 resolves `auto` against **free VRAM at load** |
+**That premise is now wrong.** The models are chosen small **specifically so that they can all run in
+parallel**, and the arithmetic says they do:
 
-**So the obvious reading of the request is the one that fails.** If the secretary is a 9B (6.6 GB)
-and Medium is a 9B (6.6 GB), that is 13.2 GB before the embedder, the reranker, the CUDA context and
-the KV cache — and a **switch** between levels costs a cold load, measured at **ten and a half
-seconds**. A "Low" tier *"meant for fast tasks"* that costs 10 s to switch into is slower than the
-Medium model it was avoiding. **The tier ladder can invert its own purpose, and the number that
-proves it is already on the page.**
+| Role | Ollama default | Size | Verified present |
+|---|---|---|---|
+| **Secretary** | `marlowe-dawn:9b-super` | 5.9 GB | yes |
+| **Agent** | `marlowe-mini:4b-super` | 2.8 GB | yes |
+| **Extractor** | `marlowe-mini:2b` | 1.3 GB | yes |
+| **(a fourth role — UNNAMED)** | — | — | **see below** |
 
-That is not an argument against the feature. It is the first thing the brainstorm has to solve, and
-it has a measured answer available rather than a guess.
+**10.0 GB of the card's 16**, co-resident, leaving headroom for the KV cache, the embedder and the
+reranker — all three of which also want VRAM, and ADR-044 resolves the embedder's provider against
+**free VRAM at load**, so the headroom is not spare, it is allocated. All three models were confirmed
+present via `ollama list` on 2026-08-30.
 
-### Models present on this machine, for the arithmetic
+So there is no ladder and no swapping. **The design is co-residency, and what remains is a routing
+question, not a scheduling one.**
 
-`qwen3.5:0.8b` 1.0 GB · `qwen3-vl:2b` 1.9 GB · `qwen3.5:2b` 2.7 GB · `qwen3.5:4b` 3.4 GB ·
-**`marlowe-red:9b` 5.8 GB** · **`qwen3.5:9b` 6.6 GB** · `marlowe-dawn:9b` 6.6 GB ·
-`marlowe-dusk:27b-small` 10 GB · `qwen3.6:27b` 17 GB · `marlowe-dusk:27b` 18 GB ·
-`qwen3.6:35b-a3b` 23 GB · **cloud: `marlowe-noir:397b`, `qwen3.5:397b-cloud`**
+### The requirement, as given
 
-Cloud entries matter: **High may be the tier that does not live on the card at all**, which removes
-the VRAM problem and introduces an egress and trust one instead.
+- **Four model roles exist.** Each is **user-configurable in a small window**.
+- **Either provider works per role** — Ollama or OpenRouter.
+- **The spawner names the model**: when the harness emits a `run` it says which role it wants, and
+  the corresponding model serves it.
+
+### THREE THINGS THAT MUST BE SETTLED BEFORE ANY OF THIS IS BUILT
+
+**1. The fourth role has no name.** Four were specified; three were given defaults. The missing one
+is not guessed here, because a role invented by an implementer becomes a default nobody chose. **Ask.**
+
+**2. `OLLAMA_MAX_LOADED_MODELS` IS UNSET ON THIS MACHINE, and it is the knob co-residency depends
+on.** Verified 2026-08-30 at User scope: `OLLAMA_FLASH_ATTENTION=1`, `OLLAMA_KV_CACHE_TYPE=q8_0`,
+`OLLAMA_NUM_PARALLEL=1`, and **`OLLAMA_MAX_LOADED_MODELS` empty**. These are different knobs and
+conflating them is how the plan fails quietly:
+
+- `OLLAMA_NUM_PARALLEL` bounds **concurrent requests against one model**. It is 1, deliberately —
+  STATE.md records that it protects the prefix cache and **serialises parallel subagents**, an
+  accepted cost. It says nothing about how many *distinct* models stay resident.
+- `OLLAMA_MAX_LOADED_MODELS` bounds **how many distinct models stay loaded**. Unset means Ollama's
+  default, which **must be read from the running server rather than assumed** — and if it resolves
+  below the number of roles, the second model evicts the first and the design silently degrades into
+  exactly the swap-per-turn the original §2 warned about, at ~10 s per switch.
+
+**Measure it before building on it:** `GET /api/ps` after loading all four says what is actually
+resident. That is the check; the env var is the declaration.
+
+**3. `NUM_PARALLEL=1` still serialises the agents.** Four co-resident models do not give four
+concurrent turns if each model admits one request at a time. Whether that matters depends on whether
+the roles are used simultaneously — a secretary waiting on an extractor is fine; three workers
+running together is not. **This is a real trade against the prefix-cache protection, and it is the
+human's.**
+
+### What the original §2 got right and keeps
+
+The **eviction path already exists** — `/api/ps` plus `POST /api/generate {keep_alive: 0}`, with the
+engine printing what it evicted. It was written for the hybrid engine and it is the same mechanism a
+directory needs to report and manage residency.
+
+And STATE.md's open item **`THREE CONSTANTS ENCODE A 16 GB CARD`** still applies with more force, not
+less: this configuration fits *this* card. Its three rules are inherited — the offload check is a
+**degree**, not a boolean; the KV allocation is derived from measured free VRAM and the choice is
+**stated to the user**; and eviction is the **normal path**, not a warning.
 
 ---
 
@@ -77,12 +111,17 @@ the VRAM problem and introduces an egress and trust one instead.
 
 Ordered by how much of the design each one decides.
 
-1. **Are levels RESIDENT or SWAPPED?** Resident means the VRAM budget must hold every tier that can
-   be live at once, which the arithmetic above says it cannot at 9B. Swapped means a cold load per
-   switch. A third option — **Low and Medium resident, High in cloud** — fits 16 GB and changes what
-   High means.
-2. **Does a "fast" tier stay fast?** If Low is reached by eviction, its first token is 10 s behind
-   Medium's. Either Low is permanently resident (and small), or "quickest" is false.
+1. **~~Are levels resident or swapped?~~ SETTLED 2026-08-30: resident.** The models are sized to
+   co-reside — 10.0 GB of 16 — so this is a routing question, not a scheduling one. What survives
+   of it is narrower and is §2's item 2: **`OLLAMA_MAX_LOADED_MODELS` is unset**, so residency is
+   currently whatever Ollama's default resolves to, and if that is below the role count the design
+   degrades into swapping without saying so. Read `/api/ps`; do not read the env var.
+2. **~~Does a "fast" tier stay fast?~~ Replaced by a sharper question: does anything run
+   CONCURRENTLY?** Co-residency removes the load cost and does **not** remove `NUM_PARALLEL=1`, which
+   admits one request per model at a time. So four loaded models still serialise if the roles are
+   used together. Decide whether concurrency is actually wanted — and if it is, that is a direct
+   trade against the prefix-cache protection `NUM_PARALLEL=1` was set for, which is a TTFT decision
+   the human already made once.
 3. **What does the level attach to, and does it inherit?** A `run` parameter, per M3-DESIGN §1's
    five levels. Does a child inherit its parent's level, or does the spawning agent choose? A master
    that can set its children's level is choosing spend and capability.

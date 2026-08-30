@@ -226,7 +226,10 @@ fn a_silent_peer_does_not_wedge_the_daemon() {
     let idle = TcpStream::connect(("127.0.0.1", fx.port)).expect("accepted");
     // Held open, saying nothing, for longer than a client would wait.
     let holder = thread::spawn(move || {
-        thread::sleep(Duration::from_secs(7));
+        // **10, not 7.** See the assertion below: the holder must be irrelevant to the outcome,
+        // and it cannot be if it lets go anywhere near the deadline being tested. 10 puts its
+        // release 4 s clear of the 6 s threshold while keeping the join -- and so the suite -- cheap.
+        thread::sleep(Duration::from_secs(10));
         drop(idle);
     });
 
@@ -237,9 +240,20 @@ fn a_silent_peer_does_not_wedge_the_daemon() {
         events.iter().any(|e| matches!(e, Event::Status(_))),
         "a silent peer held the daemon: {events:?}"
     );
+    // **6 s, and the number is the whole point of this assertion.**
+    //
+    // It was 7 s, which is exactly how long the holder sleeps — so "the 5 s preamble deadline
+    // freed the daemon" and "the holder let go and freed it" were indistinguishable at the
+    // boundary, and a daemon that only ever unwedged because the peer left would have passed at
+    // 6.99 s. The threshold has to sit strictly BETWEEN the mechanism under test and the
+    // alternative explanation, or passing proves nothing about the mechanism.
+    //
+    // Observed 2026-08-30 failing at 7.067 s inside a `--workspace` run and passing 3/3 in
+    // isolation at ~7.6 s total — a flake produced by a threshold with no margin, not by the
+    // daemon. With the holder at 10 s the window is 5 → 6 s and the peer cannot decide the result.
     assert!(
-        started.elapsed() < Duration::from_secs(7),
-        "the silent peer was still holding the daemon after {:?}",
+        started.elapsed() < Duration::from_secs(6),
+        "the silent peer was still holding the daemon after {:?} — the preamble deadline is 5 s,          so anything past 6 s means the deadline did not free it",
         started.elapsed()
     );
     holder.join().ok();
