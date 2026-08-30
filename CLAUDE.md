@@ -57,7 +57,7 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    non-vacuous"* — IS FALSE OF THE DAEMON. Corrected 2026-08-12, and it is the most important thing
    on this page.** The chain is four links and each was checked by grep, not by argument:
    injected memory is untrusted only if some belief is `UntrustedContent`; a belief is
-   `UntrustedContent` only from `ingest` (`trust_for_channel` maps Web/Email/Messaging/Mcp/File) or
+   `UntrustedContent` only from `ingest` (`trust_for_channel` maps Web/Email/Messaging/Mcp/File/**Agent**) or
    from `remember_claim` with an already-bottomed floor, which is circular; and **`ingest` had
    exactly one caller in the workspace, the `--eval-adapter`.**
 
@@ -246,12 +246,42 @@ requirements only when the design docs do not answer the question.
   believing a number, ask what it would read if the thing you actually care about were broken; if
   the answer is "the same", it is a proxy and it is not evidence.
 
-  The ledger, for the last four, because the count is only useful if it is auditable:
+  The ledger, from 12, because the count is only useful if it is auditable:
   **12** — `Deserialize` routing around a validating constructor (M2 A; the first caught by design).
   **13** — R@1 counting a superseded fact as a hit, so every R@1 in the project was inflated
   (M0c; `docs/design/HARM-WEIGHTED-PRECISION.md`). **14** — a guarded path that moved, below.
   **15** — the trust-floor banner, which is the widest gap yet between what fired and what was
-  claimed (M2 C2f).
+  claimed (M2 C2f). **16** — a declared control nothing reads (`inline_threshold_bytes`, M2 E).
+  **17** — a zero budget dimension read as a floor rather than a ceiling (ADR-041).
+  **18** — a prescribed diagnostic retired by the change that made it matter, going **green** as it
+  went (M3 B2; the first committed against this file). **19** — a self-check that cannot see its own
+  list shrink (M3 B3).
+
+  **Nineteen, and the shape has not changed once.** Every one is a measurement answering a question
+  *adjacent* to the one being asked. What changes is where it hides: in code, in a default, in a
+  verification method, in a measurement target, in a guard, in a status line, and twice now in this
+  document's own prescriptions.
+
+- **A SELF-REFERENTIAL LIST CANNOT DETECT ITS OWN DELETIONS.** The **nineteenth** instance, found by
+  mutation in M3 Session B3, and it is one causal step *earlier* than instance #14 rather than a
+  repeat of it.
+
+  `protect-boundaries.py --self-check` exists because of #14: a guarded path was renamed, the entry
+  matched nothing, and path scoping was silently unprotected. The fix asserts every entry still
+  names a file that exists — and it does that by **iterating the entry list**. So deleting an entry
+  removes it from the thing doing the checking. **Mutation-tested: removing a `PROTECTED` row turned
+  nothing red.** No error, no warning, no failing test, and the file it named became editable with
+  no prompt.
+
+  The distinction is worth holding precisely. **#14 is a guard whose SUBJECT moved** — it still runs,
+  still guards everything else, and goes quiet about one file. **#19 is a guard that cannot see
+  ITSELF shrink**: every remaining entry verifies perfectly, the suite is green, and the count is
+  simply smaller than it was. A check derived from a list can never test the list's own
+  completeness, because the list is its input.
+
+  Closed by pinning the expected set independently of the set being checked, so the count and the
+  membership are both asserted from outside. **Ask of any self-check: is its input the same object
+  it is checking? If so, what does it read when that object gets smaller?**
 
 - **A PRESCRIBED DIAGNOSTIC CAN BE RETIRED BY THE VERY CHANGE THAT MAKES IT MATTER, AND IT
   RETIRES BY GOING GREEN.** The **eighteenth** instance, found closing M3 Session B2, and it is the
@@ -571,7 +601,21 @@ construction** and the gap is the point:
 | The persona artifact | any `persona/` directory | **Enforced** (pre-emptively) |
 | The permission and approval layer | `crates/marlowe-permission/src/{adjudicate,taint}.rs`, `crates/marlowe-loop/src/{profile,provenance}.rs` | **Enforced** (M2 A) |
 | Path scoping and egress rules | `crates/marlowe-permission/src/{scope,egress}.rs` | **Enforced** (M2 A) |
+| MCP descriptors and the untrusted-tool boundary | `crates/marlowe-daemon/src/mcp.rs` | **Enforced** (M2 C3) |
+| Pinned-tool identity | `crates/marlowe-tools/src/pin.rs` | **Enforced** (M2 C3) |
+| A steer is a write, and takes adjudication | `crates/marlowe-loop/src/steer.rs` | **Enforced** (ADR-054) |
+| The memory write and ingest path | `crates/marlowe-daemon/src/memory.rs` | **Enforced** (M3 B3) |
+| The memory and approval ports | `crates/marlowe-loop/src/driver.rs` | **Enforced** (M3 B3) |
 | The trust ledger's promotion logic | — | **Not enforced; does not exist yet** (M6) |
+
+> **THIS TABLE WAS THREE ROWS BEHIND THE HOOK FOR TWO MILESTONES, and the rows above in bold are the
+> correction (2026-08-29).** `mcp.rs`, `pin.rs` and `steer.rs` had been in `PROTECTED` since M2 C3 and
+> ADR-054 and appeared nowhere here. **Nothing was unprotected** — the entry in the hook *is* the
+> enforcement and this list is only a map of it, which is the sentence three paragraphs down. But a
+> map that omits a guarded path invites the opposite error to instance #14: there, a guard's subject
+> moved and the guard went silent; here, the guard held and the *documentation* went silent, so a
+> session reading this table would conclude those files were free to edit and be surprised by a
+> prompt. **Whoever adds a path to `PROTECTED` adds its row here in the same commit.**
 
 **One gap in this that the hook cannot close, named rather than left implicit.** The layer is
 guarded; **the loop's call into it is not**. `crates/marlowe-loop/src/engine.rs` is ordinary

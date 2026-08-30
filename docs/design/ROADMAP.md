@@ -47,8 +47,25 @@ handled. Ranked by what it costs if it stays forgotten.
    path at all** — [`ADR-049`](adr/ADR-049-the-quarantined-reader-request-shape.md) §4, Accepted,
    measured: `curl` to arxiv.org returns HTTP 200 from `cmd /C`. What stands there instead is `bash`'s
    `Irreversible` escalation, which asks about a **command** and never about a **destination**. Either
-   the shell is outside layer 4's scope by a recorded decision, or it needs one. No milestone owns it,
-   and it is §13 territory.
+   the shell is outside layer 4's scope by a recorded decision, or it needs one.
+
+   **DEFERRED 2026-08-29 by the human, pending the [`SECURITY-AUDIT.md`](SECURITY-AUDIT.md) triage —
+   the question is whether this is a real issue before it is a design problem.** That ordering is
+   right: the audit holds ~84 unclaimed findings and M3 B2 already burned a session re-deriving two
+   of them, so pricing this one against that backlog beats designing it in isolation. **It is not
+   closed and it is not scheduled** — it sits here until the triage ranks it.
+
+   **What the triage should know, so it is not re-derived a third time.** Brief §8.1 rules out the
+   obvious fix by name: *"Filtering does not work. Containment works."* Parsing a command for `curl`
+   loses to `$(echo c)url`, a Python one-liner, or a script written in an earlier turn — that is a
+   filter wearing a boundary's clothes. Containment means the shell child holds **no network
+   capability at all**, the same shape as `ExposedSet::empty()` for the quarantined reader: on
+   Windows an AppContainer token without `internetClient`, on Linux a network namespace. A kernel
+   filter (WFP, keyed on the process) is stronger and **revisits ADR-002's removal of the kernel
+   backstop**, so it is an architectural decision rather than a feature. And the wrinkle that makes
+   any of it non-trivial: **Ollama is on loopback**, and running a dev server and curling it is a
+   legitimate use — so a blanket deny breaks the product, and *"allow loopback"* is exactly where an
+   attacker aims once anything on loopback can proxy outward.
 4. **Grant persistence is owned by no milestone.** ADR-032 §3.1 describes a session-held per-host
    grant; `EgressPolicy::grant()` has **no production call site** and `CapabilityProfile` exposes no
    `&mut` accessor, so every fetch is a fresh human decision — *stronger* than the ADR, not weaker.
