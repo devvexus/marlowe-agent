@@ -593,6 +593,7 @@ Quick reference; the pinned types are in `CONTRACTS.md`.
 | Loop → Permission layer | `ToolCall` + `TaintSet` |
 | Permission layer → Loop | `PermissionDecision` |
 | Loop → Journal | Nothing directly. Requests only, via the harness. |
+| Loop → Memory | `ClaimRequest` (model-authored, with the run's latched floor) \| `ExternalContent` (arrived from outside, with its channel). Pinned in `CONTRACTS.md` §12.1. The trust class comes **back**; it never goes in. |
 | Harness → Journal | `JournalEvent` (typed, signed) |
 | Journal → Belief store | Ordered event stream (consolidation derives) |
 | Retrieval → Assembler | `RetrievalResult` with token cost + latency attached |

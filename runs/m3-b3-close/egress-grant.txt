@@ -1,0 +1,20 @@
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.67s
+     Running tests\egress_grant.rs (target\debug\deps\egress_grant-0a621325f51ffb31.exe)
+
+running 3 tests
+test a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded ... ok
+test after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs ... ok
+test approving_a_host_does_not_change_what_the_loop_does_with_what_it_returns ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

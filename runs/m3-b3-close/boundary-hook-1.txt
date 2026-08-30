@@ -1,0 +1,11 @@
+   Compiling marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.08s
+     Running tests\boundary_hook.rs (target\debug\deps\boundary_hook-233b340491989098.exe)
+
+running 3 tests
+test no_guarded_path_leaves_the_boundary_hook_unnoticed ... ok
+test the_hook_actually_fires_on_a_guarded_path ... ok
+test every_guarded_path_in_the_boundary_hook_still_exists ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+

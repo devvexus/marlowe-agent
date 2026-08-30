@@ -1,7 +1,253 @@
 ﻿# State
 
 
+## 2026-08-29 — SESSION B3: ALL FOUR M3-D DECISIONS LANDED, AND THE BOUNDARY HOOK COULD NOT SEE ITSELF SHRINK
+
+**Read the headline about `Channel::Agent` first, because the variant existing is the thing most
+likely to be misread later.** `Channel::Agent` is added, classified `UntrustedContent`, round-trip
+pinned — and **NOTHING CONSTRUCTS IT.** Under `crates/*/src/` it appears six times: the
+`trust_for_channel` arm, one comment naming it, and four constructions inside `mod tests` blocks.
+Zero production construction sites. Its only consumer is `ingest_external`, and
+`grep -rn "ingest_external(" --include=*.rs crates/*/src/` still returns exactly two hits, both
+definitions — **zero non-definition call sites, which is the CORRECT state** per ADR-062 §2.1 and
+§7. **Layer 3 is not live and this session did not make it live.** M3-D1 is the precondition for
+Session D's caller. A variant with no producer is instance #16's shape, so it is named that way here
+rather than left for the reader to infer.
+
+---
+
+### THE BLOCKING FINDING: a self-referential list cannot detect its own deletions
+
+**This is the session's real discovery and it was found by mutation, not by reading.** A red-team
+pass deleted the `crates/marlowe-loop/src/driver.rs` row from `protect-boundaries.py`'s `PROTECTED`
+dict — the row M3-D3 had just added — and **nothing went red.** `python .claude/hooks/protect-boundaries.py
+--self-check .` exited 0 with no output. `cargo test -p marlowe-permission --test boundary_hook`
+reported `2 passed; 0 failed`. A valid stdin probe on that path returned empty stdout while a
+same-shape probe on the still-listed `crates/marlowe-daemon/src/memory.rs` returned
+`"permissionDecision": "ask"` **in the same command**, so the silence was the deletion and not the
+probe.
+
+`self_check` iterates `for suffix in PROTECTED`. A row that is no longer in the dict is trivially
+satisfied. **The guard can see its SUBJECT move (instance #14, the `scope.rs` split) and cannot see
+ITSELF removed** — which is the same scenario one step earlier, and the step that matters more,
+because removing a row is what an agent editing safety machinery on its own initiative would
+actually do.
+
+**The fix moves the expectation outside the list.** The hook gains `--list-protected`, printing every
+entry in `PROTECTED` and `PROTECTED_DIRS`. `crates/marlowe-permission/tests/boundary_hook.rs` pins
+the fifteen-entry set as `EXPECTED_PROTECTED` and compares.
+
+**Measured red in both directions, and the two directions report differently:**
+
+| Mutation | Result |
+|---|---|
+| Delete the `driver.rs` row | `no_guarded_path_leaves_the_boundary_hook_unnoticed` **FAILED** — *"A §13 GUARD WAS REMOVED FROM THE HOOK AND NOTHING ELSE WOULD REPORT IT … `["crates/marlowe-loop/src/driver.rs"]`"*. The other two tests stayed green, so the new test is the only thing that catches it |
+| Add an unpinned row (`engine.rs`) | **FAILED** with a different message: the addition is *safe and monotonic*, it only needs recording so a later deletion of it fails by name too |
+| (control) Empty both dicts | The test asserts a non-empty enumeration **before** comparing, so an emptied hook cannot pass by comparing nothing against nothing |
+
+**This overrules `boundary_hook.rs`'s own module doc for this one list** — *"two copies of a
+protected-path list is how they disagree"* — and the overruling is the mechanism rather than an
+exception. A disagreement now fails the build and asks a human which copy is right, which is the
+decision the §13 boundary exists to require. **The reasoning does NOT generalise**: it does not apply
+to the `Channel` enum's ordering, where a hand-maintained ordering test would be a second copy with
+no deletion hazard behind it. The discriminator is whether an absence is observable.
+
+---
+
+### What landed
+
+**M3-D1 — `Channel::Agent`.** Variant appended (never inserted: serde keys off the name, so
+appending is invisible on the wire while an insertion silently renumbers every later discriminant).
+`trust_for_channel(Channel::Agent) => UntrustedContent`, in the same group as Web/Email/Messaging/Mcp
+and explicitly contrasted with `ToolOutput`. Tests at both enforcement sites: the trust arm (paired
+with `ToolOutput => AgentObserved`, so the table is shown to DISCRIMINATE rather than agree
+everywhere) and the serde round-trip (`external_turn_id` derives a belief id from that exact string,
+so the spelling is load-bearing). Docs at five sites. **`eval/` was not modified and that is
+verified, not asserted**: `git diff --name-only -- eval/` is empty.
+
+**The blocker was cleared in both directions before the variant was added, and it is now a finding
+rather than a hypothesis.** `channel: Channel` reaches `eval/` at exactly one site —
+`eval/src/marlowe_eval/contract/ingest.py`, inside `Origin`, inside `IngestRequest` — all eleven
+`Origin(...)` sites construct from hardcoded `Channel.*` literals, and no §4 response type on either
+side carries a channel field. A Rust-only ninth variant cannot reach eval's deserializer.
+
+**M3-D2 — `MemoryHost` pinned** at `CONTRACTS.md` §12.1, plus the missing `ARCHITECTURE.md` §7
+Loop→Memory row, plus §12's header corrected from five types to six. The entry says in its own words
+that `ingest_external` has no production caller and carries the discriminating command inline:
+pinning a signature is a claim about SHAPE, not reachability.
+
+**M3-D3 — two hook entries**, plus the asymmetry fix above.
+
+**M3-D4 — the test that did not exist**, in two crates. `marlowe-exec/tests/egress_approval_confers_no_authority.rs`
+asserts the class on a value the real executor produced, with a grant in hand.
+`marlowe-loop/tests/egress_grant.rs` gains a third test asserting the loop's ROUTING under two egress
+postures. ADR-032 gains §3.4.
+
+---
+
+### What a mutation actually turned red, versus what was argued
+
+**Everything below was RUN this session or by the red team, restored afterwards, with the assertion
+message read rather than the exit code.**
+
+| Mutation | Turned red |
+|---|---|
+| `finish_call`'s condense trigger exempts a run holding a grant | **loop test red**, page marker printed inside the parent's rendered window; both pre-existing tests in the file green; **exec test GREEN** |
+| `read_ref` stamps `AgentObserved` | exec test red, `left: AgentObserved, right: UntrustedContent` |
+| `EgressPolicy::grants` returns `false` for `AllowApproved` | exec test red at the three-way adjudication control |
+| `web_outcome`'s `Read` arm stamps `UntrustedContent` (negative control) | exec test red — a build "fixing" the property by stamping everything untrusted fails |
+| `trust_for_channel(Agent)` -> `AgentInferred` | exactly one test of 163 red |
+| `trust_for_channel(ToolOutput)` -> `UntrustedContent` | the new test red at its SECOND assertion while `web_is_untrusted_no_matter_what` stayed green — the pair discriminates |
+| serde rename of `Agent` | both contract tests red, `left: "harness_mediated", right: "agent"` |
+| Delete a `PROTECTED` row | **nothing, before this session's fix. Red by name after it** |
+| Reorder the `Channel` enum | nothing — **and that is correct**, independently confirmed: no ordinal, `Ord`, discriminant or sort consumer of `Channel` exists |
+
+**The cross-check is the part to keep**: the exec test stayed GREEN under the loop mutation and the
+loop test's arms were unaffected by the exec mutations. **Neither file can observe the other's
+mutation.** A reviewer dropping either as duplicative removes the only coverage of one wrong version,
+and that is a measurement rather than a caution.
+
+---
+
+### Four precision defects fixed after a hostile review, none of them a security property
+
+1. **The loop test's two arms differed in THREE ways, not one.** Arm A was
+   `CapabilityProfile::interactive()` — twelve exposed tools, `may_write_memory: true`; arm B was a
+   hand-built two-tool profile with the flag false. Only the grant was the intended variable, and the
+   closing differential assertion said the arms *"differ in HOW the host was reached and in nothing
+   else"*, which was **false against the code**: a future disagreement could have been caused by the
+   exposed set or the memory-write flag, and the message would have named the wrong culprit. Both
+   arms now come from one `profile_with(egress)` and the claim is true by construction. **Arm A's
+   realism is preserved on the axis that matters**: `AllowApproved { granted: [] }` is exactly what
+   `interactive()` carries. **The M4 mutation was re-run after the fixture change** and the test
+   still goes red for the right reason — a fixture edit is exactly the moment a discriminating test
+   quietly stops discriminating.
+2. **The floor assertion's message claimed a discrimination the mechanism cannot make.** It said
+   *"anything above `AgentInferred` would mean the human's approval had been read as authorship"*.
+   Every History block is stamped `AgentInferred` and `trust_floor` is a `min`, so once the model has
+   spoken **no value above `AgentInferred` is reachable** and that half described a guard that does
+   not exist — the trust-floor-banner family (#15). The message now states only the direction the
+   assertion can detect.
+3. **Two "nothing constructs it" statements were literally false**, and one published a grep whose
+   real output was six where two was promised. Both meant *no production producer*, which is true and
+   is the important claim — but a repository whose discipline rests on discriminating commands cannot
+   publish a command whose output does not match, because a later session that runs it must either
+   panic or stop trusting the check. `M3-DESIGN.md` now prints the real six-hit breakdown;
+   `trust.rs`'s comment now says "no PRODUCTION code in `crates/`" rather than a sentence the
+   assertion five lines below it refutes.
+4. **The `driver.rs` hook reason described only the memory port** while the entry guards the loop's
+   entire port surface — 23 types, of which `MemoryHost` and `ExternalContent` are the §13 subject.
+   Most prompts it raises will be ordinary loop work. The reason string now says so and tells the
+   approver to read which type is being changed, because a banner that fires on everything says
+   nothing at the moment it matters.
+
+**A fifth was noted and deliberately not "fixed":** the loop test's scripted `web` returns page
+content, which the shipped `web` has not done since ADR-042 (it returns a `DocumentRef` at
+`AgentObserved`; the bytes re-enter on `read(ref=…)`, which declares no `Url` and is never
+egress-adjudicated). The test measures that the egress policy does not change the ROUTING of an
+untrusted result, and that is tool-agnostic because `condense_batch` triggers on the trust class
+rather than the tool name. One sentence was added to the doc comment saying exactly that, instead of
+reshaping the test to model a path it is not about.
+
+---
+
+### Process notes worth keeping
+
+**The "tree CLEAN at 345c4f9" premise the session opened on was stale.** Twelve files carried
+uncommitted guard work, and `crates/marlowe-exec/tests/egress_approval_confers_no_authority.rs` was
+untracked. The prescribed restore method for a mutation pass — `git checkout -- <path>` — **would
+have destroyed the very guards under test** and would not have restored the untracked file at all.
+The red team backed up by copy and restored by copy, md5-verified. **Before any mutation pass,
+confirm working-tree state and back up by copy.**
+
+**Ledger instance C2d was reproduced live, mid-session, by the agent looking for it.** An
+`echo`-mangled stdin probe (Git Bash collapsing `\\` to `\`, producing invalid JSON, hitting the
+hook's `except JSONDecodeError: return 0`) produced silence that read as *"deleting an entry
+unguards the file"*. Re-running the identical probe with the entry RESTORED also produced silence —
+proving the reading was a property of the probe. **Any future stdin probe of this hook uses
+`printf '%s'` with forward slashes and carries a positive control in the same invocation.** The
+hook's silent return-0 on unparseable JSON is defensible for a hook, and it makes every malformed
+probe read as "not guarded".
+
+---
+
+### Test results, tallied from files in `runs/m3-b3-close/`
+
+Per-crate only. **`--workspace` was never run** — that is the human's, and no claim here is about the
+whole tree.
+
+| Crate | Result lines | Passed | Failed | Ignored |
+|---|---|---|---|---|
+| `marlowe-permission` | 5 | 73 | 0 | 0 |
+| `marlowe-memory` | 12 | 231 | 0 | 0 |
+| `marlowe-contract` | 2 | 18 | 0 | 0 |
+| `marlowe-loop` | 19 | 179 | 0 | 3 (pre-existing) |
+| `marlowe-exec` | 14 | 176 | 0 | 1 (pre-existing `adr023_live.rs`) |
+| `marlowe` | 4 | 56 | 0 | 0 — **includes `determinism_guard.rs`, 3 passed**, which no other `-p` reaches |
+
+`marlowe-daemon` was NOT re-run: no file in it changed this session (M3-D3 added its path to the
+hook, which is not a source edit), and B3's earlier agent reported it green across 21 result lines.
+Take a daemon count from the human's workspace run, not from here.
+
+---
+
+### STILL OPEN after this session
+
+1. **`CLAUDE.md` IS STALE IN TWO PLACES AND NO AGENT IN THIS SESSION EDITED IT.** Three separate
+   agents declined for the same stated reason — an agent's message is not the user's consent to
+   change `CLAUDE.md` — so it is owed to Matthew and it is listed here so it is not lost a fourth
+   time. **(a)** Line ~60 reads *"`trust_for_channel` maps Web/Email/Messaging/Mcp/File"* and must
+   read *"Web/Email/Messaging/Mcp/File/Agent"*; it is the enumeration a future session will quote
+   when reasoning about layer 3's reachability. **(b)** The §13 enforcement table's memory-provenance
+   row names only `crates/marlowe-memory/src/trust.rs` and must also name
+   `crates/marlowe-daemon/src/{mcp,memory}.rs` and `crates/marlowe-loop/src/driver.rs` — **and it was
+   already three rows behind before this session**: `marlowe-daemon/src/mcp.rs`,
+   `marlowe-tools/src/pin.rs` and `marlowe-loop/src/steer.rs` have been in `PROTECTED` since M2 C3 /
+   ADR-054 and appear nowhere in the table. `CLAUDE.md` says *"the entry is the enforcement, and the
+   list is only a map of it"*, so the map has been behind the territory for two milestones. **(c)**
+   A candidate **failure-family instance #19** is owed: *a self-referential list cannot detect its
+   own deletions* — evidence in the blocking-finding section above.
+2. **`docs/design/DECISIONS.md` IS HALF-CORRUPTED BY A PREVIOUS ENCODING ACCIDENT** — 112 `Â§`
+   sequences and 435 `â`-sequences interleaved with 157 clean `§` and 79 clean em-dashes. This
+   session's three new entries were written **ASCII-only** and the surrounding text was deliberately
+   NOT "fixed": a blind re-encode of a file that is half clean and half mojibake would corrupt the
+   clean half. It needs a deliberate pass with a control that the clean half is unchanged.
+3. **`crates/marlowe-exec/tests/adr023_live.rs` APPEARS STALE AFTER ADR-042 and is `#[ignore]`d**, so
+   nobody has run it since. Re-raised, not verified here (it reaches the network). Its script has one
+   `web` call and no `read(ref=…)`, but `web`'s result is now `AgentObserved`, so the run's floor
+   should never reach `UntrustedContent` and its two headline assertions should fail. **It is the
+   only live layer-3 exercise in the tree**, and it is the file `CLAUDE.md` cites for the
+   trim-dependent-assertion lesson — so a session that finds it red will not know whether the lesson
+   still holds. Adding a `read(ref=…)` step to its script is the likely fix.
+4. **PRE-EXISTING DIVERGENCE IN A TRUST TABLE, and it is under `eval/` so it is not a session's to
+   fix.** `eval/src/marlowe_eval_stubs/oracle.py` maps `Channel.FILE -> AGENT_INFERRED` while
+   `crates/marlowe-memory/src/trust.rs` maps `Channel::File -> UntrustedContent`. Two channel->trust
+   tables disagreeing, with nothing reconciling them. Benign today — the stub oracle is a reference
+   target, not the scoring oracle for `exec://` runs — but whoever next reads either table meets it.
+5. **The hook entries are PIPE-VERIFIED ONLY, which is weaker than live-verified**, and no
+   non-interactive session can close that. `--self-check` is green and both new paths return `ask` by
+   pipe; a pipe test proves the matcher recognises a string and nothing more. Downgrade or upgrade
+   each entry INDIVIDUALLY by editing the file in an interactive session and observing the prompt —
+   one observed prompt says nothing about the other entries.
+6. **Two pre-existing warnings appear in this session's run files and are not from it**:
+   `crates/marlowe-exec/src/lib.rs:1570` `drop(cwd)` on a `Copy` type, and
+   `crates/marlowe-provider/src/ollama.rs:14` an unused `CondensedResult` import.
+7. **The STATE.md removal proposal is a PROPOSAL and nothing was deleted.** It is in the session
+   return for Matthew. Its headline is that **54 lines of 9,069 — 0.6% — can be defended for
+   removal**, and that the file's bulk is measured numbers, retracted conclusions kept as controls,
+   and open gaps with named closing conditions. It argues **for** a grep-anchored open-items index
+   (additive; a mistake costs a stale line) and **against** both a `docs/history/` split and any
+   pruning rule keyed on age or on the word "Superseded" — the two oldest, most closed-looking blocks
+   are the ones carrying `DO NOT MARK SUPERSESSION CLOSED` and the load-bearing 16 GB tripwire.
+   **Age does not predict liveness in this file, and the label lies.**
+
+---
+
 ## 2026-08-29 — FOUR DECISIONS THE HUMAN TOOK AT THE CLOSE OF B2, AND NONE OF THEM IS BUILT YET
+
+**ALL FOUR ARE NOW BUILT (Session B3, same day) — see the entry above. Nothing below is edited:
+this is the record of what was decided and why, and the heading is left as written because a
+decision's rationale is not made wrong by the decision later landing.**
 
 **Taken in conversation after the entry below was written, so nothing in the tree reflects them.**
 They are recorded here first because a decision made out loud and not written down is lost, which is

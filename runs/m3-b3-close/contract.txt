@@ -1,0 +1,31 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_contract-e08d0fb3fe209672.exe)
+
+running 18 tests
+test common::tests::the_agent_channel_round_trips_as_agent ... ok
+test common::tests::unknown_channel_is_an_error_not_a_default ... ok
+test frame::tests::body_and_error_frames_are_mutually_exclusive_by_construction ... ok
+test common::tests::wire_spellings_are_snake_case ... ok
+test frame::tests::extra_frame_level_key_is_rejected ... ok
+test frame::tests::frames_are_single_line ... ok
+test frame::tests::unknown_op_fails_to_parse ... ok
+test text::tests::the_three_invisible_families_are_all_marked ... ok
+test common::tests::trust_ordering_is_the_propagation_rule ... ok
+test text::tests::a_clean_string_is_borrowed_not_rebuilt ... ok
+test text::tests::marking_is_not_provenance_and_the_doc_says_so ... ok
+test wire::tests::absent_latency_stages_are_omitted_not_zeroed ... ok
+test wire::tests::an_honest_abstention_passes ... ok
+test wire::tests::contract_version_cannot_hold_a_wrong_value ... ok
+test text::tests::a_newline_is_an_attack_on_a_line_and_prose_on_prose ... ok
+test wire::tests::empty_injection_without_abstention_is_rejected_on_the_way_out ... ok
+test text::tests::the_escape_that_overwrites_the_approval_line_is_marked_not_dropped ... ok
+test wire::tests::hedged_abstention_is_rejected_on_the_way_out ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_contract
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

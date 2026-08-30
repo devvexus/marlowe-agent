@@ -1,0 +1,26 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running tests\boundary_hook.rs (target\debug\deps\boundary_hook-233b340491989098.exe)
+
+running 3 tests
+test the_hook_actually_fires_on_a_guarded_path ... ok
+test no_guarded_path_leaves_the_boundary_hook_unnoticed ... FAILED
+test every_guarded_path_in_the_boundary_hook_still_exists ... ok
+
+failures:
+
+---- no_guarded_path_leaves_the_boundary_hook_unnoticed stdout ----
+
+thread 'no_guarded_path_leaves_the_boundary_hook_unnoticed' (101592) panicked at crates\marlowe-permission\tests\boundary_hook.rs:172:5:
+New guarded paths are in the hook but not pinned here: ["crates/marlowe-loop/src/engine.rs"]
+Adding a guard is safe and monotonic — the hook returns `ask`, so more rows means the agent asks MORE often. This is not a complaint about the addition. Add the paths to EXPECTED_PROTECTED so a later DELETION of them fails by name too; until then they carry the same blind spot this test was written to close.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    no_guarded_path_leaves_the_boundary_hook_unnoticed
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p marlowe-permission --test boundary_hook`
+error: 1 target failed:
+    `-p marlowe-permission --test boundary_hook`

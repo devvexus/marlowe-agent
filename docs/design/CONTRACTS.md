@@ -797,12 +797,39 @@ specifically needs to assert that a claim entering through `channel: "web"` come
 ```rust
 pub enum Channel {
     Terminal, Voice, Messaging, Email, Web, Mcp, ToolOutput, File,
+    Agent,                       // AMENDED 2026-08-29 -- implementation-only, see below
 }
 pub enum Speaker { User, Assistant, Tool }
 ```
 
 Wire values are snake_case: `terminal · voice · messaging · email · web · mcp · tool_output ·
-file`, and `user · assistant · tool`.
+file`, and `user · assistant · tool`. The ninth, `agent`, is implementation-only — see the
+amendment below.
+
+**AMENDMENT 2026-08-29 — the closed set gains `agent`, and it is one-directional.** M3-D1 added
+`Channel::Agent` on the implementation side, mapped to `untrusted_content`, for a
+harness-mediated reader over external bytes: a quarantined child condensed content the harness
+fetched, and the claim is recorded under the reader rather than under the page. The human chose
+this over reusing `web`, which would record a provenance the harness knows to be false — the page
+never emitted those bytes (ADR-062 §4, Option B).
+
+**Why an addition to a closed set is backward compatible here, stated as a property of the wire
+rather than as reassurance.** `channel` occurs in exactly one place on this boundary —
+`IngestRequest.turns[].origin.channel` — and that flows harness → implementation only. No §4
+response type on either side carries a channel field, so `"agent"` has no path back to the
+harness's deserializer. The harness constructs channels from literals and never parses one it did
+not itself write. The addition therefore widens what the *implementation* accepts by one string
+the harness cannot emit; the harness's emitted set is unchanged at eight.
+
+**Consequently `eval/` was not modified, and must not be.** It is the scoreboard. Its own
+`Channel` enum keeps the eight values it emits; the two sets are not required to be identical,
+only to agree on the strings that actually cross — and `agent` never crosses. A later session
+finding the two enums different should read this paragraph before treating it as the *"undeclared
+channel between implementation and harness"* that `eval/src/marlowe_eval/contract/common.py`
+warns about. It is declared, here.
+
+**Nothing constructs the variant.** Its only consumer is `ingest_external`, which has no caller
+(ADR-062 §2.1, §7). The slot exists and is classified; it is not a live path.
 
 **An unrecognized value is a load-time error on both sides. It is never mapped to a default.**
 This is load-bearing, not tidiness. The laundering suite's entire assertion is that a claim
@@ -1332,7 +1359,8 @@ system, not discipline, is what keeps it out of a log line.
 
 ## 12. Loop-boundary types
 
-Every boundary in `ARCHITECTURE.md` §7 is pinned. These five are the remainder.
+Every boundary in `ARCHITECTURE.md` §7 is pinned. These six are the remainder — five structs
+below, and the memory port in §12.1.
 
 ```rust
 /// Loop → permission layer. `args` are structured; the loop never hands over raw prose
@@ -1383,6 +1411,102 @@ pub struct SteerMessage {
     pub urgency: Urgency,       // Advisory applies next iteration; Immediate also interrupts
 }
 ```
+
+### 12.1 Loop → Memory: `MemoryHost`
+
+**Added 2026-08-29 (M3-D2).** It is a boundary trait that had gained a method and was pinned
+nowhere: `marlowe-loop` declares it, `marlowe-daemon` implements it, and until now CONTRACTS.md
+described neither. Two methods, and the split between them *is* the contract — `remember` writes
+what the **model** authored, `ingest_external` records what arrived from **outside**.
+
+```rust
+/// `marlowe-loop` → `marlowe-memory`. The loop owns the run's latched floor; the implementation
+/// owns §3.3. Neither side computes the other's half.
+pub trait MemoryHost {
+    /// A MODEL-AUTHORED claim. Written at `min(AgentInferred, run_floor)` — ADR-038.
+    ///
+    /// `run_floor` is a PARAMETER rather than something the implementation reaches for: the run
+    /// owns the monotonic latch, and a host that re-derived the floor from its own view could
+    /// derive a higher one. Writing a memory composes a *durable* target out of run content, so
+    /// this is the one place the latch must not be computed and then discarded.
+    ///
+    /// `session` is required because retrieval scopes candidates on `source_session_id`. A claim
+    /// written without it is adjudicated, signed, durable — and permanently unretrievable, which
+    /// fails silently in the worst direction: `remember` returns a receipt either way.
+    ///
+    /// `now_ms` is the RUN's clock. A host reading its own would put the write at a different
+    /// instant from the `MemoryWritten` event recording it — two components disagreeing about
+    /// now, in a log whose whole value is that it replays.
+    fn remember(
+        &mut self,
+        run: RunId,
+        session: SessionId,
+        claim: &ClaimRequest,
+        run_floor: TrustClass,
+        now_ms: i64,
+    ) -> Result<String, String>;
+
+    /// Content that arrived from OUTSIDE, recorded under the channel it arrived on.
+    ///
+    /// **The non-circular taint source, and that is why it is not a convenience over
+    /// `remember`.** A `remember` claim is only `UntrustedContent` if the run's floor was already
+    /// there, and the floor only gets there by reading something untrusted — so no amount of
+    /// `remember` produces the first tainted belief. `trust_for_channel` is total over `Channel`
+    /// with no default arm, and a `Channel::Web` belief is untrusted because of *where it came
+    /// from*, not because of what the run had read.
+    ///
+    /// **The class is DERIVED and RETURNED, never supplied.** The caller passes an origin and
+    /// receives the class the harness computed; it cannot ask for one. This mirrors §4.6's rule
+    /// that the wire declares `origin` and never `trust_class`, and it is what lets a probe
+    /// assert on what the system decided rather than on what a test handed it.
+    ///
+    /// **`text` is the validated summary, never the raw bytes** — layer 1's boundary. A belief is
+    /// retrieved into a future window, so ingesting a fetched page verbatim would put
+    /// attacker-controlled bytes in front of a tool-holding run by a route that goes around the
+    /// quarantined reader entirely: brief §8.2 defeated through the memory store.
+    fn ingest_external(
+        &mut self,
+        run: RunId,
+        session: SessionId,
+        content: &ExternalContent<'_>,
+        now_ms: i64,
+    ) -> Result<TrustClass, String>;
+}
+
+/// One piece of content that arrived from outside the harness, with the origin it arrived under.
+///
+/// `channel` is the WHOLE of the trust decision and is never derived from `text`: §3.3 binds a
+/// class to the authority of the origin, never to the safety of the bytes, and a content signal
+/// cannot survive derivation (HP6).
+pub struct ExternalContent<'a> {
+    pub channel: Channel,
+    /// What produced it — a URL, a message id, a path. Recorded on the turn's `origin.ref`, and
+    /// **not consulted by the trust computation**: a `ref` that could raise a class would be
+    /// attacker-supplied authority.
+    pub reference: Option<&'a str>,
+    pub text: &'a str,
+}
+```
+
+**Pinned as it stands, and `ingest_external` HAS NO PRODUCTION CALLER.** Pinning a signature is a
+statement about *shape*, not about *reachability*, and saying so is the difference between a
+contract entry and instance #16. `ingest_external` appears under `crates/*/src/` only as the trait
+method and `DaemonMemory`'s implementation of it; nothing calls it. That is why layer 3's latch is
+currently unreachable in the shipped daemon — ADR-062 §2.1 forbids tainting the one permanent run,
+and §7 withholds `MemoryWrite` from workers until Session D, so no run in the current architecture
+may correctly hold an untrusted belief.
+
+The discriminating command, and it must be run rather than remembered:
+
+```bash
+grep -rn "ingest_external(" --include=*.rs crates/*/src/    # definitions only == unreachable
+```
+
+Zero non-definition hits is the CORRECT state until Session D lands the caller. A future session
+that finds a hit has crossed into a different security posture and should re-read ADR-062 before
+touching this trait.
+
+---
 
 ---
 

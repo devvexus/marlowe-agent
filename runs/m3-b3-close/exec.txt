@@ -1,0 +1,275 @@
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+   Compiling marlowe-exec v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: `marlowe-exec` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.60s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_exec-c9d5deb1be4a8b1f.exe)
+
+running 13 tests
+test corpus::round_two::a_non_ascii_host_is_not_echoed ... ok
+test corpus::round_two::a_traversal_path_is_not_echoed ... ok
+test corpus::round_two::a_hostname_made_of_prose_is_not_echoed ... ok
+test corpus::round_two::real_redirect_targets_still_survive_whole ... ok
+test corpus::round_two::separator_encoded_prose_in_a_path_is_not_echoed ... ok
+test corpus::tests::a_redirect_is_reported_and_never_followed ... ok
+test corpus::tests::an_empty_corpus_is_empty_rather_than_a_panic ... ok
+test corpus::tests::newlines_control_characters_length_and_unparseable_locations_are_all_stripped ... ok
+test corpus::tests::ordinary_redirect_paths_still_come_back_whole ... ok
+test corpus::tests::warnings_reach_the_rendered_text_where_they_cannot_be_dropped ... ok
+test corpus::tests::a_fetched_page_is_extracted_not_handed_over_raw ... ok
+test corpus::tests::a_location_header_carrying_prose_does_not_come_back_as_text ... ok
+test corpus::tests::a_malformed_url_fails_alone_and_in_place ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\adr023_live.rs (target\debug\deps\adr023_live-cf8f32034024aaff.exe)
+
+running 1 test
+test a_real_fetched_page_latches_the_floor_and_it_holds_after_the_page_is_trimmed_away ... ignored, reaches the network; run explicitly as the milestone's one real end-to-end run
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\bash_cwd.rs (target\debug\deps\bash_cwd-1b80e1d4552a88c8.exe)
+
+running 2 tests
+test the_cwd_directory_cannot_be_swapped_while_bash_holds_it ... ok
+test the_child_starts_in_the_verified_directory ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests\concurrent_edits.rs (target\debug\deps\concurrent_edits-d068058dc774da8c.exe)
+
+running 2 tests
+test a_batch_of_one_edit_still_edits ... ok
+test every_edit_in_one_batch_reaches_the_file ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\egress_approval_confers_no_authority.rs (target\debug\deps\egress_approval_confers_no_authority-e608ebf8bf0b01cc.exe)
+
+running 1 test
+test approving_a_host_does_not_raise_the_trust_class_of_what_it_returns ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\every_tool_exercised.rs (target\debug\deps\every_tool_exercised-87384bdd5894c3d0.exe)
+
+running 96 tests
+test an_invalid_pattern_is_refused_with_the_syntax_error_and_never_searched_literally ... ok
+test a_context_past_the_maximum_is_refused_rather_than_clamped ... ok
+test a_binary_file_is_reported_as_skipped_and_not_counted_as_scanned ... ok
+test a_short_file_has_no_window_notice ... ok
+test a_snippet_at_many_sites_names_a_bounded_list_and_an_exact_count ... ok
+test a_pattern_that_would_backtrack_catastrophically_returns_promptly ... ok
+test bash_missing_command ... ok
+test a_long_file_is_read_in_windows_and_every_part_is_reachable ... ok
+test an_explicit_range_is_still_bounded_by_the_window ... ok
+test a_pattern_too_large_to_compile_is_refused_and_the_limit_is_named ... ok
+test case_insensitivity_is_available_through_the_pattern ... ok
+test context_is_read_from_a_string_because_the_wire_may_send_one ... ok
+test edit_a_directory_given_as_path ... ok
+test a_large_grep_result_comes_back_as_text_and_not_as_a_hash ... ok
+test build_directories_are_not_searched_and_the_result_says_which ... ok
+test edit_a_file_that_does_not_exist_creates_it_at_zero_bytes_then_refuses ... ok
+test edit_a_truly_empty_file_refuses_and_names_write ... ok
+test edit_empty_string_path_is_malformed ... ok
+test context_returns_the_surrounding_lines_and_marks_them_as_context ... ok
+test edit_empty_string_replacing_is_refused_not_silently_prepended ... ok
+test edit_empty_string_content_deletes_the_snippet ... ok
+test edit_missing_replacing_names_write_as_the_remedy ... ok
+test edit_of_a_unique_snippet_still_replaces_it ... ok
+test edit_missing_content ... ok
+test edit_missing_path ... ok
+test edit_parent_directory_missing ... ok
+test edit_ordinary_success ... ok
+test edit_snippet_appearing_twice_is_refused_and_both_lines_are_named ... ok
+test every_declared_grep_parameter_is_accepted_by_the_executor ... ok
+test glob_given_a_file_says_so ... ok
+test edit_large_file_reports_a_true_diff_and_writes_correctly ... ok
+test edit_snippet_differs_only_in_whitespace_names_the_real_problem ... ok
+test edit_path_with_a_space_survives ... ok
+test edit_snippet_is_the_whole_file ... ok
+test glob_is_sorted_and_stable ... ok
+test glob_lists_everything_beneath_a_path ... ok
+test glob_distinguishes_an_empty_directory_from_a_pattern_that_matched_nothing ... ok
+test glob_is_case_insensitive ... ok
+test edit_path_with_unicode_survives ... ok
+test glob_pattern_matches_the_name_anywhere_beneath_the_path ... ok
+test glob_pattern_with_a_slash_matches_the_path ... ok
+test grep_empty_string_path_is_malformed ... ok
+test glob_requires_a_path_and_never_asks_for_approval ... ok
+test glob_handles_spaces_and_unicode ... ok
+test glob_treats_regex_metacharacters_as_literal_text ... ok
+test grep_missing_path ... ok
+test grep_missing_pattern ... ok
+test grep_empty_pattern_is_refused_not_treated_as_matching_everything ... ok
+test grep_given_a_file_says_so_rather_than_looking_empty ... ok
+test each_description_promise_is_kept_by_the_executor ... ok
+test grep_refuses_an_argument_it_does_not_declare ... ok
+test grep_ordinary_success ... ok
+test grep_path_does_not_exist ... ok
+test grep_pattern_is_a_regex_not_a_substring ... ok
+test grep_path_with_unicode_survives ... ok
+test grep_path_with_a_space_survives ... ok
+test read_a_directory_given_as_path ... ok
+test grep_empty_directory_has_no_matches_and_says_so_honestly ... ok
+test read_empty_file_is_the_documented_signature ... ok
+test read_empty_string_path_is_a_malformed_request ... ok
+test read_missing_file_says_it_is_not_a_refusal ... ok
+test read_neither_path_nor_ref_is_a_clear_refusal ... ok
+test bash_a_command_that_fails_reports_the_exit_code ... ok
+test matching_lines_keep_their_indentation_so_edit_can_use_them ... ok
+test read_large_file_returns_a_readable_window_not_a_hash ... ok
+test read_ordinary_success ... ok
+test read_path_with_a_space_survives ... ok
+test read_path_with_unicode_survives ... ok
+test only_a_genuinely_large_file_is_called_expensive ... ok
+test read_range_reversed_is_refused_with_the_swap ... ok
+test read_range_of_a_single_number_is_refused_with_the_format ... ok
+test read_range_normal_selects_the_named_lines ... ok
+test read_range_past_the_end_says_how_long_the_file_is ... ok
+test results_are_ordered_by_path_then_line ... ok
+test write_empty_string_path_is_malformed ... ok
+test write_a_directory_given_as_path ... ok
+test write_empty_string_content_truncates_an_existing_file ... ok
+test write_missing_path ... ok
+test write_missing_content ... ok
+test write_ordinary_success ... ok
+test too_many_matches_degrades_to_counts_and_says_so ... ok
+test read_range_malformed_is_refused_not_silently_ignored ... ok
+test write_path_with_unicode_survives ... ok
+test write_large_content_lands_exactly ... ok
+test bash_a_command_producing_no_output ... ok
+test write_parent_directory_missing ... ok
+test write_over_an_empty_file ... ok
+test write_path_with_a_space_survives ... ok
+test grep_reports_true_counts_across_many_files ... ok
+test bash_empty_string_command ... ok
+test bash_cwd_with_a_space ... ok
+test bash_cwd_with_unicode ... ok
+test bash_a_command_producing_a_lot_of_output_is_capped ... ok
+test bash_quoted_command_reaches_the_shell_unmangled ... ok
+test a_glob_filter_reaches_source_that_the_cap_would_otherwise_hide ... ok
+test the_search_says_when_it_stopped_before_seeing_everything ... ok
+
+test result: ok. 96 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.55s
+
+     Running tests\executors.rs (target\debug\deps\executors-4d7dd0c7e85023cc.exe)
+
+running 8 tests
+test an_escape_never_reaches_an_executor_at_all ... ok
+test write_leaves_content_not_an_empty_file ... ok
+test a_failed_replace_says_which_of_the_three_things_went_wrong ... ok
+test grep_reports_matches_and_how_many_files_it_actually_read ... ok
+test read_returns_the_file_through_the_adjudicated_handle ... ok
+test edit_patches_through_the_handle_and_write_creates ... ok
+test bash_runs_in_the_verified_directory ... ok
+test quotes_in_a_command_survive_to_the_shell ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests\line_numbers.rs (target\debug\deps\line_numbers-c347d4d9892ecb29.exe)
+
+running 17 tests
+test numbering_and_stripping_are_inverses_including_crlf_and_self_similar_text ... ok
+test the_stripper_refuses_anything_that_is_not_this_harnesss_prefix ... ok
+test write_stores_numbered_text_and_says_that_it_did ... ok
+test consecutiveness_is_what_separates_a_prefix_from_a_coincidence ... ok
+test a_read_returns_the_file_line_numbers_and_not_the_windows ... ok
+test an_lf_snippet_against_a_crlf_file_is_diagnosed_as_line_endings ... ok
+test only_the_path_branch_is_numbered_and_only_the_ref_branch_is_quarantined ... ok
+test a_grep_hit_can_be_turned_into_a_read_without_counting ... ok
+test the_named_sites_are_bounded_by_the_constant ... ok
+test a_file_that_fits_once_numbered_is_not_truncated ... ok
+test a_single_numbered_looking_line_is_not_refused_as_content ... ok
+test the_notice_and_the_cap_note_are_never_numbered ... ok
+test edit_refuses_numbered_content_and_names_write ... ok
+test the_byte_ceiling_is_measured_on_the_numbered_body ... ok
+test a_crlf_file_survives_a_read_and_the_snippet_it_returns_still_edits ... ok
+test a_file_that_really_contains_numbered_text_is_edited_normally ... ok
+test a_replacing_that_still_carries_the_prefix_is_refused_by_name_and_located ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\read_bounds.rs (target\debug\deps\read_bounds-727b6f57a8cf3e1f.exe)
+
+running 8 tests
+test a_text_file_is_still_returned_whole ... ok
+test an_inverted_range_is_refused_with_the_swap ... ok
+test an_ordinary_range_still_selects_the_lines_it_names ... ok
+test the_range_that_overflowed_returns_a_result ... ok
+test a_binary_file_is_named_rather_than_decoded_or_refused ... ok
+test no_range_argument_can_unwind_the_executor ... ok
+test a_file_at_exactly_the_cap_is_not_reported_as_truncated ... ok
+test an_oversized_file_is_capped_and_the_truncation_is_stated ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests\read_cost_notice.rs (target\debug\deps\read_cost_notice-0b9159876a9c21ff.exe)
+
+running 6 tests
+test estimate_tokens_of_agrees_with_the_assemblers_estimator ... ok
+test a_small_file_gets_no_notice_and_no_cost ... ok
+test an_ordinary_truncated_file_is_not_dressed_as_a_warning ... ok
+test the_stated_cost_is_the_whole_file_not_the_range ... ok
+test the_stated_cost_counts_the_numbers_the_model_receives ... ok
+test a_large_file_read_through_a_small_range_still_warns ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests\shell_bounds.rs (target\debug\deps\shell_bounds-7c4bc52cbf0f37d6.exe)
+
+running 6 tests
+test an_ordinary_command_finishes_normally_and_is_reported_as_finished ... ok
+test stderr_and_a_failing_exit_code_both_survive_the_bounded_path ... ok
+test a_command_that_floods_is_capped_and_says_so ... ok
+test a_command_that_never_exits_is_stopped_and_the_call_returns ... ok
+test a_command_that_backgrounds_a_child_still_returns_promptly ... ok
+test three_unbounded_commands_in_a_row_all_return ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.04s
+
+     Running tests\web_returns_a_reference.rs (target\debug\deps\web_returns_a_reference-1c6fab302cc62353.exe)
+
+running 17 tests
+test a_redirect_carries_no_page_content ... ok
+test a_hostile_location_header_reaches_the_model_as_nothing_but_a_host ... ok
+test an_extraction_failure_reports_a_kind_not_the_parsers_own_words ... ok
+test an_ordinary_redirect_still_names_the_destination ... ok
+test an_unknown_ref_resolves_to_nothing ... ok
+test a_warning_on_a_reference_names_a_kind_and_never_quotes_the_document ... ok
+test an_http_error_body_is_still_only_measured_not_quoted ... ok
+test a_round_trip_through_the_store_does_not_change_what_the_content_is ... ok
+test a_reference_carries_no_byte_the_page_authored ... ok
+test the_reference_is_agent_observed_and_the_content_is_untrusted ... ok
+test a_reference_is_made_only_of_numbers_urls_and_harness_constants ... ok
+test dereferencing_returns_the_content_and_it_is_untrusted_again ... ok
+test the_counts_that_do_cross_are_enough_to_plan_with ... ok
+test identical_documents_from_different_urls_share_one_ref ... ok
+test an_http_error_status_is_distinguishable_from_a_document ... ok
+test the_size_of_a_document_crosses_even_when_the_status_cannot_help ... ok
+test a_page_that_is_nothing_but_payload_still_produces_a_clean_reference ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests marlowe_exec
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

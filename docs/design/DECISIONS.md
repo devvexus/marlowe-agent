@@ -3343,3 +3343,148 @@ add one, or record a decision that typed structure needs none"*, and a future se
 would reasonably conclude the item was answered. It was answered for §2.3's object and for nothing
 else. Recording the scope is what stops the item being closed on a question smaller than the one
 asked.
+
+---
+
+## 2026-08-29 · `Channel::Agent` IS ADDED. A pinned-contract change, taken by the human as M3-D1
+
+**Decided by Matthew, closing the second of the three consumers listed in the narrow decision
+above.** `Channel` gains a ninth member, `Agent`, spelled `agent` on the wire, mapped to
+`TrustClass::UntrustedContent`. This is ADR-062 §4's **Option B**, chosen over Option A
+(`Channel::Web`).
+
+**Why not `Channel::Web`, which costs nothing.** It records a provenance the harness *knows to be
+false* — the page never emitted those bytes, the harness's own quarantined reader did — on a field
+documented as *"provenance for a human reading the journal"*. The class would come out right for the
+wrong reason, and the wrong reason is what a later session inherits.
+
+**Why `UntrustedContent` and not `AgentInferred`.** ADR-062 §3.2, and it is about evidence rather
+than semantics: storing at `AgentInferred` asserts a property — that the declaration crossing
+survives an unbounded lifetime and repeated auto-injection — that nobody has argued and no test
+measures. CONTRACTS §3.3's rule settles it directly: *a fact the model extracted from bytes inherits
+the bytes' origin class*. An honest origin buys no more authority than the bytes had.
+
+**The contract amendment is recorded in `CONTRACTS.md` §4.6, not made silently**, and it is
+one-directional. `channel` appears on the §4 wire only in `IngestRequest.turns[].origin.channel`,
+which flows harness → implementation; no §4 response type on either side carries the field. So
+`agent` has no path back to the harness's deserializer, the harness has no site that constructs it,
+and **`eval/` was not modified.** The two `Channel` enums are now deliberately different and that is
+declared — in CONTRACTS §4.6, in `pinned-4.0-transport-record.md` Part D item 4, and here — so a
+later session does not read the difference as the *"undeclared channel between implementation and
+harness"* eval's own docstring warns about. ADR-062 §4's cost line said the eval side would have to
+change; that half was wrong and is corrected in the ADR.
+
+**NOTHING CONSTRUCTS THE VARIANT, and that is the state this decision ships in.** Its only consumer
+is `ingest_external`, which still has no caller: ADR-062 §2.1 forbids tainting the one permanent run
+and §7 withholds `MemoryWrite` from workers until Session D. `grep -rn "ingest_external("
+--include=*.rs crates/*/src/` minus the two definitions returns **zero**, so layer 3 remains
+unreachable in the shipped daemon — the correct state. The variant is a classified slot, not a live
+path, and the test that asserts its class says so in its own words. **M3-D1 is the precondition for
+Session D's caller, not the wiring.**
+
+**What this closes.** M3-DESIGN §8's standing question — the slot is no longer missing. **§12 item 5
+is NOT thereby closed** (ADR-062 §4.1): the **meeting utterance** (§5.2) is a separate consumer, and
+whether an agent's *speech* shares this variant or wants its own class is not decided here.
+
+---
+
+## 2026-08-29 - `MemoryHost` IS PINNED IN `CONTRACTS.md`. Taken by the human as M3-D2
+
+**Decided by Matthew.** The Loop->Memory boundary trait is pinned at `CONTRACTS.md` section 12.1,
+alongside the missing `ARCHITECTURE.md` section 7 Loop->Memory row. Section 12's header sentence is
+corrected from "these five" to "these six".
+
+**Why a trait that gained a method needed pinning at all.** `MemoryHost` acquired `ingest_external`
+in M3 Session B2 and was pinned nowhere. Everything it enforces, it enforces through the SIGNATURE
+rather than through a check inside any implementation: `remember` takes the run's latched floor as a
+REQUIRED parameter, so a host cannot re-derive a higher one; `ingest_external` takes an origin and
+RETURNS the derived class, so no caller can name the class it wants; and `ExternalContent` carries a
+`Channel` rather than a `TrustClass` for the same reason. Drop `run_floor` and every implementation
+still passes its own tests. That is precisely the shape that needs a pinned contract rather than a
+test.
+
+**The entry says the method has no production caller, and that is deliberate.** Pinning a signature
+is a claim about SHAPE, not about reachability, and the two read identically to someone skimming.
+The entry carries the discriminating command inline - `grep -rn "ingest_external(" --include=*.rs
+crates/*/src/` minus the definitions - and states that ZERO non-definition hits is the CORRECT state
+until Session D. A contract entry that let a reader infer a live path would be ledger instance #16
+in a new medium.
+
+---
+
+## 2026-08-29 - TWO PATHS ARE ADDED TO THE BOUNDARY HOOK, AND THE HOOK'S OWN LIST IS NOW PINNED
+
+**Taken by the human as M3-D3; the second half is a red-team finding closed in the same session.**
+
+**The addition.** `crates/marlowe-daemon/src/memory.rs` and `crates/marlowe-loop/src/driver.rs` join
+`PROTECTED` in `.claude/hooks/protect-boundaries.py`. The daemon entry is where a belief arriving
+from OUTSIDE acquires its trust class - the only non-circular taint source in the product, since
+`remember` writes at `min(AgentInferred, run_floor)` and can never produce the first untrusted
+belief. The driver entry is the memory port's declaration.
+
+**Adding a path needed no escalation and the closing agent thought it did.** The hook returns `ask`,
+not `deny`, so a new row makes the agent prompt MORE often - monotonic in the human's favour. Brief
+section 13 exists to stop an agent REMOVING protection. Recorded so this is not re-derived as
+over-caution a third time.
+
+**AND "REMOVING NEEDS A HUMAN" TURNED OUT TO BE A RULE WITH NOTHING ENFORCING IT.** A mutation pass
+deleted the `driver.rs` row and NOTHING went red: `--self-check` exited 0 and both `boundary_hook.rs`
+tests passed. `self_check` iterates `for suffix in PROTECTED`, so a row that is gone is trivially
+satisfied - **a self-referential list cannot detect its own deletions.** This is ledger instance #14
+one step earlier: #14 is a guard whose SUBJECT moved, this is a guard that was REMOVED, and the
+existing fix covers only the first.
+
+**Closed by moving the expectation outside the list.** The hook gains `--list-protected`, which
+prints every entry; `crates/marlowe-permission/tests/boundary_hook.rs` pins the fifteen-entry set in
+`EXPECTED_PROTECTED` and compares. Measured in both directions: deleting the `driver.rs` row fails
+by name with "A SECTION 13 GUARD WAS REMOVED FROM THE HOOK AND NOTHING ELSE WOULD REPORT IT", and an
+unpinned addition fails with a different message saying the addition is safe and only needs
+recording. A control asserts the enumeration is non-empty first, so an emptied hook cannot pass by
+comparing nothing against nothing.
+
+**This overrules, for this one list, the reasoning in `boundary_hook.rs`'s own module doc** - *"two
+copies of a protected-path list is how they disagree"* - and the overruling is the point rather than
+an exception. A disagreement between the two copies now FAILS THE BUILD and asks a human which copy
+is right, which is the decision the section 13 boundary exists to require. The failure the pin
+prevents is a row leaving with nothing to say so. The same reasoning does NOT extend to the
+`Channel` enum's ordering, where a hand-maintained ordering test would be a second copy with no
+deletion hazard behind it.
+
+---
+
+## 2026-08-29 - EGRESS APPROVAL CONFERS NO AUTHORITY ON CONTENT. Taken by the human as M3-D4
+
+**Decided by Matthew.** An approved host is trusted to be REACHED. What it returns is
+`UntrustedContent` exactly as an unapproved host's bytes would be. Approval is a **reachability**
+decision; trust class is an **authority** decision; CONTRACTS section 3.3 binds a class to the
+authority of the ORIGIN, and a human permitting a fetch has not become the origin.
+
+**The wrong version is plausible enough to pass review as ergonomics**: *"the human was shown the
+host and approved it, therefore `UserAsserted`"* - the human's authority laundering the page's. A
+softer form is worse because it looks like tuning: *"do not quarantine a page from a vouched-for
+host."* Both are named in ADR-032 section 3.4, where whoever proposes one will read it.
+
+**It held structurally and nothing checked that it did.** `trust_for_channel(channel: Channel) ->
+TrustClass` takes only a channel, so grant state cannot enter the function that decides the class;
+`marlowe-permission`'s egress module imports no `TrustClass`; `marlowe-exec/src/lib.rs:1674` stamps
+`UntrustedContent` without consulting the policy. The invariant held because nothing wired the two
+together, not because anything checked that nothing did - and an invariant with no test is one
+refactor from being an ergonomics improvement.
+
+**Two tests, in two crates, and BOTH are required - measured, not argued.**
+`marlowe-exec/tests/egress_approval_confers_no_authority.rs` asserts the class on a value the real
+executor produced, WITH A GRANT IN HAND, and its first control runs the same `web` call under three
+`EgressPolicy` values demanding three different answers, so the grant is load-bearing rather than
+decoration. `marlowe-loop/tests/egress_grant.rs`'s third test covers the other half: the loop's
+ROUTING of what came back, under two egress postures. Wiring the grant into `finish_call`'s condense
+trigger - the plausible wrong version - turns the LOOP test red with the page marker printed inside
+the parent's rendered window, and leaves the EXEC test green. Neither file can observe the other's
+mutation. A reviewer dropping either as duplicative removes the only coverage of one wrong version,
+and that sentence is a measurement rather than a caution.
+
+**What the tests cannot see, stated rather than implied.** A wrong version that put an
+`EgressPolicy` field on `FileSystemTools` and read it inside `read_ref` would need a constructor
+neither test calls, so both would stay green. What makes the invariant hold is the structural fact
+that the stamping site has no access to grant state; these two files guard the two places the policy
+IS in scope. The loop half also asserts no trust class on purpose - `ScriptedTools` is handed its
+class by the test, so asserting it back would be the double asserting its own constant.

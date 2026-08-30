@@ -1,0 +1,105 @@
+   Compiling marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.11s
+     Running unittests src\lib.rs (target\debug\deps\marlowe_permission-a0987f91ed32f055.exe)
+
+running 54 tests
+test adjudicate::tests::granting_a_host_does_nothing_to_a_policy_that_may_not_be_widened ... ok
+test adjudicate::tests::every_arg_value_variant_renders_to_something_a_human_can_read ... ok
+test decision::tests::blast_radius_has_no_field_for_the_command ... ok
+test adjudicate::tests::a_reversible_tool_is_checked_and_an_inert_one_is_not ... ok
+test adjudicate::tests::an_action_class_is_stable_across_values_and_splits_on_shape ... ok
+test adjudicate::tests::an_undeclared_argument_is_treated_as_a_target ... ok
+test adjudicate::tests::a_numeric_target_appears_in_the_scope_line_a_human_approves ... ok
+test adjudicate::tests::an_irreversible_tool_always_asks ... ok
+test adjudicate::tests::an_ungranted_host_asks_under_allow_approved_and_is_refused_under_the_others ... ok
+test adjudicate::tests::egress_is_denied_by_default_even_for_an_inert_read ... ok
+test adjudicate::tests::every_path_argument_is_blocked_while_scoping_is_unavailable ... ok
+test adjudicate::tests::untrusted_content_may_not_choose_a_shell_command ... ok
+test decision::tests::risk_tier_follows_consequence ... ok
+test decision::tests::the_tier_ladder_is_ordered ... ok
+test adjudicate::tests::a_tool_not_exposed_to_this_run_is_blocked_before_anything_else ... ok
+test egress::tests::a_wildcard_does_not_match_the_apex ... ok
+test adjudicate::tests::untrusted_content_may_fill_a_payload_freely ... ok
+test egress::tests::allow_any_host_is_a_named_variant_not_a_pattern ... ok
+test egress::tests::confusing_url_forms_are_refused_not_normalized ... ok
+test adjudicate::tests::novelty_drops_one_tier ... ok
+test egress::tests::ordinary_urls_parse_to_their_host ... ok
+test egress::tests::the_decision_is_the_intersection_of_grant_and_declaration ... ok
+test egress::tests::the_default_is_deny_all ... ok
+test scope::glob::tests::a_narrower_glob_admits_only_its_subtree ... ok
+test scope::glob::tests::a_single_star_never_crosses_a_separator ... ok
+test scope::glob::tests::a_star_in_the_middle_anchors_at_both_ends ... ok
+test scope::glob::tests::an_empty_declaration_admits_nothing ... ok
+test scope::glob::tests::double_star_matches_zero_segments ... ok
+test scope::glob::tests::normalization_applies_to_both_sides ... ok
+test scope::glob::tests::the_workspace_glob_admits_everything_under_it ... ok
+test scope::request::tests::a_backslash_is_a_separator_on_every_platform ... ok
+test scope::request::tests::alternate_data_streams_are_refused ... ok
+test scope::request::tests::control_characters_are_refused ... ok
+test scope::request::tests::every_rooted_form_is_refused_on_every_platform ... ok
+test scope::request::tests::ordinary_relative_paths_are_accepted ... ok
+test scope::request::tests::overlong_utf8_cannot_reach_this_function_at_all ... ok
+test scope::request::tests::relative_traversal_is_refused_not_collapsed ... ok
+test scope::request::tests::reserved_device_names_are_refused_anywhere_in_the_path ... ok
+test scope::request::tests::separator_homoglyphs_are_refused ... ok
+test scope::request::tests::short_names_are_refused_and_the_false_positive_is_accepted ... ok
+test scope::request::tests::unicode_is_normalized_to_nfc_on_both_sides_rather_than_refused ... ok
+test scope::request::tests::win32_name_munging_is_refused ... ok
+test scope::tests::a_malformed_request_is_refused_before_the_declaration_is_consulted ... ok
+test scope::tests::a_missing_file_says_it_is_not_a_refusal_and_names_the_check ... ok
+test scope::tests::a_refusal_and_a_missing_file_do_not_read_alike ... ok
+test scope::tests::a_scoped_path_cannot_be_built_without_a_handle ... ok
+test adjudicate::tests::with_a_real_scope_a_declared_path_is_allowed_and_the_handle_comes_back_with_the_decision ... ok
+test scope::tests::construction_succeeds_only_on_a_platform_whose_suite_has_been_executed ... ok
+test scope::tests::macos_is_not_verified_and_the_refusal_says_why ... ok
+test scope::tests::the_declaration_is_checked_before_the_filesystem_is_touched ... ok
+test scope::tests::the_refusing_scope_still_refuses_and_says_why ... ok
+test taint::tests::tracked_is_diagnostic_only ... ok
+test taint::tests::an_untracked_argument_is_untrusted ... ok
+test taint::tests::a_value_from_two_sources_carries_the_worse_one ... ok
+
+test result: ok. 54 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests\boundary_hook.rs (target\debug\deps\boundary_hook-233b340491989098.exe)
+
+running 3 tests
+test the_hook_actually_fires_on_a_guarded_path ... ok
+test no_guarded_path_leaves_the_boundary_hook_unnoticed ... ok
+test every_guarded_path_in_the_boundary_hook_still_exists ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests\toctou.rs (target\debug\deps\toctou-ecce84d3f0652c11.exe)
+
+running 4 tests
+test the_observer_is_a_no_op_in_production ... ok
+test the_real_implementation_does_not_escape ... ok
+test on_windows_the_swap_is_refused_by_the_share_mode_and_the_error_says_so ... ok
+test the_naive_implementation_escapes_which_is_what_makes_this_a_race ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests\traversal.rs (target\debug\deps\traversal-2f0e63090ead4e9d.exe)
+
+running 12 tests
+test a_case_variation_cannot_dodge_a_narrow_declaration ... ok
+test relative_traversal_is_refused ... ok
+test alternate_data_streams_and_device_names_are_refused ... ok
+test an_undeclared_subtree_is_refused_even_though_it_exists_and_is_in_the_workspace ... ok
+test win32_munging_and_short_names_are_refused ... ok
+test a_legitimate_in_scope_read_succeeds ... ok
+test rooted_and_windows_path_forms_are_refused ... ok
+test unicode_normalization_is_matched_not_dodged ... ok
+test a_name_that_merely_looks_dangerous_still_opens ... ok
+test a_junction_out_of_the_workspace_is_refused ... ok
+test a_write_target_may_be_created_inside_the_verified_parent ... ok
+test every_traversal_class_is_accounted_for ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+   Doc-tests marlowe_permission
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
