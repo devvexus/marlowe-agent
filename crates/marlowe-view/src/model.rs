@@ -146,12 +146,18 @@ pub struct Cadence {
 }
 
 impl Cadence {
-    /// `None` when there is no elapsed generation time — see the type's header.
+    /// `None` when there is no rate to measure — see the type's header and [`Self::tok_per_s`].
     ///
     /// `tokens` is what the engine streamed, counted at the harness's own sink. Both local engines
     /// emit one delta per token, so this is a count rather than an estimate from characters.
+    ///
+    /// **Two refusals, and the second was a bug until 2026-08-30.** A zero denominator is the
+    /// obvious one. The other is `tokens < 2`: the rate divides by the interval *since the first
+    /// token*, and one token spans no such interval — every rate over it is a rate over a sample
+    /// of zero. Returning `Some` there produced `0 tok/s` on a one-token turn, which is not a
+    /// smaller number than the truth, it is a different kind of statement.
     pub fn new(ttft_ms: u64, tokens: u64, since_first_ms: u64, warm: bool) -> Option<Self> {
-        if since_first_ms == 0 {
+        if since_first_ms == 0 || tokens < 2 {
             return None;
         }
         Some(Self { ttft_ms, tokens, since_first_ms, warm })
@@ -181,8 +187,26 @@ impl Cadence {
     /// Dividing by the whole turn would fold prompt eval into the rate and make the two figures
     /// report overlapping things — and it is the *generation* rate that separates a GPU from a CPU
     /// (107 against 10 on this machine), which is the separation the pairing exists to preserve.
+    ///
+    /// # The numerator is `tokens - 1`, and it was `tokens` until 2026-08-30
+    ///
+    /// **The two halves of that sentence above have to agree, and they did not.** If the
+    /// denominator starts *at* the first token, then the first token was produced **before** the
+    /// window opens — its cost is TTFT, which is exactly what the paragraph above says. Counting it
+    /// in the numerator put it on both sides of the split: its time in `ttft_ms`, its existence in
+    /// the rate. What the window actually contains is the `tokens - 1` deltas that arrived during
+    /// it.
+    ///
+    /// **The error is largest where it is most visible.** `CADENCE_EVERY` is 8, so the first figure
+    /// a user ever sees reported 8 tokens over the 7 gaps that produced them — **14% high** — then
+    /// 16/15, then 24/23, converging to `N/(N-1)`. A long answer was off by a percent; a short one,
+    /// which is the kind you can eyeball against a stopwatch, was off by a seventh. Reported by the
+    /// human, who was right.
+    ///
+    /// Not a division-by-zero risk: [`Self::new`] refuses `tokens < 2`, which is the same refusal as
+    /// the zero denominator and for the same reason — there is no interval to measure over.
     pub fn tok_per_s(self) -> f64 {
-        self.tokens as f64 * 1000.0 / self.since_first_ms as f64
+        (self.tokens - 1) as f64 * 1000.0 / self.since_first_ms as f64
     }
 
     /// §B5's figures column: at most two lines, right-aligned. **Both numbers, always.**
@@ -557,5 +581,68 @@ impl Ambient {
             60..=69 => Tone::Amber,
             _ => Tone::Accent,
         }
+    }
+}
+
+#[cfg(test)]
+mod cadence_tests {
+    use super::Cadence;
+
+    /// **The off-by-one, stated as the arithmetic a human can check by hand.**
+    ///
+    /// Eight tokens, and the first of them arrived at `t=0` of this window — that is what
+    /// "since first" means. So seven deltas landed across 700 ms and the rate is 10/s, not the
+    /// 11.43/s the old numerator produced. `CADENCE_EVERY` is 8, so this is the *first* figure a
+    /// user ever sees on a turn.
+    #[test]
+    fn the_rate_counts_the_gaps_between_tokens_not_the_tokens() {
+        let c = Cadence::new(300, 8, 700, true).expect("two tokens and elapsed time is a rate");
+        assert!(
+            (c.tok_per_s() - 10.0).abs() < 1e-9,
+            "8 tokens whose first opened the window is 7 deltas in 700 ms = 10 tok/s; got {} \
+             (11.43 means the numerator counted the first token, whose time is in ttft)",
+            c.tok_per_s()
+        );
+    }
+
+    /// The anti-vacuity half: a *different* count must produce a *different* rate. Without this,
+    /// a `tok_per_s` hardcoded to 10.0 passes the test above.
+    #[test]
+    fn the_rate_moves_with_the_count() {
+        let slow = Cadence::new(300, 8, 700, true).unwrap();
+        let fast = Cadence::new(300, 15, 700, true).unwrap();
+        assert!(
+            fast.tok_per_s() > slow.tok_per_s() * 1.9,
+            "fourteen deltas in the same window must be about twice seven: {} vs {}",
+            fast.tok_per_s(),
+            slow.tok_per_s()
+        );
+    }
+
+    /// A single token spans no interval, so there is no rate — the same refusal as a zero
+    /// denominator. **`Some` here would render `0 tok/s`, which is a claim rather than a gap.**
+    #[test]
+    fn one_token_is_not_a_rate() {
+        assert!(Cadence::new(300, 1, 700, true).is_none(), "one token spans no interval");
+        assert!(Cadence::new(300, 0, 700, true).is_none(), "no tokens is not a rate either");
+        assert!(Cadence::new(300, 8, 0, true).is_none(), "and neither is a zero denominator");
+    }
+
+    /// §B5: both numbers or neither. The pairing is the point — a band showing only latency
+    /// rendered a 5x whole-turn regression as a 2x improvement, which is why the fields are
+    /// private and `figures` is the only renderer.
+    #[test]
+    fn figures_always_carries_the_rate_beside_the_latency() {
+        let f = Cadence::new(300, 8, 700, true).unwrap().figures();
+        assert!(f[0].contains("ttft 300 ms"), "the latency half: {:?}", f);
+        assert!(f[0].contains("10 tok/s"), "the rate half, rounded: {:?}", f);
+        assert!(f[1].contains("8 tokens"), "the count is reported whole, not as gaps: {:?}", f);
+    }
+
+    /// The count on screen is the tokens the engine sent. Only the *rate* divides by gaps, and
+    /// conflating the two would make the band disagree with itself.
+    #[test]
+    fn the_reported_count_is_not_reduced_by_one() {
+        assert_eq!(Cadence::new(300, 8, 700, true).unwrap().tokens(), 8);
     }
 }
