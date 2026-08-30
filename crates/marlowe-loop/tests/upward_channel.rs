@@ -124,9 +124,14 @@ fn cross(shape: UpwardShape, reply: &str, after_child: &[&str]) -> Crossed {
     Crossed { rendered, views: driver.views_seen.clone() }
 }
 
-/// The control every arm shares: the child actually ran and actually said the nonce. Without it a
-/// green cell cannot be told from a spawn that never happened.
-fn assert_the_child_ran_and_said_it(c: &Crossed) {
+/// The control every arm shares: a spawn actually happened. Without it, "the nonce did not cross"
+/// is produced identically by a working arm and by a spawn that never ran.
+///
+/// **It asserts the spawn and nothing more, which is what its name says.** That the child *said*
+/// the nonce is not asserted here, because it is not observable from the parent's side under arm
+/// (a) — that is the property under test — and a control that claimed it would be claiming more
+/// than it measured.
+fn assert_a_spawn_actually_happened(c: &Crossed) {
     assert!(
         c.views.iter().any(|v| v.contains("read the widget documentation")),
         "CONTROL FAILED: no run ever saw the child's brief, so no spawn happened and this arm \
@@ -145,7 +150,7 @@ fn assert_the_child_ran_and_said_it(c: &Crossed) {
 fn the_arm_decides_what_crosses_from_a_child() {
     // ── ARM (a) TYPED ────────────────────────────────────────────────────────────────────
     let typed = cross(UpwardShape::Typed, &child_reply(), &[]);
-    assert_the_child_ran_and_said_it(&typed);
+    assert_a_spawn_actually_happened(&typed);
     // POSITIVE CONTROL: the treatment ran, i.e. the validated fields did cross.
     assert!(
         typed.rendered.contains("findings:") && typed.rendered.contains("the widgets are"),
@@ -167,7 +172,7 @@ fn the_arm_decides_what_crosses_from_a_child() {
     #[cfg(debug_assertions)]
     {
         let free = cross(UpwardShape::FreeText, &child_reply(), &[]);
-        assert_the_child_ran_and_said_it(&free);
+        assert_a_spawn_actually_happened(&free);
         assert!(
             free.rendered.contains(NONCE),
             "THE CONTROL DID NOT FAIL. `free_text` is the vacuity control for the entire §2 \
@@ -180,7 +185,7 @@ fn the_arm_decides_what_crosses_from_a_child() {
     // ── ARM (b) TYPED + ONE VALIDATED SENTENCE ───────────────────────────────────────────
     let benign = "the child reported that the widgets are documented";
     let validated = cross(UpwardShape::TypedPlusValidatedSentence, &child_reply(), &[benign]);
-    assert_the_child_ran_and_said_it(&validated);
+    assert_a_spawn_actually_happened(&validated);
     // POSITIVE CONTROL, two halves: the quarantined validator RAN, and its line ARRIVED. Either
     // alone is satisfied by an arm that silently fell back to `typed`.
     assert!(
@@ -218,7 +223,7 @@ fn arm_b_fails_closed_when_its_validator_will_not_satisfy_the_contract() {
         &child_reply(),
         &[&too_long, &too_long, &too_long],
     );
-    assert_the_child_ran_and_said_it(&validated);
+    assert_a_spawn_actually_happened(&validated);
     // CONTROL: the validator ran and was given the prose to relay.
     assert!(
         validated.views.iter().any(|v| v.contains("=== the child's report ===")),
