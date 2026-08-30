@@ -180,6 +180,15 @@ pub(crate) fn classify_degradation(remedy: &str) -> DegradedPath {
     if remedy.contains(marlowe_provider::FELL_BACK_MARKER) {
         return DegradedPath::EngineFellBackToOllama;
     }
+    // **Also before the general arms, and for a sharper reason than the one above.** This sentence
+    // contains none of the keywords below today, so it already fell to `Unclassified` -- but that
+    // was luck rather than design: add the word "model" to the remedy and it would silently start
+    // claiming a provider failover. Matching the constant the sentence is BUILT from removes the
+    // coincidence. It is also the condition a developer hits most, because it fires on every
+    // source edit, so it is the headline most worth being exact.
+    if remedy.contains(crate::staleness::STALE_MARKER) {
+        return DegradedPath::BinaryBehindSource;
+    }
     let r = remedy.to_lowercase();
     if r.contains("ollama") || r.contains("model") || r.contains("provider") {
         DegradedPath::ProviderFailedOver
@@ -596,6 +605,47 @@ fn not_built(what: &str, key: char, when: &str) -> Item {
 
 #[cfg(test)]
 mod tests {
+
+    /// **The band must name the remedy for the condition a developer hits on every single edit.**
+    ///
+    /// Asserts the REAL sentence, built from `STALE_MARKER` the way `stale_against_source` builds
+    /// it -- not the marker in isolation -- so the constant and the classifier cannot agree while
+    /// the sentence drifts away from both.
+    #[test]
+    fn a_stale_binary_is_named_rather_than_deferred_to_the_status_tab() {
+        let real = format!(
+            "this daemon's binary is 3 min {} \u{2014} rebuild with `cargo build --release` and \
+             restart it, or it will keep serving the old code",
+            crate::staleness::STALE_MARKER
+        );
+        assert_eq!(
+            super::classify_degradation(&real),
+            marlowe_view::turn::DegradedPath::BinaryBehindSource,
+            "the daemon knows exactly what is wrong; the band must not say \"see the Status tab\""
+        );
+        assert_eq!(
+            marlowe_view::turn::DegradedPath::BinaryBehindSource.headline(),
+            "binary behind source \u{b7} rebuild and restart",
+            "the headline states the ACTION, because a degraded state a user cannot act on is a \
+             crash with better manners"
+        );
+    }
+
+    /// The anti-vacuity control. Without it, a `classify_degradation` that returned
+    /// `BinaryBehindSource` unconditionally passes the test above -- and every other degraded path
+    /// would silently become a rebuild instruction.
+    #[test]
+    fn a_remedy_that_is_not_about_staleness_is_still_classified_on_its_own_terms() {
+        assert_eq!(
+            super::classify_degradation("dense retrieval offline, embeddings unavailable"),
+            marlowe_view::turn::DegradedPath::DenseRetrievalOffline
+        );
+        assert_eq!(
+            super::classify_degradation("something nobody has a name for"),
+            marlowe_view::turn::DegradedPath::Unclassified,
+            "the general fallback must survive -- it is what stops a wrong specific claim"
+        );
+    }
     use super::*;
 
     fn report() -> StatusReport {

@@ -157,6 +157,26 @@ pub enum DegradedPath {
     /// Status tab; the daemon's `degraded` string is what names the cause, and it is held for the
     /// life of the session rather than flashed once.
     EngineFellBackToOllama,
+    /// **The running binary predates the source it was built from.** Nothing in the product is
+    /// broken; the process is answering from code that no longer exists on disk.
+    ///
+    /// # Why this earned a variant instead of staying `Unclassified`
+    ///
+    /// It was `Unclassified`, whose headline is *"degraded · see the Status tab"* — and the daemon
+    /// **knew exactly what was wrong**. `staleness::stale_against_source` compares the executable's
+    /// mtime against the newest `.rs` under `crates/` and returns a sentence naming the remedy;
+    /// `classify_degradation` then matched none of its keywords and threw that specificity away
+    /// one step before the band.
+    ///
+    /// So the band said *go and look* about the one condition that is trivially actionable, while
+    /// `EngineFellBackToOllama` — rarer and less actionable — got a precise headline. That is
+    /// backwards, and this file's own rule says so: *"a degraded state a user cannot act on is a
+    /// crash with better manners."* Reported by the human, who read the vague line and had to ask
+    /// what it meant.
+    ///
+    /// **This is the condition a developer hits most**, because it fires on every source edit — so
+    /// it is the headline most worth being exact.
+    BinaryBehindSource,
 }
 
 impl DegradedPath {
@@ -172,6 +192,9 @@ impl DegradedPath {
             // saying only "llama.cpp unavailable" would leave the reader unable to tell whether
             // anything is answering at all.
             DegradedPath::EngineFellBackToOllama => "llama.cpp not serving · Ollama is",
+            // Names the ACTION, not the condition. "binary is stale" is a description; "rebuild
+            // and restart" is what closes it, and it fits the band.
+            DegradedPath::BinaryBehindSource => "binary behind source · rebuild and restart",
         }
     }
 
@@ -187,6 +210,9 @@ impl DegradedPath {
             }
             DegradedPath::EngineFellBackToOllama => {
                 "same model, same answers — only the engine changed; ~225 ms/request slower"
+            }
+            DegradedPath::BinaryBehindSource => {
+                "nothing in the product is degraded — this process is serving code that has changed on disk"
             }
         }
     }

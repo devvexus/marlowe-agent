@@ -14,6 +14,16 @@
 
 use std::path::Path;
 
+/// The phrase [`stale_against_source`] builds its sentence from, and **the string
+/// `classify_degradation` matches on**.
+///
+/// A constant rather than two literals, for the reason `FELL_BACK_MARKER` is one: the projection's
+/// arm and the sentence it classifies are otherwise free to drift, and the drift is silent — an
+/// unmatched remedy falls to `DegradedPath::Unclassified`, whose headline is *"degraded · see the
+/// Status tab"*. That is exactly the vague line this variant exists to replace, so a drift here
+/// would restore the defect while every test stayed green.
+pub(crate) const STALE_MARKER: &str = "older than the source it was built from";
+
 /// Whether the running binary predates the source it was built from.
 ///
 /// # Why a daemon needs this and a CLI does not
@@ -74,7 +84,7 @@ pub(crate) fn stale_against_source() -> Option<String> {
     let behind = newest.duration_since(exe_time).ok()?;
     let mins = behind.as_secs() / 60;
     Some(format!(
-        "this daemon's binary is {} older than the source it was built from — rebuild with          `cargo build --release` and restart it, or it will keep serving the old code",
+        "this daemon's binary is {} {STALE_MARKER} — rebuild with `cargo build --release` and restart it, or it will keep serving the old code",
         if mins >= 1 { format!("{mins} min") } else { format!("{} s", behind.as_secs()) }
     ))
 }
