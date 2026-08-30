@@ -531,6 +531,45 @@ with **bands pre-registered before any run**.
 identically on the red-team set, the typing is decorative and the finding is worth more than the
 feature.
 
+> ### AMENDED 2026-08-30 (M3 Session C) — A8 MUST VARY `Engine::spawn`'s NOTE MATCH, AND THE OBVIOUS HOP CARRIES NOTHING
+>
+> **Found by an adversarial pass over C's own channel design, and it is the vacuity family aimed at
+> the control that exists to detect vacuity.** The first design read §2.3 literally, typed
+> `LoopOutcome::Escalated { question: String }`, and switched the three arms there. **All three arms
+> would have emitted byte-identical product behaviour**, and the resulting sheet — three identical
+> cells — reads character-for-character like *"the typing is decorative"*, which is the finding A8
+> exists to produce. A control that cannot vary anything is worse than no control, because its
+> null result is indistinguishable from its positive one.
+>
+> The reason is one this document already records and did not connect. `Engine::spawn`'s note match
+> (`crates/marlowe-loop/src/engine.rs:~2900`) **already closed the child→parent hop**: *"only a
+> validated result carries content. Everything else is a fixed harness-authored string"*, and
+> `LoopOutcome::Escalated { question }` from a child is replaced by a harness constant with the
+> question redirected to the journal. So a child's escalation never reaches `daemon.rs` and never
+> becomes an outward event. **Switching arms at the outward hop switches a channel with no traffic
+> on it.**
+>
+> **Where the traffic is** is where `REDTEAM-SESSION.md` §4 already says pass 1's surface is: *"the
+> condensed summary re-entering a parent at `AgentInferred`"*. That is `req.contract.validate` then
+> `CondensedResult::render()` at `engine.rs:~2911`, and `run.rs`'s own comment on `FieldSpec` says
+> why it is the one that matters — *"the contract is the single place where content crosses from
+> `UntrustedContent` to `AgentInferred`."* **So the three arms are three treatments of that
+> crossing:**
+>
+> | Arm | What varies at `Engine::spawn`'s note match |
+> |---|---|
+> | (a) fully typed | today's code, unchanged: `validate` then `render`, harness constants on every non-`Completed` outcome |
+> | (b) typed + one validated sentence | (a) plus one `FieldSpec::line` capped short, produced by a **quarantined** child, omitted on any non-`Completed` outcome |
+> | (c) free text — **the control, expected to fail** | the child's last assistant message verbatim, `validate` **not** called |
+>
+> Arm (c) deliberately reopens the hole the comment at `engine.rs:2900` closed, so it **takes its own
+> `DECISIONS.md` entry** and must be unreachable in a shipped build rather than merely off by default.
+>
+> **The measurement rule that follows:** a journal row naming the arm is not evidence the arm did
+> anything — that row moves with the flag, not with the channel (instance #15). Every A8 cell is read
+> from **what crossed into the parent's window**, which is what `injection_attempts.rs` already
+> asserts on, and each arm needs a positive control showing its own treatment actually ran.
+
 ### 9.2 What is NOT an arm
 
 Anything where a wrong answer is a security hole rather than a quality loss. **TERMINATE's structural
@@ -577,10 +616,49 @@ M3's existing rows in ROADMAP stand. These are additional and each is a command 
 | Conversation availability while N agents run | **100%** — Marlowe answers with agents at full fan-out |
 | Marlowe's trust floor after M escalations | **unchanged from session start**, asserted live, with a control that *can* taint |
 | Composed targets refused after an escalation | as ADR-023 — and the negative control must show a run that does **not** latch |
-| TERMINATE present in an agent's `request_body` | **0 occurrences**, over every agent type |
+| ~~TERMINATE present in an agent's `request_body`~~ · **0 occurrences** | **RED ON A CORRECT BUILD — amended below, 2026-08-30** |
 | Leaf budget share at depth 4 | within a declared band of the grant; never `< 1%` |
 | Escalations reaching the user per project-hour | reported, with false-escalation rate |
 | Frame diff on a second render of the same state | **0 cells**, per §B13, with agent windows open |
+
+> ### AMENDED 2026-08-30 (M3 Session C) — THE TERMINATE ROW IS RED ON A CORRECT BUILD, AND THE CHEAP REPAIR IS INSTANCE #15
+>
+> The row read *"TERMINATE present in an agent's `request_body` — **0 occurrences**, over every agent
+> type."* **Measured at `186b5d5`: the string `terminate` is in every agent's request body already,
+> from two production sources that have nothing to do with the escape hatch.**
+>
+> ```
+> crates/marlowe-tools/src/builtin.rs:695   "`terminate` (default) ends the child when this run
+>                                            ends; `detach` lets it outlive this run."
+> crates/marlowe-loop/src/engine.rs:2731     OrphanPolicy::Terminate => "terminate",
+> ```
+>
+> The first is the `run` tool's `orphan_policy` parameter description, which ships in the tool schema
+> to every model holding `run`. The second is the spawn receipt, pushed into the parent's history at
+> `AgentObserved`, so it is in the request body of every call a parent makes after spawning once.
+>
+> **The repair that must not be made is narrowing the search until the zero comes back** — matching
+> `TERMINATE` case-sensitively, or excluding the manifest, or grepping for a longer label. Each
+> restores a green cell over a property nobody checked, which is instance #15 committed against the
+> acceptance table itself.
+>
+> **The row was measuring a spelling; §3.4 is about an OBJECT.** Two unrelated things share the word:
+> `OrphanPolicy::Terminate` is a declared, model-nameable, harmless lifecycle value, and the escape
+> hatch is a harness-rendered control the agent must not be able to invoke, describe, suppress or
+> style. This is ADR-032 §2's shape — *"`DenyAll` and an empty allowlist behave identically and must
+> stop being the same thing"* — appearing in an acceptance criterion.
+>
+> **The property to assert instead, stated as what §3.4 actually asks for.** Three rows, each with a
+> mutation that reddens it, replacing the one:
+>
+> | Property | Where it is asserted |
+> |---|---|
+> | The escape hatch is in **no agent's exposed set**, at every level | over the real `CapabilityProfile` the daemon builds, not one a test constructs |
+> | Its **harness-authored label and keybind appear in no `request_body`** | the `--dev` outbound dump of the **running** process — a body built inside a test process is the `persona_emission.rs` failure aimed at a security measurement |
+> | An agent **cannot suppress, reorder or restyle it** | the rendered option list, with the agent's own option text containing the label and the chrome glyphs, showing both neutralised (`chrome::mark_reserved` already substitutes every Box-Drawing and Block-Elements codepoint in model text) |
+>
+> The third is the one with teeth, and it is the only one of the three the original row gestured at.
+> **The first two are satisfiable by an empty implementation; the third is not.**
 
 ---
 
