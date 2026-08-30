@@ -1,0 +1,42 @@
+=== declared env (User scope) ===
+OLLAMA_MAX_LOADED_MODELS     user=<unset>    machine=<unset>
+OLLAMA_NUM_PARALLEL          user=1          machine=<unset>
+OLLAMA_KEEP_ALIVE            user=<unset>    machine=<unset>
+OLLAMA_FLASH_ATTENTION       user=1          machine=<unset>
+OLLAMA_KV_CACHE_TYPE         user=q8_0       machine=<unset>
+OLLAMA_GPU_OVERHEAD          user=<unset>    machine=<unset>
+
+=== ollama version ===
+{"version":"0.32.5"}
+=== baseline /api/ps (expect empty) ===
+{"models":[]}
+=== VRAM before ===
+memory.total [MiB], memory.used [MiB], memory.free [MiB]
+16376 MiB, 5086 MiB, 10960 MiB
+
+=== warming marlowe-dawn:9b-super ===
+load+gen wall_ms=4354
+--- /api/ps after marlowe-dawn:9b-super ---
+{"models":[{"name":"marlowe-dawn:9b-super","model":"marlowe-dawn:9b-super","size":5832064368,"digest":"d5ba16ea63e01dd97f9754d1d6f36f9f18f00a44e2bcff9a2b3db102b6706e94","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"9.2B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:42.2386063-05:00","size_vram":5832064368,"context_length":32768}]}
+--- VRAM after marlowe-dawn:9b-super ---
+11756 MiB, 4290 MiB
+
+=== warming marlowe-mini:4b-super ===
+load+gen wall_ms=3212
+--- /api/ps after marlowe-mini:4b-super ---
+{"models":[{"name":"marlowe-mini:4b-super","model":"marlowe-mini:4b-super","size":3271515176,"digest":"bb1a2b35a86323b0b2325335c4c5b2420202626f4f74d2760dee9822aec9a16a","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"4.3B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:45.5805711-05:00","size_vram":3271515176,"context_length":32768},{"name":"marlowe-dawn:9b-super","model":"marlowe-dawn:9b-super","size":5832064368,"digest":"d5ba16ea63e01dd97f9754d1d6f36f9f18f00a44e2bcff9a2b3db102b6706e94","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"9.2B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:42.2386063-05:00","size_vram":5832064368,"context_length":32768}]}
+--- VRAM after marlowe-mini:4b-super ---
+14582 MiB, 1464 MiB
+
+=== warming marlowe-mini:2b ===
+load+gen wall_ms=5442
+--- /api/ps after marlowe-mini:2b ---
+{"models":[{"name":"marlowe-mini:2b","model":"marlowe-mini:2b","size":1746256526,"digest":"aa2db0b883e6015aa2862282a290fe08b4edfa7598023bba1093631d2217e5b5","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"1.9B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:51.1544414-05:00","size_vram":1746256526,"context_length":32768},{"name":"marlowe-mini:4b-super","model":"marlowe-mini:4b-super","size":3271515176,"digest":"bb1a2b35a86323b0b2325335c4c5b2420202626f4f74d2760dee9822aec9a16a","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"4.3B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:45.5805711-05:00","size_vram":3271515176,"context_length":32768},{"name":"marlowe-dawn:9b-super","model":"marlowe-dawn:9b-super","size":5832064368,"digest":"d5ba16ea63e01dd97f9754d1d6f36f9f18f00a44e2bcff9a2b3db102b6706e94","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"9.2B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:42.2386063-05:00","size_vram":5832064368,"context_length":32768}]}
+--- VRAM after marlowe-mini:2b ---
+14993 MiB, 1053 MiB
+
+=== FINAL /api/ps — how many DISTINCT models stayed resident ===
+{"models":[{"name":"marlowe-mini:2b","model":"marlowe-mini:2b","size":1746256526,"digest":"aa2db0b883e6015aa2862282a290fe08b4edfa7598023bba1093631d2217e5b5","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"1.9B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:51.1544414-05:00","size_vram":1746256526,"context_length":32768},{"name":"marlowe-mini:4b-super","model":"marlowe-mini:4b-super","size":3271515176,"digest":"bb1a2b35a86323b0b2325335c4c5b2420202626f4f74d2760dee9822aec9a16a","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"4.3B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:45.5805711-05:00","size_vram":3271515176,"context_length":32768},{"name":"marlowe-dawn:9b-super","model":"marlowe-dawn:9b-super","size":5832064368,"digest":"d5ba16ea63e01dd97f9754d1d6f36f9f18f00a44e2bcff9a2b3db102b6706e94","details":{"parent_model":"","format":"gguf","family":"qwen35","families":["qwen35"],"parameter_size":"9.2B","quantization_level":"Q4_K_M"},"expires_at":"2026-08-30T17:10:42.2386063-05:00","size_vram":5832064368,"context_length":32768}]}
+=== FINAL VRAM ===
+memory.total [MiB], memory.used [MiB], memory.free [MiB]
+16376 MiB, 14993 MiB, 1053 MiB

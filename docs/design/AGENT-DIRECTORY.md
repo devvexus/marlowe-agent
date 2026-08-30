@@ -60,6 +60,50 @@ present via `ollama list` on 2026-08-30.
 So there is no ladder and no swapping. **The design is co-residency, and what remains is a routing
 question, not a scheduling one.**
 
+> ### MEASURED 2026-08-30, M3 Session C — CO-RESIDENCY HOLDS AND THE HEADROOM DOES NOT
+>
+> **The paragraph above is arithmetic, and §2a's own rule is that `/api/ps` is the measurement.**
+> It was run before designing the queue, as §2a requires. Full record:
+> [`runs/m3-c/capacity-finding.md`](../../runs/m3-c/capacity-finding.md); raw output
+> `runs/m3-c/capacity.txt`. **Its conclusion survives and its numbers do not**, so it is amended in
+> place rather than rewritten.
+>
+> **What holds.** All three roles stayed resident simultaneously — `OLLAMA_MAX_LOADED_MODELS` is
+> unset and resolved to **≥ 3** here, so §2's item 2 hazard (*"the second model evicts the first and
+> the design silently degrades into the swap-per-turn the original §2 warned about"*) did **not**
+> occur on this machine. Cold load plus one token: **4,354 / 3,212 / 5,442 ms**, so the 10,484.9 ms
+> figure the original §2 reasoned from is not what these models cost.
+>
+> **What does not.** *"10.0 GB of the card's 16, leaving headroom"* omits the desktop. The card was
+> **never** 16 GB free: `nvidia-smi` read **5,086 MiB already held** — Opera GX, Discord, Steam,
+> Wallpaper Engine, the NVIDIA overlay, `explorer.exe` — before a model loaded. After all three
+> roles: **14,993 MiB used, 1,053 MiB free.** One gigabyte, not six.
+>
+> That is the number ADR-044 reads. The embedder resolves its provider against **free VRAM at load**,
+> and CLAUDE.md already records what that produces — *"not an error, a slower run with a
+> correct-looking log line."* The reranker wants VRAM on the same terms. **And the fourth role's
+> name is the human's; its space is now measured, and there is none.**
+>
+> **Three corrections an admission decision has to carry:**
+>
+> 1. **`ollama list` sizes are blob sizes.** `size_vram` sums to **10,849,836,070 B = 10.85 GB**
+>    against the table's 10.0 — 8.5% larger, because it includes the KV cache and compute buffers.
+>    The table above sizes the roles from the wrong column; **`size_vram` is the one to admit
+>    against.**
+> 2. **Neither figure reconciles, so a plan computed once is already stale.** 5,086 + 10,347 MiB
+>    expected against **14,993 observed**, 440 MiB apart, with per-model deltas wrong in both
+>    directions (`dawn:9b` took 6,670 MiB of real card against 5,562 reported; `mini:2b` took 411
+>    against 1,665). The desktop moves by hundreds of MiB *while the probe runs*. **Admission must
+>    re-measure at admit time and carry a margin** — and Ollama's failure mode when a model does not
+>    fit is the CPU split §2a forbids by name.
+> 3. **Concurrency was NOT measured.** `OLLAMA_NUM_PARALLEL=1` is read from the declaration; no two
+>    requests were issued at once. §3 item 7's consequence stands on a declaration, not a run, and
+>    it stays that way until two overlapping requests are timed.
+>
+> None of this reaches STATE.md's **THREE CONSTANTS ENCODE A 16 GB CARD**. This is one machine, one
+> day, one desktop workload — a measurement scoped to the system it was taken on. A different
+> desktop baseline is a different answer, and *all consumer hardware* is untouched by it.
+
 ### The requirement, as given
 
 - **Four model roles exist.** Each is **user-configurable in a small window**.
