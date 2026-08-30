@@ -1,6 +1,50 @@
 ﻿# State
 
 
+## 2026-08-30 — TWO NUMBERS ON SCREEN WERE WRONG, BOTH REPORTED BY EYE, NEITHER CAUGHT BY A TEST
+
+**Both found by the human looking at the band, and both had zero test coverage before today.** They
+are small, and they are recorded because the shape is the ledger's: a figure that is *plausible* is
+not checked, and a figure nobody checks is a figure nobody can trust when it matters.
+
+### tok/s over-reported, worst on the first figure of every turn
+
+`Cadence::tok_per_s` divided by `since_first_ms` — the interval measured **from** the first token —
+while counting **all N** tokens. The doc comment directly above it says the denominator excludes TTFT
+*"because TTFT already reports that interval"*. Both cannot be true: if the window opens at the first
+token, the first token was produced before it. Its time went to `ttft_ms` and its existence went to
+the rate.
+
+`CADENCE_EVERY` is 8, so the **first** figure a user sees reported 8 tokens over the 7 gaps that
+produced them — **14% high** — converging to `N/(N-1)`. Long answers were off by a percent; short
+ones, the kind you can time against a stopwatch, by a seventh. Now `tokens - 1`, and `Cadence::new`
+refuses `tokens < 2` for the same reason it refuses a zero denominator. **Five tests, where the type
+had none anywhere in the workspace.**
+
+**Still unmeasured, and it is the next thing to pull on if the number still looks wrong:**
+`daemon.rs` asserts *"one delta is one token — Ollama sends one frame per token"* and **nothing
+measures it.** That is an assumption about a server.
+
+### `degraded · see the Status tab` was the daemon discarding what it knew
+
+`staleness::stale_against_source` compares the executable's mtime against the newest `.rs` under
+`crates/` and returns a sentence **naming the remedy**. `classify_degradation` matched none of its
+keywords and fell to `DegradedPath::Unclassified`. So the band deferred on the one condition that is
+trivially actionable — and fires on **every source edit** — while the rarer engine fallback got a
+precise line. Backwards, and `turn.rs`'s own rule says so.
+
+Now `DegradedPath::BinaryBehindSource`, headline **`binary behind source · rebuild and restart`**.
+The arm matches `STALE_MARKER`, the constant the sentence is built from, not a keyword: the old
+fall-through was **luck, not design**, and adding the word "model" to that remedy would have started
+it claiming a provider failover. Mutation-checked — removing the arm reads `left: Unclassified,
+right: BinaryBehindSource` — with a control that the other paths still classify on their own terms.
+
+Also fixed a **collapsed string literal** in the remedy itself (ten spaces mid-sentence), which
+reaches the user. Same class as `governance_prompt`'s, which this file still records as present at
+HEAD and reaching the model every turn — **that one is still unfixed.**
+
+---
+
 ## 2026-08-29 — ADR-032 §3.1's SESSION GRANT IS WIRED, AND NINE DOCUMENTS SAID IT WAS NOT
 
 **The change is four lines of behaviour and nine documents of correction, and the second number is
