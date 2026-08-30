@@ -1,6 +1,72 @@
 ﻿# State
 
 
+## 2026-08-29 — FOUR DECISIONS THE HUMAN TOOK AT THE CLOSE OF B2, AND NONE OF THEM IS BUILT YET
+
+**Taken in conversation after the entry below was written, so nothing in the tree reflects them.**
+They are recorded here first because a decision made out loud and not written down is lost, which is
+the failure three other places were fixed for on this same day. **Next session opens on these.**
+
+| # | Decision | State | Blocks |
+|---|---|---|---|
+| 1 | **The origin for a belief derived from a condensed summary is a NEW `Channel::Agent`.** ADR-062 §4's Option B, chosen over `Channel::Web` — which would record a provenance the harness knows to be false, since the page never emitted those bytes and the harness's own reader did | **decided, not built** | Session D's correct `ingest` caller |
+| 2 | **`MemoryHost` gets pinned** in `CONTRACTS.md`, with the missing `ARCHITECTURE.md` §7 Loop→Memory row | **approved, not built** | — |
+| 3 | **The two hook entries go in** — `marlowe-daemon/src/memory.rs`, `marlowe-loop/src/driver.rs` | **approved, not built** | — |
+| 4 | **Egress approval confers NO authority on content** — see below | **stated, not pinned by any test** | — |
+
+**On (1), what it costs and why it is worth it.** It is a **pinned-contract change**: the `Channel`
+enum is wire-visible, `trust_for_channel`'s match is exhaustive with no default arm *by design*, and
+the eval side deserializes the same type. Adding a variant is backward compatible for existing data —
+a variant that never appears in old records — but the contract is pinned and this is not a session's
+call to make alone, which is why it was the human's. **It also closes M3-DESIGN §8's standing
+question** — *"there is no `Channel::Agent` and no trust class for an agent's speech. Either add one,
+or record a decision that typed upward structure needs none"* — in the same change, and ADR-062 §4.1
+is explicit that this does **not** thereby close M3-DESIGN §12 item 5: the meeting utterance (E) and
+the harness-mediated reader (D) remain separate consumers of the same slot.
+
+**On (3), why the human was NOT needed and the closing agent thought he was.** The hook returns
+`ask`, not `deny`. Adding a path makes the agent prompt **more** often — monotonic in the human's
+favour, costing a prompt. §13's rule exists to stop an agent **removing** or narrowing protection;
+the closing agent applied it symmetrically and was over-cautious. **Adding is safe; removing needs a
+human.** Stated here so the next session does not re-derive the same over-caution.
+
+**On (4), and this is the one most likely to be "helpfully" broken later.** Once ADR-032 is accepted,
+an approved host is *trusted to fetch* and **its content is not thereby trusted at all**. Egress
+approval is a **reachability** decision; trust class is an **authority** decision; §3.3 binds a class
+to the authority of the origin, and a human permitting a fetch has not become the origin.
+
+Verified structurally, three ways: `trust_for_channel(channel: Channel) -> TrustClass` takes **only a
+channel**, so grant state cannot enter the function that decides the class; `marlowe-permission`'s
+egress module imports no `TrustClass` at all; and `marlowe-exec/src/lib.rs:1674` stamps
+`UntrustedContent` on a fetch result without consulting the policy.
+
+**But nothing asserts it.** `egress_grant.rs` has two neighbouring tests and neither covers it —
+`a_second_fetch_of_the_same_host_asks_again_and_the_grant_is_never_recorded` tests *persistence*, and
+`after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs` tests **layer 1**
+keeping the parent clean, a different mechanism. The invariant holds because nothing wires the two
+together, **not because anything checks that nothing does.** The wrong version is *plausible* — *"the
+human was shown the host and approved it, therefore `UserAsserted`"* — which is the human's authority
+laundering the page's, and it would read as an ergonomics improvement in review. **Owed: a test named
+`approving_a_host_does_not_raise_the_trust_class_of_what_it_returns`, asserting the class with a
+grant in hand, plus a control that the grant genuinely happened.** And a sentence in ADR-032 on
+acceptance, where whoever proposes the helpful version will read it.
+
+### Also at close, and it is the only test evidence added after the entry below
+
+**`cargo test -p marlowe --test determinism_guard` — 3 passed, 0 failed** (`runs/m3-close/determinism.txt`).
+Run because the close had covered `marlowe-daemon` and `marlowe-loop` only, and **the workspace-level
+guard lives in `marlowe`'s test target**, so no `-p` command naming another crate can reach it. It
+matters specifically rather than generically: the id-collision fix reshaped `external_turn_id` to
+remove a timestamp *in order to satisfy this guard*, and until now **the guard had never been run
+against the change made for it** — a claim about a check, unverified. `memory_ids_are_not_built_from_timestamps`
+is green, and `assert_every_entry_still_exists` means a guarded path that moved fails by name.
+
+**The full workspace suite was NOT run this session.** The green claim covers `marlowe-daemon` (179),
+`marlowe-loop` (178) and `marlowe`'s guard (3). A per-crate tally is not a workspace tally, and that
+limit applies to this entry.
+
+---
+
 ## 2026-08-29 — M3 SESSION B2. `ingest` HAS NO CORRECT PRODUCTION CALLER, AND THAT IS THE BUILD ORDER
 
 Branch `m3-ingest-live`, rebased onto master. **Layer 3 is not live and this session did not make it
