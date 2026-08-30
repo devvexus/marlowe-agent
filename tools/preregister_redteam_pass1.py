@@ -212,24 +212,55 @@ def _arms_are_wired() -> tuple[bool, str]:
     src = ENGINE.read_text(encoding="utf-8", errors="replace")
     if "UpwardShape" not in src:
         return False, "`UpwardShape` does not appear in engine.rs at all: the arms are not built."
-    # The note match is the block that carries CONTRACT_UNMET's sibling constants. Find the
-    # function that contains it, and require the selector to be read inside the same function.
-    m = re.search(r"\n    fn (\w+)\([^\n]*\n(?:.*?\n)*?.*?child cannot escalate", src)
-    if not m:
+
+    # ── CORRECTED 2026-08-30, AND THE OLD FORM IS THE FAMILY IT EXISTS TO CATCH ────────────
+    #
+    # This was one `re.search` over `\n    fn (\w+)\(... child cannot escalate`. `re.search`
+    # returns the LEFTMOST match, and `(?:.*?\n)*?` spans any number of lines, so it matched the
+    # FIRST four-space `fn` in the file and reported that name. Measured: it reported
+    # `arm selector is read inside `emit``, and the span it then searched was engine.rs lines
+    # 370-3049 -- two thirds of the file. `UpwardShape` appearing ANYWHERE in that span passed a
+    # check whose sentence claims it appeared inside the function that owns the note match.
+    #
+    # The claim and the measurement were adjacent, the output was affirmative, and the name it
+    # printed was wrong -- CLAUDE.md's standing question answered "the same" by a check written to
+    # stop precisely that. It is STRENGTHENED here, never relaxed: the anchor is the LAST `fn`
+    # header that begins before the constant, which is by construction the function containing it.
+    anchor = src.find("child cannot escalate")
+    if anchor == -1:
         return False, (
             "the note match could not be located by its own harness constant — engine.rs has "
             "moved, and this check is a claim about a path (CLAUDE.md instance #14). Re-derive it "
             "rather than deleting it."
         )
-    start = m.start()
-    end = src.find("\n    fn ", m.end())
-    body = src[start : end if end != -1 else len(src)]
+    headers = list(re.finditer(r"\n    (?:pub )?(?:async )?fn (\w+)\(", src))
+    owning = [h for h in headers if h.start() < anchor]
+    if not owning:
+        return False, (
+            "no four-space `fn` header precedes the note match: engine.rs's shape has changed and "
+            "this check must be re-derived rather than deleted."
+        )
+    owner = owning[-1]
+    following = [h for h in headers if h.start() > owner.start()]
+    end = following[0].start() if following else len(src)
+    body = src[owner.start() : end]
+    name = owner.group(1)
     if "UpwardShape" not in body:
         return False, (
-            f"`UpwardShape` is not read inside `{m.group(1)}`, which owns the note match. An arm "
+            f"`UpwardShape` is not read inside `{name}`, which owns the note match. An arm "
             "selector read anywhere else varies a hop that carries nothing a child wrote."
         )
-    return True, f"arm selector is read inside `{m.group(1)}`, which owns the note match"
+    reads = body.count("self.upward_shape")
+    if reads == 0:
+        return False, (
+            f"`UpwardShape` is NAMED inside `{name}` but the engine's own selector field is never "
+            "read there. A type that is merely mentioned is a declaration, not an enforcement "
+            "(CLAUDE.md instance #16)."
+        )
+    return True, (
+        f"arm selector is read inside `{name}`, which owns the note match "
+        f"({reads} reads of `self.upward_shape` in its body)"
+    )
 
 
 def main() -> int:

@@ -36,6 +36,7 @@ pub mod record;
 pub mod run;
 pub mod steer;
 pub mod turn;
+pub mod upward;
 
 pub use budget::{Budget, BudgetShare, CallLimits, Dimension, MIN_CALL_TOKENS, MIN_CHILD_TOKENS};
 pub use context::{
@@ -64,3 +65,4 @@ pub use run::{
     OutputContract, PauseReason, Run, RunId, RunStatus, SessionId, DEFAULT_RESULT_MAX_CHARS,
 };
 pub use turn::{DegradedPath, ToolLineState, TurnEvent};
+pub use upward::{UnknownShape, UpwardShape, HEADLINE_FIELD, HEADLINE_MAX_CHARS};
