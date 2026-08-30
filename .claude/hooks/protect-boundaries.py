@@ -83,6 +83,37 @@ PROTECTED = {
         "widen this can hand a poisoned run a target it would otherwise refuse. The cap and the "
         "sanitiser here are the whole of that check"
     ),
+    # -- landed in M3 Session B3 (M3-D3) ----------------------------------------------------
+    "crates/marlowe-daemon/src/memory.rs": (
+        "where a belief that arrived from OUTSIDE acquires its trust class (brief 13, memory "
+        "provenance and trust-class propagation). `DaemonMemory::ingest_external` is the only "
+        "non-circular taint source in the product: `remember` writes at "
+        "`min(AgentInferred, run_floor)` and can never produce the FIRST untrusted belief, so "
+        "everything layer 3 latches on has to enter here. The class is derived from "
+        "`content.channel` by `trust_for_channel` and RETURNED, never supplied -- a caller that "
+        "could name the class would be the security boundary. This file also derives the belief "
+        "id from the channel's pinned wire spelling, so a change here moves identities as well "
+        "as classes. It has no caller today (ADR-062); guarding it before it gains one is the "
+        "point -- instance #14 is what a guard added after the fact costs"
+    ),
+    "crates/marlowe-loop/src/driver.rs": (
+        "THE LOOP'S WHOLE PORT SURFACE, and the brief 13 subject inside it is `MemoryHost` and "
+        "`ExternalContent` specifically -- memory provenance and trust-class propagation, pinned "
+        "at CONTRACTS.md 12.1. THE FILE IS WIDER THAN THE BOUNDARY: it also declares `ModelStep`, "
+        "`ToolHost`, `ToolBody`, `ClockSource`, `TurnSink`, `ApprovalGate` and a dozen more, and "
+        "most edits to it will be ordinary loop work rather than a boundary crossing. That is "
+        "said here on purpose. A banner that fires on everything says nothing at the moment it "
+        "matters (instance #15), so READ WHICH TYPE IS BEING CHANGED before approving: if it is "
+        "not the memory port, this prompt is noise and the honest answer is yes. The memory port "
+        "is the part that cannot be defended anywhere else -- `MemoryHost::remember` takes the "
+        "run's "
+        "latched floor as a REQUIRED parameter and `ingest_external` takes an origin and returns "
+        "the derived class: both are ADR-038's whole content, and both are enforced by the "
+        "SIGNATURE rather than by any check inside an implementation. Dropping `run_floor`, or "
+        "letting `ExternalContent` carry a `TrustClass` instead of a `Channel`, would open the "
+        "laundering path in a way no implementation test could see -- every host would still "
+        "pass its own tests"
+    ),
     "crates/marlowe-loop/src/provenance.rs": (
         "argument provenance (brief §13, the permission layer). ADR-023: the harness computes "
         "taint from the context window, and a model that could label its own arguments "
@@ -127,6 +158,29 @@ def reason_for(path: str) -> str | None:
         if fragment in rooted:
             return why
     return None
+
+
+def list_protected() -> int:
+    """Print every guarded entry, one per line, sorted. Read by `boundary_hook.rs`.
+
+    **This exists because `--self-check` cannot see itself shrink.** It iterates `PROTECTED`, so
+    an entry that has been DELETED is trivially satisfied: the row is gone, nothing names a
+    missing file, the check exits 0 and both tests in `boundary_hook.rs` stay green while the
+    component is silently unguarded. That is instance #14 one step earlier — #14 is a guard whose
+    SUBJECT moved, this is a guard that was REMOVED — and it was measured, not argued: deleting
+    the `crates/marlowe-loop/src/driver.rs` row turned nothing red.
+
+    A self-referential list cannot detect its own deletions, so the expectation has to live
+    outside it. `boundary_hook.rs` pins the set and compares against this output.
+
+    **The module doc of that test says two copies of a list is how they disagree, and that is
+    still true — it is now the mechanism rather than the objection.** A drift between the two
+    copies fails the build and asks a human, which is exactly the decision the §13 boundary
+    exists to require. What must never happen is a row leaving with nothing to say so.
+    """
+    for entry in sorted(list(PROTECTED) + list(PROTECTED_DIRS)):
+        print(entry)
+    return 0
 
 
 def self_check(repo_root: str) -> int:
@@ -187,6 +241,11 @@ def main() -> int:
             print("--self-check needs a repo root", file=sys.stderr)
             return 2
         return self_check(sys.argv[2])
+
+    # Gated on the flag for the same reason as above: a mistyped enumeration must not fall
+    # through to the stdin branch and return 0, which would read as "the set is empty".
+    if len(sys.argv) >= 2 and sys.argv[1] == "--list-protected":
+        return list_protected()
 
     try:
         payload = json.load(sys.stdin)

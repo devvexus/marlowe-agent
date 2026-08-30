@@ -82,3 +82,99 @@ fn the_hook_actually_fires_on_a_guarded_path() {
         "the hook must ask for a decision on a guarded path, got: {stdout}"
     );
 }
+
+/// The set itself is pinned here, because `--self-check` cannot see the list shrink.
+///
+/// **This is the gap a mutation pass measured on 2026-08-29, and the measurement is the reason
+/// the test exists.** Deleting the `crates/marlowe-loop/src/driver.rs` row from the hook's
+/// `PROTECTED` dict turned NOTHING red: `--self-check` exited 0, both tests above passed, and a
+/// stdin probe on that path returned empty stdout while a same-shape probe on a still-listed path
+/// returned `"permissionDecision": "ask"` in the same command — so the silence was the deletion,
+/// not the probe. `self_check` iterates `for suffix in PROTECTED`, so a row that is no longer in
+/// the dict is trivially satisfied.
+///
+/// It is instance #14 one step earlier. #14 is a guard whose SUBJECT moved — `scope.rs` becoming
+/// `scope/mod.rs` — and the fix for that is `--self-check`. This is a guard that was REMOVED, and
+/// no check that reads the list can catch it, because the evidence is the row's absence.
+///
+/// **The module doc above says two copies of a protected-path list is how they disagree. That is
+/// still true and it is now the mechanism rather than the objection.** A disagreement here fails
+/// the build and asks a human to say which copy is right — which is the decision the §13 boundary
+/// exists to require. The failure the pin prevents is a row leaving with nothing to say so.
+///
+/// The two directions are NOT the same event and the assertion reports them separately:
+/// an ADDED row is monotonic and safe (the hook returns `ask`, so more rows means the agent asks
+/// more often) and only needs recording here so the deletion check keeps covering it; a REMOVED
+/// row is a component silently unguarded, which is the failure being guarded against.
+const EXPECTED_PROTECTED: &[&str] = &[
+    "/marlowe-permission/src/scope/",
+    "/persona/",
+    "crates/marlowe-daemon/src/mcp.rs",
+    "crates/marlowe-daemon/src/memory.rs",
+    "crates/marlowe-journal/src/journal.rs",
+    "crates/marlowe-journal/src/signature.rs",
+    "crates/marlowe-loop/src/driver.rs",
+    "crates/marlowe-loop/src/profile.rs",
+    "crates/marlowe-loop/src/provenance.rs",
+    "crates/marlowe-loop/src/steer.rs",
+    "crates/marlowe-memory/src/trust.rs",
+    "crates/marlowe-permission/src/adjudicate.rs",
+    "crates/marlowe-permission/src/egress.rs",
+    "crates/marlowe-permission/src/taint.rs",
+    "crates/marlowe-tools/src/pin.rs",
+];
+
+#[test]
+fn no_guarded_path_leaves_the_boundary_hook_unnoticed() {
+    let root = repo_root();
+    let hook = root.join(".claude").join("hooks").join("protect-boundaries.py");
+
+    let out = Command::new("python")
+        .arg(&hook)
+        .arg("--list-protected")
+        .output()
+        .or_else(|_| Command::new("python3").arg(&hook).arg("--list-protected").output())
+        .expect("python is needed to enumerate the boundary hook's protected set");
+    assert!(
+        out.status.success(),
+        "the hook could not enumerate its protected set: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let actual: Vec<&str> = stdout.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+
+    // A non-empty result is asserted before the comparison. `--list-protected` on a hook whose
+    // dicts were emptied would print nothing and exit 0, and an empty-vs-empty comparison is the
+    // vacuous pass this whole test is aimed at — the pin has to fail loudly on that, not agree
+    // with it.
+    assert!(
+        !actual.is_empty(),
+        "the hook enumerated ZERO protected entries. Either both dicts are empty — every §13 \
+         component unguarded — or `--list-protected` has stopped reading them."
+    );
+
+    let removed: Vec<&str> =
+        EXPECTED_PROTECTED.iter().copied().filter(|e| !actual.contains(e)).collect();
+    let added: Vec<&str> =
+        actual.iter().copied().filter(|a| !EXPECTED_PROTECTED.contains(a)).collect();
+
+    assert!(
+        removed.is_empty(),
+        "A §13 GUARD WAS REMOVED FROM THE HOOK AND NOTHING ELSE WOULD REPORT IT.\n\
+         These paths are no longer in `PROTECTED`/`PROTECTED_DIRS`, so edits to them raise no \
+         boundary prompt: {removed:?}\n\
+         `--self-check` cannot see this — it iterates the list, so a deleted row is trivially \
+         satisfied. If the removal is INTENDED it needs a DECISIONS.md entry and a human's \
+         approval, exactly as any other change to safety machinery does; then update \
+         EXPECTED_PROTECTED in this file."
+    );
+    assert!(
+        added.is_empty(),
+        "New guarded paths are in the hook but not pinned here: {added:?}\n\
+         Adding a guard is safe and monotonic — the hook returns `ask`, so more rows means the \
+         agent asks MORE often. This is not a complaint about the addition. Add the paths to \
+         EXPECTED_PROTECTED so a later DELETION of them fails by name too; until then they carry \
+         the same blind spot this test was written to close."
+    );
+}
