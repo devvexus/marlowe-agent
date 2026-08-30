@@ -66,9 +66,21 @@ remove a timestamp *in order to satisfy this guard*, and until now **the guard h
 against the change made for it** — a claim about a check, unverified. `memory_ids_are_not_built_from_timestamps`
 is green, and `assert_every_entry_still_exists` means a guarded path that moved fails by name.
 
-**The full workspace suite was NOT run this session.** The green claim covers `marlowe-daemon` (179),
-`marlowe-loop` (178) and `marlowe`'s guard (3). A per-crate tally is not a workspace tally, and that
-limit applies to this entry.
+### The full workspace suite — RUN, and green
+
+**`cargo test --workspace --jobs 4 --no-fail-fast`, `MARLOWE_CUDA_LIB_DIR` set: 1,654 passed,
+0 failed, 5 ignored across 141 `test result` lines** (`runs/m3-close/suite.txt`). Up from 1,630/138
+at B2's start; the delta is this session's new identity and probe tests. Tallied by summing the
+file's result lines, not read off the tail — one `FAILED` among 141 is invisible in the last twenty,
+which is why CLAUDE.md says to tally the file.
+
+> **The shell reported this run as a failure and it was not one.** The command ended
+> `...; grep -c "FAILED" suite.txt`, and `grep -c` **exits 1 when it finds zero matches** — so the
+> check for failures failed *by finding none*, and the harness surfaced `exited with code 1`.
+> `cargo`'s own status was `EXIT=0`, printed earlier in the same output and easy to scroll past.
+> Nothing was broken. It is the ledger's shape at its smallest — **a reading produced by something
+> adjacent to what was being asked** — and it is recorded because the next person to write a
+> one-liner tally will reach for exactly that idiom. Put the `grep` first, or end on `echo done`.
 
 ---
 
