@@ -142,10 +142,29 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    2026-08-27, so **no prompt has been observed on the current binary**, and the re-check is one `web`
    call in the TUI plus the last `permission_decided` row.
 
-   **"Held for the session" is the part that is NOT built, and its absence is security-positive.**
-   `EgressPolicy::grant()` has no production call site and `CapabilityProfile` exposes no `&mut`
-   accessor, so every fetch re-asks — stronger than ADR-032 §3.1, and a live hazard the day someone
-   wires it, because the widening path would activate untested.
+   **"Held for the run" is BUILT as of 2026-08-29, and this paragraph used to say it was not.** The
+   old text called the absence *"security-positive… a live hazard the day someone wires it, because
+   the widening path would activate untested."* The hazard was real and it is the one that got
+   answered: `EgressPolicy::grant` had no production caller, so an approved host was re-asked about on
+   every fetch — **ADR-032 §3.1's own third bullet, unimplemented under an ADR that had just been
+   accepted.** It is wired now through `CapabilityProfile::grant_egress_host`, the **only** mutable
+   method on that type, and the widening path landed **with** its mutation tests rather than after
+   them: removing the call turns `an_approved_host_is_not_asked_about_again_and_a_different_host_still_is`
+   red, and ignoring the declared policy turns `a_deny_all_run_cannot_be_widened_by_an_approval` red.
+
+   **Why the granted set lives on the profile and not on the `Run`, because the obvious choice is the
+   wrong one.** `CapabilityProfile::new` enforces `reads_untrusted ⟹ DenyAll`, and `EgressPolicy::grant`
+   is a no-op on every variant but `AllowApproved` — so the widening is *incapable* of violating that
+   invariant. Put the granted set beside the policy on the `Run` and consult it there, and the
+   invariant is bypassed rather than enforced: **the profile would still read `DenyAll` while the run
+   reached the network, and every quarantine test would stay green.**
+
+   **Scope, precisely: a run, not a session.** `Daemon::ask_streaming_with` builds a fresh `Run::root`
+   with a fresh profile per user message, so the grant covers every fetch inside **one turn** and the
+   human is asked again on the next. That is §3.1's normative sentence and no more; its looser word
+   *"session-scoped"* is flagged in the ADR rather than quietly resolved, because widening it is the
+   same question `SECURITY-AUDIT.md` §8 raises about ADR-023's latch — *"the latch belongs on the
+   session, not the Run"* — and **both are the human's to decide.**
 
    **The hole is `bash`.** The adjudicator's egress check iterates parameters typed `Url`; `bash`
    declares none, so **no `EgressPolicy` is consulted on that path at all** — ADR-049 §4, measured:
