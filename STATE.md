@@ -1,6 +1,93 @@
 ﻿# State
 
 
+## 2026-08-30 — THE MODEL-DRIVER SEAM, AND THE PUSH THAT NOTHING COULD REACH
+
+**One parameter on one function, and the line it exposes is the only production line the whole of
+layer 3 runs through.** `Daemon::turn` built its `Box<dyn ModelDriver>` internally (declared at
+`daemon.rs:1992` before this change, three provider arms, handed to `Ports` at `:2738`) and neither
+public door took one. So **nothing in the workspace could drive a real daemon turn with a scripted
+model**, and the consequence was measured rather than argued: `turn`'s injected-memory push had
+**zero** coverage — stamping it `UserAsserted` or guarding it `if false &&` left the whole
+`marlowe-daemon` crate green, twice (`runs/m3-mutation/finding1*.txt`).
+
+**The barrier was never assertion strength.** Provider selection `return`s early when
+`Availability::probe` reports no model, so nothing in-process reached the push at all.
+
+### What was built
+
+| File | Change |
+|---|---|
+| `marlowe-daemon/src/daemon.rs` | `enum DriverSource<'a> { Configured, Supplied(&mut dyn ModelDriver) }` — a parameter of `turn`, consumed **before** provider selection |
+| same | `enum TurnDriver<'a> { Provider(Selected), Supplied(..) }` — the same two cases *after* selection has run |
+| same | `pub fn ask_streaming_with_driver(session, message, driver, approvals, on_event)` |
+| `marlowe-daemon/tests/the_daemon_injects_a_retrieved_belief_at_its_own_class.rs` | the probe, its control, and the seam's own control |
+
+**`marlowe-loop/src/driver.rs` is untouched** — it is §13-guarded, `ModelDriver` is already the
+port, and ADR-060 deliberately leaves it out of `CONTRACTS.md`, so this is crate work and not a
+contract act. **One assembly path, not two**: `resume_streaming`'s rule holds, and everything after
+the driver is chosen is byte-identical between the two variants.
+
+**Two enums rather than an `Option<Selected>` beside a `DriverSource`.** The one-enum version needs
+an `unreachable!()` for the `(Configured, None)` corner — the invariant kept in a comment. Two make
+the state unrepresentable, and a third variant on `DriverSource` would let an external caller hand
+`turn` a provider that never passed the availability probe.
+
+### What the test measures, and what it does not fake
+
+A real `Daemon::open` over a real profile, the pinned cross-encoder loaded, three back-dated
+`Channel::Web` beliefs, a **real** `retrieve` at the declared operating point, `daemon.rs`'s own
+push, a real adjudication of a composed `write` — refused, with nothing on disk. **All five
+injection gates are stepped over rather than bypassed**: maturation is asserted to hold at the write
+and to have lifted at the turn; three beliefs so a rank 2 exists; margin **6.229** against the
+declared **1.165071**. Where `models/` is absent the test **skips loudly**; it never passes.
+
+**The control is a one-variable channel swap, not an empty store.** The same three facts from
+`Channel::Terminal`: memory is still injected, and the identical composed `write` **executes**. An
+empty-store control would go green under both mutations and could not separate *"the class blocked
+it"* from *"any injected memory blocks a target"*.
+
+### Mutation results — whole-crate runs, tallied from files in `runs/m3-c/`
+
+Baseline **22 `test result` lines, 184 passed, 0 failed, 0 ignored**.
+
+| Mutation | Log | Result |
+|---|---|---|
+| the push stamped `TrustClass::UserAsserted` | `mut-floor-laundered.txt` | **RED** 183/1 — `left: [("running","0 ms"),("ok","+1 −0")]`, `right: [("failed","blocked")]`. Control green |
+| the push guarded `if false &&` | `mut-push-deleted.txt` | **RED** 182/2 — probe and control both, at *"the belief's bytes must be in the model's FIRST view"* |
+| the seam moved to after provider selection | `mut-seam-after-selection.txt` | **RED** 183/1 — `views.len()` `left: 0, right: 1` |
+
+**The third row is the one to read twice.** Under it the probe and the control both stayed **green**,
+because they run on the default model and Ollama was serving it — so those two are *not* evidence
+about where the seam enters. The only discriminator is the control that names a model nobody has.
+
+### The guard a per-crate run cannot see, caught live
+
+The first draft read wall time with `std::time::SystemTime::now()`.
+`marlowe/tests/determinism_guard.rs::the_only_real_clock_read_is_the_latency_fence` refused it **by
+file and line** (`runs/m3-c/determinism-guard.txt`) while `-p marlowe-daemon` was green — CLAUDE.md's
+own §"the per-crate habit hid a guard for two sessions", live, in the same session that read it. It
+now reads `marlowe_daemon::clock::SystemClock` through the fence, which is also the stronger shape:
+the test's *now* is by construction the clock the turn will read.
+
+### What is still open
+
+* **`ingest_external` still has no production caller.** `grep -rn "ingest_external(" --include=*.rs
+  crates/*/src/ | grep -v "fn ingest_external"` is empty, so the shipped daemon still cannot enter
+  the tainted state and CLAUDE.md's layer-3 conclusion is unchanged. The beliefs in the test are
+  planted through the real write path by the test.
+* **The turn boundary is still unmeasured.** `Daemon::turn` rebuilds `Run::root` per user message;
+  the third of the layer-3 probe's blockers stands, and nothing yet asserts the latch survives a
+  turn.
+* **`Daemon::resume_streaming` cannot take a driver.** It passes `DriverSource::Configured`, so a
+  resumed turn is still undrivable by a script. Adding it is one more argument, deliberately not
+  done here because nothing needs it yet and an unused parameter is a control nobody reads.
+* **On this machine the cross-encoder resolved to `CUDAExecutionProvider · batched`**, not CPU. The
+  provider is *printed*, never asserted — `RerankChoice::Auto` resolves against free VRAM at load,
+  and pinning either would fail on a busy card for a reason unrelated to the push.
+
+---
+
 ## 2026-08-30 — TWO NUMBERS ON SCREEN WERE WRONG, BOTH REPORTED BY EYE, NEITHER CAUGHT BY A TEST
 
 **Both found by the human looking at the band, and both had zero test coverage before today.** They

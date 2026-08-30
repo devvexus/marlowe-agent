@@ -75,8 +75,8 @@
 //! | `condense_batch`'s note pushed at `UntrustedContent` | `mut7-note-untrusted.txt` | probe 2 **RED** at "the PARENT's floor must not have moved" |
 //! | the condense routing disabled | `mut8-no-routing.txt` | probe 2 **RED** at `quarantined_reader_calls() == 1` (`left: 0, right: 1`) |
 //! | `MemoryEntry::is_matured` returns `true` | `mut9-matured.txt` | probe 1 **RED** at its maturation precondition |
-//! | `daemon.rs`'s injected-memory push stamped `UserAsserted` | `finding1-floor-laundered.txt` | **NOTHING RED.** 21 `test result` lines, zero failures |
-//! | `daemon.rs`'s injected-memory push guarded with `if false &&` | `finding1b-push-deleted.txt` | **NOTHING RED** |
+//! | `daemon.rs`'s injected-memory push stamped `UserAsserted` | `finding1-floor-laundered.txt` | **NOTHING RED.** 21 `test result` lines, zero failures — **and RED as of 2026-08-30, see below** |
+//! | `daemon.rs`'s injected-memory push guarded with `if false &&` | `finding1b-push-deleted.txt` | **NOTHING RED** — **and RED as of 2026-08-30** |
 //! | `RecordingMemory`'s stub constant changed | `finding3-double.txt` | **NOTHING RED**, which is the intended state |
 //!
 //! **The §13-guarded mutations WERE run and reverted** (`adjudicate.rs`, `trust.rs`), and
@@ -112,12 +112,24 @@
 //! from workers, so the liaison that should own the write cannot yet perform it. Both `Ports`
 //! constructions in `engine.rs` hardcode `memory: None`.
 //!
-//! They are also not evidence about: `Daemon::turn`'s push of a retrieved block (no test in the
-//! workspace reaches `daemon.rs:2629-2635` — mutate it and nothing goes red, which is a finding,
-//! not a gap this file closes); the model driver seam (`Daemon::turn` constructs its driver
-//! internally, so no scripted turn can be driven through the daemon at all); retrieval selection;
-//! or anything across a **turn boundary** — a `Run::root` is rebuilt per turn and this file drives
-//! one run.
+//! They are also not evidence about: `Daemon::turn`'s push of a retrieved block; the model driver
+//! seam; retrieval selection; or anything across a **turn boundary** — a `Run::root` is rebuilt per
+//! turn and this file drives one run.
+//!
+//! **THE FIRST THREE OF THOSE FOUR ARE NOW COVERED ELSEWHERE, AND THE PARAGRAPH ABOVE USED TO
+//! ASSERT THEY COULD NOT BE (amended 2026-08-30).** It read *"no test in the workspace reaches
+//! `daemon.rs:2629-2635` — mutate it and nothing goes red"* and *"`Daemon::turn` constructs its
+//! driver internally, so no scripted turn can be driven through the daemon at all"*. Both were true
+//! when written and both are false now: `Daemon::ask_streaming_with_driver` supplies the driver
+//! **before** provider selection, and
+//! `the_daemon_injects_a_retrieved_belief_at_its_own_class.rs` drives a real `Daemon::turn` over a
+//! real `retrieve` with the pinned cross-encoder loaded — the push is mutation-covered in both
+//! directions (`runs/m3-c/mut-floor-laundered.txt`, `mut-push-deleted.txt`).
+//!
+//! **What is still true of THIS file is the substitution named at the top**: it performs the push
+//! itself and does not call `retrieve`. That is unchanged and deliberate — this file runs where
+//! `models/` is absent, and the other one skips loudly there. The two are complementary, and the
+//! fourth item, the turn boundary, is open in both.
 
 use std::collections::VecDeque;
 use std::fs;

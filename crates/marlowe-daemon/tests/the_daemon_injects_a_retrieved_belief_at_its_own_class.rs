@@ -70,11 +70,23 @@
 //!
 //! # Mutation results — checked, not argued (`runs/m3-c/`)
 //!
-//! | Mutation | Log | Result |
+//! Every row is a whole-crate run, `cargo test -p marlowe-daemon --jobs 4 --no-fail-fast`, tallied
+//! from the file. **Baseline: 22 `test result` lines, 184 passed, 0 failed, 0 ignored**
+//! (`daemon-suite-baseline.txt`). Each mutation was applied to the committed tree and reverted
+//! immediately after.
+//!
+//! | Mutation to `daemon.rs` | Log | Result |
 //! |---|---|---|
-//! | `daemon.rs`'s push stamped `TrustClass::UserAsserted` instead of `retrieved.floor` | `mut-floor-laundered.txt` | **RED** — the probe fails at its `write` row; the control stays green |
-//! | `daemon.rs`'s push guarded with `if false &&` | `mut-push-deleted.txt` | **RED** — the probe AND the control fail at "the belief's bytes must be in the window" |
-//! | the seam moved to *after* provider selection | `mut-seam-after-selection.txt` | **RED** — the seam control fails at `views.len()` |
+//! | the push stamped `TrustClass::UserAsserted` instead of `retrieved.floor` | `mut-floor-laundered.txt` | **RED**, 183/1. The probe fails at its `write` row — `left: [("running", "0 ms"), ("ok", "+1 −0")]`, `right: [("failed", "blocked")]`. **The control stays green**, which is what makes the row mean "the class", not "something changed" |
+//! | the push guarded with `if false &&` | `mut-push-deleted.txt` | **RED**, 182/2. The probe AND the control fail, both at *"the belief's bytes must be in the model's FIRST view"* |
+//! | the seam moved to *after* provider selection | `mut-seam-after-selection.txt` | **RED**, 183/1. The seam control fails at `views.len()`: `left: 0, right: 1` |
+//!
+//! **The third row is worth reading twice.** Under it the probe and the control both stayed
+//! **green** — because they run on the default model, Ollama was serving it on this machine, and
+//! selection therefore succeeded before the supplied driver was used. So the two probes above are
+//! *not* evidence that the seam enters early; they would pass with the seam anywhere in the
+//! function, on a machine with a model installed. The only test that discriminates is the one that
+//! names a model nobody has, and that is exactly why it names one.
 //!
 //! # What this file is still NOT evidence about
 //!

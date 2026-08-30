@@ -103,16 +103,32 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    A live probe, not a unit test, is what closes it — ingest one `Channel::Web` belief into a real
    profile, retrieve it, and assert on a refused composed target **across two turns**. (Never on
    `TrustFloorLatched`: instance #15 below is that event, and it fires on every run that has ever
-   run. Ask `marlowe_permission::blocks_composed_targets`.) **That probe still cannot be written,
-   and that IS the finding, now recorded:**
+   run. Ask `marlowe_permission::blocks_composed_targets`.)
    `crates/marlowe-daemon/tests/layer3_refuses_a_composed_target_from_an_ingested_belief.rs` goes as
    far as it honestly can — a real `ingest`, a real store, a real maturation window, a real
-   adjudication, refused — and its header names the three blockers: `Daemon::turn` builds its model
-   driver internally with no seam, `retrieve` abstains on `NoReranker` with no cross-encoder loaded,
-   and a turn boundary rebuilds `Run::root`. It substitutes `daemon.rs`'s injected-memory push with
-   its own, **and that production line has zero coverage** — laundered to `UserAsserted` or deleted
-   outright, the whole daemon crate stays green (`runs/m3-mutation/finding1*.txt`). Cover it before
-   `ingest` gets a caller.
+   adjudication, refused — and it substitutes `daemon.rs`'s injected-memory push with its own.
+
+   **TWO OF ITS THREE BLOCKERS ARE GONE, AND THE COVERAGE GAP IS CLOSED (2026-08-30).** This
+   paragraph read *"that probe still cannot be written, and that IS the finding"*, and named
+   `Daemon::turn` building its model driver internally with no seam, `retrieve` abstaining on
+   `NoReranker`, and a turn boundary rebuilding `Run::root`. The first is built:
+   `Daemon::ask_streaming_with_driver` supplies a `ModelDriver` **before** provider selection, so
+   the availability probe's early `return` no longer stands between a test and the loop. The second
+   is not a code change at all — the pinned cross-encoder is present in this checkout, so a **real**
+   `retrieve` selects at the declared operating point (margin 6.229 against 1.165071) and a test
+   that runs where `models/` is absent **skips loudly** rather than faking one.
+   `crates/marlowe-daemon/tests/the_daemon_injects_a_retrieved_belief_at_its_own_class.rs` drives a
+   real `Daemon::turn` end to end on that basis. **The sentence "that production line has zero
+   coverage" is now false**: laundering the push to `UserAsserted` and guarding it with `if false &&`
+   each turn a named test RED (`runs/m3-c/mut-floor-laundered.txt`, `mut-push-deleted.txt`), against
+   a baseline of 22 `test result` lines and 184 passed. **The third blocker stands** — a `Run::root`
+   is still rebuilt per turn, so nothing yet measures the latch across a turn boundary.
+
+   **None of that changes the conclusion above.** `ingest_external` still has no production caller,
+   so the shipped daemon still cannot enter the tainted state; the beliefs in that test are planted
+   by the test through the real write path. What has changed is only that the line the latch will
+   run through **when** it becomes reachable is now covered, which is the order this paragraph asked
+   for. The rule is unchanged: **fix the two — done — cover the push — done — then STOP.**
 2. **Trust class propagation.** Every belief carries its origin, and trust propagates **worst-case
    over full lineage**. Four LLM rewrites later, a web page is still `UntrustedContent`. This is what
    stops laundering. Brief §5.6 and §8; `trust.rs`; M0b Session A — 16 checked, 0 failed,
