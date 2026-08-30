@@ -1,6 +1,13 @@
 # ADR-032 — Egress is approved per host by a human, and that is only legitimate if the prompt shows the host
 
-**Status:** PROPOSED — needs the human's approval (brief §13: the permission layer, and egress rules)
+**Status:** **ACCEPTED 2026-08-29 by the human**, nineteen days after §3.1 and §3.2 shipped
+**Accepted late, and the gap is recorded rather than tidied away:** the decision was implemented in
+M2 C2f and the status line was never moved, so §13 machinery ran in the product under an ADR nobody
+had accepted. That is instance #16's shape aimed at a status line — a declared control (`PROPOSED`)
+that nothing reads, while the thing it gates ships anyway. **§5's *"there is no interactive approval
+surface in the daemon yet"* was already stale when written into the record**: `SocketApprovals` is
+wired at `daemon.rs:3182`, and the profile's own signed journal shows **37 `web` approval decisions
+since 2026-08-10, all `needs_approval`, 29 granted and 8 denied, none silently allowed.**
 **Depends on:** ADR-031 (TLS)
 **Revisits, as required:** ADR-002's `web` Inert exemption
 **Touches §13-guarded files:** `marlowe-loop/src/profile.rs`, `marlowe-permission/src/adjudicate.rs`
