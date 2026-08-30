@@ -137,6 +137,73 @@ enum Selected {
     LlamaCpp(LocalEndpoint, String, marlowe_provider::llamacpp::SamplingSource),
 }
 
+/// **Where this turn's model gets its answers from — the ONE seam, and it is a parameter of the
+/// ONE turn.**
+///
+/// # The finding this exists to close
+///
+/// `Daemon::turn` built its `Box<dyn ModelDriver>` internally and neither public door took one, so
+/// **nothing in the workspace could drive a real daemon turn with a scripted model.** The measured
+/// consequence was that `turn`'s injected-memory push — `state.push(Block::new(InjectedMemory,
+/// retrieved.text, retrieved.floor))`, the only production line the whole of layer 3 runs through —
+/// had **zero** coverage: laundering its class to `UserAsserted`, and guarding it with `if false
+/// &&`, each left the entire `marlowe-daemon` crate green (`runs/m3-mutation/finding1*.txt`).
+///
+/// The barrier was never assertion strength. Provider selection `return`s early when
+/// `Availability::probe` reports no model, so on a machine with no Ollama running nothing in
+/// process reached the push at all. [`Self::Supplied`] therefore enters `turn` **before** provider
+/// selection and skips it entirely, rather than substituting a driver after it.
+///
+/// # What this is NOT
+///
+/// It is not a second turn path. `resume_streaming`'s own doc comment states the rule: *"a separate
+/// resume path would be a second place where the profile, the governance tier, the tool host and
+/// the trust floor are assembled, and the two would drift. The one that drifted would be the one
+/// nobody runs interactively."* The same argument applies with more force here, because a scripted
+/// turn exists precisely to measure that assembly. So this is one parameter threaded through the
+/// one `turn`, and **everything after the driver is chosen is byte-identical between the two
+/// variants**: the same profile, the same registry, the same tool host, the same retrieval, the
+/// same push, the same adjudicator.
+///
+/// # Why an enum and not the alternatives
+///
+/// * **`Option<&mut dyn ModelDriver>`** was the obvious shape and is rejected on the call site:
+///   `turn` already takes `Option<Checkpoint>`, so every configured call would read
+///   `self.turn(session, message, None, None, approvals, on_event)` — two adjacent `None`s of
+///   different meanings, which is a transposition waiting to happen and reads as *absence* where
+///   the fact is *choice*. `DriverSource::Configured` says which one it is.
+/// * **A factory (`&mut dyn FnMut(...) -> Box<dyn ModelDriver>`)** would let a caller build a
+///   driver per turn, which nothing needs, and it hands the seam a closure that could consult the
+///   config — a second place where "which provider serves" is decided. `model_provider()` is the
+///   one function that decides that (see the selection block), and a factory would quietly make it
+///   two.
+/// * **A `ModelDriver` field on `Daemon`** would make the substitution outlive a turn and would
+///   have to be `Option`, so the product path would carry a branch on a field that is `None` in
+///   every shipped run — a control the product declares and never reads, which is instance #16.
+enum DriverSource<'a> {
+    /// Select a provider from the config and build the driver, exactly as the product does. Every
+    /// shipped path — `ask`, `ask_streaming`, `ask_streaming_with`, `resume_streaming` — passes
+    /// this, and the block it reaches is unchanged.
+    Configured,
+    /// Drive the turn with this driver and **do not select a provider at all**.
+    Supplied(&'a mut dyn marlowe_loop::ModelDriver),
+}
+
+/// [`DriverSource`] once provider selection has run: the configured case now carries the provider
+/// it resolved to.
+///
+/// **A second type rather than a third variant, because a third variant would be constructible by
+/// a caller.** `Configured`-before-selection and `Provider(_)`-after-selection are different
+/// states, and folding them into one enum would let an external caller hand `turn` a pre-selected
+/// provider — a way into the driver-construction block that never passed the availability probe.
+/// Two small types make the impossible state unrepresentable instead of merely unreached; the
+/// alternative, an `Option<Selected>` beside a `DriverSource` with an `unreachable!()` for the
+/// `(Configured, None)` corner, keeps the invariant in a comment.
+enum TurnDriver<'a> {
+    Provider(Selected),
+    Supplied(&'a mut dyn marlowe_loop::ModelDriver),
+}
+
 pub struct DaemonConfig {
     pub profile_root: PathBuf,
     pub workspace: PathBuf,
@@ -1686,7 +1753,31 @@ impl Daemon {
         approvals: &mut dyn ApprovalGate,
         on_event: impl FnMut(Event),
     ) {
-        self.turn(session, message, None, approvals, on_event)
+        self.turn(session, message, None, DriverSource::Configured, approvals, on_event)
+    }
+
+    /// As [`Self::ask_streaming_with`], with the **model driver** supplied by the caller.
+    ///
+    /// **This is the seam, and it exists so that a real daemon turn can be measured.** See
+    /// [`DriverSource`] for what it is not: it is one parameter on the one `turn`, not a second
+    /// assembly path. Provider selection does not run — that is the point, because it `return`s
+    /// early on a machine with no model, which is what put `turn`'s injected-memory push beyond
+    /// the reach of every test in the workspace.
+    ///
+    /// Everything else is the shipped turn: the profile is `interactive_with` the MCP fleet's
+    /// tools, the tool host is `build_tool_host`, retrieval runs against the real `DaemonMemory`,
+    /// the push carries `retrieved.floor`, and the adjudicator is the real one. A caller who wants
+    /// the product's own behaviour calls [`Self::ask_streaming_with`] and gets exactly what it
+    /// always did.
+    pub fn ask_streaming_with_driver(
+        &mut self,
+        session: &str,
+        message: &str,
+        driver: &mut dyn marlowe_loop::ModelDriver,
+        approvals: &mut dyn ApprovalGate,
+        on_event: impl FnMut(Event),
+    ) {
+        self.turn(session, message, None, DriverSource::Supplied(driver), approvals, on_event)
     }
 
     /// Continue a run from its last durable checkpoint. **The other end of `RunControl::resume`.**
@@ -1724,14 +1815,17 @@ impl Daemon {
         // There is no reverse map, so the resumed run keeps its own session and the store is
         // keyed by the id -- which is what the loop reads anyway.
         let session = cp.session.to_string();
-        self.turn(&session, "", Some(cp), approvals, on_event)
+        self.turn(&session, "", Some(cp), DriverSource::Configured, approvals, on_event)
     }
 
+    /// The one turn. **Every public door arrives here**, and the only thing that varies between
+    /// them is the three parameters: a message or a checkpoint, and where the driver comes from.
     fn turn(
         &mut self,
         session: &str,
         message: &str,
         resumed: Option<marlowe_loop::Checkpoint>,
+        driver_source: DriverSource<'_>,
         approvals: &mut dyn ApprovalGate,
         mut on_event: impl FnMut(Event),
     ) {
@@ -1774,7 +1868,22 @@ impl Daemon {
         // **Neither arm falls back to the other.** A hosted run that quietly became a local one
         // would report a frontier model's name over a 9B's answers, which for a benchmark is
         // worse than not running at all.
-        let selected = match self.config.model_provider() {
+        //
+        // ── AND THE WHOLE BLOCK IS SKIPPED WHEN THE CALLER SUPPLIED A DRIVER ──────────────
+        //
+        // **Skipped, not overridden after the fact, and the difference is the entire seam.** Each
+        // arm below `return`s on an unready provider — no `ollama serve`, no API key, no
+        // `llama-server` — so substituting a driver *after* selection would leave a scripted turn
+        // dependent on a live model being installed, which is exactly the condition that put
+        // `turn`'s injected-memory push out of reach of every test in the workspace. Entering here
+        // is what makes the seam mean anything.
+        //
+        // The `Configured` arm is byte-for-byte what it was; `tests/provider_switching.rs` and
+        // `tests/llamacpp_is_opt_in.rs` assert its selection and its degradation events, and both
+        // are untouched by this change.
+        let selected: TurnDriver<'_> = match driver_source {
+            DriverSource::Supplied(d) => TurnDriver::Supplied(d),
+            DriverSource::Configured => TurnDriver::Provider(match self.config.model_provider() {
             ModelProviderChoice::Ollama => {
                 let endpoint = LocalEndpoint::default_ollama();
                 let routing = match Routing::uniform(&self.config.model) {
@@ -1948,6 +2057,7 @@ impl Daemon {
                     }
                 }
             }
+            }),
         };
 
         let registry = match tool_registry(&self.mcp) {
@@ -1989,7 +2099,18 @@ impl Daemon {
         let attribution_cell = std::sync::Arc::new(std::sync::Mutex::new(
             marlowe_openrouter::RunAttribution::default(),
         ));
-        let mut driver: Box<dyn marlowe_loop::ModelDriver> = match selected {
+        // **The owner, so the built driver outlives the borrow handed to `Ports`.** `Option::insert`
+        // returns a `&mut` into the slot it just filled, which is what lets both arms below produce
+        // the same `&mut dyn ModelDriver` with no `unwrap` and no second `Box` on the supplied path.
+        // It is dropped explicitly further down — see the `drop` beside the attribution read, which
+        // is why this is a named local and not a temporary.
+        let mut configured_driver: Option<Box<dyn marlowe_loop::ModelDriver>> = None;
+        let driver: &mut dyn marlowe_loop::ModelDriver = match selected {
+            // **The seam's whole width.** From here to the end of the turn the two cases are the
+            // same code: the profile, the tool host, retrieval, the injected-memory push and the
+            // adjudicator are assembled once, below, and neither variant can reach a copy of them.
+            TurnDriver::Supplied(d) => d,
+            TurnDriver::Provider(selected) => configured_driver.insert(match selected {
             Selected::Ollama(endpoint, routing) => {
             let mut driver = OllamaDriver::new(
                 endpoint,
@@ -2357,6 +2478,8 @@ impl Daemon {
                 }
                 Box::new(driver)
             }
+            })
+            .as_mut(),
         };
         let tool_scope = match WorkspaceScope::new() {
             Ok(s) => s,
@@ -2735,7 +2858,7 @@ impl Daemon {
         );
         let outcome = {
             let mut ports = Ports {
-                driver: driver.as_mut(),
+                driver,
                 summarizer: &mut summarizer,
                 tools: &mut tools,
                 memory: Some(&mut self.memory),
@@ -2801,7 +2924,11 @@ impl Daemon {
         // **The line is printed as well as recorded**, and not behind `--dev`: a benchmark's
         // stderr is where this is actually read, and a fact that decides whether a number is
         // reproducible does not belong behind a debugging flag.
-        drop(driver);
+        // **The Box, not the borrow.** `driver` was moved into `Ports` and dropped with it; what
+        // still holds the OpenRouter driver's clone of `attribution_cell` is the box in
+        // `configured_driver`, and dropping it here is what makes the `try_unwrap` below take the
+        // fast path. `None` on the supplied path, where there is no box and no attribution.
+        drop(configured_driver);
         let attribution = std::sync::Arc::try_unwrap(attribution_cell)
             .map(|m| m.into_inner().expect("attribution"))
             .unwrap_or_else(|arc| arc.lock().expect("attribution").clone());
