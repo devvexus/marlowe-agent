@@ -107,6 +107,77 @@ less: this configuration fits *this* card. Its three rules are inherited — the
 
 ---
 
+## §2a. ADMISSION CONTROL — added 2026-08-30, and it is Session C's problem, not Session G's
+
+**The requirement, in substance:**
+
+- **Agents are kept warm.** A loaded model stays loaded.
+- **We load as many as we can onto the GPU, and we NEVER CPU-split.** A model is fully resident or
+  it does not run.
+- **If a new agent cannot fit, it waits for one of the same type to finish.** A per-role queue.
+- *"We have 3 workers loaded, but are out of memory; a 4th agent is spawned and waits for an open
+  worker."*
+
+This is **admission control on spawn**. It decides whether a run may start, which makes it part of
+the spawn path Session C ships — the window that configures the roles is still G, but a spawn that
+can be *refused for capacity* changes the lifecycle, and the lifecycle is pinned.
+
+### The good news: the state already exists and is already pinned
+
+`RunStatus::Queued` is in CONTRACTS §5's enum and has producers at `run.rs:647` and `:670`, rendered
+by `roster.rs:214`. **No contract change is needed to express waiting.**
+
+### The question that must be answered before any of it is built
+
+**`RunStatus::Queued` currently means *constructed, not yet started* — a transient measured in
+microseconds. Capacity-waiting is the same word for a state that may last minutes**, and the human
+watching the roster is the one who pays for the conflation: a run that is *about to start* and a run
+that is *blocked behind three busy workers* would render identically, with no way to tell whether
+anything is wrong.
+
+This is the same shape as ADR-032 §2's finding — *"`DenyAll` and an allowlist that happens to be
+empty currently behave identically and must stop being the same thing."* Decide whether capacity
+waiting is `Queued`, or a distinct state, or `Queued` carrying a reason. **A reason field is the
+cheapest honest option and it is what the roster needs to say anything useful.**
+
+### THE CAPACITY MODEL IS NOT KNOWN, AND THE EXAMPLE IS AMBIGUOUS
+
+*"3 workers loaded, out of memory"* has two readings and they have **different bottlenecks and
+different fixes**:
+
+| Reading | What is loaded | What runs out | The knob |
+|---|---|---|---|
+| Three workers of the **same role** | **one** copy of `marlowe-mini:4b-super`'s weights | **KV cache** — one per concurrent slot | `OLLAMA_NUM_PARALLEL` |
+| Three workers of **different roles** | three sets of weights | **weights** | `OLLAMA_MAX_LOADED_MODELS` |
+
+Under Ollama, same-role workers share weights; what multiplies per concurrent request is the KV
+cache, and `NUM_PARALLEL` also **divides the context window** across slots. So in the first reading
+the ceiling is not 16 GB of weights at all — it is KV growth, and raising the worker count *shrinks
+every worker's context*. In the second, weights are the ceiling and `NUM_PARALLEL=1` still serialises
+each role to one request at a time, so "3 workers" would not be concurrent regardless.
+
+**Neither is asserted here, because neither has been measured on this machine.** `GET /api/ps` after
+loading the roles reports what is actually resident and at what size; that is the measurement, and
+the env vars are only declarations. **Measure before designing the queue, or the queue will be built
+against the wrong bottleneck.**
+
+### Two standing decisions this requirement reopens, and neither may be reversed silently
+
+**1. "Kept warm" versus the `OLLAMA_KEEP_ALIVE` reversal.** STATE.md records that `KEEP_ALIVE` was
+set and then **deliberately reverted** to Ollama's 5-minute default, because *"pinning 6.7 GB forever
+is the wrong trade for a trivial saving."* **That decision was made about one 9B model.** With four
+roles sized to co-reside at 10.0 GB the trade is a different one, and "agents are kept warm" is a
+request to revisit it — but it is a revisit, not an oversight, and it needs saying so.
+
+**2. "Never CPU-split" versus the offload-degree rule.** STATE.md's open item
+`THREE CONSTANTS ENCODE A 16 GB CARD` says the offload check *"must be a DEGREE, not a boolean:
+42/48 layers on GPU is healthy, not a failure."* That was written about the **llama.cpp hybrid**,
+which is shelved — so the two are probably not in conflict. **Probably is not a decision.** State
+explicitly that the agent pool is all-or-nothing per model while the hybrid's rule, if it ever
+returns, is about something else.
+
+---
+
 ## §3. Questions the brainstorm must settle
 
 Ordered by how much of the design each one decides.
