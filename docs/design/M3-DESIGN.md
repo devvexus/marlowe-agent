@@ -890,6 +890,31 @@ feature.
 > where there is no box. **Pass 1's four defects still stand** (`runs/m3-c/redteam/PASS1-REPORT.md`)
 > and still need fixing before any A8 number means anything.
 
+> ### A8 IS RETIRED AND MOVED HERE, 2026-08-31 — by the human
+>
+> **The row above and every amendment to it are superseded.** A8 asked whether typing the upward
+> channel does anything — fully typed / typed plus one validated sentence / free text as the
+> control. **There is nothing left to A/B**, and ADR-071 §5 is the record:
+>
+> * **Inside a team the channel is free prose by decision.** Measuring propagation there would
+>   report a decision back as a result.
+> * **Into Marlowe it is typed by necessity.** §2.1 forces it — the floor is monotonic and latched
+>   per run, Marlowe is the one permanent run, and an untyped crossing costs him composed targets
+>   for his life.
+>
+> **So it belongs under §9.2's own rule, and that is where it now sits**: *"anything where a wrong
+> answer is a security hole rather than a quality loss… is not A/B tested. They are asserted."*
+> The typed Marlowe boundary joins TERMINATE's structural invisibility, layer 1 routing and the
+> empty tool set.
+>
+> **The free-text arm was a control for an experiment that no longer has a question**, and the
+> `DECISIONS.md` entry it was owed is no longer owed.
+>
+> **And the boundary is identifiable today**, which an earlier note denied:
+> `run.profile.level() == AgentLevel::Secretary` at `Engine::spawn`, on a public getter and a field
+> that already ships. Marlowe spawns only top-agents (§1.1), so the return from a child of the
+> Secretary is exactly the crossing §2 governs.
+
 ### 9.2 What is NOT an arm
 
 Anything where a wrong answer is a security hole rather than a quality loss. **TERMINATE's structural

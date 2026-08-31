@@ -104,17 +104,59 @@ Two things make it a considered bet rather than an oversight, and one thing keep
    one**, and nothing here establishes that a PI catches what a detector missed. That is the
    measurement this ADR owes.
 
-## 5 · What A8 becomes
+## 5 · A8 IS RETIRED — the Marlowe boundary is ASSERTED, not A/B tested
 
-M3-DESIGN §9.1's arm **A8** — fully typed / typed + one sentence / free text — **no longer describes
-the intern→PI hop, because that hop is now free text by decision rather than by arm.**
+**Corrected 2026-08-31 by the human, and this section previously said the opposite.** It read
+*"A8 narrows to the boundary that still has one: the team's edge with Marlowe. Its question is
+unchanged and its importance is undiminished."* **That was wrong, and keeping A8 alive as an arm was
+the error.**
 
-**A8 narrows to the boundary that still has one: the team's edge with Marlowe.** Its question is
-unchanged and its importance is undiminished — Marlowe is the permanent run whose floor must never
-latch (§2.1), and if typing is decorative *there*, the liaison pattern is decorative with it.
+M3-DESIGN §9.1's arm A8 asked whether typing the upward channel does anything — fully typed / typed
+plus one sentence / free text as the control. **There is nothing left to A/B.**
 
-**Red-team pass 1's four defects still stand and still need fixing** before any A8 number means
-anything (`runs/m3-c/redteam/PASS1-REPORT.md`).
+* **Inside a team the channel is free prose by decision** (§1). Measuring propagation there would
+  report a decision back as a result.
+* **Into Marlowe it is typed by necessity, not by hypothesis.** §2.1 forces it: the floor is
+  monotonic and latched per run, Marlowe is the one permanent run, so an untyped crossing costs him
+  composed targets **for his life**. That is not a quality loss to be weighed — it is the failure the
+  liaison pattern exists to prevent.
+
+**So A8 belongs in M3-DESIGN §9.2, not §9.1**, under that section's own rule:
+
+> *"Anything where a wrong answer is a security hole rather than a quality loss. TERMINATE's
+> structural invisibility, layer 1 routing, and the empty tool set are not A/B tested. **They are
+> asserted.**"*
+
+The typed Marlowe boundary joins that list. It is a property to **build and assert**, not a rate to
+measure — and its free-text arm was a control for an experiment that no longer has a question.
+
+### 5.1 The "no code distinguishes a team edge" claim was also wrong
+
+An earlier note recorded, as a blocker harder than pass 1's four defects, that *"no code today
+distinguishes a team edge from any other spawn."* **It is one condition on a field that already
+exists.** `CapabilityProfile::level()` is public (`crates/marlowe-loop/src/profile.rs:541`) and
+`Engine::spawn` holds the parent run, so `run.profile.level() == AgentLevel::Secretary` **is** the
+Marlowe boundary — Marlowe spawns only top-agents (§1.1), so the return from a child of the Secretary
+is precisely the crossing §2 governs.
+
+The claim was made from an assumption about the code rather than from reading it, which is this
+project's most-logged shape aimed at its own remediation list.
+
+### 5.2 What this does to the red-team session
+
+**Pass 1's surface largely evaporates with A8.** `REDTEAM-SESSION.md` §4 named it as *"the condensed
+summary re-entering a parent at `AgentInferred`, and the typed upward channels C ships"* — and inside
+a team that summary no longer exists and that channel is prose by decision.
+
+**What remains worth attacking is two assertions, not one rate:**
+
+1. **Can anything cross into Marlowe untyped?** Pass/fail, and a single success is a defect report.
+2. **Can anything leave the sandbox?** ADR-070 §7's probes, and the same shape.
+
+Neither is an ASR. **That is a simplification of the red-team session, not a weakening of it** — an
+assertion with a named violation is stronger evidence than a rate whose instrument pass 1 could not
+get sound. Pass 1's four measurement defects are moot for A8 and remain live for anything that still
+reports a rate.
 
 ## 6 · What this does NOT change
 
@@ -136,7 +178,8 @@ anything (`runs/m3-c/redteam/PASS1-REPORT.md`).
    needs its own argument.
 2. **Whether the PI actually catches a polite injection.** §4's bet, untested. The cheapest
    experiment is the pre-filter corpus re-run with the PI as the reader.
-3. **What "the team's edge with Marlowe" is in code.** Today `Engine::spawn`'s note match is the
-   only such hop, and it does not distinguish a team boundary from any other spawn.
+3. ~~**What "the team's edge with Marlowe" is in code.**~~ **CLOSED, and it was never open** — see
+   §5.1. `run.profile.level() == AgentLevel::Secretary` at `Engine::spawn` is the boundary, on a
+   public getter and a field that already ships. What remains is applying it, which is ordinary work.
 4. **Whether a team without a box gets the old rules back.** If ADR-070's spike fails and there is no
    sandbox, this ADR's premise is gone. **It must not survive its own precondition.**

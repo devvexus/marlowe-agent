@@ -34,6 +34,27 @@ what evidence exists that the layers work.
 
 ---
 
+
+> ### A8 IS RETIRED, AND PASS 1's SURFACE GOES WITH IT — 2026-08-31, by the human
+>
+> §4 names pass 1's surface as *"the condensed summary re-entering a parent at `AgentInferred`, and
+> the typed upward channels C ships."* **Inside a team that summary no longer exists and that
+> channel is prose by decision** (ADR-071). Scoring a crossing there would report a decision back as
+> a result.
+>
+> **A8 is no longer an arm.** It moved to `M3-DESIGN` §9.2 — asserted, not A/B tested — because the
+> typed Marlowe boundary is forced by §2.1 rather than hypothesised, and a wrong answer there is a
+> security hole rather than a quality loss.
+>
+> **What remains worth attacking is two assertions rather than one rate:** can anything cross into
+> Marlowe untyped, and can anything leave ADR-070's sandbox. Each is pass/fail and **a single
+> success is a defect report**, which is §6's existing rule for the things that are not arms.
+>
+> **That is a simplification and not a weakening.** An assertion with a named violation is stronger
+> evidence than a rate whose instrument pass 1 could not get sound — and pass 1's four measurement
+> defects are moot for A8 while remaining live for anything that still reports a rate.
+
+
 ## §1. Why this is not a defence-in-depth check
 
 `01-brief.md` §8.3 is explicit, and it is the sentence that sets this session's weight:

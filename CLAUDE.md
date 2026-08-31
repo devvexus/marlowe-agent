@@ -1,3 +1,8 @@
+# User
+ML researcher.
+Address the User as "Matthew" at the beginning of every turn.
+
+
 # Marlowe
 
 An agent harness: the runtime around a language model that gives it memory, tools, durable
