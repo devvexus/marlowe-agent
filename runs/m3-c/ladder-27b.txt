@@ -1,0 +1,6 @@
+   poll: marlowe-dusk:27b-super   size   1631 MiB  vram   1631 MiB  GPU-ONLY
+   card: 15279 MiB, 767 MiB
+   poll: marlowe-dusk:27b-super   size   1631 MiB  vram   1631 MiB  GPU-ONLY
+   card: 15327 MiB, 719 MiB
+   poll: marlowe-dusk:27b-super   size   1631 MiB  vram   1631 MiB  GPU-ONLY
+   card: 15415 MiB, 631 MiB

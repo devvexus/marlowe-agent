@@ -3488,3 +3488,109 @@ neither test calls, so both would stay green. What makes the invariant hold is t
 that the stamping site has no access to grant state; these two files guard the two places the policy
 IS in scope. The loop half also asserts no trust class on purpose - `ScriptedTools` is handed its
 class by the test, so asserting it back would be the double asserting its own constant.
+
+---
+
+## 2026-08-30 · THE AGENT LADDER IS SECRETARY PLUS HIGH/MEDIUM/LOW, AND THERE WAS NEVER AN UNNAMED ROLE
+
+**Decided by Matthew, M3 Session C.** `AGENT-DIRECTORY.md` §2's table listed *Secretary / Agent /
+Extractor* plus *"a fourth role — UNNAMED"*, and naming that fourth role was carried as a blocker
+across three sessions and into ADR-064 and ADR-069. **The blocker was an artifact of the table.**
+§1's request is a **capability ladder** and rendering it as roles-by-function is what invented the
+gap.
+
+| Tier | Model | AAII | tok/s | Team metaphor |
+|---|---|---|---|---|
+| **Secretary** | the user's `models` dropdown | — | — | Marlowe. Hands the task to Agent-High. **Often the same model as Agent-High, not always** — hence a slot, not an alias |
+| **Agent-High** | `marlowe-dusk:27b-super` | **52** | 44 | the senior researcher: plans, orchestrates, emits search links, reads the assistants' work, compiles the report |
+| **Agent-Medium** | `marlowe-dawn:9b-super` | **22** | 90 | the assistants |
+| **Agent-Low** | `marlowe-mini:4b-super` | **20** | ~150 | the interns; very quick tasks |
+
+Set in the Agent Registration Window (not built). **It maps onto M3-DESIGN §1's five levels without
+reshaping either** — Secretary is level 1, Agent-High the level-2 top-agent, an assistant holding
+interns a level-3 master, the interns level-4 workers, a tool's extractor level 5.
+
+**The rung gap is an arm, not a preference.** 52 → 22 is a cliff; **22 → 20 is inside the noise while
+throughput goes 90 → 150 tok/s**. The human's *"Medium or maybe even Low, needs testing"* is
+therefore the cheapest measurable question in M3, and it is written down as an arm so it is not
+settled by whoever implements first.
+
+**Co-residency is the design target and NOT this card with this 27b.** The human: *"they won't all
+be co-loaded on this card; 27b is extremely capable but heavy and often cannot run with others —
+I've already tested this."* Co-residency assumes **larger cards or smaller models**; here, eviction
+is the normal path. Measured the same day and consistent with it: loading `dawn:9b` evicted
+`dusk:27b` at once, and only `dawn:9b` + `mini:4b` stayed resident together. **So the queue may
+hardcode neither co-residency nor eviction** — one product runs across both situations.
+
+**A ROLE IS A SLOT, NOT A MODEL, and the testing configuration is what settles it.** The human:
+*"when testing this I will not be using 27b-super; most likely the High agent will just be 9b-super,
+same as Agent-Medium, for now."* **Two roles pointing at one model is the ordinary case, not a
+degenerate one**, and it changes the queue's arithmetic rather than merely its labels: two roles
+sharing a model share one set of weights and multiply only the **KV cache** (`NUM_PARALLEL`), where
+two roles on two models multiply **weights** (`MAX_LOADED_MODELS`). **A queue that keys on the role
+rather than on the resolved model gets the bottleneck wrong in exactly the configuration this
+project is about to test under.** It also means nothing may assume the tiers differ:
+`Agent-High == Agent-Medium` is legal and unremarkable — which is also the null hypothesis of the
+arm above.
+
+**Two instrument findings that survive the card upgrade, and they break ADR-067's only sensor.**
+`/api/ps` reported `size_vram: 1,631 MiB` for `dusk:27b-super`, **stable across three polls**, while
+the card moved 8,856 → 15,415 MiB used — a **7.6× under-report**, with `load_duration` 11,410 ms
+confirming a real load. And because `size == size_vram` there, **the standard CPU-split test reads
+GPU-ONLY on the one model most likely to split.** ADR-067 keys its refusal branch and its
+*"never CPU-split"* guarantee on exactly those two fields. `nvidia-smi`'s free-memory delta and
+`load_duration` are trustworthy; `size_vram` is not.
+
+---
+
+## 2026-08-30 · A8's ARM (c) STAYS `cfg(debug_assertions)`, AND THE LIMITATION IS RECORDED RATHER THAN ARGUED AWAY
+
+**Decided by Matthew, M3 Session C**, settling a contradiction this session created between two
+documents written hours apart. **M3-DESIGN §9.1's amendment** requires arm (c) — the deliberately
+unvalidated upward channel — to be **unreachable in a shipped build**. **ADR-063 §4.1** rejects
+`cfg` for a CLI flag, on the ground that a `cfg`-gated control measures a **different binary**, which
+is the pipe-tested-guard family. Both arguments are sound and they disagree.
+
+**`cfg` wins, for three reasons and one concession.**
+
+1. **The comparison is within-artifact.** All three arms live in the one debug binary, so A8's
+   question — *which arm is safer* — is answered by an ordering measured inside a single artifact.
+   The flag's advantage is over *absolute* ASR on the shipped binary, which A8 does not ask for.
+2. **A control reachable in production is a defect.** M3-DESIGN §9.2 already rules that TERMINATE's
+   structural invisibility, layer 1 routing and the empty tool set are **asserted, not A/B tested**;
+   an unvalidated upward channel one flag away in a shipped binary is the same class of thing.
+3. **Arms (a) and (b) both exist in the release artifact**, so any absolute figure the shipped build
+   needs can still be measured directly there.
+
+**The concession, recorded because ADR-063 is right that it exists:** an ordering measured in debug
+is not automatically an ordering in release. Any claim about the *shipped* binary is restricted to
+arms (a) and (b) and says so. ADR-063 §4.1 is amended rather than deleted.
+
+---
+
+## 2026-08-30 · THE SESSION-VERSUS-RUN LATCH SCOPE IS DEFERRED, WITH THE DEADLINE NAMED
+
+**Deferred by Matthew, M3 Session C**, and deferral is the right call for a reason that is
+measurable rather than a matter of taste.
+
+ADR-023 latches a run's trust floor monotonically: once it reads untrusted content it may never
+compose a **target** again. *"Never"* means **for that `Run`** — and `Daemon::ask_streaming_with`
+builds a fresh `Run::root` at `UserAsserted` on **every user message**. So the latch resets each time
+the human presses enter, over a `SessionState` that persists. `SECURITY-AUDIT.md` §8 stated the
+answer on **2026-08-12** — *"the latch belongs on the session, not the Run"* — and M3 Session B2
+re-derived it as open seventeen days later, which is why it is written here rather than left in the
+audit.
+
+**Why deferring is safe today: layer 3 is unreachable.** `ingest_external` has no production caller,
+so nothing in the shipped daemon can taint a run at all, and the reset has no live path to reset.
+`grep -rn "ingest_external(" --include=*.rs crates/*/src/` minus the definitions returns zero, and
+that is the check to re-run rather than to quote.
+
+> **THE DEADLINE, AND IT IS NOT "LATER".** This must be decided **before Session D ships**, not
+> after. D is what gives `ingest` its first correct caller, and on that day the reset becomes live
+> **together with** the compaction stamp and the trim marker in the same path. A decision taken
+> after D has shipped is a decision taken with the hole already open.
+
+It also governs a **second** mechanism, so settling it settles both: ADR-032 §3.1's per-host egress
+grant expires with the `Run` for the identical reason, and the human is re-asked about an
+already-approved host on his next message.

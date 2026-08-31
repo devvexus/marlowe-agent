@@ -45,12 +45,47 @@ per cold load, which would make a "fast" tier slower than the tier it was avoidi
 **That premise is now wrong.** The models are chosen small **specifically so that they can all run in
 parallel**, and the arithmetic says they do:
 
-| Role | Ollama default | Size | Verified present |
-|---|---|---|---|
-| **Secretary** | `marlowe-dawn:9b-super` | 5.9 GB | yes |
-| **Agent** | `marlowe-mini:4b-super` | 2.8 GB | yes |
-| **Extractor** | `marlowe-mini:2b` | 1.3 GB | yes |
-| **(a fourth role — UNNAMED)** | — | — | **see below** |
+> ### THE ROLE TABLE BELOW WAS WRONG. CORRECTED BY THE HUMAN, 2026-08-30 (M3 Session C).
+>
+> It listed **Secretary / Agent / Extractor** plus *"a fourth role — UNNAMED"*, and three sessions
+> then treated naming that fourth role as a blocker. **There was never an unnamed role.** §1's
+> request is a **capability ladder**, and mapping it onto roles-by-function is what invented the gap.
+> The old table is kept below, struck through, because two ADRs and a `STATE.md` entry cite it.
+>
+> **The real structure, in the human's words:**
+>
+> | Tier | Model | AAII | tok/s | The team metaphor |
+> |---|---|---|---|---|
+> | **Secretary** | user's choice, `models` dropdown | — | — | Marlowe. Gives the task to Agent-High. **Often the same model as Agent-High, but not always** — which is why it is a separate slot and not an alias |
+> | **Agent-High** | `marlowe-dusk:27b-super` | **52** | 44 | the **senior researcher**. Orchestrates, plans, emits search links, reads the assistants' work and compiles the final report. Delegates the doing |
+> | **Agent-Medium** | `marlowe-dawn:9b-super` | **22** | 90 | the **assistants**. Extract and pull useful information up the chain |
+> | **Agent-Low** | `marlowe-mini:4b-super` | **20** | ~150 | the **interns**. Very quick tasks |
+>
+> Set in the **Agent Registration Window** (not built). AAII is Artificial Analysis Intelligence
+> Index; **52 is above Claude Opus 4.6**, and the ladder is not linear — 52 → 22 is a cliff and
+> 22 → 20 is nearly flat while throughput goes 90 → 150 tok/s. **So "Medium or maybe even Low for
+> the workers, needs testing" is an ARM, not a preference**, and it is the cheapest one in M3: the
+> capability difference between the bottom two rungs is inside the noise and the speed difference is
+> 1.7x.
+>
+> **This maps onto M3-DESIGN §1's five levels without reshaping either.** Secretary is level 1;
+> Agent-High is the level-2 top-agent; an assistant that has interns is a level-3 master; the
+> interns are level-4 workers; the extractor a tool spawns is level 5. *"Everyone is there to help
+> Agent-High finish the task"* is §1.1's *"can one agent do this alone?"* answered by org chart.
+>
+> **Worked example, the human's:** *research X and compile a report.* Agent-High takes the task,
+> plans, and spawns Agent-Medium research agents; each extracts and reports upward; Agent-High reads
+> what comes back and writes the report. `crates/marlowe-exec/examples/deep_research.rs` is the
+> shape of the bottom of that tree — 24 heterogeneous sources, real PDFs, no model in the loop —
+> and it is why the workers can be small: **extraction is mechanical and the intelligence is in the
+> orchestration.**
+
+~~| Role | Ollama default | Size | Verified present |~~
+~~|---|---|---|---|~~
+~~| **Secretary** | `marlowe-dawn:9b-super` | 5.9 GB | yes |~~
+~~| **Agent** | `marlowe-mini:4b-super` | 2.8 GB | yes |~~
+~~| **Extractor** | `marlowe-mini:2b` | 1.3 GB | yes |~~
+~~| **(a fourth role — UNNAMED)** | — | — | see below |~~
 
 **10.0 GB of the card's 16**, co-resident, leaving headroom for the KV cache, the embedder and the
 reranker — all three of which also want VRAM, and ADR-044 resolves the embedder's provider against
@@ -60,6 +95,63 @@ present via `ollama list` on 2026-08-30.
 So there is no ladder and no swapping. **The design is co-residency, and what remains is a routing
 question, not a scheduling one.**
 
+> ### SUPERSEDED IN ITS SUBJECT, 2026-08-30: the block below measured the WRONG THREE MODELS
+>
+> It probed `dawn:9b` + `mini:4b` + `mini:2b`, which is the struck-through table, not the ladder.
+> Its *method* stands and its instrument findings stand; its co-residency conclusion is about a set
+> the product does not use. **The ladder re-measured, same day, same card (16,376 MiB):**
+>
+> | | `size` on disk | `/api/ps` `size_vram` | cold `load_duration` |
+> |---|---|---|---|
+> | `marlowe-dusk:27b-super` | 12 GB | **1,631 MiB** ← see below | **11,410 ms** |
+> | `marlowe-dawn:9b-super` | 5.9 GB | 5,562 MiB | 5,517 ms |
+> | `marlowe-mini:4b-super` | 2.8 GB | 3,120 MiB | 3,013 ms |
+>
+> **The ladder does not co-reside on this card, and that is EXPECTED rather than a finding.** The
+> human has tested it and states it plainly: *"27b is an extremely capable but heavy model, it often
+> cannot run with others."* Co-residency is the design target and it assumes **either larger cards
+> or smaller models than this pairing** — not this card with this 27b. Measured here: loading
+> `dawn:9b` evicted `dusk:27b` immediately, and only `dawn:9b` + `mini:4b` (8,682 MiB) stayed
+> resident together. **So neither co-residency nor eviction may be hardcoded** — §2a's queue reads
+> capacity rather than assuming either, because one product runs across both situations.
+>
+> **AND A ROLE IS A SLOT, NOT A MODEL — which the testing configuration proves rather than argues.**
+> The human: *"when testing this I will not be using 27b-super; most likely the High agent will just
+> be 9b-super, same as Agent-Medium, for now."* So **two roles will point at one model**, and that is
+> the ordinary case rather than a degenerate one. Two consequences the queue must carry from the
+> start:
+>
+> * **Admission must key on the resolved MODEL, not on the role.** Two roles sharing a model share
+>   one set of weights and multiply only the **KV cache** — §2a's first reading, `NUM_PARALLEL` —
+>   where two roles on two models multiply **weights**. A queue that counts roles gets the
+>   bottleneck wrong in the configuration the project is about to test under.
+> * **The ladder is a routing structure before it is three distinct models**, so nothing may assume
+>   the three tiers differ. `Agent-High == Agent-Medium` must be a legal, unremarkable configuration
+>   — including for the arm that asks whether Low can do the workers' job, whose null hypothesis is
+>   precisely that two rungs are interchangeable.
+>
+> ### TWO INSTRUMENT FINDINGS THAT SURVIVE THE CARD UPGRADE, AND THEY BREAK ADR-067's SIGNAL
+>
+> These are not about how much memory there is. They are about whether the number an admission
+> controller reads is true, and they are unchanged by how much memory there is.
+>
+> **1. `/api/ps`'s `size_vram` under-reports by 7.6× on `dusk:27b-super`.** It reported
+> **1,631 MiB, stable across three polls two seconds apart**, while the card moved from 8,856 MiB
+> used to **15,415 used with 631 free**. `load_duration` confirms a real 11,410 ms cold load, so the
+> model genuinely loaded. **An admission controller that asks `/api/ps` how big this model is gets
+> an answer 6 GB too small and admits something that does not fit.**
+>
+> **2. `size == size_vram` is NOT a CPU-split test.** Both fields read 1,631 MiB, so the standard
+> check reports **GPU-ONLY** — on the one model where a split is most likely. §2a's *"we NEVER
+> CPU-split"* cannot be enforced by comparing those two fields, and a guard that reads GPU-ONLY
+> whatever happens is a comment.
+>
+> **This is the ledger's shape aimed at the queue's only sensor.** §2a says *"`/api/ps` is the
+> measurement; the env vars are only declarations"* — true, and the measurement is itself wrong for
+> the largest model. What is trustworthy is `nvidia-smi`'s free-memory delta and `load_duration`;
+> what is not is `size_vram`. **ADR-067 keys its refusal branch and its no-split guarantee on
+> exactly the two fields that fail here**, and must be re-derived before it is built.
+>
 > ### MEASURED 2026-08-30, M3 Session C — CO-RESIDENCY HOLDS AND THE HEADROOM DOES NOT
 >
 > **The paragraph above is arithmetic, and §2a's own rule is that `/api/ps` is the measurement.**

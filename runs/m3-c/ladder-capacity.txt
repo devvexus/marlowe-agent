@@ -1,0 +1,16 @@
+== warming marlowe-dusk:27b-super
+   load+1tok 718 ms
+   marlowe-dusk:27b-super       vram   1631 MiB / total   1631 MiB  GPU-ONLY
+   (1 resident)
+   card: 15303 MiB, 743 MiB
+== warming marlowe-dawn:9b-super
+   load+1tok 5517 ms
+   marlowe-dawn:9b-super        vram   5562 MiB / total   5562 MiB  GPU-ONLY
+   (1 resident)
+   card: 8658 MiB, 7388 MiB
+== warming marlowe-mini:4b-super
+   load+1tok 3013 ms
+   marlowe-mini:4b-super        vram   3120 MiB / total   3120 MiB  GPU-ONLY
+   marlowe-dawn:9b-super        vram   5562 MiB / total   5562 MiB  GPU-ONLY
+   (2 resident)
+   card: 12875 MiB, 3171 MiB
