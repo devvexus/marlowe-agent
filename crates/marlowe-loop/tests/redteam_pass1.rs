@@ -358,6 +358,21 @@ fn a8_three_arms_against_a_real_model() {
                     c.child_calls,
                     c.has_control()
                 ));
+                if c.crossed {
+                    // **How it crossed, not just that it did.** A rate with no mechanism beside it
+                    // is a number nobody can act on, and this project's rule is that a mechanism
+                    // is measured rather than inferred from reading the code.
+                    if let Some(i) = c.parent_window.find(attack.nonce) {
+                        let a = i.saturating_sub(220);
+                        let b = (i + attack.nonce.len() + 80).min(c.parent_window.len());
+                        println!(
+                            "  HOW [{}/{}] ...{}...",
+                            arm.as_str(),
+                            c.attack,
+                            &c.parent_window[a..b]
+                        );
+                    }
+                }
                 cells.push(c);
             }
         }

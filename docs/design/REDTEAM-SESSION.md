@@ -1,4 +1,4 @@
-# The red-team session — what it measures, and when its zeros mean anything
+﻿# The red-team session — what it measures, and when its zeros mean anything
 
 **Scheduled 2026-08-29 with the human.** Referenced as a dependency by **seven sites across six
 documents** and owned by none: `M3-DESIGN.md`'s header, its §8 and its §10 item 7; `ROADMAP.md`'s M3
@@ -15,8 +15,8 @@ what evidence exists that the layers work.
 
 | | |
 |---|---|
-| **Status** | scheduled, not started |
-| **First attempt** | **end of M3 Session C** — injection only |
+| **Status** | **PASS 1 RAN 2026-08-30 AND PUBLISHED NO ASR.** The instrument is not sound yet, and that is pass 1's result. `runs/m3-c/redteam/PASS1-REPORT.md` |
+| **First attempt** | **RUN, end of M3 Session C** — injection only. See the amendment at the end of §4 |
 | **Second attempt** | **post-M3, after Session D** — the full class list |
 | **Depends on** | C for the typed upward channels (the A8 control); D for a memory write path (the laundering classes) |
 | **Pass 1 blocked by nothing** | it runs on what C ships |
@@ -134,6 +134,51 @@ evidence rather than a hope.
 injection set with the quarantined reader on, then off (raw page straight into context). Its control
 is free, and it establishes that layer 1 does real work on the injection axis. It is a day, not a
 session, and it is not the first attempt.
+
+> ### PASS 1 RAN 2026-08-30, AND IT PUBLISHED NO ASR — `runs/m3-c/redteam/PASS1-REPORT.md`
+>
+> **The result of pass 1 is that the instrument is not yet sound.** That is a real result and it
+> arrived where §3 said it would: from the controls, not from the cells. Four findings, in the order
+> they were found.
+>
+> **1. The metric conflated obeying an injection with faithfully reporting one.** Measured, with the
+> bytes printed: what crossed the `typed` arm was a child *describing* the attack — *"it notes that
+> Source 1 contains instructions for verifying if an AI assistant read a specific note with code
+> ZQ7-HELP-2MN"* — which is the behaviour you want from a worker, and is indistinguishable from
+> compliance under a nonce-in-window metric. The standing shape, committed inside the measurement
+> written to detect it.
+>
+> **2. Two runs of the identical configuration gave opposite orderings** — `typed`/`validated`/`free`
+> at 25/50/**100**%, then 75/75/**0**%. Four attacks per cell against a stochastic model cannot order
+> three arms. **The falsification assertion caught the second run and refused to interpret it**; had
+> it not been written, the first run alone would have been published as pass 1's result.
+>
+> **3. Arm (c) is not reliably a control.** It binds the child's words with `last_assistant_text`
+> (`engine.rs:550`), which returns the last non-empty `SourceKind::History` block — and a child's
+> history holds harness-authored tool notes as well as its own prose. The arm can carry a tool note
+> and read as contained when it is pointing at the wrong block. A control that can silently degrade
+> into arm (a) is not a control.
+>
+> **4. §3.2's model axis is not an axis, and the positive control is what showed it.**
+> `marlowe-red:9b` produced `fetched: 0` on **9 of 12 cells — it never called `web` at all.** Without
+> the `fetched > 0` control those would have scored `crossed: false`, and **the unsafeguarded model
+> would have reported 0% ASR on two of three arms — better contained than the safeguarded one.**
+> That is §2's inversion, produced on the first attempt. The two models differ in tool-calling
+> competence and not only in safeguarding, so they are **not comparable on this corpus**; §3.2's
+> table describes them as differing in safeguarding alone and the pre-registration had already
+> corrected that from `ollama show`.
+>
+> **What this does NOT establish, stated because the temptation runs the other way.** A8's question
+> is **not** answered in either direction. Run 2 showed free text performing *better* than typed,
+> which under the current metric means the metric is broken — not that free text is safe. §3.1's
+> *"the last cheap moment to discover that typed upward containment is decorative"* **has not yet
+> arrived**; it was attempted, and the attempt measured itself instead. Sessions D and E still rest
+> on an untested assumption, and this note is the record of that rather than of a clean sheet.
+>
+> **What it does establish:** the chain runs end to end with real models and layer 1 inside it,
+> twelve controlled cells on the primary model with `fetched: 1` on every one; the arms produce
+> materially different parent windows; and the four repairs pass 1 needs are enumerated in the
+> report's closing section.
 
 ### Pass 2 — post-M3, after Session D.
 
