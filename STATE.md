@@ -2,6 +2,9 @@
 
 ## 2026-08-31 — THE THINKING LINE COUNTS TOKENS, AND "ONE DELTA IS ONE TOKEN" WAS FALSE
 
+**Committed `c243607`. `target/release/marlowe.exe` rebuilt from it** — so the shipped binary is not
+behind the source, which `DegradedPath::BinaryBehindSource` would otherwise announce in the band.
+
 **The feature is small and the measurement under it is not.** `▸ thinking… 1688 characters` is now
 `▸ thinking… 412 tokens`, and `▸ thought for 1688 characters` is `▸ thought 412 tokens`. Getting
 there required establishing where a token count can honestly come from, and the answer contradicted
