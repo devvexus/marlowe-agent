@@ -99,7 +99,18 @@ fn a_master_cannot_hold_a_working_tool_and_a_worker_can() {
     }
 
     // A master's own set is constructible, so the rule narrows rather than forbids.
-    assert!(profile(&["run", "ask"], AgentLevel::Master).is_ok());
+    assert!(profile(&["run"], AgentLevel::Master).is_ok());
+
+    // **`ask` is NOT a master's, decided by the human 2026-08-31.** For one day the management
+    // set was `["run", "ask"]` while §3.1 refused `ModelStep::Ask` at every level below
+    // `Secretary` — so a master held a tool that was visible, described, and refused at every
+    // call. §1.2's rule settles which half gives way: *"the tool is absent from the set, not
+    // forbidden by instruction."* A master that needs a human escalates.
+    assert!(
+        profile(&["ask"], AgentLevel::Master).is_err(),
+        "a master holding `ask` is a door that is always locked; §3.1 refuses it and §1.2 says \
+         withhold it rather than refuse it"
+    );
 
     // ── the instance #17 control ────────────────────────────────────────────────────────────
     //
@@ -116,17 +127,28 @@ fn a_master_cannot_hold_a_working_tool_and_a_worker_can() {
 
 /// **#19: test 2's input IS `MANAGEMENT_TOOLS`, so test 2 alone cannot see the list shrink.**
 ///
-/// Remove `"ask"` from the constant and `a_master_cannot_hold_a_working_tool_and_a_worker_can`
+/// Remove a name from the constant and `a_master_cannot_hold_a_working_tool_and_a_worker_can`
 /// stays green — every working tool is still refused. The list is therefore pinned here,
 /// literally, from outside the object being checked.
 ///
 /// *Mutation:* add `"edit"` to `MANAGEMENT_TOOLS` — disjointness reds. *Mutation:* remove
-/// `"ask"` — the literal reds.
+/// `"run"` — the literal reds.
+///
+/// # THE PIN MOVED ONCE, AND IT MOVED BECAUSE THIS TEST STOPPED IT MOVING SILENTLY
+///
+/// It read `vec!["run", "ask"]` for one day, and this doc comment's own worked example was
+/// *"remove `ask` — the literal reds."* It did exactly that. `ask` was withdrawn from the
+/// management set by the human on 2026-08-31, because §3.1 refuses `ModelStep::Ask` at every
+/// level below `Secretary` while §1.2 was handing masters the tool — a door visible in the
+/// exposed set, described in the schema, and locked at every call.
+///
+/// **The pin is updated deliberately and the reason is recorded, which is the only legitimate
+/// way for it to move.** A pin edited to make a suite green is a pin that has stopped pinning.
 #[test]
 fn management_tools_and_working_tools_are_disjoint_and_the_list_has_not_shrunk() {
     assert_eq!(
         MANAGEMENT_TOOLS.to_vec(),
-        vec!["run", "ask"],
+        vec!["run"],
         "the management set moved. §1.2 names eight capabilities and six do not exist as tools; \
          adding a name for one that does not exist makes the master rule vacuously permissive"
     );

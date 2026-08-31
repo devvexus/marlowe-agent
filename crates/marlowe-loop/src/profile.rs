@@ -232,7 +232,7 @@ pub enum ProfileError {
         "a master exposes `{tool}`, which is not a management tool. Section 1.2: masters hold no \
          working tools, STRUCTURALLY -- the tool is not in the set. Expressing it as a budget of \
          zero would be instance #17: `Budget::exhausted` compares `spent >= budget`, so `0 >= 0` \
-         pauses the master before its first model call while it looks perfectly configured"
+         pauses the master before its first model call and it still looks perfectly configured"
     )]
     MasterHoldsWorkingTool { tool: ToolId },
 

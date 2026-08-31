@@ -52,7 +52,27 @@ pub const BUILTIN_TOOLS: [&str; 12] = [
 /// one of exactly two MCP slots ADR-058 raised the cap to protect. When it lands it arrives with
 /// `[&str; 13]`, the updated assertion, an executor, and either a named halving of the MCP
 /// allowance or an ADR-058 amendment -- the human's.
-pub const MANAGEMENT_TOOLS: [&str; 2] = ["run", "ask"];
+///
+/// # `ask` WAS HERE FOR ONE DAY, AND IT WAS A TOOL THE HOLDER COULD NEVER USE
+///
+/// This read `["run", "ask"]` between `a017ee0` and now. Two agents built two halves of M3
+/// Session C and each was right on its own: one gave a master the management set including
+/// `ask`, the other enforced M3-DESIGN section 3.1 -- *"a worker can never address Marlowe"*,
+/// *"only a top-agent may escalate to the user"* -- which refuses `ModelStep::Ask` at **every**
+/// level below `Secretary`. The composition handed a master a tool that was **visible in its
+/// exposed set, described in its schema, and refused at every call.**
+///
+/// **Resolved by the human, 2026-08-31: only top-agents get `ask`.** The tool is withheld from
+/// the master's set rather than left in it and refused, which is section 1.2's own rule --
+/// *"the tool is absent from the set, not forbidden by instruction"* -- and the reason
+/// `ExposedSet::empty()` is the precedent it cites. A master that needs a human raises an
+/// escalation, which is section 3.1's route, rather than holding a door that is always locked.
+///
+/// **Why this is not merely tidiness.** A tool a model can see and cannot use is worse than an
+/// absent one: the model spends calls discovering the refusal, and a refusal it cannot act on is
+/// the shape CLAUDE.md records costing 155 seconds and 12,332 tokens of reasoning on two separate
+/// live runs. The set is now one tool, which is honest about how much of section 1.2 is built.
+pub const MANAGEMENT_TOOLS: [&str; 1] = ["run"];
 
 /// The workspace-relative glob every filesystem tool declares.
 ///

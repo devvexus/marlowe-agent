@@ -648,8 +648,20 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
 fn the_spawn_tree_is_bounded_by_depth() {
     // Anthropic's documented deep-research failures were excessive spawning and endless loops.
     // Depth is the structural bound, and it is checked before a child exists.
+    //
+    // **THE DISPOSITIONS ARE LOAD-BEARING AND THE TEST WENT RED WITHOUT THEM (2026-08-31).**
+    // Every spawn here used `Disposition::Work`, and after `a017ee0` that chain is
+    // `Secretary --Work--> TopAgent { manages: false }`, which `AgentLevel::child_of` refuses to
+    // let spawn at all. So the tree stopped after ONE child -- at the LEVEL, never reaching the
+    // depth this test is named for.
+    //
+    // Changing the expected count from 2 to 1 would have made it green while measuring a
+    // different mechanism: instance #15, in the test whose whole subject is a structural bound.
+    // Instead the chain is `Manage, Manage, Work`, so levels permit all three
+    // (`TopAgent { manages: true }` -> `Master` -> `Worker`) and **depth is the thing that
+    // refuses the third**. The control below asserts that reason rather than trusting the count.
     let mut e = engine();
-    let spawn = |task: &str| {
+    let spawn = |task: &str, disposition: marlowe_loop::Disposition, tools: Vec<ToolId>| {
         step(
             ModelStep::Spawn(SpawnRequest {
                 task: task.into(),
@@ -657,19 +669,27 @@ fn the_spawn_tree_is_bounded_by_depth() {
                 orphan: OrphanPolicy::Terminate,
                 share: BudgetShare::Standard,
                 grant_tokens: None,
-                tools: vec![],
+                tools,
                 reads_untrusted: false,
                 tools_declared: true,
                 role: marlowe_loop::ModelRoute::Worker,
-                disposition: marlowe_loop::Disposition::Work,
+                disposition,
             }),
             10,
         )
     };
+    use marlowe_loop::Disposition::{Manage, Work};
     let mut driver = ScriptDriver::new(vec![
-        spawn("depth 1"),
-        spawn("depth 2"),
-        spawn("depth 3 — refused"),
+        // **`run` has to be granted or the tree stops for a THIRD reason.** `may_create_agents`
+        // reads the exposed set, so a child handed `tools: vec![]` cannot spawn whatever its
+        // level permits — which is correct, and is a capability bound rather than a depth one.
+        // Granting `run` is also all a `Master` may hold: `MANAGEMENT_TOOLS` is exactly `["run"]`.
+        spawn("depth 1", Manage, vec![ToolId::new("run")]),
+        spawn("depth 2", Manage, vec![ToolId::new("run")]),
+        // `Master --Work--> Worker` is a LEGAL level transition and the child needs no tools to
+        // be refused, so nothing but depth can refuse this one. That is what makes the refusal
+        // below attributable.
+        spawn("depth 3 — refused", Work, vec![]),
         say("d2", 10),
         say("d1", 10),
         say("ok", 10),
@@ -701,6 +721,36 @@ fn the_spawn_tree_is_bounded_by_depth() {
 
     assert!(matches!(outcome, LoopOutcome::Completed(_)));
     assert_eq!(recorder.count(EventKind::RunSpawned), 2, "two levels, then a refusal");
+
+    // ── THE CONTROL: the third spawn was refused by DEPTH, not by level ──────────────────
+    //
+    // Without this, a count of 2 is satisfied by *any* refusal, which is exactly how this test
+    // came to be measuring `AgentLevel::child_of` while carrying depth's name.
+    //
+    // **The first version of this control read the ROOT's window and could never have worked.**
+    // The third spawn is refused inside the grandchild's run, so its reason never appears in the
+    // parent's context — the assertion would have been red for a reason unrelated to the
+    // property, which is the same defect one level along. The mechanism is asserted directly
+    // instead: at `depth == 0` the grant refuses by name, and the positive control shows that a
+    // level-legal spawn with depth remaining is granted, so the refusal is attributable to depth
+    // and to nothing else.
+    let exhausted_depth = Budget { depth: 0, ..Budget::interactive() };
+    // `GrantRefused` is not re-exported from the crate root, so the variant is asserted through
+    // its own `Debug` name rather than by importing it. Still by NAME: a refusal for any other
+    // reason -- `PoolTooSmall`, `BelowFloor`, `MoreThanRemains` -- fails this line and says which.
+    let refusal = format!(
+        "{:?}",
+        exhausted_depth.grant(&Budget::default(), BudgetShare::Standard, None)
+    );
+    assert!(
+        refusal.contains("NoDepth"),
+        "depth must be what refuses the third spawn, by name; got {refusal}"
+    );
+    let has_depth = Budget { depth: 1, ..Budget::interactive() };
+    assert!(
+        has_depth.grant(&Budget::default(), BudgetShare::Standard, None).is_ok(),
+        "positive control: with depth remaining the same grant succeeds, so the refusal above          is depth and not something the budget refuses unconditionally"
+    );
 }
 
 #[test]

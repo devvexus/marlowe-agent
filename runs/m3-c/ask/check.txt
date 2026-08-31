@@ -1,0 +1,59 @@
+    Checking marlowe-tools v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-tools)
+    Checking marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+    Checking marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+warning: unused import: `marlowe_contract::EscalationId`
+  --> crates\marlowe-loop\src\escalation.rs:46:5
+   |
+46 | use marlowe_contract::EscalationId;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-loop` to apply 1 suggestion)
+    Checking marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+warning: field `model_calls` is never read
+  --> crates\marlowe-loop\tests\quarantine_batch.rs:93:5
+   |
+89 | struct Harness {
+   |        ------- field in this struct
+...
+93 |     model_calls: Arc<Mutex<usize>>,
+   |     ^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `super::*`
+   --> crates\marlowe-loop\src\run.rs:812:9
+    |
+812 |     use super::*;
+    |         ^^^^^^^^
+
+warning: `marlowe-loop` (test "quarantine_batch") generated 1 warning
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-loop\tests\compaction.rs:19:39
+   |
+19 |     Block, Budget, CapabilityProfile, CondensedResult, Engine, GovernanceConstraint, LoopOutcome,
+   |                                       ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `turn`
+  --> crates\marlowe-loop\tests\compaction.rs:75:9
+   |
+75 |     let turn = |i: usize| format!("TURN-{i} {}", "x".repeat(2_400)); // ~800 tokens
+   |         ^^^^ help: if this is intentional, prefix it with an underscore: `_turn`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (lib test) generated 2 warnings (1 duplicate) (run `cargo fix --lib -p marlowe-loop --tests` to apply 1 suggestion)
+warning: `marlowe-loop` (test "compaction") generated 2 warnings (run `cargo fix --test "compaction" -p marlowe-loop` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.56s

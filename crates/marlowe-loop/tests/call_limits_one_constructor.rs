@@ -64,7 +64,25 @@ fn call_limits_has_one_production_constructor_and_it_is_the_door() {
     for f in &files {
         let Ok(text) = fs::read_to_string(f) else { continue };
         for (i, line) in text.lines().enumerate() {
-            if line.contains("CallLimits {") && !line.contains("pub struct CallLimits") {
+            // **A RETURN TYPE IS NOT A CONSTRUCTION, and this guard could not tell them apart.**
+            //
+            // `pub fn call_limits(&self, spent: &Budget, route: ModelRoute) -> CallLimits {` ends
+            // in the same three tokens a construction starts with. It went red on 2026-08-31 when
+            // `route` was added — a parameter that changed nothing about how many places build a
+            // `CallLimits` — and reported `budget.rs:181` and `:182` as two production sites when
+            // 181 is the signature of the one function 182 lives in.
+            //
+            // Excluded by the arrow rather than by `starts_with("pub fn")`, because the property
+            // is *"this line returns the type"* and not *"this line is a function"*: a helper that
+            // is not `pub`, or one whose signature wraps, would slip past the second and not the
+            // first. **The guard is unchanged in what it forbids** — a second real construction
+            // still reds it, and the `count == 1` assertion below is what proves the exclusion did
+            // not empty the scan.
+            let is_signature = line.contains("-> CallLimits {");
+            if line.contains("CallLimits {")
+                && !line.contains("pub struct CallLimits")
+                && !is_signature
+            {
                 let rel = f.strip_prefix(&root).unwrap_or(f).to_string_lossy().replace('\\', "/");
                 hits.push(format!("{rel}:{}", i + 1));
             }
