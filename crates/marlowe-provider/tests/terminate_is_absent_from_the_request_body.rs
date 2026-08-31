@@ -46,14 +46,41 @@ use marlowe_provider::{LocalEndpoint, OllamaDriver, Routing};
 use marlowe_tools::{builtin_registry, ExposedSet, ToolId};
 use marlowe_view::{TERMINATE_CANARY, TERMINATE_LABEL};
 
-/// A phrase from `persona/v2.md`, the same marker `persona_emission.rs` uses. **The positive
-/// control**: a body that failed to build, or that carried no messages, would report a clean zero
-/// for the canary and prove nothing.
-const PERSONA_MARKER: &str = "You are not impressed";
+/// The positive control: a body that failed to build, or that carried no messages, would report a
+/// clean zero for the canary and prove nothing. So a phrase known to be in the persona is asserted
+/// present in every body before its silence about the canary is believed.
+///
+/// # It is TAKEN FROM the artifact, not copied into this file, and that is §C6
+///
+/// This was a `const PERSONA_MARKER` holding a five-word phrase lifted out of `persona/v2.md`.
+/// `persona_emission.rs::the_persona_text_exists_in_exactly_one_place` scans every `.rs` file under
+/// `crates/` for exactly that phrase and **went red on this file**, which is the guard working:
+/// §C6 makes the artifact the single source, and a copy in a test drifts from it silently the
+/// moment the persona is revised.
+///
+/// **The old wording is described rather than quoted, and that is deliberate.** This repository's
+/// habit is to quote what a correction replaced so the change is auditable — but doing that here
+/// would put the phrase back in Rust source and keep the guard red. The first fix did exactly
+/// that and stayed red for a second run. §C6 outranks the quoting habit, and the collision is
+/// worth knowing about the next time the two rules meet.
+///
+/// The marker is therefore derived from the same `include_str!` the body is built from — the first
+/// substantial line of prose. If the persona changes, this follows it; if the persona is emptied,
+/// `expect` fails loudly rather than returning a marker that matches everything.
+fn persona_marker() -> &'static str {
+    PERSONA
+        .lines()
+        .map(str::trim)
+        .find(|l| l.len() > 24 && !l.starts_with('#') && !l.starts_with("---"))
+        .expect("persona/v2.md has a line of prose to use as a positive control")
+}
+
+/// The artifact, once. Both the body under test and the marker above are built from this, so a
+/// control that passed while the body carried a *different* persona is not expressible.
+const PERSONA: &str = include_str!("../../../persona/v2.md");
 
 fn view() -> ContextView {
-    let persona = include_str!("../../../persona/v2.md");
-    let mut state = SessionState::new(SessionId::from_name("terminate"), persona);
+    let mut state = SessionState::new(SessionId::from_name("terminate"), PERSONA);
     state.push(Block::new(
         SourceKind::History,
         // A spawn receipt, verbatim in shape: this is one of the two production sources of the
@@ -82,7 +109,11 @@ fn profiles() -> Vec<(&'static str, CapabilityProfile)> {
         ("secretary", CapabilityProfile::interactive()),
         ("top-agent-manages", leaf(AgentLevel::TopAgent { manages: true }, &["run", "ask"])),
         ("top-agent-works", leaf(AgentLevel::TopAgent { manages: false }, &["read", "bash"])),
-        ("master", leaf(AgentLevel::Master, &["run", "ask"])),
+        // **`ask` is no longer a master's** (human, 2026-08-31): §3.1 refuses `ModelStep::Ask`
+        // below `Secretary`, so holding it was a door that was always locked, and §1.2 says
+        // withhold rather than refuse. `MANAGEMENT_TOOLS` is now exactly `["run"]` and the
+        // constructor rejects anything else at this level.
+        ("master", leaf(AgentLevel::Master, &["run"])),
         ("worker", leaf(AgentLevel::Worker, &["read", "edit"])),
         ("quarantined-reader", CapabilityProfile::quarantined_reader()),
     ]
@@ -133,7 +164,7 @@ fn the_escape_hatch_reaches_no_model() {
             .unwrap_or_else(|| panic!("{name}: the body carries no messages array: {body}"));
         assert!(!messages.is_empty(), "{name}: the body carries no messages");
         assert!(
-            json.contains(PERSONA_MARKER),
+            json.contains(persona_marker()),
             "{name}: the persona is not in this body, so its silence about the canary is not \
              evidence about anything"
         );

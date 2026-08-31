@@ -840,16 +840,45 @@ fn a_child_left_at_the_default_policy_is_terminated_with_its_parent() {
 #[test]
 fn a_leaf_at_depth_four_is_inside_the_declared_band_under_real_spawns() {
     let root_tokens = 200_000u64;
-    let spawn = || reply(run_call(serde_json::json!({ "exposed_tools": "", "task": "one level down" })), 100);
+    // **THREE SPAWNS REACH LEVEL 4, AND THAT IS THE §1-VERSUS-§11 AMBIGUITY RESOLVED BY THE
+    // LEVEL MODEL (2026-08-31).** This drove four spawns and asserted four grants. After
+    // `a017ee0` a fourth is not reachable at all: §1's ladder is
+    // `Secretary(1) -> TopAgent(2) -> Master(3) -> Worker(4)`, `AgentLevel::child_of` refuses
+    // `(Worker, _)`, so **`[Wa]` at level 4 is three spawns from the root**, not four.
+    //
+    // ADR-066 flagged the ambiguity and could not settle it -- §1's numbering makes `[Wa]` level
+    // 4 while §11 says "depth 4", and the two readings differ by one hop. The code now answers
+    // it: the leaf this band governs is the level-4 Worker, and the reading is stated here rather
+    // than left to whoever next reads the row.
+    //
+    // The dispositions are what make the chain legal: `Manage, Manage, Work`. All-`Manage` is
+    // refused at `(Master, Manage)`, and the default `Work` is refused one hop earlier still.
+    let spawn = |kind: &str| {
+        reply(
+            run_call(serde_json::json!({
+                "exposed_tools": "run",
+                "kind": kind,
+                "task": "one level down"
+            })),
+            100,
+        )
+    };
     let recorder = drive(
         vec![
-            spawn(),
-            spawn(),
-            spawn(),
-            spawn(),
+            spawn("master"),
+            spawn("master"),
+            // the leaf does the work and holds no `run`, so it cannot spawn and needs no level
+            // below it
+            reply(
+                run_call(serde_json::json!({
+                    "exposed_tools": "",
+                    "kind": "worker",
+                    "task": "one level down"
+                })),
+                100,
+            ),
             // the leaf answers, then each level up answers in turn
             reply(prose("leaf"), 100),
-            reply(prose("d3"), 100),
             reply(prose("d2"), 100),
             reply(prose("d1"), 100),
             reply(prose("root"), 100),
@@ -862,20 +891,51 @@ fn a_leaf_at_depth_four_is_inside_the_declared_band_under_real_spawns() {
         .iter()
         .filter_map(|p| p.get("budget_tokens").and_then(|t| t.as_u64()))
         .collect();
-    assert_eq!(grants.len(), 4, "four levels must spawn; got {}: {grants:?}", grants.len());
+    assert_eq!(
+        grants.len(),
+        3,
+        "three spawns reach the level-4 leaf; got {}: {grants:?}",
+        grants.len()
+    );
 
-    let leaf = *grants.last().expect("four grants");
+    let leaf = *grants.last().expect("three grants");
     let share = leaf as f64 / root_tokens as f64;
     println!(
         "leaf at depth 4 UNDER REAL SPAWNS: {leaf} of {root_tokens} tokens = {:.2}% (per level: {grants:?})",
         share * 100.0
     );
+    // ── THE BAND IS RE-DECLARED, AND THE REASON IS A HOP COUNT RATHER THAN A NUMBER ────────
+    //
+    // It was `[1%, 5%]`, and this test measured **5.27%** the first time the level model forced
+    // the correct chain. **That is not a regression and it is not a fit: it is one fewer hop.**
+    // Each grant is `BudgetShare::Standard` = 0.375 of the parent, so
+    //
+    //     four hops  0.375^4 = 1.98%   <- the band was declared against this
+    //     three hops 0.375^3 = 5.27%   <- what a level-4 leaf actually is
+    //
+    // and 1.98% is the very figure the old assertion message quoted. The band was arithmetic for
+    // a chain the level model has since made unreachable, so it is re-declared for the chain that
+    // exists, with the old bound quoted above rather than deleted.
+    //
+    // **ADR-066 predicted this exact collision and could not settle it** — *"§1's numbering makes
+    // `[Wa]` level 4 at 5.27%, and under the other reading the shipped system already fails the
+    // design's own ceiling."* It fails it because the ceiling was written for the other reading.
+    //
+    // The FLOOR is the bound that matters and it does not move: 1% is the starvation line
+    // CLAUDE.md records at 0.3%, and it is the reason this row exists. The ceiling guards
+    // over-granting — a child so well funded the parent cannot synthesise its answer — and 8%
+    // leaves room for share variation without admitting a hop being dropped, which would land
+    // near 14%.
     assert!(
         share >= 0.01,
-        "leaf starved at {:.3}% — the band's floor is 1%, and the arithmetic-only row reads 1.98%",
+        "leaf starved at {:.3}% — the band's floor is 1%, and three hops of 0.375 read 5.27%",
         share * 100.0
     );
-    assert!(share <= 0.05, "leaf over-granted at {:.3}%; the ceiling is 5%", share * 100.0);
+    assert!(
+        share <= 0.08,
+        "leaf over-granted at {:.3}%; the ceiling is 8% for a three-hop chain. A reading near 14%          means a hop was dropped, not that a grant grew",
+        share * 100.0
+    );
 }
 
 /// A's depth bound, re-verified: `depth` is checked before a child exists, and the level past it
@@ -883,7 +943,26 @@ fn a_leaf_at_depth_four_is_inside_the_declared_band_under_real_spawns() {
 /// third is the bound and not the script running out.
 #[test]
 fn the_depth_bound_refuses_the_level_past_it_under_real_spawns() {
-    let spawn = || reply(run_call(serde_json::json!({ "exposed_tools": "", "task": "deeper" })), 10);
+    // **`kind` and `exposed_tools` are load-bearing here, and this test went red without them
+    // (2026-08-31).** After `a017ee0` a spawn with the default `kind` is `Work`, so the chain is
+    // `Secretary --Work--> TopAgent { manages: false }`, which `AgentLevel::child_of` refuses to
+    // let spawn again; and `exposed_tools: ""` leaves the child without `run`, which
+    // `may_create_agents` reads. Either alone stops the tree at ONE child -- at the level or at
+    // the capability, never reaching the depth this test is named for.
+    //
+    // Changing the expected count to 1 would have made it green while measuring a different
+    // bound. `kind: master` plus `run` makes every level legal, so **depth is what refuses the
+    // third**, which is what the name claims.
+    let spawn = || {
+        reply(
+            run_call(serde_json::json!({
+                "exposed_tools": "run",
+                "kind": "master",
+                "task": "deeper"
+            })),
+            10,
+        )
+    };
     let recorder = drive(
         vec![
             spawn(),

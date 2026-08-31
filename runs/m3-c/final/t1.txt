@@ -1,0 +1,61 @@
+   Compiling marlowe-view v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-view)
+warning: unused import: `marlowe_contract::EscalationId`
+  --> crates\marlowe-loop\src\escalation.rs:46:5
+   |
+46 | use marlowe_contract::EscalationId;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-loop` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-loop` to apply 1 suggestion)
+warning: unused import: `CondensedResult`
+  --> crates\marlowe-provider\src\ollama.rs:14:31
+   |
+14 |     CallLimits, ClaimRequest, CondensedResult, ContextView, DegradedPath, ModelCall, ModelDriver,
+   |                               ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `marlowe-provider` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-provider` to apply 1 suggestion)
+   Compiling marlowe-provider v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.04s
+     Running tests\persona_emission.rs (target\debug\deps\persona_emission-f75865c929908a91.exe)
+
+running 8 tests
+test the_persona_reaches_the_outbound_request_body ... ok
+test history_roles_follow_who_actually_said_it ... ok
+test the_persona_is_in_the_stable_tier_and_not_a_user_turn ... ok
+test parameter_types_are_not_all_string ... ok
+test the_web_tool_requires_its_url_and_offers_no_search ... ok
+test every_tool_with_a_target_declares_it_required ... ok
+test parameter_descriptions_do_not_leak_internal_rust_type_names ... ok
+test the_persona_text_exists_in_exactly_one_place ... FAILED
+
+failures:
+
+---- the_persona_text_exists_in_exactly_one_place stdout ----
+
+thread 'the_persona_text_exists_in_exactly_one_place' (62984) panicked at crates\marlowe-provider\tests\persona_emission.rs:159:5:
+the persona text appears inside Rust source, which §C6 forbids — the artifact is the single source and a copy will drift from it:
+C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-provider\tests\terminate_is_absent_from_the_request_body.rs
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_persona_text_exists_in_exactly_one_place
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p marlowe-provider --test persona_emission`
+     Running tests\terminate_is_absent_from_the_request_body.rs (target\debug\deps\terminate_is_absent_from_the_request_body-12e486807339edb8.exe)
+
+running 4 tests
+test no_profile_exposes_an_escape_hatch_tool ... ok
+test the_scan_finds_the_canary_when_it_is_actually_there ... ok
+test the_word_terminate_is_in_these_bodies_and_that_is_correct ... ok
+test the_escape_hatch_reaches_no_model ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: 1 target failed:
+    `-p marlowe-provider --test persona_emission`
