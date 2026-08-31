@@ -194,6 +194,44 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
 5. **The trust ledger.** Consequential actions need earned tiers; irreversible ones have ceilings no
    evidence lifts. Addendum A §A8. **Not built — M6.**
 
+**THE SANDBOX IS NOT A SIXTH LAYER, AND CALLING IT ONE WOULD BE THE FIRST MISTAKE.** ADR-070,
+accepted 2026-08-31, **design only — nothing is built**. The five layers above defend against
+untrusted content *shaping what the agent does*. A sandbox stops none of that. It bounds **what a
+successful injection can reach**, which is a different axis, and it covers exactly one tool.
+
+**What it actually is: the kernel backstop ADR-002 removed, restored for `bash` alone, on a path
+that never had one.** Only `bash` leaves the daemon process — `web`, the model call, the journal and
+every file tool run in-process (`marlowe-exec/src/lib.rs:1999-2001`), walled by `PathScope`. So the
+box wraps `spawn_shell` and nothing else moves.
+
+**Two things about it that must not drift.**
+
+**`bash`'s `Irreversible` escalation IS the current containment on that path.** ADR-049 §4 measured
+it: `curl` returns HTTP 200 from `cmd /C`, and no `EgressPolicy` is consulted because the adjudicator
+iterates `Url`-typed parameters and `bash` declares none. The approval prompt is the only control
+there is. **So lifting the escalation and building the box are ONE change** — lifting first does not
+trade a little safety for speed, it removes the wall.
+
+**The box contains DAMAGE, not DISCLOSURE.** `web` is harness-executed, so the box does not constrain
+it at all, and a team's box holds a copy of the user's source. **Egress is not retired by it**, and a
+red-team result that reads a box-contained success as a defence working is the partial-number failure
+this file logs most.
+
+**A worktree is provisioning, not containment.** `bash` consults no `PathScope` — the shell inherits
+the daemon's filesystem access entire — so a compromised agent walks out of a nominated directory
+without trying. If a mechanism reduces to *"point the workspace at a different folder"*, nothing has
+been built, and the day someone lifts the `bash` escalation on the strength of it is the day it
+matters.
+
+**AND THE PI NOW HOLDS WORKING TOOLS, WHICH MOVES THE PRODUCT ONTO AN OPEN FINDING.** M3-DESIGN
+§1.2's *"masters hold no working tools"* was reversed by the human on 2026-08-31 and is **built**
+(`6e01c37`). The old rule bought less than it looked like — `SpawnRequest.task` is a `Payload` and
+`composes_spawn_targets` never checks it, so a toolless master still wrote the task for a worker that
+held `edit`. But `SECURITY-AUDIT.md` finding #1 is now **more** reachable: a child's note crosses
+into its parent at `AgentInferred`, **above** `blocks_composed_targets`'s threshold, and the PI holds
+tools *and* the union of everything its team found. **The blast radius does not widen in what can be
+done — it widens in how well-aimed it is.**
+
 **WHEN THE FIVE GET TESTED, AND WHY ITS ZEROS ARE NOT AUTOMATICALLY GOOD NEWS —
 `docs/design/REDTEAM-SESSION.md`, which is scheduled rather than aspirational.** Since the §8.2
 amendment, §8.3's injection ASR is **first-order evidence that containment works**, not a

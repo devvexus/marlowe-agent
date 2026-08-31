@@ -1,8 +1,20 @@
 # ADR-070 · One sandbox per team, and it wraps `bash` — nothing else has to move
 
-**Status:** PROPOSED — needs the human's approval. **DESIGN ONLY, NO CODE.** Nothing here is built.
-Three facts below were verified on this machine and are marked; three more are **explicitly
-unverified** and are named rather than asserted.
+**Status:** **Accepted 2026-08-31 by Matthew.** **DESIGN ONLY — NOTHING HERE IS BUILT**, and
+acceptance does not change that: §4.3's three unverified facts stand, and **§7's spike gates the
+implementation** rather than following it.
+
+Three facts below were verified on this machine by `icacls` and are marked as such; three more are
+**explicitly unverified** and are named rather than asserted. **The largest of those — whether Git
+Bash survives an AppContainer — is the first step of the next session and is a spike, not an
+implementation** (`PI-SESSION-PLAN.md` step 0). If it fails, §4.3 names the fallbacks and this
+acceptance covers them too: what was accepted is *one OS-enforced box per team wrapping `bash`*, not
+AppContainer specifically.
+
+> **What acceptance changes and what it does not.** It authorises the work and settles the argument
+> — a per-team box is the mechanism, `bash` is what it wraps, and lifting `bash`'s escalation happens
+> **in the same change** that builds the box (§3). It does not make the box exist, and no document
+> may cite this ADR as evidence that agents are contained until §7's probes have run.
 
 | | |
 |---|---|
