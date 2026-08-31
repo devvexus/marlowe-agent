@@ -81,6 +81,40 @@ CLAUDE.md already records the premise — *"a test that establishes taint via a 
 establishes nothing"* — but the consequence for layer 3 was not drawn. **This needs a `DECISIONS.md`
 entry, not a patch:** the trade is currently a side effect of ADR-041/042, not a stated choice.
 
+> **AMENDED 2026-08-31 — THE PRODUCT HAS MOVED ONTO THIS FINDING. It is not fixed, and nothing below
+> claims it is.** `6e01c37` reversed M3-DESIGN §1.2, which read *"masters hold no working tools,
+> structurally"* on the argument that *"a master with an `edit` tool will eventually edit… because it
+> is capable and the work is right there."* That wording is quoted rather than deleted because the
+> posture it describes is what changed: the `Master` arm of `CapabilityProfile::new` no longer refuses
+> working tools, and `MANAGEMENT_TOOLS` and `ProfileError::MasterHoldsWorkingTool` are deleted. The
+> requirement is `PI-MODEL.md`; the reversal is **built and green** — `marlowe-loop`, `marlowe-tools`
+> and `marlowe-provider`, 416 passed, 0 failed, 6 ignored.
+>
+> **Every step of the chain above is unchanged, and the chain is one hop shorter.** Before the
+> reversal a composed target had to be written into a `SpawnRequest.task` for a worker that held
+> `edit` — and it arrived there anyway, because `task` is an `ArgumentRole::Payload` and
+> `composes_spawn_targets` never checks it. **The rule displaced the actor one hop without adding a
+> check**, which is the argument the human reversed it on: removing it does not open that path, it
+> stops routing around it. What moves is aim, not reach. **The PI reads every worker's report, so it
+> holds the most attacker-exposed context in the tree, and a child's note still crosses in at
+> `AgentInferred`** — above `blocks_composed_targets`'s threshold, by exactly the mechanism
+> `condense_chunk` uses. The union of a team's findings and a working `edit` tool now sit in one
+> context.
+>
+> **This did not make anything safer, and the reversal's own record says so.** `PI-MODEL.md` §5 lists
+> this finding as mattering *more* after the change, in the form the trade must keep: **the blast
+> radius does not widen in what can be done; it widens in how well-aimed it is.** So the
+> `DECISIONS.md` entry this finding asked for is still owed and now owes two things — the ADR-041/042
+> trade, and a product shipped on top of it — and `REDTEAM-SESSION.md` pass 2 is measuring an acting
+> PI with cross-worker synthesis rather than a coordinator.
+>
+> **One refusal survived the deletion and nearly died by accident, which is worth recording in a
+> security file.** `MANAGEMENT_TOOLS` was doing two jobs under one whitelist: it withheld working
+> tools, and it withheld `ask`, because only a top-agent reaches the user. Deleting it for the first
+> would have dropped the second in silence. `ask` is now refused by name at the `Master` arm as
+> `ProfileError::OnlyATopAgentMayAsk`, with a top-agent control so the refusal cannot become
+> universal.
+
 ### 2. A panic message carries the document into the orchestrator at `AgentObserved` — CRITICAL
 
 Rust's char-boundary panic embeds ~256 characters of the string being sliced. That payload is
@@ -143,6 +177,44 @@ persisted `SessionState`. **The latch belongs on the session, not the Run.**
   sink.
 - **Guards installed where the danger was noticed, not where it lives**: `catch_unwind` on PDF only;
   the panic guard one line below the first code to touch attacker bytes.
+
+### Opened 2026-08-31 by ADR-070 — a design that does not exist yet
+
+**Two items this file did not carry, and they are not part of the 2026-08-12 round**, so they take
+`S` handles rather than a rank in the list above. ADR-070 proposes one AppContainer per top-agent
+team, wrapping **`bash` alone** — `web`, the model call, the journal and every file tool execute
+inside the daemon process (`crates/marlowe-exec/src/lib.rs:1999-2001`), and only `spawn_shell` leaves
+it. Three of its facts were verified on this machine by `icacls`: `C:\Users\matth` carries **no**
+`ALL APPLICATION PACKAGES` ACE, so the user's profile is denied to an AppContainer by Windows' own
+defaults; `C:\Program Files\Git` and `System32` do carry it, so Git Bash and the system DLLs load; and
+`CreateAppContainerProfile` needs no elevation. **The ADR is `PROPOSED — needs the human's approval`
+and no code is written.** Both items are logged now because both are properties of the *design*, and a
+design's security claims are cheapest to correct before anything is built.
+
+**S1 · The box would contain DAMAGE, not DISCLOSURE — egress is NOT retired by it.** The reading to
+refuse is the natural one: *"the team is contained, so the allowlist can relax."* It cannot. A boxed
+team's workspace holds a copy of the user's source; `web` is harness-executed, runs in the daemon
+process, and the box does not constrain it at all — so **the allowlist stays the only thing between
+that copy and an attacker-named host.** The kernel denial the box provides is on the *box's own*
+network access and says nothing about what the harness fetches on the team's behalf. Layer 1 keeps
+every job it has for the same reason: stopping raw bytes from reaching a tool-holding context is a
+different job from stopping a process escaping, and one does not substitute for the other. **Marlowe
+himself is not boxed** — he has the machine, which is exactly why his securities stay heavy.
+
+**S2 · Whether MSYS2 / Git Bash survives an AppContainer is UNVERIFIED, and it is the design's largest
+risk.** AppContainer redirects the object namespace to `\Sessions\N\AppContainerNamedObjects\<SID>`,
+and Git Bash uses named shared objects and `fork()` emulation. ADR-070 §4.3 names this unverified
+rather than asserting it; it is a one-hour spike, not an argument, and the fallback if it fails is a
+native shell in the box or a separate unprivileged account. **It is recorded here because its failure
+mode is silent in the exactly wrong direction: a shell that never starts passes every escape probe in
+§7's table**, which is why the ADR pairs those probes with a positive control — the same shell, in the
+same box, doing ordinary work (`mkdir`, `git init`, writing a file in its own workspace). §7 carries
+one more condition of the same kind: **with the harness's path scoping left ON, every escape probe
+passes whether or not the sandbox exists**, so the acceptance run must disable it deliberately. And
+the human's two hard constraints bind the build (`runs/m3-c/sandbox/HARD-CONSTRAINTS.md`): **it must
+never log the user out**, and **nothing verifies the box by running a destructive command** — escape
+is proved by reaching something harmless you should not be able to reach, never by destroying
+something.
 
 ---
 
@@ -276,6 +348,28 @@ exactly what `finish_call`'s "no carve-out for a failed call" reasoning argues f
 
 *Mitigated today by per-call human approval, which is why this is not HIGH — but the approval is on
 the command, and `git log` reads benign.*
+
+> **AMENDED 2026-08-31 — the layer-4 sentence is now MEASURED, and it has a PROPOSED answer that is
+> NOT BUILT.** *"Egress allowlisting does not see `curl`"* was written above as a corollary of the
+> code. ADR-049 §4 measured it: `curl` returns **HTTP 200** from `cmd /C`. The mechanism is that the
+> adjudicator's egress check iterates parameters typed `Url`, and **`bash` declares none — so no
+> `EgressPolicy` is consulted on that path at all.** ADR-070 proposes the answer: one AppContainer per
+> top-agent team, wrapping `bash` only, whose token carries a NULL capability array and therefore
+> holds neither `internetClient` nor `privateNetworkClientServer`, so Windows Filtering Platform drops
+> the connect on the package SID and **there is no spelling of `curl` that acquires a capability the
+> token does not hold**. Loopback is blocked for AppContainers by default and the documented
+> exemption requires admin, so an agent cannot grant it to itself. **ADR-070 is `Status: PROPOSED —
+> needs the human's approval` and nothing about the sandbox is written.** Until it is, this entry
+> stands exactly as filed.
+>
+> **The sequencing constraint belongs in this entry, because it inverts the obvious fix.** The
+> mitigation this finding is filed under — per-call human approval, ADR-026's `Irreversible` ceiling —
+> is not a nuisance sitting in front of a solved problem. ADR-070 §3 states it plainly: **`bash`'s
+> `Irreversible` escalation IS the current sandbox for the shell path**, because `bash` consults no
+> `PathScope` and a compromised agent walks out of a nominated directory without trying. So *"lift the
+> escalation"* and *"build the box"* are **one change, not two**, and lifting first does not trade a
+> little security for speed — **it removes the only control this path has, and is strictly worse than
+> today.**
 
 ### A6 · `read(ref=…)`'s Target check is structurally vacuous — MEDIUM (as a false control)
 
