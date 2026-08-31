@@ -40,6 +40,42 @@ Untrusted content and memory poisoning are defended by **five named layers**. Kn
    is `blocks_composed_targets`, the same function the adjudicator enforces on, so a new tool
    returning untrusted content is covered without anyone remembering to add it.
 
+   **AMENDED 2026-08-31 (ADR-071): THAT PROPERTY IS NOW SCOPED, AND THE SCOPE IS *WHO IS BEING
+   PROTECTED*.** ADR-071 is **accepted by the human and NOTHING IS BUILT**, and it rests on
+   ADR-070's box, **which has not been spiked** — so what follows is a decision about the design,
+   not a description of the product. Inside a top-agent's team, agents talk in ordinary prose in
+   both directions: no `OutputContract` between an intern and its PI, no quarantined reader
+   condensing a page before a worker sees it. **Typing and layer 1 survive at exactly one boundary
+   — the team's edge with Marlowe.** The quarantine is not removed and §2.1's invariant is
+   untouched; nothing here can latch the Secretary. What changes is **who it protects**.
+
+   The sentence above — *"keyed on the trust class, not the tool name … so a new tool returning
+   untrusted content is covered without anyone remembering to add it"* — stays on this page because
+   it names precisely what a Marlowe-only layer 1 puts at risk. **Keying on *who is reading* is a
+   weaker shape than keying on the trust class: it reintroduces the "someone has to remember"
+   failure ADR-039 deliberately removed.** That tension is why ADR-071 §7 item 1 leaves how this is
+   expressed in code **undecided** rather than answering it, and why `Engine::condense_batch` still
+   triggers on `blocks_composed_targets` today.
+
+   **What makes the trade arguable, stated with its cost.** The team is inside the box, so an
+   attacker who owns a page owns an intern in a disposable directory and the only thing that leaves
+   is what it *says* upward: **the sandbox bounds what an agent can DO, the Marlowe boundary bounds
+   what it can INFLUENCE outside the team.** And typing never protected against persuasion —
+   `validate` checks shape, length and character class, so attacker-shaped prose inside a declared
+   field crossed either way. What it bought was protection against **forged structure** (ADR-039):
+   a child cannot invent or forge a field header, which matters when the receiver is a **machine
+   parsing slots** and much less between two models reading each other's prose. This does not make
+   the team safer, and the ADR does not claim it does.
+
+   **THE BET, CARRIED HERE RATHER THAN LEFT IN THE ADR.** *"The PI is insanely smart and can catch
+   the intern"* is a claim about **model capability**, and this project has spent its life
+   preferring structure to model behaviour. Three things keep it honest: the box bounds the
+   downside, a human reads the output, and **the bet is testable and is NOT yet tested** —
+   `runs/m3-c/prefilter/FINDING.md` measured that *polite* injections beat every small model on
+   every carrier while the shouting ones were caught, and nothing establishes that a smarter reader
+   does better on the polite case. **It must not survive its own precondition: if ADR-070's spike
+   fails and there is no box, ADR-071's premise is gone.**
+
    **The unit is the GROUP, not the call, as of ADR-041.** N fetched pages cost **one** child, one
    model call and one subagent slot — it was one of each *per page*, which made a thirty-page
    research pass impossible (it paused at the 8-subagent cap, and the eighth reader held ~0.3% of
