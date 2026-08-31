@@ -13,6 +13,23 @@ single invariant that keeps the thing the user talks to safe.
 | **Anti-requirements honoured** | §15 — no swarm topology, no predeclared DAGs |
 | **Anti-requirements crossed** | audit finding E4, and §10.1's *"workers do not talk to each other"* — both need explicit `DECISIONS.md` entries, see §5 and §6 |
 
+> ### AMENDED 2026-08-31 — TWO DECISIONS BY THE HUMAN LAND ON THIS PAGE AND THEIR STATUSES ARE NOT THE SAME
+>
+> **The first is BUILT AND GREEN.** §1.2's *"masters hold no working tools, structurally"* is
+> **reversed in code** (`6e01c37`): the PI is the senior researcher who does the hardest part
+> himself. The requirement is [`PI-MODEL.md`](PI-MODEL.md) §3; the amendment, with the old rule
+> quoted rather than deleted, is §1.2 below, and it reaches §1's level table and §3.1.
+>
+> **The second is PROPOSED AND NOT BUILT.** One OS sandbox per top-agent team, wrapping `bash` and
+> nothing else — [`ADR-070`](adr/ADR-070-one-sandbox-per-team-and-it-wraps-bash.md), `Status:
+> PROPOSED — needs the human's approval`. **There is no crate, no call site, and the one risk that
+> could sink it has not been spiked.** §1.3 and §4 record where it would land and say *proposed*
+> every time it is named.
+>
+> **Neither weakens layer 1 or layer 2, and §2.1's Marlowe invariant is untouched by both.** The
+> reversal does not make anything safer — it moves the product onto an already-open finding, and
+> §1.2 says so.
+
 ---
 
 ## §0. The premise
@@ -37,7 +54,7 @@ dropped 2026-08-24.
 |---|---|---|---|---|
 | 1 | **`[Mrlw]` Secretary** | nobody — he is the process | full conversational set | permanent, one instance |
 | 2 | **`[Ta]` Top-agent** | Marlowe, and **only** Marlowe | per role | project-scoped |
-| 3 | **`[Ma]` Master-agent** | a top-agent with the create grant | **management only** | project-scoped |
+| 3 | **`[Ma]` Master-agent** | a top-agent with the create grant | **per role, working tools included** — was *"management only"* until 2026-08-31, see §1.2; `ask` is the one refusal that survives (§3.1) | project-scoped |
 | 4 | **`[Wa]` Worker-agent** | its master | per type | task-scoped |
 | 5 | **`[TSa]` Tool-spawned** | any tool needing one | **none** | destroyed on return |
 
@@ -55,21 +72,66 @@ The distinction is one question: *can one agent do this alone?* Getting it wrong
 direction (a master with one worker is a wasted hop) and expensive in the other (a worker drowning
 in a job that needed a team). **§9.1 makes this a measured arm rather than a guess.**
 
-### 1.2 Masters hold no working tools, structurally
+### 1.2 ~~Masters hold no working tools, structurally~~ — REVERSED BY THE HUMAN 2026-08-31, AND BUILT
 
-A master with an `edit` tool will eventually edit. Not because it is disobedient — because it is
-capable and the work is right there. **The tool is absent from the set, not forbidden by
-instruction.** `ExposedSet::empty()` is the existing precedent: the quarantined reader holds no tools
-because there is nothing to call, not because it was asked nicely.
+**The rule this section carried is gone from the code (`6e01c37`).** It is quoted rather than
+deleted, because what it lost to is the argument:
+
+> *"A master with an `edit` tool will eventually edit. Not because it is disobedient — because it is
+> capable and the work is right there. **The tool is absent from the set, not forbidden by
+> instruction.** `ExposedSet::empty()` is the existing precedent: the quarantined reader holds no
+> tools because there is nothing to call, not because it was asked nicely."*
+>
+> *"A master's set is: communicate, question, answer, meeting control, todo management,
+> create/delete agent (if granted), budget allocation, escalate."*
+
+**The ladder describes a research group, not a management chain.** A master is the **principal
+investigator** — the senior researcher who does the hardest part himself and spawns assistants and
+interns because the job is larger than one context. Delegation is leverage, not a job description,
+and forbidding the AAII-52 model in the tree from touching the work spends the best model there is
+on coordination. The requirement is [`PI-MODEL.md`](PI-MODEL.md) §3; this section is its
+consequence.
+
+**The rule also bought less than it looked like, and that is what decided it.** `SpawnRequest.task`
+is an `ArgumentRole::Payload` and `composes_spawn_targets` never checks it — pinned in
+`engine.rs`'s own row, *"`task` is a Payload: it may be shaped, not chosen"*. So a toolless master
+still **wrote the task** for a worker that held `edit`. **It displaced the actor one hop without
+adding a check.** Removing it does not open that path; it stops routing around it.
+
+**What that costs, recorded rather than glossed, because §1.2's real argument was containment and
+not hierarchy.** A master reads every worker's report, so it holds the most attacker-exposed context
+in the tree, and a child's note crosses in at `AgentInferred` — **above**
+`blocks_composed_targets`'s threshold, so layer 3 does not catch it. That is `SECURITY-AUDIT.md`
+finding #1, already open. **This change did not create that hole; it moves the product onto it.**
+The blast radius does not widen in *what can be done* — the toolless master could already choose
+the worker and write its task — it widens in **how well-aimed it is**, because the actor holding
+the tools is now the one holding the union of everything the team read. Red-team pass 2 (§10 step 7)
+matters more after this change, not less.
+
+**Nothing replaces it for working tools, and that is deliberate.** A master holding no `run` simply
+cannot spawn — `may_create_agents` reads the exposed set — which is already a coherent state
+needing no new error. *"A master MUST hold `run`"* would be inventing a rule in the same edit that
+removes one.
+
+> **ONE REFUSAL SURVIVED AND IT NEARLY DIED BY ACCIDENT, WHICH IS THE PART TO REMEMBER.**
+> `MANAGEMENT_TOOLS` was doing **two** jobs under one whitelist: it withheld working tools — the
+> rule above, now reversed — *and* it withheld `ask`, which is **a different decision the human
+> took the same day** (§3.1: only a top-agent reaches the user). Deleting the whitelist for the
+> first would have dropped the second in silence, with every remaining test green.
+>
+> `ask` is now refused **by name**: `ProfileError::OnlyATopAgentMayAsk`, at
+> `CapabilityProfile::new`'s `Master` arm. `MANAGEMENT_TOOLS` and
+> `ProfileError::MasterHoldsWorkingTool` are **deleted** — a constant with no reader and an error
+> variant nothing can construct are instance #16 with a `thiserror` derive on it.
+
+**The trap below is UNCHANGED and still load-bearing.** It was written about masters and it is not
+about masters: it is about how anything is withheld, and §3.1's `ask` is now the live instance.
 
 > **THE TRAP, AND IT HAS ALREADY SHIPPED ONCE HERE.** Do **not** express "a master may not edit" as
 > `edit_calls: 0`. `Budget::exhausted` compares `spent >= budget`, so `0 >= 0` fires on the first
 > iteration — the agent pauses before its first model call while looking perfectly configured. That
 > is instance #17, and it silently stopped the quarantine from reading anything at all. **Withhold
 > the capability; leave the counter at 1.**
-
-A master's set is: communicate, question, answer, meeting control, todo management, create/delete
-agent (if granted), budget allocation, escalate.
 
 ### 1.3 Worker tool sets are per type
 
@@ -79,6 +141,44 @@ validating constructor already exists — it is configuration, not new machinery
 Two benefits, and the second is the one to state in review: it cuts token bloat, **and it bounds what
 a contaminated agent can do.** A research worker that read a hostile page cannot write to the repo
 because it never held the tool.
+
+> **AND THERE MAY BE A BOX UNDERNEATH THEM — [`ADR-070`](adr/ADR-070-one-sandbox-per-team-and-it-wraps-bash.md),
+> `PROPOSED`, NOT BUILT.** No crate, no call site, nothing spiked. It is named here because this is
+> where a reader looks for the answer to *"what stops a compromised agent"* and finds only a tool
+> set.
+>
+> One sandbox per **top-agent team**, full freedom inside, wrapping **`bash` alone** — because
+> `bash` is the only tool that leaves the daemon process. `web`, the model call, the journal and
+> every file tool dispatch in-process in `marlowe-exec`'s `execute` match, `bash` and `web` on
+> adjacent lines, so **research is untouched**: a boxed team fetches pages exactly as it does now,
+> harness-executed.
+>
+> **It does not retire this section and it does not retire egress.** Per-type sets bound what a
+> *contaminated* agent can do inside the box; a box bounds what a *compromised process* can reach
+> outside it. And a box contains **damage, not disclosure** — `web` is harness-executed, the box
+> holds a copy of the user's source, and the allowlist is the only thing between that and an
+> attacker-named host.
+>
+> **Why an OS mechanism rather than a directory.** `bash` consults no `PathScope`, so a compromised
+> agent walks out of a nominated directory without trying, and **a worktree is provisioning, not
+> containment**. Denial would be the kernel rather than a filter: an AppContainer token with a NULL
+> capability array holds neither `internetClient` nor `privateNetworkClientServer`, WFP drops the
+> connect on the package SID, loopback is blocked for AppContainers by default, and the documented
+> exemption requires admin — so an agent cannot grant it to itself. Verified on this machine by
+> `icacls`, 2026-08-31: `C:\Users\matth` carries **no** `ALL APPLICATION PACKAGES` ACE while
+> `C:\Program Files\Git` and `System32` do, so the user's profile is denied and Git Bash still
+> runs, with no code written; `CreateAppContainerProfile` needs no elevation.
+>
+> **Therefore `bash`'s `Irreversible` escalation IS the current sandbox for that path**, and *"lift
+> the escalation"* and *"build the box"* are **one change, not two**: lifting first removes the only
+> control there is.
+>
+> **Marlowe is not boxed and his securities stay heavy**, precisely because he has the machine.
+> **The largest risk is UNVERIFIED and is repeated as unverified:** whether MSYS2 / Git Bash
+> survives AppContainer's redirected object namespace. That is a spike, not an argument. Two hard
+> constraints from the human bind any build (`runs/m3-c/sandbox/HARD-CONSTRAINTS.md`): **it must
+> never log the user out**, and **nothing verifies the box by running a destructive command** —
+> escape is proved by *reaching something harmless*, never by destroying something.
 
 ### 1.4 Tool-spawned agents
 
@@ -152,6 +252,25 @@ An agent that is genuinely stuck must be able to reach a human. Escalation is th
 - Escalation starts at the agent's **direct master** and must be **approved at each level**.
 - It is **scoped to the top-agent's subtree**. A worker can never address Marlowe.
 - Only a **top-agent** may escalate to the user, and even then Marlowe is not the recipient.
+
+> **`ask` IS NOW REFUSED BY NAME AT THE PROFILE CONSTRUCTOR, 2026-08-31 — AND IT ONLY JUST IS.**
+> This routing had no enforcement of its own in the type. It fell out of `MANAGEMENT_TOOLS`, a
+> whitelist §1.2 maintained for an unrelated purpose, so on the day §1.2 was reversed the rule
+> would have gone with the constant and every remaining test would have stayed green.
+> `CapabilityProfile::new` now returns `ProfileError::OnlyATopAgentMayAsk` — *"only a top-agent
+> reaches the user"* — and `serde` routes through the same constructor, so a checkpoint cannot
+> widen it either.
+>
+> **The tool is withheld, not locked at the call**, which is §1.2's principle surviving §1.2's
+> rule: a door visible in the exposed set and described in the schema costs the model every call it
+> spends discovering that the door is locked.
+>
+> **Stated exactly, because the arm is narrower than this section reads:** the refusal is at
+> `AgentLevel::Master`. A **level-4 worker** holding `ask` is still constructible, while this
+> section says a worker can never address Marlowe. Nothing in the product builds such a profile
+> today, which is why it went unnoticed rather than a reason it is safe — a rule enforced only
+> where somebody remembered to enforce it is a rule with one arm. §12 item 7 records it as open
+> rather than this note treating it as covered.
 
 ### 3.2 What Marlowe sees
 
@@ -245,6 +364,29 @@ user learns to click through is worse than no interruption at all.**
 
 The user sets a ceiling at spawn. Marlowe grants within it and merely announces. Only a request past
 the ceiling sets up the meeting.
+
+### 4.3 A boxed team's budget is a different trade — and the box is PROPOSED, NOT BUILT
+
+[`ADR-070`](adr/ADR-070-one-sandbox-per-team-and-it-wraps-bash.md) is `PROPOSED — needs the human's
+approval` and nothing about it exists. It is recorded here anyway, because §4's ceilings are doing
+two jobs at once and a box would separate them.
+
+A budget rations **money and the user's time**. Outside a box it also stands in for **blast
+radius**: an agent that spends its ceiling doing the wrong thing has done the wrong thing to the
+user's machine, so the ceiling is a safety limit wearing a cost limit's clothes. Inside a box those
+come apart — **a runaway burns its own sandbox**, a disposable directory the harness provisioned,
+and the loss is the tokens and the wall-clock. That argues for wider grants and fewer interruptions
+for a boxed team, which is §4.2's own point that *"an interruption the user learns to click through
+is worse than no interruption at all."*
+
+**What does not change, and must not be traded against a box that does not exist.** The dimensions
+that ration **runaway behaviour** — `tool_calls`, `subagents`, `depth` — are not cost limits and a
+box does not touch them; `wall_ms` still rations the user's time. **And no dimension goes to zero**:
+instance #17, stated in §1.2's trap. Every widening here is contingent on the box being approved,
+built, and its Git Bash risk spiked — until then `bash`'s `Irreversible` escalation is the
+containment (§1.3), and a budget widened ahead of the box is a control removed with nothing behind
+it. [`PI-MODEL.md`](PI-MODEL.md) §3.1 asks a second, independent question about this section — no
+token budget by default on local models — which is a *money* argument and is not this one.
 
 ---
 
@@ -675,3 +817,11 @@ M3's existing rows in ROADMAP stand. These are additional and each is a command 
    **Still open only for the meeting utterance** (§5.2): whether an agent's speech shares that
    variant or needs its own.
 6. Meetings: does the conductor's own context also clone, or does it own the transcript directly?
+7. **NEW 2026-08-31.** `ProfileError::OnlyATopAgentMayAsk` fires at the `Master` arm only, so a
+   level-4 worker holding `ask` is constructible while §3.1 says a worker can never address
+   Marlowe. Is the arm widened to every level below a top-agent, or is §3.1 narrower than it reads?
+8. **NEW 2026-08-31, and it is [`ADR-070`](adr/ADR-070-one-sandbox-per-team-and-it-wraps-bash.md)'s
+   to answer rather than this page's.** The sandbox is `PROPOSED` and unbuilt; if it is approved,
+   does a team's box change what a *master* may hold beyond what §1.2's reversal already granted,
+   and does `SpawnRequest` carry the workspace? The second is §13-guarded and escalates
+   separately.
