@@ -275,9 +275,57 @@ impl Budget {
     /// fetch a page and then never read it, receiving *"no budget remained to condense it"* while
     /// the real cause was depth. The child is given `depth: 0` and `subagents: 0`, which is what
     /// a run that cannot spawn actually needs.
+    /// # 3. The floor `grant` enforces and this function did not
+    ///
+    /// **`MIN_CHILD_TOKENS` was read by one of the two functions that hand out a child budget.**
+    /// `grant` refuses below it by name — `PoolTooSmall`, `BelowFloor` — because a grant beneath
+    /// one measured first call hands out a budget the loop is *guaranteed* to reject. This
+    /// function computed a quarter of the original, floored it at **1**, and returned `Some`.
+    ///
+    /// The arithmetic, because the defect has a threshold rather than being universal. The share
+    /// is `tokens * 2 / 8`, so it falls below `MIN_CHILD_TOKENS` whenever the run's own budget is
+    /// under `4 * MIN_CHILD_TOKENS` = **14,404 tokens**. `Budget::interactive()` is 200,000, so a
+    /// root-level read was never affected and nothing on the interactive path could show it. A
+    /// *child* running a `web` call is: a child granted 10,544 tokens gave its reader **2,636**
+    /// against a **3,089**-token measured first call, so the reader paused before that call having
+    /// spent nothing, and the parent read *"the content could not be condensed"*.
+    ///
+    /// **That is instance #17's exact symptom at the layer-1 component**, and it reached the
+    /// parent as a sentence about the page rather than about the budget — the reading that is
+    /// indistinguishable from a page with little to say, which the section above names as the
+    /// output nobody can audit.
+    ///
+    /// **A SHORT SHARE AND A SHORT POOL ARE TWO STATES AND ONLY ONE IS A REFUSAL.** The 10,544
+    /// case above has a pool covering the floor three times over — nothing is exhausted, the
+    /// *fraction* is simply too small — so the answer is to **raise to the floor**, and refusing
+    /// there would deny a read the run could easily afford. Only `left.tokens < MIN_CHILD_TOKENS`
+    /// is a genuine refusal. The first test written against this asserted `None` for the 10,544
+    /// case and was wrong about the product rather than about the defect; the distinction is
+    /// recorded here because collapsing the two is how a fix for starvation becomes a cause of it.
+    ///
+    /// It is also instance #16's shape one step on: the control existed, was correct, and was not
+    /// read at the second site that could act on it. `MIN_CHILD_TOKENS`'s own doc comment says
+    /// this in the singular — *"it was read by the CONSUMER and not by the GRANTER"* — and there
+    /// were two granters.
+    ///
+    /// **`MIN_CHILD_TOKENS` IS A LOWER BOUND HERE, NOT THE RIGHT NUMBER.** It was measured on *"a
+    /// toolless child with a two-line task"*; a quarantined reader's first call carries a fetched
+    /// **page**, so its true floor is strictly higher. The honest floor is a
+    /// `MEASURED_QUARANTINED_READ_TOKENS` read from the journal, and it is deliberately not
+    /// written here — an invented constant is worse than a missing one, and a divisor guessed from
+    /// characters would be a number nobody measured wearing a measurement's clothes. What this
+    /// closes is the case where the reader could not afford *any* first call. What it does not
+    /// close is the case where it cannot afford *this* one.
     pub fn slice_for_quarantined_read(&self, spent: &Budget) -> Option<Budget> {
         let left = self.remaining(spent);
         if left.tokens == 0 || left.wall_ms == 0 {
+            return None;
+        }
+        // Fail closed, exactly as `grant` does. The caller already renders `None` as a named,
+        // actionable refusal — *"no budget remained to condense it"* — which is true, and which is
+        // a better thing for the parent to read than a summary produced by a reader that was
+        // never able to speak.
+        if left.tokens < MIN_CHILD_TOKENS {
             return None;
         }
         let share = |original: u64, remaining: u64| {
@@ -288,7 +336,12 @@ impl Budget {
                 .min(remaining)
         };
         Some(Budget {
-            tokens: at_least_one_u64(share(self.tokens, left.tokens), left.tokens),
+            // Raised to the floor, never above what remains: `left.tokens >= MIN_CHILD_TOKENS` is
+            // guaranteed by the refusal above, so the `max` can only move a share that was too
+            // small and can never exceed the pool. That is the same argument `grant` makes, and it
+            // is the reason the refusal has to come first rather than being folded in here.
+            tokens: at_least_one_u64(share(self.tokens, left.tokens), left.tokens)
+                .max(MIN_CHILD_TOKENS),
             wall_ms: at_least_one_u64(share(self.wall_ms, left.wall_ms), left.wall_ms),
             // **1, not 0, and the difference is not cosmetic.**
             //
@@ -614,5 +667,101 @@ mod tests {
             }
             other => panic!("expected PoolTooSmall, got {other:?}"),
         }
+    }
+
+    /// **The same floor, at the OTHER function that hands out a child budget.**
+    ///
+    /// `grant` refused below `MIN_CHILD_TOKENS`; `slice_for_quarantined_read` did not, and the
+    /// component it starves is layer 1 — the only thing standing between a fetched page and the
+    /// run. Below the threshold it returned `Some` with a quarter of a small budget, the reader
+    /// paused before its first model call having spent nothing, and the parent was told *"the
+    /// content could not be condensed"* — a sentence about the page, not about the budget.
+    ///
+    /// **Every assertion here is paired with a control**, because the cheap wrong fix is to floor
+    /// every reader at `MIN_CHILD_TOKENS` and the cheaper one is to refuse every reader. Either
+    /// would make a one-sided test green while destroying the quarter that `QUARANTINED_READ_*`
+    /// exists to give.
+    #[test]
+    fn a_quarantined_reader_is_refused_rather_than_handed_less_than_one_first_call() {
+        // The threshold is arithmetic, not a guess: the share is 2/8, so it falls under the floor
+        // exactly when the run's own budget is under four times it.
+        let threshold = MIN_CHILD_TOKENS * Budget::QUARANTINED_READ_DENOMINATOR
+            / Budget::QUARANTINED_READ_NUMERATOR;
+        assert_eq!(threshold, 14_404, "the documented threshold moved; the doc comment must too");
+
+        // ── the defect, at the measured figure ────────────────────────────────────────────
+        //
+        // A child granted 10,544 tokens gave its reader 2,636 against a 3,089-token measured
+        // first call. **The pool was never the problem here — 10,544 covers the floor three times
+        // over — so the answer is to RAISE, not to refuse.** The first version of this test
+        // asserted `None` and was wrong about the product rather than about the defect; it is
+        // recorded rather than quietly corrected, because "the share is short" and "the pool is
+        // short" are two different states and only the second is a refusal.
+        let starving = Budget { tokens: 10_544, ..Budget::interactive() };
+        assert!(
+            starving.tokens < threshold,
+            "10,544 must sit below the threshold or this row measures nothing"
+        );
+        let raised = starving
+            .slice_for_quarantined_read(&Budget::default())
+            .expect("the pool covers the floor, so this is a raise and not a refusal");
+        assert_eq!(
+            raised.tokens, MIN_CHILD_TOKENS,
+            "before the floor this was Some(2_636) — 453 tokens short of \
+             MEASURED_CHILD_FIRST_CALL_TOKENS — so the reader paused before its first call having \
+             spent nothing and the parent read a sentence about the page, not about the budget"
+        );
+        assert!(
+            raised.tokens > 2_636,
+            "control: the raise actually moved the number it exists to move"
+        );
+
+        // ── control 1: the floor did not swallow the quarter ──────────────────────────────
+        //
+        // Without this, flooring every reader at MIN_CHILD_TOKENS passes the row above.
+        let generous = Budget::interactive();
+        let reader = generous
+            .slice_for_quarantined_read(&Budget::default())
+            .expect("an interactive run must still get a reader");
+        assert_eq!(
+            reader.tokens, 50_000,
+            "the quarter is the point; a reader pinned to the floor is a different defect"
+        );
+        assert!(
+            reader.tokens > MIN_CHILD_TOKENS,
+            "control: this reader is above the floor for its share, not because of it"
+        );
+
+        // ── control 2: refusal is not universal ───────────────────────────────────────────
+        //
+        // Without this, `return None` unconditionally passes both rows above.
+        let exactly_enough = Budget { tokens: threshold, ..Budget::interactive() };
+        let at_edge = exactly_enough
+            .slice_for_quarantined_read(&Budget::default())
+            .expect("a run exactly at the threshold must still read its page");
+        assert_eq!(
+            at_edge.tokens, MIN_CHILD_TOKENS,
+            "at the threshold the share and the floor coincide, which is what makes it the threshold"
+        );
+
+        // ── control 3: the raise never exceeds the pool ───────────────────────────────────
+        //
+        // `.max(MIN_CHILD_TOKENS)` is only sound because the refusal above guarantees the pool can
+        // cover it. A budget whose ORIGINAL is large but whose REMAINDER is thin is where that
+        // argument would break if the refusal read `self` instead of `left`.
+        let mostly_spent =
+            Budget { tokens: generous.tokens - MIN_CHILD_TOKENS, ..Budget::default() };
+        let thin = generous
+            .slice_for_quarantined_read(&mostly_spent)
+            .expect("exactly the floor remains, so the read is affordable");
+        assert_eq!(thin.tokens, MIN_CHILD_TOKENS);
+        assert!(
+            thin.tokens <= generous.remaining(&mostly_spent).tokens,
+            "a reader was granted more than the pool held"
+        );
+
+        // And one token less than the floor is a refusal, not an overdraft.
+        let one_short = Budget { tokens: generous.tokens - (MIN_CHILD_TOKENS - 1), ..Budget::default() };
+        assert_eq!(generous.slice_for_quarantined_read(&one_short), None);
     }
 }
