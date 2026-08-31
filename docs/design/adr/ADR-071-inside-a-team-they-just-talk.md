@@ -7,10 +7,35 @@ been spiked.
 | | |
 |---|---|
 | **Supersedes** | nothing |
-| **Amends** | **M3-DESIGN §2's headline invariant** — *"Nothing but typed structure and artifact references crosses upward. **Ever.**"* now has a stated scope. Also §2.3, §1.4, and ADR-039's trust-class trigger for the quarantined reader |
+| **Amends** | **M3-DESIGN §2's headline invariant**, by inserting two words. Also §2.2, §2.3, §1.4, §9.1's arm A8, and ADR-039's trust-class trigger for the quarantined reader |
 | **Depends on** | ADR-070 (the box), ADR-039 / ADR-041 (layer 1), M3-DESIGN §2.1 (why Marlowe is a liaison), `PI-MODEL.md` §1 |
 | **Contract change** | **None yet.** `OutputContract` and `FieldSpec` are unchanged and still govern the Marlowe boundary |
 | **Code change** | Specified, not written |
+
+---
+
+## 0 · THE INVARIANT, RESTATED — and it is two words, not a weakening
+
+M3-DESIGN §2 reads:
+
+> *"Nothing but typed structure and artifact references crosses upward. **Ever.**"*
+
+**It becomes:**
+
+> **"Nothing but typed structure and artifact references crosses upward INTO MARLOWE. Ever."**
+
+**That is the whole amendment, and the "Ever" is untouched.** The human's own correction, and it is
+better than the framing this ADR was first written with — *"the boundary moved"* — because it says
+what the rule always meant rather than describing a change to it.
+
+**The rule was never about height. It was about Marlowe.** §2.1 gives the reason and gives it in the
+first person: ADR-023's floor is monotonic and latched per run, Marlowe is the one *permanent* run,
+so *"a Marlowe who ingests one research finding can never compose a target again — not for that task,
+for his life."* Every other run in the tree is task-scoped and disposable. **The protection was
+always for the one agent that cannot be restarted**, and applying it at every hop was generalising
+from the case that needed it to cases that did not.
+
+So an intern talking to its PI was never the thing §2 was defending, and the sentence now says so.
 
 ---
 
