@@ -48,7 +48,21 @@ single invariant that keeps the thing the user talks to safe.
 > survive its own precondition."* If the Git Bash spike fails and there is no box, ADR-071's premise
 > is gone.
 >
-> **The invariant did not weaken; its boundary moved.** Typing and layer 1 survive at exactly one
+> **THE SENTENCE, AS THE HUMAN RESTATED IT 2026-08-31 — two words, and the "Ever" is untouched:**
+>
+> > **"Nothing but typed structure and artifact references crosses upward INTO MARLOWE. Ever."**
+>
+> **The rule was never about height. It was about Marlowe.** An earlier draft of this amendment
+> said *"the invariant did not weaken; its boundary moved"*, which describes a change to the rule.
+> Inserting two words says what the rule always meant. §2.1 gives the reason in its own words:
+> ADR-023's floor is monotonic and latched per run, Marlowe is the one **permanent** run, so *"a
+> Marlowe who ingests one research finding can never compose a target again — not for that task,
+> for his life."* Every other run in the tree is task-scoped and disposable. **The protection was
+> always for the one agent that cannot be restarted**, and applying it at every hop generalised
+> from the case that needed it to cases that did not. An intern talking to its PI was never the
+> thing §2 was defending.
+>
+> Typing and layer 1 therefore survive at exactly one
 > edge — the team's edge with Marlowe — because the thing §2 protects is a permanent run that must
 > never latch (§2.1), and that run sits at one edge and not at every hop. §2's headline, §2.2, §2.3,
 > §1.4 and §9.1's A8 are amended in place below, each quoting what it replaces. **§2.1 itself is
@@ -250,7 +264,22 @@ every level summarises for the level above. So:
 > and its PI there is prose, both directions — no `OutputContract`, no field validation on what a
 > subordinate reports, and no quarantined reader condensing a page before a worker sees it.
 >
-> **The boundary moved; the rule did not soften.** What §2 protects is named one section down: a
+> **THE SENTENCE, AS THE HUMAN RESTATED IT 2026-08-31 — two words, and the "Ever" is untouched:**
+>
+> > **"Nothing but typed structure and artifact references crosses upward INTO MARLOWE. Ever."**
+>
+> **The rule was never about height. It was about Marlowe.** An earlier draft of this amendment
+> said *"the invariant did not weaken; its boundary moved"*, which describes a change to the rule.
+> Inserting two words says what the rule always meant. §2.1 gives the reason in its own words:
+> ADR-023's floor is monotonic and latched per run, Marlowe is the one **permanent** run, so *"a
+> Marlowe who ingests one research finding can never compose a target again — not for that task,
+> for his life."* Every other run in the tree is task-scoped and disposable. **The protection was
+> always for the one agent that cannot be restarted**, and applying it at every hop generalised
+> from the case that needed it to cases that did not. An intern talking to its PI was never the
+> thing §2 was defending.
+>
+> Typing and layer 1 therefore survive at exactly one edge — the team's edge with Marlowe, which
+> is where §2's subject stands: the one
 > *permanent* run whose floor latches for its life. That property belongs to **one** edge. Typing
 > every hop in the tree was defending a run that is not standing at those hops, and at the edge where
 > it does stand the sentence is unaltered — *"Ever"* still means ever.
