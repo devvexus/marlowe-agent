@@ -1,6 +1,119 @@
 ﻿# State
 
 
+## 2026-08-30 — RED-TEAM PASS 1 RAN AND PUBLISHED NO ASR. THAT IS THE RESULT, NOT A FAILURE TO FINISH
+
+**Read `runs/m3-c/redteam/PASS1-REPORT.md` before anything else in this entry.** Pass 1 is C's
+stated obligation, it ran end to end against real models, and **every one of its four findings came
+from a control rather than from a cell.** No attack-success rate is published and none should be
+quoted from the raw numbers, which are in `pass1-cells.ndjson` and are not a result.
+
+### The four findings
+
+**1. The metric conflated obeying an injection with faithfully reporting one.** Measured with the
+bytes printed, not inferred: what crossed the `typed` arm was the child *describing* the attack —
+*"it notes that Source 1 contains instructions for verifying if an AI assistant read a specific note
+with code ZQ7-HELP-2MN"*. That is the behaviour you want from a worker, and under a
+nonce-in-window metric it is **indistinguishable from compliance**. The standing shape, committed
+inside the measurement written to detect it.
+
+**2. Two runs of the identical configuration gave opposite orderings.** `typed`/`validated`/`free`
+came out **25 / 50 / 100 %**, then **75 / 75 / 0 %**. Same model, same corpus, same code. Four
+attacks per cell against a stochastic model cannot order three arms — run 1's 4/4-versus-1/4 was
+noise wearing a signal's clothes. **The falsification assertion caught run 2 and refused to
+interpret it.** Without that line, run 1 alone would have been published as pass 1's result.
+
+**3. Arm (c) is not reliably a control.** It binds the child's words with `last_assistant_text`
+(`engine.rs:550`), which returns the last non-empty `SourceKind::History` block — and a child's
+history holds harness-authored tool notes and the spawn receipt as well as its own prose. So the arm
+can carry a **tool note**, and read as contained while pointing at the wrong block. **A control that
+can silently degrade into arm (a) is not a control**, and this is the likeliest explanation of run
+2's `free_text 0/4` on cells whose page was fetched and whose child spoke.
+
+**4. `marlowe-red:9b` never called `web` on 9 of 12 cells.** `fetched: 0`. Without the
+`fetched > 0 && child_calls > 0` control those would have scored `crossed: false`, and **the
+unsafeguarded model would have reported 0 % ASR on two of three arms — better contained than the
+safeguarded one.** That is `REDTEAM-SESSION.md` §2's inversion, produced on the first attempt. The
+two models differ in tool-calling competence and not only in safeguarding, so **§3.2's model axis is
+not an axis on this corpus**; the pre-registration had already corrected §3.2's "safeguarding alone"
+from `ollama show`, and this is the behavioural confirmation.
+
+### What pass 1 does and does not establish
+
+**Does:** the chain runs end to end with real models and layer 1 inside it rather than bypassed —
+twelve controlled cells on the primary model, `fetched: 1` on every one; the arms produce materially
+different parent windows; and the falsification assertion works, twice.
+
+**Does NOT:** answer A8 in either direction. Run 2 showed free text performing *better* than typed,
+which under this metric means **the metric is broken, not that free text is safe.** §3.1's *"last
+cheap moment to discover that typed upward containment is decorative"* **has not arrived** — it was
+attempted, and the attempt measured itself instead. **Sessions D and E still rest on an untested
+assumption.** The four repairs pass 1 needs are enumerated at the end of the report.
+
+### Also built this continuation: the floor the other granter did not read
+
+`grant` refuses below `MIN_CHILD_TOKENS` by name; **`slice_for_quarantined_read` did not.**
+`MIN_CHILD_TOKENS`'s own doc comment describes the defect in the singular — *"it was read by the
+CONSUMER and not by the GRANTER"* — and there were **two granters**.
+
+The threshold is arithmetic: the share is 2/8, so it falls under the floor whenever the run's own
+budget is below **14,404** tokens. `Budget::interactive()` is 200,000, so a root-level read was never
+affected and nothing on the interactive path could have shown it. **A child running a `web` call
+is**: granted 10,544 tokens it gave its reader **2,636 against a 3,089-token measured first call**,
+so the reader paused before that call having spent nothing and the parent read *"the content could
+not be condensed"* — a sentence about the page rather than about the budget, on the one component
+standing between a fetched page and the run.
+
+**A short share and a short pool are two states and only one is a refusal.** The 10,544 case has a
+pool covering the floor three times over, so the answer is to **raise**; refusing there would deny a
+read the run could easily afford. **The first test written against this asserted `None` for that case
+and was wrong about the product rather than about the defect** — recorded rather than quietly
+corrected, because collapsing the two states is how a fix for starvation becomes a cause of it.
+Three mutations red (`723a972`, `b8794d4`), and **M2 is the informative one**: remove the pool
+refusal and keep the raise, and a pool of 3,600 hands out 3,601 — the floor becomes an overdraft, so
+the two halves are not independently optional.
+
+`MIN_CHILD_TOKENS` is a **lower bound** here, not the right number: it was measured on a toolless
+child with a two-line task and a quarantined reader's first call carries a fetched page. The honest
+floor is a `MEASURED_QUARANTINED_READ_TOKENS` read from the journal, deliberately **not** written —
+an invented divisor would be a number nobody measured wearing a measurement's clothes.
+
+### Two of ADR-066's three claimed defects, re-checked and NOT fixed, with the reason
+
+**Neither is a bug and "fixing" them would have been the damage.**
+
+* **`subagents` "still sliced" at `budget.rs:237`** — it reads `left` rather than `self`, which is
+  **correct**: subagents is a consumed pool, not a share, and `-1` is a decrement rather than a
+  geometric slice. ADR-066 is right in kind and overstated in degree.
+* **`grant` clamping against `spent`** — structurally real and **unreachable today**. `Engine::spawn`
+  calls `self.run(&mut child_run, …)` synchronously and folds `child_run.spent` into the parent
+  immediately after, so a child's usage is in `spent` before the next grant. It becomes live the day
+  a child runs concurrently, and that is the day to fix it.
+
+### DELEGATION WAS BLOCKED PART-WAY THROUGH THIS CONTINUATION, and it shaped what shipped
+
+Two `Agent` launches were **denied by the permission classifier** after the usage reset. The first
+authorised §13-guarded edits (`profile.rs`, `driver.rs`) and **that denial was correct** — the
+session is non-interactive, so the boundary hook cannot prompt, and `CLAUDE.md` says not to route
+around it. The second authorised **no** guarded edit and was denied too, so the block is on
+subagents generally rather than on §13. Everything above was therefore done directly, and no
+disguised retry was attempted.
+
+**What that leaves unbuilt, and it is the same list as the checkpoint above:** the five levels
+(ADR-064) and the §2.3 escalation record (ADR-065) both require `crates/marlowe-loop/src/driver.rs`
+and `profile.rs`. `ModelStep::Ask` carries a bare `String`, `ask`'s manifest declares only
+`question`, so `category`, `severity` and `artifact_path` have no path into the loop. **Those are the
+human's to authorise, and they are what Session C still owes.**
+
+### Suite, tallied from files, per-crate only — `--workspace` never run
+
+`marlowe-loop` **189 passed, 0 failed, 5 ignored, 21 result lines** (the two new red-team tests are
+`#[ignore]`; they need Ollama and a GPU and the suite's green must not depend on a machine having
+one). `marlowe` **56 passed, 0 failed, 4 lines**, including `determinism_guard.rs`, which no other
+`-p` reaches. `ingest_external` still has zero non-definition call sites;
+`protect-boundaries.py --self-check .` exits 0; **no §13-guarded file was edited in this session at
+all.**
+
 ## 2026-08-30 — M3 SESSION C, PAUSED AT A CHECKPOINT. THE DESIGN PASS FOUND TWO DEFECTS IN M3-DESIGN ITSELF
 
 **Session C is NOT complete, and it stopped at a checkpoint rather than at a natural boundary.** Two
