@@ -1,6 +1,175 @@
 ﻿# State
 
 
+## 2026-08-30 — M3 SESSION C, PAUSED AT A CHECKPOINT. THE DESIGN PASS FOUND TWO DEFECTS IN M3-DESIGN ITSELF
+
+**Session C is NOT complete, and it stopped at a checkpoint rather than at a natural boundary.** Two
+of its five deliverables are built; four decisions are `PROPOSED` ADRs with no code; red-team pass 1
+has not run. What follows is what a next session needs, in the order it needs it.
+
+### The finding that matters most: A8's three arms would have been byte-identical
+
+**The control that exists to detect vacuity was itself vacuous, and it was one commit from being
+run.** M3-DESIGN §2.3 read literally says to type `LoopOutcome::Escalated { question: String }` and
+switch A8's arms there. `Engine::spawn`'s note match had **already closed that hop** — its own
+comment says *"only a validated result carries content. Everything else is a fixed harness-authored
+string"*, and a child's `Escalated` becomes a harness constant with the question redirected to the
+journal. So all three arms would have emitted identical product behaviour, and a sheet of three
+identical cells reads character-for-character like *"the typing is decorative"* — **the exact
+finding A8 exists to produce.**
+
+The arms belong at `req.contract.validate` then `CondensedResult::render()` (`engine.rs:2936-2944`,
+re-verified; "around 2900" was loose), which `run.rs`'s own `FieldSpec` comment calls *"the single
+place where content crosses from `UntrustedContent` to `AgentInferred`"*, and which
+`REDTEAM-SESSION.md` §4 had already named as pass 1's surface. **M3-DESIGN §9.1 is amended in
+place**, with the old text quoted.
+
+**The same shape then bit twice more, which is why it is the headline.** The pre-registration script
+written to *prevent* this defect had it. `re.search` returns the **leftmost** match, so it anchored
+on the first four-space `fn` in the file, reported `arm selector is read inside emit` — an
+affirmative sentence naming the wrong function — and then searched two thirds of `engine.rs` for the
+word. It would have passed on a selector read anywhere in the middle of the file. Fixed by anchoring
+to the **last** `fn` header before the constant, and by counting reads of `self.upward_shape` rather
+than mentions of the type. **Instance #18 inside the check written to stop instance #18.**
+
+### The second spec defect: §11's TERMINATE row is red on a correct build
+
+The row read *"TERMINATE present in an agent's `request_body` — 0 occurrences."* Measured at
+`186b5d5`: the string is already in every agent's request body, from two production sources that
+have nothing to do with the escape hatch — `builtin.rs:695` (the `run` tool's `orphan_policy`
+description, which ships in the tool schema to every model holding `run`) and `engine.rs:2731` (the
+spawn receipt, pushed at `AgentObserved`, so it is in every call a parent makes after spawning once).
+
+**The repair that must not be made is narrowing the search until the zero returns.** The row was
+measuring a *spelling*; §3.4 is about an *object*. `OrphanPolicy::Terminate` is a harmless,
+model-nameable lifecycle value; the escape hatch is a control the agent must not be able to invoke,
+describe, suppress or style. This is ADR-032 §2's *"must stop being the same thing"* appearing
+inside an acceptance criterion. Replaced by three rows, of which **only the third — that an agent
+cannot suppress, reorder or restyle it — is unsatisfiable by an empty implementation.**
+
+### What is BUILT
+
+| | |
+|---|---|
+| **The model-driver seam** | `Daemon::ask_streaming_with_driver` enters `turn` **before** provider selection, so `Availability::probe`'s early return no longer stands between a test and the loop. Two small enums rather than `Option<&mut dyn ModelDriver>`, because `turn` already takes `Option<Checkpoint>` and two adjacent `None`s of different meanings is a transposition waiting to happen. `b44c9f4`, `bed1cec` |
+| **`daemon.rs`'s injected-memory push** | was mutation-proof green; now RED in both directions — laundered to `UserAsserted` (183/1) and `if false &&` (182/2), against a 184-passed baseline |
+| **A8's three arms** | `crates/marlowe-loop/src/upward.rs`, read **only inside `Engine::spawn`**, three reads. Arm (c) is `cfg(debug_assertions)`, so it is **absent from the release artifact's type** — there is no arm to select and `parse("free_text")` refuses by name. `58ca698`, `16f1d46`, `ccbd0c4`, `95cebe5` |
+| **Nine mutations red** | including one that does not compile in release at all (`E0004: non-exhaustive patterns`) and two that make the pre-registration exit 1 |
+| **The capacity model** | measured, and it contradicts `AGENT-DIRECTORY.md` §2. `03fb1d6` |
+
+Counts tallied **from files**, per-crate only — **`--workspace` was never run**: `marlowe-loop`
+**188 passed, 0 failed, 3 ignored, 20 result lines**; `marlowe-daemon` **184 / 0 / 0, 22 lines**;
+`marlowe` **56 / 0, 4 lines, including `determinism_guard.rs`, which no other `-p` reaches**.
+
+**One mutation is worth keeping in mind.** M2a — the typed arm skipping `validate` and `render` —
+did **not** fail on the injected nonce. What drops an unattributed line is
+`CondensedResult::parse_fields`; `validate` is what refuses a bad *value*. Two mechanisms sit at that
+crossing and only the positive control could tell them apart.
+
+### The capacity finding: co-residency holds, the headroom does not
+
+`AGENT-DIRECTORY.md` §2 said *"10.0 GB of the card's 16, leaving headroom for the KV cache, the
+embedder and the reranker."* All three roles **did** co-reside (`OLLAMA_MAX_LOADED_MODELS` unset
+resolves to ≥ 3 here), and cold load plus one token is 4,354 / 3,212 / 5,442 ms, not the 10,484.9 ms
+the section reasoned from. But **the card was never 16 GB free**: 5,086 MiB were already held by the
+desktop — Opera GX, Discord, Steam, Wallpaper Engine — and it finished at **1,053 MiB free.** That is
+the number ADR-044 reads when it resolves the embedder's provider, so the embedder falls to CPU with
+a correct-looking log line, and the unnamed fourth role has nowhere to go. `ollama list` reports blob
+sizes and `size_vram` is 8.5 % larger; neither reconciles with the card (440 MiB apart, per-model
+deltas wrong in both directions), because the desktop moves while the probe runs — **so a plan
+computed once is already stale, and Ollama's failure mode when a model does not fit is the CPU split
+§2a forbids by name.** Concurrency was **not** measured: `NUM_PARALLEL=1` is a declaration.
+
+### What is DESIGNED and NOT built — ADR-063 to ADR-069, every one `PROPOSED`
+
+5,517 lines at `a48abb9`. Each was adversarially attacked against source before being written, and
+each carries its own first draft's fatal finding rather than reading as though the draft were right.
+**Three of the seven designs came back `broken`.** The recurring defect across all of them is
+instance #16 — a field declared and never read — and the ADRs drop those fields rather than ship them.
+
+**The tree, escalation/TERMINATE, budgets and admission control are NOT built.** Each ADR names what
+blocks it. The most common blocker is `crates/marlowe-loop/src/driver.rs`, which is §13-guarded:
+`ModelStep::Ask` carries a bare `String`, `ask`'s manifest declares only `question`
+(`builtin.rs:700`), and `ollama.rs:1023` reads only `question` — so `category`, `severity` and
+`artifact_path` **have no path into the loop**, and shipping them would be instance #16 with a
+`Serialize` derive on it. That is why §2.3's escalation record is designed and not built.
+
+### Findings nothing had logged, produced while verifying citations
+
+1. **`settle_children` records a child's amended checkpoint under the PARENT's run id** —
+   `engine.rs:2499` against `roster.rs:109`. Settle it before anything is built on that table.
+2. **`ModelRoute` is hardcoded a second time at `ollama.rs:242`**, so `num_ctx` would stay
+   per-process while the model became per-call.
+3. **Neither the llamacpp driver nor the OpenRouter one carries any `Routing`**, which makes role
+   routing Ollama-only.
+4. **The quarantined reader has no token floor** — it gets 2,636 against a measured 3,089-token
+   first call.
+5. **`ContentRef` has no Rust implementation anywhere under `crates/`** — twelve hits, every one a
+   doc comment. A design naming it as a type is naming a document.
+6. **`GET /api/ps` lists only RESIDENT models**, so an admission gate cannot ask it the size of a
+   model that is not loaded: the branch that refuses would read a field its own producer cannot
+   supply.
+7. **`marlowe-loop` cannot call `marlowe_daemon::announce`** — a reverse dependency edge, which
+   unbuilds the budget envelope as first designed.
+
+### A CONTRADICTION THIS SESSION CREATED AND DID NOT RESOLVE — it is the human's
+
+**M3-DESIGN §9.1's amendment (written this session) says arm (c) must be unreachable in a shipped
+build. ADR-063 §4.1 (written this session, in parallel) rejects `cfg` and prescribes a CLI flag on
+the shipped binary, because a `cfg`-gated control measures a different binary — the
+pipe-tested-guard family.** Both arguments are sound and they disagree. The code follows the
+M3-DESIGN amendment; ADR-063 §8.3 item 3 records that neither document acknowledged the other, and
+the counter-argument the code makes — that all three arms live in the one debug artifact, so the A8
+comparison stays *within* an artifact — is not in the ADR. **Resolving this decides what red-team
+pass 1 is evidence about**, so it is named here rather than settled by whoever edits next.
+
+### Red-team pass 1 — NOT RUN. Its pre-registration is written and now passes
+
+`tools/preregister_redteam_pass1.py` (`f78d3cd`) writes the bands, predicts the control's failure,
+runs the discriminating `ingest_external` check rather than quoting it, records the predicted-vacuous
+cells in advance so that finding them is not a discovery made afterwards, and **states a
+falsification condition**: the pass fails to *interpret*, rather than passing, if free text against
+`marlowe-red:9b` lands below its band — because then the attack set is too weak and every zero above
+it is uninterpretable. It exits 0 as of `95cebe5`.
+
+**It is blocked on the `cfg`-versus-flag contradiction above**, because the harness has to know which
+binary it is measuring. Also recorded there: **the model axis is not a clean A/B.** Measured by
+`ollama show`, `qwen3.5:9b` and `marlowe-red:9b` differ in parameter count (9.7B vs 9.2B), in context
+length by a factor of four (262,144 vs 1,048,576) and in vision capability, as well as in
+safeguarding. `REDTEAM-SESSION.md` §3.2 describes them as differing in safeguarding alone; that is an
+approximation, and every model-differenced cell must say so.
+
+### Unchanged, and verified rather than assumed
+
+`grep -rn "ingest_external(" --include=*.rs crates/*/src/ | grep -v "fn ingest_external"` is
+**empty**. No producer for `Channel::Agent` was added. **No §13-guarded file was edited in this
+entire session** — `git diff --name-only 186b5d5 HEAD` intersected with the guarded list is empty,
+and `protect-boundaries.py --self-check .` exits 0. Layer 3 remains unreachable in the shipped
+daemon, which is the CORRECT state per ADR-062.
+
+**`CLAUDE.md`'s layer-3 paragraph WAS edited**, to correct two sentences this session falsified —
+*"that probe still cannot be written"* and *"that production line has zero coverage"*. The old
+wording is quoted in place and the conclusion is explicitly preserved. **Flagged because a prior
+session declined to edit that file unasked** (`4a28c1b`); revert it to a STATE.md-only note if that
+precedent should hold.
+
+### Owed by the human — unchanged, and one of them is now more expensive
+
+1. **The fourth model role's name.** Three of four have defaults; a role invented by an implementer
+   becomes a default nobody chose. **And its space is now measured: 1,053 MiB free. There is none.**
+2. **The session-versus-run latch scope.** ADR-068 records `SECURITY-AUDIT.md` §8's August answer —
+   *"the latch belongs on the session, not the Run"* — as **half-fixed**: `6a1f4f5` built the
+   compaction stamp, and the daemon still rebuilds `Run::root` at `UserAsserted` on every turn.
+3. **The `cfg`-versus-flag contradiction above.** It blocks pass 1.
+4. Standing: ADR-062 §4's origin decision (blocks D); the `bash`-egress question; ADR-032 still
+   `PROPOSED` while shipped.
+
+### If you pick this up next
+
+Read `runs/m3-c/design/*.md` **before** the ADRs. The seven adversarial critiques are worth more than
+the seven decisions, because each names the defect its own design nearly shipped, with the file and
+line that disproves it. Then ADR-063 §4.1 and §8.3, which is where the open contradiction lives.
+
 ## 2026-08-30 — THE MODEL-DRIVER SEAM, AND THE PUSH THAT NOTHING COULD REACH
 
 **One parameter on one function, and the line it exposes is the only production line the whole of
