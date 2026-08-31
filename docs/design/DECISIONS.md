@@ -3922,3 +3922,162 @@ been a **second** definition of tree position once `a017ee0` landed `AgentLevel`
 disposition moving inside the level is the ADR's own decision — its title, §2.1 and §8.1 — found by
 the adversarial pass and fixed in the document before any code existed. The build implemented it as
 written. Crediting the build would name the wrong instrument.
+
+---
+
+## 2026-08-31 · M3-DESIGN §1.2 IS REVERSED — A MASTER MAY HOLD WORKING TOOLS — AND THE SHELL IS TO GET A KERNEL BOX THAT NOBODY HAS BUILT
+
+**Both taken by Matthew, M3 Session C, on the same day.** They are recorded in one entry because
+they are the two halves of one question — *where does containment for an agent team actually live* —
+and they sit at **opposite ends of the built/not-built line**, so every paragraph below says which it
+is. The reversal is **shipped and green**: `6e01c37`, whose own message records
+`marlowe-loop, marlowe-tools, marlowe-provider: 416 passed, 0 failed, 6 ignored`. The sandbox is
+`ADR-070`, and **acceptance and existence are two different things** — its status line reads
+*"Accepted 2026-08-31 by Matthew. **DESIGN ONLY — NOTHING HERE IS BUILT**, and acceptance does not
+change that"*, with §7's spike **gating** the implementation rather than following it. **The second
+does not offset the first.** An unbuilt box contains nothing, and the cost §1 records is live in the
+product today.
+
+### 1 · §1.2 is reversed — the PI is the senior researcher, not a boss kept away from the work. BUILT
+
+**The old rule, quoted rather than deleted, because a change of posture that erases what it changed
+is not auditable.** M3-DESIGN §1.2 is headed *"Masters hold no working tools, structurally"* and
+argues:
+
+> *"A master with an `edit` tool will eventually edit. Not because it is disobedient — because it is
+> capable and the work is right there. **The tool is absent from the set, not forbidden by
+> instruction.**"*
+
+**The human overruled it, and the reason is the org chart the ladder actually describes.** A master
+is not a boss who must be kept away from the work; it is the **senior researcher** who does the
+hardest part himself and spawns assistants and interns because the job is larger than one context.
+Delegation is leverage, not a job description. **Forbidding the AAII-52 model from touching the work
+spends the best model in the ladder on coordination** — and which model that is comes from
+2026-08-30's ladder entry above, where Agent-High is `marlowe-dusk:27b-super` at AAII 52.
+
+**THE RULE BOUGHT LESS THAN IT LOOKED LIKE, AND THAT IS THE ARGUMENT THAT DECIDED IT.**
+`SpawnRequest.task` is an `ArgumentRole::Payload` and `composes_spawn_targets` never checks it, so a
+toolless master **still wrote the task for a worker that held `edit`**. The rule displaced the actor
+one hop and added no check. Removing it does not open that path; it stops routing around it.
+
+**WHAT IT COSTS, RECORDED RATHER THAN GLOSSED — this decision did not make anything safer.** §1.2's
+real argument was **containment**, not hierarchy: a master reads every worker's report, so it holds
+the **most attacker-exposed context in the tree**, and `edit`/`bash` there puts tool access exactly
+where exposure concentrates. A child's note crosses into the parent at `AgentInferred`, **above**
+`blocks_composed_targets`'s threshold, so layer 3 does not catch it — that is `SECURITY-AUDIT.md`
+finding #1, **already open, not newly created here**. **The blast radius does not widen in what can
+be done, only in how well-aimed it is.** The product has been moved onto a standing finding, which
+makes `REDTEAM-SESSION.md`'s pass 2 matter *more* after this change, not less.
+
+**Nothing replaces it for working tools, deliberately.** A master holding no `run` simply cannot
+spawn — `may_create_agents` reads the exposed set — which is already a coherent state needing no new
+error. Adding *"a master MUST hold `run`"* would be inventing a rule nobody asked for in the same
+edit that removes one.
+
+**ONE REFUSAL SURVIVED AND IT NEARLY DIED BY ACCIDENT, which is the part to remember.**
+`MANAGEMENT_TOOLS` was doing **two** jobs under one whitelist: it withheld working tools (§1.2, now
+reversed) *and* it withheld `ask` — **a different decision the human took the same day**, because
+M3-DESIGN §3.1 scopes escalation to the top-agent's subtree and only a top-agent reaches the user, so
+a question raised by a level-3 master has nobody to arrive at. **Deleting the whitelist for the first
+would have dropped the second in silence.** `ask` is now refused **by name** at the `Master` arm as
+`ProfileError::OnlyATopAgentMayAsk`, with a top-agent control so the refusal cannot quietly become
+universal. §1.2's own principle decides the *shape* of that refusal and survives its reversal: the
+capability is **withheld from the set**, not forbidden at the call, because a door visible in the
+exposed set and locked at every call costs the model the calls it spends discovering that.
+
+**`MANAGEMENT_TOOLS` and `ProfileError::MasterHoldsWorkingTool` are DELETED**, not left as a control
+nothing reads — an error variant nothing can construct is instance #16 with a `thiserror` derive on
+it. The test that pinned the constant literally, from outside it, is retired with its reason: it
+worked exactly once, catching `ask`'s removal with the mutation its own doc comment predicted, and a
+test pinning a deleted constant is a guard with no subject.
+
+**WHAT THIS SUPERSEDES ABOVE, NAMED SO THE PAIR IS THE RECORD.** 2026-08-30's five-levels entry says
+*"Section 1.2 is enforced by WITHHOLDING THE CAPABILITY, never by a counter. `MasterHoldsWorkingTool`
+refuses the tool at construction; `MANAGEMENT_TOOLS` is `["run", "ask"]`."* **Its first sentence
+stands and its second is now false.** The shape argument — withhold, never `edit_calls: 0`, because
+`0 >= 0` fires on the first iteration and is instance #17 — is untouched, and is exactly why `ask` is
+refused at construction rather than counted. The named constant and error are gone. Neither entry is
+edited; both are true of the day they were written.
+
+### 2 · One sandbox per team, and it wraps `bash`. ADR-070 — ACCEPTED, AND NOT BUILT
+
+**The requirement, in the human's words:** *"Marlowe → full access to computer, hence why its
+securities are heavy. Marlowe-deployed agent teams → full access to their own sandbox, securities
+lifted so they can go wild on their research for maximum workflow."* And the ordering that governs
+every trade in it: *"Security is a primary concern but research and knowledge comes first."*
+
+**THE FINDING THAT MAKES IT SMALL: ONLY ONE THING LEAVES THE PROCESS.** `web`, the model call, the
+journal and every file tool execute **inside the daemon** — `FileSystemTools`' dispatch in
+`crates/marlowe-exec/src/lib.rs` has `bash` and `web` side by side, and only `bash` reaches
+`Command::new(git_bash)`. So the box wraps **`bash` alone** and research is untouched: `web` is
+harness-executed today and stays that way, so a boxed team fetches pages exactly as it does now. The
+asymmetry is free — the daemon keeps its own token, so the harness reaches into the team folder while
+the box cannot reach out.
+
+**Three facts were verified on this machine and are the reason the mechanism is cheap.** `icacls`,
+run 2026-08-31: `C:\Users\matth` carries **no `ALL APPLICATION PACKAGES` ACE**, so the user's profile
+is denied to an AppContainer **by Windows' own default ACLs, with no code written**;
+`C:\Program Files\Git` and `C:\Windows\System32` do carry those ACEs, so Git Bash and the system DLLs
+load. `CreateAppContainerProfile` needs **no elevation**.
+
+**Network denial is the kernel, not a filter, and that is what keeps this inside brief §8.1.** A
+token built with a **NULL capability array** holds neither `internetClient` nor
+`privateNetworkClientServer`; Windows Filtering Platform drops the connect on the package SID, and
+**there is no spelling of `curl` that acquires a capability the token does not hold**. **Loopback is
+blocked for AppContainers by default** — the hole ROADMAP names as *"exactly where an attacker aims
+once anything on loopback can proxy outward"* — and the documented exemption requires admin, so an
+agent cannot grant it to itself.
+
+**A WORKTREE IS PROVISIONING, NOT CONTAINMENT, and this is the human's own correction of an earlier
+draft.** A worktree is a cheap way to put a repo copy *inside* a box; it is not a box. `bash`
+consults no `PathScope` — the shell inherits the daemon's filesystem access entire, and `..`, an
+absolute path, a symlink or a Python one-liner walks out of any nominated directory without trying.
+
+> **THEREFORE `bash`'s `Irreversible` ESCALATION IS THE CURRENT SANDBOX FOR THAT PATH, AND *"lift the
+> escalation"* AND *"build the box"* ARE ONE CHANGE, NOT TWO.** Lifting first does not trade a little
+> security for speed — it removes the only control that path has. ADR-049 §4 already measured what
+> the prompt is holding: `curl` returns HTTP 200 from `cmd /C`, and **no `EgressPolicy` is consulted
+> on the `bash` path at all**, because the adjudicator iterates `Url`-typed parameters and `bash`
+> declares none. This is the sequencing constraint and it binds whoever builds this.
+
+**EGRESS IS NOT RETIRED BY THE BOX, and reading it as retired is the error to avoid.** The box
+contains **damage**, not **disclosure**: `web` is harness-executed, the box holds a copy of the
+user's source, and the allowlist is the only thing standing between that and an attacker-named host.
+Layer 1's quarantined reader is likewise unchanged — stopping raw bytes from reaching a tool-holding
+context is a different job from stopping a process escaping. Path scoping remains the only wall the
+in-process file tools have.
+
+**MARLOWE IS NOT BOXED, and his securities stay heavy precisely because he has the machine.** §2.1's
+invariant is untouched; nothing in this design can latch the Secretary.
+
+**THE LARGEST RISK IS UNVERIFIED AND IS REPEATED HERE AS UNVERIFIED.** Whether **MSYS2 / Git Bash
+survives AppContainer's redirected object namespace** — named shared objects, `fork()` emulation — is
+**not known**. It is a spike, not an argument. If it fails, the fallback is a native shell in the box
+or a separate unprivileged account instead of an AppContainer. Two further unknowns are named rather
+than asserted in the ADR: whether two processes inside one AppContainer reach each other over
+loopback, and the exact `windows-sys` module path for `CreateAppContainerProfile`.
+
+**TWO HARD CONSTRAINTS FROM THE HUMAN BIND THE BUILD AND EVERY TEST OF IT** —
+`runs/m3-c/sandbox/HARD-CONSTRAINTS.md`. **It must never log the user out**: the mechanism runs inside
+the existing session, which rules out session switching, anything touching `explorer`/`winlogon`, and
+any Job Object whose `KILL_ON_JOB_CLOSE` scope could include the daemon or a parent. And **nothing
+verifies the box by running a destructive command** — *"let me test if a dangerous command works,
+deletes the system, oops, looks like it worked"* is the most dangerous moment in the feature, because
+if the box is not working the observation is that everything happened. **Escape is proved by reaching
+something harmless you should not be able to reach, never by destroying something.** The acceptance
+probes are reads and connects; they run with the harness's own path scoping **deliberately disabled**
+— with it on, every probe passes whether or not the box exists, which is instance #15 aimed at the
+single claim the design rests on — and they carry a **positive control** doing ordinary work in the
+box, because a box that contains everything by breaking the shell is not a box.
+
+**WHAT ACCEPTANCE DOES NOT DO, AND MUST NOT BE READ IN.** It authorises the work and settles the
+argument — a per-team box is the mechanism, `bash` is what it wraps, and the escalation is lifted in
+the same change that builds the box. **It does not make the box exist. No line of ADR-070 is built,
+and no document may cite it as evidence that agents are contained until §7's probes have run** — the
+ADR says so in its own status line, and this entry repeats it rather than relying on a reader to
+follow the reference. Nor does acceptance settle what goes into a team's box at spawn, whether
+`SpawnRequest` carries the workspace (a §13-guarded change, escalated separately), the Linux backend,
+or whether `bash`'s **manifest consequence** changes as against only its adjudication. What was
+accepted is *one OS-enforced box per team wrapping `bash`* — **not AppContainer specifically**, which
+is what lets §4.3's fallbacks be taken if the spike fails. This is the same acceptance discipline as
+this file's 2026-08-31 seven-ADR entry: the qualifiers on a status line are kept, not deleted.
