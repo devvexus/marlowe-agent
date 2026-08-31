@@ -60,7 +60,7 @@ fn driver() -> OllamaDriver {
 }
 
 fn limits() -> CallLimits {
-    CallLimits { max_output_tokens: 512 }
+    CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator }
 }
 
 #[test]
@@ -213,7 +213,7 @@ fn history_roles_follow_who_actually_said_it() {
     let view = Assembler::new(16_384, 1_024).assemble(&state);
 
     let tools = ExposedSet::new(vec![ToolId::new("read")]).expect("one tool fits");
-    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128 });
+    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128, route: marlowe_loop::ModelRoute::Orchestrator });
     let messages = body.get("messages").and_then(|m| m.as_array()).expect("messages");
 
     let role_of = |needle: &str| -> Option<String> {
@@ -261,7 +261,7 @@ fn tool_schemas() -> Vec<serde_json::Value> {
     let view = Assembler::new(16_384, 1_024).assemble(&state);
     let all: Vec<ToolId> = marlowe_tools::BUILTIN_TOOLS.iter().map(|t| ToolId::new(*t)).collect();
     let tools = ExposedSet::new(all).expect("the builtins fit");
-    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128 });
+    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 128, route: marlowe_loop::ModelRoute::Orchestrator });
     body.get("tools").and_then(|t| t.as_array()).cloned().unwrap_or_default()
 }
 

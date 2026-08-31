@@ -618,6 +618,7 @@ fn profile_with(egress: EgressPolicy) -> CapabilityProfile {
         egress,
         InterruptPolicy::Interruptible,
         ModelRoute::Orchestrator,
+        marlowe_loop::AgentLevel::Secretary,
         false,
         false,
     )

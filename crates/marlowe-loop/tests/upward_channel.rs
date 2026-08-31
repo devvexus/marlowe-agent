@@ -71,6 +71,8 @@ fn cross(shape: UpwardShape, reply: &str, after_child: &[&str]) -> Crossed {
                 tools: Vec::new(),
                 tools_declared: true,
                 reads_untrusted: false,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),

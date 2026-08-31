@@ -25,6 +25,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::profile::ModelRoute;
+
 /// CONTRACTS.md §5. Six dimensions, all of them caps rather than targets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -85,11 +87,42 @@ pub const MIN_CHILD_TOKENS: u64 = MEASURED_CHILD_FIRST_CALL_TOKENS + MIN_CALL_TO
 #[serde(transparent)]
 pub struct Dimension(pub &'static str);
 
-/// What a model call is allowed to return.
+/// What a model call is allowed to return, and **which model is to return it**.
+///
+/// # Why the route travels here
+///
+/// A `ModelDriver` is handed a view, a tool set and this. It has no access to the `Run`, so this
+/// is the only carrier that can tell it which of `Routing`'s columns the call belongs to. Before
+/// M3 Session C `OllamaDriver::request_body` hardcoded `ModelRoute::Orchestrator`, so
+/// `CapabilityProfile::model_route` had **zero readers in the workspace** and the whole subagent
+/// tree ran on the secretary's model -- ADR-008's cost lever declared in three documents and
+/// inert in the product.
+///
+/// # No `Default`, no `#[serde(default)]`, and that is load-bearing
+///
+/// `route` has no default anywhere, which is why adding it was a compile error at all 32
+/// construction sites rather than a silent inheritance at 31 of them. A later session adding a
+/// `Default` impl as a convenience removes that property, so it is written down here rather than
+/// left to be noticed.
+///
+/// The fields stay public, and the guard against a second production constructor is a test whose
+/// input is the source tree rather than the type: `call_limits_has_one_production_constructor`
+/// greps `crates/*/src/` and asserts exactly one hit. Privacy would have moved the same problem
+/// into a `pub fn new`, which is a second way in wearing a different hat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CallLimits {
     /// Hard cap handed to the provider. Derived from what is left, never from a default.
     pub max_output_tokens: u64,
+    /// Which of `Routing`'s columns this call goes to. ADR-008: routing is by **task role**,
+    /// declared in `CapabilityProfile`, never by user preference.
+    ///
+    /// **Read by `OllamaDriver::request_body` and by nothing on the other two driver paths**, and
+    /// that asymmetry is stated rather than papered over: `llama-server` serves whatever weights
+    /// it was launched with and does not route on the `"model"` field at all, and
+    /// `OpenRouterDriver` holds a single model id rather than a `Routing`. A test asserting
+    /// `body["model"]` differed by route on the llama.cpp arm would be green over unrouted
+    /// weights -- the string, not the fate of the tokens.
+    pub route: ModelRoute,
 }
 
 impl Budget {
@@ -141,8 +174,12 @@ impl Budget {
     }
 
     /// The cap handed to the provider for the next call. **This is the line.**
-    pub fn call_limits(&self, spent: &Budget) -> CallLimits {
-        CallLimits { max_output_tokens: self.remaining(spent).tokens }
+    ///
+    /// `route` is the run's own -- `run.profile.model_route()` at the one call site -- so the
+    /// column is a property of the run rather than of the call, and no caller can name a model
+    /// the run's profile did not declare.
+    pub fn call_limits(&self, spent: &Budget, route: ModelRoute) -> CallLimits {
+        CallLimits { max_output_tokens: self.remaining(spent).tokens, route }
     }
 
     /// Whether enough remains for a call to be worth issuing.
@@ -488,11 +525,11 @@ mod tests {
     #[test]
     fn the_call_cap_is_what_is_left_not_a_default() {
         let b = Budget { tokens: 10_000, ..Budget::interactive() };
-        assert_eq!(b.call_limits(&spent(0)).max_output_tokens, 10_000);
-        assert_eq!(b.call_limits(&spent(9_000)).max_output_tokens, 1_000);
+        assert_eq!(b.call_limits(&spent(0), ModelRoute::Worker).max_output_tokens, 10_000);
+        assert_eq!(b.call_limits(&spent(9_000), ModelRoute::Worker).max_output_tokens, 1_000);
         // The property the report item names: a call issued at this point cannot come back
         // over the line, because the provider was told the line.
-        assert_eq!(b.call_limits(&spent(10_000)).max_output_tokens, 0);
+        assert_eq!(b.call_limits(&spent(10_000), ModelRoute::Worker).max_output_tokens, 0);
     }
 
     #[test]

@@ -36,7 +36,7 @@ fn body() -> serde_json::Value {
         marlowe_contract::TrustClass::UserAsserted,
     ));
     let view = Assembler::new(100_000, 10_000).assemble(&state);
-    driver.request_body(&view, &tools, CallLimits { max_output_tokens: 512 })
+    driver.request_body(&view, &tools, CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator })
 }
 
 #[test]

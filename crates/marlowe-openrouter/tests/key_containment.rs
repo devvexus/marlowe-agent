@@ -54,7 +54,7 @@ fn tools() -> ExposedSet {
 }
 
 fn limits() -> CallLimits {
-    CallLimits { max_output_tokens: 512 }
+    CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator }
 }
 
 /// A minimal successful SSE stream.

@@ -43,7 +43,7 @@ fn tools() -> ExposedSet {
 }
 
 fn limits() -> CallLimits {
-    CallLimits { max_output_tokens: 512 }
+    CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator }
 }
 
 #[test]
@@ -199,7 +199,7 @@ fn the_request_carries_the_output_cap_the_window_and_the_determinism_controls() 
     .with_seed(Some(7))
     .with_pinned_upstream(vec!["Anthropic".into()]);
 
-    let body = d.request_body(&view(), &tools(), CallLimits { max_output_tokens: 200_000 });
+    let body = d.request_body(&view(), &tools(), CallLimits { max_output_tokens: 200_000, route: marlowe_loop::ModelRoute::Orchestrator });
 
     assert_eq!(
         body["max_tokens"], 8_192,

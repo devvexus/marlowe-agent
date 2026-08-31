@@ -68,7 +68,7 @@ fn tools() -> ExposedSet {
 }
 
 fn limits() -> CallLimits {
-    CallLimits { max_output_tokens: 512 }
+    CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator }
 }
 
 /// The sampler `qwen3.5:9b`'s 65-byte `.params` blob actually holds, so what reaches the wire can
@@ -327,7 +327,7 @@ fn the_output_cap_is_bounded_by_the_window_exactly_as_the_other_two_adapters_bou
     .request_body(
         &view_after_a_tool_call(),
         &tools(),
-        CallLimits { max_output_tokens: 200_000 },
+        CallLimits { max_output_tokens: 200_000, route: marlowe_loop::ModelRoute::Orchestrator },
     );
     assert_eq!(body["max_tokens"], serde_json::json!(8_192), "a quarter of the window");
 }

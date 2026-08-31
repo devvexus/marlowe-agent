@@ -38,6 +38,22 @@ pub const BUILTIN_TOOLS: [&str; 12] = [
     "ask",
 ];
 
+/// M3-DESIGN section 1.2's management set, **as names, and this is the one definition**.
+///
+/// Read by `CapabilityProfile::new`'s `Master` arm, which refuses any exposed tool that is not
+/// in here. Section 1.2 names eight capabilities -- communicate, question, answer, meeting
+/// control, todo management, create/delete agent, budget allocation, escalate -- and **six of
+/// them do not exist as tools**. Naming them here anyway would make the master rule vacuously
+/// permissive, which is instance #16 expressed in a constant: a control that reads as an
+/// enumeration of a policy while enforcing almost none of it.
+///
+/// So the list is what is buildable today. `escalate` is deliberately absent: it would be a
+/// thirteenth builtin, which reddens the `BUILTIN_TOOLS.len() == 12` assertion below and spends
+/// one of exactly two MCP slots ADR-058 raised the cap to protect. When it lands it arrives with
+/// `[&str; 13]`, the updated assertion, an executor, and either a named halving of the MCP
+/// allowance or an ADR-058 amendment -- the human's.
+pub const MANAGEMENT_TOOLS: [&str; 2] = ["run", "ask"];
+
 /// The workspace-relative glob every filesystem tool declares.
 ///
 /// `.` is resolved against the run's workspace root by path scoping, which is the only
@@ -694,6 +710,39 @@ pub fn builtin_registry() -> Result<ToolRegistry, LoadError> {
                     false,
                     "`terminate` (default) ends the child when this run ends; `detach` lets it outlive this run. Omit unless you specifically want it to survive you.",
                 ),
+                // ---- M3 Session C: the two fields a SPAWNER names, both Targets ------------
+                //
+                // **A role name is a target under ADR-023 (ADR-069), and so is a kind.** The
+                // decisive argument is one field up: `orphan_policy` is a closed two-value enum
+                // that chooses only a child's LIFETIME and it is already a Target. A value that
+                // chooses the inference engine executing every subsequent decision the child
+                // makes is a target a fortiori, and calling a role a payload would de-target
+                // `orphan_policy` by the identical argument. A downgrade ("make it dumber
+                // before an attack") and an upgrade ("burn the budget") are both
+                // attacker-useful.
+                //
+                // **Declaring them here is necessary and NOT sufficient**, and that sentence is
+                // the reason `run` has a test asserting its Target subset literally.
+                // `ModelStep::Spawn` never reaches `adjudicate` -- only `tool_batch` calls it --
+                // so `adjudicate`'s target loop, where `ArgumentRole::Target` is actually read,
+                // does not run for a spawn. The enforcement is `composes_spawn_targets` in
+                // `marlowe-loop/src/engine.rs`, a HAND-WRITTEN MIRROR of this list with nothing
+                // structural holding the two together. A parameter added here without a clause
+                // there is invisible to layer 3.
+                documented(
+                    "role",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "Which model tier serves the child: `worker` (default, the fast cheap tier -- almost always right), `orchestrator` (the strong tier: costly, for a child that must plan rather than fetch), or `summarizer` (the cheapest). Omit it unless the child genuinely needs a different tier from the default. A word this list does not contain is granted as `worker`, and the receipt says which tier it actually got.",
+                ),
+                documented(
+                    "kind",
+                    ArgumentRole::Target,
+                    Text,
+                    false,
+                    "`worker` (default) does the task itself. `master` runs a team: it may hold NO working tools, only `run` and `ask`, and it can only actually delegate if you ALSO put `run` in its `exposed_tools` -- naming `master` alone gets you a manager with nobody to manage, and the receipt will show it. Ask for `master` only when the job genuinely needs a team; a master that was going to do the work itself cannot.",
+                ),
             ],
         ),
         registration(
@@ -906,5 +955,64 @@ mod tests {
         // profile model-reachable without anyone deciding to.
         assert_eq!(run.role_of("share"), None);
         assert_eq!(run.role_of("reads_untrusted"), None);
+        // M3 Session C. A role and a kind are Targets for `orphan_policy`'s reason, one field
+        // over: a closed enum that chooses a child's lifetime is already a Target, and a value
+        // that chooses the inference engine executing every decision the child makes is one a
+        // fortiori.
+        assert_eq!(run.role_of("role"), Some(ArgumentRole::Target));
+        assert_eq!(run.role_of("kind"), Some(ArgumentRole::Target));
+    }
+
+    /// **The set, not one absence -- and it is written out here independently of the manifest.**
+    ///
+    /// `the_child_capability_arguments_are_targets` above asks about named parameters one at a
+    /// time, so it can see a role CHANGE and cannot see the set GROW: adding a seventh Target to
+    /// `run` leaves every one of its assertions green. That is instance #19's shape (a check
+    /// whose input is the object it is checking) aimed at a manifest.
+    ///
+    /// The literal below is the second copy on purpose, and the doubling is the mechanism: it is
+    /// asserted **against** the manifest rather than derived from it, so a parameter added to
+    /// `run` fails here by name until somebody classifies it.
+    ///
+    /// **And classifying it is not the whole job.** `ModelStep::Spawn` never reaches
+    /// `adjudicate`, so a `Target` declaration on `run` is enforced by
+    /// `marlowe-loop/src/engine.rs`'s `composes_spawn_targets` -- a hand-written mirror of this
+    /// list. A new Target here needs a disjunct there in the same commit, and
+    /// `marlowe-loop`'s `spawn_request_fields` guard is the other half of that pair.
+    #[test]
+    fn run_declares_exactly_seven_parameters_and_exactly_five_are_targets() {
+        let r = builtin_registry().unwrap();
+        let run = r.manifest(&ToolId::new("run")).unwrap();
+
+        let mut names: Vec<&str> = run.params().iter().map(|p| p.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            vec![
+                "budget_tokens",
+                "exposed_tools",
+                "kind",
+                "orphan_policy",
+                "output_contract",
+                "role",
+                "task",
+            ],
+            "a parameter was added to or removed from `run`. Classify it: a Target needs a \
+             `composes_spawn_targets` disjunct in `marlowe-loop/src/engine.rs` in the same \
+             commit, or untrusted content can choose it"
+        );
+
+        let mut targets: Vec<&str> = run
+            .params()
+            .iter()
+            .filter(|p| p.role == ArgumentRole::Target)
+            .map(|p| p.name.as_str())
+            .collect();
+        targets.sort_unstable();
+        assert_eq!(
+            targets,
+            vec!["budget_tokens", "exposed_tools", "kind", "orphan_policy", "role"],
+            "the Target subset of `run` moved"
+        );
     }
 }

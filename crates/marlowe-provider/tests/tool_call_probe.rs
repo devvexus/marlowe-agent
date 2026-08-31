@@ -130,7 +130,7 @@ fn measure_tool_call_reliability() {
 
         for (prompt, want_tool, target_param, want_target) in TRIALS {
             let view = probe_view(prompt);
-            let call = driver.call(&view, &exposed, CallLimits { max_output_tokens: 512 });
+            let call = driver.call(&view, &exposed, CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator });
 
             // Duration comes from OLLAMA'S OWN `total_duration`, not from a clock read here.
             // `marlowe/tests/determinism_guard.rs` fences real-clock reads across the whole

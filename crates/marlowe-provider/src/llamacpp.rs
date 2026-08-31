@@ -1066,6 +1066,20 @@ impl LlamaCppDriver {
         limits: CallLimits,
     ) -> serde_json::Value {
         let mut body = serde_json::json!({
+            // **`CallLimits::route` IS NOT READ HERE, DELIBERATELY, AND SAYING SO IS THE POINT.**
+            // `llama-server` serves whatever weight set it was launched with and does not route
+            // on this field (see this driver's own doc comment above, and
+            // `ModelProviderChoice::LlamaCpp`'s in the daemon). Reading `limits.route` here would
+            // change a string in a request and could not change which weights answer it — so a
+            // test asserting `body["model"]` differed by route would be GREEN on a build where
+            // every call in the tree ran the orchestrator's weights. That is instance #15
+            // manufactured inside the fix for instance #16.
+            //
+            // A grep for readers of `limits.route` therefore returns one hit, in `ollama.rs`, and
+            // this comment is what stops the next reader concluding the field is honoured
+            // everywhere. Routing this path at all means one `llama-server` process per role, or
+            // a load-time refusal of any `Routing` naming more than one model; ADR-069 §4.3 has
+            // the argument and neither is built.
             "model": self.model,
             "messages": crate::wire::openai_messages(view),
             "stream": true,

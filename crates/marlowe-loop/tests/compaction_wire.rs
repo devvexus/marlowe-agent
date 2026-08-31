@@ -190,7 +190,7 @@ fn wire(view: &ContextView) -> serde_json::Value {
     ollama.request_body(
         view,
         &ExposedSet::new(vec![]).expect("an empty set is constructible"),
-        CallLimits { max_output_tokens: 512 },
+        CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator },
     )
 }
 

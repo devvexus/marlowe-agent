@@ -239,9 +239,21 @@ fn widening_a_top_level_profile_does_not_weaken_the_narrowing_rule_for_children(
     let parent = CapabilityProfile::interactive_with(vec![ToolId::new("crm__lookup")])
         .expect("one extra tool fits");
 
-    assert!(parent.narrowed(vec![ToolId::new("read")]).is_ok(), "a child may narrow");
+    assert!(parent
+            .narrowed(
+                vec![ToolId::new("read")],
+                marlowe_loop::AgentLevel::Worker,
+                marlowe_loop::ModelRoute::Worker,
+            )
+            .is_ok(), "a child may narrow");
     assert!(
-        parent.narrowed(vec![ToolId::new("crm__never_registered")]).is_err(),
+        parent
+            .narrowed(
+                vec![ToolId::new("crm__never_registered")],
+                marlowe_loop::AgentLevel::Worker,
+                marlowe_loop::ModelRoute::Worker,
+            )
+            .is_err(),
         "a child may not name a tool the parent does not have"
     );
 }

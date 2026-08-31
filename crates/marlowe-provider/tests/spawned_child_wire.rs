@@ -164,7 +164,7 @@ fn a_real_spawn_puts_the_brief_on_the_wire_as_a_turn_the_child_can_answer() {
     let body = ollama.request_body(
         child_view,
         &ExposedSet::new(vec![]).expect("a toolless child is constructible"),
-        CallLimits { max_output_tokens: 512 },
+        CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator },
     );
     let messages: Vec<(&str, &str)> = body["messages"]
         .as_array()
@@ -282,7 +282,7 @@ fn after_a_child_returns_the_parent_has_something_to_answer() {
     let body = ollama.request_body(
         parent_view,
         &ExposedSet::new(vec![]).expect("empty"),
-        CallLimits { max_output_tokens: 512 },
+        CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator },
     );
     let messages: Vec<(&str, &str)> = body["messages"]
         .as_array()

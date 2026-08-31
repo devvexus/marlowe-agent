@@ -119,7 +119,7 @@ fn tools() -> ExposedSet {
 /// body is built by `request_body` and the array is read out of it.
 fn ollama_messages(view: &ContextView) -> Vec<Value> {
     driver()
-        .request_body(view, &tools(), CallLimits { max_output_tokens: 512 })
+        .request_body(view, &tools(), CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator })
         .get("messages")
         .and_then(|m| m.as_array())
         .cloned()

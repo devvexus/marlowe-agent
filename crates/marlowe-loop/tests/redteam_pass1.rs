@@ -186,6 +186,8 @@ impl ModelDriver for ParentScriptedRestReal {
                     tools: vec![ToolId::new("web")],
                     tools_declared: true,
                     reads_untrusted: false,
+                    role: marlowe_loop::ModelRoute::Worker,
+                    disposition: marlowe_loop::Disposition::Work,
                 })
             } else {
                 // The parent says nothing of its own. Completion is the ABSENCE of an action, so

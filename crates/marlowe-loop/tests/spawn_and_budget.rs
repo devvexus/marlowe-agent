@@ -65,6 +65,8 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
                 tools: vec![ToolId::new("read")],
                 reads_untrusted: true,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -144,6 +146,8 @@ fn a_quarantined_child_runs_and_returns_findings() {
                 tools: vec![], // empty: the quarantined shape
                 reads_untrusted: true,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -367,6 +371,8 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
                 tools: vec![ToolId::new("read")],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -493,6 +499,8 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
                 tools: vec![ToolId::new("remember")],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -555,11 +563,21 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
 
 #[test]
 fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
+    // **`run` is in the set on purpose.** `Engine::spawn`'s first refusal is now the create
+    // grant — M3-DESIGN §1's *"a worker creates nothing"* — so a parent that does not hold `run`
+    // is refused for that reason and never reaches the narrowing check this test is about. The
+    // subject is what a parent may GIVE AWAY, not whether it may spawn at all.
     let narrow = CapabilityProfile::new(
-        marlowe_tools::ExposedSet::new(vec![ToolId::new("read"), ToolId::new("done")]).unwrap(),
+        marlowe_tools::ExposedSet::new(vec![
+            ToolId::new("read"),
+            ToolId::new("done"),
+            ToolId::new("run"),
+        ])
+        .unwrap(),
         marlowe_permission::EgressPolicy::DenyAll,
         marlowe_loop::InterruptPolicy::Interruptible,
         marlowe_loop::ModelRoute::Orchestrator,
+        marlowe_loop::AgentLevel::Secretary,
         false,
         false,
     )
@@ -577,6 +595,8 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
                 tools: vec![ToolId::new("bash")], // the parent does not have it
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -632,6 +652,8 @@ fn the_spawn_tree_is_bounded_by_depth() {
                 tools: vec![],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             10,
         )
@@ -688,6 +710,8 @@ fn a_childs_spend_counts_against_its_parent() {
                 tools: vec![],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             1_000,
         ),
@@ -784,6 +808,7 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
             marlowe_permission::EgressPolicy::allow(&["docs.example.com"]),
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )
@@ -896,6 +921,7 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )
@@ -1133,6 +1159,7 @@ fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )
@@ -1266,6 +1293,7 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
             marlowe_permission::EgressPolicy::DenyAll,
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )
@@ -2025,6 +2053,8 @@ fn a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it() {
                 tools: vec![],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -2139,6 +2169,8 @@ fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
                 reads_untrusted: false,
                 // The subject of the test: the model never said.
                 tools_declared: false,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -2193,6 +2225,8 @@ fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
                 tools: vec![],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),
@@ -2224,5 +2258,153 @@ fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
     assert_eq!(
         run2.spent.subagents, 1,
         "an empty tool set that was DECLARED must still spawn — the refusal is about silence"
+    );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────────────────
+// M3-DESIGN §1: a worker creates nothing, and the create grant IS holding `run`
+// ─────────────────────────────────────────────────────────────────────────────────────────
+
+/// **This failed at HEAD before M3 Session C, and it is SECURITY-AUDIT H2 applied to `run`
+/// rather than a new finding.**
+///
+/// `ollama.rs` maps a `run` tool call to `ModelStep::Spawn` whatever the exposed set says, and
+/// `ModelStep::Spawn` goes straight from the loop's match to `Engine::spawn` without ever
+/// reaching `adjudicate` — which is where the exposure check lives. So a run that had never been
+/// offered `run` could spawn simply by naming it. H2's own parenthetical, that *"`run` was
+/// deliberately routed back through `ToolCall` for exactly this reason"*, is stale against that
+/// mapping.
+///
+/// **Asserted on the COUNT, not on the message.** A message-only test is green on a build that
+/// emits the refusal *and* spawns the child anyway.
+///
+/// *Mutation:* delete the `may_create_agents()` check at the top of `Engine::spawn` — the count
+/// reads 1.
+#[test]
+fn a_run_without_the_create_grant_cannot_spawn() {
+    // A worker's set: real tools, no `run`. `CapabilityProfile::new` would refuse `run` at this
+    // level anyway, which is the other half of the same one definition.
+    let worker = CapabilityProfile::new(
+        marlowe_tools::ExposedSet::new(vec![ToolId::new("read"), ToolId::new("grep")]).unwrap(),
+        marlowe_permission::EgressPolicy::DenyAll,
+        marlowe_loop::InterruptPolicy::Unattended,
+        marlowe_loop::ModelRoute::Worker,
+        marlowe_loop::AgentLevel::Worker,
+        false,
+        false,
+    )
+    .unwrap();
+    assert!(!worker.may_create_agents());
+
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::Spawn(SpawnRequest {
+                task: "delegate this".into(),
+                contract: OutputContract::new("findings", &["findings"]),
+                orphan: OrphanPolicy::Terminate,
+                share: BudgetShare::Standard,
+                grant_tokens: None,
+                tools: Vec::new(),
+                reads_untrusted: false,
+                tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
+            }),
+            100,
+        ),
+        say("parent done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+
+    let mut run = Run::root(
+        RunId::from_name("worker"),
+        SessionId::from_name("worker-session"),
+        worker,
+        Budget::interactive(),
+        OutputContract::answer(),
+    );
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+
+    assert_eq!(
+        recorder.count(EventKind::RunSpawned),
+        0,
+        "a run that does not hold `run` created a child. §1: a worker creates nothing"
+    );
+    let rendered = e.assembler().assemble(&state).rendered();
+    assert!(
+        rendered.contains("cannot create agents"),
+        "the refusal must name the create grant so the model can act on it:\n{rendered}"
+    );
+
+    // **The positive control, and it is the whole evidence.** The identical request from a run
+    // that DOES hold `run` spawns. Without it the assertion above is green on a build that
+    // cannot spawn at all.
+    let mut e = engine();
+    let mut driver = ScriptDriver::new(vec![
+        step(
+            ModelStep::Spawn(SpawnRequest {
+                task: "delegate this".into(),
+                contract: OutputContract::new("findings", &["findings"]),
+                orphan: OrphanPolicy::Terminate,
+                share: BudgetShare::Standard,
+                grant_tokens: None,
+                tools: Vec::new(),
+                reads_untrusted: false,
+                tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
+            }),
+            100,
+        ),
+        say("child done", 100),
+        say("parent done", 100),
+    ]);
+    let mut summarizer = EmptySummarizer;
+    let mut tools = ScriptedTools::default();
+    let mut approvals = FixedApprovals(true);
+    let mut sink = CollectingSink::default();
+    let mut control = marlowe_loop::NoControl;
+    let mut clock = FrozenClock(1_700_000_000_000);
+    let mut recorder = MemoryRecorder::default();
+    let mut ports = Ports {
+        driver: &mut driver,
+        summarizer: &mut summarizer,
+        tools: &mut tools,
+        memory: None,
+        approvals: &mut approvals,
+        sink: &mut sink,
+        control: &mut control,
+        clock: &mut clock,
+        recorder: &mut recorder,
+    };
+    let mut run = root(Budget::interactive());
+    let mut state = SessionState::new(run.session, "Marlowe.");
+    let mut prov = Provenance::new();
+    let _ = e.run(&mut run, &mut state, &mut prov, &mut ports);
+    assert_eq!(
+        recorder.count(EventKind::RunSpawned),
+        1,
+        "Marlowe holds the create grant and must still be able to delegate"
     );
 }

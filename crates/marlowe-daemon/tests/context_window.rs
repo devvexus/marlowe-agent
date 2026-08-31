@@ -54,7 +54,7 @@ fn every_request_carries_num_ctx() {
     let view = Assembler::new(16_384, 1_024).assemble(&state);
     let tools = marlowe_tools::ExposedSet::new(vec![marlowe_tools::ToolId::new("read")]).unwrap();
 
-    let body = driver.request_body(&view, &tools, CallLimits { max_output_tokens: 256 });
+    let body = driver.request_body(&view, &tools, CallLimits { max_output_tokens: 256, route: marlowe_loop::ModelRoute::Orchestrator });
     let num_ctx = body.pointer("/options/num_ctx").and_then(|v| v.as_u64());
 
     assert_eq!(
@@ -167,7 +167,7 @@ fn every_request_declares_whether_the_model_should_think() {
         )
         .with_thinking(on);
 
-        let body = driver.request_body(&view, &tools, CallLimits { max_output_tokens: 64 });
+        let body = driver.request_body(&view, &tools, CallLimits { max_output_tokens: 64, route: marlowe_loop::ModelRoute::Orchestrator });
         assert_eq!(
             body.get("think").and_then(|t| t.as_bool()),
             Some(on),

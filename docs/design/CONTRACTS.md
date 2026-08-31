@@ -946,17 +946,105 @@ pub trait RunControl {
 }
 
 pub struct CapabilityProfile {
-    pub exposed_tools: Vec<ToolId>,        // INVARIANT: len() <= 12
-    pub egress: EgressPolicy,              // deny-by-default
-    pub interrupt: InterruptPolicy,
-    pub model_route: ModelRoute,
-    pub may_write_memory: bool,
-    pub reads_untrusted: bool,             // true => quarantine: exposed_tools MUST be empty
+    // EVERY FIELD IS PRIVATE, and `new` is the only way in -- including for `serde`, which routes
+    // through it. `pub` here is the shape of the SCHEMA, not of the type: M2 Session A moved the
+    // fields behind accessors, and this block was not corrected until M3 Session C.
+    exposed_tools: ExposedSet,             // INVARIANT: len() <= MAX_EXPOSED_TOOLS (14, ADR-058)
+    egress: EgressPolicy,                  // deny-by-default
+    interrupt: InterruptPolicy,
+    model_route: ModelRoute,
+    level: AgentLevel,                     // M3-DESIGN section 1. Derived by the harness.
+    may_write_memory: bool,
+    reads_untrusted: bool,                 // true => quarantine: exposed_tools MUST be empty
 }
+
+/// PINNED BY MEMBERSHIP: five variants, one carrying a `bool`. A sixth needs the human.
+pub enum AgentLevel { Secretary, TopAgent { manages: bool }, Master, Worker, ToolSpawned }
+/// PINNED BY MEMBERSHIP: two variants.
+pub enum Disposition { Work, Manage }
+/// PINNED BY NAME ONLY. A fourth variant may be added without an ADR -- and `Routing::model_for`
+/// matches it EXHAUSTIVELY, with no wildcard arm, so a fourth arrives with a model or not at all.
+pub enum ModelRoute { Orchestrator, Worker, Summarizer }
 ```
 
 `reads_untrusted && !exposed_tools.is_empty()` is a load-time error. That is §8.2's structural
 trifecta break, expressed as a type invariant rather than a guideline.
+
+**Three further load-time errors, added in M3 Session C, in the same register (ADR-064):**
+
+* `level == ToolSpawned` ⇒ `exposed_tools.is_empty()`. **Strictly wider than the quarantine
+  check**, and that width is the point: SCOPED-MEMORY §4's fact extractor is a tool-spawned agent
+  that does *not* set `reads_untrusted`, so nothing else would stop it being built with tools.
+* `level == Master` ⇒ `exposed_tools ⊆ MANAGEMENT_TOOLS` (`["run", "ask"]`). M3-DESIGN §1.2's
+  *"masters hold no working tools"*, **structurally** -- never as a budget dimension of zero, which
+  `Budget::exhausted` reads as *already exhausted* rather than *may not use*.
+* `exposed_tools.contains("run")` ⇒ `level.may_hold_create_grant()`, true for `Secretary`,
+  `TopAgent { manages: true }` and `Master`. **The create grant IS holding `run`**, so
+  `CapabilityProfile::may_create_agents()` reads the set and consults nothing else.
+
+`level` has **no `#[serde(default)]`**: a checkpoint written before M3 Session C fails to
+deserialize with a named error rather than resuming as something the constructor would have
+refused. That cost is accepted, not overlooked.
+
+### 5.0 `SpawnRequest` -- pinned for the first time (ADR-064, M3 Session C)
+
+Before this the only pin was `RunControl::spawn`'s signature above: the method, not the fields.
+
+```rust
+pub struct SpawnRequest {
+    pub task: String,               // DECLARED  -- Payload
+    pub contract: OutputContract,   // DECLARED  -- Payload  (`output_contract`)
+    pub orphan: OrphanPolicy,       // DECLARED  -- TARGET   (`orphan_policy`)
+    pub share: BudgetShare,         // WITHHELD  -- not read from `args` at all (ADR-057 section 5)
+    pub grant_tokens: Option<u64>,  // DECLARED  -- TARGET   (`budget_tokens`)
+    pub tools: Vec<ToolId>,         // DECLARED  -- TARGET   (`exposed_tools`)
+    pub tools_declared: bool,       // DERIVED   -- presence of the `exposed_tools` key
+    pub reads_untrusted: bool,      // WITHHELD  -- layer 1 decides; a model does not ask to be
+    pub role: ModelRoute,           // DECLARED  -- TARGET   (`role`)
+    pub disposition: Disposition,   // DECLARED  -- TARGET   (`kind`)
+}
+```
+
+`SpawnRequest` has **no `Deserialize`**, and none may be added: a field-wise derive would be a way
+in that skips `from_args`'s totality and the two withheld fields (instance #12).
+
+**Where a Target declaration is actually enforced, because the manifest is not it.**
+`ModelStep::Spawn` never reaches `adjudicate` -- only `tool_batch` calls it -- so `run`'s manifest
+roles have no reader on any enforcing path. The enforcement is `composes_spawn_targets` in
+`marlowe-loop/src/engine.rs`, a **hand-written mirror** of the five Target rows above, and nothing
+structural holds the two together. Adding a field here without a disjunct there removes it from
+layer 3 silently. Two tests pair against that:
+`engine.rs`'s `spawn_request_fields::every_spawn_request_field_is_classified` destructures this
+struct exhaustively, so a new field is a **compile** error, and `marlowe-tools`'
+`run_declares_exactly_seven_parameters_and_exactly_five_are_targets` holds the manifest to a
+literal from the other side.
+
+**REACHABILITY, stated the way §12.1 states `ingest_external`'s, because a pin that claims a chain
+it does not have is worse than one that admits the gap.** The chain
+`SpawnRequest.role → Engine::spawn → CapabilityProfile.model_route → Budget::call_limits →
+CallLimits.route → OllamaDriver::request_body["model"]` is **complete and has a test on the bytes**.
+But:
+
+* **It terminates in `Routing::uniform`.** All six production `Routing` sites are `uniform`, so
+  `Orchestrator`, `Worker` and `Summarizer` resolve to **one model** in the shipped binary and this
+  wiring changes **not one byte on the wire today**. A green suite proves nothing about the running
+  product; only a `--dev` outbound dump under a three-tag routing can.
+* **`llamacpp` and `openrouter` do not read `CallLimits.route`.** `llama-server` serves whatever it
+  was launched with and does not route on the `"model"` field at all, so a body assertion there
+  would be green over unrouted weights; `OpenRouterDriver` holds a single model id rather than a
+  `Routing`, and giving it one is a daemon-side change. Both sites carry a comment saying so.
+* **The window is not a function of the role.** `num_ctx` and the `max_tokens` clamp are set once
+  per driver from the daemon's config, so a request can carry a per-call `model` and a per-process
+  `num_ctx`. Inert while routing is uniform; live the day it is not.
+* **`ModelRoute::Summarizer` still has no producing constructor.** The compaction summarizer is a
+  different port (`driver.rs`'s `Summarizer` trait) that never sees a `CallLimits`.
+
+**The ladder is a rendering of `ModelRoute`, not a second type.** `DECISIONS.md`'s 2026-08-30 entry
+names four tiers -- Secretary, Agent-High, Agent-Medium, Agent-Low -- against three columns; which
+tier fills which column is the Agent Registration Window's and the human's, and `from_args`
+therefore accepts only `ModelRoute`'s own three spellings. **A role is a SLOT, not a model**: two
+tiers resolving to one tag is the ordinary case, so nothing may assume they differ, and anything
+counting capacity keys on the **resolved model** rather than on the role.
 
 ### 5.1 The quarantined read's output contract (ADR-041)
 

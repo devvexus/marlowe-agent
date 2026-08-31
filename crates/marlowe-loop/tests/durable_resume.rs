@@ -568,6 +568,8 @@ fn a_parent_completing_settles_its_children_through_the_loop() {
                 tools: vec![],
                 reads_untrusted: false,
                 tools_declared: true,
+                role: marlowe_loop::ModelRoute::Worker,
+                disposition: marlowe_loop::Disposition::Work,
             }),
             100,
         ),

@@ -188,7 +188,7 @@ fn local() -> OllamaDriver {
 }
 
 fn limits() -> CallLimits {
-    CallLimits { max_output_tokens: 4_096 }
+    CallLimits { max_output_tokens: 4_096, route: marlowe_loop::ModelRoute::Orchestrator }
 }
 
 /// Every request each adapter would send this turn, labelled `hosted`/`local`.

@@ -56,7 +56,7 @@ pub use engine::{
     coerce_to_declared_types, Engine, LoopOutcome, Ports, QuarantineRefusal, CONTRACT_UNMET,
     KEEP_TOOL_RESULTS, MAX_SOURCES_PER_READER, MAX_STEPS, UNDESCRIBED_SOURCE,
 };
-pub use profile::{CapabilityProfile, InterruptPolicy, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
+pub use profile::{AgentLevel, CapabilityProfile, Disposition, InterruptPolicy, LevelRefusal, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
 pub use provenance::Provenance;
 pub use steer::{MAX_STEER_CHARS, SteerOrigin, SteerRefused, admit as admit_steer};
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};

@@ -207,6 +207,17 @@ impl OpenRouterDriver {
         let messages = marlowe_provider::wire::openai_messages(view);
 
         let mut body = serde_json::json!({
+            // **`CallLimits::route` IS NOT READ HERE EITHER, and unlike llama.cpp this one is a
+            // gap rather than an impossibility.** OpenRouter genuinely dispatches on this field,
+            // so the value sent decides which weights answer — but `OpenRouterDriver` holds a
+            // single `model: String` rather than a `Routing`, and giving it one is a daemon-side
+            // construction change (`ModelProviderChoice::OpenRouter { model }`) that this session
+            // does not make. ADR-046 keeps the path opt-in and unreachable without an explicit
+            // `--provider openrouter`, which bounds it; it does not close it.
+            //
+            // Recorded here rather than left silent because the failure is the readable kind: a
+            // later grep for readers of `limits.route` returns a hit in `ollama.rs` and reads as
+            // a positive result on a path where nothing honours it.
             "model": self.model,
             "messages": messages,
             "stream": true,

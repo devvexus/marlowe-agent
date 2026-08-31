@@ -77,7 +77,7 @@ fn a_child_is_asked_its_task_rather_than_shown_it_as_its_own_words() {
     // No tools: the exact profile of the child that went silent.
     let tools = ExposedSet::new(vec![]).expect("a toolless child is constructible");
     let body =
-        driver().request_body(&a_freshly_spawned_child(), &tools, CallLimits { max_output_tokens: 512 });
+        driver().request_body(&a_freshly_spawned_child(), &tools, CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator });
     let messages = messages(&body);
 
     let brief = messages
@@ -122,7 +122,7 @@ fn the_parents_own_prior_reply_is_still_its_own() {
     ));
     let view = Assembler::new(8_192, 1_024).assemble(&state);
     let tools = ExposedSet::new(vec![]).expect("empty is constructible");
-    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 512 });
+    let body = driver().request_body(&view, &tools, CallLimits { max_output_tokens: 512, route: marlowe_loop::ModelRoute::Orchestrator });
     let messages = messages(&body);
 
     let reply = messages

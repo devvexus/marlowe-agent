@@ -166,6 +166,9 @@ fn a_real_fetched_page_latches_the_floor_and_it_holds_after_the_page_is_trimmed_
             EgressPolicy::allow(&[HOST]),
             InterruptPolicy::Interruptible,
             ModelRoute::Orchestrator,
+            // A root run standing in for Marlowe. Level 1 is the only level that may hold a
+            // full working set.
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )

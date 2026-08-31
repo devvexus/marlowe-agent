@@ -3594,3 +3594,101 @@ that is the check to re-run rather than to quote.
 It also governs a **second** mechanism, so settling it settles both: ADR-032 §3.1's per-host egress
 grant expires with the `Run` for the identical reason, and the human is re-asked about an
 already-approved host on his next message.
+---
+
+## 2026-08-30 · THE FIVE LEVELS LIVE ON THE PROFILE, THE DISPOSITION LIVES INSIDE THE LEVEL, AND `role` SHIPPED BECAUSE ITS READER CHAIN REACHED THE WIRE
+
+**Approved by Matthew, M3 Session C**, for the two section 13-guarded files ADR-064 names:
+`crates/marlowe-loop/src/profile.rs` and `crates/marlowe-loop/src/driver.rs`. ROADMAP's M3
+Session C row scopes the `role` field to C by name. Both pinned-contract acts —
+`CapabilityProfile`'s seventh field and `SpawnRequest`'s first pin — are recorded in
+`CONTRACTS.md` section 5 and 5.0.
+
+**`AgentLevel` is a private, constructor-validated field on `CapabilityProfile`, not a field on
+the `Run`.** The invariant a level carries — *"a master's set contains only management tools"* —
+is a statement **about the exposed set**, and the exposed set lives behind that file's validating
+constructor. Held beside the profile on the `Run` it would be bypassed rather than enforced: a
+`Master` run could be constructed with an `edit`-holding profile and every profile test would stay
+green. This is `grant_egress_host`'s recorded argument, one field over. `Run::adopted_by` mutates
+a run's parent, so a level held there could also be falsified after the fact by a lifetime
+decision.
+
+**The disposition is carried INSIDE the level — `TopAgent { manages: bool }` — and that is the
+correction rather than the design.** A separate `disposition` field beside the level was the first
+design's fatal defect: `child_of(Secretary, Manage)` and `child_of(Secretary, Work)` returned the
+**same value**, so nothing downstream could tell them apart, and a Secretary spawning
+`kind: worker, exposed_tools: "run bash"` yielded a top-agent holding `run` and `bash` at once. Its
+test made it invisible — the headline assertion was that both dispositions give the same answer,
+so it was green whether the disposition was plumbed through or dropped on the floor in
+`from_args`. **Instance #16 shipped with its green proxy test already written, in a design whose
+own stated blocking finding was instance #16.** The headline assertion is now
+`child_of(Secretary, Manage) != child_of(Secretary, Work)`.
+
+**Section 1.2 is enforced by WITHHOLDING THE CAPABILITY, never by a counter.** `MasterHoldsWorkingTool`
+refuses the tool at construction; `MANAGEMENT_TOOLS` is `["run", "ask"]` and lists only tools that
+exist, because naming the six of section 1.2's eight that do not would make the master rule
+vacuously permissive. Expressing it as `edit_calls: 0` was rejected: `Budget::exhausted` compares
+`spent >= budget`, so `0 >= 0` fires on the first iteration and the master pauses before its first
+model call while looking perfectly configured. That is instance #17, and it is what silently
+stopped the quarantined reader reading anything at all under ADR-041. The test carries the control
+explicitly — the companion budget's `tool_calls`, `subagents` and `depth` are all asserted `>= 1`.
+
+**`may_create_agents()` has ONE definition and it reads the set.** If `new` refuses `run` at every
+level that may not hold it, no such profile contains `run`, so a `level.may_hold_create_grant()`
+conjunct at the spawn gate could only ever be redundant — or, on the day a sixth level is added to
+one and not the other, silently wrong. `Engine::spawn` consults it as its **first** refusal, which
+closes **SECURITY-AUDIT H2's gap for `run`** and is H2 rather than a new finding: `ollama.rs` maps
+a `run` call to `ModelStep::Spawn` whatever the exposed set says, and `ModelStep::Spawn` never
+reaches `adjudicate`, where the exposure check lives. H2's parenthetical that *"`run` was
+deliberately routed back through `ToolCall` for exactly this reason"* is stale against that
+mapping. `remember` and `ask` still bypass the adjudicator; H2 stays open.
+
+**`role` and `kind` are TARGETS under ADR-023, and the decisive argument is one field over.**
+`orphan_policy` is a closed two-value enum that chooses only a child's **lifetime**, and it has
+been a declared Target since ADR-057. A value that chooses the **inference engine executing every
+subsequent decision the child makes** is a target a fortiori; calling a role a payload would
+de-target `orphan_policy` by the identical argument. A downgrade and an upgrade are both
+attacker-useful. Both fields are disjuncts in `composes_spawn_targets`, and both appear in the
+spawn receipt — rendered from the harness's own enums, never echoed from `args` — because
+`parse_role` and `parse_kind` are total and a default a model cannot see is the
+"defaults that make a mismatch unobservable" family.
+
+**THE FIELD SHIPPED ONLY BECAUSE THE READER CHAIN CLOSED, AND THAT WAS THE CONDITION.** Both ADRs
+found `CapabilityProfile::model_route()` with **zero callers in the workspace**, `ModelRoute::Summarizer`
+with zero producers, and `OllamaDriver::request_body` hardcoding `ModelRoute::Orchestrator` — so
+the whole subagent tree ran on the secretary's model and ADR-008's cost lever was declared in three
+documents and inert in the product. Adding a `role` on top of that would have been instance #16 for
+the third time in one code path. The chain now runs
+`SpawnRequest.role → Engine::spawn → CapabilityProfile.model_route → Budget::call_limits →
+CallLimits.route → request_body["model"]`, asserted **on the bytes** against a three-tag
+`Routing::new`, with `Routing::uniform` in the same test as the negative control that cannot
+discriminate.
+
+**What it does NOT close, recorded rather than claimed.** Every production `Routing` is `uniform`,
+so this changes **not one byte on the wire today** and a green suite says nothing about the running
+daemon; the daemon's `routing()` is a `daemon.rs` change and is not this session's. `llamacpp` and
+`openrouter` do not read `CallLimits.route` — `llama-server` does not route on the `"model"` field,
+so a body assertion there would be **green over unrouted weights** (instance #15 manufactured
+inside the fix for instance #16), and OpenRouter holds a single model id rather than a `Routing`.
+Both sites carry a comment saying so, because the failure otherwise is the readable kind: a later
+grep for readers returns a hit and reads as a positive result on paths where nothing honours it.
+The window (`num_ctx`) and the `max_tokens` clamp are still per-driver, so a routed call can carry
+a per-call `model` and a per-process window. `ModelRoute::Summarizer` still has no producer.
+
+**THE LADDER OVERRIDES BOTH ADRs, AND A ROLE IS A SLOT.** ADR-064 and ADR-069 both carry
+`AGENT-DIRECTORY.md` section 2's old *"a fourth role — UNNAMED"* as a blocker; this morning's entry
+settles that there was never one. So `from_args` accepts only `ModelRoute`'s own three spellings
+and **refuses to invent a tier → route table**: `high`, `medium`, `low` and `secretary` take the
+cheap default and the receipt says so, because a role invented by an implementer becomes a default
+nobody chose. Two tiers resolving to one model is the ordinary case — the human's own testing
+configuration does it — so nothing here assumes the tiers differ, and the wire test asserts that
+`Routing::models()` counts **resolved models** rather than roles.
+
+**Not built, deliberately, each for a missing reader.** `ModelRoute::may_grant` and `strength` (an
+upgrade ceiling) stay Session G's: they would be a new refusal nobody has asked for, and ADR-069
+argues that bounding a *downgrade* buys nothing because layer 1's containment does not depend on
+the reader's competence. `EscalationTarget` stays cut — its subject is already welded shut, a
+child's `Escalated` being swallowed into a fixed harness string, and M3-DESIGN section 3's upward
+channel needs a carrier rather than a routing function. `escalate` is not a thirteenth builtin.
+`ingest` is not wired and there is no `Channel::Agent` producer.
+

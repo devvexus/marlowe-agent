@@ -14,6 +14,7 @@ use marlowe_tools::{ExposedSet, ResultSummary, ToolId};
 use serde::{Deserialize, Serialize};
 
 use crate::budget::{Budget, BudgetShare, CallLimits};
+use crate::profile::{Disposition, ModelRoute};
 use crate::context::ContextView;
 use crate::run::{OrphanPolicy, OutputContract, RunId};
 use crate::turn::TurnEvent;
@@ -88,6 +89,35 @@ pub struct SpawnRequest {
     /// Sets the quarantined-reader profile, which forces the tool set empty. A spawn asking
     /// for both is a load-time error — see `profile`.
     pub reads_untrusted: bool,
+    /// **Which model tier serves the child, and it is a TARGET under ADR-023.**
+    ///
+    /// Read by `Engine::spawn`, which hands it to `CapabilityProfile::new` in place of the
+    /// `ModelRoute::Worker` that used to be hardcoded there; from the child's profile it reaches
+    /// `Budget::call_limits`, `CallLimits::route`, and `OllamaDriver::request_body`'s
+    /// `routing.model_for(..)` -- the `"model"` field of the bytes that go out. Also read by
+    /// `composes_spawn_targets`, which is what makes it a Target in practice rather than in a
+    /// manifest.
+    ///
+    /// Default `Worker`: the **cheap** end, so a model that forgets the field costs nothing and
+    /// the receipt tells it what it got.
+    ///
+    /// **The ladder is a rendering of this enum, not a second type.** `DECISIONS.md`'s
+    /// 2026-08-30 entry names four tiers -- Secretary, Agent-High, Agent-Medium, Agent-Low --
+    /// and `ModelRoute` has three columns; which tier fills which column is the Agent
+    /// Registration Window's, and the human's. `from_args` therefore accepts only this enum's
+    /// own three spellings: inventing `high`/`medium`/`low` here would be an implementer
+    /// choosing a table that is not his to choose, and a word nobody chose is how a default
+    /// becomes a decision.
+    pub role: ModelRoute,
+    /// **§1.1's one question -- *can one agent do this alone?* -- and it is a TARGET.**
+    ///
+    /// Read by `AgentLevel::child_of` in `Engine::spawn`, **whose two arms return different
+    /// values**; the level that comes back is what `CapabilityProfile::new` refuses `run` at.
+    /// So a `Work` child cannot hold the create grant, and that is enforced by construction
+    /// rather than by a second check somewhere.
+    ///
+    /// Default `Work`: the narrow end.
+    pub disposition: Disposition,
 }
 
 /// The default contract description, when the parent names none. ADR-057 §1.
@@ -132,7 +162,36 @@ impl SpawnRequest {
             tools_declared: args.get("exposed_tools").is_some(),
             // ADR-057 §5. Layer 1 decides what is quarantined; a model does not ask to be.
             reads_untrusted: false,
+            role: parse_role(text("role")),
+            disposition: parse_kind(text("kind")),
         }
+    }
+}
+
+/// The model tier a spawner named. **Total, with the cheap end as the default.**
+///
+/// Only `ModelRoute`'s own three spellings are recognised. A word this does not know -- a
+/// misspelling, or one of `DECISIONS.md`'s tier names, `high` / `medium` / `low`, whose mapping
+/// onto these three columns is the human's -- takes `Worker`, and `Engine::spawn`'s receipt says
+/// so in the parent's window. That receipt is what makes a total default legitimate rather than
+/// silent: the "defaults that make a mismatch unobservable" family is answered by saying what
+/// was granted, not by refusing a model that guessed.
+fn parse_role(s: &str) -> ModelRoute {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "orchestrator" => ModelRoute::Orchestrator,
+        "summarizer" => ModelRoute::Summarizer,
+        _ => ModelRoute::Worker,
+    }
+}
+
+/// M3-DESIGN §1.1's `master | worker`. **Total, with the narrow end as the default.**
+///
+/// `master` is the only word that buys anything, and it buys a create grant -- so an unrecognised
+/// value must land on `Work`, never on `Manage`.
+fn parse_kind(s: &str) -> Disposition {
+    match s.trim().to_ascii_lowercase().as_str() {
+        "master" | "manage" | "manager" => Disposition::Manage,
+        _ => Disposition::Work,
     }
 }
 

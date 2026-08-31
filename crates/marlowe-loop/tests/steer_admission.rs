@@ -100,6 +100,7 @@ fn run_with_steer(
             marlowe_permission::EgressPolicy::allow(&[]),
             marlowe_loop::InterruptPolicy::Interruptible,
             marlowe_loop::ModelRoute::Orchestrator,
+            marlowe_loop::AgentLevel::Secretary,
             false,
             false,
         )

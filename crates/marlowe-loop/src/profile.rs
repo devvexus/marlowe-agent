@@ -51,6 +51,139 @@ pub enum ModelRoute {
     Summarizer,
 }
 
+/// M3-DESIGN section 1's five agent levels. **Position in the organisation, not capability.**
+///
+/// Capability is the [`ExposedSet`]; this is what constrains which sets are *constructible*.
+/// It lives on [`CapabilityProfile`] rather than on the `Run` for the reason
+/// [`CapabilityProfile::grant_egress_host`] gives one field over: the invariant a level carries
+/// -- *"a master's set contains only management tools"* -- is a statement **about the exposed
+/// set**, and the exposed set lives behind this file's validating constructor. Hold the level
+/// beside the profile on the `Run` and the invariant is bypassed rather than enforced: a
+/// `Master` run could be constructed with an `edit`-holding profile and every profile test would
+/// stay green. `Run::adopted_by` also mutates a run's parent, so a level held there could be
+/// falsified after the fact by a lifetime decision.
+///
+/// # The ladder these levels are staffed from
+///
+/// `DECISIONS.md`'s **2026-08-30** entry settles it, and it **overrides ADR-064 and ADR-069**,
+/// which were both written against `AGENT-DIRECTORY.md` section 2's older table:
+///
+/// | Tier | Model | Level it usually staffs |
+/// |---|---|---|
+/// | Secretary | the user's `models` dropdown | [`AgentLevel::Secretary`] |
+/// | Agent-High | `marlowe-dusk:27b-super` | [`AgentLevel::TopAgent`] |
+/// | Agent-Medium | `marlowe-dawn:9b-super` | [`AgentLevel::Master`] |
+/// | Agent-Low | `marlowe-mini:4b-super` | [`AgentLevel::Worker`] |
+///
+/// **There is no unnamed fourth role**, and both ADRs carry that blocker forward from the old
+/// table; where they conflict with the decision entry, the entry wins. **A ROLE IS A SLOT, NOT A
+/// MODEL**: the human's own testing configuration points Agent-High and Agent-Medium at the same
+/// tag, so two tiers resolving to one model is the ordinary case rather than a degenerate one.
+/// Nothing here, and nothing downstream of it, may assume the tiers differ -- which is also the
+/// shape production ships in today, where every `Routing` is `Routing::uniform` and all three of
+/// [`ModelRoute`]'s columns answer one name. Anything that later counts capacity keys on the
+/// **resolved model**, never on the level or the route: two roles sharing a model share weights
+/// and multiply only the KV cache, where two models multiply weights.
+///
+/// A level is **derived by the harness** ([`AgentLevel::child_of`]) and never named by a model.
+/// The model names a *disposition* and a *route*; the level is what the harness computes from
+/// the parent's own level and that disposition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentLevel {
+    /// Level 1. Marlowe himself. Section 1's *"full conversational set"*.
+    Secretary,
+    /// Level 2. What Marlowe spawns, and **the only thing he spawns**.
+    ///
+    /// Section 1.1: Marlowe spawns exactly one kind of thing and declares *which kind it is*.
+    /// `manages` **is** that declaration, carried inside the level so it cannot be recorded and
+    /// then ignored. A separate `disposition` field beside the level was the first design's
+    /// fatal defect: `child_of(Secretary, Manage)` and `child_of(Secretary, Work)` both returned
+    /// the same value, so nothing downstream could tell them apart and a `work` top-agent got a
+    /// create grant anyway (ADR-064 section 8.1).
+    TopAgent { manages: bool },
+    /// Level 3. Spawned by a top-agent that was itself spawned to manage. Holds
+    /// [`marlowe_tools::MANAGEMENT_TOOLS`] and **no working tools** -- section 1.2, structurally.
+    Master,
+    /// Level 4. Does the work. Creates nothing.
+    Worker,
+    /// Level 5. Spawned by a **tool**, not by a model: layer 1's quarantined reader and
+    /// SCOPED-MEMORY section 4's fact extractor. Holds no tools at all.
+    ToolSpawned,
+}
+
+/// Section 1.1's one question, asked at spawn: *can one agent do this alone?*
+///
+/// Read by [`AgentLevel::child_of`], **whose two arms return different values**. That is the
+/// whole reason this type exists rather than being inferred from whether the requested tool set
+/// names `run` -- M3-DESIGN section 5 is *declared at spawn, never inferred*, and letting
+/// [`CapabilityProfile::new`] refuse the disagreement is strictly better than deriving one from
+/// the other, because the two cannot then silently disagree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Disposition {
+    /// `worker` -- will do the task itself.
+    Work,
+    /// `master` -- gets a create grant and an agent budget.
+    Manage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error(
+    "a {parent:?} cannot create a {wanted:?} child: Marlowe creates only top-agents, a top-agent \
+     creates only if it was spawned to manage, a master creates only workers, and a worker \
+     creates nothing"
+)]
+pub struct LevelRefusal {
+    pub parent: AgentLevel,
+    pub wanted: Disposition,
+}
+
+impl AgentLevel {
+    /// The level a child gets. **Total over the level axis, with no wildcard arm** -- a sixth
+    /// variant fails to compile here rather than silently inheriting a neighbour's answer.
+    ///
+    /// It **never returns [`AgentLevel::ToolSpawned`]**. That level is reachable only through
+    /// this file's own named constructors, so no model call can produce one: withheld
+    /// structurally, in the [`ExposedSet::empty`] manner rather than by a counter set to zero
+    /// (instance #17).
+    ///
+    /// **Total over MODEL-INITIATED spawns only, and the qualifier is load-bearing.** The
+    /// harness's own children -- the quarantined reader `Engine::condense_batch` builds from
+    /// [`CapabilityProfile::quarantined_reader`], and SCOPED-MEMORY section 4's fact extractor --
+    /// are built by named constructor and never routed through here, so section 1's level 5 sits
+    /// under any of levels 1-4. `Budget.depth` still bounds that path. A claim that the tree is
+    /// *"four deep by construction"* is false of `condense_batch` and reads identically either
+    /// way.
+    pub fn child_of(parent: AgentLevel, d: Disposition) -> Result<AgentLevel, LevelRefusal> {
+        use AgentLevel::*;
+        use Disposition::*;
+        match (parent, d) {
+            // Section 1.1: both arms answer "a top-agent" -- but they are DIFFERENT top-agents,
+            // and that difference is the whole enforcement.
+            (Secretary, Manage) => Ok(TopAgent { manages: true }),
+            (Secretary, Work) => Ok(TopAgent { manages: false }),
+            (TopAgent { manages: true }, Manage) => Ok(Master),
+            (TopAgent { manages: true }, Work) => Ok(Worker),
+            // Section 1's table: level 3 is "spawned by a top-agent WITH THE CREATE GRANT".
+            (TopAgent { manages: false }, _) => Err(LevelRefusal { parent, wanted: d }),
+            (Master, Work) => Ok(Worker),
+            (Master, Manage) | (Worker, _) | (ToolSpawned, _) => {
+                Err(LevelRefusal { parent, wanted: d })
+            }
+        }
+    }
+
+    /// Which levels may hold the create grant. **One definition, read only by
+    /// [`CapabilityProfile::new`]**, and deliberately not consulted a second time at the spawn
+    /// gate: if `new` refuses `run` at every level that may not hold it, then by construction no
+    /// such profile contains `run`, and a second conjunct could only ever be redundant -- or, if
+    /// it ever disagreed with the constructor, silently wrong.
+    fn may_hold_create_grant(self) -> bool {
+        matches!(self, Self::Secretary | Self::TopAgent { manages: true } | Self::Master)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ProfileError {
     #[error(
@@ -79,6 +212,30 @@ pub enum ProfileError {
     )]
     WidenedPastParent { tool: ToolId },
 
+    #[error(
+        "a profile at level {level:?} exposes `run`. The create grant IS holding `run`, and \
+         M3-DESIGN section 1 gives it to Marlowe, to a top-agent that was spawned to MANAGE, and \
+         to a master -- nobody else. A worker that can create agents is a level that exists and \
+         a rule that does not"
+    )]
+    CreateGrantNotHeldAtThisLevel { level: AgentLevel },
+
+    #[error(
+        "a tool-spawned agent exposes {count} tool(s). Section 1's level 5 is spawned by a TOOL \
+         and holds nothing: this is strictly wider than the quarantine check, because \
+         SCOPED-MEMORY section 4's fact extractor is a level-5 agent that does not set \
+         `reads_untrusted` and would otherwise be constructible with tools"
+    )]
+    ToolSpawnedWithTools { count: usize },
+
+    #[error(
+        "a master exposes `{tool}`, which is not a management tool. Section 1.2: masters hold no \
+         working tools, STRUCTURALLY -- the tool is not in the set. Expressing it as a budget of \
+         zero would be instance #17: `Budget::exhausted` compares `spent >= budget`, so `0 >= 0` \
+         pauses the master before its first model call while it looks perfectly configured"
+    )]
+    MasterHoldsWorkingTool { tool: ToolId },
+
     #[error(transparent)]
     Exposure(#[from] ExposureError),
 }
@@ -96,6 +253,10 @@ pub struct CapabilityProfile {
     egress: EgressPolicy,
     interrupt: InterruptPolicy,
     model_route: ModelRoute,
+    /// M3-DESIGN section 1. **Private, and set only through [`CapabilityProfile::new`]** --
+    /// including through `serde`, which routes there. Read by `new`'s three level checks and by
+    /// `AgentLevel::child_of` via `Engine::spawn`.
+    level: AgentLevel,
     may_write_memory: bool,
     reads_untrusted: bool,
 }
@@ -107,6 +268,7 @@ impl CapabilityProfile {
         egress: EgressPolicy,
         interrupt: InterruptPolicy,
         model_route: ModelRoute,
+        level: AgentLevel,
         may_write_memory: bool,
         reads_untrusted: bool,
     ) -> Result<Self, ProfileError> {
@@ -127,11 +289,47 @@ impl CapabilityProfile {
                 return Err(ProfileError::QuarantineWithEgress);
             }
         }
+
+        // ---- M3-DESIGN section 1's three level rules, as load-time errors -----------------
+        //
+        // **The create grant IS holding `run`.** There is no second flag and no second
+        // consultation: `may_create_agents` below reads the set, and this is what guarantees
+        // that reading the set is enough.
+        if exposed_tools.contains(&ToolId::new("run")) && !level.may_hold_create_grant() {
+            return Err(ProfileError::CreateGrantNotHeldAtThisLevel { level });
+        }
+        // **No wildcard arm.** A sixth `AgentLevel` variant is a compile error here rather than
+        // a level that quietly inherits whichever neighbour `_` happened to cover -- the
+        // #19-safe shape, where the check's coverage is not a list somebody maintains.
+        match level {
+            AgentLevel::ToolSpawned if !exposed_tools.is_empty() => {
+                return Err(ProfileError::ToolSpawnedWithTools { count: exposed_tools.len() });
+            }
+            AgentLevel::ToolSpawned => {}
+            AgentLevel::Master => {
+                for t in exposed_tools.iter() {
+                    if !marlowe_tools::MANAGEMENT_TOOLS.contains(&t.as_str()) {
+                        return Err(ProfileError::MasterHoldsWorkingTool { tool: t.clone() });
+                    }
+                }
+            }
+            // Section 1's table says the secretary holds a "full conversational set", and
+            // `interactive()` currently holds `bash`, `edit`, `write` and `web`. **Whether
+            // section 1.2's structural rule extends upward to level 1 is a question M3-DESIGN
+            // does not answer**, and answering it with a `_` is how a decision gets made by
+            // nobody -- so the arm is NAMED and empty, and the question is ADR-064 section 9
+            // item 4, the human's.
+            AgentLevel::Secretary => {}
+            // Per-type sets are section 1.3 configuration, not a constructor rule.
+            AgentLevel::TopAgent { .. } | AgentLevel::Worker => {}
+        }
+
         Ok(Self {
             exposed_tools,
             egress,
             interrupt,
             model_route,
+            level,
             may_write_memory,
             reads_untrusted,
         })
@@ -145,6 +343,9 @@ impl CapabilityProfile {
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Worker,
+            // Section 1's level 5: spawned by a TOOL. `AgentLevel::child_of` can never return
+            // this, so the only way to be one is to be built here.
+            AgentLevel::ToolSpawned,
             false,
             true,
         )
@@ -163,6 +364,9 @@ impl CapabilityProfile {
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Worker,
+            // It does the work itself and creates nothing. Not `ToolSpawned`: its set is
+            // non-empty, and level 5 holds no tools.
+            AgentLevel::Worker,
             true,
             false,
         )
@@ -220,6 +424,9 @@ impl CapabilityProfile {
             EgressPolicy::AllowApproved { granted: Vec::new() },
             InterruptPolicy::Interruptible,
             ModelRoute::Orchestrator,
+            // Level 1. Marlowe himself, and the only level that holds `run` without having been
+            // spawned to manage.
+            AgentLevel::Secretary,
             true,
             false,
         )
@@ -263,6 +470,8 @@ impl CapabilityProfile {
             base.egress,
             base.interrupt,
             base.model_route,
+            // Still Marlowe: an MCP server contributes tools, not a position in the tree.
+            base.level,
             base.may_write_memory,
             base.reads_untrusted,
         )?)
@@ -279,6 +488,21 @@ impl CapabilityProfile {
     }
     pub fn model_route(&self) -> ModelRoute {
         self.model_route
+    }
+    pub fn level(&self) -> AgentLevel {
+        self.level
+    }
+
+    /// **The create grant IS holding `run`.** [`CapabilityProfile::new`] guarantees no profile
+    /// at a level that may not hold it contains it, so there is nothing else to consult and
+    /// there is deliberately no `level.may_hold_create_grant()` conjunct here: two definitions
+    /// of *may this run create agents* is this project's most-logged shape, and the redundant
+    /// one is the one that goes silently wrong when a sixth level is added to one and not the
+    /// other.
+    ///
+    /// Read by `Engine::spawn`, as its **first** refusal.
+    pub fn may_create_agents(&self) -> bool {
+        self.exposed_tools.contains(&ToolId::new("run"))
     }
     pub fn may_write_memory(&self) -> bool {
         self.may_write_memory
@@ -327,9 +551,27 @@ impl CapabilityProfile {
         self.egress.grant(host);
     }
 
-    /// Narrow a profile for a child. **Widening is not offered** — there is no method that
+    /// Narrow a profile for a child. **Widening is not offered** -- there is no method that
     /// hands a child a tool the parent did not have, so privilege cannot grow with depth.
-    pub fn narrowed(&self, tools: Vec<ToolId>) -> Result<Self, ProfileError> {
+    ///
+    /// `level` is taken **explicitly** rather than inherited. A child is at a different position
+    /// in the organisation from its parent by definition, and inheriting one would be the
+    /// silent-default family at a security invariant: a narrowed `Secretary` would still be a
+    /// `Secretary`, and would still be allowed to hold `run`.
+    ///
+    /// The model route is likewise the caller's: a narrowing of the tool set says nothing about
+    /// which model serves the run.
+    ///
+    /// **This method has zero production callers** (`Engine::spawn` builds the child profile
+    /// directly, so that the load-time refusal happens before anything is constructed), so both
+    /// of those changes are currently unobservable outside tests. Said here rather than implied,
+    /// because a reader looking for where levels are decided must not stop at this function.
+    pub fn narrowed(
+        &self,
+        tools: Vec<ToolId>,
+        level: AgentLevel,
+        model_route: ModelRoute,
+    ) -> Result<Self, ProfileError> {
         for t in &tools {
             if !self.exposed_tools.contains(t) {
                 return Err(ProfileError::WidenedPastParent { tool: t.clone() });
@@ -339,7 +581,8 @@ impl CapabilityProfile {
             ExposedSet::new(tools)?,
             self.egress.clone(),
             self.interrupt,
-            ModelRoute::Worker,
+            model_route,
+            level,
             self.may_write_memory,
             self.reads_untrusted,
         )
@@ -360,6 +603,13 @@ impl<'de> Deserialize<'de> for CapabilityProfile {
             egress: EgressPolicy,
             interrupt: InterruptPolicy,
             model_route: ModelRoute,
+            /// **No `#[serde(default)]`, and that is the decision rather than an omission.**
+            /// A default here would silently restore a master holding working tools -- the
+            /// "defaults that make a mismatch unobservable" family, at a security invariant.
+            /// The cost is real and it is stated: a checkpoint written before M3 Session C
+            /// fails to resume with a named serde error rather than resuming as something the
+            /// constructor would have refused.
+            level: AgentLevel,
             may_write_memory: bool,
             reads_untrusted: bool,
         }
@@ -369,6 +619,7 @@ impl<'de> Deserialize<'de> for CapabilityProfile {
             r.egress,
             r.interrupt,
             r.model_route,
+            r.level,
             r.may_write_memory,
             r.reads_untrusted,
         )
@@ -392,6 +643,7 @@ mod tests {
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Worker,
+            AgentLevel::ToolSpawned,
             false,
             true,
         )
@@ -412,6 +664,7 @@ mod tests {
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Worker,
+            AgentLevel::ToolSpawned,
             false,
             true,
         )
@@ -423,6 +676,7 @@ mod tests {
                 EgressPolicy::DenyAll,
                 InterruptPolicy::Unattended,
                 ModelRoute::Worker,
+                AgentLevel::ToolSpawned,
                 true, // may_write_memory
                 true,
             )
@@ -436,6 +690,7 @@ mod tests {
                 EgressPolicy::allow(&["example.com"]),
                 InterruptPolicy::Unattended,
                 ModelRoute::Worker,
+                AgentLevel::ToolSpawned,
                 false,
                 true,
             )
@@ -454,6 +709,7 @@ mod tests {
             "egress": "deny_all",
             "interrupt": "unattended",
             "model_route": "worker",
+            "level": "tool_spawned",
             "may_write_memory": false,
             "reads_untrusted": true
         }"#;
@@ -465,9 +721,13 @@ mod tests {
     fn the_named_profiles_are_the_capability_profiles_not_variants() {
         let q = CapabilityProfile::quarantined_reader();
         assert!(q.reads_untrusted() && q.exposed_tools().is_empty() && !q.may_write_memory());
+        assert_eq!(q.level(), AgentLevel::ToolSpawned);
+        assert!(!q.may_create_agents());
 
         let c = CapabilityProfile::consolidation();
         assert!(c.may_write_memory() && !c.reads_untrusted());
+        assert_eq!(c.level(), AgentLevel::Worker);
+        assert!(!c.may_create_agents());
         // Two since `done` was removed — consolidation recalls and remembers, and ends by replying.
         //
         // **`recall` has no executor yet**, so this profile would fail
@@ -477,6 +737,8 @@ mod tests {
         assert_eq!(c.exposed_tools().len(), 2);
 
         let i = CapabilityProfile::interactive();
+        assert_eq!(i.level(), AgentLevel::Secretary);
+        assert!(i.may_create_agents(), "Marlowe holds the create grant: it IS holding `run`");
         // **Eleven as of the write/edit split, and ONE under the budget.** `web` rejoined in C2f,
         // `recall` in Session D, `use` in C3 -- each at the moment it gained an executor, added by
         // the same guard without anyone having to remember. That is the point of
@@ -518,13 +780,20 @@ mod tests {
             EgressPolicy::DenyAll,
             InterruptPolicy::Unattended,
             ModelRoute::Orchestrator,
+            AgentLevel::TopAgent { manages: true },
             false,
             false,
         )
         .unwrap();
-        assert!(narrow.narrowed(vec![ToolId::new("read")]).is_ok());
         assert!(
-            narrow.narrowed(vec![ToolId::new("bash")]).is_err(),
+            narrow
+                .narrowed(vec![ToolId::new("read")], AgentLevel::Worker, ModelRoute::Worker)
+                .is_ok()
+        );
+        assert!(
+            narrow
+                .narrowed(vec![ToolId::new("bash")], AgentLevel::Worker, ModelRoute::Worker)
+                .is_err(),
             "privilege must not grow with depth"
         );
     }

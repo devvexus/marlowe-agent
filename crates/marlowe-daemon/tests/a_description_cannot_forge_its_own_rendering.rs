@@ -133,7 +133,7 @@ fn bodies(description: &str) -> Vec<(&'static str, String)> {
         "probe/model",
         registry_with(Description::new(description)),
     );
-    let limits = CallLimits { max_output_tokens: 4_096 };
+    let limits = CallLimits { max_output_tokens: 4_096, route: marlowe_loop::ModelRoute::Orchestrator };
     vec![
         ("ollama", ollama.request_body(&empty_view(), &exposed(), limits).to_string()),
         ("openrouter", openrouter.request_body(&empty_view(), &exposed(), limits).to_string()),

@@ -297,7 +297,17 @@ impl OllamaDriver {
         tools: &ExposedSet,
         limits: CallLimits,
     ) -> serde_json::Value {
-        let model = self.routing.model_for(marlowe_loop::ModelRoute::Orchestrator).to_string();
+        // **The call's own column, not a constant.** This line read
+        // `model_for(ModelRoute::Orchestrator)` until M3 Session C, which is why
+        // `CapabilityProfile::model_route` had zero readers and the entire subagent tree ran on
+        // the secretary's model whatever any profile declared.
+        //
+        // **It changes no byte in the shipped product today, and that is the honest reading.**
+        // Every production `Routing` is `Routing::uniform`, so all three columns answer one name
+        // and a green test here proves nothing about the running daemon. A live `--dev` outbound
+        // dump under a three-tag routing is the only instrument that can — the
+        // persona-loaded-versus-in-the-request-body lesson, one subsystem over.
+        let model = self.routing.model_for(limits.route).to_string();
 
         // **Roles are derived from the block's origin, not from its tier.**
         //

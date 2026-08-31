@@ -127,7 +127,7 @@ use crate::driver::{
     Summarizer, ToolBody, ToolHost, TurnSink,
 };
 use crate::durable::Checkpoint;
-use crate::profile::{CapabilityProfile, InterruptPolicy, ModelRoute};
+use crate::profile::{AgentLevel, CapabilityProfile, Disposition, InterruptPolicy, ModelRoute};
 use crate::provenance::Provenance;
 use crate::record::Recorder;
 use crate::run::{
@@ -841,7 +841,10 @@ impl<S: PathScope> Engine<S> {
             }
 
             // ── the model call, with failover ────────────────────────────────────────
-            let limits = run.budget.call_limits(&run.spent);
+            // **The run's own column, not a constant.** `CapabilityProfile::model_route` had
+            // zero readers in the workspace until this line: ADR-008's tiered routing was
+            // declared in `routing.rs`'s header, pinned in `CONTRACTS.md`, and reached nothing.
+            let limits = run.budget.call_limits(&run.spent, run.profile.model_route());
             // **Deltas go out as they arrive.** The sink is borrowed for the duration of the
             // call, so the chunks reach the surface while the model is still producing them —
             // which is the whole of what "streaming" means above the transport.
@@ -2582,6 +2585,30 @@ impl<S: PathScope> Engine<S> {
         ports: &mut Ports<'_>,
         req: SpawnRequest,
     ) {
+        // ── THE CREATE GRANT, AND IT IS THE FIRST REFUSAL ──────────────────────────────
+        //
+        // **The create grant IS holding `run`.** `CapabilityProfile::new` refuses to construct a
+        // profile that holds `run` at a level which may not, so consulting the set here is
+        // consulting the level — one definition, not two.
+        //
+        // This closes SECURITY-AUDIT **H2's gap for `run`**, and it is H2 rather than a new
+        // finding. `ollama.rs` maps a `run` tool call to `ModelStep::Spawn` whatever the exposed
+        // set says, and `ModelStep::Spawn` never reaches `adjudicate`, which is where the
+        // exposure check lives — so until this line a run that had never been offered `run` could
+        // spawn simply by naming it. H2's own parenthetical, that *"`run` was deliberately routed
+        // back through `ToolCall` for exactly this reason"*, is stale against that mapping.
+        //
+        // M3-DESIGN §1: *"a worker creates nothing"*. This is where that sentence acts.
+        if !run.profile.may_create_agents() {
+            self.spawn_refused(
+                state,
+                ports,
+                "this run does not hold `run` and cannot create agents — do the work here, or \
+                 return to whoever spawned you",
+            );
+            return;
+        }
+
         // ── the task, which is the one field the model actually supplies ────────────────
         //
         // Refused here rather than in the adapter so that every construction site gets the same
@@ -2651,9 +2678,9 @@ impl<S: PathScope> Engine<S> {
             self.spawn_refused(
                 state,
                 ports,
-                "this run has read untrusted content, so a child's tools, budget and orphan \
-                 policy can no longer be composed here — spawn with none of them and the child \
-                 gets the safe defaults, or do the work in this run",
+                "this run has read untrusted content, so a child's tools, budget, orphan \
+                 policy, model role and kind can no longer be composed here — spawn with none of \
+                 them and the child gets the safe defaults, or do the work in this run",
             );
             return;
         }
@@ -2689,8 +2716,33 @@ impl<S: PathScope> Engine<S> {
             }
         }
 
+        // ── M3-DESIGN §1: THE CHILD'S LEVEL, DERIVED BY THE HARNESS ────────────────────
+        //
+        // The model names a **disposition**; the harness computes the **level**. The two arms of
+        // `child_of` return different values — that is the whole enforcement, and the first
+        // design's fatal defect was that they did not (ADR-064 §8.1). A `Work` child comes back
+        // as a top-agent that does not manage, or as a plain worker, and `CapabilityProfile::new`
+        // then refuses to give either of them `run`.
+        //
+        // `child_of` never returns `ToolSpawned`, so no model call can produce level 5: that
+        // level is reachable only through `CapabilityProfile::quarantined_reader()`, which
+        // `condense_batch` builds directly and which never comes through here.
+        let child_level = match AgentLevel::child_of(run.profile.level(), req.disposition) {
+            Ok(l) => l,
+            Err(e) => {
+                self.spawn_refused(state, ports, &e.to_string());
+                return;
+            }
+        };
+
         // The load-time error. A quarantined reader with tools is refused here, and the invalid
         // profile is never constructed — the requested tool set is not silently dropped.
+        //
+        // **A master asking for a working tool is refused HERE too**, by the same constructor and
+        // in the same way: §1.2's *"masters hold no working tools"* is the tool not being in the
+        // set. It is deliberately not expressed as `edit_calls: 0` — `Budget::exhausted` compares
+        // `spent >= budget`, so a zero dimension fires on iteration one and pauses the master
+        // before its first model call while it looks perfectly configured (instance #17).
         let child_profile = match CapabilityProfile::new(
             match ExposedSet::new(req.tools.clone()) {
                 Ok(s) => s,
@@ -2701,7 +2753,10 @@ impl<S: PathScope> Engine<S> {
             },
             if req.reads_untrusted { EgressPolicy::DenyAll } else { run.profile.egress().clone() },
             InterruptPolicy::Unattended,
-            ModelRoute::Worker,
+            // **The spawner's, not a constant.** This argument was `ModelRoute::Worker`, so every
+            // child in the tree carried the same column no matter what anyone asked for.
+            req.role,
+            child_level,
             !req.reads_untrusted && run.profile.may_write_memory(),
             req.reads_untrusted,
         ) {
@@ -2734,6 +2789,13 @@ impl<S: PathScope> Engine<S> {
                 "budget_tokens": child_budget.tokens,
                 "depth": child_budget.depth,
                 "reads_untrusted": req.reads_untrusted,
+                // **AUDIT ONLY, AND THE DISTINCTION IS INSTANCE #16.** These two say what the
+                // child was built as, for a human reading the journal. Nothing in the harness
+                // reads them back, and *"the route is journalled"* is not *"the route is
+                // checked"* — the enforcement is `composes_spawn_targets` above and
+                // `CapabilityProfile::new` below.
+                "model_route": req.role,
+                "level": child_level,
                 // **PROVENANCE, NOT EVIDENCE, and the distinction is instance #15.** This row says
                 // which arm the binary that wrote the journal was built and configured for, so
                 // pooled A8 rows can be attributed to a build. It moves with the flag and not with
@@ -2782,7 +2844,23 @@ impl<S: PathScope> Engine<S> {
         state.push(Block::new(
             SourceKind::History,
             format!(
-                "[spawned] tools: {granted_tools} · budget: {} tokens · orphan: {} · returns: {}",
+                "[spawned] role: {} · kind: {} · tools: {granted_tools} · budget: {} tokens · \
+                 orphan: {} · returns: {}",
+                // Harness-authored, from the harness's own enums, never echoed from `args`. This
+                // is what makes `parse_role` and `parse_kind` being TOTAL legitimate rather than
+                // silent: a model that typed `role: conductor` reads `role: worker` here and
+                // knows the word did not land. Extending ADR-057 §1's default rule to two more
+                // fields without extending the receipt would be relying on a mitigation that did
+                // not exist for them.
+                match req.role {
+                    ModelRoute::Orchestrator => "orchestrator",
+                    ModelRoute::Worker => "worker",
+                    ModelRoute::Summarizer => "summarizer",
+                },
+                match req.disposition {
+                    Disposition::Manage => "master",
+                    Disposition::Work => "worker",
+                },
                 child_budget.tokens,
                 match req.orphan {
                     OrphanPolicy::Terminate => "terminate",
@@ -3457,16 +3535,168 @@ const RECEIPT_RETURNS_MAX_CHARS: usize = 160;
 
 /// Whether a spawn request **composes any target**. ADR-057 §4.1.
 ///
-/// A spawn's targets are the three fields `run`'s manifest declares as `ArgumentRole::Target`:
-/// which tools the child holds, how much it may spend, and how long it outlives its parent. Its
-/// payload is the task and the contract description.
+/// A spawn's targets are the fields `run`'s manifest declares as `ArgumentRole::Target`: which
+/// tools the child holds, how much it may spend, how long it outlives its parent, **which model
+/// tier serves it, and whether it may create agents of its own**. Its payload is the task and
+/// the contract description.
 ///
 /// Stated as *"anything other than the harness defaults"* rather than *"the model named it"*,
 /// because `SpawnRequest` records the value and not who supplied it — and the value is what the
 /// child gets. A request already at the defaults is granted under a latched floor: the child holds
 /// no tools, so there is no target for untrusted content to have chosen.
+///
+/// # THIS FUNCTION IS A HAND-WRITTEN MIRROR, AND A NEW FIELD IS INVISIBLE TO IT BY DEFAULT
+///
+/// `ModelStep::Spawn` never reaches `adjudicate`, so `run`'s manifest roles have no reader on any
+/// enforcing path; this list is the enforcement, and nothing structural holds it to the manifest
+/// it mirrors. Adding a field to [`SpawnRequest`] without adding a disjunct here silently removes
+/// it from layer 3 — no error, no warning, no failing test, which is instance #14's shape in a
+/// boolean.
+///
+/// Two tests exist because of that, and they fail in different ways.
+/// `spawn_request_fields::every_spawn_request_field_is_classified` **destructures
+/// `SpawnRequest` exhaustively**, so a new field is a COMPILE error there rather than a silent
+/// pass — the check's input is the type itself, never a list it maintains (#19-safe).
+/// `marlowe-tools`' `run_declares_exactly_seven_parameters_and_exactly_five_are_targets` holds
+/// the manifest to a literal from the other side.
+///
+/// # What it cannot see, stated so nobody reads it as more than it is
+///
+/// It reads the **value**, not the **declaration**. A latched run that types `role: worker` is
+/// indistinguishable here from one that named nothing at all. That is the existing choice for
+/// the other three fields and it is inherited rather than introduced.
 fn composes_spawn_targets(req: &SpawnRequest) -> bool {
     !req.tools.is_empty()
         || req.grant_tokens.is_some()
         || !matches!(req.orphan, OrphanPolicy::Terminate)
+        || req.role != ModelRoute::Worker
+        || req.disposition != Disposition::Work
+}
+
+
+/// **THE GUARD AGAINST THE NEXT PERSON REPEATING THIS.**
+///
+/// [`composes_spawn_targets`] is a hand-maintained list of disjuncts. Before M3 Session C it
+/// named three fields; `SpawnRequest` had eight. A field added without a disjunct is invisible
+/// to layer 3 on the spawn path, and **nothing goes red** — no error, no warning, no failing
+/// test. That is instance #14's shape (a claim about a path with nothing checking the path is
+/// still there) expressed as a boolean, and #19's (a check whose input is the list it is
+/// checking) if the guard were written as a list of field names.
+///
+/// So the guard is a **destructuring pattern**. Its input is the type, not a list: adding a
+/// field to `SpawnRequest` is a COMPILE error here, in a test whose name says what to do about
+/// it, and the author has to write down whether the new field is a target or a payload before
+/// the tree builds again.
+#[cfg(test)]
+mod spawn_request_fields {
+    use super::*;
+    use crate::budget::BudgetShare;
+    use crate::run::OutputContract;
+
+    /// The harness defaults — what `SpawnRequest::from_args` produces from a bare `task` and an
+    /// empty `exposed_tools`. Composing nothing.
+    fn defaults() -> SpawnRequest {
+        SpawnRequest {
+            task: "t".to_string(),
+            contract: OutputContract::new("what you found".to_string(), &["findings"]),
+            orphan: OrphanPolicy::Terminate,
+            share: BudgetShare::Standard,
+            grant_tokens: None,
+            tools: Vec::new(),
+            tools_declared: true,
+            reads_untrusted: false,
+            role: ModelRoute::Worker,
+            disposition: Disposition::Work,
+        }
+    }
+
+    /// **Every field of `SpawnRequest`, classified, with the compiler doing the enumerating.**
+    ///
+    /// *Mutation:* add a field to `SpawnRequest` — this fails to compile with
+    /// `pattern does not mention field`, naming the field. *Mutation:* delete a disjunct from
+    /// `composes_spawn_targets` — the matching row below reads `false` and reddens.
+    #[test]
+    fn every_spawn_request_field_is_classified() {
+        // Exhaustive, and deliberately NOT `..`. The bindings are unused on purpose: the
+        // pattern is the assertion.
+        let SpawnRequest {
+            task: _,
+            contract: _,
+            orphan: _,
+            share: _,
+            grant_tokens: _,
+            tools: _,
+            tools_declared: _,
+            reads_untrusted: _,
+            role: _,
+            disposition: _,
+        } = defaults();
+
+        // A request at the defaults composes nothing, so a latched run may still delegate.
+        assert!(
+            !composes_spawn_targets(&defaults()),
+            "the harness defaults are not a composed target, or a latched run could never spawn"
+        );
+
+        // ── TARGETS: each one, moved on its own, must flip the answer ──────────────────────
+        let mut r = defaults();
+        r.tools = vec![ToolId::new("read")];
+        assert!(composes_spawn_targets(&r), "`exposed_tools` is a Target");
+
+        let mut r = defaults();
+        r.grant_tokens = Some(10_000);
+        assert!(composes_spawn_targets(&r), "`budget_tokens` is a Target");
+
+        let mut r = defaults();
+        r.orphan = OrphanPolicy::Detach;
+        assert!(composes_spawn_targets(&r), "`orphan_policy` is a Target");
+
+        let mut r = defaults();
+        r.role = ModelRoute::Orchestrator;
+        assert!(
+            composes_spawn_targets(&r),
+            "`role` is a Target (ADR-069): a downgrade and an upgrade are both attacker-useful, \
+             and a closed enum choosing the inference engine is a target a fortiori where \
+             `orphan_policy`, which chooses only a lifetime, already is one"
+        );
+        let mut r = defaults();
+        r.role = ModelRoute::Summarizer;
+        assert!(composes_spawn_targets(&r), "every non-default role, not just the expensive one");
+
+        let mut r = defaults();
+        r.disposition = Disposition::Manage;
+        assert!(
+            composes_spawn_targets(&r),
+            "`kind` is a Target: it decides whether the child may hold the create grant"
+        );
+
+        // ── PAYLOADS AND WITHHELD FIELDS: moving them must NOT flip it ─────────────────────
+        //
+        // Without this half the test is green on `fn composes_spawn_targets(_) -> bool { true }`,
+        // which blocks every spawn from a latched run and looks like a working guard.
+        let mut r = defaults();
+        r.task = "a completely different brief".to_string();
+        assert!(!composes_spawn_targets(&r), "`task` is a Payload: it may be shaped, not chosen");
+
+        let mut r = defaults();
+        r.contract = OutputContract::new("summary".to_string(), &["summary"]);
+        assert!(!composes_spawn_targets(&r), "`output_contract` is a Payload");
+
+        let mut r = defaults();
+        r.tools_declared = false;
+        assert!(
+            !composes_spawn_targets(&r),
+            "`tools_declared` records WHETHER the model spoke, not what it chose; the refusal \
+             for an undeclared set is a separate, earlier one in `Engine::spawn`"
+        );
+
+        // `share` and `reads_untrusted` are withheld structurally (ADR-057 §5) — `from_args`
+        // never reads them, so no model can move them and there is nothing for the latch to
+        // refuse. They are listed here so the destructuring above stays exhaustive and so the
+        // reason is recorded beside the fields it applies to.
+        let mut r = defaults();
+        r.share = BudgetShare::Small;
+        r.reads_untrusted = true;
+        assert!(!composes_spawn_targets(&r), "withheld, not composable");
+    }
 }

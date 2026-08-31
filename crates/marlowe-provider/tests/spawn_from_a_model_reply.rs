@@ -947,3 +947,120 @@ fn a_long_contract_description_does_not_push_the_grant_off_the_receipt() {
     assert!(line.chars().count() < 400, "the receipt ran to {} chars", line.chars().count());
     assert!(line.contains("tools: none"), "the grant is still readable: {line}");
 }
+
+
+/// **The receipt names the role and the kind that were actually granted.**
+///
+/// `parse_role` and `parse_kind` are total: an unrecognised word takes the cheap, narrow end
+/// rather than being refused. ADR-057 §2 is the standing rule that makes a total default
+/// legitimate — *"the answer is not to refuse a model that omitted a field, it is to say what it
+/// got"* — and a default a model cannot see is the "defaults that make a mismatch unobservable"
+/// family. So the receipt is the mitigation, and this test is the mitigation having a site.
+///
+/// *Mutation:* drop the `role:` clause from `Engine::spawn`'s format string — the first
+/// assertion fails by name. *Mutation:* have `parse_role` return `Orchestrator` for an unknown
+/// word — the first assertion reads `role: orchestrator`.
+#[test]
+fn an_unrecognised_model_role_takes_the_cheap_value_and_the_receipt_names_it() {
+    let rendered = receipt_for(&serde_json::json!({
+        "exposed_tools": "",
+        "task": "t",
+        "role": "conductor",
+        "kind": "supervisor",
+    }));
+    assert!(
+        rendered.contains("role: worker"),
+        "an unrecognised role must take the CHEAP end and say so:\n{rendered}"
+    );
+    assert!(
+        rendered.contains("kind: worker"),
+        "an unrecognised kind must take the NARROW end and say so:\n{rendered}"
+    );
+
+    // **The control.** Without it the two assertions above are green on a receipt that prints
+    // `worker` unconditionally — which is what a build that dropped `role` on the floor in
+    // `from_args` would also print.
+    let rendered = receipt_for(&serde_json::json!({
+        "exposed_tools": "",
+        "task": "t",
+        "role": "orchestrator",
+        "kind": "master",
+    }));
+    assert!(rendered.contains("role: orchestrator"), "{rendered}");
+    assert!(rendered.contains("kind: master"), "{rendered}");
+}
+
+/// **A word the model typed reaches the field, and the two arms of the disposition differ.**
+///
+/// Asserted on `parse_step`'s output rather than through the loop, so it fails immediately and
+/// with no dependence on the engine, the journal or a driver.
+///
+/// *Mutation:* replace `parse_kind(text("kind"))` with `Disposition::Work` in `from_args` — the
+/// `master` case reds. *Mutation:* the same for `parse_role` — the `orchestrator` case reds.
+#[test]
+fn the_role_and_kind_a_model_names_reach_the_spawn_request() {
+    let spawn = |args: serde_json::Value| match parse_step(&run_call(args)) {
+        ModelStep::Spawn(req) => req,
+        other => panic!("expected a spawn, got {other:?}"),
+    };
+
+    let default = spawn(serde_json::json!({ "exposed_tools": "", "task": "t" }));
+    assert_eq!(default.role, marlowe_loop::ModelRoute::Worker, "the cheap end is the default");
+    assert_eq!(default.disposition, marlowe_loop::Disposition::Work, "the narrow end");
+
+    let named = spawn(serde_json::json!({
+        "exposed_tools": "", "task": "t", "role": "Orchestrator", "kind": "MASTER",
+    }));
+    assert_eq!(named.role, marlowe_loop::ModelRoute::Orchestrator);
+    assert_eq!(named.disposition, marlowe_loop::Disposition::Manage);
+    assert_ne!(
+        named.disposition, default.disposition,
+        "§1.1's two words must produce two values, or nothing downstream can tell them apart"
+    );
+
+    let summ = spawn(serde_json::json!({
+        "exposed_tools": "", "task": "t", "role": " summarizer ",
+    }));
+    assert_eq!(summ.role, marlowe_loop::ModelRoute::Summarizer);
+
+    // **The ladder's own tier names are NOT accepted here, and that is deliberate.**
+    // `DECISIONS.md` 2026-08-30 names four tiers — Secretary, Agent-High, Agent-Medium,
+    // Agent-Low — against `ModelRoute`'s three columns. Which tier fills which column is the
+    // Agent Registration Window's, and the human's; wiring a guess here would be an implementer
+    // choosing a table that is not his, and a word nobody chose is how a default becomes a
+    // decision. They take the cheap end, and the receipt says so.
+    for word in ["high", "medium", "low", "secretary"] {
+        let r = spawn(serde_json::json!({ "exposed_tools": "", "task": "t", "role": word }));
+        assert_eq!(
+            r.role,
+            marlowe_loop::ModelRoute::Worker,
+            "`{word}` is a TIER name, not a route; the tier -> route table is the human's"
+        );
+    }
+}
+
+/// **A latched run may not choose a child's model or kind.**
+///
+/// The pair discipline this file already documents: `RunSpawned == 0` is also what a build that
+/// cannot spawn at all looks like, so each row asserts the clean count as well as the tainted
+/// one.
+///
+/// *Mutation:* delete `|| req.role != ModelRoute::Worker` from `composes_spawn_targets` — the
+/// `role` row reads `left: 1, right: 0`. *Independently:* delete the `disposition` disjunct —
+/// the `kind` row does.
+#[test]
+fn a_latched_run_cannot_choose_a_childs_model_role_or_kind() {
+    for (param, value) in [("role", "orchestrator"), ("kind", "master")] {
+        let args = serde_json::json!({ "exposed_tools": "", "task": "t", param: value });
+        let (clean, _) = spawn_count(&args, false);
+        let (tainted, floor) = spawn_count(&args, true);
+        assert_eq!(clean, 1, "`{param}` must be grantable when nothing is latched");
+        assert_eq!(tainted, 0, "`{param}` is a Target and must be refused under a latched floor");
+        assert_eq!(floor, TrustClass::UntrustedContent);
+    }
+
+    // The control: at the harness defaults a latched run may still delegate. Without this the
+    // rows above are green on a build that refuses every spawn from a tainted run.
+    let plain = serde_json::json!({ "exposed_tools": "", "task": "t" });
+    assert_eq!(spawn_count(&plain, true).0, 1, "delegation itself is not a composed target");
+}

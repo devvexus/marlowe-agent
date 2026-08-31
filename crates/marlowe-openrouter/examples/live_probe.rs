@@ -90,7 +90,7 @@ fn main() {
     let result = driver.call_streaming(
         &view,
         &tools,
-        CallLimits { max_output_tokens: 64 },
+        CallLimits { max_output_tokens: 64, route: marlowe_loop::ModelRoute::Orchestrator },
         &mut |d| {
             streamed += 1;
             print!("{d}");
