@@ -56,11 +56,11 @@ pub enum ModelRoute {
 /// Capability is the [`ExposedSet`]; this is what constrains which sets are *constructible*.
 /// It lives on [`CapabilityProfile`] rather than on the `Run` for the reason
 /// [`CapabilityProfile::grant_egress_host`] gives one field over: the invariant a level carries
-/// -- *"a master's set contains only management tools"* -- is a statement **about the exposed
-/// set**, and the exposed set lives behind this file's validating constructor. Hold the level
-/// beside the profile on the `Run` and the invariant is bypassed rather than enforced: a
-/// `Master` run could be constructed with an `edit`-holding profile and every profile test would
-/// stay green. `Run::adopted_by` also mutates a run's parent, so a level held there could be
+/// -- today *"a master's set does not contain `ask`"*, and until the 2026-08-31 reversal
+/// *"a master's set contains only management tools"* -- is a statement **about the exposed set**,
+/// and the exposed set lives behind this file's validating constructor. Hold the level beside the
+/// profile on the `Run` and the invariant is bypassed rather than enforced: a `Master` run could
+/// be constructed with an `ask`-holding profile and every profile test would stay green. `Run::adopted_by` also mutates a run's parent, so a level held there could be
 /// falsified after the fact by a lifetime decision.
 ///
 /// # The ladder these levels are staffed from
@@ -102,8 +102,11 @@ pub enum AgentLevel {
     /// the same value, so nothing downstream could tell them apart and a `work` top-agent got a
     /// create grant anyway (ADR-064 section 8.1).
     TopAgent { manages: bool },
-    /// Level 3. Spawned by a top-agent that was itself spawned to manage. Holds
-    /// [`marlowe_tools::MANAGEMENT_TOOLS`] and **no working tools** -- section 1.2, structurally.
+    /// Level 3. Spawned by a top-agent that was itself spawned to manage. **May hold working
+    /// tools** -- section 1.2's structural withholding was reversed by the human on 2026-08-31,
+    /// because the PI is the senior researcher who does the hardest part himself and spawns help.
+    /// The one tool still withheld is `ask`: only a top-agent reaches the user (section 3.1), so a
+    /// question raised here has nobody to arrive at. See `CapabilityProfile::new`'s `Master` arm.
     Master,
     /// Level 4. Does the work. Creates nothing.
     Worker,
@@ -228,13 +231,20 @@ pub enum ProfileError {
     )]
     ToolSpawnedWithTools { count: usize },
 
+    // **`MasterHoldsWorkingTool` was here and is gone, 2026-08-31.** It carried §1.2's rule that a
+    // master holds no working tools. The human reversed §1.2: the PI is the senior researcher who
+    // does the hardest part himself and spawns help, so the refusal it named no longer exists and
+    // an error variant nothing can construct is instance #16 with a `thiserror` derive on it. The
+    // reasoning and its cost are at the `AgentLevel::Master` arm in `CapabilityProfile::new`.
     #[error(
-        "a master exposes `{tool}`, which is not a management tool. Section 1.2: masters hold no \
-         working tools, STRUCTURALLY -- the tool is not in the set. Expressing it as a budget of \
-         zero would be instance #17: `Budget::exhausted` compares `spent >= budget`, so `0 >= 0` \
-         pauses the master before its first model call and it still looks perfectly configured"
+        "a {level:?} exposes `ask`, and only a top-agent reaches the user. M3-DESIGN section 3.1: \
+         escalation is scoped to the top-agent's subtree and a worker can never address Marlowe, \
+         so a question raised here has nobody to arrive at. The tool is withheld rather than \
+         refused at the call, per section 1.2's rule that a capability is absent from the set \
+         rather than forbidden by instruction -- a door visible in the exposed set and locked at \
+         every call costs the model the calls it spends discovering that"
     )]
-    MasterHoldsWorkingTool { tool: ToolId },
+    OnlyATopAgentMayAsk { level: AgentLevel },
 
     #[error(transparent)]
     Exposure(#[from] ExposureError),
@@ -306,13 +316,52 @@ impl CapabilityProfile {
                 return Err(ProfileError::ToolSpawnedWithTools { count: exposed_tools.len() });
             }
             AgentLevel::ToolSpawned => {}
-            AgentLevel::Master => {
-                for t in exposed_tools.iter() {
-                    if !marlowe_tools::MANAGEMENT_TOOLS.contains(&t.as_str()) {
-                        return Err(ProfileError::MasterHoldsWorkingTool { tool: t.clone() });
-                    }
-                }
+            // ── §1.2 IS REVERSED, BY THE HUMAN, 2026-08-31 ────────────────────────────────
+            //
+            // This arm refused any tool outside `MANAGEMENT_TOOLS`, implementing §1.2's
+            // *"masters hold no working tools, structurally"* — *"a master with an `edit` tool
+            // will eventually edit. Not because it is disobedient, because it is capable and the
+            // work is right there."*
+            //
+            // **The human overruled it, and the reason is the org chart the ladder actually
+            // describes.** A master is not a boss who must be kept away from the work; it is the
+            // senior researcher — the most capable model in the tree — who *does the hardest part
+            // himself* and spawns assistants and interns because the job is larger than one
+            // context. Delegation is leverage, not a job description. Forbidding the AAII-52
+            // model from touching the work spends the best model in the ladder on coordination.
+            //
+            // **What that costs, recorded rather than argued away.** §1.2's real argument was
+            // containment, not hierarchy: a master reads every worker's report, so it holds the
+            // most attacker-exposed context in the tree, and `edit`/`bash` there puts tool access
+            // exactly where exposure concentrates. That is `SECURITY-AUDIT.md`'s finding #1 — a
+            // child's note crosses into the parent at `AgentInferred`, **above**
+            // `blocks_composed_targets`'s threshold, so layer 3 does not catch it. This decision
+            // does not create that hole; it moves the product onto it, and it is why red-team
+            // pass 2 matters more after this change rather than less.
+            //
+            // **Nothing replaces it for WORKING tools, and that is deliberate.** A master holding
+            // no `run` simply cannot spawn — `may_create_agents` reads the exposed set — which is
+            // already a coherent state needing no new error. Adding *"a master MUST hold `run`"*
+            // here would be inventing a rule nobody asked for in the same edit that removes one.
+            //
+            // # ONE REFUSAL SURVIVES, AND IT NEARLY DIED BY ACCIDENT
+            //
+            // `MANAGEMENT_TOOLS` was doing **two** jobs under one whitelist: it withheld working
+            // tools (§1.2, now reversed) *and* it withheld `ask`, which is a **different decision
+            // the human took the same day** — *"only top-agents get the ask"*, because §3.1 says
+            // only a top-agent reaches the user. Deleting the whitelist would have dropped the
+            // second rule silently while removing the first.
+            //
+            // So `ask` is refused here **by name**, and the reason is the level's reach rather
+            // than its job description: a `Master` is level 3, one below the top-agent, and a
+            // question from it has nobody to arrive at. §1.2's own principle decides the shape —
+            // *"the tool is absent from the set, not forbidden by instruction"* — because
+            // `Engine`'s `Ask` refusal would otherwise leave a master holding a door that is
+            // visible in its exposed set, described in its schema, and locked at every call.
+            AgentLevel::Master if exposed_tools.contains(&ToolId::new("ask")) => {
+                return Err(ProfileError::OnlyATopAgentMayAsk { level });
             }
+            AgentLevel::Master => {}
             // Section 1's table says the secretary holds a "full conversational set", and
             // `interactive()` currently holds `bash`, `edit`, `write` and `web`. **Whether
             // section 1.2's structural rule extends upward to level 1 is a question M3-DESIGN

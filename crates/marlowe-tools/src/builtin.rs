@@ -38,41 +38,20 @@ pub const BUILTIN_TOOLS: [&str; 12] = [
     "ask",
 ];
 
-/// M3-DESIGN section 1.2's management set, **as names, and this is the one definition**.
-///
-/// Read by `CapabilityProfile::new`'s `Master` arm, which refuses any exposed tool that is not
-/// in here. Section 1.2 names eight capabilities -- communicate, question, answer, meeting
-/// control, todo management, create/delete agent, budget allocation, escalate -- and **six of
-/// them do not exist as tools**. Naming them here anyway would make the master rule vacuously
-/// permissive, which is instance #16 expressed in a constant: a control that reads as an
-/// enumeration of a policy while enforcing almost none of it.
-///
-/// So the list is what is buildable today. `escalate` is deliberately absent: it would be a
-/// thirteenth builtin, which reddens the `BUILTIN_TOOLS.len() == 12` assertion below and spends
-/// one of exactly two MCP slots ADR-058 raised the cap to protect. When it lands it arrives with
-/// `[&str; 13]`, the updated assertion, an executor, and either a named halving of the MCP
-/// allowance or an ADR-058 amendment -- the human's.
-///
-/// # `ask` WAS HERE FOR ONE DAY, AND IT WAS A TOOL THE HOLDER COULD NEVER USE
-///
-/// This read `["run", "ask"]` between `a017ee0` and now. Two agents built two halves of M3
-/// Session C and each was right on its own: one gave a master the management set including
-/// `ask`, the other enforced M3-DESIGN section 3.1 -- *"a worker can never address Marlowe"*,
-/// *"only a top-agent may escalate to the user"* -- which refuses `ModelStep::Ask` at **every**
-/// level below `Secretary`. The composition handed a master a tool that was **visible in its
-/// exposed set, described in its schema, and refused at every call.**
-///
-/// **Resolved by the human, 2026-08-31: only top-agents get `ask`.** The tool is withheld from
-/// the master's set rather than left in it and refused, which is section 1.2's own rule --
-/// *"the tool is absent from the set, not forbidden by instruction"* -- and the reason
-/// `ExposedSet::empty()` is the precedent it cites. A master that needs a human raises an
-/// escalation, which is section 3.1's route, rather than holding a door that is always locked.
-///
-/// **Why this is not merely tidiness.** A tool a model can see and cannot use is worse than an
-/// absent one: the model spends calls discovering the refusal, and a refusal it cannot act on is
-/// the shape CLAUDE.md records costing 155 seconds and 12,332 tokens of reasoning on two separate
-/// live runs. The set is now one tool, which is honest about how much of section 1.2 is built.
-pub const MANAGEMENT_TOOLS: [&str; 1] = ["run"];
+// **`MANAGEMENT_TOOLS` LIVED HERE AND IS GONE, 2026-08-31.** It was M3-DESIGN section 1.2's
+// management set -- the only tools a `Master` was permitted to hold -- read by
+// `CapabilityProfile::new`'s `Master` arm and by nothing else.
+//
+// The human reversed section 1.2: the PI is the senior researcher who does the hardest part himself
+// and spawns help, not a boss kept away from the work. With the working-tool refusal gone the
+// constant had **no reader at all**, which is instance #16 -- a declared control nothing consults
+// -- so it is deleted rather than left as an enumeration of a policy that no longer exists.
+// `ProfileError::MasterHoldsWorkingTool` went with it.
+//
+// **One of its two jobs survives and did not survive by accident.** The same whitelist also
+// withheld `ask`, which is a separate decision taken the same day -- only a top-agent reaches the
+// user. That is now `ProfileError::OnlyATopAgentMayAsk`, refused by name at the `Master` arm, so
+// deleting this constant did not silently drop it.
 
 /// The workspace-relative glob every filesystem tool declares.
 ///

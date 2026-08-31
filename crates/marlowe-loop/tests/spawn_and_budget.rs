@@ -683,7 +683,8 @@ fn the_spawn_tree_is_bounded_by_depth() {
         // **`run` has to be granted or the tree stops for a THIRD reason.** `may_create_agents`
         // reads the exposed set, so a child handed `tools: vec![]` cannot spawn whatever its
         // level permits — which is correct, and is a capability bound rather than a depth one.
-        // Granting `run` is also all a `Master` may hold: `MANAGEMENT_TOOLS` is exactly `["run"]`.
+        // A `Master` may now hold working tools alongside `run` (the section 1.2 reversal); `run`
+        // alone is granted here because delegating is all this test needs it to do.
         spawn("depth 1", Manage, vec![ToolId::new("run")]),
         spawn("depth 2", Manage, vec![ToolId::new("run")]),
         // `Master --Work--> Worker` is a LEGAL level transition and the child needs no tools to

@@ -15,7 +15,7 @@ use marlowe_loop::{
     AgentLevel, Budget, CapabilityProfile, Disposition, InterruptPolicy, ModelRoute, ProfileError,
 };
 use marlowe_permission::EgressPolicy;
-use marlowe_tools::{ExposedSet, ToolId, MANAGEMENT_TOOLS};
+use marlowe_tools::{ExposedSet, ToolId};
 
 fn set(names: &[&str]) -> ExposedSet {
     ExposedSet::new(names.iter().map(|n| ToolId::new(*n)).collect()).expect("a small set")
@@ -70,47 +70,57 @@ fn the_two_dispositions_do_not_produce_the_same_top_agent() {
     assert!(profile(&["run"], AgentLevel::TopAgent { manages: true }).is_ok());
 }
 
-/// **§1.2: masters hold no working tools, structurally.**
+/// **§1.2 IS REVERSED: A MASTER MAY HOLD WORKING TOOLS. Only `ask` is withheld.**
 ///
-/// The whole list is written out rather than sampled, because a rule that holds for `bash` and
-/// not for `edit` is a rule with a hole in it and one sample cannot see it.
+/// This test asserted the opposite for one day. §1.2 said *"masters hold no working tools,
+/// structurally"*, and the human overturned it on 2026-08-31: the PI is the senior researcher who
+/// does the hardest part himself and spawns assistants because the job is larger than one context,
+/// not because he is forbidden the work.
 ///
-/// *Mutation:* delete the `Master` arm from `CapabilityProfile::new` — ten reds. *Mutation:*
-/// express the rule as `Budget { tool_calls: 0, .. }` instead — the #17 control at the bottom
-/// reddens.
+/// **The refusal that survives is a different decision that shared the same enforcement.**
+/// `MANAGEMENT_TOOLS` withheld working tools *and* `ask` under one whitelist. Deleting it for the
+/// first would have dropped the second in silence — so `ask` is now refused by name, because
+/// §3.1 gives only a top-agent reach to the user and a question from level 3 has nobody to arrive
+/// at.
+///
+/// *Mutation:* delete the `Master` guard in `CapabilityProfile::new` — the `ask` row reds.
+/// *Mutation:* restore the working-tool refusal — every row in the first loop reds.
 #[test]
-fn a_master_cannot_hold_a_working_tool_and_a_worker_can() {
+fn a_master_may_hold_working_tools_and_may_not_hold_ask() {
     let working = [
         "bash", "read", "write", "edit", "glob", "grep", "web", "recall", "remember", "use",
     ];
     for t in working {
-        match profile(&[t], AgentLevel::Master) {
-            Err(ProfileError::MasterHoldsWorkingTool { tool }) => {
-                assert_eq!(tool.as_str(), t);
-            }
-            other => panic!("a master holding `{t}` must be refused by name, got {other:?}"),
-        }
-        // **The positive control.** Without this the test is green on a constructor that
-        // refuses every tool at every level, which is a broken product and a passing suite.
+        assert!(
+            profile(&[t], AgentLevel::Master).is_ok(),
+            "`{t}` at level 3 must be constructible: the PI does the hardest part itself, and \n             §1.2's structural withholding was reversed on 2026-08-31"
+        );
+        // **The positive control, kept from the old test and inverted with it.** Without it this
+        // loop is green on a constructor that admits everything at every level, which is a broken
+        // product and a passing suite.
         assert!(
             profile(&[t], AgentLevel::Worker).is_ok(),
             "`{t}` at level 4 is the ordinary case and must be constructible"
         );
     }
 
-    // A master's own set is constructible, so the rule narrows rather than forbids.
-    assert!(profile(&["run"], AgentLevel::Master).is_ok());
+    // `run` alongside working tools is the whole point: delegate AND do the work.
+    assert!(profile(&["run", "edit", "bash"], AgentLevel::Master).is_ok());
 
-    // **`ask` is NOT a master's, decided by the human 2026-08-31.** For one day the management
-    // set was `["run", "ask"]` while §3.1 refused `ModelStep::Ask` at every level below
-    // `Secretary` — so a master held a tool that was visible, described, and refused at every
-    // call. §1.2's rule settles which half gives way: *"the tool is absent from the set, not
-    // forbidden by instruction."* A master that needs a human escalates.
+    // **`ask` is not a master's** — the one refusal that survives the reversal.
+    let refused = format!("{:?}", profile(&["ask"], AgentLevel::Master));
     assert!(
-        profile(&["ask"], AgentLevel::Master).is_err(),
-        "a master holding `ask` is a door that is always locked; §3.1 refuses it and §1.2 says \
-         withhold it rather than refuse it"
+        refused.contains("OnlyATopAgentMayAsk"),
+        "a master holding `ask` must be refused BY NAME; got {refused}"
     );
+    // And it is refused even in company, so the check is not order-dependent.
+    assert!(profile(&["run", "ask"], AgentLevel::Master).is_err());
+
+    // **The control that keeps the refusal from being universal.** A top-agent DOES reach the
+    // user, so `ask` there is the ordinary case; without this row a constructor that refused
+    // `ask` at every level would pass.
+    assert!(profile(&["ask"], AgentLevel::TopAgent { manages: true }).is_ok());
+    assert!(profile(&["ask"], AgentLevel::TopAgent { manages: false }).is_ok());
 
     // ── the instance #17 control ────────────────────────────────────────────────────────────
     //
@@ -125,54 +135,21 @@ fn a_master_cannot_hold_a_working_tool_and_a_worker_can() {
     assert!(b.depth >= 1);
 }
 
-/// **#19: test 2's input IS `MANAGEMENT_TOOLS`, so test 2 alone cannot see the list shrink.**
-///
-/// Remove a name from the constant and `a_master_cannot_hold_a_working_tool_and_a_worker_can`
-/// stays green — every working tool is still refused. The list is therefore pinned here,
-/// literally, from outside the object being checked.
-///
-/// *Mutation:* add `"edit"` to `MANAGEMENT_TOOLS` — disjointness reds. *Mutation:* remove
-/// `"run"` — the literal reds.
-///
-/// # THE PIN MOVED ONCE, AND IT MOVED BECAUSE THIS TEST STOPPED IT MOVING SILENTLY
-///
-/// It read `vec!["run", "ask"]` for one day, and this doc comment's own worked example was
-/// *"remove `ask` — the literal reds."* It did exactly that. `ask` was withdrawn from the
-/// management set by the human on 2026-08-31, because §3.1 refuses `ModelStep::Ask` at every
-/// level below `Secretary` while §1.2 was handing masters the tool — a door visible in the
-/// exposed set, described in the schema, and locked at every call.
-///
-/// **The pin is updated deliberately and the reason is recorded, which is the only legitimate
-/// way for it to move.** A pin edited to make a suite green is a pin that has stopped pinning.
-#[test]
-fn management_tools_and_working_tools_are_disjoint_and_the_list_has_not_shrunk() {
-    assert_eq!(
-        MANAGEMENT_TOOLS.to_vec(),
-        vec!["run"],
-        "the management set moved. §1.2 names eight capabilities and six do not exist as tools; \
-         adding a name for one that does not exist makes the master rule vacuously permissive"
-    );
-
-    let working = [
-        "bash", "read", "write", "edit", "glob", "grep", "web", "recall", "remember", "use",
-    ];
-    for t in working {
-        assert!(
-            !MANAGEMENT_TOOLS.contains(&t),
-            "`{t}` is a working tool and a master must not be able to hold it"
-        );
-    }
-
-    // Every name in the set resolves in the registry: a management tool that is not a tool is a
-    // rule about nothing.
-    let r = marlowe_tools::builtin_registry().expect("the builtin manifests load");
-    for t in MANAGEMENT_TOOLS {
-        assert!(
-            r.manifest(&ToolId::new(t)).is_some(),
-            "`{t}` is in MANAGEMENT_TOOLS and is not a registered tool"
-        );
-    }
-}
+// **`management_tools_and_working_tools_are_disjoint_and_the_list_has_not_shrunk` WAS HERE.**
+//
+// It pinned `MANAGEMENT_TOOLS` literally, from outside the constant, so the list could not shrink
+// unnoticed -- and it worked exactly once, catching `ask`'s removal on 2026-08-31 with the very
+// mutation its own doc comment had predicted.
+//
+// **The constant it guarded no longer exists.** The human reversed §1.2 the same day: a master may
+// hold working tools, so a whitelist of what a master MAY hold has nothing left to say, and `ask`
+// is now refused by name at the `Master` arm rather than by absence from a list. A test pinning a
+// deleted constant is not a weaker guard, it is a guard with no subject -- instance #14's shape --
+// so it is removed with its reason rather than left asserting an empty set against itself.
+//
+// **What replaces it:** `a_master_may_hold_working_tools_and_may_not_hold_ask` above, whose `ask`
+// row asserts the refusal BY NAME and whose top-agent rows are the control that keeps the refusal
+// from being universal.
 
 /// **The level table is total, and no model-initiated spawn can reach level 5.**
 ///
@@ -318,8 +295,13 @@ fn a_tool_spawned_agent_holds_no_tools_even_when_it_reads_nothing_untrusted() {
 /// hand-written `Deserialize` with a derive — both cases green.
 #[test]
 fn a_level_cannot_be_widened_by_deserialization() {
-    let master_with_edit = r#"{
-        "exposed_tools": ["edit"],
+    // **The payload changed with the rule it tests, 2026-08-31.** It was a master holding `edit`,
+    // which the section 1.2 reversal made legal — so the old payload deserialized cleanly and this
+    // test failed pointing at a profile the product is now supposed to build. The property under
+    // test is unchanged (`serde` routes through the validating constructor); only the refusal it
+    // rides on moved, from the working-tool whitelist to `OnlyATopAgentMayAsk`.
+    let master_with_ask = r#"{
+        "exposed_tools": ["ask"],
         "egress": "deny_all",
         "interrupt": "unattended",
         "model_route": "worker",
@@ -327,10 +309,27 @@ fn a_level_cannot_be_widened_by_deserialization() {
         "may_write_memory": false,
         "reads_untrusted": false
     }"#;
-    let err = serde_json::from_str::<CapabilityProfile>(master_with_edit).unwrap_err().to_string();
+    let err = serde_json::from_str::<CapabilityProfile>(master_with_ask).unwrap_err().to_string();
     assert!(
-        err.contains("management tool"),
+        err.contains("only a top-agent reaches the user"),
         "the refusal must name the rule it is enforcing: {err}"
+    );
+
+    // **The control that keeps this from passing on a constructor that refuses every master.** A
+    // master holding working tools is now the ordinary case and must deserialize cleanly; without
+    // this row, restoring the old whitelist would leave the assertion above green.
+    let master_with_edit = r#"{
+        "exposed_tools": ["edit", "run"],
+        "egress": "deny_all",
+        "interrupt": "unattended",
+        "model_route": "worker",
+        "level": "master",
+        "may_write_memory": false,
+        "reads_untrusted": false
+    }"#;
+    assert!(
+        serde_json::from_str::<CapabilityProfile>(master_with_edit).is_ok(),
+        "a master doing the work is the PI model and must round-trip"
     );
 
     let no_level = r#"{

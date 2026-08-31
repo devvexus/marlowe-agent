@@ -111,9 +111,10 @@ fn profiles() -> Vec<(&'static str, CapabilityProfile)> {
         ("top-agent-works", leaf(AgentLevel::TopAgent { manages: false }, &["read", "bash"])),
         // **`ask` is no longer a master's** (human, 2026-08-31): §3.1 refuses `ModelStep::Ask`
         // below `Secretary`, so holding it was a door that was always locked, and §1.2 says
-        // withhold rather than refuse. `MANAGEMENT_TOOLS` is now exactly `["run"]` and the
-        // constructor rejects anything else at this level.
-        ("master", leaf(AgentLevel::Master, &["run"])),
+        // withhold rather than refuse -- now `ProfileError::OnlyATopAgentMayAsk`. A master MAY
+        // hold working tools (the same day's section 1.2 reversal), so `edit` is included here to
+        // keep this breadth check over a profile the product can actually build.
+        ("master", leaf(AgentLevel::Master, &["run", "edit"])),
         ("worker", leaf(AgentLevel::Worker, &["read", "edit"])),
         ("quarantined-reader", CapabilityProfile::quarantined_reader()),
     ]

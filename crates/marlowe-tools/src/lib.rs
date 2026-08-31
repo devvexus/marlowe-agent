@@ -31,7 +31,7 @@ pub mod registry;
 pub mod skill;
 pub mod summary;
 
-pub use builtin::{builtin_registry, BUILTIN_TOOLS, MANAGEMENT_TOOLS};
+pub use builtin::{builtin_registry, BUILTIN_TOOLS};
 pub use exposure::{ExposedSet, ExposureError, MAX_EXPOSED_TOOLS};
 pub use manifest::{
     load, ArgumentRole, CapabilityManifest, ConsequenceLevel, CredentialId, HostPattern, LoadError,
