@@ -417,10 +417,59 @@ reasoning transfers to a run that can be restarted.** That is where the headroom
 
 ## §6. What this page deliberately does not decide
 
-The mechanisms. Two brainstorms are running against this requirement — one on capability without
-hindrance (lifecycle, per-value provenance, reversibility, raw model performance, and what threatens
-§4), one on the research team (topology, citation verification, effort scaling). **Their proposals
-are judged against §1's ordering and §4's invariant**, and nothing here commits to any of them.
+The mechanisms. **Three brainstorms RAN on 2026-08-31 — sixteen agents, each design adversarially
+attacked — and their output is `runs/m3-c/brainstorm/`.** Nothing here commits to any of it, and
+**this section previously said they "are running"**, which was true when written and would have left
+a reader looking for a live process.
+
+**Two proposals survived contact with the code and are named here so they are not lost in a dump.**
+Both are unbuilt, neither has an ADR, and both are recorded because a future session looking for
+*"how does a capable agent stay capable"* will not think to grep a `runs/` directory.
+
+### §6.1 Handle-typed contract fields — how a LATCHED run can still act
+
+**The problem this answers.** `blocks_composed_targets` refuses at `<= UntrustedContent`, so a run
+that has honestly read a page cannot compose *any* target — no path, no host, no recipient. That is
+why §2.1 makes Marlowe a liaison, and it is the cost that makes fixing `SECURITY-AUDIT.md` finding #1
+unaffordable today: lower the crossing class honestly and the receiving run is finished.
+
+**The proposal.** A contract field that will become a target stops being free text and becomes a
+**selection from a set the harness itself minted** during reading — the `ScopedPath`s the adjudicator
+already resolved for that run, the document ids `web` already issued, the tool ids already in the
+run's `ExposedSet`, the hosts already in `EgressPolicy::AllowApproved`. A value outside the set fails
+validation; a value inside it carries its namespace's class.
+
+**Why it is not the filter §8.1 rules out.** Nothing inspects prose for bad instructions. The check
+is **set membership**, and the set was fixed before the attacker's bytes were read. An attacker who
+owns every page can steer the run toward handle 7 instead of handle 3 — **bounded influence over an
+already-authorised set**, against today's unbounded composition of an arbitrary path. There is no
+spelling that adds a member.
+
+**What it would buy: "you may act on what you read"** — a latched PI can still edit a file it
+actually opened and re-fetch a document it actually fetched, at full floor-down honesty. That is the
+envelope a researcher wants, and it is derived from harness state rather than from prose.
+
+**Cost, stated:** a new `FieldType` variant, a second `validate` entry point, and one edit to
+`crates/marlowe-loop/src/provenance.rs` — **§13-guarded**, which is correct for the line deciding
+what a latched run may name.
+
+### §6.2 Citation verification is mechanical, and the substrate already ships
+
+**ADR-042 already puts every fetched document whole into `marlowe_extract::store::DocumentStore`,
+content-addressed by BLAKE3 over the extracted text.** So *"this claim comes from that source"* is
+checkable **against the exact bytes that were fetched** — no model, no network, no re-fetch.
+
+**And a verdict computed from those bytes is `AgentObserved`, not `UntrustedContent`**, by ADR-042's
+own argument: the harness authored every character of it and a boolean cannot carry an instruction.
+**Mechanical verification is therefore free of the layer-1 quarantine tax entirely.**
+
+That is the ≥95% DeepResearch FACT row won by structure rather than by a bigger model — and it is the
+half of §3.0's *"answers read like research findings"* that is enforceable rather than stylistic.
+
+**One blocker, and it is small.** `build_tool_host` is called inside `Daemon::turn`, so the store is
+**per-turn**: a research pass spanning two user messages cannot verify its own citations.
+`FileSystemTools::with_store` is already the seam — holding one store at **session** lifetime is
+roughly twenty lines, and content-addressing means there is no invalidation problem.
 
 **§3.2's mechanism is in the same position, and is named rather than adopted.** The sandbox
 *requirement* is the human's and is captured above; the AppContainer that answers it is ADR-070's and
