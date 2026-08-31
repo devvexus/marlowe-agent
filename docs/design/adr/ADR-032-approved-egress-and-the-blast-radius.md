@@ -14,6 +14,15 @@ that nothing reads, while the thing it gates ships anyway. **§5's *"there is no
 surface in the daemon yet"* was already stale when written into the record**: `SocketApprovals` is
 wired at `daemon.rs:3182`, and the profile's own signed journal shows **37 `web` approval decisions
 since 2026-08-10, all `needs_approval`, 29 granted and 8 denied, none silently allowed.**
+**RE-CONFIRMED ON REVIEW 2026-08-31 BY MATTHEW, AND THE ACCEPTANCE DATE DOES NOT MOVE.** M3 Session
+C's review of the seven M3 ADRs carried this one on a list describing it as *"the only ADR in the set
+that is unaccepted and built"*. **That sentence is `CLAUDE.md`'s and `ROADMAP.md`'s, and it is stale
+against this file** — the status line above has read ACCEPTED since 2026-08-29. So the date stays
+**2026-08-29** rather than being carried forward to tidy a list: an acceptance backdated forward is a
+status line overstating what happened, which is the defect this line already carries two corrections
+for. What 2026-08-31 adds is that the human read it again and moved nothing. **ROADMAP's *Waiting on
+the human* item 1 is closed by the 2026-08-29 acceptance**, and the documents still calling this ADR
+`PROPOSED` are what needs correcting; both are outside the edit list of the session recording this.
 **Depends on:** ADR-031 (TLS)
 **Revisits, as required:** ADR-002's `web` Inert exemption
 **Touches §13-guarded files:** `marlowe-loop/src/profile.rs`, `marlowe-permission/src/adjudicate.rs`

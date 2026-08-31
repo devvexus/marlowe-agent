@@ -1,6 +1,22 @@
 # ADR-068 · The latch belongs on the session, and that was answered in August
 
-**Status:** PROPOSED — needs the human's approval. **DESIGN ONLY, NO CODE.**
+**Status:** **Accepted as a recording, M3 Session C, 2026-08-31, by Matthew. THE SCOPE CHANGE ITSELF
+REMAINS DEFERRED.** ***“PROPOSED — needs the human’s approval. DESIGN ONLY, NO CODE”* — the second
+half still stands.** What is accepted is §1’s finding, that `SECURITY-AUDIT.md` §8 is **half-fixed** by
+`6a1f4f5` and the half that is missing is the one §8 named, together with §3’s mechanism as the shape
+the build will take when it is authorised. **Nothing in §3 or §4 is built, and §9.1’s question —
+whether the second clause is built at all — is not answered here.**
+
+> **THE DEADLINE, CONFIRMED BY THE HUMAN ON ACCEPTANCE AND UNCHANGED FROM `DECISIONS.md`’s
+> 2026-08-30 entry: DECIDED BEFORE SESSION D STARTS, NOT AFTER.** D is what gives `ingest` its first
+> correct caller, and on that day the per-turn reset becomes live **together with** the compaction
+> stamp and the trim marker in the same path. A decision taken after D has shipped is a decision taken
+> with the hole already open.
+>
+> **Deferring is safe today only because layer 3 is unreachable, and that is a command rather than a
+> citation:** `grep -rn "ingest_external(" --include=*.rs crates/*/src/ | grep -v "fn ingest_external"`
+> returns nothing. The day it does not, this deferral expires whether or not anyone re-reads this
+> line.
 
 | | |
 |---|---|

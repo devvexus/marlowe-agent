@@ -1,8 +1,31 @@
 # ADR-064 · The five agent levels are a field on the profile, the disposition is carried inside the level, and the role a spawner names ships only as far as its reader chain reaches
 
-**Status:** PROPOSED — needs the human's approval. DESIGN ONLY, NO CODE.
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew.** **BUILT** — `a017ee0` (the levels, the
+fold, and the role’s reader chain as far as the wire) and `3219297` (the receipt names the role in
+front of the tool set).
+
+> ***“PROPOSED — needs the human’s approval. DESIGN ONLY, NO CODE”* was true on 2026-08-30 and is false
+> now**, and is kept rather than deleted.
+>
+> **THE DISPOSITION FOLD IS THIS ADR’S OWN DECISION, NOT A CORRECTION THE BUILD MADE, and the
+> distinction is worth keeping because it says which instrument found it.** The fold is in the title,
+> in §2.1 and in §8.1 — *“the disposition moved **inside** the level”* — written after the adversarial
+> pass and before any code existed. The build implemented it as written: `AgentLevel::TopAgent
+> { manages: bool }` in `profile.rs`, `SpawnRequest.disposition: Disposition` in `driver.rs`, and
+> `child_of(Secretary, Manage) != child_of(Secretary, Work)` as the headline assertion, with
+> `parse_disposition(…) → Disposition::Work` as the mutation that reddens it. **What found the defect
+> was the adversarial pass, recorded at §8.1; the ADR is where it was fixed; the build is where it was
+> enforced.**
 
 Two §13-guarded files are edited (`crates/marlowe-loop/src/profile.rs`, `crates/marlowe-loop/src/driver.rs`), two pinned contracts move (`CONTRACTS.md` §5's `CapabilityProfile`, and `SpawnRequest` pinned for the first time), and one item below is the human's by name (the fourth `ModelRoute` variant). Nothing here has been approved by anyone and no code has been written against it.
+
+> **[AMENDED 2026-08-31.** Approved by Matthew, and built at `a017ee0` and `3219297`. Both pinned
+> contracts moved with it; `crates/marlowe-loop/src/profile.rs` and `crates/marlowe-loop/src/driver.rs`
+> were edited with the human’s approval; and the fourth `ModelRoute` variant was **not** invented —
+> `DECISIONS.md`’s 2026-08-30 ladder entry names Secretary / Agent-High / Agent-Medium / Agent-Low as
+> tiers filling this enum’s three columns, and `SpawnRequest::from_args` accepts only `ModelRoute`’s
+> own three spellings. The sentence above is kept as the record of what was true when the ADR was
+> written.**]**
 
 | | |
 |---|---|

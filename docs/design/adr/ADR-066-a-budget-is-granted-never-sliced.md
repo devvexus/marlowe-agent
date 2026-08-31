@@ -1,6 +1,20 @@
 # ADR-066 · A budget is granted, never sliced — and the envelope is one field on `Run`, not a scope object
 
-**Status:** PROPOSED — needs the human's approval. **DESIGN ONLY, NO CODE.**
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew. MOSTLY NOT BUILT, and that is the
+decision rather than a delay.** ***“PROPOSED — needs the human’s approval. DESIGN ONLY, NO CODE”* was
+true when written and is now false of exactly one section.** §1.3’s missing floor landed at
+`723a972`: `Budget::slice_for_quarantined_read` reads `MIN_CHILD_TOKENS` and fails closed, as `grant`
+already did, and its doc comment records that the floor is a lower bound rather than the right number
+— what it closes is a reader that could not afford *any* first call, not one that cannot afford
+*this* one. **Nothing else here is built:** `committed`, `envelope`, `EventKind::BudgetExtended` and
+the `CHECKPOINT_VERSION` bump are specified and unwritten, and neither pinned contract has moved.
+
+> **§1 IS AMENDED: TWO OF ITS THREE CLAIMED DEFECTS IN SHIPPED CODE ARE NOT DEFECTS.** Established by
+> reading, and written in place at §1.1 and §1.2. §1’s own sentence — *“Four things are wrong anyway.
+> Three are defects in shipped code”* — now reads: **one** defect, fixed at `723a972`; **one correct
+> design** mistaken for decay (§1.1, `subagents`); **one structurally real hazard the current
+> architecture cannot reach** (§1.2, the clamp against `spent`); and §1.4’s acceptance row, which
+> stands exactly as written.
 
 It changes a **pinned contract twice** (`CONTRACTS.md` §5's `Run`, and §1.1's closed `EventKind`
 list), it depends on a scope question `SECURITY-AUDIT.md` §8 already puts on the human, and its
@@ -36,6 +50,27 @@ row for all of them is measured on a tree the product does not build.**
 
 ### 1.1 · `subagents` is still sliced from the remainder, in the dimension §4 did not look at
 
+> **AMENDED 2026-08-31 — THIS IS NOT A DEFECT. `subagents` IS A CONSUMED POOL, NOT A SHARE.** The
+> section’s claim is that this line *“takes a share of what remains”* and that **two siblings doing
+> identical work are offered 7 and 6**, *“exactly the decay M3-DESIGN §4 abolished”*. The arithmetic is
+> right; the reading of it is wrong. **`share.apply_*` is not called here.** The expression is
+> `left.subagents.saturating_sub(1)` — a **decrement**, not a geometric slice — and the line’s own
+> comment says why: *“A child may not spawn more children than its parent had left, and it starts one
+> short because it is itself one of them.”*
+>
+> Tokens, wall time and tool calls are **shares of the original**, so taking them from the remainder
+> would compound geometrically down the tree, and that is what §4 abolished. A subagent slot is not a
+> share of anything: it is a **seat**, which `Engine::spawn` consumes one of per spawn
+> (`run.spent.add(&Budget { subagents: 1, ..Budget::default() })`) and which
+> `run.spent.subagents >= run.budget.subagents` refuses against. **A second sibling genuinely has one
+> fewer seat to hand down, because one of the seats is the first sibling.** Offering both 7 would let
+> the tree admit more agents than the pool holds.
+>
+> **So `a_second_sibling_is_offered_the_same_allocation_as_the_first` is green on a correct build**,
+> and the charge that its one-dimension assertion hides a bug reads the wrong way round: `subagents`
+> is the one dimension in which equality between siblings is not the property wanted. Nothing here is
+> fixed, because nothing here is broken.
+
 ```
 crates/marlowe-loop/src/budget.rs:237
     subagents: at_least_one_u16(left.subagents.saturating_sub(1), left.subagents),
@@ -51,6 +86,25 @@ The existing control cannot see it. `a_second_sibling_is_offered_the_same_alloca
 dimension.** It is green on the shipped build, on the line above, today.
 
 ### 1.2 · `grant` clamps against `spent`, and `spent` moves only when a child returns
+
+> **AMENDED 2026-08-31 — STRUCTURALLY REAL, AND UNREACHABLE IN THE CURRENT ARCHITECTURE.** This
+> section already says *“This is harmless in the shipped binary and it must be said in those words”*.
+> The human’s ruling is the stronger form, and it moves the item out of *“defects in shipped code”*
+> and into a constraint on fan-out. `Engine::spawn` calls
+> `self.run(&mut child_run, &mut child_state, &mut child_provenance, &mut child_ports)`
+> **synchronously** and folds `run.spent.add(&child_run.spent)` immediately after it returns — at all
+> three child sites: the ordinary spawn, `condense_batch`’s quarantined reader, and arm (b)’s
+> validator. **A child’s usage is therefore in `spent` before the next grant is computed, and a parent
+> never holds two outstanding grants.** There is no state the shipped product can enter in which the
+> clamp is wrong.
+>
+> **It becomes live the day a child runs concurrently, and not before**, which is why it is recorded
+> rather than fixed. A fix written today would be a change nothing can exercise, and its test would be
+> measuring a state the product cannot enter — the shape ADR-062 records for layer 3.
+>
+> *(The line numbers in this section have drifted and the symbols have not. At acceptance the grant is
+> `run.budget.grant(&run.spent, req.share, req.grant_tokens)` at `engine.rs:2831`, the three folds are
+> at `:2468`, `:3187` and `:3515`, and `slice_for_quarantined_read(&run.spent)` is at `:2304`.)*
 
 ```
 engine.rs:2618   let child_budget = match run.budget.grant(&run.spent, req.share, req.grant_tokens)

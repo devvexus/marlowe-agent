@@ -1,6 +1,24 @@
 # ADR-063 · The typed upward channel, and where A8 must vary it
 
-**Status:** PROPOSED — needs the human's approval. DESIGN ONLY, NO CODE. (M3 Session C, 2026-08-30)
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew.** **BUILT** — `58ca698` (the three arms,
+switched at `Engine::spawn`’s note match rather than at `LoopOutcome`) and `16f1d46` (six mutations
+red; the fifth would not compile a release build at all).
+
+> **The old qualifier is preserved because it was true when written and is false now.** *“PROPOSED —
+> needs the human’s approval. DESIGN ONLY, NO CODE. (M3 Session C, 2026-08-30)”* was accurate on
+> 2026-08-30; the two commits above are what falsify it, and deleting it would remove the only record
+> that the design and the build were separate acts a day apart.
+>
+> **§4.1 WAS OVERRULED BY THE HUMAN, AND THE LIMITATION IT NAMES IS REAL AND RECORDED RATHER THAN
+> ARGUED AWAY.** §4.1 rejects `cfg` and prefers a CLI flag on the shipped binary. **Arm (c) ships as
+> `cfg(debug_assertions)`** (`crates/marlowe-loop/src/upward.rs`), because M3-DESIGN §9.1’s amendment
+> requires the unvalidated channel to be **unreachable in a shipped build rather than merely off by
+> default**, and a control reachable in production is a defect rather than a control.
+> `DECISIONS.md`’s 2026-08-30 entry carries the reasoning. **The concession §4.1 is right about
+> survives the ruling: an ordering measured in a debug binary is not automatically an ordering in
+> release.** So every claim A8 makes about the **shipped** binary is restricted to arms (a) and (b),
+> which both exist in the release artifact; the arm-(c) comparison is inside the one debug artifact
+> and says so.
 
 | | |
 |---|---|
@@ -415,6 +433,17 @@ artifact, which `--reranking off` and `--embedder-provider cpu` already establis
 pattern. **See §8.3: M3-DESIGN's own A8 amendment says the opposite, and the conflict is unresolved
 and the human's.**
 
+> **AMENDED 2026-08-31 — THE CONFLICT IS RESOLVED AND THIS SECTION LOST.** The human ruled for
+> `cfg`. The rejection above is kept because its argument is sound and only the trade went the other
+> way: *“A CLI flag on the shipped binary gives three invocations of one artifact, which
+> `--reranking off` and `--embedder-provider cpu` already establish as this project’s pattern”* is
+> true, and it leaves a permanently-available unvalidated upward channel in the artifact the user
+> runs, one argument away. M3-DESIGN §9.1’s requirement — unreachable in a shipped build rather than
+> merely off by default — wins; `DECISIONS.md`’s 2026-08-30 entry carries the three reasons.
+> **What survives of this section is its concession, and it is now a standing restriction on what A8
+> may report:** an ordering measured in a debug binary is not automatically an ordering in release,
+> so a claim about the shipped binary is restricted to arms (a) and (b).
+
 ### 4.2 · Rejected: select the arm with an environment variable
 
 `minimal_env()` in the eval harness (§4.0.9) is a fixed allowlist — the same mechanism that stops
@@ -625,6 +654,14 @@ channel; (b) a `cfg` feature — a control on a different binary; (c) a signed, 
 boot-announced dev mode, which is a different design and a session of its own. This is a security
 posture question, not a measurement one, and it is not a session's to take. **It takes its own
 `DECISIONS.md` entry either way.**
+
+> **ANSWERED 2026-08-31: OPTION (b), `cfg`.** Taken by Matthew, recorded in `DECISIONS.md`’s
+> 2026-08-30 entry, and built at `58ca698`. Option (a), the CLI flag, was refused for the reason this
+> section names against it — a permanently-available unvalidated upward channel in the shipped
+> artifact. Option (c), a signed, journalled, boot-announced dev mode, was not built. **Both sentences
+> did not have to hold: M3-DESIGN §9.1’s stands and §4.1’s preference does not**, and what that costs
+> — an ordering measured in debug is not an ordering in release — is carried on the status line rather
+> than absorbed.
 
 ### 7.4 · Arm (b) needs a model, and there is no VRAM for a fourth
 

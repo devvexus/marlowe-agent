@@ -1,7 +1,18 @@
 # ADR-065 · Escalation routes on `Run::parent` and one inherited bit, and TERMINATE is a variant the agent cannot name
 
-**Status:** PROPOSED — needs the human's approval. **DESIGN ONLY, NO CODE.** Nothing in this ADR has
-been built, and one of its two structural changes edits a §13-guarded file.
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew.** **BUILT** — `d131d87`, and the
+§13-guarded edit to `crates/marlowe-loop/src/driver.rs` was authorised by the human before it was
+made. ***“PROPOSED — needs the human’s approval. DESIGN ONLY, NO CODE. Nothing in this ADR has been
+built”* was true when written and is false now**; it is kept rather than deleted.
+
+> **THE BUILD FOUND TWO ERRORS IN THIS ADR, AND BOTH ARE AMENDED IN PLACE BELOW — §2.1 and §2.6.**
+> Neither is a change of mind. §2.1’s `RaisesTo` would have been a **second** definition of tree
+> position: `a017ee0` landed `AgentLevel` on `CapabilityProfile`, private and constructor-validated,
+> after this ADR was written, and `ToolSpawned` **is** constructed — by `quarantined_reader()`.
+> §2.6’s `normalise` is unbuildable as specified, because `sanitize_line` **marks** rather than drops,
+> so a post-sanitize `is_renderable` check can never fail. `DECISIONS.md`’s 2026-08-31 escalation entry
+> carries both at product scope; the two sections below carry them where a reader of this ADR will
+> meet them.
 
 | | |
 |---|---|
@@ -90,6 +101,35 @@ Six parts. Where a type is involved it is written as Rust, because the whole arg
 enforcement is in the signature.
 
 ### 2.1 · One inherited bit, not a five-value level
+
+> **AMENDED 2026-08-31 — `AgentLevel` IS NOT DROPPED, AND `RaisesTo` WAS NOT BUILT.** This section
+> opens *“**`AgentLevel` is dropped.**”* and rests on two claims read at HEAD `2fe2986`: that a level
+> is a second encoding of tree position which *“diverges the moment `adopted_by` or `detached` runs”*,
+> and — §3 — that `AgentLevel::ToolSpawned` is constructed by nothing. **`a017ee0` landed after this
+> ADR was written and falsified both.** ADR-064 put `AgentLevel` on `CapabilityProfile` as a
+> **private, constructor-validated** field — a claim about what a profile may hold, enforced by three
+> load-time rules, which no parent-link mutation can falsify — and
+> `CapabilityProfile::quarantined_reader()` names `ToolSpawned`, which `Engine::condense_batch` builds
+> every layer-1 reader from. **So `RaisesTo` would have been the second definition of tree position,
+> not the first.** `d131d87` builds `escalation_route` over `CapabilityProfile::level()` and
+> `Run::parent`, and adds no bit to `Run`.
+>
+> **The durable half goes with it, and its absence is the stronger position.** `Checkpoint::raises_to`
+> with no `#[serde(default)]`, and the `CHECKPOINT_VERSION` bump this section requires, are **not**
+> built and are not needed: `Checkpoint::profile` already round-trips through `CapabilityProfile`’s
+> validating `Deserialize`, so the level a route is read from survives a resume by a path that was
+> already tested. `PauseReason` gains `AwaitingEscalation { id }`, and a new **variant** is not a new
+> field — nothing defaults, and a version bump exists to stop a *missing* field being filled with its
+> permissive value.
+>
+> **What survives this section unchanged is its refusal.** A run whose profile reads untrusted content
+> may not raise. It is built as one of `escalation_route`’s two disjuncts, with `ToolSpawned` as the
+> other, and `neither_refusal_disjunct_is_covering_for_the_other` asserts each with the other’s
+> condition held false. **`may_hold_create_grant` was not deleted either**, and this section says it
+> should be: ADR-064 gave it a reachable enforcement site at `profile.rs:298`, where exposing `run`
+> to a level that may not hold the create grant is a **load-time refusal**. What ADR-064 §5.4
+> separately refuses is the *conjunct inside `may_create_agents()`* — two definitions of one rule —
+> which is a narrower thing than deleting the method.
 
 **`AgentLevel` is dropped.** Escalation routing reads exactly two things: *may this run raise*, and
 *who is above it*. The second is `Run::parent`, which already has one definition. The first is the
@@ -357,6 +397,26 @@ exists** — which is the property "stable tier, not retrievable memory" actuall
 a lazy assertion at the first escalation would be a weaker design that passes the same test.
 
 ### 2.6 · The record, and the artifact that is not a `ContentRef`
+
+> **AMENDED 2026-08-31 — `normalise` IS NOT BUILT AS WRITTEN, AND THE REASON IS INSTANCE #16.** The
+> block below specifies *sanitize, then refuse if any character fails `is_renderable`*:
+> `if !one.chars().all(crate::text::is_renderable) { return Err(TextRejected::Unrenderable); }`.
+> **That check can never fail.** `crate::text::sanitize` does not **drop** a refused character — it
+> **substitutes** `<U+001B>`, seven renderable ASCII characters, and
+> `text.rs::the_escape_that_overwrites_the_approval_line_is_marked_not_dropped` is the test that pins
+> the marking. So `TextRejected::Unrenderable` would be a declared control whose reader can never see
+> it true — instance #16, in the file that exists to enforce instance #12. **It does not exist.**
+> `crates/marlowe-contract/src/escalation.rs`’s module header carries this paragraph at the site, so a
+> later reader meets it where the variant is missing rather than only here.
+>
+> **What survives is the bound, and its ORDER is load-bearing in the other direction.** The cap is
+> measured on the **sanitized** string: 200 escape characters expand to 1,400, and a cap applied
+> before substitution would admit a label seven times the width of the row it has to fit. **Refused,
+> never truncated** — a truncated label is a label whose meaning the harness changed. `TextRejected`
+> ships as `Empty` and `TooLong { chars, max }`. The rest of this section is built as written: the two
+> newtypes, the hand-written `Deserialize` routed through the constructor, `ArtifactHandle` as
+> validated hex on `DocumentRef`’s precedent, and the ruling that a model-chosen artifact identifier
+> is a `Target` by `ArgumentRole`’s existing vocabulary.
 
 ```rust
 // crates/marlowe-contract/src/escalation.rs — NEW

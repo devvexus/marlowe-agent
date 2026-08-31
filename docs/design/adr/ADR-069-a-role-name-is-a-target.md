@@ -1,10 +1,38 @@
 # ADR-069 · A role name is a target — and Session C earns the right to say so by giving the field a reader on all three driver paths
 
-**Status:** PROPOSED — needs the human's approval. DESIGN ONLY, NO CODE.
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew, with the human’s scoping note below.**
+**BUILT** — `a017ee0` and `3219297`. ***“PROPOSED — needs the human’s approval. DESIGN ONLY, NO CODE”*
+was true when written and is false now**; it is kept rather than deleted.
+
+> **THE ENFORCEMENT IS BUILT AND IT STAYS.** `composes_spawn_targets` carries
+> `req.role != ModelRoute::Worker` and `req.disposition != Disposition::Work` as disjuncts, fired
+> under `blocks_composed_targets(run.trust_floor())`, and `engine.rs`’s `spawn_request_fields`
+> destructuring guard makes the next field added to `SpawnRequest` a **compile error** rather than a
+> silent hole. **A role name is a Target; that half is settled and nothing below narrows it.**
+>
+> **THE HUMAN NARROWED THE URGENCY, NOT THE CONCLUSION.** *“Honestly it will be up to testing, but most
+> models are created before content is even created or read, so this is not the most accurate
+> concern.”* That is right about the ordinary case: a spawn’s role is usually chosen **before** the
+> spawning run has read anything untrusted, so the window in which untrusted content could influence a
+> role is much smaller than §1 and §2 imply. The ADR’s framing is narrowed accordingly.
+>
+> **THE WINDOW IS NARROW AND NON-EMPTY, AND ONE CASE SITS INSIDE IT.** A **long-running master that
+> has already read pages and then spawns more children** is choosing roles *after* untrusted content
+> is in its context. That is the research shape `AGENT-DIRECTORY.md`’s worked example builds —
+> Agent-High reads the assistants’ findings and then delegates further — and the mechanism by which a
+> dishonest premise reaches that decision is M3-DESIGN §2.2’s chain of honest judgments: layer 1
+> holds, the summary comes back attacker-shaped anyway, and each hop is a competent model reasoning
+> correctly from a poisoned input. **So the enforcement is not redundant, and it costs nothing to
+> keep:** two disjuncts in a function the latch already calls on every spawn.
 
 It edits a §13-guarded file (`crates/marlowe-loop/src/profile.rs`), it leaves the naming of the
 fourth model role to the human, and it records one thing the reviewed design asked for that **cannot
 be built as specified** (§5.3). Nothing here has been approved by anyone.
+
+> **[AMENDED 2026-08-31.** Approved by Matthew and built at `a017ee0` and `3219297`.
+> `crates/marlowe-loop/src/profile.rs` was edited with the human’s approval, the fourth `ModelRoute`
+> variant was **not** added, and §5.3 stands as written. The sentence above is kept as the record of
+> what was true when the ADR was written.**]**
 
 | | |
 |---|---|

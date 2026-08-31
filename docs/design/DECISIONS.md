@@ -3797,3 +3797,128 @@ next session should say so rather than discover it.** `EscalationDesk::from_jour
 absent: the loop's raise event carries only the id, so a rebuild written against today's events
 would return a set of empty escalations and *look* like durability. Both are recorded in the code at
 the site a reader would otherwise have to infer them from.
+
+---
+
+## 2026-08-31 · THE SEVEN M3 ADRs ARE ACCEPTED, WITH ONE EXCEPTION ON ADMISSION AND ONE NARROWING ON THE ROLE
+
+**Taken by Matthew, M3 Session C.** ADR-063 through ADR-069 move from `PROPOSED — needs the human's
+approval` to `Accepted, M3 Session C, 2026-08-31, by Matthew`. **Every other qualifier on those status
+lines is kept rather than deleted**, because four of them were true when written and are false now,
+and the pair — the old claim, and the commit that falsifies it — is the record. Deleting the first
+half would leave a status line that reads as though the design and the build were one act.
+
+| ADR | Subject | State on acceptance |
+|---|---|---|
+| 063 | the typed upward channel, and where A8 varies it | **BUILT** — `58ca698`, `16f1d46` |
+| 064 | five levels on the profile, the disposition inside the level, the role's reader chain | **BUILT** — `a017ee0`, `3219297` |
+| 065 | escalation routing, and a TERMINATE the agent cannot name | **BUILT** — `d131d87`. Two of its own sections were falsified by the build |
+| 066 | a budget is granted, never sliced | **Accepted, mostly NOT built.** One piece landed: `723a972` |
+| 067 | admission control refuses; it does not queue | **Accepted with an exception, and BLOCKED on `CAPACITY-SENSOR.md`** |
+| 068 | the latch belongs on the session | **Accepted as a recording.** The scope change stays deferred |
+| 069 | a role name is a target | **BUILT** — `a017ee0`, `3219297`, with a scoping note |
+
+**ADR-032 IS RE-CONFIRMED AND ITS DATE DOES NOT MOVE.** It was carried into this review as *"the only
+ADR in the set that is unaccepted and built"*. **That sentence is `CLAUDE.md`'s and `ROADMAP.md`'s and
+it is stale against the ADR**, whose status line has read `ACCEPTED 2026-08-29 by the human` since
+that date. The acceptance stands at **2026-08-29** and was not carried forward to tidy a list: an
+acceptance backdated forward is a status line overstating what happened, which is the defect that
+line already carries two corrections for. **ROADMAP's *Waiting on the human* item 1 is closed by the
+2026-08-29 acceptance.** What needs correcting is the two documents that still call it `PROPOSED`.
+
+**WHAT IS ALREADY RECORDED ABOVE AND IS NOT RESTATED HERE.** Arm (c)'s `cfg` and its concession
+(2026-08-30), the latch-scope deferral and its deadline (2026-08-30), the five levels and the
+disposition fold (2026-08-30), and the escalation build with its two ADR corrections (2026-08-31)
+each have their own entry. This one adds four things.
+
+### 1 · The ADR-067 exception: admission is a PRIORITY ORDER, not a flat fit test
+
+**The human's rule, in his own framing:** *"Say we have model A loaded and model B loaded. An agent
+wants to spawn model C. If C is a DIFFERENT model from A and B, it gets refused if it does not fit. If
+it is the SAME model as one already loaded, load it if it fits. The idea is: make the pool of models
+that will be needed first — duplicate models exist only after the required models are loaded."*
+
+1. **Distinct required models load first and have priority on the card.**
+2. **A duplicate of an already-resident model is admitted only after that distinct set is resident**,
+   and only if it fits. It never displaces or pre-empts a model no copy of which is loaded.
+3. **A new distinct model that does not fit is refused** — ADR-067 §2.2, unchanged.
+
+**THE MAPPING ONTO WHAT WAS MEASURED IS EXACT, AND IT IS WHY THIS IS BUILDABLE RATHER THAN A
+PREFERENCE.** The 2026-08-30 ladder entry above records the cost model from the testing configuration
+the human named: two roles sharing a model share **one set of weights** and multiply only the **KV
+cache** (`OLLAMA_NUM_PARALLEL`); two roles on two models multiply **weights**
+(`OLLAMA_MAX_LOADED_MODELS`). **The human's two cases are those two cost models** — "same model" is
+the cheap, KV-bounded one; "different model" is the expensive, weights-bounded one. **So admission
+keys on the RESOLVED MODEL and never on the role**, which is the conclusion that entry already
+reached from the other direction.
+
+**WHAT IS NOT KNOWN, AND IS NOT PAPERED OVER.** The KV cost of a second concurrent slot on this
+machine **has not been measured**, and `NUM_PARALLEL` also divides the context window across slots, so
+a duplicate is not free and its price is not a number anyone here holds — no multiplier is invented
+for it. **`OLLAMA_NUM_PARALLEL=1` admits one request per model at a time**, so until that value
+changes "load a second one" is a **queueing** question rather than a memory one: rule 2 has no live
+cost to price today and cannot be verified today. `OLLAMA_MAX_LOADED_MODELS` is unset, so rule 1's
+ceiling is Ollama's own default rather than a value this project chose.
+
+**THE BUILD IS BLOCKED, NOT UNSCHEDULED.** `/api/ps` reported `size_vram: 1,631 MiB` for
+`marlowe-dusk:27b-super`, stable across three polls, while `nvidia-smi` moved 8,856 → 15,415 MiB and
+`load_duration` read 11,410 ms — a **7.6× under-report** — and `size == size_vram` there, so the
+CPU-split test reads GPU-ONLY on the model most likely to split. ADR-067 keys its refusal branch and
+its no-split guarantee on exactly those two fields. `docs/design/CAPACITY-SENSOR.md` is the blocker
+and separates the **predictive** question (*will this fit if I load it?* — which `/api/ps`
+structurally cannot answer, because it lists only resident models) from the **verificatory** one.
+**This exception needs both**: rules 1 and 3 are predictive, and rule 2's precondition is a residency
+question.
+
+### 2 · The ADR-069 narrowing: the urgency shrinks, the conclusion does not
+
+**The human:** *"Honestly it will be up to testing, but most models are created before content is even
+created or read, so this is not the most accurate concern."*
+
+**Recorded as narrowing the ADR's urgency, not as overturning it.** A role name remains a **Target**;
+that half is built and stays — `composes_spawn_targets` carries `req.role != ModelRoute::Worker` and
+`req.disposition != Disposition::Work`, under a destructuring guard that makes the next added field a
+compile error. What narrows is the window: a spawn's role is usually chosen **before** the spawning
+run has read anything untrusted.
+
+**THE WINDOW IS NARROW AND NON-EMPTY, AND NAMING THE CASE INSIDE IT IS THE POINT OF WRITING THIS
+DOWN.** A **long-running master that has already read pages and then spawns more children** is
+choosing roles *after* untrusted content is in its context. That is the research shape
+`AGENT-DIRECTORY.md`'s worked example builds — Agent-High reads the assistants' findings and then
+delegates further — and M3-DESIGN §2.2 is the mechanism by which a dishonest premise reaches that
+decision: layer 1 holds, the summary comes back attacker-shaped anyway, and each hop is a competent
+model reasoning correctly from a poisoned input. **The enforcement costs two disjuncts in a function
+the latch already calls on every spawn, so it is kept.**
+
+### 3 · ADR-066 §1 is amended: two of its three claimed defects in shipped code are not defects
+
+Established by reading, and written in place in the ADR.
+
+* **`subagents` reading `left` rather than `self` is CORRECT.** §1.1 calls it *"a share of what
+  remains"* and *"the decay M3-DESIGN §4 abolished"*. `share.apply_*` is not called there: the
+  expression is `left.subagents.saturating_sub(1)`, a **decrement**. Tokens, wall time and tool calls
+  are shares of the **original**, which is why taking them from the remainder would compound; a
+  subagent slot is a **seat** that `Engine::spawn` consumes one of per spawn and that
+  `run.spent.subagents >= run.budget.subagents` refuses against. A second sibling genuinely has one
+  fewer seat to hand down, because one of the seats is the first sibling.
+* **`grant` clamping against `spent` is structurally real and UNREACHABLE TODAY.** `Engine::spawn`
+  calls `self.run(&mut child_run, …)` **synchronously** and folds `run.spent.add(&child_run.spent)`
+  immediately after, at all three child sites. A child's usage is in `spent` before the next grant is
+  computed, so a parent never holds two outstanding grants. **It becomes live the day a child runs
+  concurrently**, which makes it a constraint on M3 fan-out rather than a bug to fix now: a fix today
+  would be a change nothing can exercise, and its test would measure a state the product cannot enter.
+* **§1.3 was a real defect and is fixed** (`723a972`): `slice_for_quarantined_read` reads
+  `MIN_CHILD_TOKENS` and fails closed. §1.4's acceptance-row finding stands as written.
+
+### 4 · Two ADRs were corrected by their own builds, and the corrections are amended into them
+
+**ADR-065 §2.1 and §2.6**, already recorded at product scope in this file's 2026-08-31 escalation
+entry, are now written into the ADR at the sections a reader will meet them: `RaisesTo` would have
+been a **second** definition of tree position once `a017ee0` landed `AgentLevel` on
+`CapabilityProfile`, and `normalise`'s post-sanitize `is_renderable` check can never fail because
+`sanitize_line` **marks** rather than drops.
+
+**ADR-064's fold is NOT one of these, and the difference is which instrument found it.** The
+disposition moving inside the level is the ADR's own decision — its title, §2.1 and §8.1 — found by
+the adversarial pass and fixed in the document before any code existed. The build implemented it as
+written. Crediting the build would name the wrong instrument.

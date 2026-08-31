@@ -1,6 +1,22 @@
 # ADR-067 · Admission control refuses; it does not queue — and `RunStatus::Queued` does not move
 
-**Status:** PROPOSED — needs the human's approval. DESIGN ONLY, NO CODE.
+**Status:** **Accepted, M3 Session C, 2026-08-31, by Matthew, WITH ONE EXCEPTION THE HUMAN SPECIFIED
+— §2.8 below.** ***“PROPOSED — needs the human’s approval”* is settled; *“DESIGN ONLY, NO CODE”*
+still holds, and it is kept above because it is still true.** Nothing here is built, and the build is
+**blocked** rather than merely unscheduled.
+
+> **THE SENSOR THIS ADR RESTS ON WAS MEASURED UNRELIABLE, AND `docs/design/CAPACITY-SENSOR.md` IS THE
+> BLOCKER.** Measured 2026-08-31 on a 16,376 MiB card: `/api/ps` reported `size_vram: 1,631 MiB` for
+> `marlowe-dusk:27b-super`, **stable across three polls**, while `nvidia-smi` moved 8,856 → 15,415 MiB
+> and `load_duration` read 11,410 ms — a **7.6× under-report**. And because `size == size_vram` there,
+> **the standard CPU-split test reads GPU-ONLY on the one model most likely to split.** §2.2 keys its
+> refusal branch and its no-split guarantee on exactly those two fields, so building it as written
+> would ship a guard reading *“fits”* whatever happens — this project’s most-logged shape, in the
+> decision whose own §6.1 is an instance of it.
+>
+> **What is accepted is the SHAPE: admission control refuses at the spawn site, it does not queue, and
+> `RunStatus` does not move.** §2.8 adds the human’s priority order on top of it. Both wait on the
+> sensor.
 
 | | |
 |---|---|
@@ -334,6 +350,58 @@ three routes the moment routing is real.
 
 ---
 
+### 2.8 · THE HUMAN’S EXCEPTION, TAKEN ON ACCEPTANCE 2026-08-31: admission is a PRIORITY ORDER, not a flat fit test
+
+**Accepted with this amendment, and it changes what `admit` decides rather than how it measures.**
+The ADR as written asks one question of a spawn — *does this model fit* — and refuses if it does not.
+The human added a question that comes **first**: *is a copy of this model already resident?*
+
+> *“Say we have model A loaded and model B loaded. An agent wants to spawn model C. If C is a
+> DIFFERENT model from A and B, it gets refused if it does not fit. If it is the SAME model as one
+> already loaded, load it if it fits. The idea is: make the pool of models that will be needed
+> first — duplicate models exist only after the required models are loaded.”*
+
+**The rule, in the order it is evaluated:**
+
+1. **Distinct required models load first and have priority on the card.** The set of distinct models
+   the live roles resolve to is what the card is for.
+2. **A duplicate of an already-resident model is admitted only after that distinct set is resident,
+   and only if it fits.** A duplicate never displaces, and never pre-empts, a required model no copy
+   of which is yet loaded.
+3. **A new distinct model that does not fit is refused** — §2.2 unchanged. That half of the ADR
+   stands exactly as written.
+
+**THE MAPPING ONTO WHAT WAS MEASURED IS EXACT, AND IT IS WHY THIS POLICY IS BUILDABLE AT ALL.**
+`DECISIONS.md`’s **2026-08-30** ladder entry records the cost model, taken from the testing
+configuration the human named: two roles sharing a model share **one set of weights** and multiply
+only the **KV cache** (`OLLAMA_NUM_PARALLEL`), where two roles on two models multiply **weights**
+(`OLLAMA_MAX_LOADED_MODELS`). **The human’s two cases are those two cost models** — “same model” is
+the cheap, KV-bounded one, “different model” the expensive, weights-bounded one. So admission
+**keys on the resolved model, never on the role**, which is the same conclusion that entry reaches
+from the other direction: *“a queue that keys on the role rather than on the resolved model gets the
+bottleneck wrong in exactly the configuration this project is about to test under.”*
+
+**WHAT IS STILL UNKNOWN, STATED RATHER THAN PAPERED OVER.**
+
+* **The KV cost of a second concurrent slot on this machine has not been measured.** `NUM_PARALLEL`
+  also **divides the context window** across slots (`AGENT-DIRECTORY.md` §2), so a duplicate is not
+  free and its price is not a number anyone here holds. No multiplier is invented for it, on
+  `vram.rs:160`’s rule — *a multiplier nobody measured* is worse than a missing one.
+* **`OLLAMA_NUM_PARALLEL=1` admits one request per model at a time.** Until that value changes, rule 2
+  is a **queueing** question rather than a memory one: a second request against a resident model waits
+  on the first instead of costing a second KV cache. **Rule 2 therefore has no live cost to price
+  today, and cannot be verified today.**
+* **`OLLAMA_MAX_LOADED_MODELS` is unset on this machine**, so rule 1’s ceiling is Ollama’s own default
+  rather than a value this project chose.
+* **The sensor cannot yet answer either question, which is what blocks the build.**
+  `CAPACITY-SENSOR.md` §2 separates the **predictive** question — *will this fit if I load it?*, which
+  `/api/ps` structurally cannot answer because it lists only resident models — from the
+  **verificatory** one, *did it fit, fully, on the GPU?* **This exception needs both:** rules 1 and 3
+  are predictive, and rule 2’s precondition (*the required distinct set is resident*) is a residency
+  question `/api/ps` can answer while its `size_vram` cannot be trusted for the fit.
+
+---
+
 ## 3 · Where every field is READ — and the three that are dropped
 
 Instance #16 is this project's most-repeated defect and this decision is fixing one, so the table is
@@ -656,6 +724,13 @@ the pinned array, and test 7 (a) would be weakened rather than strengthened by a
   role, **both a downgrade (make the system dumber before an attack) and an upgrade (exhaust budget)
   are attacker-useful**, and `composes_spawn_targets` (`engine.rs:3237`) needs a fourth clause.
   **Do not let that arrive as a side effect of this design.**
+  **[AMENDED 2026-08-31: ANSWERED, AND THE HARDCODE IS GONE.** ADR-069 answers it — a role is a
+  **Target** — and `a017ee0` built it. `Engine::spawn` now takes `req.role` in place of the hardcoded
+  `ModelRoute::Worker`, and `composes_spawn_targets` gained **two** clauses rather than one:
+  `req.role != ModelRoute::Worker` and `req.disposition != Disposition::Work`, with a destructuring
+  guard making the next added field a compile error. `adjudicate.rs` is still untouched — the half of
+  this bullet that held. **It did not arrive as a side effect of this design**, which is what the
+  bullet asked for.**]**
 * **`AGENT-DIRECTORY.md` §2's arithmetic, which is human-authored.** *"10.0 GB of the card's 16,
   leaving headroom"* against a measured 1,053 MiB free with all three roles resident. Since ADR-044
   resolves the embedder's provider against free VRAM **at load**, co-residency means the embedder
