@@ -38,6 +38,23 @@ single invariant that keeps the thing the user talks to safe.
 > and ADR-070's own status line says acceptance does not change that. **No document may cite
 > it as evidence that agents are contained until those probes have.**
 
+
+> **AND SO WAS [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md), THE SAME DAY, AND IT LANDS
+> ON §2's HEADLINE INVARIANT.** *Inside a top-agent's team, agents communicate in ordinary prose,
+> both directions* — no `OutputContract` between an intern and its PI, no quarantined reader
+> condensing a page before a worker sees it, no field validation on what a subordinate reports.
+> **Accepted by the human 2026-08-31. NOTHING IS BUILT, and it depends on ADR-070's box, which has
+> not been spiked** — so it inherits every caution in the block above and adds its own: *"it must not
+> survive its own precondition."* If the Git Bash spike fails and there is no box, ADR-071's premise
+> is gone.
+>
+> **The invariant did not weaken; its boundary moved.** Typing and layer 1 survive at exactly one
+> edge — the team's edge with Marlowe — because the thing §2 protects is a permanent run that must
+> never latch (§2.1), and that run sits at one edge and not at every hop. §2's headline, §2.2, §2.3,
+> §1.4 and §9.1's A8 are amended in place below, each quoting what it replaces. **§2.1 itself is
+> untouched: nothing here can latch the Secretary, and layer 1 is not removed — its *scope* changes,
+> by a mechanism ADR-071 §7 records as undecided.**
+
 ---
 
 ## §0. The premise
@@ -193,6 +210,21 @@ because it never held the tool.
 No tools, no persistence, destroyed on return. The quarantined reader is one. The fact extractor in
 `SCOPED-MEMORY.md` §4 is another. These are the only agents that are not addressable by anyone.
 
+> **AMENDED 2026-08-31 BY [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md) — THE QUARANTINED
+> READER IS MARLOWE'S NOW; THE FACT EXTRACTOR IS STILL THIS SECTION'S.** **Accepted, NOT built, and
+> dependent on ADR-070's box, which has not been spiked.** A tool-spawned reader no longer stands
+> between a fetched page and a worker inside a top-agent's team — inside the team the worker reads
+> the page whole, itself — and the reader stands at the team's edge with Marlowe instead. The fact
+> extractor is untouched: it serves memory rather than a team's internal hop, and `SCOPED-MEMORY.md`
+> §4 is unamended.
+>
+> **The category itself does not change.** No tools, no persistence, destroyed on return,
+> unaddressable by anyone; `ExposedSet::empty()` still means there is nothing to call, and instance
+> #17's trap still means no counter goes to zero. What moved is **where one of its two instances is
+> spawned**, not what a tool-spawned agent is. How that scoping is expressed in code is ADR-071 §7
+> item 1 and is explicitly undecided — `Engine::condense_batch` triggers on the trust class, which
+> is ADR-039's deliberate design, and keying it on *who is reading* is a different shape.
+
 ---
 
 ## §2. THE INVARIANT — prose flows down, structure flows up
@@ -206,6 +238,54 @@ Upward is where an attacker wants to go, and it is where the tree is naturally s
 every level summarises for the level above. So:
 
 > **Nothing but typed structure and artifact references crosses upward. Ever.**
+
+> ### AMENDED 2026-08-31 BY [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md) — THAT *"EVER"* HAS A SCOPE NOW, AND THE INVARIANT DID NOT WEAKEN
+>
+> **Accepted by the human 2026-08-31. NOTHING IS BUILT, and the whole amendment rests on ADR-070's
+> box, which has not been spiked.** The sentence is quoted above rather than rewritten, because what
+> changed is its extent and not its content.
+>
+> It was written as though every hop in the tree were the same hop. It is not. **It governs the
+> team's edge with Marlowe, and it does not govern communication inside a team.** Between an intern
+> and its PI there is prose, both directions — no `OutputContract`, no field validation on what a
+> subordinate reports, and no quarantined reader condensing a page before a worker sees it.
+>
+> **The boundary moved; the rule did not soften.** What §2 protects is named one section down: a
+> *permanent* run whose floor latches for its life. That property belongs to **one** edge. Typing
+> every hop in the tree was defending a run that is not standing at those hops, and at the edge where
+> it does stand the sentence is unaltered — *"Ever"* still means ever.
+>
+> **Why prose inside a team is defensible, and it is contingent on a box that does not exist.** The
+> team sits inside ADR-070's sandbox: no network, no filesystem outside its workspace. An attacker
+> who owns a page owns an intern in a disposable directory, so the only thing that leaves the team is
+> what it *says* upward. The team's security model is then two mechanisms with a clean split —
+> **the sandbox bounds what an agent can DO; the Marlowe boundary bounds what it can INFLUENCE
+> outside the team.** **It must not survive its own precondition:** if the spike fails and there is
+> no box, this amendment's premise is gone and the unscoped sentence is what remains.
+>
+> **And typing was never what stopped persuasion.** `validate` checks shape, length and character
+> class; attacker-shaped prose inside a declared field crossed either way. What typing bought was
+> protection against **forged structure** — a child cannot invent a field or forge a header
+> (ADR-039), and the parent attributes by harness-assigned slot. That is worth a great deal when the
+> receiver is a **machine parsing slots**, and much less between two models reading each other's
+> prose, where it costs fidelity to buy.
+>
+> **THE BET THIS TAKES, CARRIED HERE RATHER THAN LEFT IN THE ADR.** *"The PI is insanely smart and
+> can catch the intern if they say something dumb"* is a claim about **model capability**, and this
+> project has spent its life preferring structure to model behaviour — §1.2's own reversed rule said
+> so in the other direction, *"not because it is disobedient, because it is capable and the work is
+> right there."* Three things keep it honest and none of them is a guarantee: the box bounds the
+> downside, so a fooled PI acts inside a sandbox and the failure mode is a wrong finding; **a human
+> reads the output** (§3 puts the decision on a person deliberately); and **the bet is testable and
+> is NOT yet tested** — `runs/m3-c/prefilter/FINDING.md` measured that *polite* injections, the
+> plausible ones, beat every small model on every carrier while the shouting ones were caught, and
+> nothing establishes that a smarter reader does better on the polite case. That is the measurement
+> this amendment owes.
+>
+> **What is NOT claimed.** Not that the team is safer — the trade is fidelity and speed bought with a
+> sandbox that has not been built. Not that layer 1 is removed: its **scope** changes, and how that
+> happens in code is ADR-071 §7 item 1, undecided. And **§2.1 is untouched** — Marlowe is not boxed,
+> his securities stay heavy, and nothing here can latch the Secretary.
 
 ### 2.1 Why Marlowe cannot be allowed to read findings
 
@@ -234,6 +314,26 @@ Worth writing down because "how could it possibly reach him" is the question eve
 5. **Layer 2 marks it `UntrustedContent` the whole way and that changes nothing** — correctly.
    Layer 2 stops it *authorizing action*. Escalating is speech, not a target.
 
+> **AMENDED 2026-08-31 BY [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md) — STEP 1 NO
+> LONGER DESCRIBES A FETCH INSIDE A TEAM. Accepted, not built, dependent on ADR-070's unspiked box.**
+> Step 1 reads *"a quarantined child reads it, raw bytes never reach the worker"*; inside a
+> top-agent's team the worker **reads the page whole, itself**, and the quarantined reader survives
+> at the team's edge with Marlowe (§1.4, as amended).
+>
+> **Steps 2 to 5 are unchanged, and that is exactly why the amendment costs what it costs.** This
+> chain already conceded that the summary comes back attacker-shaped anyway, that there is no
+> infection to prevent, that each hop is a competent model reasoning correctly from a poisoned
+> premise, and that layer 2 marks the belief `UntrustedContent` the whole way without stopping the
+> walk. **So the step that was removed was never the step that stopped it.** ADR-041's cross-document
+> contamination — *"A can influence how B is described"* — goes with the shared reader; what arrives
+> in its place is a worker holding the raw bytes it used to be spared, in a box, with a PI reading
+> what it says.
+>
+> **Nothing here is measured yet.** The chain above is a description of how taint travels, and after
+> this amendment it describes a path with one fewer stage in it inside a team and the same number at
+> the Marlowe edge. Whether the reader at that edge is triggered by the trust class, as ADR-039
+> deliberately made it, or by who is reading, is ADR-071 §7 item 1 and is not decided.
+
 **The conclusion: the upward channels are the deliberate hole, and the human at the end of them is
 the defence.** That is why §3 puts the user there and not Marlowe.
 
@@ -247,6 +347,22 @@ An upward message is a record, not a paragraph:
 
 A category comes from a closed set. An artifact is a path the *user* opens. Free text, if allowed at
 all, is one quarantine-validated sentence and is never the thing decisions are made on.
+
+> **SCOPED 2026-08-31 BY [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md), WHICH IS ACCEPTED
+> AND NOT BUILT, AND WHOSE PREMISE — ADR-070's BOX — HAS NOT BEEN SPIKED.** *"An upward message"*
+> above now means **a message crossing the team's edge with Marlowe**. Between an intern and its PI
+> there is no record, no closed enum and no validated sentence: there is prose, by decision rather
+> than by omission.
+>
+> **The contract does not change and is not weakened.** `OutputContract` and `FieldSpec` are
+> unchanged and still govern this edge, so the shape pinned in `CONTRACTS.md` is the shape that
+> survives — this amendment removes no field and relaxes no validation anywhere the contract is
+> consulted today.
+>
+> **What "the team's edge with Marlowe" is in code is NOT decided.** Today `Engine::spawn`'s note
+> match is the only hop of that kind, and it does not distinguish a team boundary from any other
+> spawn (ADR-071 §7 item 3). Until it does, this section describes an edge the code cannot yet name,
+> and saying otherwise would be reading a design as an implementation.
 
 ---
 
@@ -720,6 +836,31 @@ feature.
 > from **what crossed into the parent's window**, which is what `injection_attempts.rs` already
 > asserts on, and each arm needs a positive control showing its own treatment actually ran.
 
+> ### AMENDED 2026-08-31 BY [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md) — A8 NARROWS TO THE MARLOWE EDGE, AND ITS IMPORTANCE IS UNDIMINISHED
+>
+> **Accepted by the human 2026-08-31. NOTHING IS BUILT, and it depends on ADR-070's box, which has
+> not been spiked.**
+>
+> A8's row reads as though every upward hop were one of its cells. **It no longer describes the
+> intern→PI hop, because that hop is free text by decision rather than by arm** (§2, as amended).
+> **A8 narrows to the boundary that still has one: the team's edge with Marlowe.** Its question is
+> unchanged and its importance is undiminished — Marlowe is the permanent run whose floor must never
+> latch (§2.1), and if the typing is decorative *there*, the liaison pattern is decorative with it.
+>
+> **The code site does not move, and that is a fact about today's tree rather than a design.**
+> Session C's amendment above put the three arms at `Engine::spawn`'s note match because that is
+> where the traffic is; it is also the *only* hop of that kind, and it cannot yet tell a team's edge
+> from any other spawn (ADR-071 §7 item 3). So the three treatments stand as written and what narrows
+> is **which crossings count as cells**: a crossing inside a boxed team is prose by decision, and
+> scoring it would report a decision back as a result — the vacuity family aimed at the control that
+> exists to detect vacuity, one turn further on.
+>
+> **Arm (c) is still the control expected to fail, still takes its own `DECISIONS.md` entry, and must
+> still be unreachable in a shipped build rather than off by default.** ADR-071 did not establish
+> that free text is safe. It traded typing for fidelity **inside a box**, and A8 measures the edge
+> where there is no box. **Pass 1's four defects still stand** (`runs/m3-c/redteam/PASS1-REPORT.md`)
+> and still need fixing before any A8 number means anything.
+
 ### 9.2 What is NOT an arm
 
 Anything where a wrong answer is a security hole rather than a quality loss. **TERMINATE's structural
@@ -833,3 +974,12 @@ M3's existing rows in ROADMAP stand. These are additional and each is a command 
    does a team's box change what a *master* may hold beyond what §1.2's reversal already granted,
    and does `SpawnRequest` carry the workspace? The second is §13-guarded and escalates
    separately.
+9. **NEW 2026-08-31, and it is [`ADR-071`](adr/ADR-071-inside-a-team-they-just-talk.md)'s §7 to
+   answer rather than this page's.** ADR-071 is accepted and unbuilt, on an unspiked box, and it
+   leaves four things open: **how layer 1 becomes Marlowe-only in code** — `Engine::condense_batch`
+   triggers on the trust class by ADR-039's deliberate design, and re-keying it on the reading run is
+   a §13-adjacent change needing its own argument; **whether a PI actually catches a polite
+   injection**, which is §4's bet and is untested, the cheapest experiment being the pre-filter
+   corpus re-run with the PI as the reader; **what the team's edge with Marlowe is in code**, since
+   `Engine::spawn`'s note match cannot distinguish it today; and **whether a team without a box gets
+   the old rules back** — it must, because the amendment must not survive its own precondition.
