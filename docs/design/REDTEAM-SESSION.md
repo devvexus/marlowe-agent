@@ -21,7 +21,15 @@ what evidence exists that the layers work.
 | **Depends on** | C for the typed upward channels (the A8 control); D for a memory write path (the laundering classes) |
 | **Pass 1 blocked by nothing** | it runs on what C ships |
 | **Pass 2 is NOT unblocked by D alone** | it also needs ADR-062 §4's origin decision — the human's — and four abstention gates shown open. See §4 |
-| **Pass 2's surface moved on 2026-08-31** | and the two moves have **opposite status**: the PI holds working tools — **built and green**, `6e01c37`. A sandbox around `bash` — **ADR-070, `PROPOSED`, nothing built.** §4's pass-2 amendment and §5 |
+| **Pass 2's surface moved on 2026-08-31** | and the two moves have **opposite status**: the PI holds working tools — **built and green**, `6e01c37`. A sandbox around `bash` — **ADR-070, **accepted 2026-08-31 and still unbuilt**, nothing built.** §4's pass-2 amendment and §5 |
+
+
+> **ADR-070 WAS ACCEPTED BY THE HUMAN ON 2026-08-31, AFTER THIS PAGE WAS WRITTEN.**
+> Every *"proposed"* below that names it should be read as **accepted and still unbuilt** —
+> acceptance authorised the work and settled the mechanism argument; it built nothing. The
+> spike that gates the implementation (does Git Bash survive an AppContainer?) has not run,
+> and ADR-070's own status line says acceptance does not change that. **No document may cite
+> it as evidence that agents are contained until those probes have.**
 
 ---
 
@@ -311,7 +319,7 @@ way.
 * **`bash` reaches the network with nothing allowlisting the destination**, so network egress control
   must sit at the **sandbox boundary, not in-process**. The in-process allowlist covers exactly one
   tool, and it is not the tool a red-teamer would reach for.
-* **ADR-032 is `Status: PROPOSED — needs the human's approval`** and names
+* **ADR-032 is `Status: Accepted 2026-08-31 by the human` — **and still not built**** and names
   `marlowe-loop/src/profile.rs` and `marlowe-permission/src/adjudicate.rs` as the §13-guarded files it
   touches. Both were edited. **An unaccepted §13 decision is not a defence to bet a machine on**,
   however well the code behind it reads.
@@ -374,7 +382,7 @@ two absent".** As of 2026-08-29, plus one **proposed** row added 2026-08-31:
 | 3 — the `(action, target)` latch | **shipped and UNREACHABLE in the daemon** (ADR-062). A pass-1 result about it measures a state the product cannot enter |
 | 4 — egress | **live on the `web` path, absent on the `bash` path**, with no grant persistence and an unaccepted ADR |
 | 5 — trust ledger | **not built — M6** |
-| **proposed — the `bash` sandbox** | **NOT BUILT, and ADR-070 is `PROPOSED`.** Not a sixth layer and not a substitute for layer 4: it would contain **damage**, not **disclosure**, and it wraps one tool. **No cell in either pass may count it** |
+| **proposed — the `bash` sandbox** | **NOT BUILT, and ADR-070 is **accepted (2026-08-31) and unbuilt**.** Not a sixth layer and not a substitute for layer 4: it would contain **damage**, not **disclosure**, and it wraps one tool. **No cell in either pass may count it** |
 
 A partial number read as a whole-system result is this project's most-logged failure. **Layer 3's row
 is the one most likely to produce it here**: a clean injection pass at the end of Session C says
@@ -412,7 +420,7 @@ cannot be red-teamed until M6.
 It does not claim the class list is complete — §8.3's five are the classes the brief names, and a
 completeness pass over them is part of the session rather than a precondition for it.
 
-**It does not claim anything about a sandbox, because there is not one.** ADR-070 is `PROPOSED` and
+**It does not claim anything about a sandbox, because there is not one.** ADR-070 is **accepted (2026-08-31) and unbuilt** and
 unbuilt; if it is accepted and built, the classes §4's amendment names change meaning and this
 document is amended then rather than now. Until then `bash`'s `Irreversible` escalation is the only
 thing standing where a box would be, and a pass-2 success that a box would have contained is still a

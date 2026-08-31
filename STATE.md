@@ -1,6 +1,186 @@
 ﻿# State
 
 
+## 2026-08-31 — M3 SESSION C CLOSES, AND THE ORGANISATION IT SHIPPED IS NOT THE ONE IT WAS DESIGNED WITH
+
+**Two decisions by the human changed the shape of the agent tree mid-session, and their statuses are
+not the same.** Read that first, because every document on this page now says one or the other:
+
+* **THE PI REVERSAL IS BUILT AND GREEN** (`6e01c37`). M3-DESIGN §1.2's *"masters hold no working
+  tools, structurally"* is reversed in code.
+* **THE SANDBOX IS ACCEPTED AND NOT BUILT** ([`ADR-070`](docs/design/adr/ADR-070-one-sandbox-per-team-and-it-wraps-bash.md),
+  accepted 2026-08-31). **No crate, no call site, and the one risk that could sink it has not been
+  spiked.** Acceptance authorised the work; it built nothing, and the ADR's own status line says so.
+
+### The PI is the senior researcher, not a boss kept off the work
+
+The human: *"the PI has a small research team they can use to explore options… he can make teams"*,
+and *"security is a primary concern but research and knowledge comes first."*
+
+**The old rule bought less than it looked like, and that is what decided it.** `SpawnRequest.task` is
+an `ArgumentRole::Payload` and `composes_spawn_targets` never checks it — so a toolless master still
+**wrote the task** for a worker that held `edit`. §1.2 displaced the actor one hop without adding a
+check. Removing it does not open that path; it stops routing around it.
+
+**What it costs, recorded rather than glossed.** §1.2's real argument was containment, not hierarchy:
+a master reads every worker's report, so it holds the most attacker-exposed context in the tree, and
+a child's note crosses in at `AgentInferred` — **above** `blocks_composed_targets`'s threshold.
+That is `SECURITY-AUDIT.md` finding #1, already open. **The blast radius does not widen in what can
+be done; it widens in how well-aimed it is.** Red-team pass 2 matters more after this, not less.
+
+> **ONE REFUSAL SURVIVED AND NEARLY DIED BY ACCIDENT.** `MANAGEMENT_TOOLS` was doing **two** jobs
+> under one whitelist — it withheld working tools *and* it withheld `ask`, which is a separate
+> decision the human took the same day (only a top-agent reaches the user). Deleting the whitelist
+> for the first would have dropped the second **in silence, with every remaining test green**.
+> `ask` is now refused by name as `ProfileError::OnlyATopAgentMayAsk`; `MANAGEMENT_TOOLS` and
+> `ProfileError::MasterHoldsWorkingTool` are deleted.
+
+**OPEN, AND IT IS A GAP IN THAT SAME IMPLEMENTATION.** The `ask` guard sits on the **`Master` arm
+only** (`profile.rs`, the `AgentLevel::Master if exposed_tools.contains("ask")` arm). The
+`TopAgent | Worker` arm is empty, **so a level-4 Worker holding `ask` is still constructible** —
+while §3.1 says *"a worker can never address Marlowe"* and the error's own text says *"only a
+top-agent reaches the user."* Not a security hole: `Engine` refuses `Ask` below `Secretary`
+regardless. But it is exactly the *"door visible in the exposed set and locked at every call"* defect
+the decision existed to remove, **left half-done**. One line, in a §13-guarded file, **not taken
+because the human was away and had said he would not be accepting permission prompts.**
+
+### The sandbox: one box per team, and it wraps `bash`
+
+The human: *"Marlowe → full access to computer, hence why its securities are heavy. Agent teams →
+full access to their own sandbox, securities lifted so they can go wild."* And the correction that
+decided the mechanism: **"a git worktree can be left. A sandbox cannot."**
+
+**The finding that makes it small: only ONE thing leaves the daemon process.** `web`, the model call,
+the journal and every file tool run in-process (`marlowe-exec/src/lib.rs:1999-2001` has `bash` and
+`web` adjacent). Only `spawn_shell` exits. So the box wraps `bash` and **research is untouched** —
+`web` is harness-executed today and stays that way.
+
+**Verified on this machine by `icacls`, not asserted:**
+
+```
+C:\Users\matth        ← NO "ALL APPLICATION PACKAGES" ACE at all
+C:\Program Files\Git  ← ALL APPLICATION PACKAGES:(I)(RX) and (I)(OI)(CI)(IO)(GR,GE)
+```
+
+**Windows denies an AppContainer the user's profile, and lets it run Git Bash, by its own default
+ACLs — before a line is written.** `CreateAppContainerProfile` needs no elevation.
+
+**Network denial is the kernel, not a filter.** A token with a NULL capability array holds neither
+`internetClient` nor `privateNetworkClientServer`; WFP drops the connect on the package SID. There is
+no spelling of `curl` that acquires a capability the token does not hold — which is why this is not
+the filter `01-brief.md` §8.1 rules out. **Loopback is blocked for AppContainers by default**, closing
+the hole ROADMAP names as *"exactly where an attacker aims"*, and the exemption requires admin.
+
+**THE SEQUENCING CONSTRAINT, AND IT IS THE MOST IMPORTANT SENTENCE HERE.** `bash`'s `Irreversible`
+escalation **IS** the current containment on that path — ADR-049 §4 measured `curl` returning HTTP
+200 from `cmd /C` with no `EgressPolicy` consulted. **So lifting the escalation and building the box
+are ONE change, not two.** Lifting first does not trade a little safety for speed; it removes the
+only wall there is.
+
+**Egress is NOT retired by it.** The box contains **damage**, not **disclosure**: `web` is
+harness-executed, the box holds a copy of the user's source, and the allowlist is the only thing
+between that and an attacker-named host.
+
+**UNVERIFIED, and the largest risk: whether MSYS2 / Git Bash survives AppContainer's redirected
+object namespace.** It is a spike, not an argument, and it is step 0 of the next session.
+
+### Red-team pass 1 — RAN, and published no ASR
+
+Four findings, every one from a control rather than a cell. The metric conflated obeying an injection
+with faithfully reporting one; two runs of the identical configuration gave opposite orderings
+(25/50/**100**%, then 75/75/**0**%); arm (c) can carry a tool note instead of the child's prose; and
+`marlowe-red:9b` never called `web` on **9 of 12 cells**, so without the positive control the
+**unsafeguarded** model would have reported better containment than the safeguarded one.
+**A8 is unanswered in either direction, so D and E still rest on an untested assumption.**
+`runs/m3-c/redteam/PASS1-REPORT.md`.
+
+### The injection pre-filter — measured and SHELVED by the human
+
+A small model emitting one boolean, in front of the quarantine. **4/15 recall at 4b; 0/15 at 2b and
+0.8b.** Speed was confirmed (4.3× cheaper than a 9B summarise) and did not matter. **Politeness
+defeats it completely** — the two payloads written in the register a real attack uses were missed by
+every model on every carrier. The false-positive fear did not materialise: zero flags on pages about
+prompt injection, XSS and SQLi. **Recall killed it, not the Twitter problem.** And it contradicts the
+ladder's own assumption: `DECISIONS.md` records AAII 22 → 20 as *"inside the noise"*, and on this task
+it was the entire signal. `runs/m3-c/prefilter/FINDING.md`.
+
+**Two probe defects faked a result first, and both are recorded**: all three detectors are thinking
+models, so the answer went to the `thinking` field and `response` came back empty — 30/30 unparseable,
+reading exactly like *"small models cannot do this"*, with `eval_count` 13 on every call. And
+splicing at 60% of a 64,899-char paper before truncating at 24,000 put the payload past the cut, so
+**five of fifteen "attack" cells contained no attack.**
+
+### What is built this session
+
+Model-driver seam · injected-memory push mutation-covered · A8's three arms · quarantined-reader
+budget floor · five agent levels · `role`/`disposition` as ADR-023 Targets · escalation routing ·
+TERMINATE as an absence · the PI reversal · **the §13 hook now sees Bash edits**.
+
+**Suite: 1,263 passed, 0 failed, 7 ignored, 122 result lines** across ten crates (`runs/m3-c/final/`).
+Per-crate only; `--workspace` was never run.
+
+**Running the suite paid for itself.** Nine failures were already on master and `cargo check` could
+not see any of them — both guarded builds reported check-clean and neither could run tests because
+the human had held them. Two were text-matching guards catching new prose (a `-> CallLimits {`
+return type counted as a construction; the words *"while it looks perfectly configured"* inside an
+error string matching a `while ` scan). Four were the same disposition/level cause. One was §C6: the
+escalation build embedded a persona phrase as a literal.
+
+**And the ladder settled an ambiguity ADR-066 could not.** A four-spawn chain is unreachable —
+`Secretary → TopAgent → Master → Worker` is **three** spawns — so `[Wa]` at level 4 is three hops.
+That exposed the band ceiling: each hop is 0.375, so four hops is 1.98% and three is **5.27%**,
+exactly the figure ADR-066 predicted would fail the design's own ceiling. Re-declared for the chain
+that exists, floor unmoved at 1%.
+
+### The §13 hook could not see a Bash edit
+
+Found independently by two agents. The matcher was `Edit|Write|NotebookEdit` and `main` read only
+`file_path` — so **every guarded-file change this session went through a heredoc and produced no
+prompt and no record**, while `--self-check`, `boundary_hook.rs` and CLAUDE.md's table all still
+reported those paths as protected. Those check *paths*; none checks *reachability*. Instance #14 one
+level out. Closed at `feaa521` under M3-D3's *adding is safe* precedent, **17 pipe cases**, with the
+`personal/` bound and the `Edit` path both held as controls. **Pipe-verified only.**
+
+### Documents written this session
+
+`PI-MODEL.md` (the requirement, in the human's words) · `CAPACITY-SENSOR.md` (the queue's sensor
+under-reports the 27b by **7.6×**) · `ADR-070` · `PI-SESSION-PLAN.md` · seven ADRs accepted ·
+`runs/m3-c/brainstorm/` (three brainstorms, sixteen agents) · `runs/m3-c/sandbox/`.
+
+### THE NEXT SESSION IS PLANNED AND GATED — `PI-SESSION-PLAN.md`
+
+Goal, the human's: *"prove that agents work in their sandbox… a PI who deploys agents manually."*
+
+**Step 0 is a spike, not a build**, and it needs the human present — the first exercise of a
+containment boundary on his machine. Everything after is unattended. Then: the box → the team
+workspace → **the kickoff** → the demo.
+
+**The kickoff is the step most likely to be underrated.** A model not told it has a team does not
+spawn one, so without it the demo shows a very good model doing everything alone — the opposite of
+what is being proved.
+
+**Three things the demo will NOT show, said before it runs rather than explained after:** the team is
+**sequential** (`Engine::spawn` runs its child synchronously and `NUM_PARALLEL=1` serialises every
+model), so it will look like a queue because it is one; the demo runs the PI at `9b-super`, because
+the 27b co-resides with nothing on this card and swaps cost **11,410 ms**; and there is **no
+benchmark number** — proving the harness beats a solo model is a separate measurement with its own
+controls.
+
+### Owed by the human
+
+1. **The `ask` guard's Worker arm** — one line, §13-guarded, above.
+2. **Step 0's presence.** Two hours, once.
+3. **The latch scope**, deferred with its deadline: **before Session D starts, not after.**
+4. Standing: ADR-062 §4's origin decision; `OLLAMA_MAX_LOADED_MODELS` unset.
+
+### Unchanged, and verified rather than assumed
+
+`grep -rn "ingest_external(" --include=*.rs crates/*/src/ | grep -v "fn ingest_external"` is
+**empty**. No producer for `Channel::Agent`. Layer 3 remains unreachable in the shipped daemon, which
+is the CORRECT state (ADR-062). `protect-boundaries.py --self-check .` exits 0. Two §13-guarded files
+were edited this session — `driver.rs` and `profile.rs` — **both with the human's explicit go-ahead
+and both with `DECISIONS.md` entries.**
+
 ## 2026-08-30 — RED-TEAM PASS 1 RAN AND PUBLISHED NO ASR. THAT IS THE RESULT, NOT A FAILURE TO FINISH
 
 **Read `runs/m3-c/redteam/PASS1-REPORT.md` before anything else in this entry.** Pass 1 is C's

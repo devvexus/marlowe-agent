@@ -8,6 +8,14 @@ so and names the experiment that would resolve it.
 
 Part 2 records infrastructure choices.
 
+
+> **ADR-070 WAS ACCEPTED BY THE HUMAN ON 2026-08-31, AFTER THIS PAGE WAS WRITTEN.**
+> Every *"proposed"* below that names it should be read as **accepted and still unbuilt** —
+> acceptance authorised the work and settled the mechanism argument; it built nothing. The
+> spike that gates the implementation (does Git Bash survive an AppContainer?) has not run,
+> and ADR-070's own status line says acceptance does not change that. **No document may cite
+> it as evidence that agents are contained until those probes have.**
+
 ---
 
 # Part 1 â€” The Hard Problems

@@ -1,4 +1,4 @@
-# The PI model — Marlowe is the connection to the geniuses
+﻿# The PI model — Marlowe is the connection to the geniuses
 
 **Stated by the human 2026-08-31, during M3 Session C. This page is the requirement, not the
 design.** It captures what was asked for while the wording is fresh, so the brainstorms that follow
@@ -16,6 +16,14 @@ reversal"* until 2026-08-31, and is amended rather than replaced because two thi
 have two different statuses and it must never let them read as one.** The tool reversal is in code
 and the suite is green. The sandbox is an ADR awaiting the human — no crate, no call site, no spike
 run. Every sentence below that touches either one says which it is.
+
+
+> **ADR-070 WAS ACCEPTED BY THE HUMAN ON 2026-08-31, AFTER THIS PAGE WAS WRITTEN.**
+> Every *"proposed"* below that names it should be read as **accepted and still unbuilt** —
+> acceptance authorised the work and settled the mechanism argument; it built nothing. The
+> spike that gates the implementation (does Git Bash survive an AppContainer?) has not run,
+> and ADR-070's own status line says acceptance does not change that. **No document may cite
+> it as evidence that agents are contained until those probes have.**
 
 ---
 

@@ -1,4 +1,4 @@
-# The PI session — plan, for approval
+﻿# The PI session — plan, for approval
 
 **Written 2026-08-31 at the human's request, for the session immediately after M3 Session C.**
 Nothing here is started.
@@ -11,6 +11,14 @@ Nothing here is started.
 
 **So the deliverable is a thing you watch, not a suite that goes green.** A PI takes a real task,
 provisions a box, spawns helpers into it, they work, and you see it happen.
+
+
+> **ADR-070 WAS ACCEPTED BY THE HUMAN ON 2026-08-31, AFTER THIS PAGE WAS WRITTEN.**
+> Every *"proposed"* below that names it should be read as **accepted and still unbuilt** —
+> acceptance authorised the work and settled the mechanism argument; it built nothing. The
+> spike that gates the implementation (does Git Bash survive an AppContainer?) has not run,
+> and ADR-070's own status line says acceptance does not change that. **No document may cite
+> it as evidence that agents are contained until those probes have.**
 
 ---
 

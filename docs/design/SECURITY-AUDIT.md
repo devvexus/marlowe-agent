@@ -1,4 +1,4 @@
-# Security audit — read-only sweep, 2026-08-12
+﻿# Security audit — read-only sweep, 2026-08-12
 
 **Status: BEING WORKED THROUGH.** It is a findings log with proposed fixes, produced by parallel
 read-only audit agents. `marlowe-net` (the fetch path) was excluded from scope by the owner.
@@ -215,6 +215,14 @@ the human's two hard constraints bind the build (`runs/m3-c/sandbox/HARD-CONSTRA
 never log the user out**, and **nothing verifies the box by running a destructive command** — escape
 is proved by reaching something harmless you should not be able to reach, never by destroying
 something.
+
+
+> **ADR-070 WAS ACCEPTED BY THE HUMAN ON 2026-08-31, AFTER THIS PAGE WAS WRITTEN.**
+> Every *"proposed"* below that names it should be read as **accepted and still unbuilt** —
+> acceptance authorised the work and settled the mechanism argument; it built nothing. The
+> spike that gates the implementation (does Git Bash survive an AppContainer?) has not run,
+> and ADR-070's own status line says acceptance does not change that. **No document may cite
+> it as evidence that agents are contained until those probes have.**
 
 ---
 
