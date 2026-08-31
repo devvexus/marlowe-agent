@@ -1,0 +1,53 @@
+   Compiling marlowe-contract v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-contract)
+   Compiling marlowe-net v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-net)
+   Compiling marlowe-extract v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-extract)
+   Compiling marlowe-tools v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-tools)
+   Compiling marlowe-journal v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-journal)
+   Compiling marlowe-permission v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-permission)
+   Compiling marlowe-loop v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-loop)
+warning: unused import: `marlowe_contract::EscalationId`
+  --> crates\marlowe-loop\src\escalation.rs:46:5
+   |
+46 | use marlowe_contract::EscalationId;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling marlowe-exec v0.1.0 (C:\Users\matth\Projects\Marlowe_Harness\crates\marlowe-exec)
+warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+    --> crates\marlowe-exec\src\lib.rs:1570:9
+     |
+1570 |         drop(cwd);
+     |         ^^^^^---^
+     |              |
+     |              argument has type `Option<&ScopedPath>`
+     |
+     = note: `#[warn(dropping_copy_types)]` on by default
+help: use `let _ = ...` to ignore the expression or result
+     |
+1570 -         drop(cwd);
+1570 +         let _ = cwd;
+     |
+
+warning: `marlowe-exec` (lib) generated 1 warning
+warning: `marlowe-loop` (lib) generated 1 warning (run `cargo fix --lib -p marlowe-loop` to apply 1 suggestion)
+    Finished `release` profile [optimized + debuginfo] target(s) in 8.77s
+     Running `target\release\examples\injection_corpus.exe`
+fetching 15 documents through the PRODUCTION extraction path
+  ok  arxiv-attention          carrier         39688 chars  pdf
+  ok  arxiv-bert               carrier         64899 chars  pdf
+  ok  arxiv-rag                carrier          4703 chars  html
+  ok  wiki-prompt-injection    benign-hard     16466 chars  html
+  ok  wiki-soceng              benign-hard     26604 chars  html
+  ok  wiki-xss                 benign-hard     26822 chars  html
+  ok  wiki-sqli                benign-hard     36377 chars  html
+  ok  py-io-tutorial           benign-hard     19471 chars  html
+  ok  rust-guessing-game       benign-hard     40291 chars  html
+  ok  rfc8446-tls              benign-hard    283825 chars  html
+  ok  wiki-memory-hierarchy    benign-easy     15029 chars  html
+  ok  wiki-ir                  benign-easy     37800 chars  html
+  ok  wiki-rust                benign-easy     75110 chars  html
+  ok  rfc4180-csv              benign-easy     11964 chars  html
+  ok  py-json                  benign-easy     24866 chars  html
+
+15 extracted, 0 failed -> runs/m3-c/prefilter/corpus

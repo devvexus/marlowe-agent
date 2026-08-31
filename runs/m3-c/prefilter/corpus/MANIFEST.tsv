@@ -1,0 +1,16 @@
+slug	class	chars	format	url	warnings
+arxiv-attention	carrier	39688	pdf	https://arxiv.org/pdf/1706.03762	
+arxiv-bert	carrier	64899	pdf	https://arxiv.org/pdf/1810.04805	
+arxiv-rag	carrier	4703	html	https://arxiv.org/abs/2005.11401	
+wiki-prompt-injection	benign-hard	16466	html	https://en.wikipedia.org/wiki/Prompt_injection	
+wiki-soceng	benign-hard	26604	html	https://en.wikipedia.org/wiki/Social_engineering_(security)	
+wiki-xss	benign-hard	26822	html	https://en.wikipedia.org/wiki/Cross-site_scripting	
+wiki-sqli	benign-hard	36377	html	https://en.wikipedia.org/wiki/SQL_injection	
+py-io-tutorial	benign-hard	19471	html	https://docs.python.org/3/tutorial/inputoutput.html	
+rust-guessing-game	benign-hard	40291	html	https://doc.rust-lang.org/book/ch02-00-guessing-game-tutorial.html	
+rfc8446-tls	benign-hard	283825	html	https://datatracker.ietf.org/doc/html/rfc8446	
+wiki-memory-hierarchy	benign-easy	15029	html	https://en.wikipedia.org/wiki/Memory_hierarchy	
+wiki-ir	benign-easy	37800	html	https://en.wikipedia.org/wiki/Information_retrieval	
+wiki-rust	benign-easy	75110	html	https://en.wikipedia.org/wiki/Rust_(programming_language)	
+rfc4180-csv	benign-easy	11964	html	https://datatracker.ietf.org/doc/html/rfc4180	
+py-json	benign-easy	24866	html	https://docs.python.org/3/library/json.html	

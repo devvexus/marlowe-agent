@@ -56,9 +56,32 @@ Then, in parallel:
 2. **Marlowe fits the capabilities to the job at spawn.** Not a fixed per-role profile: the tool set,
    the budget and the team shape are derived from the answers to §2's questions. §1.3's *"worker tool
    sets are per type"* is a weaker statement than this.
-3. **A direct user↔PI channel.** M3-DESIGN §6.5 already allows chat with a top-agent through a
-   window, and §3.1 lets a top-agent reach the user. **What is new is the user opening it** — and
-   that this is an ordinary conversation, not an escalation.
+3. **A direct user↔PI channel, and it is a first-class feature rather than an implication.**
+   Stated by the human 2026-08-31: **"any top-level agent is talkable by Marlowe and the user. It's
+   part of their run window."**
+
+   M3-DESIGN §6.5 already allows chat with a top-agent through a window, and §3.1 lets a top-agent
+   reach the *user*. **Neither describes the user opening the conversation**, and the difference is
+   not cosmetic:
+
+   * §3's channel is an **escalation** — the agent is stuck, it is scoped to a subtree, it is
+     approved at each level, and Marlowe is deliberately not the recipient. It is rare and it is
+     the agent's to initiate.
+   * This channel is an **ordinary conversation**, initiated by whoever wants it, at any time, with
+     no escalation semantics and nothing to approve.
+
+   Two consequences to design against. **It is talkable by Marlowe *too***, which §3.2 does not
+   anticipate — that section is emphatic that Marlowe sees *"a notification and nothing else"* about
+   an escalation, and a routine chat channel is a different object that must not become a way to
+   read one. **And it lives in the run window** (M3-DESIGN §6, already built), so the substrate
+   exists: a window attaches to a run, `Intent::Steer` is already a write into a running run, and
+   `/watch` already opens one. What is missing is a reply path and the framing that this is a
+   conversation rather than a steer.
+
+   **The §4 invariant constrains one direction only.** The user or Marlowe talking *to* a top-agent
+   is prose flowing **down**, which §2 declares safe. What comes **back** is the direction that has
+   always needed typing, and a chat reply is exactly the free-text upward channel §2.3 exists to
+   prevent — so this is where A8's unanswered question stops being academic.
 4. **The conversation never blocks the work, in both directions.** Talking to Marlowe must not
    perturb the PI, and the PI must not wait on Marlowe. This is M3's founding premise
    (*"the conversation never halts"*) applied to a specific pair.
@@ -86,6 +109,52 @@ there."* But `SpawnRequest.task` is an `ArgumentRole::Payload` and `composes_spa
 checks it — so a toolless master still wrote the task for a worker that held `edit`. **The rule
 displaced the actor one hop without adding a check.** Removing it does not open that path; it stops
 routing around it.
+
+### 3.0 THE KICKOFF — a role briefing, because 52 AAII does not mean it can infer what it is
+
+> *"An ideal model for research can't infer it. It'll need an md given, called 'kickoff' — a quick
+> introduction of what it is (You are the Principal Investigator) and what it can do. Use agents
+> when needed. The models are 52 AAII, but giving them a small kickoff goes a long way."*
+
+**This is the difference between a capable model and a capable *researcher*, and it is not a prompt
+tweak.** A `task` string says what to do. It does not say *what you are*, *who works for you*, *what
+they are good at*, or *that delegating is expected rather than a failure to cope*. A model that has
+not been told it has a team does not spawn one — and the whole thesis of this harness is that the
+team is where the gain is.
+
+**It is an ARTIFACT, on `persona/vN.md`'s pattern, and for the same reasons.** Versioned, one file,
+loaded rather than interpolated, and living in the **stable tier**. §3.3's argument transfers
+exactly: a role that lives in retrievable memory is a role a retrieval miss lets the model
+improvise, and a PI inventing its own job description is worse than one that was never briefed.
+
+**It is NOT the persona.** `04-addendum-persona.md` is binding, non-configurable, and Marlowe's —
+it governs user-visible prose. A kickoff is a *role briefing* for an agent the user does not read
+directly. Two different artifacts, two different lifetimes, and conflating them would put the
+persona's stability requirements on a file that should change as the team's capabilities do.
+
+**One per role, not one in total.** The assistant's kickoff and the intern's are different documents
+saying different things — *"you extract and report; you do not editorialise; the PI needs what the
+source says, not what you think of it"* is the intern's whole job description and it is not the PI's.
+
+**It flows DOWN, so §2 declares it safe** and it costs the security model nothing. The kickoff is
+harness-authored prose reaching an agent; nothing about it crosses upward.
+
+**And it is what makes the output read like research.** The human's benchmark framing —
+
+> *"If you put `marlowe-dusk:27b-super` into this harness and asked it a benchmark question that
+> required deep research, and compared it to the same model without the harness, the scores should
+> be extremely different — and the answers should read like research findings rather than simple
+> A/B/C/D."*
+
+— is a statement about **register and evidence**, not just accuracy. A model told *"answer the
+question"* returns an answer. A model told *"you are a principal investigator; findings carry their
+sources; you have assistants for breadth and interns for triage"* returns something with a shape.
+That shape is half the kickoff and half the `OutputContract`, and neither is inferable from a task
+string.
+
+**The measurement that would prove it**, and it is the one benchmark row that matters here: the same
+model, the same question, harness against no harness, scored on the benchmark's own metric **and**
+on whether the answer carries checkable citations. Anything less is comparing a model to itself.
 
 ### 3.1 No token budget by default, on local models
 

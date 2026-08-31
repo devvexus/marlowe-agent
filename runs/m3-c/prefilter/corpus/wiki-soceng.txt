@@ -1,0 +1,353 @@
+Toggle the table of contents
+Social engineering (security)
+51 languages
+العربية
+Azərbaycanca
+Беларуская
+বাংলা
+Bosanski
+Català
+کوردی
+Čeština
+Deutsch
+Ελληνικά
+Español
+Eesti
+Euskara
+فارسی
+Suomi
+Français
+Galego
+עברית
+हिन्दी
+Magyar
+Հայերեն
+Bahasa Indonesia
+Italiano
+日本語
+ქართული
+한국어
+Lombard
+Lietuvių
+Latviešu
+Македонски
+മലയാളം
+Монгол
+Bahasa Melayu
+Nederlands
+Norsk nynorsk
+Norsk bokmål
+Livvinkarjala
+Polski
+Português
+Română
+Русский
+Simple English
+Slovenščina
+Српски / srpski
+Svenska
+ไทย
+Türkçe
+Українська
+Oʻzbekcha / ўзбекча
+Tiếng Việt
+中文
+Edit links
+Article
+Talk
+English
+Read
+Edit
+View history
+Tools
+Tools
+move to sidebar hide
+Actions
+Read
+Edit
+View history
+General
+What links here
+Related changes
+Upload file
+Permanent link
+Page information
+Cite this page
+Get shortened URL
+Switch to legacy parser
+Print/export
+Download as PDF
+Printable version
+In other projects
+Wikimedia Commons
+Wikidata item
+Appearance
+move to sidebar hide
+From Wikipedia, the free encyclopedia
+Psychological manipulation in information security
+For the influencing of attitudes and social behaviors on a large scale, see Social engineering (political science).
+In the context of information security, social engineering is the use of psychological pressure to influence people to perform actions or divulge confidential information. It has also been more broadly defined as "any act that influences a person to take an action that may or may not be in their best interests."[1][2] A type of confidence trick for the purpose of information gathering, fraud, or system access, it differs from a traditional "con" in the sense that it is often one of many steps in a more complex fraud scheme.[3] Phishing is a type of social engineering.[4] Researchers have developed detection techniques and cybersecurity educational programs.[5]
+Researchers in 2019 and 2020 said that social engineering was an increasingly important challenge for organizations and countries.[6][7][8] Reports indicated that through 2024, social engineering attacks had increased in intensity and number.[9][vague]
+Techniques and terms
+[edit]
+Social engineering techniques are based on weaknesses in human decision-making known as cognitive biases.[10][11] Social engineering is a form of psychological manipulation.[12]
+An example of social engineering would be an attacker who walks into a building and posts an official-looking announcement to the company bulletin that says the telephone number for the help desk has changed. When employees call the false number for help, the individual asks them for their passwords and IDs, thereby gaining access to the company's private information. Another example of social engineering would be a hacker contacting the target on a social networking site and starting a conversation with them. Gradually, the hacker gains the trust of the target and then uses that trust to gain access to sensitive information like passwords or bank account details.[13]
+Pretexting
+[edit]
+Main article: Pretexting
+Pretexting, also known in the UK as blagging,[14] is the act of creating and using an invented scenario (the pretext) to engage a targeted victim in a manner that increases the chance the victim will divulge information or perform actions that would be unlikely in ordinary circumstances.[15] An elaborate lie, it most often involves some prior research or setup and the use of this information for impersonation (e.g., date of birth, Social Security number, last bill amount) to establish legitimacy in the mind of the target.[16]
+Water holing
+[edit]
+Main article: Watering hole attack
+Water holing is a targeted social engineering strategy that capitalizes on the trust users have in websites they regularly visit. The victim feels safe to do things they would not do in a different situation. A wary person might, for example, purposefully avoid clicking a link in an unsolicited email, but the same person would not hesitate to follow a link on a website they often visit. So, the attacker prepares a trap for the unwary prey at a favored watering hole. This strategy has been successfully used to gain access to some (supposedly) very secure systems.[17]
+Baiting
+[edit]
+Baiting is a form of real-world Trojan horse that uses physical media and relies on the curiosity or greed of the victim.[18] In this attack, attackers leave malware-infected floppy disks, CD-ROMs, or USB flash drives in locations people will find them (bathrooms, elevators, sidewalks, parking lots, etc.), give them legitimate and curiosity-piquing labels, and wait for victims.
+Unless computer controls block infections, insertion compromises PCs "auto-running" media. Hostile devices can also be used.[19] For instance, a "lucky winner" is sent a free digital audio player compromising any computer it is plugged to. A "road apple" (the colloquial term for horse manure, suggesting the device's undesirable nature) is any removable media with malicious software left in opportunistic or conspicuous places. It may be a CD, DVD, or USB flash drive, among other media. Curious people take it and plug it into a computer, infecting the host and any attached networks. Again, hackers may give them enticing labels, such as "Employee Salaries" or "Confidential".[20]
+One study published in 2016 had researchers drop 297 USB drives around the campus of the University of Illinois. The drives contained files on them that linked to webpages owned by the researchers. The researchers were able to see how many of the drives had files on them opened, but not how many were inserted into a computer without having a file opened. Of the 297 drives that were dropped, 290 (98%) of them were picked up and 135 (45%) of them "called home".[21]
+Ad phishing
+[edit]
+See also: Malvertising
+Ad phishing is a social engineering technique in which malicious actors use online ads to deceive users into believing they are interacting with legitimate brands or services. According to Google, these deceptive ads often mimic trusted entities such as banks, software providers, or customer support pages, leading users to fraudulent sites that attempt to steal passwords, credit card information, or other sensitive data.[22]
+Quid Pro Quo
+[edit]
+An attacker offers to provide sensitive information (e.g. login credentials) or pay some amount of money in exchange for a favor. The attacker may pose as an expert offering free IT help, whereby they need login credentials from the user.[23]
+Scareware
+[edit]
+Main article: Scareware
+An example of a scareware popup
+The victim is bombarded with multiple messages about fake threats and alerts, making them think that the system is infected with malware. Thus, attackers force them to install remote login software or other malicious software, or directly extort a ransom, such as offering to send a certain amount of money in cryptocurrency in exchange for the safety of confidential videos that the criminal has, as he claims.[23]
+Tailgating (piggybacking)
+[edit]
+An attacker pretends to be a company employee or other person with access rights in order to enter an office or other restricted area. Deception and social engineering tools are actively used. For example, the intruder pretends to be a courier or loader carrying something in his hands and asks an employee who is walking outside to hold the door, gaining access to the building.[23]
+Law
+[edit]
+United States
+[edit]
+Pretexting of banking records
+[edit]
+The 1999 Gramm-Leach-Bliley Act (GLBA) is a U.S. Federal law that specifically addresses pretexting of banking records as an illegal act punishable under federal statutes. When a business entity such as a private investigator, SIU insurance investigator, or an adjuster conducts any type of deception, it falls under the authority of the Federal Trade Commission (FTC). This federal agency has the obligation and authority to ensure that consumers are not subjected to any unfair or deceptive business practices. US Federal Trade Commission Act, Section 5 of the FTCA states, in part: "Whenever the Commission shall have reason to believe that any such person, partnership, or corporation has been or is using any unfair method of competition or unfair or deceptive act or practice in or affecting commerce, and if it shall appear to the Commission that a proceeding by it in respect thereof would be to the interest of the public, it shall issue and serve upon such person, partnership, or corporation a complaint stating its charges in that respect."
+The statute states that when someone obtains any personal, non-public information from a financial institution or the consumer, their action is subject to the statute. It relates to the consumer's relationship with the financial institution. For example, a pretexter using false pretenses either to get a consumer's address from the consumer's bank, or to get a consumer to disclose the name of their bank, would be covered. The determining principle is that pretexting only occurs when information is obtained through false pretenses.
+Pretexting of telephone records
+[edit]
+In December 2006, United States Congress approved a Senate sponsored bill making the pretexting of telephone records a federal felony with fines of up to $250,000 and ten years in prison for individuals (or fines of up to $500,000 for companies). The Telephone Records and Privacy Protection Act of 2006 was signed by President George W. Bush on 12 January 2007.[24]
+U.S. Rep. Fred Upton (R-Kalamazoo, Michigan), chairman of the Energy and Commerce Subcommittee on Telecommunications and the Internet, expressed concern over the easy access to personal mobile phone records on the Internet during a House Energy & Commerce Committee hearing on "Phone Records For Sale: Why Aren't Phone Records Safe From Pretexting?" Illinois became the first state to sue an online records broker when Attorney General Lisa Madigan sued 1st Source Information Specialists, Inc., a spokeswoman for Madigan's office said. The Florida-based company operates several Web sites that sell mobile telephone records, according to a copy of the suit. The attorneys general of Florida and Missouri quickly followed Madigan's lead, filing suits respectively, against 1st Source Information Specialists and, in Missouri's case, one other records broker – First Data Solutions, Inc.
+Several wireless providers, including T-Mobile, Verizon, and Cingular filed earlier lawsuits against records brokers, with Cingular winning an injunction against First Data Solutions and 1st Source Information Specialists. U.S. Senator Charles Schumer (D-New York) introduced legislation in February 2006 aimed at curbing the practice. The Consumer Telephone Records Protection Act of 2006 would create felony criminal penalties for stealing and selling the records of mobile phone, landline, and Voice over Internet Protocol (VoIP) subscribers.
+The law was passed at least partially in response to the Hewlett-Packard spying scandal. Patricia Dunn, former chairwoman of Hewlett Packard, reported that the HP board hired a private investigation company to look into who was responsible for leaks within the board. Dunn acknowledged that the company used the practice of pretexting to solicit the telephone records of board members and journalists. Chairman Dunn later apologized for this act and offered to step down from the board if it was desired by board members.[25] Unlike Federal law, California law specifically forbid such pretexting. The four felony charges brought on Dunn were dismissed.[26]
+Notable social engineering incidents
+[edit]
+1970s–1990s
+[edit]
+Kevin Mitnick, Susan Headley, and Lewis De Payne were involved in phreaking and computer hacking efforts involving social engineering in Los Angeles in the late 1970s and early 1980s.[27][28]
+The Badir Brothers [he], Ramy, Muzher, and Shadde Badir‍— all of whom were blind from birth‍— set up an extensive phone and computer fraud scheme in Israel in the 1990s using social engineering, voice impersonation, and Braille-display computers.[29][30]
+2011 RSA SecurID phishing attack
+[edit]
+In 2011, hackers broke into the сryptographic corporation RSA and obtained information about SecurID two-factor authentication fobs. Using this data, the hackers later tried to infiltrate the network of defense contractor Lockheed Martin. The hackers gained access to the key fob data by sending emails to four employees of the parent corporation from an alleged recruitment site. The emails contained an Excel attachment titled 2011 Recruitment Plan. The spreadsheet contained a zero-day Flash exploit that provided backdoor access to the work computers.[31][32]
+2013 Department of Labor watering hole attack
+[edit]
+In 2013, a U.S. Department of Labor server was hacked and used to host malware and redirect some visitors to a site using a zero-day Internet Explorer exploit to install a remote access trojan called Poison Ivy. Watering hole attacks were used, with the attackers creating pages related to toxic nuclear substances overseen by the Department of Energy. The targets were likely DoL and DOE employees with access to sensitive nuclear data.[31][33]
+2014 Sony pictures leak
+[edit]
+On 24 November 2014, the hacker group "Guardians of Peace"[34] (probably linked to North Korea)[35] leaked confidential data from the film studio Sony Pictures Entertainment. The data included emails, executive salaries, and employees' personal and family information. The phishers pretended to be high up employees to install malware on workers' computers.[36]
+2015 Ubiquiti Networks scam
+[edit]
+In 2015, specialized Wi-Fi hardware and software maker Ubiquiti lost nearly $47 million to hackers. Attackers sent Ubiquiti's accounting department a phishing email from a Hong Kong branch with instructions to change payment account details. Upon discovering the theft, the company began cooperating with law enforcement, but was only able to recover $8 million of the stolen funds, although they had hoped for $15 million.[31][37]
+2016 United States Elections leaks
+[edit]
+During the 2016 United States Elections, hackers associated with Russian Military Intelligence (GRU) sent phishing emails directed to members of Hillary Clinton's campaign, disguised as a Google alert.[38] Many members, including the chairman of the campaign, John Podesta, had entered their passwords thinking it would be reset, causing their personal information, and thousands of private emails and documents to be leaked.[39] With this information, they hacked into other computers in the Democratic Congressional Campaign Committee, implanting malware in them, which caused their computer activities to be monitored and leaked.[39]
+2017 Equifax breach help websites
+[edit]
+Following the 2017 Equifax data breach linked to China's People's Liberation Army[40] in which over 150 million private records were leaked (including Social Security numbers, and drivers license numbers, birthdates, etc.), warnings were sent out regarding the dangers of impending security risks.[41] In the day after the establishment of a legitimate help website (equifaxsecurity2017.com) dedicated to people potentially victimized by the breach, 194 malicious domains were reserved from small variations on the URL, capitalizing on the likelihood of people mistyping.[42][43]
+2017 Google and Facebook phishing emails
+[edit]
+Two tech giants‍— Google and Facebook‍— were phished out of $100 million by a Lithuanian fraudster in 2017.[44] The fraudster impersonated a hardware supplier to falsely invoice both companies over two years.[45] Despite their technological sophistication, the companies lost the money, although they were later able to recoup the majority of the funds stolen.[46]
+Countermeasures
+[edit]
+There are several providers of training and education related to social engineering. In the 2000s, Mitnick collaborated on a training program for certified social engineering prevention specialists.[47] Christopher Hadnagy, an American information technology security consultant, has written several books on social engineering and cybersecurity.[48][49][50]
+See also
+[edit]
+Advance-fee scam
+References
+[edit]
+↑ "Social Engineering Defined". Security Through Education. Retrieved 3 October 2021.
+↑ Steinmetz, Kevin F.; Pimentel, Alexandra; Goe, W. Richard (1 December 2020). "Decrypting Social Engineering: An Analysis of Conceptual Ambiguity". Critical Criminology. 28 (4): 631–650. doi:10.1007/s10612-019-09461-9. ISSN 1572-9877.
+↑ Anderson, Ross J. (2008). Security engineering: a guide to building dependable distributed systems (2 ed.). Indianapolis, IN: Wiley. p. 1040. ISBN 978-0-470-06852-6. Chapter 2, page 17
+↑ "Avoiding Social Engineering and Phishing Attacks". U.S. CISA. 1 February 2021. Retrieved 4 May 2026.
+↑ Salahdine, Fatima (2019). "Social Engineering Attacks: A Survey". School of Electrical Engineering and Computer Science, University of North Dakota. 11 (4): 89.
+↑ Salahdine, Fatima; Kaabouch, Naima (2 April 2019). "Social Engineering Attacks: A Survey". Future Internet. 11 (4): 89. doi:10.3390/fi11040089. ISSN 1999-5903.
+↑ Mashtalyar, Nikol; Ntaganzwa, Uwera Nina; Santos, Thales; Hakak, Saqib; Ray, Suprio (2021). "Social Engineering Attacks: Recent Advances and Challenges". In Moallem, Abbas (ed.). HCI for Cybersecurity, Privacy and Trust. Lecture Notes in Computer Science. Vol. 12788. Cham: Springer International Publishing. pp. 417–431. doi:10.1007/978-3-030-77392-2_27. ISBN 978-3-030-77392-2.
+↑ World Economic Forum (13 January 2025). Global Cybersecurity Outlook 2025 (PDF) (Report). World Economic Forum. Retrieved 16 March 2026.
+↑ Jaco, K: "CSEPS Course Workbook" (2004), unit 3, Jaco Security Publishing.
+↑ Kirdemir, Baris (2019). "Hostile Influence and Emerging Cognitive Threats in Cyberspace". Centre for Economics and Foreign Policy Studies. JSTOR resrep21052.
+↑ "Understanding the Dangers of Social Engineering". United States Department of State. Retrieved 4 May 2026.
+↑ Hatfield, Joseph M (June 2019). "Virtuous human hacking: The ethics of social engineering in penetration-testing". Computers & Security. 83: 354–366. doi:10.1016/j.cose.2019.02.012. S2CID 86565713.
+↑ "Fundamentals of cyber security". BBC Bitesize. 19 March 2019. Archived from the original on 7 July 2024. Retrieved 7 July 2024.
+↑ The story of HP pretexting scandal with discussion is available at Davani, Faraz (14 August 2011). "HP Pretexting Scandal by Faraz Davani". Retrieved 15 August 2011 – via Scribd.
+↑ "Social Engineering, the USB Way". Light Reading Inc. 7 June 2006. Archived from the original on 13 July 2006. Retrieved 23 April 2014.
+↑ "Archived copy" (PDF). Archived from the original (PDF) on 11 October 2007. Retrieved 2 March 2012.{{cite web}}: CS1 maint: archived copy as title (link)
+↑ Conklin, Wm. Arthur; White, Greg; Cothren, Chuck; Davis, Roger; Williams, Dwayne (2015). Principles of Computer Security, Fourth Edition (Official Comptia Guide). New York: McGraw-Hill Education. pp. 193–194. ISBN 978-0071835978.
+↑ Raywood, Dan (4 August 2016). "#BHUSA Dropped USB Experiment Detailed". info security. Retrieved 28 July 2017.
+↑ "Avoid and handle social engineering (phishing or deceptive content)". Google Search Central. Google Inc. Retrieved 4 October 2025.
+1 2 3 "Social Engineering - Information Security Office - Computing Services - Carnegie Mellon University". www.cmu.edu. Carnegie Mellon University. Retrieved 12 April 2025.
+↑ "Congress outlaws pretexting". 109th Congress (2005–2006) H.R.4709 – Telephone Records and Privacy Protection Act of 2006. 2007.
+↑ HP chairman: Use of pretexting 'embarrassing' Stephen Shankland, 8 September 2006 1:08 PM PDT CNET News.com
+↑ "Calif. court drops charges against Dunn". CNET. 14 March 2007. Retrieved 11 April 2012.
+↑ Hafner, Katie (August 1995). "Kevin Mitnick, unplugged". Esquire. 124 (2): 80(9).
+↑ Barth, Bradley (10 July 2017). "Female blackhats". SC Media. Retrieved 14 November 2025.
+↑ "Wired 12.02: Three Blind Phreaks". Wired. 14 June 1999. Retrieved 11 April 2012.
+↑ "Social Engineering A Young Hacker's Tale" (PDF). DATAQUEST. 15 February 2013. Retrieved 13 January 2020.
+1 2 3 "5 Social Engineering Attacks of All Time". www.cybersecurityeducationguides.org. 2 November 2017. Retrieved 9 April 2025.
+↑ Greenberg, Andy. "The Full Story of the Stunning RSA Hack Can Finally Be Told". Wired. ISSN 1059-1028. Retrieved 9 April 2025.
+↑ "Internet Explorer zero-day blamed for Department of Labor website attack". Infosecurity Magazine. 6 May 2013. Retrieved 10 April 2025.
+↑ "The Sony Pictures Breach: A Deep Dive into a Landmark Cyber Attack - Sep 15, 2023". www.frameworksec.com. Retrieved 21 October 2024.
+↑ Weise, Elizabeth; Johnson, Kevin (19 December 2014). "FBI confirms North Korea behind Sony hack". USA Today. Archived from the original on 19 December 2014. Retrieved 19 December 2014.
+↑ "Famous Phishing Incidents from History | Hempstead Town, NY". www.hempsteadny.gov. Retrieved 21 October 2024.
+↑ "Ubiquiti Networks Says It Was Victim of $47 Million Cyber Scam". NBC News. 7 August 2015. Retrieved 9 April 2025.
+↑ "2016 Presidential Campaign Hacking Fast Facts". CNN. 27 December 2016. Retrieved 7 August 2024.
+↑ "Straight Talk: Beware scams related to Equifax data breach". Archived from the original on 6 December 2020.
+↑ "Phishing". Security Through Education. Social-Engineer.
+↑ "Google and Facebook duped in huge 'scam'". BBC News. 28 April 2017. Retrieved 10 April 2025.
+↑ Jr, Tom Huddleston (27 March 2019). "How this scammer used phishing emails to steal over $100 million from Google and Facebook". CNBC. Retrieved 20 October 2024.
+↑ "Famous Phishing Incidents from History | Hempstead Town, NY". www.hempsteadny.gov. Retrieved 14 October 2024.
+↑ "Ex-Hacker Kevin Mitnick Teaches From Experience". The Wall Street Journal. 15 October 2003. p. B1.
+↑ "Bens Book of the Month Review of Social Engineering The Science of Human Hacking". RSA Conference. 31 August 2018. Retrieved 22 January 2020.
+↑ "Book Review: Social Engineering: The Science of Human Hacking". The Ethical Hacker Network. 26 July 2018. Archived from the original on 12 November 2020. Retrieved 22 January 2020.
+↑ Hadnagy, Christopher; Fincher, Michele (22 January 2020). "Phishing Dark Waters: The Offensive and Defensive Sides of Malicious E-mails". ISACA. Retrieved 22 January 2020.
+Further reading
+[edit]
+Boyington, Gregory. (1990). 'Baa Baa Black Sheep' Published by Gregory Boyington ISBN 0-553-26350-1
+Harley, David. 1998 Re-Floating the Titanic: Dealing with Social Engineering Attacks Archived 22 September 2016 at the Wayback Machine EICAR Conference.
+Laribee, Lena. June 2006 Development of methodical social engineering taxonomy project Master's Thesis, Naval Postgraduate School.
+Leyden, John. 18 April 2003. Office workers give away passwords for a cheap pen. The Register. Retrieved 2004-09-09.
+Mann, Ian. (2008). Hacking the Human: Social Engineering Techniques and Security Countermeasures Published by Gower Publishing Ltd. ISBN 0-566-08773-1 or ISBN 978-0-566-08773-8
+Mitnick, Kevin, Kasperavičius, Alexis. (2004). CSEPS Course Workbook. Mitnick Security Publishing.
+Mitnick, Kevin, Simon, William L., Wozniak, Steve,. (2002). The Art of Deception: Controlling the Human Element of Security Published by Wiley. ISBN 0-471-23712-4 or ISBN 0-7645-4280-X
+Hadnagy, Christopher, (2011) Social Engineering: The Art of Human Hacking Published by Wiley. ISBN 0-470-63953-9
+N.J. Evans. (2009). "Information Technology Social Engineering: An Academic Definition and Study of Social Engineering-Analyzing the Human Firewall." Graduate Theses and Dissertations. 10709. https://lib.dr.iastate.edu/etd/10709
+Z. Wang, L. Sun and H. Zhu. (2020) "Defining Social Engineering in Cybersecurity," in IEEE Access, vol. 8, pp. 85094-85115, doi:10.1109/ACCESS.2020.2992807.
+External links
+[edit]
+Wikimedia Commons logo
+Wikimedia Commons has media related to Social engineering (security).
+Social Engineering Fundamentals – Securityfocus.com. Retrieved 3 August 2009.
+"Social Engineering, the USB Way". Light Reading Inc. 7 June 2006. Archived from the original on 13 July 2006. Retrieved 23 April 2014.
+Should Social Engineering be a part of Penetration Testing? – Darknet.org.uk. Retrieved 3 August 2009.
+"Protecting Consumers' Phone Records", Electronic Privacy Information Center US Committee on Commerce, Science, and Transportation. Retrieved 8 February 2006.
+Plotkin, Hal. Memo to the Press: Pretexting is Already Illegal. Retrieved 9 September 2006.
+v
+t
+e
+Information security
+Threats
+Adware
+Advanced persistent threat
+Arbitrary code execution
+Backdoors
+Bombs
+Fork
+Logic
+Time
+Zip
+Hardware backdoors
+Code injection
+Crimeware
+Cross-site scripting
+Cross-site leaks
+DOM clobbering
+History sniffing
+Cryptojacking
+Botnets
+Data breach
+Drive-by download
+Browser Helper Objects
+Viruses
+Data scraping
+Denial-of-service attack
+Eavesdropping
+Email fraud
+Email spoofing
+Exploits
+Fraudulent dialers
+Hacktivism
+Infostealer
+Insecure direct object reference
+Keystroke loggers
+Malware
+Payload
+Phishing
+Voice
+Polymorphic engine
+Privilege escalation
+Ransomware
+Rootkits
+Scareware
+Shellcode
+Spamming
+Social engineering
+Spyware
+Software bugs
+Trojan horses
+Hardware Trojans
+Remote access trojans
+Vulnerability
+Web shells
+Wiper
+Worms
+SQL injection
+Rogue security software
+Zombie
+vectorial version
+vectorial version
+Defenses
+Application security
+Secure coding
+Secure by default
+Secure by design
+Misuse case
+Computer access control
+Authentication
+Multi-factor authentication
+Authorization
+Computer security software
+Antivirus software
+Security-focused operating system
+Data-centric security
+Software obfuscation
+Data masking
+Encryption
+Firewall
+Intrusion detection system
+Anomaly detection
+Information security management
+Information risk management
+Runtime application self-protection
+Site isolation
+Scrubber Center
+Related
+security
+topics
+Computer security
+Automotive security
+Cybercrime
+Cybersex trafficking
+Computer fraud
+Cybergeddon
+Cyberterrorism
+Cyberwarfare
+Electronic warfare
+Information warfare
+Internet security
+Mobile security
+Network security
+Copy protection
+Digital rights management
+Categories:
+Social engineering (security)
+Cybercrime
+Deception
+Hidden categories:
+Articles with short description
+Use dmy dates from August 2020
+CS1 maint: archived copy as title
+Webarchive template wayback links
+Commons category link is on Wikidata

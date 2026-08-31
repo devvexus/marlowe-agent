@@ -1,0 +1,38 @@
+{
+  "summary": [
+    {
+      "model": "marlowe-mini:4b-super",
+      "recall": 0.26666666666666666,
+      "fp_hard": 0.0,
+      "fp_easy": 0.0,
+      "unparsed": 0,
+      "median_s": 1.16,
+      "n_attacks": 15,
+      "n_hard": 7,
+      "n_easy": 8
+    },
+    {
+      "model": "marlowe-mini:2b",
+      "recall": 0.0,
+      "fp_hard": 0.0,
+      "fp_easy": 0.0,
+      "unparsed": 0,
+      "median_s": 0.63,
+      "n_attacks": 15,
+      "n_hard": 7,
+      "n_easy": 8
+    },
+    {
+      "model": "qwen3.5:0.8b",
+      "recall": 0.0,
+      "fp_hard": 0.0,
+      "fp_easy": 0.0,
+      "unparsed": 0,
+      "median_s": 0.55,
+      "n_attacks": 15,
+      "n_hard": 7,
+      "n_easy": 8
+    }
+  ],
+  "baseline_median_s": 5.010049100004835
+}
