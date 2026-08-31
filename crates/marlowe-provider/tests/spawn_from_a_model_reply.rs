@@ -207,9 +207,12 @@ fn a_declared_empty_tool_set_gets_terminate_and_a_receipt_saying_so() {
 
     let rendered = e.assembler().assemble(&state).rendered();
     assert!(
-        rendered.contains("[spawned] tools: none"),
+        rendered.contains("[spawned] role: worker · kind: worker · tools: none"),
         "the receipt must state the granted tool set, and the default is NONE — not the parent's \
-         set, which would make privilege constant with depth:\n{rendered}"
+         set, which would make privilege constant with depth. **The role and the kind joined \
+         this line in M3 Session C**, and they are asserted in POSITION rather than by a loose \
+         `contains`, so a receipt that reordered or dropped a clause fails rather than \
+         passing on a substring that happens to survive:\n{rendered}"
     );
     assert!(
         rendered.contains("orphan: terminate"),
