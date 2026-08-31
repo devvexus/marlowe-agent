@@ -1,0 +1,22 @@
+  [ok  ] heredoc into trust.rs            asks=True  want=True
+  [ok  ] sed -i driver.rs                 asks=True  want=True
+  [ok  ] windows seps + redirect          asks=True  want=True
+  [ok  ] bare relative persona/           asks=True  want=True
+  [ok  ] dot-slash persona/               asks=True  want=True
+  [ok  ] cp into persona/                 asks=True  want=True
+  [ok  ] tee into steer.rs                asks=True  want=True
+  [ok  ] rm journal signature             asks=True  want=True
+
+-- CONTROLS, must stay silent --
+  [ok  ] grep READ profile.rs             asks=False want=False
+  [ok  ] sed -n READ trust.rs             asks=False want=False
+  [ok  ] cat READ adjudicate.rs           asks=False want=False
+  [ok  ] write UNGUARDED engine.rs        asks=False want=False
+  [ok  ] write to personal/ (bound)       asks=False want=False
+  [ok  ] cargo check                      asks=False want=False
+  [ok  ] git log                          asks=False want=False
+
+  [ok  ] end-to-end through stdin -> ask=True
+  [ok  ] Edit path regression       -> ask=True
+
+ALL PASS

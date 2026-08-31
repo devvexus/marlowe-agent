@@ -160,6 +160,79 @@ def reason_for(path: str) -> str | None:
     return None
 
 
+# Tokens that make a shell command a WRITE rather than a read.
+#
+# **Why this list exists instead of matching every command that names a guarded file.** The hook
+# returns `ask`, and M3-DESIGN §4.2 names the cost of over-asking directly: *"an interruption the
+# user learns to click through is worse than no interruption at all."* Guarded files are grepped
+# and `sed -n`'d constantly during ordinary work — prompting on every read would train exactly
+# that reflex, and a boundary nobody reads is a boundary that does not exist.
+WRITE_TOKENS = (
+    ">", ">>", "|tee", "| tee", "tee ", "sed -i", "perl -i", "python", "python3", "ruby ",
+    "node ", "cp ", "mv ", "rm ", "install ", "truncate", "dd ", "patch ", "git apply",
+    "git checkout", "git restore", "git reset",
+)
+
+
+def reason_for_command(command: str) -> tuple[str, str] | None:
+    """A §13 path named inside a shell command that also looks like a write.
+
+    # The gap this closes, and it was found twice independently in one session
+
+    `.claude/settings.json` matched `Edit|Write|NotebookEdit`. **The Bash tool was not in it**, and
+    `main` read only `file_path`/`notebook_path` — so every guarded-file change made through a
+    heredoc, `sed -i` or a Python one-liner produced **no prompt and no record**, while
+    `--self-check`, `boundary_hook.rs` and CLAUDE.md's table all still reported the path as
+    protected. Those three check *paths*; none of them checks *reachability*.
+
+    That is instance #14's family aimed one level out. There, a guard's SUBJECT moved and the guard
+    went quiet. Here the subject is correct and the guard's **trigger surface** is incomplete — and
+    the tool an agent naturally reaches for to do a mechanical multi-site edit is precisely the one
+    that bypassed it.
+
+    # THIS IS A FILTER, AND FILTERS LOSE. Say so rather than let it be read as containment.
+
+    `$(echo dri)ver.rs`, a path built from a variable, a `python` script that computes the name —
+    each defeats this trivially. `01-brief.md` §8.1 rules filters out **by name** for untrusted
+    content: *"Filtering does not work. Containment works."*
+
+    **It is still the right mechanism HERE, and the reason is the threat model rather than the
+    technique.** §13 exists against *the agent changing safety machinery on its own initiative* —
+    an honest agent doing mechanical work, not an adversary evading a check. There is no attacker
+    on this path choosing the spelling of the filename. Against that, a filter that catches the
+    ordinary case is worth having; against egress, where an attacker does choose, it would not be.
+    **A later reader must not promote this into a containment boundary**, which is why the
+    distinction is written here and not left to be inferred.
+
+    Returns `(matched_path_fragment, why)` or `None`.
+    """
+    lowered = command.lower()
+    if not any(tok in lowered for tok in WRITE_TOKENS):
+        return None
+    # Both separators: the repo is developed on Windows and edited through Git Bash, so the same
+    # guarded file is written `crates/…/trust.rs` and `crates\…\trust.rs` in the same session.
+    normalised = command.replace("\\", "/")
+    for suffix, why in PROTECTED.items():
+        if suffix in normalised:
+            return suffix, why
+    for fragment, why in PROTECTED_DIRS.items():
+        if fragment in normalised:
+            return fragment, why
+    # **A bare relative path is still a path.** `PROTECTED_DIRS` keys are bounded on both sides —
+    # `/persona/` — so that `personal/` cannot match, and `reason_for` inherits that. It means
+    # `git checkout -- persona/v1.md` misses while `./persona/v1.md` hits, which is a distinction
+    # no author of a shell command is thinking about. Each whitespace-separated token is retested
+    # with a synthetic leading `/`, which restores the catch **without loosening the bound**:
+    # `/personal/` still does not contain `/persona/`. Measured both ways in
+    # `runs/m3-c/hook/bash-matcher.txt`.
+    for token in normalised.split():
+        candidate = "/" + token.lstrip("./")
+        for fragment, why in PROTECTED_DIRS.items():
+            if fragment in candidate:
+                return fragment, why
+    return None
+
+
 def list_protected() -> int:
     """Print every guarded entry, one per line, sorted. Read by `boundary_hook.rs`.
 
@@ -256,12 +329,23 @@ def main() -> int:
 
     tool_input = payload.get("tool_input") or {}
     path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
-    if not path:
-        return 0
 
-    why = reason_for(str(path))
-    if why is None:
-        return 0
+    if path:
+        why = reason_for(str(path))
+        if why is None:
+            return 0
+    else:
+        # **The Bash road.** `Edit`/`Write` carry a path; a shell command carries a command, and
+        # for the whole of M3 this branch did not exist — so a heredoc into a guarded file was
+        # unprompted and unrecorded. See `reason_for_command`, including what it deliberately
+        # cannot see.
+        command = tool_input.get("command") or ""
+        if not command:
+            return 0
+        hit = reason_for_command(str(command))
+        if hit is None:
+            return 0
+        path, why = hit
 
     print(
         json.dumps(
