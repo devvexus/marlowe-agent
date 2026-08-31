@@ -133,6 +133,7 @@ fn attack(page: &str, reader_says: &str) -> Result_ {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

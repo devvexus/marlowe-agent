@@ -33,6 +33,7 @@ pub mod cli;
 pub mod clipboard;
 pub mod commands;
 pub mod doctor;
+pub mod escalation;
 pub mod inspector;
 pub mod keys;
 /// Inline maths — legible where it can be, visibly source where it cannot. ADR-047.

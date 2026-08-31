@@ -162,6 +162,7 @@ fn drive_with(n: usize, identical: bool, replies: Vec<String>) -> Harness {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -383,6 +384,7 @@ fn with_no_budget_for_a_reader_the_page_is_not_placed_in_the_window() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

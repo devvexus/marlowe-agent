@@ -2858,6 +2858,7 @@ impl Daemon {
         );
         let outcome = {
             let mut ports = Ports {
+                escalations: None,
                 driver,
                 summarizer: &mut summarizer,
                 tools: &mut tools,
@@ -2897,6 +2898,15 @@ impl Daemon {
             LoopOutcome::Completed(_) => ("completed", String::new()),
             LoopOutcome::Paused { reason } => ("paused", format!("{reason:?}")),
             LoopOutcome::Escalated { question } => ("escalated", question.clone()),
+            // **Structurally unreachable, and it carries no detail for the same reason.**
+            // This match is the CONVERSATIONAL run's outcome, and
+            // `marlowe_loop::escalation_route` answers `NotRaisable(Root)` for a
+            // `Secretary`-level profile -- so `Engine` never returns this variant here.
+            // The arm exists because the match is exhaustive by design and a `_` would
+            // let the next variant land silently; the empty detail is M3-DESIGN section
+            // 3.2 held at the one place a body could otherwise reach the pane Marlowe is
+            // speaking in.
+            LoopOutcome::Raised(_) => ("raised", String::new()),
             LoopOutcome::Cancelled => ("cancelled", String::new()),
             LoopOutcome::Failed { error } => ("failed", error.clone()),
         };

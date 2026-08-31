@@ -1,0 +1,3 @@
+wrote runs\m3-c\redteam\PREREGISTRATION.json
+  layer 3 unreachable: True (0 non-definition call sites)
+  arm selector is read inside `spawn`, which owns the note match (3 reads of `self.upward_shape` in its body)

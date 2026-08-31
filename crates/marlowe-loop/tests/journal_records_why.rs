@@ -86,6 +86,7 @@ fn journal_of(with_detail: bool) -> MemoryRecorder {
     let mut recorder = MemoryRecorder::default();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,

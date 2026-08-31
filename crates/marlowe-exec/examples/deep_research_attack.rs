@@ -355,6 +355,7 @@ fn main() {
     let mut clock = Clock(1_700_000_000_000);
     let mut rec = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut sum,
         tools: &mut tools,

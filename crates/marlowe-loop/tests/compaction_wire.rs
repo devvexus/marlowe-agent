@@ -165,6 +165,7 @@ fn run_and_record(prior_turns: usize) -> (Vec<ContextView>, SessionState) {
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,

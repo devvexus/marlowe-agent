@@ -84,6 +84,7 @@ fn a_spawn_that_reads_untrusted_with_tools_is_refused_and_the_child_never_starts
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -167,6 +168,7 @@ fn a_quarantined_child_runs_and_returns_findings() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -216,6 +218,7 @@ fn a_budget_ceiling_pauses_and_never_spends_past_the_line() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -283,6 +286,7 @@ fn every_budget_dimension_can_be_the_one_that_pauses() {
         let mut clock = FrozenClock(1_700_000_000_000);
         let mut recorder = MemoryRecorder::default();
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,
@@ -328,6 +332,7 @@ fn a_driver_that_ignores_its_cap_is_stopped_at_the_next_iteration() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -401,6 +406,7 @@ fn a_childs_transcript_never_reaches_the_parents_context() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -524,6 +530,7 @@ fn a_child_does_not_inherit_its_parents_provenance_attributions() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -610,6 +617,7 @@ fn a_child_cannot_be_given_a_tool_its_parent_does_not_have() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -674,6 +682,7 @@ fn the_spawn_tree_is_bounded_by_depth() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -726,6 +735,7 @@ fn a_childs_spend_counts_against_its_parent() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -789,6 +799,7 @@ fn a_tool_call_whose_target_came_from_untrusted_content_is_blocked_by_the_loop()
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -902,6 +913,7 @@ fn run_latching(trust: TrustClass) -> (usize, usize, TrustClass) {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1049,6 +1061,7 @@ fn the_floor_moves_on_the_identity_block_alone_and_the_screen_says_nothing() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1140,6 +1153,7 @@ fn every_result_in_a_batch_is_attributable_to_the_call_that_produced_it() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1274,6 +1288,7 @@ fn a_batch_cannot_launder_a_target_through_its_own_sibling() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1400,6 +1415,7 @@ fn a_declined_call_reads_differently_depending_on_whether_anyone_could_be_asked(
         let mut clock = FrozenClock(1_700_000_000_000);
         let mut recorder = MemoryRecorder::default();
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,
@@ -1583,6 +1599,7 @@ fn a_model_that_returns_nothing_fails_the_run_rather_than_completing_it() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1622,6 +1639,7 @@ fn an_empty_turn_is_nudged_before_it_is_failed() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1901,6 +1919,7 @@ fn a_blocked_tool_call_still_emits_a_tool_line() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -1972,6 +1991,7 @@ fn a_refusal_tells_the_model_what_happened_and_whether_to_retry() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -2071,6 +2091,7 @@ fn a_spawn_puts_a_line_on_the_screen_and_the_childs_result_in_it() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -2184,6 +2205,7 @@ fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -2241,6 +2263,7 @@ fn a_spawn_that_never_said_which_tools_the_child_gets_is_refused_by_name() {
     let mut clock2 = FrozenClock(1_700_000_000_000);
     let mut recorder2 = MemoryRecorder::default();
     let mut ports2 = Ports {
+        escalations: None,
         driver: &mut driver2,
         summarizer: &mut summarizer2,
         tools: &mut tools2,
@@ -2324,6 +2347,7 @@ fn a_run_without_the_create_grant_cannot_spawn() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -2388,6 +2412,7 @@ fn a_run_without_the_create_grant_cannot_spawn() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

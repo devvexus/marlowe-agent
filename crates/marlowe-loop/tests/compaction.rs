@@ -84,6 +84,7 @@ fn governance_survives_compaction_with_a_summarizer_that_preserves_nothing() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -187,6 +188,7 @@ fn the_model_sees_its_governance_on_the_turn_after_compaction() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -249,6 +251,7 @@ fn compaction_invalidates_the_cache_and_a_stale_prefix_is_unreachable() {
     let epoch_before = e.assembler().cache_epoch();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,
@@ -319,6 +322,7 @@ fn tool_results_are_masked_before_the_window_reaches_the_compaction_trigger() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

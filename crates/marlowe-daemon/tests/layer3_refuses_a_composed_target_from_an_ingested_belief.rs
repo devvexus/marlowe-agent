@@ -377,6 +377,7 @@ fn drive(state: &mut SessionState, steps: Vec<ModelStep>, host: &mut Host) -> Ob
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: host,

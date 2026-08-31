@@ -118,6 +118,7 @@ fn a_real_spawn_puts_the_brief_on_the_wire_as_a_turn_the_child_can_answer() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -240,6 +241,7 @@ fn after_a_child_returns_the_parent_has_something_to_answer() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -402,6 +404,7 @@ fn a_childs_prose_never_reaches_the_surface_but_the_parents_answer_does() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -498,6 +501,7 @@ fn a_childs_result_survives_in_the_journal() {
     let mut recorder = MemoryRecorder::default();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,

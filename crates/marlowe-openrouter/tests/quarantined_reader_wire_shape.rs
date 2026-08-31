@@ -150,6 +150,7 @@ fn drive_one_fetch() -> Vec<(ContextView, ExposedSet)> {
     let (mut s, mut a, mut sk, mut c, mut cl, mut rec) =
         (Nop, Yes, Silent, marlowe_loop::NoControl, Frozen, MemoryRecorder::default());
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut s,
         tools: &mut tools,

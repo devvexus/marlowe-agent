@@ -196,6 +196,19 @@ pub enum PauseReason {
     BudgetExhausted { dimension: String },
     AwaitingApproval,
     AwaitingAnswer,
+    /// M3-DESIGN §3. The run raised, a desk accepted it, and a human is deciding.
+    ///
+    /// **A harness enum, so this variant carries no model bytes** — the `id` is derived by
+    /// `EscalationId::for_raise` from the raising run and a sequence number, both of which the
+    /// journal holds. That is what lets `Engine::spawn`'s note match interpolate a pause reason
+    /// into a parent's window without any check: `PauseReason` is the one payload on that path
+    /// nothing model-authored can reach, and the next variant added to it must stay that way.
+    ///
+    /// **No `CHECKPOINT_VERSION` bump.** A new enum variant is not a new field: every existing
+    /// blob still decodes, `deny_unknown_fields` is unaffected, and nothing defaults. The version
+    /// exists to stop a *missing* field being filled in with its permissive value, and there is
+    /// no missing field here.
+    AwaitingEscalation { id: marlowe_contract::EscalationId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

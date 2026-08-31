@@ -46,6 +46,7 @@ pub mod control_plane;
 pub mod clock;
 pub mod daemon;
 pub mod engine;
+pub mod escalation;
 pub mod live;
 pub mod mcp;
 pub mod memory;

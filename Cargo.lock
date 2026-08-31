@@ -1473,6 +1473,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.19",
+ "uuid",
 ]
 
 [[package]]
@@ -1645,6 +1646,7 @@ dependencies = [
  "marlowe-loop",
  "marlowe-permission",
  "marlowe-tools",
+ "marlowe-view",
  "serde",
  "serde_json",
  "thiserror 2.0.19",
@@ -1682,6 +1684,9 @@ dependencies = [
 [[package]]
 name = "marlowe-view"
 version = "0.1.0"
+dependencies = [
+ "marlowe-contract",
+]
 
 [[package]]
 name = "matrixmultiply"

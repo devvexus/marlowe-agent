@@ -157,6 +157,7 @@ fn an_approved_host_is_not_asked_about_again_and_a_different_host_still_is() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -340,6 +341,7 @@ fn a_deny_all_run_cannot_be_widened_by_an_approval() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -418,6 +420,7 @@ fn after_a_fetch_the_parents_floor_is_untouched_and_a_composed_target_still_runs
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -565,6 +568,7 @@ fn one_fetch_under(profile: CapabilityProfile) -> Arm {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

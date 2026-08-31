@@ -68,6 +68,7 @@ fn a_successful_remember_produces_no_memory_written_event_from_the_loop() {
 
     let mut e = engine();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -128,6 +129,7 @@ fn a_refused_remember_is_still_recorded_by_the_loop() {
 
     let mut e = engine();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -178,6 +180,7 @@ fn the_loop_hands_the_host_the_runs_latched_floor_and_its_session() {
 
     let mut e = engine();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

@@ -9,11 +9,16 @@
 //! [`CallLimits::max_output_tokens`] is a **hard cap that must be passed to the provider**, not
 //! a hint the harness checks afterwards. See `budget`.
 
+use marlowe_contract::escalation::{
+    ArtifactHandle, EscalationCategory, EscalationSeverity, OptionLabel, ValidatedSentence,
+};
+use marlowe_contract::EscalationId;
 use marlowe_permission::{ArgValue, Args, BlastRadius};
 use marlowe_tools::{ExposedSet, ResultSummary, ToolId};
 use serde::{Deserialize, Serialize};
 
 use crate::budget::{Budget, BudgetShare, CallLimits};
+use crate::escalation::{EscalationRefused, EscalationRoute};
 use crate::profile::{Disposition, ModelRoute};
 use crate::context::ContextView;
 use crate::run::{OrphanPolicy, OutputContract, RunId};
@@ -276,9 +281,86 @@ pub enum ModelStep {
     ToolCall { calls: Vec<ToolInvocation> },
     MemoryWrite(ClaimRequest),
     Spawn(SpawnRequest),
-    /// Escalate with a decision package. The run does not hold a channel open.
+    /// **`ask`: the conversational run puts a question to the user and waits.** The run does not
+    /// hold a channel open; it pauses and resumes on an answer.
+    ///
+    /// The line above used to read *"escalate with a decision package"*, which is now the
+    /// neighbouring variant's job and was never this one's.
+    ///
+    /// **Unchanged and unrepurposed.** M3-DESIGN §3.1's *"a worker can never address Marlowe"* is
+    /// enforced against this variant in `Engine`'s arm, which refuses it from any run whose
+    /// [`crate::profile::AgentLevel`] is not `Secretary`. It is not the escalation channel and
+    /// must not become one: an agent's question is a typed record, not a paragraph.
     Ask(String),
+    /// M3-DESIGN §3's typed upward record. **No free paragraph, and no recipient.**
+    ///
+    /// The recipient is `crate::escalation::escalation_route`, which reads the run tree. A model
+    /// that could name its own recipient would be the routing decision.
+    Escalate(EscalationRequest),
 }
+
+/// What a model may supply when it raises. **The recipient is not here.**
+///
+/// Every field names the function that reads it, or it is not here — CLAUDE.md instance #16. The
+/// table is in ADR-065 §3; the two that are easiest to get wrong:
+///
+/// * `severity` is read by the desk (stored on the record), by `Notice::EscalationRaised`'s
+///   producer and by the overlay's header row. **It gates nothing.** A model inflating every
+///   escalation to `Critical` costs attention and no capability.
+/// * `sentence` is read by `EscalationDesk::raise`, which stores it, and by
+///   `EscalationDesk::view_for`, which puts it on `EscalationView::sentence` — the overlay's
+///   header third row, through `chrome::prepare_model_text`. **It is NOT refused by an A8 arm
+///   here, and ADR-065's table says it is.** §9.1's 2026-08-30 amendment moved where A8's arms
+///   vary to `Engine::spawn`'s note match, which this change does not touch; a refusal written
+///   here would be a second place the arm is consulted. The field has a reader either way, which
+///   is what #16 asks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EscalationRequest {
+    pub severity: EscalationSeverity,
+    pub category: EscalationCategory,
+    /// §3.4's attacker-controlled half. Bounded and normalised at construction — each label is an
+    /// [`OptionLabel`], which cannot contribute a line or move the cursor.
+    ///
+    /// **The harness's own TERMINATE row is not in here and there is nowhere to put it.** That is
+    /// §3.4's structural invisibility expressed as an absence rather than as a flag: a producer
+    /// cannot supply it, suppress it, label it, style it or reorder it, because this type has no
+    /// field for any of those.
+    pub options: Vec<OptionLabel>,
+    /// A journal-addressed handle the surface turns into a path. **Not a `ContentRef`** — that
+    /// type carries a summary, and a summary is attacker prose crossing upward inside the record
+    /// §2.3 calls typed.
+    pub artifact: Option<ArtifactHandle>,
+    /// M3-DESIGN §9.1 A8's middle arm only.
+    pub sentence: Option<ValidatedSentence>,
+}
+
+/// How an escalation leaves the loop.
+///
+/// **This is the seam, and its absence is what made the first design unbuildable.** `Ports` had no
+/// escalation member and `marlowe-loop` cannot see `marlowe-daemon`, so a `ModelStep::Escalate`
+/// arm had a record and no destination — two individually coherent halves and nothing between
+/// them, which is the shape of the `done`-to-tool-host failure CLAUDE.md records.
+///
+/// `route` is passed rather than recomputed: the loop is the only thing holding the `Run`, and a
+/// desk that derived the route from a `RunId` it looked up would be a second answer to *"who is
+/// above this run"*.
+pub trait EscalationPort {
+    fn raise(
+        &mut self,
+        raised_by: RunId,
+        route: EscalationRoute,
+        req: EscalationRequest,
+    ) -> Result<EscalationId, EscalationRefused>;
+}
+
+// **There is no `NoEscalation` null object, and ADR-065 §2.3 proposed one.**
+//
+// `Ports::escalations` is `Option<&mut dyn EscalationPort>`, mirroring `Ports::memory` — the field
+// beside it, and the one that is `None` for exactly the run this design must refuse. A
+// `NoEscalation` returning `Err(NoDesk)` would then have no caller anywhere in the workspace,
+// which is instance #16 committed inside the fix for the seam. `None` is the same fail-closed
+// answer with one definition instead of two, and `Engine`'s arm reads it in the same shape the
+// `MemoryWrite` arm twelve lines away already uses.
 
 impl ModelStep {
     /// The single-call case, which is most of them. Exists so a batch of one does not have to be

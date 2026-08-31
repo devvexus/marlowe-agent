@@ -30,6 +30,7 @@ pub mod control;
 pub mod driver;
 pub mod durable;
 pub mod engine;
+pub mod escalation;
 pub mod profile;
 pub mod provenance;
 pub mod record;
@@ -47,16 +48,21 @@ pub use durable::{
     settle_orphan, settle_orphan_in, Checkpoint, CheckpointStore, JournalCheckpoints, MemoryCheckpoints,
     OrphanOutcome, Restored, CHECKPOINT_VERSION,
 };
-pub use driver::{BatchItem, ToolInvocation,
+pub use driver::{BatchItem, EscalationPort, EscalationRequest, ToolInvocation,
     ApprovalGate, ClaimRequest, ClockSource, Control, ExternalContent, MemoryHost, ModelCall, ModelDriver,
     ModelStep, NoControl, ProviderError, SpawnRequest, SteerMessage, SteppingClock, Summarizer,
     ToolBody, ToolHost, ToolOutcome, TurnSink, Urgency, Usage,
 };
 pub use engine::{
-    coerce_to_declared_types, Engine, LoopOutcome, Ports, QuarantineRefusal, CONTRACT_UNMET,
+    coerce_to_declared_types, Engine, LoopOutcome, Ports, QuarantineRefusal,
+    ASK_IS_THE_CONVERSATIONS_DOOR, CONTRACT_UNMET,
     KEEP_TOOL_RESULTS, MAX_SOURCES_PER_READER, MAX_STEPS, UNDESCRIBED_SOURCE,
 };
 pub use profile::{AgentLevel, CapabilityProfile, Disposition, InterruptPolicy, LevelRefusal, ModelRoute, ProfileError, UnrunnableTools, verify_every_exposed_tool_is_runnable};
+pub use escalation::{
+    escalation_route, EscalationRefused, EscalationRoute, NotRaisableReason, ESCALATION_NO_DESK,
+    ESCALATION_RAISED,
+};
 pub use provenance::Provenance;
 pub use steer::{MAX_STEER_CHARS, SteerOrigin, SteerRefused, admit as admit_steer};
 pub use record::{JournalRecorder, MemoryRecorder, Recorder};

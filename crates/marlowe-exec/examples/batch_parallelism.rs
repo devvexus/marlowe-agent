@@ -214,6 +214,7 @@ fn main() {
     let (mut s, mut g, mut k, mut c, mut cl, mut r) =
         (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing);
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut s,
         tools: &mut tools,

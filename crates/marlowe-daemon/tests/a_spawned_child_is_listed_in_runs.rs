@@ -147,6 +147,7 @@ fn a_child_spawned_from_a_model_reply_is_listed_in_runs() {
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,
@@ -277,6 +278,7 @@ fn a_finished_childs_elapsed_is_final_rather_than_growing() {
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,
@@ -387,6 +389,7 @@ fn a_run_windows_roster_names_the_children_and_a_childless_run_names_none() {
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,

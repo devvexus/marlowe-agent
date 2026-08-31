@@ -117,6 +117,7 @@ fn a_model_reply_naming_run_spawns_a_child_that_works_and_returns() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -190,6 +191,7 @@ fn a_declared_empty_tool_set_gets_terminate_and_a_receipt_saying_so() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -264,6 +266,7 @@ fn receipt_for(args: &serde_json::Value) -> String {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -303,6 +306,7 @@ fn an_unrecognised_orphan_policy_takes_the_safe_value_and_the_receipt_names_it()
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -408,6 +412,7 @@ fn a_model_cannot_hand_its_child_a_tool_the_parent_does_not_hold() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -490,6 +495,7 @@ fn a_spawn_with_no_task_is_refused_and_no_child_is_created() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -533,6 +539,7 @@ fn a_grant_larger_than_the_pool_is_refused_with_both_numbers() {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -604,6 +611,7 @@ fn spawn_count(args: &serde_json::Value, tainted: bool) -> (usize, TrustClass) {
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
@@ -705,6 +713,7 @@ fn drive(script: Vec<ModelCall>, budget: Budget) -> MemoryRecorder {
     let mut prov = Provenance::new();
     {
         let mut ports = Ports {
+            escalations: None,
             driver: &mut driver,
             summarizer: &mut summarizer,
             tools: &mut tools,

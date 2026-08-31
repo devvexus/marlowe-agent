@@ -3692,3 +3692,108 @@ child's `Escalated` being swallowed into a fixed harness string, and M3-DESIGN s
 channel needs a carrier rather than a routing function. `escalate` is not a thirteenth builtin.
 `ingest` is not wired and there is no `Channel::Agent` producer.
 
+
+---
+
+## 2026-08-31 · ESCALATION ROUTES ON THE LEVEL THAT ALREADY EXISTS, TERMINATE IS A ROW NO TYPE CAN OMIT, AND `driver.rs` WAS EDITED WITH PERMISSION
+
+**A §13 change, authorised by the human before it was made.** `crates/marlowe-loop/src/driver.rs`
+gains `ModelStep::Escalate`, `EscalationRequest` and the `EscalationPort` trait. It is the only
+guarded file this session touched; `profile.rs`, `adjudicate.rs`, `taint.rs`, `provenance.rs`,
+`egress.rs`, `scope.rs`, `steer.rs`, `memory.rs`, `mcp.rs` and `pin.rs` are unchanged.
+
+**ADR-065 §2.1 IS OVERRULED BY A COMMIT THAT LANDED AFTER IT WAS WRITTEN, AND THAT IS THIS ENTRY'S
+FIRST HALF.** The ADR proposes deleting `AgentLevel` in favour of a `RaisesTo` bit on `Run`, on two
+grounds: that `AgentLevel::ToolSpawned` is *"constructed by nothing"*, and that a level on `Run` is
+a second definition of tree position which `adopted_by` and `detached` silently falsify. **Both are
+false of `a017ee0`.** The level lives on `CapabilityProfile` as a private constructor-validated
+field, so no parent-link mutation can falsify it — it is a claim about what the profile may hold,
+enforced by three load-time rules — and `CapabilityProfile::quarantined_reader()` names
+`ToolSpawned`, which `Engine::condense_batch` builds every layer-1 reader from. So `RaisesTo` would
+be the **second** definition rather than the first, and this session did not add it.
+
+**The consequence is a durable-format change that is not needed.** ADR-065 §2.1 asks for
+`Checkpoint::raises_to` with no `#[serde(default)]` and a `CHECKPOINT_VERSION` bump. Neither is
+here: `Checkpoint::profile` already round-trips through `CapabilityProfile`'s validating
+`Deserialize`, so the level a route is read from survives a resume by a path that was already
+tested. `PauseReason` gains `AwaitingEscalation { id }`, and a new **variant** is not a new field —
+nothing defaults, `deny_unknown_fields` is unaffected, and the version exists to stop a *missing*
+field being filled with its permissive value.
+
+**`escalation_route` refuses on two disjuncts and NEITHER implies the other.** `reads_untrusted()`
+and `AgentLevel::ToolSpawned` each imply an empty tool set at construction, and neither implies the
+other: a `Worker` profile with `reads_untrusted` is constructible today, and `SCOPED-MEMORY.md` §4's
+fact extractor is a `ToolSpawned` run that reads nothing untrusted.
+`escalation_routing.rs::neither_refusal_disjunct_is_covering_for_the_other` asserts each with the
+other's condition held **false**, so neither can be passing on the other's behalf.
+
+**A top-agent's route to the human is not consulted against `parent`, and that is deliberate.** A
+`Master` or `Worker` that has been detached is told `NotRaisable(Detached)` — audibly, with an
+event and a line in its own window, because the first design let that case vanish silently. A
+**top-agent** reaches `EscalationRoute::User` whether or not it still has a parent: the one channel
+that reaches a person must not be closable by a lifetime the agent itself declared at spawn.
+
+**`Ports::escalations` is an `Option`, not a `NoEscalation` null object, and ADR-065 §2.3 proposed
+the latter.** The `Option` mirrors `Ports::memory` — the field beside it, and the one that is `None`
+for exactly the run this design must refuse — so the two withholdings that make a layer-1 reader
+inert are adjacent and read as one decision. A `NoEscalation` would have had no caller anywhere in
+the workspace, which is instance #16 committed inside the fix for the missing seam. **74 `Ports`
+literals were updated**; the ordinary spawn forwards the port and both quarantined children pass
+`None`, which is the inversion ADR-065 §9 records the adversarial pass getting backwards.
+
+**TERMINATE'S INVISIBILITY IS AN ABSENCE, NOT A FLAG.** `marlowe_view::EscalationView` has no field
+for the terminate row. A producer cannot suppress it, label it, style it, annotate it or move it
+because the type has nowhere to put any of those — `BlastRadius`'s argument inverted. M3-DESIGN
+§3.4's own last line is why a flag was refused: *"asserting a flag is set is the declaration, not
+the enforcement."*
+
+**The row is drawn in chrome the model cannot produce, and the mechanism already existed.**
+`marlowe_surface::chrome::is_reserved` covers Box-Drawing and Block-Elements as **ranges** and
+`prepare_model_text` substitutes every one of them in model text, so an agent that writes the
+harness's row verbatim — glyph included — renders as `<U+258F> terminate this agent…` beside a
+harness row that keeps the glyph. **The forgery is visible rather than blocked**, which is
+`sanitize`'s own trade: a stripped payload and a clean string must not be indistinguishable to the
+person deciding.
+
+**`TERMINATE_LABEL` says LESS than the first draft's, because the harness cannot keep that
+promise.** `Control::cancel` is per-run, `CONTRACTS.md` §5 pins *"children outlive parents"*, and
+`settle_orphan` makes `Detach` survive; there is no subtree cancel in the workspace. So the label is
+*"terminate this agent and the runs under it"* and `TerminationCost::survivors` names the children
+it cannot kill.
+
+**`marlowe-view` GAINS ITS FIRST DEPENDENCY, and it is a recorded decision rather than a claimed
+precedent.** Its `[dependencies]` was empty and its description reads *"Shapes only — nothing here
+can produce a value."* It now depends on `marlowe-contract`, because the alternative is a second
+`is_renderable` inside the shapes crate, and two answers to *"which characters may reach a
+terminal"* on the surface where SECURITY-AUDIT B1 and B2 both live is the worse trade.
+`marlowe-surface`'s `Cargo.toml` carries the *argument* verbatim, but that is a different crate one
+layer up: **the argument transfers and the precedent does not.** The stance holds in the way that
+matters — `marlowe-contract` is the deepest crate in the workspace and holds no producer.
+`marlowe-contract` in turn gains `uuid`, because `EscalationId` is a v5 name UUID over
+`(raiser, sequence)`: a v4 would be undrawable from the event that recorded the raise, and M3's
+subject is durable runs.
+
+**ADR-065 §2.6's `normalise` IS NOT BUILT AS WRITTEN, and the reason is instance #16.** It specifies
+*sanitize, then refuse if any character fails `is_renderable`*. `sanitize` does not drop a refused
+character — it substitutes `<U+001B>`, seven renderable ASCII characters — so that second check can
+**never fail**, and a `TextRejected::Unrenderable` variant would be a declared control whose reader
+can never see it true. It does not exist. What survives is the bound, measured on the **sanitized**
+string: 200 escapes expand to 1,400, and a cap applied before substitution would admit a label seven
+times the width of the row it has to fit.
+
+**`EscalationRequest` CARRIES `options`, and ADR-065's did not.** §3.4's whole premise is that a
+compromised top-agent writes the option list, and `EscalationView.options` had no producer in the
+ADR — a field nothing writes, which is the same defect the adversarial pass found in
+`AgentLevel::ToolSpawned`. Four is the ceiling, refused at construction and **never truncated**:
+dropping the fifth option is the harness silently choosing which of a raiser's alternatives a human
+gets to see.
+
+**WHAT IS NOT BUILT, NAMED RATHER THAN IMPLIED.** `ModelStep::Escalate` **has no production
+producer**: no adapter maps a tool call to it, because reaching it requires an `escalate` tool in an
+exposed set, and that is a `profile.rs` change this session was instructed not to make.
+**2026-08-30's entry already settles the tool question — *"`escalate` is not a thirteenth builtin"* —
+so the routing is enforced-and-unreachable in exactly the way ADR-062 records layer 3 being, and the
+next session should say so rather than discover it.** `EscalationDesk::from_journal` is likewise
+absent: the loop's raise event carries only the id, so a rebuild written against today's events
+would return a set of empty escalations and *look* like durability. Both are recorded in the code at
+the site a reader would otherwise have to infer them from.

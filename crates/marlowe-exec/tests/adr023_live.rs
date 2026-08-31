@@ -145,6 +145,7 @@ fn a_real_fetched_page_latches_the_floor_and_it_holds_after_the_page_is_trimmed_
     let mut clock = Frozen(1_700_000_000_000);
     let mut recorder = MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,

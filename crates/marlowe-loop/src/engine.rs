@@ -26,7 +26,10 @@ use marlowe_tools::{ExposedSet, Metric, ResultSummary, ToolId, ToolRegistry};
 use serde_json::json;
 use std::path::PathBuf;
 
-use crate::driver::ToolOutcome;
+use crate::driver::{EscalationPort, ToolOutcome};
+use crate::escalation::{
+    escalation_route, EscalationRefused, EscalationRoute, ESCALATION_NO_DESK, ESCALATION_RAISED,
+};
 
 /// One call that has passed adjudication and is waiting to run.
 ///
@@ -211,10 +214,28 @@ pub enum LoopOutcome {
     /// Hit a cap. **Pauses and asks** — never fails silently, never spends past the line.
     Paused { reason: PauseReason },
     /// `ask`. The run does not hold a channel open; it resumes on an answer.
+    ///
+    /// **This is the SECRETARY's variant and is left alone.** ADR-065 §4 records the alternative
+    /// that lost: collapsing it into an id-carrying escalation variant destroys `ask`, because
+    /// `daemon.rs` renders `question` as *how the user learns what was asked*. Two different facts
+    /// would share one variant and the more common one would lose its payload.
     Escalated { question: String },
+    /// M3-DESIGN §3. A typed record reached a desk and a human is deciding. **Carries an id and
+    /// no text** — the record is the desk's, not the parent's, and §3.2 is that nothing above the
+    /// raiser gets to read it.
+    Raised(marlowe_contract::EscalationId),
     Cancelled,
     Failed { error: String },
 }
+
+/// What a run that is not the conversation is told when it reaches for `ask`.
+///
+/// M3-DESIGN §3.1. **A shared constant rather than a literal at the push site**, so the test that
+/// asserts the refusal and the code that performs it cannot drift into two spellings — the
+/// `CONTRACT_UNMET` discipline, applied to the boundary CLAUDE.md names as the one whose deletion
+/// evaporates a rule with every guarded file untouched.
+pub const ASK_IS_THE_CONVERSATIONS_DOOR: &str =
+    "[ask refused] `ask` reaches the person Marlowe is talking to, and only the conversation      itself holds that door. An agent that is stuck raises an escalation instead, which travels      up its own chain of masters";
 
 /// Everything outside the loop that the loop needs.
 pub struct Ports<'a> {
@@ -222,6 +243,15 @@ pub struct Ports<'a> {
     pub summarizer: &'a mut dyn Summarizer,
     pub tools: &'a mut dyn ToolHost,
     pub memory: Option<&'a mut dyn MemoryHost>,
+    /// M3-DESIGN §3's upward channel. **`None` is fail-closed and is what the quarantined
+    /// reader's child `Ports` passes**, beside the `memory: None` above it — the two withholdings
+    /// that make a layer-1 reader inert are then adjacent and read as one decision.
+    ///
+    /// `Option` rather than a `NoEscalation` null object: see `driver.rs`'s note under
+    /// [`crate::driver::EscalationPort`]. A run whose `Ports` carries `None` is told so by name
+    /// (`escalation::ESCALATION_NO_DESK`) rather than told it may not raise — *"nobody is
+    /// listening"* and *"you may not raise"* are different facts.
+    pub escalations: Option<&'a mut dyn EscalationPort>,
     pub approvals: &'a mut dyn ApprovalGate,
     pub sink: &'a mut dyn TurnSink,
     pub control: &'a mut dyn Control,
@@ -1287,6 +1317,33 @@ impl<S: PathScope> Engine<S> {
                 }
 
                 ModelStep::Ask(question) => {
+                    // ── M3-DESIGN §3.1: *"a worker can never address Marlowe"* ──────────────
+                    //
+                    // `ask` is the CONVERSATIONAL run's door to the user, and this is the check
+                    // that keeps it that way. Without it any agent at any depth could emit
+                    // `ModelStep::Ask` and produce `LoopOutcome::Escalated { question }` — a
+                    // model-composed string leaving the loop on the channel §3 calls the most
+                    // dangerous in the system, by the ordinary tool the parent already gave it.
+                    //
+                    // **The shape is `MemoryWrite`'s, twenty lines below**, deliberately: a named
+                    // refusal block into the run's own window and the loop continues. It does not
+                    // end the run, and the previous behaviour effectively did — a child's
+                    // `Escalated` returns to `Engine::spawn`, which swallows the question and
+                    // finishes the child. A refusal the model can read and act on is strictly
+                    // better than a silent termination.
+                    //
+                    // **This site is why the boundary is not the §13 hook's.** `engine.rs` is
+                    // ordinary milestone work; deleting these four lines evaporates §3.1 with
+                    // every guarded file untouched. What stands behind it is
+                    // `escalation_routing.rs::an_agent_cannot_reach_the_user_through_the_secretarys_door`.
+                    if run.profile.level() != AgentLevel::Secretary {
+                        state.push(Block::new(
+                            SourceKind::History,
+                            ASK_IS_THE_CONVERSATIONS_DOOR,
+                            TrustClass::AgentObserved,
+                        ));
+                        continue;
+                    }
                     self.record(
                         ports,
                         EventKind::ApprovalRequested,
@@ -1296,6 +1353,84 @@ impl<S: PathScope> Engine<S> {
                     );
                     run.status = RunStatus::Paused { reason: PauseReason::AwaitingAnswer };
                     return LoopOutcome::Escalated { question };
+                }
+
+                ModelStep::Escalate(req) => {
+                    let route = escalation_route(run);
+                    match route {
+                        EscalationRoute::NotRaisable(reason) => {
+                            // **Audible, always.** The first design let a detached run's
+                            // escalation vanish with no event, no note and no window line. A
+                            // channel that goes quiet is not a channel that is closed.
+                            self.record(
+                                ports,
+                                EventKind::RunFailed,
+                                run,
+                                state,
+                                json!({ "escalation_refused": reason }),
+                            );
+                            state.push(Block::new(
+                                SourceKind::History,
+                                reason.note(),
+                                TrustClass::AgentObserved,
+                            ));
+                        }
+                        EscalationRoute::Parent(_) | EscalationRoute::User => {
+                            let raised_by = run.id;
+                            let raised = match ports.escalations.as_deref_mut() {
+                                Some(desk) => desk.raise(raised_by, route, req),
+                                None => Err(EscalationRefused::NoDesk),
+                            };
+                            match raised {
+                                Ok(id) => {
+                                    self.record(
+                                        ports,
+                                        EventKind::ApprovalRequested,
+                                        run,
+                                        state,
+                                        json!({ "escalation": id.to_string() }),
+                                    );
+                                    state.push(Block::new(
+                                        SourceKind::History,
+                                        ESCALATION_RAISED,
+                                        TrustClass::AgentObserved,
+                                    ));
+                                    run.status = RunStatus::Paused {
+                                        reason: PauseReason::AwaitingEscalation { id },
+                                    };
+                                    return LoopOutcome::Raised(id);
+                                }
+                                Err(EscalationRefused::NoDesk) => {
+                                    state.push(Block::new(
+                                        SourceKind::History,
+                                        ESCALATION_NO_DESK,
+                                        TrustClass::AgentObserved,
+                                    ));
+                                }
+                                Err(why) => {
+                                    // **`why` is a harness-composed `thiserror` string over
+                                    // harness-held numbers.** No model byte reaches it: the counts
+                                    // come from the desk's own ceilings, and no field of the
+                                    // refused record is interpolated. A refusal that quoted the
+                                    // rejected label back would carry the refused content inside
+                                    // its own refusal, which `ContractViolation` already refuses
+                                    // to do for the same reason.
+                                    self.record(
+                                        ports,
+                                        EventKind::RunFailed,
+                                        run,
+                                        state,
+                                        json!({ "escalation_refused": why.to_string() }),
+                                    );
+                                    state.push(Block::new(
+                                        SourceKind::History,
+                                        format!("[escalation refused] {why}"),
+                                        TrustClass::AgentObserved,
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
 
                 ModelStep::ToolCall { calls } => {
@@ -2316,6 +2451,7 @@ impl<S: PathScope> Engine<S> {
             let mut quarantined_sink = QuarantinedSink { inner: ports.sink };
             let mut no_control = crate::NoControl;
             let mut child_ports = Ports {
+                escalations: None,
                 driver: ports.driver,
                 summarizer: ports.summarizer,
                 tools: ports.tools,
@@ -3014,6 +3150,25 @@ impl<S: PathScope> Engine<S> {
         let outcome = {
             let mut quarantined_sink = QuarantinedSink { inner: ports.sink };
             let mut child_ports = Ports {
+                // **The ordinary spawn forwards the desk; the two quarantined children do not.**
+                // ADR-065 §9 records the adversarial pass getting these two sites the wrong way
+                // round — it named `Engine::spawn`'s child `Ports` as the quarantined reader's,
+                // and taking that at face value would have withheld the port from every ordinary
+                // child and handed it to the one run that holds attacker bytes. Re-derived here
+                // by the function each literal sits in, not by line number.
+                //
+                // A child that may not raise is refused by `escalation_route` on its own level,
+                // not by withholding the port: withholding it here would make a `Worker`'s
+                // refusal read as *"no desk is wired"*, which is a different fact and the wrong
+                // one to tell a model.
+                escalations: match &mut ports.escalations {
+                    // A reborrow, spelled out. `Option::as_deref_mut` reads better and
+                    // does not compile here: it yields a VALUE, so the trait object's
+                    // lifetime cannot shorten under `&mut`, which is invariant. Naming
+                    // the place lets the coercion happen.
+                    Some(desk) => Some(&mut **desk),
+                    None => None,
+                },
                 driver: ports.driver,
                 summarizer: ports.summarizer,
                 tools: ports.tools,
@@ -3086,6 +3241,14 @@ impl<S: PathScope> Engine<S> {
                 PauseReason::AwaitingAnswer => "[child stopped] it needed an answer from the \
                      user, and a child run has nobody to ask. Put what it needed in the task"
                     .to_string(),
+                // M3-DESIGN section 3.2, at the one hop where it could be violated. The parent
+                // is told its child is waiting on a human and **nothing about what was raised**
+                // -- no severity, no category, no id it could quote back. The record is the
+                // desk's, and a parent that could read it is the laundering path section 2
+                // exists to close.
+                PauseReason::AwaitingEscalation { .. } => "[child stopped] it raised an \
+                     escalation and a human is deciding. What it raised is not carried across"
+                    .to_string(),
             },
             LoopOutcome::Escalated { question } => {
                 self.record(
@@ -3099,6 +3262,14 @@ impl<S: PathScope> Engine<S> {
                  question was not carried across]"
                     .to_string()
             }
+            // **The same sentence as the pause arm above, deliberately.** A child that raised
+            // and returned and a child that raised and is still paused are the same fact from
+            // the parent's side: it is with a human now, and the parent does not get to see it.
+            // A parent told which of the two occurred learns nothing it can act on and gains one
+            // more bit about a record section 3.2 says it may not read.
+            LoopOutcome::Raised(_) => "[child stopped] it raised an escalation and a human is \
+                 deciding. What it raised is not carried across"
+                .to_string(),
             LoopOutcome::Cancelled => "[child cancelled]".to_string(),
             LoopOutcome::Failed { error } => {
                 self.record(
@@ -3328,6 +3499,7 @@ impl<S: PathScope> Engine<S> {
             let mut quarantined_sink = QuarantinedSink { inner: ports.sink };
             let mut no_control = crate::NoControl;
             let mut child_ports = Ports {
+                escalations: None,
                 driver: ports.driver,
                 summarizer: ports.summarizer,
                 tools: ports.tools,

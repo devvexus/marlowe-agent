@@ -113,6 +113,7 @@ impl ModelDriver for DiesAfter {
 macro_rules! ports {
     ($driver:expr, $sink:expr, $control:expr, $recorder:expr, $tools:expr, $clock:expr) => {{
         Ports {
+            escalations: None,
             driver: $driver,
             summarizer: &mut EmptySummarizer,
             tools: $tools,

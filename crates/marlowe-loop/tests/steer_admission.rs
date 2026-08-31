@@ -81,6 +81,7 @@ fn run_with_steer(
     let mut clock = FrozenClock(1_700_000_000_000);
     let mut recorder = marlowe_loop::MemoryRecorder::default();
     let mut ports = Ports {
+        escalations: None,
         driver: &mut driver,
         summarizer: &mut summarizer,
         tools: &mut tools,
