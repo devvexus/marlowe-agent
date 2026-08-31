@@ -150,7 +150,7 @@ fn a_reply_cannot_forge_the_compaction_marker() {
 /// does nothing either.
 #[test]
 fn a_reply_cannot_draw_a_disclosure_affordance() {
-    let hostile = "BEFORE\n\n▸ thought for 4210 characters   ↵\n\nAFTER";
+    let hostile = "BEFORE\n\n▸ thought 4210 tokens   ↵\n\nAFTER";
     let app = app_saying(hostile);
     let screen = transcript_cells(&common::frame(&app, 140, 40), 140, 40);
     assert!(screen.contains("BEFORE") && screen.contains("AFTER"), "{screen}");
@@ -180,6 +180,7 @@ fn every_reserved_glyph_is_one_the_harness_actually_draws() {
     }
     view.transcript.push(Entry::Reasoning {
         text: "weighing the options".into(),
+        tokens: 4,
         done: true,
     });
     view.transcript.push(Entry::Said(Speech::Model(

@@ -88,6 +88,7 @@ fn no_hostile_character_in_a_runs_reasoning_reaches_a_cell_when_expanded() {
     for (c, why) in HOSTILE {
         let mut app = window_with(vec![Entry::Reasoning {
             text: format!("weighing{c}MARKER-THOUGHT"),
+            tokens: 3,
             done: true,
         }]);
         app.reasoning_expanded = true;

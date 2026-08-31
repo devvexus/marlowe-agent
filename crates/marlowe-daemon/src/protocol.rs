@@ -130,10 +130,12 @@ pub enum Request {
 #[serde(tag = "frame", rename_all = "snake_case")]
 pub enum RunFrame {
     Text { delta: String },
-    Reasoning { delta: String },
+    /// `tokens` is what this chunk cost, from the engine — see [`Event::Reasoning`].
+    Reasoning { delta: String, tokens: u64 },
     /// The speech streamed so far this turn was reasoning after all. The window moves it, so no
-    /// text that belonged inside a think block is left in the response colour.
-    SpeechRetracted,
+    /// text that belonged inside a think block is left in the response colour. `tokens` is what
+    /// that speech cost, moving with it.
+    SpeechRetracted { tokens: u64 },
     Tool { id: u64, verb: String, target: String, state: String, summary: String },
     Compacted { turns: u32 },
 }
@@ -227,10 +229,24 @@ pub enum Event {
     /// replayed conversation would have been Marlowe talking to nobody.
     User { text: String },
     /// A chunk of the model's reasoning. **Not the answer**, and never part of the transcript.
-    Reasoning { delta: String },
+    ///
+    /// # `tokens` is on the wire because the client cannot compute it
+    ///
+    /// The collapsed head line reports how much thinking has happened. Sending only `delta` would
+    /// leave the client counting characters — which is what it did — or estimating tokens from
+    /// them, which is worse because the estimate wears the unit of a measurement.
+    ///
+    /// The count is the engine's, taken where the engine reports it, and it is a **delta the
+    /// client adds**. `0` is ordinary: a buffer released after the frames that filled it were
+    /// counted. An empty `delta` with a non-zero `tokens` is also ordinary — it is the settlement
+    /// of what the engine generated and never streamed, and it must not open a thinking block
+    /// that does not already exist.
+    Reasoning { delta: String, tokens: u64 },
     /// The speech streamed so far this turn was reasoning. The client moves it, and no text that
-    /// belonged inside a think block is left in the response colour.
-    SpeechRetracted,
+    /// belonged inside a think block is left in the response colour. `tokens` is what that speech
+    /// cost; it moves into the thinking block with the text, or the block's head line would
+    /// report a figure for prose it no longer holds.
+    SpeechRetracted { tokens: u64 },
     /// §B6's one line per call, **and what it opens to**.
     ///
     /// `summary` is the right-hand side: typed metrics, already rendered. `detail` is what §B6's
@@ -276,9 +292,16 @@ pub enum Event {
     /// again — see that type's header for the 218-vs-426 ms measurement that is the reason.
     ///
     /// `ttft_ms` is time to the **first token of any kind, `thinking` included**. `tokens` is the
-    /// count of streamed deltas — one per token on both local engines — and `since_first_ms` is the
-    /// interval they were produced over, sent rather than derived so the client cannot choose a
-    /// different denominator from the one the daemon measured.
+    /// count of streamed **deltas**, and `since_first_ms` is the interval they were produced over,
+    /// sent rather than derived so the client cannot choose a different denominator from the one
+    /// the daemon measured.
+    ///
+    /// **A delta is not a token, and this field is deliberately still a count of deltas.** That
+    /// sentence used to end "— one per token on both local engines", which was measured false on
+    /// 2026-08-31 (see `daemon.rs`'s counter, and `OllamaDriver::call_streaming_split`). A rate is
+    /// a ratio over an interval, so its numerator has to be what this process saw arrive while the
+    /// clock ran; the engine's own count is corrected at the end of a call and cannot feed it.
+    /// [`Event::Reasoning`]'s `tokens` is the exact quantity, and it answers a different question.
     ///
     /// **Emitted several times a turn, not once at the end.** A summary printed after the fact
     /// answers a different question from a number that ticks: §B12's third craft target is that a

@@ -64,7 +64,7 @@ fn retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript() {
     apply_events(
         &mut v,
         &[
-            Event::Reasoning { delta: "The user wants weather. I will search.".into() },
+            Event::Reasoning { delta: "The user wants weather. I will search.".into(), tokens: 1 },
             Event::Tool {
                 id: 1,
                 verb: "web".into(),
@@ -77,7 +77,7 @@ fn retracted_speech_moves_into_the_thinking_block_and_leaves_the_transcript() {
             Event::Text { delta: "I see the tool output shows just \"tool\" -- possibly ".into() },
             Event::Text { delta: "indicating some kind of error or limitation.".into() },
             // …and then closed the block it had opened before `content` began.
-            Event::SpeechRetracted,
+            Event::SpeechRetracted { tokens: 2 },
         ],
     );
 
@@ -116,7 +116,7 @@ fn a_retraction_is_honoured_when_it_is_not_the_last_event() {
     apply_events(
         &mut v,
         &[
-            Event::Reasoning { delta: "The user wants weather. I will search.".into() },
+            Event::Reasoning { delta: "The user wants weather. I will search.".into(), tokens: 1 },
             Event::Tool {
                 id: 1,
                 verb: "web".into(),
@@ -127,8 +127,8 @@ fn a_retraction_is_honoured_when_it_is_not_the_last_event() {
             },
             Event::Text { delta: "including scheme like https://weather.com ".into() },
             Event::Text { delta: "I need to format this properly.".into() },
-            Event::Reasoning { delta: " Trying the National Weather Service.".into() },
-            Event::SpeechRetracted,
+            Event::Reasoning { delta: " Trying the National Weather Service.".into(), tokens: 1 },
+            Event::SpeechRetracted { tokens: 2 },
         ],
     );
 
@@ -163,7 +163,7 @@ fn speech_after_a_retraction_is_kept() {
         &mut v,
         &[
             Event::Text { delta: "still thinking about this".into() },
-            Event::SpeechRetracted,
+            Event::SpeechRetracted { tokens: 2 },
             Event::Text { delta: "It is 12°C in Cass Lake.".into() },
         ],
     );
@@ -176,7 +176,7 @@ fn speech_after_a_retraction_is_kept() {
 #[test]
 fn a_retraction_with_nothing_outstanding_is_harmless() {
     let mut v = view();
-    apply_events(&mut v, &[Event::Reasoning { delta: "weighing".into() }, Event::SpeechRetracted]);
+    apply_events(&mut v, &[Event::Reasoning { delta: "weighing".into(), tokens: 1 }, Event::SpeechRetracted { tokens: 2 }]);
     assert_eq!(spoken(&v), "");
     assert_eq!(thought(&v), "weighing");
 }
@@ -416,7 +416,7 @@ fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
     apply_events(
         &mut v,
         &[
-            Event::Reasoning { delta: "The user asked me to run a bash echo.".into() },
+            Event::Reasoning { delta: "The user asked me to run a bash echo.".into(), tokens: 1 },
             Event::Tool {
                 id: 1,
                 verb: "bash".into(),
@@ -428,7 +428,7 @@ fn narration_that_precedes_a_tool_call_does_not_stay_in_the_transcript() {
             Event::Text { delta: "But wait - I keep seeing \"[bash blocked]\" responses ".into() },
             Event::Text { delta: "before any of my attempts succeeded.".into() },
             // The call ended with another tool call, so none of that was the answer.
-            Event::SpeechRetracted,
+            Event::SpeechRetracted { tokens: 2 },
             Event::Tool {
                 id: 2,
                 verb: "bash".into(),
@@ -479,7 +479,7 @@ fn a_blocked_tool_call_reaches_the_transcript() {
                 what: "read untrusted content".into(),
                 remedy: "see `marlowe --status`".into(),
             },
-            Event::Reasoning { delta: "The user wants a shell command.".into() },
+            Event::Reasoning { delta: "The user wants a shell command.".into(), tokens: 1 },
             Event::Tool {
                 id: 1,
                 verb: "bash".into(),

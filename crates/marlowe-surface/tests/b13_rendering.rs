@@ -567,7 +567,11 @@ fn the_user_the_reasoning_and_marlowe_do_not_share_a_colour() {
     let mut view = common::rig().producer.view().clone();
     view.transcript.clear();
     view.transcript.push(Entry::User("what tools do you have".into()));
-    view.transcript.push(Entry::Reasoning { text: "weighing the options".into(), done: true });
+    view.transcript.push(Entry::Reasoning {
+        text: "weighing the options".into(),
+        tokens: 4,
+        done: true,
+    });
     view.transcript.push(Entry::Said(Speech::Model("seven of them.".into())));
 
     let mut app = marlowe_surface::App::new(view).expect("the shipped key set has no conflicts");

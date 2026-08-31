@@ -1,5 +1,170 @@
 ﻿# State
 
+## 2026-08-31 — THE THINKING LINE COUNTS TOKENS, AND "ONE DELTA IS ONE TOKEN" WAS FALSE
+
+**The feature is small and the measurement under it is not.** `▸ thinking… 1688 characters` is now
+`▸ thinking… 412 tokens`, and `▸ thought for 1688 characters` is `▸ thought 412 tokens`. Getting
+there required establishing where a token count can honestly come from, and the answer contradicted
+two sentences this repository had been carrying as fact.
+[`ADR-072`](docs/design/adr/ADR-072-a-thought-is-measured-in-tokens-and-a-frame-is-not-one.md) is
+the record; the human chose the shape (*"no tokenizer. Has to work for all models."*).
+
+### Instance #20: an assumption about a server, which this page had already flagged
+
+`daemon.rs` said *"one delta is one token on both local engines — Ollama sends one frame per
+token"*, `protocol.rs` said the same, and the entry below on this very page said **nothing measured
+it**. Measured now, against `llama-server /tokenize` on the same GGUF blob Ollama was serving:
+
+| prompt | thinking frames | exact tokens | frames are |
+|---|---|---|---|
+| `Say hi.` | 116 | 120 | −3.3% |
+| `What is 2+2?` | 179 | 200 | −10.5% |
+| `Name one primary colour.` | 236 | 250 | −5.6% |
+
+**Deterministic** — identical across three repetitions at `temperature: 0`, so not a slow client
+dropping frames. Ollama's own thinking parser buffers a whitespace-leading token and flushes it
+joined to the next one; a raw dump shows `"
+
+1"` and `"  **"` arriving as single frames.
+`/v1/chat/completions` merges identically, so there is no endpoint to move to.
+
+**The control that makes the number trustworthy**: `eval_count == tokenize(thinking) +
+tokenize(content)` with **residual 0** on three runs, so retokenizing the streamed text reproduces
+the engine's own count exactly and there are no hidden tokens to argue about. **The content channel
+IS one token per frame** — 60 frames against `eval_count` 61, the extra being the stop token — and
+that asymmetry is what makes the arithmetic possible.
+
+**Nothing was broken.** The delta count feeds the cadence band, which reports a **rate**, and as a
+throughput figure it is correct. The sentence beside it answered an *adjacent* question, and the
+adjacency only became a 10% error when a second consumer needed **spend** rather than throughput.
+Both comments now say what they count and why the two numbers are deliberately different quantities.
+
+### The rule, and it is engine-independent
+
+> **Every token the engine reports as generated belongs to the channel that was open when it was
+> produced.**
+
+Delimiters, the stop token, whitespace merged into a later frame — all of it goes to the channel
+that was open. **No per-model constant is subtracted anywhere**: `</think>` costs a different number
+of tokens in a different vocabulary, and a constant measured on one model is not a fact about
+another.
+
+* **llama.cpp** — `"timings_per_token": true` now on the request, so `timings.predicted_n` rides
+  every chunk and the count is the engine's running total. **Exact and live.** Verified against a
+  real `llama-server`: 41 of 43 chunks carried `timings`, finishing on exactly the
+  `completion_tokens` the usage chunk reported.
+* **Ollama** — one per frame while streaming (a rising lower bound, so the line moves), corrected at
+  `done` to `eval_count −` the answer's tokens. **Exact at end of call.**
+* **OpenRouter** — one per chunk, settled from `usage.completion_tokens`.
+
+The count travels **with the chunk** as a delta the receiver adds:
+`TurnEvent::ReasoningDelta { text, tokens }`, `Event::Reasoning { delta, tokens }`,
+`Entry::Reasoning { text, tokens, done }`. `SpeechRetracted { tokens }` moves the cost with the text
+it moves. **An empty chunk with a non-zero count is the settlement and never opens a block** — a
+call that produced no reasoning still generates a stop token, and without that rule every answer in
+the product would grow a thinking line reading `thought 1 token`.
+
+**`0` renders as no number at all**, not as `0 tokens`. A replayed turn has the text and never had
+the count (`WireTurn` carries what the endpoint documents), and a missing field renders as missing.
+
+### Coverage, and where it is thin
+
+Eleven new tests. `ollama_reasoning_tokens.rs` drives the real `request_body`, HTTP client, NDJSON
+decoder and fold against a **loopback socket** serving a canned stream — this adapter has no
+transport seam and inventing one would have tested the seam. `llamacpp_stream_fold.rs` gains the
+`predicted_n` attribution, its negative control (delete the engine's counter, the number changes
+from 3 to 2) and an instance-#16 check that the request actually **asks** for `timings_per_token`.
+`thinking_head_line.rs` fixes the text and varies only the count, so a line still deriving the
+number from the string would fail on the unit *and* on the value.
+
+**Not covered, and named in ADR-072 §7:** the Ollama live figure **jumps** at end of call from the
+frame count up to the engine's, and nothing measures how that reads on a long thought. It is an
+upward correction on a line already in motion, which is why it shipped without a live read.
+
+### THE FIRST LIVE READ FOUND ONE, AND IT WAS OLDER THAN THIS CHANGE
+
+Reported from the TUI: `▸ thinking… 226 tokens` **on a turn that had already answered**. Not the
+count — the count was right. The block was never marked `done`.
+
+`Event::Text` was the only thing that closed a reasoning block, and it did it by checking
+`transcript.last_mut()` — so it closed one **only while that block was still the last entry**. Every
+turn with a tool in it has a second block. Off the wire, verbatim, asking `marlowe-mini:2b` to read
+a file:
+
+```
+R×58  R0  TOOL(running) TOOL(ok)  R×297  T×9  R0  DONE
+```
+
+The tool line lands on block A, the second model call opens block B, the answer closes **B**, and A
+reads `thinking…` for the rest of the session. **A single-call turn was fine**, which is why every
+test passed — including the four written today, which all used one call.
+
+**This predates the token work** and is not caused by it: the same turn read `thinking… 1688
+characters` before. Changing the unit is what made it worth reporting — a stale character count is
+one more slightly-wrong number on a screen; a stale `thinking…` under a finished answer is a claim
+about work in progress.
+
+**`watch_client::entries()` has had the rule since ADR-055** — *"a reasoning block with anything
+after it is finished thinking. Marking it `done` is what stops a completed run showing `thinking…`
+forever."* The **conversation pane never got it**. That is the identical shape to the note already
+sitting thirty lines away in `project.rs`, where `control_plane::push` held the tool-line rule and
+this pane did not. Two panes, one rule, and only one of them had it — twice now.
+
+Closed by `close_finished_reasoning(view, finished)`, once per batch: every block but the last is
+done, and `Event::Done` closes the last one too (a turn that ends mid-thought — nudge exhausted, an
+interrupt — must not keep claiming to think). The ad-hoc `*done = true` in the `Event::Text` arm is
+**deleted** rather than left beside it, so there is one definition.
+
+**Mutation-checked**: stubbing the sweep turns three tests red and leaves the control
+(`the_block_still_being_written_to_stays_open`) green.
+
+**And the test that would have caught it now exists at the seam it crosses.**
+`crates/marlowe/tests/the_thinking_line_reaches_the_screen_in_tokens.rs` folds the wire trace above
+through the real `apply_events` and draws it with the real renderer, asserting on **cells**:
+no `thinking…` anywhere, `thought 62 tokens` and `thought 303 tokens` both present. `marlowe` is the
+only crate that can see both halves — `marlowe-surface` deliberately cannot see `marlowe-daemon` —
+which is exactly why three green crates and a broken product were consistent.
+
+### Live-verified on the running binary, not on a test process
+
+The instrument is the daemon's own socket — the bytes the **running process** sent, which is the
+only reading that survives a stale deployment. One turn on `marlowe-mini:2b` through a debug daemon:
+
+```
+reasoning chunks on the wire : 111
+reasoning tokens reported    : 133
+settlement chunks (empty)    : [23]
+text chunks                  : 21
+```
+
+110 text-carrying frames charged 1 each, plus a single empty settlement carrying **23**. So the
+frame count would have read **110** where the engine said **133** — **17% low on this turn**, wider
+than any cell in the table above, and exactly the error being removed. The settlement arrives once,
+after the answer began, which is why it has to join a closed block rather than open one.
+
+### Two pre-existing failures found on the way, NEITHER mine
+
+**1. `marlowe-red:9b` cannot complete a turn at all.** Ollama returns HTTP 400 —
+*"Unable to generate parser for this template… System message must be at the beginning"* — on every
+`--ask`. Isolated: the model is fine with `system, user` and fine with tools; it is **`system` not
+first, or two `system` messages**, that its template raises on, and Marlowe is sending one of those.
+Confirmed against the model directly, so it is the assembled message order, not this change —
+`git diff` on `ollama.rs` touches no line mentioning `message`, `system`, `role` or `tools`, and
+`request_body` is untouched. **`marlowe-mini:2b` works end to end**, which is what the live read
+above ran on. This blocks the designated test model and nothing on this page mentions it.
+
+**2. The suite's one red.**
+
+`marlowe-contract escalation::tests::the_cap_is_measured_after_substitution_not_before` fails at
+HEAD (`d131d87`). That crate depends only on serde/thiserror/uuid, and nothing in this change
+touches it.
+
+**Suite: `runs/thinking-tokens/suite.txt`, one run, `--no-fail-fast`. 156 `test result` lines,
+1,745 passed, 1 failed (the row above), 7 ignored.** `marlowe-daemon` was re-run alone afterwards
+(`runs/thinking-tokens/daemon-after-cadence-edit.txt`, 76 + 23 binaries green) because one edit
+landed after the workspace run started — and that edit did not compile when the full run began,
+which is the argument for re-running the crate rather than trusting the earlier tally.
+
 
 ## 2026-08-31 — M3 SESSION C CLOSES, AND THE ORGANISATION IT SHIPPED IS NOT THE ONE IT WAS DESIGNED WITH
 
@@ -570,9 +735,13 @@ ones, the kind you can time against a stopwatch, by a seventh. Now `tokens - 1`,
 refuses `tokens < 2` for the same reason it refuses a zero denominator. **Five tests, where the type
 had none anywhere in the workspace.**
 
-**Still unmeasured, and it is the next thing to pull on if the number still looks wrong:**
-`daemon.rs` asserts *"one delta is one token — Ollama sends one frame per token"* and **nothing
-measures it.** That is an assumption about a server.
+**MEASURED 2026-08-31, AND IT WAS WRONG — see the entry at the top of this page.** `daemon.rs`
+asserted *"one delta is one token — Ollama sends one frame per token"* and nothing measured it.
+Against `llama-server /tokenize` on the blob Ollama was serving, the thinking channel runs
+**3–10% low**, deterministically, because Ollama's parser merges a whitespace-leading token into the
+next frame. The **content** channel is 1:1. `Cadence::tokens` deliberately still counts deltas — it
+is a rate, and a rate's numerator has to be what arrived while the clock ran — but it now says so,
+and the exact figure lives on `Event::Reasoning::tokens`. ADR-072.
 
 ### `degraded · see the Status tab` was the daemon discarding what it knew
 

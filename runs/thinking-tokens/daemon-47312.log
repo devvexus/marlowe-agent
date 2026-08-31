@@ -1,0 +1,8 @@
+marlowe: context window 32768 tokens (model ceiling 262144)
+marlowe: memory retrieval live · C:\Users\matth\Projects\Marlowe_Harness\models\ms-marco-MiniLM-L-2-v2-ft-session-j
+marlowe: skills 1 installed, 1 refused
+marlowe:   ! skill at `C:\Users\matth\AppData\Local\marlowe\default-profile\skills\broken\SKILL.md`: line 1: a SKILL.md must open with `---` on its first line, followed by YAML front matter. A file with no front matter has no capability declaration, and a defaulted declaration is one nobody wrote
+marlowe: mcp 2 tool(s) from 1 server(s)
+marlowe: daemon listening on 127.0.0.1:47312
+marlowe: runs are owned here and survive the client that started them
+marlowe: control plane on 127.0.0.1:54611

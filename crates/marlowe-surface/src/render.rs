@@ -670,7 +670,7 @@ pub fn entry_lines<'a>(
             // reasoning model spends most of a turn here, and without this the screen is static
             // while the machine is working. §B5's rule is that motion means Marlowe is working —
             // this is the part of the work that was invisible.
-            Entry::Reasoning { text, done } => {
+            Entry::Reasoning { text, tokens, done } => {
                 let expanded = reasoning_expanded;
                 // The glyphs come from `crate::chrome`, which is also the set model prose may not
                 // contain. One definition: a marker that is drawn is a marker that is reserved,
@@ -681,11 +681,31 @@ pub fn entry_lines<'a>(
                     crate::chrome::DISCLOSURE_CLOSED
                 };
                 let key = crate::chrome::KEYCAP_ENTER;
+                // ── TOKENS, NOT CHARACTERS, AND NEVER DERIVED FROM THE TEXT ────────────────
+                //
+                // This read `text.len()`. Characters are what a renderer can count for itself,
+                // and that is exactly what made them the wrong unit: the number a person wants
+                // here is how much the model spent, and a renderer has no tokenizer. Dividing by
+                // four would have produced an estimate wearing the unit of a measurement.
+                //
+                // So the count is carried on the entry, summed from what the provider reported,
+                // and this only formats it. See `marlowe_view::Entry::Reasoning`.
+                //
+                // **Zero renders as no number.** A replayed turn has the text and never had the
+                // count, and a driver that does not report one has not reported one. `0 tokens`
+                // would be a claim; the absence of a figure is the truth.
+                let count = if *tokens == 0 {
+                    String::new()
+                } else if *tokens == 1 {
+                    " 1 token".to_string()
+                } else {
+                    format!(" {tokens} tokens")
+                };
                 let head = if *done {
-                    format!("{marker} thought for {} characters   {key}", text.len())
+                    format!("{marker} thought{count}   {key}")
                 } else {
                     // Live: the count moves, so the line itself reports progress.
-                    format!("{marker} thinking… {} characters   {key}", text.len())
+                    format!("{marker} thinking…{count}   {key}")
                 };
                 out.push(Line::from(Span::styled(head, Ink::Dim.style(theme))));
                 if expanded {
@@ -695,7 +715,7 @@ pub fn entry_lines<'a>(
                     // equations are. Rendering it flat meant the one place a derivation actually
                     // lives was the one place it stayed raw.
                     //
-                    // Collapsed, this costs nothing: the head line is a character COUNT, so the
+                    // Collapsed, this costs nothing: the head line is a carried COUNT, so the
                     // parser never runs on the path that draws 99% of frames. That matters because
                     // reasoning is the highest-volume text in the product -- a reasoning model can
                     // spend most of a turn here -- and K4 budgets 150 ms to first frame.

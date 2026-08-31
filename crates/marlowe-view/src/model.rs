@@ -334,7 +334,19 @@ pub enum Entry {
     /// not carry the persona, it must not appear in a `Y` transcript copy, and the user asked a
     /// question rather than for a monologue. Expansion is the surface's, exactly as for a tool
     /// line — see `App::expanded`.
-    Reasoning { text: String, done: bool },
+    ///
+    /// # `tokens` is CARRIED, because a renderer cannot compute it
+    ///
+    /// The collapsed head line reports how much thinking has happened. It reported `text.len()`,
+    /// and characters are what a renderer can count for itself — a token count derived from the
+    /// same string would be an estimate wearing a unit, and the one thing this line must not do is
+    /// look precise while being arithmetic on characters.
+    ///
+    /// So the number arrives from the provider, which is the only component that can see the
+    /// engine's own counter, and is **accumulated** here. Nothing downstream re-derives it. A
+    /// block whose text grew without its count growing is a provider reporting no new tokens for
+    /// those bytes, and that is a fact about the engine rather than a rounding error to paper over.
+    Reasoning { text: String, tokens: u64, done: bool },
     /// `─ compacted · 47 turns → summary ─`. Announces itself inline and does not interrupt.
     Compacted { turns: u32 },
 }

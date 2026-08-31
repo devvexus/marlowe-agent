@@ -158,9 +158,19 @@ impl ControlPlane {
         });
 
         let coalesced = match (&frame, f.seq.last_mut()) {
-            (RunFrame::Text { delta }, Some((_, RunFrame::Text { delta: tail })))
-            | (RunFrame::Reasoning { delta }, Some((_, RunFrame::Reasoning { delta: tail }))) => {
+            (RunFrame::Text { delta }, Some((_, RunFrame::Text { delta: tail }))) => {
                 tail.push_str(delta);
+                true
+            }
+            // **The token count SUMS while the text concatenates.** Coalescing is what bounds this
+            // ring's memory, and a count that was overwritten rather than added would make a
+            // window's thinking line report whatever the last chunk happened to cost.
+            (
+                RunFrame::Reasoning { delta, tokens },
+                Some((_, RunFrame::Reasoning { delta: tail, tokens: total })),
+            ) => {
+                tail.push_str(delta);
+                *total = total.saturating_add(*tokens);
                 true
             }
             // **A tool line REPLACES its own earlier frame rather than adding one.** §B6: the close

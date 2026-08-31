@@ -24,7 +24,7 @@ fn scenarios() -> Vec<(&'static str, WindowApp)> {
         v.output = vec![
             Entry::Said(Speech::Model("## Findings\n\n- one\n- two\n\n`code` and *emphasis*".into())),
             Entry::Tools(vec![ToolCall::ok(1, "read", "notes.md", vec![Metric::Count { n: 48, unit: "lines" }])]),
-            Entry::Reasoning { text: "still weighing it".into(), done: false },
+            Entry::Reasoning { text: "still weighing it".into(), tokens: 4, done: false },
         ];
         v
     });

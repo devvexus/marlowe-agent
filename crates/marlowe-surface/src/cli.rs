@@ -233,11 +233,16 @@ fn print_new(view: &SessionView, out: &mut impl Write, shown: &mut usize) -> std
             Entry::Compacted { turns } => writeln!(out, "-- compacted · {turns} turns → summary")?,
             // Linear surfaces have nowhere to collapse to, so the classic CLI reports the shape
             // rather than the content: it is progress, not an answer.
-            Entry::Reasoning { text, done } => writeln!(
+            Entry::Reasoning { tokens, done, .. } => writeln!(
                 out,
-                "  {} thinking   {} chars{}",
+                "  {} thinking{}{}",
                 crate::chrome::TOOL_MARKER,
-                text.len(),
+                match tokens {
+                    // Missing rather than zero — see the head line in `render.rs`.
+                    0 => String::new(),
+                    1 => "   1 token".to_string(),
+                    n => format!("   {n} tokens"),
+                },
                 if *done { "" } else { " …" }
             )?,
             Entry::Tools(calls) => {

@@ -164,15 +164,27 @@ impl RunProjection {
         for frame in self.frames.values() {
             match frame {
                 RunFrame::Text { delta } => out.push(Entry::Said(Speech::Model(delta.clone()))),
-                RunFrame::Reasoning { delta } => {
-                    out.push(Entry::Reasoning { text: delta.clone(), done: false })
+                // An empty delta is the settlement of tokens the engine never streamed. It joins
+                // the block it settles rather than opening one — the same rule the main pane's
+                // fold follows, and for the same reason.
+                RunFrame::Reasoning { delta, tokens } if delta.is_empty() => {
+                    if let Some(Entry::Reasoning { tokens: total, .. }) =
+                        out.iter_mut().rev().find(|e| matches!(e, Entry::Reasoning { .. }))
+                    {
+                        *total = total.saturating_add(*tokens);
+                    }
                 }
+                RunFrame::Reasoning { delta, tokens } => out.push(Entry::Reasoning {
+                    text: delta.clone(),
+                    tokens: *tokens,
+                    done: false,
+                }),
                 // **The speech so far this turn was reasoning after all.** The window moves it, so
                 // no text that belonged inside a think block is left in the response colour — the
                 // same correction the main pane makes on `SpeechRetracted`.
-                RunFrame::SpeechRetracted => {
+                RunFrame::SpeechRetracted { tokens } => {
                     if let Some(Entry::Said(Speech::Model(text))) = out.pop() {
-                        out.push(Entry::Reasoning { text, done: true });
+                        out.push(Entry::Reasoning { text, tokens: *tokens, done: true });
                     }
                 }
                 RunFrame::Tool { id, verb, target, state, summary } => {
@@ -359,13 +371,16 @@ mod tests {
         p.apply(&[
             detail_event("running"),
             Event::RunOutput { seq: 1, frame: RunFrame::Text { delta: "let me think".into() } },
-            Event::RunOutput { seq: 2, frame: RunFrame::SpeechRetracted },
+            Event::RunOutput { seq: 2, frame: RunFrame::SpeechRetracted { tokens: 2 } },
         ]);
         assert_eq!(
             p.view().unwrap().output,
-            vec![Entry::Reasoning { text: "let me think".into(), done: true }],
+            vec![Entry::Reasoning { text: "let me think".into(), tokens: 2, done: true }],
             "text that belonged in a think block was left in the response colour"
         );
+        // The retraction's own count, and it is the only one available here: a window's `Text`
+        // frames carry no token count, because the answer's cost is not what the thinking line
+        // reports. What the retraction says the speech cost is what the thought inherits.
     }
 
     #[test]
@@ -373,7 +388,7 @@ mod tests {
         let mut p = RunProjection::new("r");
         p.apply(&[
             detail_event("completed"),
-            Event::RunOutput { seq: 1, frame: RunFrame::Reasoning { delta: "weighing".into() } },
+            Event::RunOutput { seq: 1, frame: RunFrame::Reasoning { delta: "weighing".into(), tokens: 1 } },
             Event::RunOutput { seq: 2, frame: RunFrame::Text { delta: "four".into() } },
         ]);
         let v = p.view().unwrap();

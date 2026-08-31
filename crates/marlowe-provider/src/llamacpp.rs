@@ -1087,6 +1087,20 @@ impl LlamaCppDriver {
             // token accounting would read zero for every call and `Budget::exhausted` — the
             // backstop this project has exercised exactly once — would never fire on tokens.
             "stream_options": { "include_usage": true },
+            // **The exact token count, live.** `include_usage` puts the total on the LAST chunk
+            // only, which is a figure that arrives after the line it was wanted for has stopped
+            // moving. This puts `timings.predicted_n` on EVERY chunk, so the thinking counter is
+            // the engine's own running total rather than a count of frames.
+            //
+            // A count of frames is what the other local engine forces, and it is measurably not a
+            // token count — see `OllamaDriver::call_streaming_split`'s header for the numbers.
+            // This server gives the real one, so this server reports it.
+            //
+            // Verified against a `llama-server` on a real blob: 41 of 43 chunks carried `timings`,
+            // and `predicted_n` finished on exactly the `completion_tokens` the usage chunk
+            // reported. A build that ignores the field degrades to a frame count rather than to
+            // zero, which is why `Fold` still charges one per chunk when no `timings` arrive.
+            "timings_per_token": true,
             // The budget's hard cap, capped against the window for the reason the other two
             // adapters cap it: 200,000 tokens of output against a window that cannot hold them is
             // unbounded generation with extra steps.
@@ -1137,7 +1151,7 @@ impl ModelDriver for LlamaCppDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
     ) -> Result<ModelCall, ProviderError> {
-        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {}, &mut || {})
+        self.call_streaming_split(view, tools, limits, on_delta, &mut |_, _| {}, &mut |_| {})
     }
 
     fn call_streaming_split(
@@ -1146,8 +1160,8 @@ impl ModelDriver for LlamaCppDriver {
         tools: &ExposedSet,
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
         if let Some(sink) = self.request_dump.as_mut() {
@@ -1260,6 +1274,25 @@ struct Fold {
     prompt_tokens: u64,
     completion_tokens: u64,
     wall_ms: u64,
+    /// The engine's running total, from `timings.predicted_n` on each chunk.
+    ///
+    /// **`0` means the server did not report it**, and the fold falls back to charging one token
+    /// per chunk. That fallback is the weaker answer and it is deliberate: a server too old for
+    /// `timings_per_token` should give a number that is slightly wrong, not a number that is
+    /// zero, because a thinking line frozen at `0 tokens` reads as a hung model.
+    predicted_n: u64,
+    /// How much of `predicted_n` has been charged to a channel. The difference is what the engine
+    /// generated and did not stream, and it is settled in [`Fold::finish`].
+    charged: u64,
+    /// Which channel was open when the last chunk landed, so an unstreamed token can be charged
+    /// to it. `true` is reasoning — the state a call starts in, because a reasoning model emits
+    /// its chain of thought before its answer and the opening delimiter is generated before both.
+    last_was_reasoning: bool,
+    /// Charged to speech since the last retraction, so a `</think>` can move the right number of
+    /// tokens into the thinking block along with the text.
+    speech_charged: u64,
+    /// Charged to the `held` buffer, which has not chosen a channel yet.
+    held_charged: u64,
 }
 
 impl Fold {
@@ -1273,15 +1306,35 @@ impl Fold {
             prompt_tokens: 0,
             completion_tokens: 0,
             wall_ms: 0,
+            predicted_n: 0,
+            charged: 0,
+            last_was_reasoning: true,
+            speech_charged: 0,
+            held_charged: 0,
         }
+    }
+
+    /// The tokens this chunk is worth: the engine's own increment where it reports one, and
+    /// otherwise one, which is the assumption every other adapter is stuck with.
+    ///
+    /// Called **once per chunk that carried payload**, before the payload is routed, so a chunk
+    /// that merged several tokens pays for all of them on the channel it landed on.
+    fn charge(&mut self) -> u64 {
+        if self.predicted_n == 0 {
+            self.charged += 1;
+            return 1;
+        }
+        let owed = self.predicted_n.saturating_sub(self.charged);
+        self.charged = self.predicted_n;
+        owed
     }
 
     fn absorb(
         &mut self,
         value: &serde_json::Value,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) {
         // Usage arrives on the last chunk when `stream_options.include_usage` is set. `timings` is
         // llama.cpp's own block and is read as well: two readers for one fact is normally the
@@ -1304,6 +1357,12 @@ impl Fold {
                 self.completion_tokens =
                     t.get("predicted_n").and_then(serde_json::Value::as_u64).unwrap_or(0);
             }
+            // **Read on EVERY chunk, not only the last.** `timings_per_token` is what makes this
+            // a running total; taking it only from the final chunk would leave the thinking line
+            // frozen for the whole call and then jump, which is the behaviour this replaced.
+            if let Some(n) = t.get("predicted_n").and_then(serde_json::Value::as_u64) {
+                self.predicted_n = self.predicted_n.max(n);
+            }
             let ms = |k: &str| t.get(k).and_then(serde_json::Value::as_f64).unwrap_or(0.0);
             let total = ms("prompt_ms") + ms("predicted_ms");
             if total > 0.0 {
@@ -1325,10 +1384,16 @@ impl Fold {
         // reasoning keys ever observed is exactly that one. `reasoning` is read too because
         // `ollama::parse_step`'s own reader accepts both spellings and a driver that accepted fewer
         // would be the narrower of two answers to one question.
+        // One charge per chunk, taken on the first channel this chunk feeds. A chunk carrying
+        // both spellings of reasoning is still one chunk and pays once.
+        let mut chunk_charged = false;
         for field in ["reasoning_content", "reasoning"] {
             if let Some(r) = delta.get(field).and_then(|r| r.as_str()) {
                 if !r.is_empty() {
-                    on_reasoning(r);
+                    let charge = if chunk_charged { 0 } else { self.charge() };
+                    chunk_charged = true;
+                    self.last_was_reasoning = true;
+                    on_reasoning(r, charge);
                     // The provider is separating the channels, so whatever arrives in `content` is
                     // outside the block.
                     self.closed = true;
@@ -1338,31 +1403,42 @@ impl Fold {
 
         if let Some(c) = delta.get("content").and_then(|c| c.as_str()) {
             if !c.is_empty() {
+                let mut charge = if chunk_charged { 0 } else { self.charge() };
                 let split = self.splitter.feed(c);
                 if split.retract_speech {
                     if !self.held.is_empty() {
-                        on_reasoning(&self.held);
-                        self.held.clear();
+                        let held = std::mem::take(&mut self.held);
+                        on_reasoning(&held, std::mem::take(&mut self.held_charged));
                     }
                     if !self.text.is_empty() {
                         self.text.clear();
-                        on_retract();
+                        // The text moves into the thinking block; so does what it cost.
+                        on_retract(std::mem::take(&mut self.speech_charged));
                     }
                     self.closed = true;
                 }
                 for seg in &split.segments {
                     match seg {
-                        crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                        crate::think::Segment::Reasoning(r) => {
+                            self.last_was_reasoning = true;
+                            on_reasoning(r, std::mem::take(&mut charge));
+                        }
                         crate::think::Segment::Speech(t) => {
                             if self.closed {
+                                self.last_was_reasoning = false;
+                                self.speech_charged += std::mem::take(&mut charge);
                                 on_delta(t);
                                 self.text.push_str(t);
                             } else {
+                                self.held_charged += std::mem::take(&mut charge);
                                 self.held.push_str(t);
                             }
                         }
                     }
                 }
+                // Swallowed whole by the splitter's own partial-tag buffer. The token was still
+                // generated, and it is owed to whichever channel resolves that buffer.
+                self.held_charged += charge;
             }
         }
 
@@ -1402,11 +1478,13 @@ impl Fold {
         }
     }
 
-    fn finish(&mut self, on_delta: &mut dyn FnMut(&str), on_reasoning: &mut dyn FnMut(&str)) {
+    fn finish(&mut self, on_delta: &mut dyn FnMut(&str), on_reasoning: &mut dyn FnMut(&str, u64)) {
         let split = self.splitter.finish();
         for seg in &split.segments {
             match seg {
-                crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                // Charged `0`: these are the splitter's own buffer, and the chunks that filled it
+                // paid when they arrived. Their charges are in `held_charged`, settled below.
+                crate::think::Segment::Reasoning(r) => on_reasoning(r, 0),
                 crate::think::Segment::Speech(t) => {
                     if self.closed {
                         on_delta(t);
@@ -1423,11 +1501,32 @@ impl Fold {
             // reasoning. Same rule as the other two adapters'.
             if self.tool_calls.is_empty() && (self.closed || !self.splitter.saw_any_tag()) {
                 let held = std::mem::take(&mut self.held);
+                self.speech_charged += std::mem::take(&mut self.held_charged);
                 on_delta(&held);
                 self.text.push_str(&held);
             } else {
                 let held = std::mem::take(&mut self.held);
-                on_reasoning(&held);
+                on_reasoning(&held, std::mem::take(&mut self.held_charged));
+            }
+        }
+
+        // ── WHAT THE ENGINE GENERATED AND NEVER STREAMED ────────────────────────────────
+        //
+        // `</think>`, the stop token, anything the reasoning parser consumed. `predicted_n` — or
+        // `completion_tokens` when the server is too old for `timings_per_token` — counts them;
+        // no channel has been charged for them. The rule is the one in
+        // [`ModelDriver::call_streaming_split`]: they belong to the channel that was open.
+        //
+        // Charged as a reasoning chunk with no text when that channel was reasoning, which is the
+        // ordinary case — a model finishes thinking, emits its delimiter, then answers. When the
+        // answer was last, the tokens are the stop sequence and there is nothing on screen they
+        // belong to, so they are dropped rather than added to a thought that had already ended.
+        let total = self.predicted_n.max(self.completion_tokens);
+        let owed = total.saturating_sub(self.charged);
+        if owed > 0 {
+            self.charged = total;
+            if self.last_was_reasoning {
+                on_reasoning("", owed);
             }
         }
     }

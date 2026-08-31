@@ -732,8 +732,8 @@ pub fn prepared(entries: &[Entry]) -> Vec<Entry> {
             // harness is allowed to draw chrome. Passing it through the reservation would turn the
             // `⋯` in a §B6 listing into `<U+22EF>` in the one text the harness itself authored.
             Entry::Said(other) => Entry::Said(other.clone()),
-            Entry::Reasoning { text, done } => {
-                Entry::Reasoning { text: clean(text), done: *done }
+            Entry::Reasoning { text, tokens, done } => {
+                Entry::Reasoning { text: clean(text), tokens: *tokens, done: *done }
             }
             Entry::Compacted { turns } => Entry::Compacted { turns: *turns },
             Entry::Tools(calls) => Entry::Tools(

@@ -582,6 +582,7 @@ fn expanded_reasoning_renders_maths_and_it_is_lighter_than_the_reasoning() {
     view.transcript.clear();
     view.transcript.push(marlowe_view::Entry::Reasoning {
         text: r"so the update is $\alpha \times \beta$ here".to_string(),
+        tokens: 11,
         done: true,
     });
     let mut app = App::new(view).unwrap();
@@ -593,7 +594,7 @@ fn expanded_reasoning_renders_maths_and_it_is_lighter_than_the_reasoning() {
     assert!(!text.contains(r"\alpha"), "the source survived:\n{text}");
 }
 
-/// **The control, and it is the cost argument.** Collapsed, a reasoning block is a character COUNT,
+/// **The control, and it is the cost argument.** Collapsed, a reasoning block is a carried COUNT,
 /// so the parser never runs on the path that draws almost every frame. Reasoning is the
 /// highest-volume text in the product and K4 budgets 150 ms to first frame.
 #[test]
@@ -603,12 +604,13 @@ fn collapsed_reasoning_parses_nothing_and_reports_a_count() {
     view.transcript.clear();
     view.transcript.push(marlowe_view::Entry::Reasoning {
         text: r"so the update is $\alpha \times \beta$ here".to_string(),
+        tokens: 11,
         done: true,
     });
     let app = App::new(view).unwrap();
     let text = common::buffer_text(&common::frame(&app, 120, 40));
 
-    assert!(text.contains("thought for"), "the head line must report a count:\n{text}");
+    assert!(text.contains("thought 11 tokens"), "the head line must report a count:\n{text}");
     assert!(!text.contains("α × β"), "collapsed reasoning rendered its body:\n{text}");
 }
 

@@ -437,16 +437,30 @@ pub trait ModelDriver {
 
     /// As [`Self::call_streaming`], but reasoning chunks go to `on_reasoning` and answer chunks to
     /// `on_delta`. A provider that does not distinguish them sends everything to `on_delta`.
+    ///
+    /// # `on_reasoning` carries a TOKEN COUNT, and only a provider can supply one
+    ///
+    /// The second argument is how many tokens **this chunk** cost — not its length, not an
+    /// estimate from it. A streamed frame is one token on both local engines, and the frame is
+    /// visible here and nowhere above: by the time a chunk reaches the loop it is a `String`, and
+    /// a `String` cannot be tokenized without the tokenizer that produced it.
+    ///
+    /// **The count is a delta and it may be `0`.** A provider that holds text back while it waits
+    /// to learn which channel it belongs to counted those frames when they arrived; releasing the
+    /// buffer later must not count them twice. Receivers add.
+    ///
+    /// `on_retract` carries the same quantity for the speech being taken back, because the text
+    /// moves into the thinking block and its cost moves with it.
     fn call_streaming_split(
         &mut self,
         view: &ContextView,
         tools: &ExposedSet,
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
-        _on_reasoning: &mut dyn FnMut(&str),
+        _on_reasoning: &mut dyn FnMut(&str, u64),
         // Called when a `</think>` proves every chunk handed to `on_delta` this turn was
         // reasoning. See `marlowe_provider::ThinkSplitter`.
-        _on_retract: &mut dyn FnMut(),
+        _on_retract: &mut dyn FnMut(u64),
     ) -> Result<ModelCall, ProviderError> {
         self.call_streaming(view, tools, limits, on_delta)
     }

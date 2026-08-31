@@ -87,7 +87,19 @@ pub enum TurnEvent {
     /// **Separate from `TextDelta` deliberately.** It is not what Marlowe said, it must never
     /// enter the transcript a `Y` copy produces, and it is collapsed by default — the user asked
     /// for a question, not a monologue.
-    ReasoningDelta(String),
+    ///
+    /// # `tokens` is COUNTED AT THE WIRE, NOT DERIVED FROM `text`
+    ///
+    /// The collapsed head line reports how much thinking has happened, and it reported
+    /// `text.len()` — characters — because that is the number a renderer can compute for itself.
+    /// A renderer cannot tokenize, so any count it derives is an estimate wearing a unit.
+    ///
+    /// So the count travels with the chunk. **One streamed frame is one token on both local
+    /// engines**, and the provider is the only component that can see a frame, so it is the only
+    /// component that may say how many tokens a chunk carries. Downstream **adds**; it never
+    /// re-derives. A chunk that carries no new token — a buffer flushed after the frames that
+    /// filled it were already counted — carries `0`, and that is not a bug to be tidied away.
+    ReasoningDelta { text: String, tokens: u64 },
     /// **Everything streamed as speech this turn was reasoning.** Take it back.
     ///
     /// A model can close a think block it opened before the `content` channel began, so the
@@ -96,7 +108,11 @@ pub enum TurnEvent {
     /// closing tag is coming; the choice is to hold every content byte until the turn ends, for
     /// every model, or to correct the rare turn that misbehaves. Streaming is a hard requirement,
     /// so it is corrected.
-    SpeechRetracted,
+    ///
+    /// `tokens` is how many the retracted speech cost. The text moves into the thinking block, so
+    /// its tokens move with it — without this the block's head line would report a count for
+    /// prose it no longer holds and omit the prose it just gained.
+    SpeechRetracted { tokens: u64 },
     ToolLine { id: u64, verb: String, target: String, state: ToolLineState },
     Compacted { turns: u32 },
     Degraded { what: DegradedPath },

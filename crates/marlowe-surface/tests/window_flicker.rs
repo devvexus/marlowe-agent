@@ -25,7 +25,7 @@ fn a_second_render_of_the_same_state_changes_not_one_cell() {
         // Real content, not an empty run: a blank window is the case that passes for free.
         app.update(with_output(vec![
             Entry::Said(Speech::Model("## Findings\n\nThree of the four sources agree.".into())),
-            Entry::Reasoning { text: "weighing the fourth".into(), done: true },
+            Entry::Reasoning { text: "weighing the fourth".into(), tokens: 4, done: true },
         ]));
 
         let mut term = common::terminal(w, h);

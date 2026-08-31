@@ -402,7 +402,9 @@ impl TurnSink for QuarantinedSink<'_> {
     fn emit(&mut self, event: TurnEvent) {
         match event {
             // The three that carry model prose derived from the pages in this child's window.
-            TurnEvent::TextDelta(_) | TurnEvent::ReasoningDelta(_) | TurnEvent::SpeechRetracted => {}
+            TurnEvent::TextDelta(_)
+            | TurnEvent::ReasoningDelta { .. }
+            | TurnEvent::SpeechRetracted { .. } => {}
             other => self.inner.emit(other),
         }
     }
@@ -1004,12 +1006,16 @@ impl<S: PathScope> Engine<S> {
                 let mut on_delta = |chunk: &str| {
                     sink.borrow_mut().emit(TurnEvent::TextDelta(chunk.to_string()));
                 };
-                let mut on_reasoning = |chunk: &str| {
+                // `tokens` is the provider's, never this closure's. A chunk with `0` is one whose
+                // tokens were already counted when the frames that produced them arrived — a
+                // buffer released late, or a count the engine reports only at the end of a call.
+                let mut on_reasoning = |chunk: &str, tokens: u64| {
                     reasoning_buf.borrow_mut().push_str(chunk);
-                    sink.borrow_mut().emit(TurnEvent::ReasoningDelta(chunk.to_string()));
+                    sink.borrow_mut()
+                        .emit(TurnEvent::ReasoningDelta { text: chunk.to_string(), tokens });
                 };
-                let mut on_retract = || {
-                    sink.borrow_mut().emit(TurnEvent::SpeechRetracted);
+                let mut on_retract = |tokens: u64| {
+                    sink.borrow_mut().emit(TurnEvent::SpeechRetracted { tokens });
                 };
                 driver.call_streaming_split(
                     &view,

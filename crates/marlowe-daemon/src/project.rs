@@ -205,6 +205,48 @@ pub(crate) fn classify_degradation(remedy: &str) -> DegradedPath {
 }
 
 /// Fold one turn's events into a view. The transcript grows; nothing else is invented.
+/// **A reasoning block with anything after it has finished thinking.**
+///
+/// # The bug this is, reported from a live session
+///
+/// `▸ thinking… 226 tokens` on a turn that had answered, and it stayed that way. The head line
+/// branches on `done`, and the only thing that set it was `Event::Text` — which checked
+/// `transcript.last_mut()`, so it closed a reasoning block **only while that block was still the
+/// last entry**. A tool line lands on top of it, the next model call opens a *second* block, the
+/// answer closes that one, and the first sits reading `thinking…` forever. Measured off the wire:
+///
+/// ```text
+/// R×58  R0  TOOL(running) TOOL(ok)  R×297  T×9  R0  DONE
+/// ```
+///
+/// A single-call turn was fine, which is why every test of this passed: the block was last when the
+/// answer arrived. **Nothing about the token count caused it** — the same turn read
+/// `thinking… 1688 characters` before, and the unit change is what made a stale line worth
+/// reporting rather than one more thing on screen that had always been slightly wrong.
+///
+/// # One definition, and the window pane already had it
+///
+/// [`crate::watch_client`]'s fold has carried this exact rule since ADR-055 — *"a reasoning block
+/// with anything after it is finished thinking. Marking it `done` is what stops a completed run
+/// showing `thinking…` forever."* The conversation pane never got it. That is the same shape as
+/// the tool-line note thirty lines below, where `control_plane::push` held the rule and this pane
+/// did not, and it is why the sweep lives here rather than as a third `*done = true` at a third
+/// call site.
+///
+/// `finished` closes the **last** block too: a turn that has ended has nothing still thinking, and
+/// a run that stops mid-thought — the nudge exhausted, an interrupt — must not leave the line
+/// claiming work is in progress.
+fn close_finished_reasoning(view: &mut SessionView, finished: bool) {
+    let open_last = if finished { usize::MAX } else { view.transcript.len().saturating_sub(1) };
+    for (i, entry) in view.transcript.iter_mut().enumerate() {
+        if let Entry::Reasoning { done, .. } = entry {
+            if i != open_last {
+                *done = true;
+            }
+        }
+    }
+}
+
 pub fn apply_events(view: &mut SessionView, events: &[Event]) {
     for event in events {
         match event {
@@ -248,12 +290,11 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             // entry per token. This is the half of `Entry::Said` that is legitimately a `String`:
             // it is what the model emitted, and the harness does not get to reword it.
             Event::Text { delta } => {
-                // The first answer token closes the reasoning block: the model has stopped
-                // thinking and started answering, and a block still marked open would keep
-                // claiming work that has finished.
-                if let Some(Entry::Reasoning { done, .. }) = view.transcript.last_mut() {
-                    *done = true;
-                }
+                // **The first answer token closes the reasoning block**, and that is now
+                // [`close_finished_reasoning`]'s job rather than an ad-hoc `*done = true` here.
+                // This arm used to do it, and it did it by looking only at `transcript.last_mut()`
+                // — correct for a one-call turn and wrong for every turn with a tool in it. See
+                // that function's header for the wire trace.
                 match view.transcript.last_mut() {
                     Some(Entry::Said(Speech::Model(s))) => s.push_str(delta),
                     _ => view.transcript.push(Entry::Said(Speech::Model(delta.clone()))),
@@ -269,7 +310,7 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             // colour before the model leaves the think block, because anything that did is put
             // back. The reasoning block is collapsed by default, so the correction reads as the
             // thinking counter growing rather than as text jumping around.
-            Event::SpeechRetracted => {
+            Event::SpeechRetracted { tokens } => {
                 // **Searched for, not assumed to be last.** The first version of this checked
                 // `transcript.last()` only, which held for the event order in its test and not
                 // for the one the provider produced — a tool line or a reasoning delta landing
@@ -290,22 +331,51 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 match view.transcript[..at].iter().rposition(|e| matches!(e, Entry::Reasoning { .. }))
                 {
                     Some(r) => {
-                        if let Entry::Reasoning { text, done } = &mut view.transcript[r] {
+                        if let Entry::Reasoning { text, tokens: total, done } =
+                            &mut view.transcript[r]
+                        {
                             text.push_str(&spoken);
+                            // The cost moves with the text. Without this the block would report a
+                            // count for prose it no longer holds and none for the prose it gained.
+                            *total = total.saturating_add(*tokens);
                             *done = false;
                         }
                     }
-                    None => view
-                        .transcript
-                        .insert(at, Entry::Reasoning { text: spoken, done: false }),
+                    None => view.transcript.insert(
+                        at,
+                        Entry::Reasoning { text: spoken, tokens: *tokens, done: false },
+                    ),
                 }
             }
             // Coalesced into one block, and it opens as soon as the first chunk lands.
-            Event::Reasoning { delta } => match view.transcript.last_mut() {
-                Some(Entry::Reasoning { text, done: false }) => text.push_str(delta),
-                _ => view
+            //
+            // **An empty delta never opens one.** The settlement — what the engine generated and
+            // never streamed — arrives as a chunk with no text, and it belongs to the block the
+            // call already filled, which by then may be marked `done` because an answer token
+            // closed it. Pushing a new entry for it would draw an empty thinking block under a
+            // finished answer; ignoring it would drop the tokens the engine actually counted. So
+            // it goes to the last reasoning block there is, open or closed, and to nothing at all
+            // when a call produced no reasoning.
+            Event::Reasoning { delta, tokens } if delta.is_empty() => {
+                if let Some(Entry::Reasoning { tokens: total, .. }) = view
                     .transcript
-                    .push(Entry::Reasoning { text: delta.clone(), done: false }),
+                    .iter_mut()
+                    .rev()
+                    .find(|e| matches!(e, Entry::Reasoning { .. }))
+                {
+                    *total = total.saturating_add(*tokens);
+                }
+            }
+            Event::Reasoning { delta, tokens } => match view.transcript.last_mut() {
+                Some(Entry::Reasoning { text, tokens: total, done: false }) => {
+                    text.push_str(delta);
+                    *total = total.saturating_add(*tokens);
+                }
+                _ => view.transcript.push(Entry::Reasoning {
+                    text: delta.clone(),
+                    tokens: *tokens,
+                    done: false,
+                }),
             },
             Event::Tool { id, verb, target, state, summary, detail } => {
                 let call = tool_call(*id, verb, target, state, summary, detail.as_deref());
@@ -365,6 +435,9 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
                 view.ambient.elapsed_min = (*elapsed_ms / 60_000) as u32;
                 view.status.state = StatusState::Idle;
                 view.status.detail = outcome.clone();
+                // The turn is over, so nothing is still thinking — including a block that ended
+                // the turn without an answer after it (the nudge exhausted, an interrupt).
+                close_finished_reasoning(view, true);
             }
             Event::Run { id, status, tokens, depth, .. } => {
                 upsert_run(
@@ -447,6 +520,14 @@ pub fn apply_events(view: &mut SessionView, events: &[Event]) {
             Event::RunOutput { .. } => {}
         }
     }
+    // **Once per batch, not once per event.** The sweep reads the whole transcript, and a live
+    // turn hands this function a batch every 50 ms; running it inside the loop would walk the
+    // transcript once per streamed token for no additional truth.
+    //
+    // `false`, because a batch ending mid-turn leaves the last block legitimately open — that is
+    // the `thinking…` state, and it is the one this must not close. `Event::Done` is what closes
+    // the last one, in its own arm.
+    close_finished_reasoning(view, false);
 }
 
 fn tool_call(

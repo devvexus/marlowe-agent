@@ -111,20 +111,34 @@ fn reasoning_goes_to_the_reasoning_channel_and_never_to_the_reply() {
     // every byte of it nowhere.
     let mut speech = String::new();
     let mut reasoning = String::new();
+    let mut reasoning_tokens = 0u64;
     let call = driver(TOOL_CALL_WIRE)
         .call_streaming_split(
             &view(),
             &tools(),
             limits(),
             &mut |d| speech.push_str(d),
-            &mut |r| reasoning.push_str(r),
-            &mut || {},
+            &mut |r, t| {
+                reasoning.push_str(r);
+                reasoning_tokens += t;
+            },
+            &mut |_| {},
         )
         .expect("the scripted stream decodes");
 
     assert_eq!(reasoning, "The user wants the file.");
     assert!(speech.is_empty(), "a turn that called a tool did not answer: {speech:?}");
     assert!(matches!(call.step, ModelStep::ToolCall { .. }));
+
+    // **The count is the engine's, not the fold's, and this transcript proves the difference.**
+    // Two reasoning chunks arrived; the server said it generated 41 tokens. A count of chunks
+    // reports `2` for a turn that spent 41 — the failure this whole mechanism exists to remove.
+    // The 39 the server counted and never streamed are the tool call it emitted and the
+    // delimiters around it, and this turn never answered, so they are thinking.
+    assert_eq!(
+        reasoning_tokens, 41,
+        "the settlement must charge what the engine says it generated, not what it streamed"
+    );
 }
 
 #[test]
@@ -208,8 +222,8 @@ fn speech_is_held_until_the_think_block_is_known_shut_and_a_close_tag_never_reac
             &tools(),
             limits(),
             &mut |d| speech.push(d.to_string()),
-            &mut |r| reasoning.push_str(r),
-            &mut || retracted = true,
+            &mut |r, _| reasoning.push_str(r),
+            &mut |_| retracted = true,
         )
         .expect("decodes");
 
@@ -336,4 +350,102 @@ fn the_transport_saw_the_body_the_driver_actually_built() {
         "without this the token counts above never arrive"
     );
     assert_eq!(sent[0]["tools"][0]["function"]["name"], serde_json::json!("read"));
+}
+/// **`timings_per_token` is the whole reason this counter can be called exact.**
+///
+/// Without it `usage` arrives once, on the last chunk, and a thinking line would sit still for the
+/// length of a turn and then jump. With it every chunk carries the engine's running `predicted_n`,
+/// so the number on screen is the model's own count while the model is still producing it.
+///
+/// The wire below is deliberately **not** one token per chunk: `predicted_n` steps 1, 3, 4, 9. That
+/// is the case a frame count gets wrong, and it is not hypothetical — Ollama's thinking channel
+/// does exactly this, measured 3-10% low. Charging the *increment* to the channel the chunk fed is
+/// what makes the chunk shape irrelevant.
+#[test]
+fn the_engines_running_count_is_charged_to_the_channel_the_chunk_fed() {
+    let wire = concat!(
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"one \"}}],",
+        "\"timings\":{\"predicted_n\":1}}\n\n",
+        // Two tokens in one chunk. A frame count reads 1 here and is already wrong.
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"two three\"}}],",
+        "\"timings\":{\"predicted_n\":3}}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}],",
+        "\"timings\":{\"predicted_n\":4}}\n\n",
+        // Five generated and never streamed: a closing delimiter and a stop sequence. The last
+        // channel open was speech, so they belong to no thinking block and are not charged to one.
+        "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":9},",
+        "\"timings\":{\"prompt_n\":11,\"predicted_n\":9,\"prompt_ms\":1.0,\"predicted_ms\":2.0}}\n\n",
+        "data: [DONE]\n\n",
+    );
+    let mut speech = String::new();
+    let mut reasoning = String::new();
+    let mut reasoning_tokens = 0u64;
+    driver(wire)
+        .call_streaming_split(
+            &view(),
+            &tools(),
+            limits(),
+            &mut |d| speech.push_str(d),
+            &mut |r, t| {
+                reasoning.push_str(r);
+                reasoning_tokens += t;
+            },
+            &mut |_| {},
+        )
+        .expect("decodes");
+
+    assert_eq!(reasoning, "one two three");
+    assert_eq!(speech, "hi");
+    // 1 + 2. **Not 2**, which is what counting chunks gives, and not 13, which is what counting
+    // characters gives — the two numbers this line has reported in its life, neither of them a
+    // token count.
+    assert_eq!(reasoning_tokens, 3, "the increment, not the chunk, is the token count");
+}
+
+/// The negative control for the test above: **take the engine's counter off the wire and the
+/// number changes.**
+///
+/// Same three chunks, same text, no `timings` anywhere. The fold falls back to one token per chunk
+/// and reads `2` where the engine would have said `3`. That degradation is deliberate — wrong by a
+/// little beats frozen at zero, which reads as a hung model — and pinning it here is what stops
+/// the fallback quietly becoming the only path.
+#[test]
+fn without_the_engines_counter_the_fold_falls_back_to_one_per_chunk() {
+    let wire = concat!(
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"one \"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"two three\"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n",
+        "data: [DONE]\n\n",
+    );
+    let mut reasoning_tokens = 0u64;
+    driver(wire)
+        .call_streaming_split(
+            &view(),
+            &tools(),
+            limits(),
+            &mut |_| {},
+            &mut |_, t| reasoning_tokens += t,
+            &mut |_| {},
+        )
+        .expect("decodes");
+
+    assert_eq!(
+        reasoning_tokens, 2,
+        "no counter on the wire means one charge per chunk, which is the weaker answer"
+    );
+}
+
+/// **The request has to ASK for the per-token timings, or none of the above happens.**
+///
+/// Instance #16's question — *is there a line of code that reads this control?* — asked in the
+/// other direction: is there a line that WRITES it. A fold reading `predicted_n` from chunks that
+/// never carry it degrades silently to a chunk count, and every test above stays green.
+#[test]
+fn the_request_asks_for_per_token_timings() {
+    let body = driver(TOOL_CALL_WIRE).request_body(&view(), &tools(), limits());
+    assert_eq!(
+        body.get("timings_per_token").and_then(serde_json::Value::as_bool),
+        Some(true),
+        "without this the engine reports its count once, at the end: {body}"
+    );
 }

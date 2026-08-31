@@ -624,17 +624,44 @@ impl ModelDriver for OllamaDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
     ) -> Result<ModelCall, ProviderError> {
-        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {}, &mut || {})
+        self.call_streaming_split(view, tools, limits, on_delta, &mut |_, _| {}, &mut |_| {})
     }
 
+    /// # THE TOKEN COUNT, AND WHY A FRAME IS NOT A TOKEN HERE
+    ///
+    /// `daemon.rs` asserted *"one delta is one token — Ollama sends one frame per token"* and
+    /// `STATE.md` recorded that nothing measured it. Measured now, against `llama-server
+    /// /tokenize` on the same GGUF blob, and **it is false on the thinking channel**:
+    ///
+    /// | prompt | thinking frames | exact tokens |
+    /// |---|---|---|
+    /// | `Say hi.` | 116 | 120 |
+    /// | `What is 2+2?` | 179 | 200 |
+    /// | `Name one primary colour.` | 236 | 250 |
+    ///
+    /// Identical across three repetitions of one prompt, so it is not the client being slow:
+    /// Ollama's own thinking parser buffers a whitespace-leading token and flushes it joined to
+    /// the next one, so one frame carries two tokens' worth of text — visible in a raw frame dump
+    /// as a newline pair arriving glued to the digit after it, and two spaces glued to the
+    /// emphasis marker after them. `/v1/chat/completions` merges identically, so there is no
+    /// endpoint to move to. On the **content** channel a frame is exactly one token (60 frames,
+    /// `eval_count` 61, the extra being the stop token).
+    ///
+    /// So a frame count is a **lower bound**, and it is used as one: it ticks while the call runs
+    /// because a number that moves is the point of the line, and when `done` arrives the block is
+    /// corrected to the engine's own `eval_count`. The rule for that correction is
+    /// [`ModelDriver::call_streaming_split`]'s and holds for every model: **a token the engine
+    /// counted but never streamed belongs to the channel that was open.** No template constant is
+    /// subtracted, because `</think>` costs a different number of tokens in a different vocabulary
+    /// and a constant measured on one model is not a fact about another.
     fn call_streaming_split(
         &mut self,
         view: &ContextView,
         tools: &ExposedSet,
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
 
@@ -706,6 +733,18 @@ impl ModelDriver for OllamaDriver {
         let mut tool_calls: Vec<serde_json::Value> = Vec::new();
         let mut usage = Usage { prompt_tokens: 0, completion_tokens: 0, micros_usd: 0, wall_ms: 0 };
 
+        // ── THE TOKEN LEDGER FOR THIS CALL ──────────────────────────────────────────────
+        //
+        // Every streamed frame is one token spent, and it is spent on exactly one channel. The
+        // three counters below and `usage.completion_tokens` are the whole accounting: what the
+        // engine says it generated, minus what went to the answer, is what the thinking cost.
+        //
+        // `held_tokens` is the frames sitting in `held` — counted when they arrived, so that the
+        // buffer's eventual release adds text without adding a second count for the same tokens.
+        let mut reasoning_tokens: u64 = 0;
+        let mut speech_tokens: u64 = 0;
+        let mut held_tokens: u64 = 0;
+
         while let Some(frame) = stream.next_value() {
             // LOOP-EXEMPT: consuming a response stream, not a driving loop.
             let frame = frame.map_err(|e| ProviderError {
@@ -725,10 +764,17 @@ impl ModelDriver for OllamaDriver {
                 // **Reasoning models put their chain of thought here, not in `content`.**
                 // `qwen3.5:9b` emitted 2,615 of 2,862 frames with an empty `content` — all of the
                 // work was in `thinking`, and none of it was visible. Ollama has used both spellings.
+                // **One frame is one token, charged once.** The loop reads three spellings of
+                // the same channel; a frame carrying two of them is still one token, so the
+                // charge goes on the first emit and every later one this frame carries `0`.
+                let mut frame_charged = false;
                 for field in ["thinking", "reasoning", "reasoning_content"] {
                     if let Some(r) = msg.get(field).and_then(|r| r.as_str()) {
                         if !r.is_empty() {
-                            on_reasoning(r);
+                            let charge = u64::from(!frame_charged);
+                            frame_charged = true;
+                            reasoning_tokens += charge;
+                            on_reasoning(r, charge);
                             // The provider is separating the channels, so whatever arrives in
                             // `content` is outside the block. See `closed`'s header.
                             closed = true;
@@ -737,12 +783,19 @@ impl ModelDriver for OllamaDriver {
                 }
                 if let Some(c) = msg.get("content").and_then(|c| c.as_str()) {
                     if !c.is_empty() {
+                        // This frame's one token, charged to whichever channel the splitter
+                        // sends it to. A frame that straddles `</think>` pays once, on the
+                        // reasoning side, because that is where the boundary token was produced.
+                        let mut charge = u64::from(!frame_charged);
                         let split = splitter.feed(c);
                         if split.retract_speech {
                             // A `</think>` proved everything before it was reasoning.
                             if !held.is_empty() {
                                 // Held, never rendered — route it and move on, nothing to undo.
-                                on_reasoning(&held);
+                                // Its tokens were charged as the frames arrived; the release
+                                // carries `0` so they are not counted a second time.
+                                reasoning_tokens += held_tokens;
+                                on_reasoning(&held, std::mem::take(&mut held_tokens));
                                 held.clear();
                             }
                             if !text.is_empty() {
@@ -752,25 +805,37 @@ impl ModelDriver for OllamaDriver {
                                 // shape was fixed — kept because "measured as not occurring" is a
                                 // statement about one model on one day.
                                 text.clear();
-                                on_retract();
+                                // The speech is moving into the thinking block, so its cost
+                                // moves with it. Both ledgers, or the total stops adding up.
+                                reasoning_tokens += speech_tokens;
+                                on_retract(std::mem::take(&mut speech_tokens));
                             }
                             closed = true;
                         }
                         for seg in &split.segments {
                             match seg {
-                                crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                                crate::think::Segment::Reasoning(r) => {
+                                    reasoning_tokens += charge;
+                                    on_reasoning(r, std::mem::take(&mut charge));
+                                }
                                 crate::think::Segment::Speech(t) => {
                                     if closed {
                                         // The block is known shut. This is the answer; it streams.
+                                        speech_tokens += std::mem::take(&mut charge);
                                         on_delta(t);
                                         text.push_str(t);
                                     } else {
                                         // Undecided. Held, and NOT rendered.
+                                        held_tokens += std::mem::take(&mut charge);
                                         held.push_str(t);
                                     }
                                 }
                             }
                         }
+                        // A frame the splitter swallowed whole — a partial tag, buffered inside
+                        // `feed` — still cost a token. It is owed to whichever channel resolves
+                        // it, and `held` is where unresolved text waits.
+                        held_tokens += charge;
                     }
                 }
                 if let Some(calls) = msg.get("tool_calls").and_then(|t| t.as_array()) {
@@ -795,9 +860,12 @@ impl ModelDriver for OllamaDriver {
         // A fragment held back in case it grew into a tag was ordinary text after all. It joins
         // the buffer rather than bypassing it — a tail that streamed straight to the surface would
         // be the one path where unresolved content still reached the response colour.
+        // **Charged `0`, and that is the accounting working rather than a gap in it.** These
+        // segments are the splitter's own buffer, and every frame that filled it was charged as
+        // it arrived. `held_tokens` is where those charges are, and it is settled below.
         for seg in &splitter.finish().segments {
             match seg {
-                crate::think::Segment::Reasoning(r) => on_reasoning(r),
+                crate::think::Segment::Reasoning(r) => on_reasoning(r, 0),
                 crate::think::Segment::Speech(t) => {
                     if closed {
                         on_delta(t);
@@ -817,12 +885,36 @@ impl ModelDriver for OllamaDriver {
         // `thinking` field and the buffer is the reply.
         if !held.is_empty() {
             if tool_calls.is_empty() && (closed || !splitter.saw_any_tag()) {
+                speech_tokens += std::mem::take(&mut held_tokens);
                 on_delta(&held);
                 text.push_str(&held);
             } else {
-                on_reasoning(&held);
+                reasoning_tokens += held_tokens;
+                on_reasoning(&held, std::mem::take(&mut held_tokens));
             }
             held.clear();
+        }
+        // Nothing claimed the buffer, so nothing was rendered from it either. The tokens were
+        // still generated, and the rule sends an unclaimed token to the thinking side.
+        reasoning_tokens += std::mem::take(&mut held_tokens);
+
+        // ── THE CORRECTION, FROM THE ENGINE'S OWN COUNT ─────────────────────────────────
+        //
+        // `eval_count` is what Ollama says it generated. `speech_tokens` is the answer, and a
+        // content frame is exactly one token — measured. Everything else the engine counted and
+        // did not stream is thinking: the delimiters the parser ate, and the whitespace tokens it
+        // merged into a later frame.
+        //
+        // Emitted as a reasoning chunk with **no text**, so the receiver's rule stays "add what
+        // you are given" and no second event has to exist for a number that arrives late. It is
+        // skipped when this call produced no reasoning at all: a run with a stop token and
+        // nothing else must not conjure a thinking block that never existed.
+        if reasoning_tokens > 0 {
+            let streamed = reasoning_tokens.saturating_add(speech_tokens);
+            let owed = usage.completion_tokens.saturating_sub(streamed);
+            if owed > 0 {
+                on_reasoning("", owed);
+            }
         }
 
         // Reassembled into the same shape the non-streaming path produced, so `parse_step` is

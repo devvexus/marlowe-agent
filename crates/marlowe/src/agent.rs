@@ -585,7 +585,7 @@ fn resolve_retractions(events: &[Event]) -> Vec<Event> {
     let mut out: Vec<Event> = Vec::with_capacity(events.len());
     for event in events {
         match event {
-            Event::SpeechRetracted => out.retain(|e| !matches!(e, Event::Text { .. })),
+            Event::SpeechRetracted { .. } => out.retain(|e| !matches!(e, Event::Text { .. })),
             other => out.push(other.clone()),
         }
     }
@@ -660,7 +660,7 @@ fn render_to(events: &[Event], out: &mut impl std::io::Write) -> std::io::Result
             // piped stdout would make `--ask` unusable in a script.
             Event::Reasoning { .. } => {}
             // Already applied by `resolve_retractions`, above.
-            Event::SpeechRetracted => {}
+            Event::SpeechRetracted { .. } => {}
             // ── `detail` IS BOUND, NOT SWEPT INTO THE `..`. THE DECISION IS BELOW. ──────────
             //
             // This arm read `{ verb, target, state, summary, .. }`, so adding `detail` to

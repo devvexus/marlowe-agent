@@ -369,12 +369,40 @@ requirements only when the design docs do not answer the question.
   **17** — a zero budget dimension read as a floor rather than a ceiling (ADR-041).
   **18** — a prescribed diagnostic retired by the change that made it matter, going **green** as it
   went (M3 B2; the first committed against this file). **19** — a self-check that cannot see its own
-  list shrink (M3 B3).
+  list shrink (M3 B3). **20** — a documented claim about a server that nothing measured, and it was
+  wrong (ADR-072, below).
 
-  **Nineteen, and the shape has not changed once.** Every one is a measurement answering a question
+  **Twenty, and the shape has not changed once.** Every one is a measurement answering a question
   *adjacent* to the one being asked. What changes is where it hides: in code, in a default, in a
-  verification method, in a measurement target, in a guard, in a status line, and twice now in this
-  document's own prescriptions.
+  verification method, in a measurement target, in a guard, in a status line, twice in this
+  document's own prescriptions, and once in a sentence that was never a measurement at all.
+
+- **A CLAIM ABOUT A SERVER IS NOT A MEASUREMENT, AND THIS ONE WAS FLAGGED AS UNMEASURED AND
+  BELIEVED ANYWAY.** The **twentieth** instance, found building the thinking line's token count
+  (ADR-072), and the first where the ledger's own rule had already been applied and did not save it.
+
+  `daemon.rs` said *"one delta is one token on both local engines — Ollama sends one frame per
+  token"*; `protocol.rs` said it too; and `STATE.md` said, in as many words, *"nothing measures it.
+  That is an assumption about a server."* Measured against `llama-server /tokenize` on the same GGUF
+  blob Ollama was serving: the **thinking** channel runs **3–10% low** — 116 frames for 120 tokens,
+  179 for 200, 236 for 250 — deterministically, because Ollama's own parser merges a
+  whitespace-leading token into the next frame. The **content** channel is exactly 1:1.
+
+  **Nothing was broken, which is why it survived.** That count feeds the cadence band, which reports
+  a **rate**, and as throughput it is right. The sentence beside it answered the *adjacent* question
+  — *how many chunks arrived* rather than *how many tokens were spent* — and the two read
+  identically until a second consumer needed spend. Then it was a 10% error on a number a user reads.
+
+  **The instrument was one command and it was available the whole time.** `llama-server` bundles
+  with Ollama and exposes `/tokenize`; the control `eval_count == tokenize(thinking) +
+  tokenize(content)` came back with **residual 0** on three runs. What was missing was not a tool but
+  the step from *"nothing measures this"* to measuring it.
+
+  **Ask of any sentence describing what a server does: is there a run behind it?** A claim flagged as
+  unverified is not thereby harmless — it is quoted with the flag stripped. And the fix for an
+  adjacent number is rarely to correct it: `Cadence::tokens` still counts deltas, because a rate's
+  numerator must be what arrived while the clock ran. It now says which question it answers, and the
+  exact quantity lives on a different field.
 
 - **A SELF-REFERENTIAL LIST CANNOT DETECT ITS OWN DELETIONS.** The **nineteenth** instance, found by
   mutation in M3 Session B3, and it is one causal step *earlier* than instance #14 rather than a
@@ -619,6 +647,22 @@ requirements only when the design docs do not answer the question.
   Generalised: **a guard is a claim about a path, and a claim about a path needs a test that the
   path is still there.** Ask of any protective mechanism — what would this report if its subject
   moved? If the answer is "nothing", the mechanism is a comment.
+
+- **TWO PANES, ONE RULE, AND ONLY ONE OF THEM HAS IT — `project.rs` has now been the one without
+  it twice.** ADR-055 gave `control_plane::push` *"a tool line REPLACES its own earlier frame"*;
+  the conversation pane drew two lines per call until someone noticed. ADR-055 also gave
+  `watch_client::entries()` *"a reasoning block with anything after it is finished thinking"*; the
+  conversation pane showed `thinking…` under a finished answer until a live session reported it
+  (2026-08-31, ADR-072 §6c). **Both times the rule was written down, in a comment, in a sibling
+  fold, and the second fold was written without it.**
+
+  The reason it survives is that the two folds are tested separately and each is green. Nothing
+  compares them, and nothing renders the *other* one's hard case — a single-call turn closed
+  correctly, so every test of the conversation pane passed.
+
+  **When you write a second fold over the same vocabulary, diff it against the first one's arms**,
+  and treat a rule that exists in only one of them as a bug in the other until you can say why the
+  panes differ.
 
 - **A boundary is not verified until something crosses it. M2 produced this a second time, and
   the first real run is what found it.** Four of the eleven tools — `done`, `ask`, `remember`,

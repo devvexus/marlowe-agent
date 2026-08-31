@@ -160,8 +160,8 @@ fn reasoning_goes_to_the_reasoning_channel_and_never_to_the_reply() {
             &tools(),
             limits(),
             &mut |d| speech.push_str(d),
-            &mut |r| thought.push_str(r),
-            &mut || {},
+            &mut |r, _| thought.push_str(r),
+            &mut |_| {},
         )
         .expect("the call succeeds");
     assert_eq!(thought, "the user wants notes.md");

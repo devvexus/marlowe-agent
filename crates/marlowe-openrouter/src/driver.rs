@@ -299,7 +299,7 @@ impl ModelDriver for OpenRouterDriver {
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
     ) -> Result<ModelCall, ProviderError> {
-        self.call_streaming_split(view, tools, limits, on_delta, &mut |_| {}, &mut || {})
+        self.call_streaming_split(view, tools, limits, on_delta, &mut |_, _| {}, &mut |_| {})
     }
 
     fn call_streaming_split(
@@ -308,8 +308,8 @@ impl ModelDriver for OpenRouterDriver {
         tools: &ExposedSet,
         limits: CallLimits,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) -> Result<ModelCall, ProviderError> {
         let body = self.request_body(view, tools, limits);
         if let Some(sink) = self.request_dump.as_mut() {
@@ -421,8 +421,8 @@ impl OpenRouterDriver {
         body: &mut dyn BufRead,
         acc: &mut Accumulator,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) -> Result<(), ProviderError> {
         let mut stream = crate::sse::SseStream::new(body);
         // LOOP-EXEMPT: consuming a response stream, not a driving loop.
@@ -484,6 +484,17 @@ struct Accumulator {
     /// think block and may stream — the same rule the Ollama adapter measured.
     closed: bool,
     held: String,
+    /// Tokens charged to each channel, and the total charged so far. A remote provider batches
+    /// tokens into a chunk as it pleases, so a chunk here is **one charge, not one token** while
+    /// the stream runs; `usage` arrives at the end and settles the difference. See
+    /// [`Accumulator::finish`].
+    reasoning_charged: u64,
+    speech_charged: u64,
+    held_charged: u64,
+    charged: u64,
+    /// Which channel was open when the last chunk landed, so the settlement knows where the
+    /// tokens the provider counted but never streamed belong.
+    last_was_reasoning: bool,
 }
 
 #[derive(Default, Clone)]
@@ -501,6 +512,11 @@ impl Accumulator {
             tool_calls: BTreeMap::new(),
             call: CallAttribution::requested(model),
             attempts: 1,
+            reasoning_charged: 0,
+            speech_charged: 0,
+            held_charged: 0,
+            charged: 0,
+            last_was_reasoning: true,
             // **Starts CLOSED, unlike the Ollama path, and the difference is measured rather than
             // assumed.** Ollama's chat template emits the opening `<think>` before the stream
             // begins, so content can start inside a block that was never announced. OpenRouter's
@@ -516,8 +532,8 @@ impl Accumulator {
         &mut self,
         value: &serde_json::Value,
         on_delta: &mut dyn FnMut(&str),
-        on_reasoning: &mut dyn FnMut(&str),
-        on_retract: &mut dyn FnMut(),
+        on_reasoning: &mut dyn FnMut(&str, u64),
+        on_retract: &mut dyn FnMut(u64),
     ) {
         // ── attribution, from whichever chunk carries it ───────────────────────────────
         //
@@ -562,10 +578,17 @@ impl Accumulator {
         // ── reasoning ──────────────────────────────────────────────────────────────────
         // OpenRouter normalises every upstream's chain of thought into `reasoning`. Some models
         // also send `reasoning_content`. Both are read; neither is required.
+        // One charge per chunk, on the first channel it feeds.
+        let mut chunk_charged = false;
         for field in ["reasoning", "reasoning_content"] {
             if let Some(r) = delta.get(field).and_then(|r| r.as_str()) {
                 if !r.is_empty() {
-                    on_reasoning(r);
+                    let charge = u64::from(!chunk_charged);
+                    chunk_charged = true;
+                    self.charged += charge;
+                    self.reasoning_charged += charge;
+                    self.last_was_reasoning = true;
+                    on_reasoning(r, charge);
                     self.closed = true;
                 }
             }
@@ -573,31 +596,48 @@ impl Accumulator {
 
         if let Some(c) = delta.get("content").and_then(|c| c.as_str()) {
             if !c.is_empty() {
+                let mut charge = u64::from(!chunk_charged);
+                self.charged += charge;
                 let split = self.splitter.feed(c);
                 if split.retract_speech {
                     if !self.held.is_empty() {
-                        on_reasoning(&self.held);
-                        self.held.clear();
+                        let held = std::mem::take(&mut self.held);
+                        let owed = std::mem::take(&mut self.held_charged);
+                        self.reasoning_charged += owed;
+                        on_reasoning(&held, owed);
                     }
                     if !self.text.is_empty() {
                         self.text.clear();
-                        on_retract();
+                        let owed = std::mem::take(&mut self.speech_charged);
+                        self.reasoning_charged += owed;
+                        on_retract(owed);
                     }
                     self.closed = true;
                 }
                 for seg in &split.segments {
                     match seg {
-                        marlowe_provider::Segment::Reasoning(r) => on_reasoning(r),
+                        marlowe_provider::Segment::Reasoning(r) => {
+                            let owed = std::mem::take(&mut charge);
+                            self.reasoning_charged += owed;
+                            self.last_was_reasoning = true;
+                            on_reasoning(r, owed);
+                        }
                         marlowe_provider::Segment::Speech(t) => {
                             if self.closed {
+                                self.speech_charged += std::mem::take(&mut charge);
+                                self.last_was_reasoning = false;
                                 on_delta(t);
                                 self.text.push_str(t);
                             } else {
+                                self.held_charged += std::mem::take(&mut charge);
                                 self.held.push_str(t);
                             }
                         }
                     }
                 }
+                // Swallowed by the splitter's partial-tag buffer; owed to whichever channel
+                // resolves it.
+                self.held_charged += charge;
             }
         }
 
@@ -632,11 +672,21 @@ impl Accumulator {
         }
     }
 
-    fn finish(&mut self, on_delta: &mut dyn FnMut(&str), on_reasoning: &mut dyn FnMut(&str)) {
+    /// Flush the buffers, then settle the count against what the provider says it generated.
+    ///
+    /// # A remote chunk is not a token, and unlike the local engines this one says so
+    ///
+    /// Every upstream batches tokens into SSE chunks differently, so the running charge here is a
+    /// count of chunks and is a **lower bound**. `usage.completion_tokens` is the provider's own
+    /// figure and arrives on the last chunk; the difference is what it counted and did not stream
+    /// in a shape this could attribute. It goes to the channel that was open, which is
+    /// [`ModelDriver::call_streaming_split`]'s rule and the same one both local adapters follow.
+    fn finish(&mut self, on_delta: &mut dyn FnMut(&str), on_reasoning: &mut dyn FnMut(&str, u64)) {
         let split = self.splitter.finish();
         for seg in &split.segments {
             match seg {
-                marlowe_provider::Segment::Reasoning(r) => on_reasoning(r),
+                // `0`: charged when the chunks that filled the buffer arrived.
+                marlowe_provider::Segment::Reasoning(r) => on_reasoning(r, 0),
                 marlowe_provider::Segment::Speech(t) => {
                     if self.closed {
                         on_delta(t);
@@ -652,12 +702,22 @@ impl Accumulator {
             // narration and belongs with the reasoning. Same rule as the Ollama adapter's.
             if self.tool_calls.is_empty() && (self.closed || !self.splitter.saw_any_tag()) {
                 let held = std::mem::take(&mut self.held);
+                self.speech_charged += std::mem::take(&mut self.held_charged);
                 on_delta(&held);
                 self.text.push_str(&held);
             } else {
                 let held = std::mem::take(&mut self.held);
-                on_reasoning(&held);
+                let owed = std::mem::take(&mut self.held_charged);
+                self.reasoning_charged += owed;
+                on_reasoning(&held, owed);
             }
+        }
+
+        let owed = self.call.completion_tokens.saturating_sub(self.charged);
+        if owed > 0 && self.last_was_reasoning {
+            self.charged = self.call.completion_tokens;
+            self.reasoning_charged += owed;
+            on_reasoning("", owed);
         }
     }
 

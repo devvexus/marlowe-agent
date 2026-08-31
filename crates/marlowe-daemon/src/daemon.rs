@@ -393,8 +393,8 @@ pub fn bounded_detail(d: String) -> String {
 fn to_wire(event: TurnEvent) -> Option<Event> {
     Some(match event {
         TurnEvent::TextDelta(t) => Event::Text { delta: t },
-        TurnEvent::ReasoningDelta(t) => Event::Reasoning { delta: t },
-        TurnEvent::SpeechRetracted => Event::SpeechRetracted,
+        TurnEvent::ReasoningDelta { text, tokens } => Event::Reasoning { delta: text, tokens },
+        TurnEvent::SpeechRetracted { tokens } => Event::SpeechRetracted { tokens },
             TurnEvent::ToolLine { id, verb, target, state } => {
                 // **The detail died on this line for the whole of M1 and M2**, and both ends of
                 // the path had the field. `ResultSummary::render` is metrics only; `Event::Tool`
@@ -483,8 +483,10 @@ pub fn to_run_frame(e: &Event) -> Option<crate::protocol::RunFrame> {
     use crate::protocol::RunFrame;
     Some(match e {
         Event::Text { delta } => RunFrame::Text { delta: delta.clone() },
-        Event::Reasoning { delta } => RunFrame::Reasoning { delta: delta.clone() },
-        Event::SpeechRetracted => RunFrame::SpeechRetracted,
+        Event::Reasoning { delta, tokens } => {
+            RunFrame::Reasoning { delta: delta.clone(), tokens: *tokens }
+        }
+        Event::SpeechRetracted { tokens } => RunFrame::SpeechRetracted { tokens: *tokens },
         // **`detail` is dropped, and that is ADR-055 being enforced rather than an omission.**
         // `RunFrame`'s own doc says it: *"There is no `ToolResult` variant and there must not be
         // one. What crosses is model prose and the harness's own §B6 summary line."* A `read`
@@ -2553,10 +2555,35 @@ impl Daemon {
         let mut tokens: u64 = 0;
         let mut announced = crate::announce::issued();
         let mut on_event = move |e: Event| {
-            // Counted BEFORE forwarding, so a figure emitted alongside a token includes it. One
-            // delta is one token on both local engines — `ollama.rs` calls `on_delta` once per
-            // NDJSON frame and Ollama sends one frame per token.
-            let is_token = matches!(e, Event::Text { .. } | Event::Reasoning { .. });
+            // ── COUNTED BEFORE FORWARDING, SO A FIGURE EMITTED ALONGSIDE A TOKEN INCLUDES IT ──
+            //
+            // **This comment used to read "one delta is one token on both local engines" and that
+            // was false.** `STATE.md` had already recorded that nothing measured it; measured on
+            // 2026-08-31 against `llama-server /tokenize` on the blob Ollama was serving, the
+            // thinking channel runs **3–10% low** because Ollama's own parser merges a
+            // whitespace-leading token into the next frame. Deterministic across repetitions, and
+            // identical on `/v1/chat/completions`. The numbers are in
+            // `OllamaDriver::call_streaming_split`'s header.
+            //
+            // **What is counted here is deltas, and that is now stated rather than assumed.** The
+            // cadence band reports a RATE, and a rate is a ratio of two quantities measured over
+            // the same interval: the denominator is this process's clock and the numerator is what
+            // this process saw arrive. A count corrected at the end of a call — which is what the
+            // thinking line uses, and what `Event::Reasoning::tokens` carries — cannot feed a
+            // figure that has to be right *while* the call is running.
+            //
+            // So the two numbers are deliberately different quantities, and neither is a proxy for
+            // the other: this one is throughput as observed, `Entry::Reasoning::tokens` is spend as
+            // the engine counted it.
+            // **An empty reasoning delta is not an arrival.** It is the end-of-call settlement —
+            // tokens the engine counted and never streamed — and counting it here would put a
+            // token in the rate's numerator that took no time to arrive. That is the same error
+            // `Cadence::tok_per_s` was carrying a fortnight ago in the denominator.
+            let is_token = match &e {
+                Event::Text { .. } => true,
+                Event::Reasoning { delta, .. } => !delta.is_empty(),
+                _ => false,
+            };
             if is_token {
                 tokens += 1;
             }
@@ -3004,7 +3031,14 @@ impl Daemon {
                         match block.source {
                             marlowe_loop::SourceKind::History => {
                                 if let Some(t) = wire.and_then(|w| w.thinking.as_ref()) {
-                                    on_event(Event::Reasoning { delta: t.clone() });
+                                    // **`0`, and the head line renders that as no number at all.**
+                                    // A replayed turn has the reasoning text; what it cost was
+                                    // never recorded, because `WireTurn` carries what the endpoint
+                                    // documents and a token count is not part of that shape.
+                                    // Inventing one from the string is the estimate this whole
+                                    // change exists to remove, so the field renders as missing —
+                                    // the rule `Event::Approval`'s `novelty` already follows.
+                                    on_event(Event::Reasoning { delta: t.clone(), tokens: 0 });
                                 }
                                 if let Some(c) =
                                     wire.and_then(|w| w.tool_calls.first())
