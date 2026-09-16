@@ -1,22 +1,19 @@
 # Marlowe
 
-**An agent harness — the runtime around a language model that gives it memory, tools, durable
-execution, and earned autonomy.** Terminal-native, local-first, single binary. Not a chat wrapper
-and not a framework.
+A local-first agent harness written in Rust. It gives a language model memory, tools, long-running tasks, and permissions it has to earn. Runs in the terminal as one binary.
 
-> **Everything Marlowe knows, is doing, or has done is a materialized view over one append-only,
-> provenance-signed event log — and the agent loop is a transaction that reads a view, acts, and
-> appends.**
+**How it works**
+- Everything goes into one append-only event log. Each entry is signed and records where it came from.
+- Memory, sessions, running tasks, and the audit trail are all built from that log.
+- Each agent step reads the current state, does one thing, and writes the result back to the log.
+- Replay is just reading the log.
 
-That sentence is the design, and the rest is a consequence of it. Memory is not a store the loop
-calls: the log *is* the substrate. Episodic memory is a fidelity-tiered index over the log,
-semantic memory is a derived belief store rebuildable from it, a session is a partition of it, the
-durable-run WAL is it, and the audit trail is it read directly. Replay is not a feature bolted on —
-it is the log's primary read path.
-
-18 Rust crates · 83k lines of implementation and 46k of tests · 1,749 tests across 157 binaries ·
-72 architecture decision records · one Python evaluation harness that scores the Rust one and is
-never modified to accommodate it.
+**Size**
+- 18 Rust crates
+- 83k lines of code, 46k lines of tests
+- 1,749 tests
+- 72 design decision records
+- A separate Python eval harness scores the Rust build. The harness is never changed to make a score pass.
 
 ---
 
